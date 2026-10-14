@@ -1,0 +1,1082 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex, nofollow">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Barber L’Architecte · Comment ça marche</title>
+<meta name="description" content="Démo privée : le site de réservation de Barber L’Architecte, le Comptoir du salon, et comment une réservation circule de bout en bout.">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400..700&family=Instrument+Serif:ital@0;1&display=swap">
+<style>
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+body{margin:0;background:#0F0E0D}
+.pc{
+--pierre:#D3D0C8;--os:#ECE8E0;--blanc:#F6F3EE;
+--encre:#0F0E0D;--encre2:#171513;--encre3:#211E1B;--encre4:#2B2724;
+--cendre:#ABA59C;--cendre2:#6E685F;
+--ligne:rgba(236,232,224,.12);--ligne2:rgba(236,232,224,.24);
+--iligne:rgba(15,14,13,.12);
+--ok:#4ADE80;--wait:#F5B544;
+--f-serif:'Instrument Serif','Times New Roman',Times,serif;
+--f-sans:'Instrument Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+--ease:cubic-bezier(.2,.7,.2,1);
+--pad:clamp(16px,5vw,72px);
+position:relative;min-height:100vh;font:400 16px/1.5 var(--f-sans);color:var(--os);background:var(--encre);overflow-x:clip;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale
+}
+:where(.pc) *,:where(.pc) *::before,:where(.pc) *::after{box-sizing:border-box}
+:where(.pc) h1,:where(.pc) h2,:where(.pc) h3,:where(.pc) p,:where(.pc) ul,:where(.pc) ol{margin:0;padding:0}
+:where(.pc) ul,:where(.pc) ol{list-style:none}
+:where(.pc) a{color:inherit;text-decoration:none}
+:where(.pc) button{font:inherit;color:inherit;background:none;border:0;padding:0;margin:0;cursor:pointer;text-align:inherit;-webkit-tap-highlight-color:transparent}
+.pc :focus-visible{outline:2.5px solid var(--os);outline-offset:3px}
+.pc em{font-style:italic;color:var(--rouge)}
+.w{width:100%;max-width:1280px;margin:0 auto;padding:0 var(--pad)}
+.pk{display:flex;align-items:center;gap:10px;font:600 12px/1 var(--f-sans);letter-spacing:.12em;text-transform:uppercase;color:var(--cendre)}
+.pk::before{content:"";width:18px;height:1.5px;background:var(--rouge)}
+.h2{margin-top:18px;font:400 clamp(42px,9vw,96px)/.95 var(--f-serif);letter-spacing:-.012em;text-wrap:balance}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:56px;padding:0 28px;border-radius:999px;background:var(--rouge);color:var(--encre);font:600 16px/1 var(--f-sans);white-space:nowrap;transition:background-color .25s,color .25s,box-shadow .25s,transform .25s var(--ease)}
+.btn:hover{background:var(--os)}
+.btn:active{transform:scale(.97)}
+.btn.ghost{background:transparent;color:var(--os);box-shadow:inset 0 0 0 1.5px var(--ligne2)}
+.btn.ghost:hover{box-shadow:inset 0 0 0 1.5px var(--os)}
+
+/* top bar */
+.pc-top{position:absolute;inset:0 0 auto 0;z-index:5;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:max(14px,env(safe-area-inset-top)) var(--pad) 0}
+.pc-wm{display:flex;flex-direction:column;gap:3px;min-height:44px;justify-content:center}
+.pc-wm span{font:italic 400 22px/1 var(--f-serif)}
+.pc-wm small{font:600 10.5px/1 var(--f-sans);letter-spacing:.14em;text-transform:uppercase;color:var(--cendre)}
+.pc-nav{display:flex;gap:6px}
+.pc-nav a{display:inline-flex;align-items:center;min-height:40px;padding:0 14px;border-radius:999px;font:600 13.5px/1 var(--f-sans);box-shadow:inset 0 0 0 1px var(--ligne2);transition:box-shadow .2s,background-color .2s,color .2s}
+.pc-nav a:hover{box-shadow:inset 0 0 0 1px var(--os)}
+.pc-nav a.dk{background:var(--os);color:var(--encre);box-shadow:none}
+.pc-nav a.dk:hover{background:var(--rouge)}
+
+/* hero */
+.pc-hero{padding:clamp(112px,16vw,180px) 0 clamp(56px,8vw,96px)}
+.pc-h1{margin-top:22px;font:400 clamp(60px,15.5vw,176px)/.88 var(--f-serif);letter-spacing:-.02em}
+.pc-lead{max-width:34em;margin-top:24px;font-size:clamp(17px,1.6vw,20px);line-height:1.5;color:var(--cendre)}
+.doors{display:grid;gap:12px;margin-top:clamp(36px,5vw,56px)}
+.door{position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-rows:auto 1fr auto;column-gap:16px;min-height:188px;padding:20px 20px 18px;border-radius:26px;background:var(--encre2);box-shadow:inset 0 0 0 1px var(--ligne);overflow:hidden;transition:background-color .3s,box-shadow .3s,transform .4s var(--ease)}
+.door:hover{background:var(--encre3);box-shadow:inset 0 0 0 1px var(--ligne2)}
+.door:active{transform:scale(.985)}
+.door-k{grid-column:1;font:600 12px/1 var(--f-sans);letter-spacing:.1em;text-transform:uppercase;color:var(--cendre)}
+.door-t{grid-column:1;margin-top:12px;font:400 30px/1 var(--f-serif)}
+.door-go{grid-column:1;grid-row:3;display:inline-flex;align-items:center;gap:8px;margin-top:18px;font:600 15px/1 var(--f-sans)}
+.door-go svg{width:18px;height:18px;transition:transform .35s var(--ease)}
+.door:hover .door-go svg{transform:translateX(4px)}
+.door-ill{grid-column:2;grid-row:1/4;align-self:end;margin:0 -2px -18px 0}
+/* mini phone */
+.mph{display:flex;flex-direction:column;gap:7px;width:96px;height:150px;padding:12px 10px;border-radius:20px 20px 0 0;background:var(--os);box-shadow:0 0 0 5px #000}
+.mph-b{width:30px;height:4px;margin:0 auto 6px;border-radius:9px;background:var(--encre4);opacity:.25}
+.mph-t{font:italic 400 26px/.9 var(--f-serif);color:var(--encre)}
+.mph-l{height:7px;border-radius:4px;background:rgba(15,14,13,.12)}
+.mph-l.s{width:62%}
+.mph-c{display:grid;place-items:center;height:26px;margin-top:auto;border-radius:999px;background:var(--rouge);color:var(--encre);font:700 9.5px/1 var(--f-sans)}
+/* mini comptoir */
+.mck{display:flex;flex-direction:column;gap:8px;width:150px;height:118px;padding:10px;border-radius:14px 14px 0 0;background:#0A0908;box-shadow:inset 0 0 0 1px var(--ligne2)}
+.mck-h{width:56%;height:7px;border-radius:4px;background:var(--ligne2)}
+.mck-g{position:relative;flex:1;display:grid;grid-template-columns:repeat(3,1fr);gap:5px}
+.mck-g i{display:block;border-radius:5px;background:var(--encre4)}
+.mck-g .a{grid-row:span 2}
+.mck-g .b{background:var(--rouge);animation:mckp 2.4s ease-in-out infinite}
+.mck-g .d{grid-row:span 2;background:var(--pierre);opacity:.85}
+@keyframes mckp{50%{opacity:.55}}
+
+/* the test */
+.pc-test{padding:clamp(56px,8vw,96px) 0;border-top:1px solid var(--ligne)}
+.tg{display:grid;gap:28px}
+.tg-r{display:none}
+.steps{display:flex;flex-direction:column;gap:2px;margin-top:28px}
+.steps li{display:flex;gap:16px;padding:16px 0;border-top:1px solid var(--ligne)}
+.steps li>b{flex:none;display:grid;place-items:center;width:34px;height:34px;border-radius:50%;background:var(--encre3);font:400 18px/1 var(--f-serif)}
+.steps li>span{font-size:16px;line-height:1.5;color:var(--cendre)}
+.steps strong{font-weight:600;color:var(--os)}
+.note{margin-top:14px;font-size:13.5px;line-height:1.5;color:var(--cendre)}
+.qr-card{display:flex;flex-direction:column;align-items:flex-start;gap:16px;padding:22px;border-radius:26px;background:var(--encre2);box-shadow:inset 0 0 0 1px var(--ligne)}
+.qr-card p{font-size:15px;line-height:1.5;color:var(--cendre)}
+.qr-ic{display:grid;place-items:center;width:52px;height:52px;border-radius:50%;background:var(--encre3)}
+.qr-ic svg{width:24px;height:24px}
+.qr-img{display:block;width:100%;max-width:220px;aspect-ratio:1;padding:14px;border-radius:20px;background:var(--os)}
+.qr-img svg{display:block;width:100%;height:100%}
+.qr-url{font:600 15px/1.3 var(--f-sans);color:var(--os);word-break:break-all}
+.qr-card.qr-live{display:grid;grid-template-columns:132px minmax(0,1fr);align-items:center;gap:20px}
+.qr-live .qr-img{max-width:none;padding:10px;border-radius:16px}
+.qr-txt{display:flex;flex-direction:column;gap:8px}
+
+/* the simulation */
+.pc-sim{padding-top:clamp(56px,8vw,96px);border-top:1px solid var(--ligne)}
+.sim-head{padding-bottom:12px}
+.sim-hint{max-width:30em;margin-top:18px;font-size:16px;line-height:1.5;color:var(--cendre)}
+.sim-scroll{position:relative;height:540svh}
+.sim{position:sticky;top:0;height:100svh;width:100%;max-width:1280px;margin:0 auto;display:grid;grid-template-rows:auto minmax(0,1fr);gap:12px;padding:max(14px,env(safe-area-inset-top)) var(--pad) max(14px,env(safe-area-inset-bottom))}
+.sim-cap{display:flex;flex-direction:column}
+.sim-n{order:2;margin-top:12px;font:600 11.5px/1 var(--f-sans);letter-spacing:.12em;text-transform:uppercase;color:var(--cendre)}
+.sim-t{order:3;margin-top:8px;font:400 30px/1 var(--f-serif);letter-spacing:-.005em}
+.sim-d{order:4;margin-top:8px;min-height:4.35em;font-size:14px;line-height:1.45;color:var(--cendre)}
+.sim-dots{order:1;display:flex;gap:4px}
+.sim-dots li{flex:1;min-width:0}
+.sim-dots button{position:relative;display:flex;align-items:flex-end;width:100%;height:28px}
+.sim-dots button::after{content:"";display:block;width:100%;height:3px;border-radius:3px;background:var(--ligne2);transition:background-color .35s}
+.sim-dots button.done::after{background:var(--os)}
+.sim-dots button.on::after{background:var(--rouge)}
+.sim-dots b,.sim-dots button>span{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+
+.sim-stage{display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1.12fr) minmax(0,1fr);gap:10px;min-height:0}
+.col{display:flex;flex-direction:column;gap:7px;min-height:0;min-width:0;transition:opacity .45s var(--ease),transform .55s var(--ease)}
+.lbl{flex:none;display:flex;align-items:center;gap:8px;font:600 11px/1 var(--f-sans);letter-spacing:.12em;text-transform:uppercase;color:var(--cendre)}
+.lbl::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--cendre2)}
+.c-ph .lbl::before{background:var(--os)}
+.c-flow .lbl::before{background:var(--wait)}
+.c-ck .lbl::before{background:var(--ok)}
+.c-ph{grid-area:1/1}
+.c-flow,.c-ck{grid-area:2/1}
+
+/* phone */
+.ph{position:relative;flex:1;min-height:0;border-radius:22px;background:var(--blanc);color:var(--encre);overflow:hidden}
+.ph-in{position:relative;height:100%}
+.ph-bar{display:none}
+.scr{position:absolute;inset:0;display:flex;flex-direction:column;padding:14px 16px;
+opacity:min(clamp(0,calc(var(--s) - var(--k) + 1),1),clamp(0,calc(var(--z) - var(--s) + 1),1));
+transform:translateY(calc(clamp(-1,calc(var(--k) - var(--s)),1) * 16px));
+transition:opacity .45s var(--ease),transform .6s var(--ease)}
+.m-k{font:600 10.5px/1 var(--f-sans);letter-spacing:.1em;text-transform:uppercase;color:var(--cendre2)}
+.m-t{margin:6px 0 10px;font:400 25px/1 var(--f-serif)}
+.m-so{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:33px;margin-top:5px;padding:0 12px;border-radius:11px;background:#fff;box-shadow:inset 0 0 0 1px var(--iligne);font:500 13px/1.1 var(--f-sans)}
+.m-so b{font-weight:600}
+.m-so.on{background:var(--encre);color:var(--os);box-shadow:none}
+.m-pill{align-self:flex-start;display:inline-flex;align-items:center;min-height:24px;margin-top:-4px;padding:0 10px;border-radius:999px;background:rgba(15,14,13,.07);font:600 11.5px/1 var(--f-sans)}
+.m-days{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:10px}
+.m-days>span{display:grid;place-items:center;height:40px;border-radius:11px;background:#fff;box-shadow:inset 0 0 0 1px var(--iligne);font:600 11.5px/1.1 var(--f-sans);text-align:center}
+.m-days .on{background:var(--encre);color:var(--os);box-shadow:none}
+.m-slots{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:8px}
+.m-slots>span{display:grid;place-items:center;height:30px;border-radius:9px;background:#fff;box-shadow:inset 0 0 0 1px var(--iligne);font:600 11.5px/1 var(--f-sans);white-space:nowrap}
+.m-slots .on{background:var(--encre);color:var(--os);box-shadow:none}
+.m-hold{display:flex;align-items:center;gap:8px;min-height:28px;margin-top:-2px;padding:0 12px;border-radius:999px;background:rgba(35,130,75,.1);font:600 12px/1 var(--f-sans);color:#1C6B3E}
+.m-hold i{width:7px;height:7px;border-radius:50%;background:#23824B;animation:hp 1.4s ease-in-out infinite}
+.m-hold b{margin-left:auto;font-variant-numeric:tabular-nums}
+@keyframes hp{50%{opacity:.3}}
+.m-f{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--iligne);font:600 13px/1.2 var(--f-sans);text-align:right}
+.m-f small{flex:none;font:500 11.5px/1.2 var(--f-sans);color:var(--cendre2);text-align:left}
+.m-btn{display:flex;align-items:center;justify-content:center;gap:10px;min-height:38px;margin-top:auto;border-radius:999px;background:var(--rouge);color:var(--encre);font:600 13px/1 var(--f-sans)}
+.m-btn i{width:14px;height:14px;border-radius:50%;border:2px solid rgba(15,14,13,.25);border-top-color:var(--encre);animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.m-ok{display:grid;place-items:center;width:44px;height:44px;border-radius:50%;background:#23824B}
+.m-ok i{width:12px;height:21px;margin-top:-5px;border:solid #fff;border-width:0 3px 3px 0;transform:rotate(45deg)}
+.sim.g4 .m-ok{animation:pop .6s var(--ease) both}
+@keyframes pop{0%{transform:scale(.4);opacity:0}60%{transform:scale(1.08);opacity:1}100%{transform:none}}
+.scr .m-ok+.m-t{margin-top:12px}
+.m-tk{display:flex;flex-direction:column;gap:4px;padding:12px 14px;border-radius:14px;background:var(--encre);color:var(--os)}
+.m-tk small{font:600 10px/1 var(--f-sans);letter-spacing:.1em;text-transform:uppercase;color:var(--cendre)}
+.m-tk b{margin:3px 0 2px;font:400 19px/1.1 var(--f-serif)}
+.m-tk>span{font-size:12px;line-height:1.3;color:var(--cendre)}
+.scr.sms{background:var(--blanc)}
+.m-from{margin:-2px 0 10px;padding-bottom:9px;border-bottom:1px solid var(--iligne);font:600 12.5px/1 var(--f-sans);text-align:center}
+.m-sms{align-self:flex-start;max-width:92%;padding:9px 12px;border-radius:16px 16px 16px 5px;background:#E4E0D8;font-size:13px;line-height:1.38}
+.m-time{margin:5px 0 0 4px;font-size:10.5px;color:var(--cendre2)}
+.m-sms.late{margin-top:10px}
+.x{display:none!important}
+.m-act{gap:8px;margin-top:12px}
+.m-act>span{flex:1;display:grid;place-items:center;min-height:42px;border-radius:999px;box-shadow:inset 0 0 0 1.5px var(--iligne);font:600 13px/1 var(--f-sans)}
+
+/* the data packet */
+.pkt{flex:1;min-height:0;display:flex;flex-direction:column;padding:12px 14px;border-radius:22px;background:var(--encre2);box-shadow:inset 0 0 0 1px var(--ligne);overflow:hidden}
+.pkt-h{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-bottom:8px;margin-bottom:2px;border-bottom:1px solid var(--ligne);font:600 12.5px/1.2 var(--f-sans)}
+.pkt-h i{flex:none;width:8px;height:8px;border-radius:50%;background:var(--wait);animation:hp 1.2s ease-in-out infinite}
+.sim.g4 .pkt-h i{background:var(--ok);animation:none}
+.r{display:flex;align-items:baseline;justify-content:space-between;gap:12px;min-height:22px;padding:3px 0;font-size:12.5px;line-height:1.25;opacity:calc(.22 + .78 * clamp(0,calc(var(--s) - var(--k) + 1),1));transition:opacity .45s var(--ease)}
+.r>span{flex:none;color:var(--cendre)}
+.r b{min-width:0;font-weight:600;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.r.st{order:9;margin-top:auto;padding-top:8px;border-top:1px solid var(--ligne);opacity:1}
+.r.st b{color:var(--wait);transition:color .3s}
+.sim.g3 .r.st b{color:var(--os)}
+.sim.g4 .r.st b{color:var(--ok)}
+.c-flow .r.late{display:none}
+
+/* the salon */
+.ckm{position:relative;flex:1;min-height:0;display:flex;flex-direction:column;gap:8px;padding:12px 14px;border-radius:22px;background:#0A0908;box-shadow:inset 0 0 0 1px var(--ligne2);overflow:hidden}
+.ckm-h{display:flex;align-items:center;justify-content:space-between;gap:10px;font:600 12.5px/1.2 var(--f-sans)}
+.ckm-h i{display:inline-flex;align-items:center;gap:6px;font:600 11px/1 var(--f-sans);font-style:normal;color:var(--ok)}
+.ckm-h i::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--ok);animation:hp 1.6s ease-in-out infinite}
+.ckm-g{--nw:46px;display:flex;flex-direction:column;gap:4px}
+.ckm-hr{position:relative;height:12px;margin-left:var(--nw);font:500 10px/1 var(--f-sans);color:var(--cendre2);font-variant-numeric:tabular-nums}
+.ckm-hr>span{position:absolute;top:0;transform:translateX(-50%)}
+.ckm-hr>span:nth-child(1){left:0;transform:none}
+.ckm-hr>span:nth-child(2){left:33.333%}
+.ckm-hr>span:nth-child(3){left:66.667%}
+.ckm-hr>span:nth-child(4){left:100%;transform:translateX(-100%)}
+.ckm-l{position:relative;height:34px;margin-left:var(--nw);border-radius:8px;background:repeating-linear-gradient(90deg,var(--ligne) 0 1px,transparent 1px 16.6667%)}
+.ckm-n{position:absolute;right:100%;top:50%;width:var(--nw);padding-right:8px;transform:translateY(-50%);font:600 11.5px/1 var(--f-sans);color:var(--cendre)}
+.cb{position:absolute;top:2px;bottom:2px;left:calc(var(--t) / 6 * 100%);width:calc(var(--h) / 6 * 100% - 3px);display:flex;flex-direction:column;justify-content:center;gap:1px;padding:0 5px;border-radius:7px;background:var(--encre4);font:600 10.5px/1.1 var(--f-sans);color:var(--os);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cb b{font-weight:700;overflow:hidden;text-overflow:ellipsis}
+.cb small{display:none;font:500 9.5px/1.1 var(--f-sans);opacity:.75;overflow:hidden;text-overflow:ellipsis}
+.cb.ghost{background:rgba(74,222,128,.08);box-shadow:inset 0 0 0 1.5px rgba(74,222,128,.6);color:var(--ok);font-weight:500;opacity:0;transition:opacity .35s;animation:ghp 1.6s ease-in-out infinite}
+@keyframes ghp{50%{background:rgba(74,222,128,.18)}}
+.sim.g2 .cb.ghost{opacity:1}
+.sim.g4 .cb.ghost{opacity:0}
+.cb.new{background:var(--rouge);color:var(--encre);opacity:0;transform:scale(.6);transform-origin:left center;transition:opacity .35s,transform .55s var(--ease)}
+.sim.g4 .cb.new{opacity:1;transform:none}
+.sim.g7 .cb.new{background:var(--encre4);color:var(--os);box-shadow:inset 0 0 0 1.5px var(--ok)}
+.ckm-file,.ckm-msg{display:none}
+.ckm-file{padding:10px 12px;border-radius:14px;background:var(--encre3)}
+.sim.s4 .ckm-file{display:block;animation:rise .5s var(--ease) both}
+.cf-n{display:flex;align-items:center;gap:8px;margin-bottom:4px;font:400 19px/1 var(--f-serif)}
+.cf-n em{padding:3px 7px;border-radius:999px;background:rgba(74,222,128,.14);color:var(--ok);font:600 10px/1 var(--f-sans);font-style:normal}
+.cf-r{font-size:11.5px;line-height:1.45;color:var(--cendre)}
+.ckm-msg{align-items:flex-start;gap:9px;padding:8px 0 0;border-top:1px solid var(--ligne);font-size:12px;line-height:1.35;color:var(--os)}
+.ckm-msg i{flex:none;position:relative;width:15px;height:15px;margin-top:1px;border-radius:50%;background:var(--ok)}
+.ckm-msg i::after{content:"";position:absolute;left:5px;top:2.5px;width:3.5px;height:7px;border:solid var(--encre);border-width:0 1.8px 1.8px 0;transform:rotate(45deg)}
+.sim.g5 .m5,.sim.g6 .m6,.sim.g7 .m7{display:flex;animation:rise .5s var(--ease) both}
+.sim.g6 .m5{opacity:.55}
+.sim.g7 .m6{opacity:.55}
+.ckm-toast{position:absolute;left:10px;right:10px;top:8px;z-index:2;padding:10px 12px;border-radius:12px;background:var(--os);color:var(--encre);font:600 12px/1.2 var(--f-sans);box-shadow:0 12px 30px -8px rgba(0,0,0,.6);opacity:0;transform:translateY(-130%);transition:opacity .35s,transform .5s var(--ease)}
+.sim.s4 .ckm-toast{animation:toast 3.2s var(--ease) .25s both}
+@keyframes toast{0%{opacity:0;transform:translateY(-130%)}12%,78%{opacity:1;transform:none}100%{opacity:0;transform:translateY(-130%)}}
+@keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+/* phone: one card for the client, one for what happens behind */
+@media (max-width:999px){
+.sim.g4 .c-flow{opacity:0;transform:translateY(-10px);pointer-events:none}
+.sim:not(.g4) .c-ck{opacity:0;transform:translateY(10px);pointer-events:none}
+}
+@media (max-width:999px) and (max-height:700px){
+.sim-d{min-height:0;font-size:13.5px}
+.sim-t{font-size:26px}
+.m-k{display:none}
+.m-t{margin-top:0;font-size:22px}
+.r{min-height:19px;padding:2px 0;font-size:12px}
+.ckm-l{height:28px}
+}
+
+/* data */
+.pc-data{padding:clamp(64px,9vw,120px) 0;border-top:1px solid var(--ligne)}
+.pr4{display:grid;gap:12px;margin-top:clamp(32px,4vw,48px)}
+.pr{padding:20px;border-radius:22px;background:var(--encre2)}
+.pr b{font:400 15px/1 var(--f-serif);color:var(--rouge)}
+.pr h3{margin-top:14px;font:400 26px/1.05 var(--f-serif)}
+.pr p{margin-top:8px;font-size:15px;line-height:1.5;color:var(--cendre)}
+.dtab{margin-top:28px;border-top:1px solid var(--ligne2)}
+.dt-r{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);gap:4px 16px;padding:14px 0;border-bottom:1px solid var(--ligne);font-size:14.5px;line-height:1.4}
+.dt-r span:first-child{font-weight:600}
+.dt-r span:nth-child(2){color:var(--cendre)}
+.dt-r span:nth-child(3){grid-column:2;font-size:12.5px;color:var(--cendre2)}
+.dt-hd{font:600 11px/1 var(--f-sans);letter-spacing:.1em;text-transform:uppercase}
+.dt-hd span,.dt-hd span:first-child,.dt-hd span:nth-child(2){font-weight:600;color:var(--cendre2)}
+.dt-hd span:nth-child(3){display:none}
+.dnote{margin-top:18px;max-width:46em;font-size:13.5px;line-height:1.5;color:var(--cendre)}
+
+/* why */
+.pc-why{padding:clamp(64px,9vw,120px) 0;border-top:1px solid var(--ligne)}
+.why4{display:grid;gap:0;margin-top:clamp(28px,4vw,48px)}
+.why4 li{display:grid;grid-template-columns:44px minmax(0,1fr);gap:4px 12px;padding:20px 0;border-top:1px solid var(--ligne)}
+.why4 b{grid-row:span 2;font:400 15px/1.6 var(--f-serif);color:var(--rouge)}
+.why4 h3{font:400 28px/1.05 var(--f-serif)}
+.why4 p{font-size:15px;line-height:1.5;color:var(--cendre)}
+
+/* footer */
+.pc-ft{padding:clamp(72px,10vw,140px) 0 max(36px,env(safe-area-inset-bottom));border-top:1px solid var(--ligne)}
+.pc-ft-h{font:400 clamp(56px,13vw,150px)/.9 var(--f-serif);letter-spacing:-.015em}
+.ft-b{display:flex;flex-wrap:wrap;gap:10px;margin:32px 0 48px}
+.ft-s{font-size:13px;line-height:1.6;color:var(--cendre)}
+
+@media (min-width:700px){
+.tg-r{display:block}
+.doors{grid-template-columns:1fr 1fr}
+.door{min-height:240px;padding:26px 26px 24px}
+.door-t{font-size:36px}
+.mph{width:118px;height:190px}
+.mck{width:190px;height:150px}
+.pr4{grid-template-columns:1fr 1fr}
+.why4{grid-template-columns:1fr 1fr;column-gap:40px}
+.dt-r{grid-template-columns:minmax(0,.9fr) minmax(0,1.5fr) minmax(0,.6fr)}
+.dt-r span:nth-child(3){grid-column:auto;font-size:14.5px;color:var(--cendre)}
+.dt-hd span:nth-child(3){display:block;font-size:11px;color:var(--cendre2)}
+}
+
+@media (min-width:1000px){
+.tg{grid-template-columns:minmax(0,1.3fr) minmax(0,.8fr);gap:64px;align-items:end}
+.qr-card{padding:28px}
+.sim-scroll{height:520vh}
+.sim{max-width:1480px;grid-template-columns:minmax(200px,240px) minmax(0,1fr);grid-template-rows:minmax(0,1fr);align-items:center;gap:clamp(28px,3.4vw,56px);padding-top:28px;padding-bottom:28px}
+.x{display:flex!important}
+.sim-cap{align-self:center}
+.sim-n{order:1;margin:0}
+.sim-t{order:2;margin-top:14px;font-size:clamp(34px,3.2vw,44px)}
+.sim-d{order:3;margin-top:14px;min-height:7.5em;font-size:15.5px;line-height:1.5}
+.sim-dots{order:4;flex-direction:column;gap:0;margin-top:22px;border-top:1px solid var(--ligne)}
+.sim-dots button{align-items:center;gap:14px;height:40px;border-bottom:1px solid var(--ligne);color:var(--cendre2);transition:color .25s}
+.sim-dots button::after{position:absolute;left:0;bottom:-1px;width:0;height:1.5px;border-radius:0;background:var(--rouge);transition:width .5s var(--ease)}
+.sim-dots button.done::after{width:0}
+.sim-dots button.on::after{width:100%}
+.sim-dots button:hover{color:var(--os)}
+.sim-dots button.done{color:var(--cendre)}
+.sim-dots button.on{color:var(--os)}
+.sim-dots b,.sim-dots button>span{position:static;width:auto;height:auto;overflow:visible;clip-path:none}
+.sim-dots b{width:18px;font:400 15px/1 var(--f-serif)}
+.sim-dots button>span{font:500 14px/1 var(--f-sans)}
+.sim-stage{grid-template-columns:auto minmax(180px,.7fr) minmax(0,1.6fr);grid-template-rows:auto;align-items:start;align-self:center;gap:clamp(20px,2.2vw,32px)}
+.c-ph,.c-flow,.c-ck{grid-area:auto}
+.col{gap:12px}
+.c-flow,.c-ck{position:relative}
+.c-flow::before,.c-ck::before{content:"";position:absolute;left:calc(-1 * clamp(20px,2.2vw,32px));top:150px;width:clamp(20px,2.2vw,32px);height:1.5px;background:linear-gradient(90deg,transparent 0 30%,var(--rouge) 50%,transparent 70%) 0 0/300% 100%,var(--ligne);opacity:.35;transition:opacity .4s}
+.sim .c-flow::before{opacity:1;animation:flow 1.3s linear infinite}
+.sim.g2 .c-ck::before{opacity:1;animation:flow 1.3s linear infinite}
+.ph{flex:none;height:min(600px,calc(100svh - 120px));aspect-ratio:9/19.2;padding:9px;border-radius:46px;background:#050505;box-shadow:0 0 0 1.5px rgba(236,232,224,.2),0 50px 90px -40px rgba(0,0,0,.9)}
+.ph-in{border-radius:37px;background:var(--blanc);overflow:hidden}
+.ph-bar{position:absolute;inset:0 0 auto 0;z-index:2;display:flex;align-items:center;justify-content:space-between;height:44px;padding:4px 26px 0 30px;font:600 13px/1 var(--f-sans);font-variant-numeric:tabular-nums}
+.ph-bar i{width:24px;height:11px;border-radius:3.5px;box-shadow:inset 0 0 0 1.5px var(--encre);background:linear-gradient(90deg,var(--encre) 0 70%,transparent 70%) 2.5px 2.5px/calc(100% - 5px) 6px no-repeat}
+.ph-bar::after{content:"";position:absolute;left:50%;top:10px;width:84px;height:24px;border-radius:999px;background:#050505;transform:translateX(-50%)}
+.scr{padding:58px 18px 22px}
+.m-t{margin:8px 0 14px;font-size:30px}
+.m-so{min-height:46px;margin-top:7px;padding:0 14px;border-radius:14px;font-size:14px}
+.m-days{gap:7px;margin-top:14px}
+.m-days>span{height:58px;font-size:12.5px;border-radius:13px}
+.m-slots{grid-template-columns:repeat(3,1fr);gap:7px;margin-top:14px}
+.m-slots>span{height:40px;border-radius:11px;font-size:13px}
+.m-hold{min-height:38px;font-size:13px}
+.m-f{flex-direction:column;align-items:flex-start;gap:5px;padding:12px 0;text-align:left;font-size:15px}
+.m-btn{min-height:50px;font-size:15px}
+.m-ok{width:58px;height:58px;margin-top:40px}
+.m-ok i{width:15px;height:27px}
+.scr .m-ok+.m-t{margin-top:18px;font-size:34px}
+.m-tk{padding:16px 18px;border-radius:18px}
+.m-tk b{font-size:24px}
+.m-tk>span{font-size:13px}
+.m-from{margin:0 0 16px;padding-bottom:12px;font-size:14px}
+.m-sms{font-size:14.5px;padding:11px 14px;border-radius:19px 19px 19px 6px}
+.m-time{font-size:11.5px}
+.pkt,.ckm{flex:none;padding:18px 20px;border-radius:26px}
+.pkt-h{padding-bottom:12px;margin-bottom:6px;font-size:14px}
+.r{flex-direction:column;align-items:flex-start;gap:4px;min-height:0;padding:7px 0;font-size:14px}
+.r>span{font:600 10.5px/1 var(--f-sans);letter-spacing:.09em;text-transform:uppercase;color:var(--cendre2)}
+.r b{max-width:100%;text-align:left;white-space:normal}
+.c-flow .r.late{display:flex}
+.ckm{gap:12px}
+.ckm-h{font-size:14px}
+.ckm-g{--nw:48px;gap:6px}
+.ckm-hr{height:14px;font-size:11px}
+.ckm-l{height:50px}
+.ckm-n{font-size:13px}
+.cb{padding:0 6px;font-size:11.5px}
+.cb.new small{display:none}
+.cb small{display:block;font-size:10.5px}
+.cf-n{font-size:23px}
+.cf-r{font-size:13px}
+.sim.s5 .ckm-file{display:block}
+.ckm-msg{padding-top:10px;font-size:13.5px}
+.ckm-toast{left:14px;right:14px;top:12px;padding:13px 16px;font-size:13.5px}
+.pr4{grid-template-columns:repeat(4,1fr)}
+.pr{padding:24px}
+.why4{grid-template-columns:repeat(4,1fr);column-gap:28px}
+.why4 li{grid-template-columns:1fr;padding-top:24px}
+.why4 b{grid-row:auto}
+}
+@media (min-width:1000px) and (max-height:800px){
+.scr{padding-top:50px}
+.m-t{font-size:26px;margin-bottom:10px}
+.m-so{min-height:38px}
+.m-f{padding:8px 0}
+.ckm-l{height:40px}
+.r{padding:4px 0;gap:2px}
+.r>span{font-size:9.5px}
+.r b{font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pkt,.ckm{padding:14px 18px}
+}
+@keyframes flow{from{background-position:100% 0,0 0}to{background-position:-50% 0,0 0}}
+
+@media (prefers-reduced-motion:reduce){
+.pc *,.pc *::before,.pc *::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+}
+
+</style>
+</helmet>
+<div class="pc" style="--rouge: {{accent}}">
+<header class="pc-top">
+<a class="pc-wm" href="#top"><span>L’Architecte</span><small>Démo privée</small></a>
+<nav class="pc-nav" aria-label="Accès"><a href="site">Le site</a><a class="dk" href="comptoir">Le Comptoir</a></nav>
+</header>
+
+<main>
+<section class="pc-hero" id="top">
+<div class="w">
+<p class="pk">Le nouveau système</p>
+<h1 class="pc-h1">Du téléphone<br>au <em>fauteuil.</em></h1>
+<p class="pc-lead">Le site où tes clients réservent, et le Comptoir où tu vois tout arriver. Voici comment une réservation circule, de bout en bout.</p>
+<div class="doors">
+<a class="door d-site" href="site">
+<span class="door-k">01 · Le site</span>
+<span class="door-t">Ce que voient tes clients.</span>
+<span class="door-ill" aria-hidden="true"><span class="mph"><span class="mph-b"></span><span class="mph-t">Frais.</span><span class="mph-l"></span><span class="mph-l s"></span><span class="mph-c">Réserver</span></span></span>
+<span class="door-go">Ouvrir le site<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h15M13 6l6 6-6 6"/></svg></span>
+</a>
+<a class="door d-ck" href="comptoir">
+<span class="door-k">02 · Le Comptoir</span>
+<span class="door-t">Ce que voit le salon.</span>
+<span class="door-ill" aria-hidden="true"><span class="mck"><span class="mck-h"></span><span class="mck-g"><i class="a"></i><i class="b"></i><i class="c"></i><i class="d"></i><i class="e"></i><i class="f"></i></span></span></span>
+<span class="door-go">Ouvrir le Comptoir<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h15M13 6l6 6-6 6"/></svg></span>
+</a>
+</div>
+</div>
+</section>
+
+<section class="pc-test" aria-labelledby="t-test">
+<div class="w tg">
+<div class="tg-l">
+<p class="pk">Le test</p>
+<h2 class="h2" id="t-test">Essaie-le en deux minutes.</h2>
+<ol class="steps">
+<li><b>1</b><span><strong>Sur ton téléphone, ouvre le site</strong> et réserve un créneau, comme un client.</span></li>
+<li><b>2</b><span><strong>Puis touche «&nbsp;Voir l’arrivée côté salon&nbsp;».</strong> C’est le Comptoir, l’écran du salon.</span></li>
+<li><b>3</b><span><strong>Ta réservation y est</strong>, avec ta note et les rappels prévus. Annule-la depuis le site&nbsp;: le créneau se libère aussitôt.</span></li>
+</ol>
+<p class="note">Aucun SMS n’est envoyé pendant la démo. Les réservations de test restent sur ton téléphone.</p>
+</div>
+<div class="tg-r">
+<div class="qr-card qr-live"><div class="qr-img qr-slot" aria-hidden="true"></div><div class="qr-txt"><p class="qr-url">/site</p><p>Scanne avec ton téléphone pour réserver comme un client.</p></div></div>
+</div>
+</div>
+</section>
+
+<section class="pc-sim" id="simulation" aria-labelledby="t-sim">
+<div class="w sim-head">
+<p class="pk">La simulation</p>
+<h2 class="h2" id="t-sim">Une réservation,<br>de bout en bout.</h2>
+<p class="sim-hint">Fais défiler&nbsp;: chaque étape montre l’écran du client, ce qui circule, et ce que voit le salon.</p>
+</div>
+<div class="sim-scroll" ref="{{r.sim}}">
+<div class="{{simCls}}" style="--s: {{step}}">
+<div class="sim-cap">
+<p class="sim-n">Étape {{step}} sur 7</p>
+<h3 class="sim-t">{{capT}}</h3>
+<p class="sim-d">{{capD}}</p>
+<ol class="sim-dots" aria-label="Étapes"><sc-for list="{{steps}}" as="x" hint-placeholder-count="7"><li><button type="button" class="{{x.cls}}" aria-label="{{x.label}}" aria-current="{{x.cur}}" onClick="{{x.go}}"><b>{{x.n}}</b><span>{{x.t}}</span></button></li></sc-for></ol>
+</div>
+<div class="sim-stage" aria-hidden="true">
+
+<div class="col c-ph">
+<p class="lbl">Le client</p>
+<div class="ph"><div class="ph-in">
+<p class="ph-bar"><span>14:20</span><i></i></p>
+<div class="scr" style="--k: 1; --z: 1">
+<p class="m-k">Étape 1 sur 4</p><p class="m-t">On te fait quoi&nbsp;?</p>
+<p class="m-so"><span>Coupe classique</span><b>20&#8239;€</b></p>
+<p class="m-so"><span>Coupe + contour</span><b>25&#8239;€</b></p>
+<p class="m-so on"><span>Coupe + taille de barbe</span><b>30&#8239;€</b></p>
+<p class="m-so"><span>Transformation</span><b>50&#8239;€</b></p>
+<p class="m-so x"><span>Taille de barbe</span><b>18&#8239;€</b></p>
+<p class="m-so x"><span>Décoloration</span><b>dès 60&#8239;€</b></p>
+</div>
+<div class="scr" style="--k: 2; --z: 2">
+<p class="m-k">Étape 3 sur 4</p><p class="m-t">Quand&nbsp;?</p>
+<p class="m-pill">Avec Frank</p>
+<div class="m-days"><span>{{d0}}</span><span>{{d1}}</span><span class="on">{{d2}}</span><span>{{d3}}</span></div>
+<div class="m-slots"><span>9 h</span><span>9&nbsp;h&nbsp;30</span><span>10 h</span><span class="on">10&nbsp;h&nbsp;30</span><span>11 h</span><span>14 h</span><span>15&nbsp;h&nbsp;30</span><span>17 h</span></div>
+</div>
+<div class="scr" style="--k: 3; --z: 3">
+<p class="m-k">Étape 4 sur 4</p><p class="m-t">À ton nom</p>
+<p class="m-hold"><i></i>Créneau gardé pour toi<b>{{holdT}}</b></p>
+<p class="m-f"><small>Prénom</small>Karim</p>
+<p class="m-f"><small>Téléphone</small>06 •• •• •• 42</p>
+<p class="m-f"><small>Un mot pour ton barbier</small>Dégradé bas, contour net</p>
+<p class="m-btn"><i></i>Vérification…</p>
+</div>
+<div class="scr" style="--k: 4; --z: 4">
+<p class="m-ok"><i></i></p>
+<p class="m-t">C’est réservé, Karim.</p>
+<div class="m-tk"><small>Ton rendez-vous</small><b>{{simDayLong}} · 10&nbsp;h&nbsp;30</b><span>Coupe + taille de barbe · 30&#8239;€</span><span>Avec Frank</span></div>
+<p class="m-act x"><span>Ajouter à l’agenda</span><span>Itinéraire</span></p>
+</div>
+<div class="scr sms" style="--k: 5; --z: 5">
+<p class="m-from">L’Architecte</p>
+<p class="m-sms">C’est noté, Karim. {{simDayShort}} à 10&nbsp;h&nbsp;30 avec Frank, Coupe + taille de barbe (30&#8239;€). Déplacer ou annuler&nbsp;: barberlarchitecte.com/r/LA-7K2Q</p>
+<p class="m-time">À l’instant</p>
+</div>
+<div class="scr sms" style="--k: 6; --z: 6">
+<p class="m-from">L’Architecte</p>
+<p class="m-sms">Rappel&nbsp;: demain à 10&nbsp;h&nbsp;30 avec Frank. Un empêchement&nbsp;? Déplace ou annule en un clic&nbsp;: barberlarchitecte.com/r/LA-7K2Q</p>
+<p class="m-time">La veille, 18&nbsp;h</p>
+</div>
+<div class="scr sms" style="--k: 7; --z: 7">
+<p class="m-from">L’Architecte</p>
+<p class="m-sms">Merci Karim&nbsp;! Si la coupe t’a plu, ton avis compte beaucoup&nbsp;: g.page/r/…</p>
+<p class="m-time">Après la coupe</p>
+<p class="m-sms late">Karim, ça fait trois semaines. On recoupe&nbsp;? Frank a de la place jeudi.</p>
+<p class="m-time">Trois semaines plus tard</p>
+</div>
+</div></div>
+</div>
+
+<div class="col c-flow">
+<p class="lbl">Ce qui circule</p>
+<div class="pkt">
+<p class="pkt-h"><span>{{pktTitle}}</span><i></i></p>
+<p class="r" style="--k: 1"><span>Prestation</span><b>Coupe + taille de barbe</b></p>
+<p class="r" style="--k: 1"><span>Durée · prix</span><b>30 min · 30&#8239;€</b></p>
+<p class="r" style="--k: 2"><span>Barbier</span><b>Frank</b></p>
+<p class="r" style="--k: 2"><span>Créneau</span><b>{{simDayShort}} · 10&nbsp;h&nbsp;30</b></p>
+<p class="r" style="--k: 3"><span>Prénom</span><b>Karim</b></p>
+<p class="r" style="--k: 3"><span>Téléphone</span><b>06 •• •• •• 42</b></p>
+<p class="r" style="--k: 3"><span>Note</span><b>Dégradé bas, contour net</b></p>
+<p class="r st"><span>Statut</span><b>{{pktStatus}}</b></p>
+<p class="r late" style="--k: 5"><span>SMS</span><b>confirmation envoyée</b></p>
+<p class="r late" style="--k: 6"><span>Rappel</span><b>envoyé la veille</b></p>
+<p class="r late" style="--k: 7"><span>Après</span><b>avis demandé · relance à J+21</b></p>
+</div>
+</div>
+
+<div class="col c-ck">
+<p class="lbl">Le salon</p>
+<div class="ckm">
+<p class="ckm-h"><span>Le Comptoir · {{simDayShort}}</span><i>En direct</i></p>
+<div class="ckm-g">
+<p class="ckm-hr"><span>9:00</span><span>10:00</span><span>11:00</span><span>12:00</span></p>
+<div class="ckm-l"><p class="ckm-n">JKut</p><p class="cb" style="--t: 0; --h: 1">Yanis</p><p class="cb" style="--t: 1; --h: 2">Nolan</p><p class="cb" style="--t: 4; --h: 1">Adam</p></div>
+<div class="ckm-l"><p class="ckm-n">Frank</p><p class="cb" style="--t: 0; --h: 1">Sami</p><p class="cb" style="--t: 1; --h: 1">Hugo</p><p class="cb ghost" style="--t: 3; --h: 1">Réservation en cours…</p><p class="cb new" style="--t: 3; --h: 1"><b>Karim</b><small>Coupe + taille</small></p><p class="cb" style="--t: 5; --h: 1">Enzo</p></div>
+</div>
+<div class="ckm-file"><p class="cf-n">Karim<em>3e visite</em></p><p class="cf-r">D’habitude&nbsp;: Coupe + taille, avec Frank</p><p class="cf-r">Note&nbsp;: dégradé bas, contour net</p></div>
+<p class="ckm-msg m5"><i></i>Confirmation envoyée</p>
+<p class="ckm-msg m6"><i></i>Rappel envoyé · s’il annule, le créneau part au premier de la liste d’attente</p>
+<p class="ckm-msg m7"><i></i>Terminé · 30&#8239;€ encaissés · avis demandé</p>
+<p class="ckm-toast">Nouvelle réservation · Karim · 10&nbsp;h&nbsp;30</p>
+</div>
+</div>
+
+</div>
+</div>
+</div>
+</section>
+
+<section class="pc-data" id="donnees" aria-labelledby="t-data">
+<div class="w">
+<p class="pk">Les données</p>
+<h2 class="h2" id="t-data">Le strict nécessaire,<br>traité proprement.</h2>
+<div class="pr4">
+<div class="pr"><b>01</b><h3>Le strict nécessaire</h3><p>Un prénom, un téléphone, la prestation et le créneau. Le nom, l’e-mail et la note sont facultatifs.</p></div>
+<div class="pr"><b>02</b><h3>À toi, à 100&nbsp;%</h3><p>Les données de tes clients appartiennent au salon. Tu peux les récupérer ou les faire effacer quand tu veux.</p></div>
+<div class="pr"><b>03</b><h3>Jamais revendues</h3><p>Elles servent uniquement à gérer les rendez-vous. Ni revendues, ni utilisées pour de la publicité.</p></div>
+<div class="pr"><b>04</b><h3>Effacées quand il le faut</h3><p>Supprimées trois ans après la dernière visite, ou tout de suite sur simple demande du client.</p></div>
+</div>
+<div class="dtab" role="table" aria-label="Les données et leur usage">
+<div class="dt-r dt-hd" role="row"><span role="columnheader">Donnée</span><span role="columnheader">À quoi elle sert</span><span role="columnheader">Qui la voit</span></div>
+<div class="dt-r" role="row"><span role="cell">Prénom et nom</span><span role="cell">Reconnaître le client, préparer sa coupe</span><span role="cell">Le salon</span></div>
+<div class="dt-r" role="row"><span role="cell">Téléphone</span><span role="cell">Confirmation, rappel, imprévu</span><span role="cell">Le salon</span></div>
+<div class="dt-r" role="row"><span role="cell">E-mail, facultatif</span><span role="cell">Envoyer le rendez-vous dans son agenda</span><span role="cell">Le salon</span></div>
+<div class="dt-r" role="row"><span role="cell">Historique des coupes</span><span role="cell">Proposer la même coupe, relancer au bon moment</span><span role="cell">Le salon</span></div>
+<div class="dt-r" role="row"><span role="cell">Note pour le barbier</span><span role="cell">Ses préférences, d’une fois sur l’autre</span><span role="cell">Le barbier</span></div>
+</div>
+<p class="dnote">Les SMS de confirmation et de rappel sont des messages de service. La relance «&nbsp;On recoupe&nbsp;?&nbsp;» ne part qu’aux clients qui l’ont acceptée.</p>
+</div>
+</section>
+
+<section class="pc-why" aria-labelledby="t-why">
+<div class="w">
+<p class="pk">Au salon</p>
+<h2 class="h2" id="t-why">Ce que ça change.</h2>
+<ul class="why4">
+<li><b>01</b><h3>Moins d’oublis</h3><p>Le rappel de la veille, avec un lien pour déplacer. Un créneau annulé se recase tout seul.</p></li>
+<li><b>02</b><h3>Zéro double réservation</h3><p>Chaque créneau est vérifié au moment de confirmer. Ce qui est affiché est vraiment libre.</p></li>
+<li><b>03</b><h3>Le téléphone sonne moins</h3><p>Tes clients réservent à toute heure, même quand tu as la tondeuse à la main.</p></li>
+<li><b>04</b><h3>Les clients reviennent</h3><p>La relance part au rythme de chacun, la demande d’avis juste après la coupe.</p></li>
+</ul>
+</div>
+</section>
+</main>
+
+<footer class="pc-ft">
+<div class="w">
+<h2 class="pc-ft-h">À toi de jouer.</h2>
+<div class="ft-b"><a class="btn" href="site">Ouvrir le site</a><a class="btn ghost" href="comptoir">Ouvrir le Comptoir</a></div>
+<p class="ft-s">Barber L’Architecte · 16, place Pélabon · 13013 Marseille</p>
+<p class="ft-s">Démo conçue par NEXUS. Données fictives, aucun SMS envoyé.</p>
+</div>
+</footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#EB4639","options":["#EB4639","#D9342B","#FF7A1A","#3D7BFF"]},"$preview":{"width":390,"height":844}}'>
+/* ======================================================================
+   L'Architecte · moteur de réservation partagé
+   Le site, le Comptoir et la page Parcours lisent le même agenda :
+   mêmes journées, mêmes pauses, mêmes durées. Une réservation faite
+   d'un côté occupe exactement le même créneau de l'autre.
+   ====================================================================== */
+const LXE = (function () {
+  const OPEN = 540, CLOSE = 1110, STEP = 30;
+  const NBSP = ' ';
+  const BARBERS = [
+    { id: 'jkut', n: 'JKut', ini: 'JK' },
+    { id: 'frank', n: 'Frank', ini: 'F' },
+    { id: 'soldat', n: 'Le Soldat', ini: 'LS' },
+    { id: 'esteban', n: 'Esteban', ini: 'E' }
+  ];
+  const BMAP = {};
+  BARBERS.forEach(function (b) { BMAP[b.id] = b; });
+  const SV = {
+    cl: { n: 'Coupe classique', sh: 'Coupe', p: 20, d: 30, w: 30 },
+    cc: { n: 'Coupe + contour de barbe', sh: 'Coupe + contour', p: 25, d: 30, w: 20 },
+    ct: { n: 'Coupe + taille de barbe', sh: 'Coupe + taille', p: 30, d: 30, w: 24 },
+    eb: { n: 'Entretien barbe', sh: 'Entretien barbe', p: 15, d: 30, w: 5 },
+    tb: { n: 'Taille de barbe', sh: 'Taille de barbe', p: 18, d: 30, w: 5 },
+    cb: { n: 'Cover barbe', sh: 'Cover barbe', p: 15, d: 30, w: 2 },
+    tr: { n: 'Transformation', sh: 'Transformation', p: 50, d: 60, w: 6 },
+    de: { n: 'Décoloration', sh: 'Décoloration', p: 60, d: 60, w: 3, from: true },
+    co: { n: 'Coloration', sh: 'Coloration', p: 30, d: 60, w: 2, from: true },
+    si: { n: 'Silver', sh: 'Silver', p: 100, d: 60, w: 2 },
+    cd: { n: 'Coupe + décoloration', sh: 'Coupe + déco', p: 80, d: 90, w: 0, from: true },
+    ab: { n: 'Abonnement 5 coupes', sh: 'Abonnement', p: 80, d: 30, w: 0 }
+  };
+  const SV_IDS = Object.keys(SV);
+  const WSUM = SV_IDS.reduce(function (t, k) { return t + SV[k].w; }, 0);
+  const DAYS = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
+  const DAYS_SH = ['dim.', 'lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.'];
+  const MONTHS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+  const MONTHS_SH = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
+
+  function pad(n) { return n < 10 ? '0' + n : '' + n; }
+  function clamp(v, a, b) { return v < a ? a : (v > b ? b : v); }
+  function hash(str) {
+    let h = 2166136261;
+    for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+    return h >>> 0;
+  }
+  function rng(seed) {
+    let s = seed % 2147483647;
+    if (s <= 0) s += 2147483646;
+    return function () { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; };
+  }
+  function pickService(r) {
+    let x = r() * WSUM;
+    for (let i = 0; i < SV_IDS.length; i++) { x -= SV[SV_IDS[i]].w; if (x <= 0) return SV_IDS[i]; }
+    return 'cl';
+  }
+
+  /* ---------- the client pool: stable, so a regular stays a regular ---------- */
+  const FIRST = ['Yanis', 'Mehdi', 'Lucas', 'Karim', 'Nolan', 'Enzo', 'Sofiane', 'Hugo', 'Adam', 'Ilyes', 'Matteo', 'Bilal', 'Théo', 'Nassim', 'Kylian', 'Jules', 'Samir', 'Walid', 'Ethan', 'Amine', 'Louis', 'Ryad', 'Malik', 'Gabriel', 'Anis', 'Noah', 'Sami', 'Yassine', 'Tom', 'Axel', 'Nathan', 'Ismaël', 'Raphaël', 'Hamza', 'Marius', 'Zakaria', 'Jordan', 'Kenzo', 'Sacha', 'Dylan', 'Younes', 'Lenny', 'Mathis', 'Wassim', 'Imran', 'Léo', 'Djibril', 'Timéo', 'Nabil', 'Kaïs', 'Lounis', 'Bastien', 'Moussa', 'Florian', 'Chris', 'Idriss', 'Kevin', 'Maxime', 'Yann', 'Aymen'];
+  const LAST = 'ABCDEFGHJKLMNOPRSTVZ';
+  const NOTES = ['Dégradé bas, contour net', 'Garde la longueur sur le dessus', 'Barbe : ne pas trop raccourcir', 'Raie à gauche, bien marquée', 'Skin fade, dessus texturé', 'Ciseaux sur le dessus', 'Taper, nuque arrondie', 'Vient avec son fils le samedi', 'Sabot 0,5 sur les côtés', '', '', ''];
+  const CLIENTS = (function () {
+    const r = rng(4242);
+    const out = [];
+    for (let i = 0; i < 64; i++) {
+      const f = FIRST[i % FIRST.length];
+      const fav = pickService(r);
+      const cadence = [14, 21, 21, 28, 28, 35][Math.floor(r() * 6)];
+      out.push({
+        id: 'c' + i, first: f, name: f + ' ' + LAST.charAt(Math.floor(r() * LAST.length)) + '.',
+        last: 3 + Math.floor(r() * r() * 52), visits: 1 + Math.floor(r() * 26), cadence: cadence,
+        barber: BARBERS[Math.floor(r() * 4)].id, fav: fav === 'ab' ? 'cl' : fav,
+        note: NOTES[Math.floor(r() * NOTES.length)], tel: pad(10 + Math.floor(r() * 89)),
+        abo: r() < 0.14 ? 1 + Math.floor(r() * 4) : 0, since: 2019 + Math.floor(r() * 7)
+      });
+    }
+    return out;
+  })();
+  const CMAP = {};
+  CLIENTS.forEach(function (c) { CMAP[c.id] = c; });
+
+  /* ---------- dates, always in Paris time ---------- */
+  function parisParts(ms) {
+    const f = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Paris', year: 'numeric', month: 'numeric', day: 'numeric', weekday: 'short', hour: 'numeric', minute: 'numeric', second: 'numeric', hourCycle: 'h23' });
+    const o = {};
+    f.formatToParts(new Date(ms)).forEach(function (p) { o[p.type] = p.value; });
+    const wd = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }[o.weekday];
+    const h = +o.hour % 24;
+    return { y: +o.year, m: +o.month, d: +o.day, wd: wd, min: h * 60 + (+o.minute) + (+o.second) / 60 };
+  }
+  function keyOf(y, m, d) { return y + '-' + pad(m) + '-' + pad(d); }
+  function parts(key) {
+    const a = key.split('-').map(Number);
+    const dt = new Date(Date.UTC(a[0], a[1] - 1, a[2], 12));
+    return { y: a[0], m: a[1], d: a[2], wd: dt.getUTCDay(), key: key };
+  }
+  function addDays(key, n) {
+    const p = parts(key);
+    const dt = new Date(Date.UTC(p.y, p.m - 1, p.d + n, 12));
+    return keyOf(dt.getUTCFullYear(), dt.getUTCMonth() + 1, dt.getUTCDate());
+  }
+  function diffDays(a, b) {
+    const A = parts(a), B = parts(b);
+    return Math.round((Date.UTC(B.y, B.m - 1, B.d) - Date.UTC(A.y, A.m - 1, A.d)) / 86400000);
+  }
+  function isOpenDay(key) { const wd = parts(key).wd; return wd >= 2 && wd <= 6; }
+  function now() {
+    const P = parisParts(Date.now());
+    return { P: P, key: keyOf(P.y, P.m, P.d), min: P.min };
+  }
+  function nextOpen(key, dir) {
+    let k = key;
+    for (let i = 0; i < 8; i++) { k = addDays(k, dir); if (isOpenDay(k)) return k; }
+    return k;
+  }
+  function aheadOf(key) { return Math.max(0, diffDays(now().key, key)); }
+  function fmtH(min) { min = Math.round(min); const h = Math.floor(min / 60), m = min % 60; return h + NBSP + 'h' + (m ? NBSP + pad(m) : ''); }
+  function hm(min) { min = Math.round(min); return pad(Math.floor(min / 60)) + ':' + pad(min % 60); }
+  function dayLong(key) { const p = parts(key); return DAYS[p.wd] + ' ' + p.d + ' ' + MONTHS[p.m - 1]; }
+  function dayShort(key) { const p = parts(key); return DAYS_SH[p.wd] + ' ' + p.d + ' ' + MONTHS_SH[p.m - 1]; }
+  function dayWord(key) {
+    const N = now();
+    const dd = diffDays(N.key, key);
+    if (dd === 0) return 'Aujourd’hui';
+    if (dd === 1) return 'Demain';
+    const s = dayLong(key);
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  }
+  function eur(p, from) { return (from ? 'dès ' : '') + p + NBSP + '€'; }
+
+  /* ---------- one day of the salon, the same on every screen ---------- */
+  const dayCache = {};
+  function genDay(key, ahead) {
+    const ck = key + '|' + ahead;
+    if (dayCache[ck]) return dayCache[ck];
+    const r = rng(hash('day|' + key));
+    const out = [];
+    const gap = clamp(0.2 + ahead * 0.11, 0.2, 0.72);
+    let ci = Math.floor(r() * CLIENTS.length);
+    BARBERS.forEach(function (b) {
+      const ps = [750, 780, 810][Math.floor(r() * 3)];
+      out.push({ id: key + '-' + b.id + '-pause', kind: 'pause', barber: b.id, start: ps, dur: 30 });
+      let t = OPEN + (r() < 0.3 ? 30 : 0);
+      let guard = 0;
+      while (t < CLOSE - 30 && guard++ < 60) {
+        if (t < ps + 30 && t + 30 > ps) { t = ps + 30; continue; }
+        if (r() < gap) { t += 30; continue; }
+        const cl = CLIENTS[ci % CLIENTS.length];
+        ci += 1 + Math.floor(r() * 5);
+        const isAbo = cl.abo > 0 && r() < 0.6;
+        let f = isAbo ? 'cl' : pickService(r);
+        if ((t < ps && t + SV[f].d > ps) || t + SV[f].d > CLOSE) f = 'cl';
+        if (t + SV[f].d > CLOSE) break;
+        const sr = r();
+        out.push({
+          id: key + '-' + b.id + '-' + t, kind: 'rdv', barber: b.id, start: t, dur: SV[f].d, f: f, client: cl.id,
+          src: isAbo ? 'abo' : (sr < 0.56 ? 'site' : (sr < 0.84 ? 'tel' : 'walk')),
+          price: isAbo ? 0 : SV[f].p, aboN: isAbo ? cl.abo + 1 : 0,
+          createdAgo: Math.floor(20 + r() * 2600), noshow: r() < 0.05
+        });
+        t += SV[f].d;
+        if (r() < 0.08) t += 15;
+      }
+    });
+    dayCache[ck] = out;
+    return out;
+  }
+
+  /* ---------- the shared store: local first, live when an API is present ---------- */
+  const LS = 'lx-demo-v2';
+  let entries = null, resetSeen = 0, apiUrl, mode = 'local', cursor = 0;
+  const listeners = [];
+  function api() {
+    if (apiUrl === undefined) {
+      try { const m = document.querySelector('meta[name="lx-api"]'); apiUrl = m ? m.getAttribute('content') : null; } catch (e) { apiUrl = null; }
+    }
+    return apiUrl;
+  }
+  function load() {
+    if (entries) return entries;
+    try {
+      const x = JSON.parse(window.localStorage.getItem(LS) || '{}');
+      entries = Array.isArray(x.e) ? x.e : [];
+      resetSeen = x.r || 0;
+    } catch (e) { entries = []; }
+    return entries;
+  }
+  function persist() {
+    try { window.localStorage.setItem(LS, JSON.stringify({ e: entries.slice(-400), r: resetSeen })); } catch (e) { /* storage off: memory only */ }
+  }
+  function emit() { listeners.slice().forEach(function (fn) { try { fn(); } catch (e) { /* ignore */ } }); }
+  function on(fn) {
+    listeners.push(fn);
+    return function () { const i = listeners.indexOf(fn); if (i >= 0) listeners.splice(i, 1); };
+  }
+  try {
+    window.addEventListener('storage', function (e) { if (e.key === LS) { entries = null; load(); emit(); } });
+  } catch (e) { /* no window */ }
+  function mergeIn(list) {
+    load();
+    const ids = {};
+    entries.forEach(function (x) { ids[x.id] = true; });
+    let changed = false;
+    (list || []).forEach(function (x) {
+      if (x && x.id && !ids[x.id]) { entries.push(x); ids[x.id] = true; changed = true; }
+    });
+    if (changed) { entries.sort(function (a, b) { return (a.at || 0) - (b.at || 0); }); persist(); }
+    return changed;
+  }
+  function applyReset(at) {
+    if (!at || at <= resetSeen) return false;
+    resetSeen = at;
+    entries = load().filter(function (x) { return (x.at || 0) > at; });
+    persist();
+    return true;
+  }
+  function pull() {
+    const u = api();
+    if (!u) { mode = 'local'; return Promise.resolve(false); }
+    return fetch(u + (cursor ? (u.indexOf('?') < 0 ? '?' : '&') + 'since=' + cursor : ''), { cache: 'no-store' }).then(function (r) {
+      if (!r.ok) throw new Error('http ' + r.status);
+      return r.json();
+    }).then(function (j) {
+      mode = 'live';
+      if (j.now) cursor = Math.max(0, j.now - 2000);
+      const a = applyReset(j.resetAt);
+      const b = mergeIn(j.entries);
+      if (a || b) emit();
+      return true;
+    }).catch(function () { mode = 'local'; return false; });
+  }
+  function push(entry) {
+    entry.at = entry.at || Date.now();
+    load();
+    if (!entries.some(function (x) { return x.id === entry.id; })) entries.push(entry);
+    persist();
+    emit();
+    const u = api();
+    if (!u) return Promise.resolve({ ok: true, mode: 'local' });
+    return fetch(u, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ entry: entry }) }).then(function (r) {
+      if (r.status === 409) {
+        entries = entries.filter(function (x) { return x.id !== entry.id; });
+        persist(); emit();
+        return { ok: false, taken: true };
+      }
+      if (!r.ok) throw new Error('http ' + r.status);
+      return r.json().then(function (j) { mode = 'live'; if (mergeIn(j.entries)) emit(); return { ok: true, mode: 'live' }; });
+    }).catch(function () { mode = 'local'; return { ok: true, mode: 'local' }; });
+  }
+  function reset() {
+    resetSeen = Date.now();
+    entries = [];
+    cursor = 0;
+    persist(); emit();
+    const u = api();
+    if (!u) return Promise.resolve(true);
+    return fetch(u, { method: 'DELETE' }).then(function () { return true; }).catch(function () { return false; });
+  }
+
+  /* ---------- what the store means ---------- */
+  function view() {
+    const all = load();
+    const cancelled = {};
+    all.forEach(function (x) { if (x.t === 'cancel') cancelled[x.ref] = x; });
+    const t = Date.now();
+    const bookings = all.filter(function (x) { return x.t === 'booking' && !cancelled[x.id]; });
+    const booked = {};
+    all.forEach(function (x) { if (x.t === 'booking' && x.hold) booked[x.hold] = true; });
+    return {
+      all: all, cancelled: cancelled, bookings: bookings,
+      blocks: all.filter(function (x) { return x.t === 'block' && !cancelled[x.id]; }),
+      waits: all.filter(function (x) { return x.t === 'wait' && !cancelled[x.id]; }),
+      holds: all.filter(function (x) { return x.t === 'hold' && !cancelled[x.id] && !booked[x.id] && x.exp > t; })
+    };
+  }
+  function intervals(key, barber, V, ignoreHold) {
+    V = V || view();
+    const iv = [];
+    genDay(key, aheadOf(key)).forEach(function (x) {
+      if (x.barber === barber && !V.cancelled[x.id]) iv.push([x.start, x.start + x.dur]);
+    });
+    V.bookings.forEach(function (x) { if (x.day === key && x.barber === barber) iv.push([x.time, x.time + x.dur]); });
+    V.blocks.forEach(function (x) { if (x.day === key && x.barber === barber) iv.push([x.time, x.time + x.dur]); });
+    V.holds.forEach(function (x) { if (x.day === key && x.barber === barber && x.id !== ignoreHold) iv.push([x.time, x.time + x.dur]); });
+    return iv;
+  }
+  function fits(iv, s, d) {
+    if (s < OPEN || s + d > CLOSE) return false;
+    for (let i = 0; i < iv.length; i++) { if (iv[i][0] < s + d && s < iv[i][1]) return false; }
+    return true;
+  }
+  /* free starts for one day; who = barber id or 'any' (then each slot names its barber) */
+  function slots(key, who, dur, ignoreHold) {
+    const V = view();
+    const N = now();
+    const minStart = key === N.key ? N.min + 30 : (diffDays(N.key, key) < 0 ? 99999 : 0);
+    const ivs = {};
+    BARBERS.forEach(function (b) { ivs[b.id] = intervals(key, b.id, V, ignoreHold); });
+    const out = [];
+    for (let m = OPEN; m + dur <= CLOSE; m += STEP) {
+      let bar = null;
+      if (m >= minStart && isOpenDay(key)) {
+        if (who && who !== 'any') { if (fits(ivs[who], m, dur)) bar = who; }
+        else {
+          const k0 = (m / STEP) % BARBERS.length;
+          for (let i = 0; i < BARBERS.length; i++) {
+            const b = BARBERS[(k0 + i) % BARBERS.length].id;
+            if (fits(ivs[b], m, dur)) { bar = b; break; }
+          }
+        }
+      }
+      out.push({ m: m, free: !!bar, barber: bar });
+    }
+    return out;
+  }
+  function openDays(n) {
+    const out = [];
+    let k = now().key;
+    for (let i = 0; i < 40 && out.length < n; i++) {
+      if (isOpenDay(k)) out.push(k);
+      k = addDays(k, 1);
+    }
+    return out;
+  }
+  function earliest(who, dur, days) {
+    days = days || openDays(10);
+    for (let i = 0; i < days.length; i++) {
+      const s = slots(days[i], who, dur).filter(function (x) { return x.free; });
+      if (s.length) return { day: days[i], m: s[0].m, barber: s[0].barber };
+    }
+    return null;
+  }
+  function stillFree(key, barber, m, dur, ignoreHold) { return fits(intervals(key, barber, view(), ignoreHold), m, dur); }
+
+  function uid(p) { return p + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+  function code() {
+    const A = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+    let s = '';
+    for (let i = 0; i < 4; i++) s += A.charAt(Math.floor(Math.random() * A.length));
+    return 'LA-' + s;
+  }
+  function who(first, last2) { return (first || '').trim().toLowerCase() + '|' + (last2 || ''); }
+
+  return {
+    OPEN: OPEN, CLOSE: CLOSE, STEP: STEP, BARBERS: BARBERS, BMAP: BMAP, SV: SV, CLIENTS: CLIENTS, CMAP: CMAP,
+    DAYS: DAYS, DAYS_SH: DAYS_SH, MONTHS: MONTHS, MONTHS_SH: MONTHS_SH,
+    pad: pad, clamp: clamp, hash: hash, rng: rng, parisParts: parisParts, keyOf: keyOf, parts: parts, addDays: addDays,
+    diffDays: diffDays, isOpenDay: isOpenDay, now: now, nextOpen: nextOpen, aheadOf: aheadOf,
+    fmtH: fmtH, hm: hm, dayLong: dayLong, dayShort: dayShort, dayWord: dayWord, eur: eur,
+    genDay: genDay, view: view, slots: slots, openDays: openDays, earliest: earliest, stillFree: stillFree,
+    load: load, pull: pull, push: push, reset: reset, on: on, mode: function () { return api() ? mode : 'local'; }, hasApi: function () { return !!api(); },
+    uid: uid, code: code, who: who
+  };
+})();
+
+const PC_STEPS = [
+  { t: 'Le choix', T: 'Le client choisit.', D: 'Prestation, barbier, jour, heure. Il ne voit que les créneaux vraiment libres, pauses et durées déjà comptées.' },
+  { t: 'Créneau gardé', T: 'Le créneau est gardé.', D: 'Dès qu’il touche 10 h 30, la place lui est réservée cinq minutes. Le salon voit quelqu’un réserver, en direct.' },
+  { t: 'Vérification', T: 'Il confirme, on vérifie.', D: 'Un prénom et un téléphone suffisent. Au moment de confirmer, le créneau est revérifié : jamais deux clients sur la même place.' },
+  { t: 'Au salon', T: 'Le salon le voit, tout de suite.', D: 'La réservation arrive sur le Comptoir avec la fiche du client : ses visites, sa coupe habituelle, sa note pour le barbier.' },
+  { t: 'Confirmation', T: 'Confirmation par SMS.', D: 'Le client reçoit son rendez-vous et un lien pour le déplacer ou l’annuler lui-même. Personne n’a besoin d’appeler.' },
+  { t: 'Rappel', T: 'La veille, le rappel.', D: 'À 18 h la veille, le rappel part tout seul. S’il annule, le créneau est aussitôt proposé à la liste d’attente.' },
+  { t: 'Après la coupe', T: 'Après la coupe.', D: 'La demande d’avis Google, puis la relance « On recoupe ? » au rythme habituel du client. Le fauteuil reste plein.' }
+];
+const PC_STATUS = ['en cours', 'gardé 5 min', 'vérifié, libre ✓', 'confirmé · LA-7K2Q', 'confirmé · SMS envoyé', 'rappel envoyé', 'terminé · 30 € encaissés'];
+const PC_TITLE = ['Réservation en cours', 'Réservation en cours', 'Réservation en cours', 'Réservation reçue au salon', 'Réservation LA-7K2Q', 'Réservation LA-7K2Q', 'Réservation LA-7K2Q'];
+
+function pcClamp(v, a, b) { return v < a ? a : (v > b ? b : v); }
+function pcCap(t) { return t ? t.charAt(0).toUpperCase() + t.slice(1) : ''; }
+function pcChip(key) { const p = LXE.parts(key); return LXE.DAYS_SH[p.wd] + ' ' + p.d; }
+
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { step: 1, hold: 300 };
+    const self = this;
+    this.r = { sim: function (el) { self._sim = el; if (el) self.measure(); } };
+    this.onScroll = this.onScroll.bind(this);
+    const od = LXE.openDays(4);
+    const today = LXE.now().key;
+    this._days = od;
+    this._d0 = od[0] === today ? 'auj.' : pcChip(od[0]);
+  }
+
+  componentDidMount() {
+    this._m = true;
+    try { this._rm = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { this._rm = false; }
+    window.addEventListener('scroll', this.onScroll, { passive: true });
+    window.addEventListener('resize', this.onScroll);
+    this.measure();
+  }
+
+  componentWillUnmount() {
+    this._m = false;
+    window.removeEventListener('scroll', this.onScroll);
+    window.removeEventListener('resize', this.onScroll);
+    if (this._raf) cancelAnimationFrame(this._raf);
+    this.stopHold();
+  }
+
+  onScroll() {
+    if (this._raf) return;
+    this._raf = requestAnimationFrame(() => { this._raf = 0; this.measure(); });
+  }
+
+  measure() {
+    const el = this._sim;
+    if (!el || !this._m) return;
+    const r = el.getBoundingClientRect();
+    const vh = window.innerHeight || 800;
+    const span = Math.max(1, r.height - vh);
+    const p = pcClamp(-r.top / span, 0, 0.9999);
+    const n = pcClamp(Math.floor(p * 7) + 1, 1, 7);
+    if (n !== this.state.step) this.setStep(n);
+  }
+
+  setStep(n) {
+    this.setState({ step: n });
+    if (n === 3) this.startHold(); else this.stopHold();
+  }
+
+  /* the hold timer runs for real while the client fills in his name */
+  startHold() {
+    if (this._ht) return;
+    const t0 = Date.now() - 8000;
+    const tick = () => { this.setState({ hold: Math.max(0, 300 - Math.floor((Date.now() - t0) / 1000)) }); };
+    tick();
+    this._ht = setInterval(tick, 1000);
+  }
+
+  stopHold() {
+    if (this._ht) { clearInterval(this._ht); this._ht = 0; }
+  }
+
+  go(n) {
+    const el = this._sim;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const vh = window.innerHeight || 800;
+    const span = Math.max(1, r.height - vh);
+    const y = (window.scrollY || window.pageYOffset || 0) + r.top + span * ((n - 0.5) / 7);
+    try { window.scrollTo({ top: y, behavior: this._rm ? 'auto' : 'smooth' }); } catch (e) { window.scrollTo(0, y); }
+  }
+
+  renderVals() {
+    const s = this.state;
+    const n = s.step;
+    const cur = PC_STEPS[n - 1];
+    const od = this._days;
+    const sim = od[2] || od[od.length - 1];
+    const p = LXE.parts(sim);
+    let cls = 'sim s' + n;
+    for (let i = 1; i <= n; i++) cls += ' g' + i;
+    const hm = Math.floor(s.hold / 60) + ':' + (s.hold % 60 < 10 ? '0' : '') + (s.hold % 60);
+    return {
+      accent: this.props.accent || '#EB4639',
+      r: this.r,
+      step: n,
+      simCls: cls,
+      capT: cur.T,
+      capD: cur.D,
+      steps: PC_STEPS.map((x, i) => ({
+        n: i + 1, t: x.t, label: 'Étape ' + (i + 1) + ' : ' + x.t,
+        cls: i + 1 === n ? 'on' : (i + 1 < n ? 'done' : ''),
+        cur: i + 1 === n ? 'step' : 'false',
+        go: () => this.go(i + 1)
+      })),
+      d0: this._d0,
+      d1: pcChip(od[1]),
+      d2: pcChip(od[2]),
+      d3: pcChip(od[3]),
+      simDayLong: pcCap(LXE.dayLong(sim)),
+      simDayShort: pcCap(LXE.DAYS_SH[p.wd]) + ' ' + p.d + ' ' + LXE.MONTHS_SH[p.m - 1],
+      holdT: hm,
+      pktTitle: PC_TITLE[n - 1],
+      pktStatus: PC_STATUS[n - 1]
+    };
+  }
+}
+</script>
+<script src="./qrcode.js" defer></script>
+<script src="./qr.js" defer></script>
+</body>
+</html>
