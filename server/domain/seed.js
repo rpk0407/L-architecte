@@ -98,6 +98,7 @@ function fillFor(day, today) {
  */
 export function planDay(s, day, fill, r, pickClient, now) {
   const services = [...s.services.values()].filter((x) => x.active && !x.pack);
+  /** @type {any[]} */
   const plans = [];
   const taken = new Map();
   for (const st of [...s.staff.values()].filter((x) => x.active && x.chair)) {
@@ -293,58 +294,61 @@ export async function buildDemoJournal(nowReal, opt = {}) {
 
 /**
  * Keep the demo alive: finish past demo appointments, fill new days as they enter the window,
- * and now and then a client books online.
+ * and now and then a client books online. One atomic append per call.
  * @param {import('../core/engine.js').Engine} engine
  */
 export async function demoTick(engine, meta = {}) {
-  const s = engine.state;
-  if (s.mode !== 'demo') return;
-  const now = engine.clock();
-  const L = localParts(now);
-  const owner = [...s.staff.values()].find((x) => x.role === 'owner' && x.active);
-  const base = { ...SYS, actor: /** @type {const} */ ({ t: 'system', id: 'demo', n: 'Démo' }), staff: owner, meta };
-  const r = rng(Math.floor(now / 60000));
-  // 1. finish what is over
-  const due = [];
-  for (const a of s.appts.values()) {
-    if (!a.demo || !['booked', 'arrived', 'in_chair'].includes(a.status)) continue;
-    if (a.day < L.day || (a.day === L.day && a.start + a.dur + 25 <= L.min)) due.push(a);
-    else if (a.day === L.day && a.start <= L.min && a.status === 'booked') await engine.run(setStatus, { id: a.id, status: 'in_chair' }, base).catch(() => null);
-  }
-  for (const a of due.slice(0, 40)) {
-    const input = demoCheckoutInput(s, a, r, { cash: false });
-    await engine.run(checkout, { ...input, day: a.day, at: instantOf(a.day, a.start + a.dur + 2) }, base).catch(() => null);
-  }
-  // 2. close the books of past demo days nobody closed
-  const pastDays = new Set([...s.salesByDay.keys()].filter((d) => d < L.day && !s.closures.has(d)));
-  for (const d of [...pastDays].sort()) {
-    await engine.run(closeDay, { day: d, at: instantOf(d, 18 * 60 + 45) }, base).catch(() => null);
-  }
-  // 3. new days entering the two-week window
-  for (let i = 0; i <= 14; i++) {
-    const d = addDays(L.day, i);
-    if (s.demoDays.has(d) || !s.settings.hours[weekday(d)]?.length) continue;
-    const stats = clientStats(s, L.day, now);
-    const clients = [...s.clients.values()].filter((c) => !c.erased && !c.mergedInto);
-    const pick = () => { const c = clients[Math.floor(r() * clients.length)]; const st = stats.get(c.id); return c ? { id: c.id, fav: st && st.favService } : null; };
-    for (const p of planDay(s, d, fillFor(d, L.day), r, pick, now)) await engine.run(createAppointment, p, base).catch(() => null);
-    await engine.run({ run(st, input, ctx) { ctx.emit('demo.seeded', { days: [d] }); return {}; } }, {}, base);
-  }
-  // 4. a client books online every few minutes during opening hours
-  const open = (s.settings.hours[L.wd] || []).some(([a, b]) => L.min >= a && L.min < b - 60);
-  const siteToday = [...s.appts.values()].filter((a) => a.demo && a.source === 'site' && a.createdAt > instantOf(L.day, 0));
-  const last = siteToday.reduce((m, a) => Math.max(m, a.createdAt), 0);
-  if (open && siteToday.length < 14 && now - last > 7 * 60000) {
-    const sv = [...s.services.values()].filter((x) => x.active && x.online && !x.pack && x.dur === 30)[Math.floor(r() * 3)];
-    const day = r() < 0.6 ? L.day : addDays(L.day, 1 + Math.floor(r() * 4));
-    const slots = sv ? freeSlots(s, { day, dur: sv.dur, serviceIds: [sv.id], staffId: 'any', now, local: L, online: true }) : [];
-    const pickSlot = slots[Math.floor(r() * Math.min(slots.length, 6))];
-    const clients = [...s.clients.values()].filter((c) => c.phone && !c.erased && !c.mergedInto);
-    const c = clients[Math.floor(r() * clients.length)];
-    if (pickSlot && c) {
-      // looks exactly like a real client on the site, so the Comptoir reacts the same way
-      const client = { actor: /** @type {const} */ ({ t: 'client', id: 'site', n: c.first }), meta: { ...meta, demoSim: true } };
-      await engine.run(bookOnline, { serviceIds: [sv.id], staffId: r() < 0.5 ? 'any' : pickSlot.staffId, day, start: pickSlot.m, first: c.first, last: c.last, phone: c.phone, sms: true, demo: true }, client).catch(() => null);
+  if (engine.state.mode !== 'demo') return 0;
+  return engine.batch((step) => {
+    const s = engine.state;
+    const now = engine.clock();
+    const L = localParts(now);
+    const owner = [...s.staff.values()].find((x) => x.role === 'owner' && x.active);
+    const base = { ...SYS, actor: /** @type {const} */ ({ t: 'system', id: 'demo', n: 'Démo' }), staff: owner, meta };
+    const r = rng(Math.floor(now / 60000));
+    /** @param {any} h @param {any} input @param {any} [ctx] */
+    const tryStep = (h, input, ctx = base) => { try { return step(h, input, ctx); } catch { return null; } };
+    // 1. finish what is over, seat who is in the chair
+    const due = [];
+    for (const a of s.appts.values()) {
+      if (!a.demo || !['booked', 'arrived', 'in_chair'].includes(a.status)) continue;
+      if (a.day < L.day || (a.day === L.day && a.start + a.dur + 25 <= L.min)) due.push(a);
+      else if (a.day === L.day && a.start <= L.min && a.status === 'booked') tryStep(setStatus, { id: a.id, status: 'in_chair' });
     }
-  }
+    for (const a of due.slice(0, 60)) {
+      const input = demoCheckoutInput(s, a, r, { cash: false });
+      tryStep(checkout, { ...input, day: a.day, at: instantOf(a.day, a.start + a.dur + 2) });
+    }
+    // 2. close the books of past days nobody closed
+    for (const d of [...s.salesByDay.keys()].filter((k) => k < L.day && !s.closures.has(k)).sort()) {
+      tryStep(closeDay, { day: d, at: instantOf(d, 18 * 60 + 45) });
+    }
+    // 3. new days entering the two-week window
+    for (let i = 0; i <= 14; i++) {
+      const d = addDays(L.day, i);
+      if (s.demoDays.has(d) || !s.settings.hours[weekday(d)]?.length) continue;
+      const stats = clientStats(s, L.day, now);
+      const clients = [...s.clients.values()].filter((c) => !c.erased && !c.mergedInto);
+      const pick = () => { const c = clients[Math.floor(r() * clients.length)]; if (!c) return null; const st = stats.get(c.id); return { id: c.id, fav: st && st.favService }; };
+      for (const p of planDay(s, d, fillFor(d, L.day), r, pick, now)) tryStep(createAppointment, p);
+      tryStep({ run(st, input, ctx) { ctx.emit('demo.seeded', { days: [d] }); return {}; } }, {});
+    }
+    // 4. a client books online every few minutes during opening hours
+    const open = (s.settings.hours[L.wd] || []).some(([a, b]) => L.min >= a && L.min < b - 60);
+    const siteToday = [...s.appts.values()].filter((a) => a.demo && a.source === 'site' && a.createdAt > instantOf(L.day, 0));
+    const last = siteToday.reduce((m, a) => Math.max(m, a.createdAt), 0);
+    if (open && siteToday.length < 14 && now - last > 7 * 60000) {
+      const sv = [...s.services.values()].filter((x) => x.active && x.online && !x.pack && x.dur === 30)[Math.floor(r() * 3)];
+      const day = r() < 0.6 ? L.day : addDays(L.day, 1 + Math.floor(r() * 4));
+      const slots = sv ? freeSlots(s, { day, dur: sv.dur, serviceIds: [sv.id], staffId: 'any', now, local: L, online: true }) : [];
+      const pickSlot = slots[Math.floor(r() * Math.min(slots.length, 6))];
+      const clients = [...s.clients.values()].filter((c) => c.phone && !c.erased && !c.mergedInto);
+      const c = clients[Math.floor(r() * clients.length)];
+      if (pickSlot && c) {
+        // looks exactly like a real client on the site, so the Comptoir reacts the same way
+        const client = { actor: /** @type {const} */ ({ t: 'client', id: 'site', n: c.first }), meta: { ...meta, demoSim: true } };
+        tryStep(bookOnline, { serviceIds: [sv.id], staffId: r() < 0.5 ? 'any' : pickSlot.staffId, day, start: pickSlot.m, first: c.first, last: c.last, phone: c.phone, sms: true, demo: true }, client);
+      }
+    }
+  });
 }

@@ -68,7 +68,11 @@ export const tick = {
       if (n >= cap) break;
       if (py.status === 'pending' && py.exp < ctx.now) { ctx.emit('payment.expired', { id: py.id, reason: 'Délai dépassé' }); n++; }
     }
-    // 7. walk-ins called more than 20 minutes ago and never seated
+    // 7. a sender that died mid-way: its claim is released after five minutes
+    for (const m of s.messages.values()) {
+      if (m.status === 'claimed' && m.claimedAt && ctx.now - m.claimedAt > 5 * 60000) ctx.emit('message.updated', { id: m.id, patch: { status: 'queued' } });
+    }
+    // 8. walk-ins called more than 20 minutes ago and never seated
     for (const q of s.queue.values()) {
       if (q.status === 'called' && q.calledAt && ctx.now - q.calledAt > 20 * 60000) ctx.emit('queue.updated', { id: q.id, patch: { status: 'left', auto: true } });
       else if (q.status === 'waiting' && ctx.now - q.at > 4 * 3600000) ctx.emit('queue.updated', { id: q.id, patch: { status: 'left', auto: true } });

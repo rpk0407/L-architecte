@@ -55,7 +55,7 @@ export function emptyState() {
     drawer: /** @type {any} */ (null), drawers: new Map(),
     closures: new Map(), closureSeq: 0, grandTotal: 0,
     giftcards: new Map(), giftByHash: new Map(), packs: new Map(),
-    messages: new Map(), eventIds: new Set(), demoDays: new Set(),
+    messages: new Map(), eventIds: new Set(), demoDays: new Set(), cfgVersion: 0,
     /** small, recent activity feed for the Comptoir (id, type, at, actor) */
     feed: /** @type {any[]} */ ([])
   };
@@ -71,6 +71,9 @@ export function mergeDeep(a, b) {
 }
 function index(map, key, id) { let s = map.get(key); if (!s) { s = new Set(); map.set(key, s); } s.add(id); }
 function unindex(map, key, id) { const s = map.get(key); if (s) s.delete(id); }
+
+/** Events that change what the Comptoir loads once at start (settings, team, catalogue). */
+const CFG = /^(shop|settings|staff|timeoff|device|service|product|stock)\./;
 
 /** Events worth showing in the live feed. */
 const FEED = new Set(['appt.booked', 'appt.cancelled', 'appt.moved', 'appt.status', 'sale.completed', 'sale.refunded', 'payment.succeeded', 'waitlist.added', 'queue.added', 'day.closed', 'drawer.closed', 'stock.adjusted']);
@@ -297,9 +300,10 @@ export function evolve(s, e) {
       break;
   }
   s.eventIds.add(e.id);
+  if (CFG.test(e.type)) s.cfgVersion = e.v;
   s.version = e.v;
   s.head = e.h;
-  if (FEED.has(e.type) && !(e.actor.t === 'system' && e.type !== 'appt.cancelled')) {
+  if (FEED.has(e.type) && !(e.actor.t === 'system' && (e.type !== 'appt.cancelled' || e.actor.id === 'seed' || e.actor.id === 'demo'))) {
     s.feed.push({ v: e.v, type: e.type, at: e.at, actor: e.actor, data: e.data });
     if (s.feed.length > 300) s.feed.splice(0, s.feed.length - 300);
   }

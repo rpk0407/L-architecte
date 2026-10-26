@@ -34,7 +34,7 @@ export const int = ({ min = -2147483648, max = 2147483647 } = {}) => ({
 });
 /** @returns {Schema<boolean>} */
 export const bool = () => ({ parse(x, p) { if (typeof x !== 'boolean') throw new InvalidInput(p, 'vrai/faux attendu'); return x; } });
-/** @template {string} T @param {readonly T[]} values @returns {Schema<T>} */
+/** @template T @param {readonly T[]} values @returns {Schema<T>} */
 export const oneOf = (values) => ({ parse(x, p) { if (!values.includes(x)) throw new InvalidInput(p, 'valeur non permise'); return x; } });
 /** @returns {Schema<string>} */
 export const day = () => ({ parse(x, p) { if (!isDay(x)) throw new InvalidInput(p, 'date AAAA-MM-JJ attendue'); return x; } });
@@ -52,7 +52,7 @@ export const arr = (item, { min = 0, max = 100 } = {}) => ({
 export const opt = (s) => ({ optional: true, parse(x, p) { return x === undefined || x === null ? undefined : s.parse(x, p); } });
 /** @template T @param {Schema<T>} s @returns {Schema<T|null>} */
 export const nullable = (s) => ({ optional: true, parse(x, p) { return x === null ? null : x === undefined ? undefined : s.parse(x, p); } });
-/** @template T @param {Schema<T>[]} list @returns {Schema<T>} */
+/** @param {Schema<any>[]} list @returns {Schema<any>} */
 export const either = (list) => ({
   parse(x, p) {
     let last;

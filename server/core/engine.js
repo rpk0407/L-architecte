@@ -155,6 +155,45 @@ export function createEngine(store, opts = {}) {
     if (opts.onEvents) { try { opts.onEvents(list, api); } catch { /* hooks never break a write */ } }
   }
 
+  /**
+   * Several commands, one atomic append (demo upkeep, imports). Each step sees the previous ones.
+   * A step that throws is skipped by the caller; on a write conflict the batch is dropped and the
+   * state rebuilt from the store, so nothing half-applied ever survives.
+   * @param {(step: (h: Handler, input: any, base: { actor: Actor, staff?: any, caps?: Set<string>, meta?: any }) => any) => void | Promise<void>} fn
+   */
+  async function batch(fn) {
+    await sync(true);
+    /** @type {JEvent[]} */
+    const sealed = [];
+    const step = (handler, input, base) => {
+      const ctx = makeCtx(base);
+      const result = handler.run(state, input, ctx);
+      if (ctx.drafts.length) {
+        const ev = seal(ctx.drafts, { version: state.version, hash: state.head }, { at: ctx.now, actor: ctx.actor, id: () => newId('ev') });
+        apply(ev);
+        sealed.push(...ev);
+      }
+      return result;
+    };
+    const rollback = async () => { rebuild(); epoch = ''; await pull(); };
+    try { await fn(step); } catch (e) { if (sealed.length) await rollback(); throw e; }
+    if (!sealed.length) return 0;
+    const r = await store.append(sealed, epoch);
+    if (!r.ok) { await rollback(); return -1; }
+    await afterAppend(sealed);
+    return sealed.length;
+  }
+
+  /** Append a journal built elsewhere (the demo seed) to an empty store. */
+  async function adopt(events) {
+    await sync(true);
+    if (state.version > 0) return false;
+    const r = await store.append(events, epoch);
+    if (!r.ok) { await sync(true); return false; }
+    apply(events);
+    return true;
+  }
+
   async function reset() {
     epoch = await store.reset();
     rebuild();
@@ -166,7 +205,7 @@ export function createEngine(store, opts = {}) {
     store,
     get state() { return state; },
     get journal() { return journal; },
-    sync, run, reset,
+    sync, run, batch, adopt, reset,
     verify: () => verifyChain(journal),
     clock,
     /** read-only view after a throttled sync */
