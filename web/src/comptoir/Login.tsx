@@ -17,6 +17,8 @@ export type AuthState = {
 export function Login({ state, onDone }: { state: AuthState; onDone: () => void }) {
   const [view, setView] = useState<'team' | 'owner' | 'setup'>(state.needsSetup ? 'setup' : state.device && state.team.length ? 'team' : 'owner');
   const [who, setWho] = useState<AuthState['team'][number] | null>(null);
+  // a browser that just became a salon device goes straight to the team's codes
+  useEffect(() => { if (state.device && state.team.length) setView('team'); }, [state.device?.id]);
   return (
     <div className="auth">
       <div className="auth-box">

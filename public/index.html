@@ -3,7 +3,6 @@
 <head>
 <meta charset="utf-8">
 <meta name="robots" content="noindex, nofollow">
-<meta name="lx-api" content="/api/lx">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Barber L’Architecte · Comment ça marche</title>
 <meta name="description" content="Démo privée : le site de réservation de Barber L’Architecte, le Comptoir du salon, et comment une réservation circule de bout en bout.">
@@ -277,6 +276,7 @@ transition:opacity .45s var(--ease),transform .6s var(--ease)}
 .why4 b{grid-row:span 2;font:400 15px/1.6 var(--f-serif);color:var(--rouge)}
 .why4 h3{font:400 28px/1.05 var(--f-serif)}
 .why4 p{font-size:15px;line-height:1.5;color:var(--cendre)}
+@media (min-width:900px){.why4.why6{grid-template-columns:repeat(3,minmax(0,1fr))!important}}
 
 /* footer */
 .pc-ft{padding:clamp(72px,10vw,140px) 0 max(36px,env(safe-area-inset-bottom));border-top:1px solid var(--ligne)}
@@ -431,10 +431,10 @@ transition:opacity .45s var(--ease),transform .6s var(--ease)}
 <h2 class="h2" id="t-test">Essaie-le en deux minutes.</h2>
 <ol class="steps">
 <li><b>1</b><span><strong>Sur ton téléphone, ouvre le site</strong> et réserve un créneau, comme un client.</span></li>
-<li><b>2</b><span><strong>Sur l’ordinateur ou la tablette, ouvre le Comptoir.</strong> C’est l’écran du salon.</span></li>
-<li><b>3</b><span><strong>Ta réservation arrive en direct</strong>, avec ta note et les rappels prévus. Annule-la depuis ton téléphone&nbsp;: le créneau se libère aussitôt.</span></li>
+<li><b>2</b><span><strong>Sur l’ordinateur ou la tablette, ouvre le Comptoir</strong> et connecte-toi avec les accès de démo affichés. C’est l’écran du salon, avec dix semaines d’activité.</span></li>
+<li><b>3</b><span><strong>Ta réservation arrive en direct</strong> dans l’agenda. Encaisse-la à la caisse, puis annule ou déplace une autre depuis ton téléphone&nbsp;: le créneau se libère aussitôt.</span></li>
 </ol>
-<p class="note">Aucun SMS n’est envoyé pendant la démo. Les réservations de test s’effacent au bout de 7&nbsp;jours.</p>
+<p class="note">Aucun SMS n’est envoyé et aucune carte n’est débitée pendant la démo. Gérant&nbsp;: gerant@larchitecte.fr · Architecte13. Codes des barbiers&nbsp;: JKut 2468, Frank 1357, Le Soldat 8642, Esteban 9753. La démo se remet à zéro depuis Réglages › Données.</p>
 </div>
 <div class="tg-r">
 <div class="qr-card qr-live"><div class="qr-img qr-slot" aria-hidden="true"></div><div class="qr-txt"><p class="qr-url">/site</p><p>Scanne avec ton téléphone pour réserver comme un client. Garde le Comptoir ouvert sur cet écran&nbsp;: la réservation y arrive en direct.</p></div></div>
@@ -570,6 +570,21 @@ transition:opacity .45s var(--ease),transform .6s var(--ease)}
 <div class="dt-r" role="row"><span role="cell">Note pour le barbier</span><span role="cell">Ses préférences, d’une fois sur l’autre</span><span role="cell">Le barbier</span></div>
 </div>
 <p class="dnote">Les SMS de confirmation et de rappel sont des messages de service. La relance «&nbsp;On recoupe&nbsp;?&nbsp;» ne part qu’aux clients qui l’ont acceptée.</p>
+</div>
+</section>
+
+<section class="pc-why" aria-labelledby="t-ck">
+<div class="w">
+<p class="pk">Le Comptoir</p>
+<h2 class="h2" id="t-ck">Tout le salon, sur un écran.</h2>
+<ul class="why4 why6">
+<li><b>01</b><h3>L’agenda en direct</h3><p>Chaque fauteuil, chaque client, les arrivées sans rendez-vous et la liste d’attente. On déplace d’un glisser, le client est prévenu par SMS.</p></li>
+<li><b>02</b><h3>La caisse et la clôture</h3><p>Carte, espèces avec rendu de monnaie, QR code, cartes cadeaux, abonnements, pourboires. Le soir&nbsp;: comptage du tiroir et clôture Z scellée.</p></li>
+<li><b>03</b><h3>Les clients</h3><p>Fiche technique de chaque coupe, rythme de passage, dépenses, absences. Ceux qui décrochent sont repérés et relancés en un geste.</p></li>
+<li><b>04</b><h3>Les chiffres</h3><p>Chiffre du jour, du mois, objectif et projection, heures creuses, commissions de chaque barbier, exports pour le comptable.</p></li>
+<li><b>05</b><h3>L’équipe</h3><p>Horaires, absences, prestations de chacun, commissions. Connexion par code sur les appareils du salon, droits réglés par le gérant.</p></li>
+<li><b>06</b><h3>Des comptes inaltérables</h3><p>Chaque vente est scellée dans un journal vérifiable&nbsp;: rien ne se modifie, une erreur se corrige par un avoir. Les données restent au salon.</p></li>
+</ul>
 </div>
 </section>
 
