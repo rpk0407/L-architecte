@@ -1,0 +1,86 @@
+// 01 · Le direct. The first screen answers before anyone scrolls: open or not and until when, the salon's
+// own clock (not the phone's), what is left today, the next free chair, and the walk-in wait when the
+// salon publishes one. Every number is read from the salon; when one is unknown, it is not shown.
+import { dates, plural } from '../../../lib/format';
+import * as S from '../../../site-kit/salon';
+import * as M from '../../../site-kit/memory';
+import { $, bookAttrs, NB } from '../dom';
+import { barber, knownPool } from '../store';
+
+const HERO_SVC = ['cl'];
+
+/** Open now and until when, or when it opens again: the same words the big status and the salon section use. */
+export function statusWords() {
+  const d = S.today(), m = S.nowMin(), iv = S.hoursOf(d);
+  const live = S.knownLive();
+  const cur = iv.find(([a, b]) => m >= a && m < b);
+  const open = live && live.today === d ? live.open && !!iv.length : !!cur;
+  const close = cur ? cur[1] : iv.length ? iv[iv.length - 1][1] : null;
+  if (open && close != null) {
+    const left = close - m;
+    return { open, big: 'Ouvert.', sub: left <= 60 ? 'Ferme dans ' + plural(Math.max(1, left), 'minute') + '.' : 'Jusqu’à ' + dates.fmtTime(close) + '.', line: 'Ouvert maintenant · ferme à ' + dates.fmtTime(close) };
+  }
+  const later = iv.find(([a]) => m < a);
+  if (later) return { open: false, big: 'Fermé.', sub: 'Ouvre à ' + dates.fmtTime(later[0]) + '.', line: 'Fermé · ouvre à ' + dates.fmtTime(later[0]) };
+  const next = S.openDays(1, dates.addDays(d, 1))[0];
+  if (!next) return { open: false, big: 'Fermé.', sub: 'Réouverture bientôt.', line: 'Fermé pour le moment' };
+  const n = dates.diffDays(d, next), at = dates.fmtTime(S.hoursOf(next)[0][0]);
+  const when = n === 1 ? 'demain' : n < 7 ? dates.DAYS_FR[dates.dayParts(next).wd] : 'le ' + dates.dayLong(next);
+  return { open: false, big: 'Fermé.', sub: 'Rouvre ' + when + ' à ' + at + '.', line: 'Fermé · réouverture ' + when + ' ' + at };
+}
+
+export function paintClock() {
+  const min = dates.localParts(S.now()).min;
+  const t = $('[data-clock]'), sr = $('[data-clock-sr]');
+  if (t) t.textContent = dates.hhmm(min);
+  if (sr) sr.textContent = 'Heure du salon : ' + dates.fmtTime(min);
+}
+
+function meter(i: number, k: string, v: string | null, s: string) {
+  const kk = $('[data-mt-k="' + i + '"]'), vv = $('[data-mt-v="' + i + '"]'), ss = $('[data-mt-s="' + i + '"]');
+  if (kk) kk.textContent = k;
+  if (vv) { if (v == null) vv.innerHTML = '<i class="sk"></i>'; else vv.textContent = v; }
+  if (ss) ss.textContent = s || NB;
+}
+
+export function paintHero(failed = false) {
+  const st = statusWords();
+  $('[data-st-big]')!.textContent = st.big;
+  $('[data-st-sub]')!.textContent = st.sub;
+  $('[data-dot]')?.classList.toggle('off', !st.open);
+  document.documentElement.classList.toggle('is-open', st.open);
+  const first = M.firstName();
+  $('[data-greet]')!.textContent = first ? 'Salut ' + first + ' · en direct du salon' : 'En direct du salon';
+  paintClock();
+
+  const pool = knownPool(HERO_SVC);
+  const d = S.today(), m = S.nowMin(), iv = S.hoursOf(d);
+  const nextBtn = $<HTMLButtonElement>('[data-mt-v="1"]')!;
+  if (!pool) {
+    if (failed) { meter(0, 'Reste aujourd’hui', '—', 'le salon ne répond pas'); meter(1, 'Prochain créneau', 'Réserver', 'la feuille revérifie tout'); }
+    else { meter(0, 'Reste aujourd’hui', null, 'pour une coupe'); meter(1, 'Prochain créneau', null, ''); }
+  } else {
+    // the rest of today while the salon is open, otherwise the next day it opens
+    const stillToday = iv.some(([, b]) => m < b - 15);
+    const day = stillToday ? d : S.openDays(1, dates.addDays(d, 1))[0] || d;
+    const n = pool.filter((x) => x.day === day).length;
+    const label = day === d ? 'Reste aujourd’hui' : dates.diffDays(d, day) === 1 ? 'Demain' : dates.DAYS_FR[dates.dayParts(day).wd].replace(/^./, (c) => c.toUpperCase());
+    meter(0, label, n ? String(n) : 'Complet', n ? (n > 1 ? 'créneaux' : 'créneau') + ' · pour une coupe' : 'en ligne, pour une coupe');
+    const f = pool[0], b = f ? barber(f.key) : null;
+    if (f) {
+      const today = f.day === d;
+      meter(1, 'Prochain créneau', (today ? '' : dates.DAYS_SH[dates.dayParts(f.day).wd].replace(/^./, (c) => c.toUpperCase()) + ' ') + dates.fmtTime(f.m), b ? 'avec ' + b.name : '');
+      bookAttrs(nextBtn, { slugs: HERO_SVC, staff: f.key, day: f.day, start: f.m, source: 'hero-next' });
+      nextBtn.setAttribute('aria-label', 'Réserver ' + (today ? 'aujourd’hui' : dates.dayLong(f.day)) + ' à ' + dates.fmtTime(f.m) + (b ? ' avec ' + b.name : '') + ', coupe classique');
+    } else {
+      meter(1, 'Prochain créneau', '—', 'rien en ligne sous 14 jours');
+      bookAttrs(nextBtn, { slugs: HERO_SVC, source: 'hero-next' });
+      nextBtn.removeAttribute('aria-label');
+    }
+  }
+  const live = S.knownLive();
+  if (live && st.open && live.waitMin != null) {
+    const w = live.waitMin;
+    meter(2, 'Sans rendez-vous', w <= 5 ? 'Tout de suite' : '≈' + NB + w + NB + 'min', w <= 5 ? 'un fauteuil se libère' : live.queued ? 'estimée · ' + plural(live.queued, 'personne') + ' avant toi' : 'd’attente estimée');
+  } else meter(2, 'Note Google', '5,0', '316 avis');
+}
