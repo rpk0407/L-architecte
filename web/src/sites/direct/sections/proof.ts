@@ -2,7 +2,7 @@
 // their own only while on screen, with the tab visible, and stop for good once the visitor takes over
 // (or never start, for reduced motion: then all three are simply listed).
 import { REVIEWS, REVIEW_TAGS } from '../../../site-kit/content';
-import { countUp, reduced } from '../../../site-kit/motion';
+import { reduced } from '../../../site-kit/motion';
 import { $, $$, h, watch } from '../dom';
 
 let i = 0, timer = 0, onScreen = false, manual = false, hover = false;
@@ -51,5 +51,4 @@ export function initProof() {
     document.addEventListener('visibilitychange', loop);
   }
   $('[data-tags]')!.replaceChildren(...REVIEW_TAGS.map((t) => h('li', {}, t)));
-  countUp($('[data-count]'), 5, { decimals: 1, ms: 1200 });
 }

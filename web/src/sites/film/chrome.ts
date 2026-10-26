@@ -12,7 +12,7 @@ export const SEQ = [
 ].map((s, i) => ({ ...s, n: pad2(i) }));
 
 const FPS = 24;
-let tops: number[] = [], docMax = 1, vh = 1, cur = -1, k = -1, dockOn = false;
+let tops: number[] = [], docMax = 1, vh = 1, cur = -1, k = -1, dockOn = false, paper = false;
 
 /** HH:MM:SS:FF for a position on the page. The film lasts as long as a classic cut (30 min in the catalogue). */
 function timecode(p: number) {
@@ -70,6 +70,11 @@ export function mountChrome() {
     let i = 0;
     while (i < tops.length - 1 && tops[i + 1] <= y + vh * 0.45) i++;
     if (i !== cur) setCurrent(i);
+    // the top bar reads on ink; over the paper programme it switches to paper
+    let u = 0;
+    while (u < tops.length - 1 && tops[u + 1] <= y + 40) u++;
+    const pp = SEQ[u].id === 'seance';
+    if (pp !== paper) { paper = pp; document.documentElement.classList.toggle('on-paper', pp); }
 
     // letterbox: full in the opening shot, opening up as the film starts, closing in briefly at each cut
     if (!still) {

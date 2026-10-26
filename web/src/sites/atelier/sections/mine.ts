@@ -42,7 +42,7 @@ export function mountMine() {
       h('p', { class: 'micro mine-k' }, h('span', { class: 'pl' }, 'Ton plan'), hi || 'Bon retour'),
       h('h2', { class: 'mine-h', id: 'mine-h' }, title)
     ];
-    const body: Node[] = [];
+    const body: (Node | null)[] = [];
     if (up) {
       const pay = up.status === 'pending' && up.payUrl ? up.payUrl : null;
       body.push(

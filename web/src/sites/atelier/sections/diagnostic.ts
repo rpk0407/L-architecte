@@ -8,7 +8,7 @@ import * as S from '../../../site-kit/salon';
 import { openBooking } from '../../../site-kit/booking';
 import { reduced, scrollToEl } from '../../../site-kit/motion';
 import { dates, eur, dur } from '../../../lib/format';
-import { $, h, text, services, barbers, svcBySlug, totals, prefill, idsOf, freeSlots, whenLong, whenShort, endOfWeek, type Svc, type Bar, type Free } from '../util';
+import { $, h, text, barbers, svcBySlug, totals, prefill, idsOf, freeSlots, whenLong, whenShort, endOfWeek, type Svc, type Bar, type Free } from '../util';
 import { cote } from '../cote';
 import { setAction } from './chrome';
 
@@ -211,7 +211,7 @@ export function mountDiagnostic() {
     box.replaceChildren(h('p', { class: 'micro' }, 'Premier créneau'),
       h('button', { type: 'button', class: 'slot-big', 'data-slot-at': f.day + '|' + f.start + '|' + f.staffId },
         h('b', null, whenLong(f)), h('small', null, who === 'any' && barbers().find((x) => x.id === f.staffId) ? 'avec ' + barbers().find((x) => x.id === f.staffId)!.name : 'Touche pour le prendre')),
-      note ? h('p', { class: 'plan-note' }, note) : null);
+      note ? h('p', { class: 'plan-note' }, note) : '');
   }
 
   function fetchSlot() {

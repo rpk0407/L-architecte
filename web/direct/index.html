@@ -30,28 +30,25 @@
     <a href="#carte" data-chap="carte"><span>06</span>Carte</a>
     <a href="#venir" data-chap="venir"><span>07</span>Venir</a>
   </nav>
-  <p class="clock"><span class="clock-k">Heure du salon</span><span class="clock-t" data-clock aria-hidden="true">--:--</span><span class="sr-only" data-clock-sr></span></p>
+  <p class="clock"><span class="clock-k">Heure du salon</span><span class="clock-t" aria-hidden="true"><span data-clock-h>--</span><i>:</i><span data-clock-m>--</span></span><span class="sr-only" data-clock-sr></span></p>
   <button type="button" class="btn sm bar-cta" data-book data-book-source="bar">Réserver</button>
   <i class="led" data-led aria-hidden="true"></i>
 </header>
 
 <main id="main">
   <div class="room">
-
-    <figure class="feed">
-      <img src="/img/salon.jpg" width="1100" height="812" alt="Le salon : long miroir bordé de LED rouge, canapés noir et rouge, fauteuils et bacs à shampooing" fetchpriority="high">
-      <figcaption><span>Le salon</span>16, place Pélabon</figcaption>
-    </figure>
-
+    <div class="lcol">
     <section class="hero" id="direct" aria-labelledby="t-hero" data-hero>
       <p class="kicker"><span class="live-dot" data-dot aria-hidden="true"></span><span data-greet>En direct du salon</span><span class="kicker-a"> · place Pélabon</span></p>
-      <h1 class="st" id="t-hero"><span class="sr-only">Barber L’Architecte, barbier à Marseille. </span><span class="st-big" data-st-big>Ouvert.</span> <em class="st-sub" data-st-sub>Jusqu’à 18&nbsp;h&nbsp;30.</em></h1>
+      <h1 class="st" id="t-hero"><span class="sr-only">Barber L’Architecte, barbier à Marseille. </span><span class="st-big" data-st-big>Ouvert</span> <em class="st-sub" data-st-sub>Jusqu’à 18&nbsp;h&nbsp;30.</em></h1>
       <p class="promise">Dis ce que tu veux. Le salon te répond en direct&nbsp;: <em>quand, et avec qui.</em></p>
 
+      <section class="me" id="toi" aria-labelledby="t-me" data-me hidden></section>
+
       <dl class="meters" data-meters>
-        <div class="mt"><dt data-mt-k="0">Reste aujourd’hui</dt><dd><span class="mt-v" data-mt-v="0"><i class="sk"></i></span><small data-mt-s="0">pour une coupe</small></dd></div>
-        <div class="mt"><dt data-mt-k="1">Prochain créneau</dt><dd><button type="button" class="mt-v mt-btn" data-mt-v="1" data-book data-book-slug="cl" data-book-source="hero-next"><i class="sk"></i></button><small data-mt-s="1">&nbsp;</small></dd></div>
-        <div class="mt"><dt data-mt-k="2">Note Google</dt><dd><span class="mt-v" data-mt-v="2">5,0</span><small data-mt-s="2">316 avis</small></dd></div>
+        <div class="mt"><dt data-mt-k="0">Aujourd’hui</dt><dd><span class="mt-v" data-mt-v="0"><i class="sk"></i></span><small data-mt-s="0">coupes possibles</small></dd></div>
+        <div class="mt"><dt data-mt-k="1">Prochain</dt><dd><button type="button" class="mt-btn" data-mt-b data-book data-book-slug="cl" data-book-source="hero-next"><span class="mt-v" data-mt-v="1"><i class="sk"></i></span><small data-mt-s="1">&nbsp;</small></button></dd></div>
+        <div class="mt"><dt data-mt-k="2">Google</dt><dd><span class="mt-v" data-mt-v="2">5,0</span><small data-mt-s="2">316 avis</small></dd></div>
       </dl>
 
       <div class="cmd" id="commande">
@@ -83,22 +80,6 @@
       </div>
     </section>
 
-    <div class="side">
-      <section class="me" id="toi" aria-labelledby="t-me" data-me hidden></section>
-
-      <section class="chairs" id="barbiers" aria-labelledby="t-ch">
-        <header class="sh">
-          <p class="kk" data-reveal><span>03</span>Au fauteuil</p>
-          <h2 class="h3" id="t-ch" data-reveal>Qui est libre, <em>et quand.</em></h2>
-          <p class="lead" data-ch-lead>Pour une coupe classique · 30&nbsp;min</p>
-        </header>
-        <ul class="ch-list" data-chairs></ul>
-        <div class="next-act">
-          <button type="button" class="btn ghost" data-book data-book-staff="any" data-book-slug="cl" data-ch-any>Le premier libre</button>
-        </div>
-      </section>
-    </div>
-
     <section class="board" id="departs" aria-labelledby="t-dep" data-board>
       <header class="sh">
         <p class="kk" data-reveal><span>02</span>Les départs</p>
@@ -119,6 +100,26 @@
         <p class="next-note">Ton heure n’y est pas&nbsp;? La feuille de réservation te propose la liste d’attente.</p>
       </div>
     </section>
+    </div>
+
+    <div class="side">
+      <figure class="feed">
+        <img src="/img/salon.jpg" width="1100" height="812" alt="Le salon : long miroir bordé de LED rouge, canapés noir et rouge, fauteuils et bacs à shampooing" fetchpriority="high">
+        <figcaption><span>Le salon</span>16, place Pélabon</figcaption>
+      </figure>
+
+      <section class="chairs" id="barbiers" aria-labelledby="t-ch">
+        <header class="sh">
+          <p class="kk" data-reveal><span>03</span>Au fauteuil</p>
+          <h2 class="h3" id="t-ch" data-reveal>Qui est libre, <em>et quand.</em></h2>
+          <p class="lead" data-ch-lead>Pour une coupe classique · 30&nbsp;min</p>
+        </header>
+        <ul class="ch-list" data-chairs></ul>
+        <div class="next-act">
+          <button type="button" class="btn ghost" data-book data-book-staff="any" data-book-slug="cl" data-ch-any>Le premier libre</button>
+        </div>
+      </section>
+    </div>
   </div>
 
   <section class="work" id="travail" aria-labelledby="t-work" data-work>
@@ -132,7 +133,7 @@
       <ol class="method">
         <li data-reveal><span class="mt-n">01</span><b>L’écoute</b><p>Tu dis ce que tu veux. On regarde ce qui te va, et on te le dit franchement.</p></li>
         <li data-reveal data-delay="90"><span class="mt-n">02</span><b>La construction</b><p>Dégradé, contour, longueur&nbsp;: chaque passage est pensé pour que la coupe tienne.</p></li>
-        <li data-reveal data-delay="180"><span class="mt-n">03</span><b>Le geste</b><p>Tu repars en sachant la coiffer chez toi, avec les bons produits.</p></li>
+        <li data-reveal data-delay="180"><span class="mt-n">03</span><b>Le geste</b><p>Tu repars en sachant la refaire chez toi, sans nous.</p></li>
       </ol>
       <div class="next-act">
         <button type="button" class="btn" data-book data-book-slug="ct" data-book-source="work">Réserver une coupe + barbe</button>
@@ -146,7 +147,7 @@
       <div class="pf-score">
         <p class="kk" data-reveal><span>05</span>La preuve</p>
         <h2 class="sr-only" id="t-proof">Ce que disent les clients : 5,0 sur 5 sur 316 avis Google</h2>
-        <p class="pf-big" aria-hidden="true"><span data-count>5,0</span></p>
+        <p class="pf-big" aria-hidden="true" data-reveal>5,0</p>
         <p class="pf-meta" aria-hidden="true"><svg class="stars" viewBox="0 0 120 22"><path d="M11 1.6l2.7 6.2 6.7.6-5.1 4.5 1.5 6.6L11 16l-5.8 3.5 1.5-6.6L1.6 8.4l6.7-.6z"/><path transform="translate(24 0)" d="M11 1.6l2.7 6.2 6.7.6-5.1 4.5 1.5 6.6L11 16l-5.8 3.5 1.5-6.6L1.6 8.4l6.7-.6z"/><path transform="translate(48 0)" d="M11 1.6l2.7 6.2 6.7.6-5.1 4.5 1.5 6.6L11 16l-5.8 3.5 1.5-6.6L1.6 8.4l6.7-.6z"/><path transform="translate(72 0)" d="M11 1.6l2.7 6.2 6.7.6-5.1 4.5 1.5 6.6L11 16l-5.8 3.5 1.5-6.6L1.6 8.4l6.7-.6z"/><path transform="translate(96 0)" d="M11 1.6l2.7 6.2 6.7.6-5.1 4.5 1.5 6.6L11 16l-5.8 3.5 1.5-6.6L1.6 8.4l6.7-.6z"/></svg><span>316 avis Google</span></p>
       </div>
       <div class="pf-q" data-reviews></div>

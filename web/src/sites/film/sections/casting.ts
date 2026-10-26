@@ -35,7 +35,7 @@ export function mountCasting() {
     setText($('[data-cast-lead]'), (NUM[list.length] || String(list.length)) + ' barbiers, une même exigence. Touche un créneau, il est à toi.');
     setText($('[data-cast-names]'), list.map((b) => b.name).join(', '));
     const n = live.next;
-    const anyHtml = `<button type="button" class="btn" ${bookAttrs({ slug: 'cl', staffId: 'any', day: n?.day, start: n?.start, source: 'film-cast-any' })}>Le premier fauteuil libre${n ? ' · ' + esc(slotWords(n.day, n.start)) : ''}</button>
+    const anyHtml = `<button type="button" class="btn" ${bookAttrs({ slug: 'cl', staffId: 'any', day: n?.day, start: n?.start, source: 'film-cast-any' })}>Le premier libre${n ? ' · ' + esc(slotWords(n.day, n.start)) : ''}</button>
       <p class="next-n">${n ? 'Coupe classique, avec le premier barbier disponible.' : 'Choisis ta prestation, on te trouve un fauteuil.'}</p>`;
     if (any.dataset.html !== anyHtml) { any.dataset.html = anyHtml; any.innerHTML = anyHtml; }
   };
