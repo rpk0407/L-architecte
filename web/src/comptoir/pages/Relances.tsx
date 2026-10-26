@@ -125,7 +125,8 @@ function Rebook() {
 }
 
 function render(t: string, c: Overdue | undefined, site: string) {
-  return t.replace(/\{prenom\}/g, c?.first || 'Karim').replace(/\{jours\}/g, String(c?.sinceLast ?? 35)).replace(/\{lien\}/g, site);
+  // the same clean-up as the server: typographic quotes and dashes become plain ones
+  return t.replace(/\{prenom\}/g, c?.first || 'Karim').replace(/\{jours\}/g, String(c?.sinceLast ?? 35)).replace(/\{lien\}/g, site).replace(/[’‘]/g, "'").replace(/«\s*|\s*»|[“”]/g, '"').replace(/[–—−]/g, '-');
 }
 
 // GSM 03.38: what fits in a 160-character SMS. Anything else (’, ê, ç, emoji) switches the whole message to 70.

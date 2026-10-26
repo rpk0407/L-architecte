@@ -13,6 +13,8 @@ import * as T from '../commands/team.js';
 import * as K from '../commands/catalog.js';
 import * as SH from '../commands/shop.js';
 import { buildDemoJournal } from '../domain/seed.js';
+import { TEMPLATES } from '../core/state.js';
+import { CAPS, ROLES, capsOf } from '../domain/permissions.js';
 import { maybeTick } from './scheduler.js';
 
 /* ---------------- the activity log, in plain French ---------------- */
@@ -98,6 +100,7 @@ export function adminRoutes(app) {
     return r.run(T.setCredentials, { id: r.params.id, pwdHash: await hashSecret(r.body.password) });
   }, { cap: 'team' });
   app.post('/api/v1/staff/:id/revoke', (r) => r.run(T.revokeSessions, { id: r.params.id }), { cap: 'agenda.own' });
+  app.get('/api/v1/timeoff/mine', (r) => ({ items: [...r.s.timeoff.values()].filter((t) => t.staffId === r.me.id && t.to >= r.local.day).sort((a, b) => a.from.localeCompare(b.from)) }), { cap: 'agenda.own' });
   app.post('/api/v1/timeoff', (r) => r.run(T.addTimeOff, r.body), { cap: 'agenda.own' });
   app.del('/api/v1/timeoff/:id', (r) => r.run(T.removeTimeOff, { id: r.params.id }), { cap: 'agenda.own' });
 
@@ -115,7 +118,13 @@ export function adminRoutes(app) {
   app.post('/api/v1/products/:id/stock', (r) => r.run(K.adjustStock, { id: r.params.id, delta: r.body.delta, reason: r.body.reason }), { cap: 'catalog' });
 
   /* settings and devices */
-  app.get('/api/v1/settings', (r) => r.s.settings, { cap: 'settings' });
+  app.get('/api/v1/settings', (r) => ({
+    settings: r.s.settings,
+    // what the owner needs to read the settings: default texts, and what each role can do once the toggles apply
+    defaultTemplates: TEMPLATES,
+    roles: Object.fromEntries(Object.keys(ROLES).map((role) => [role, [...capsOf({ role, active: true }, r.s.settings)]])),
+    caps: CAPS
+  }), { cap: 'settings' });
   app.patch('/api/v1/settings', (r) => r.run(SH.updateSettings, r.body), { cap: 'settings' });
   app.post('/api/v1/settings/closures', (r) => r.run(SH.addClosure, r.body), { cap: 'settings' });
   app.del('/api/v1/settings/closures/:id', (r) => r.run(SH.removeClosure, { id: r.params.id }), { cap: 'settings' });

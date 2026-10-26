@@ -1,0 +1,57 @@
+/* Réglages */
+.rg { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 20px; align-items: start; }
+.rg-nav { position: sticky; top: 12px; display: flex; flex-direction: column; gap: 14px; }
+.rg-group { display: flex; flex-direction: column; gap: 2px; }
+.rg-group .section-k { padding: 0 12px 6px; }
+.rg-link { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 14px; color: var(--tx2); text-decoration: none; transition: background-color .15s, color .15s; }
+.rg-link:hover { background: var(--panel); color: var(--tx); }
+.rg-link[aria-current='page'] { background: var(--panel2); color: var(--tx); }
+.rg-link > svg:first-child { flex: none; }
+.rg-link > svg:last-child { display: none; flex: none; color: var(--tx3); }
+.rg-link span { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.rg-link b { font: 600 14px/1.2 var(--sans); }
+.rg-link small { font-size: 12px; color: var(--tx3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rg-body { min-width: 0; max-width: 860px; padding-bottom: 80px; }
+.rg-back { display: inline-flex; align-items: center; gap: 6px; margin-bottom: 12px; padding: 6px 10px 6px 4px; font: 600 14px/1 var(--sans); color: var(--tx2); text-decoration: none; }
+.rg-h { font: 400 38px/1 var(--serif); margin-top: 4px; }
+.rg-save { position: sticky; bottom: calc(14px + var(--safe-b)); z-index: 5; display: flex; align-items: center; gap: 10px; padding: 10px 10px 10px 18px; border-radius: 18px; background: var(--panel3); box-shadow: var(--shadow), inset 0 0 0 1px var(--line2); font-size: 14px; font-weight: 600; animation: rise .2s var(--ease-out) both; }
+.rg-closure { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr) auto; gap: 8px; }
+.rg-tpl .li { padding-left: 4px; padding-right: 4px; }
+.rg-tpl-ed { display: flex; flex-direction: column; gap: 10px; padding: 4px 0 14px; }
+.rg-matrix td:first-child { white-space: normal; min-width: 200px; }
+.rg-matrix td svg { color: var(--ok); }
+.rg-strength { display: flex; gap: 4px; }
+.rg-strength i { flex: 1; height: 5px; border-radius: 3px; background: var(--panel3); }
+.rg-strength i.on.s1 { background: var(--danger); }
+.rg-strength i.on.s2 { background: var(--warn); }
+.rg-strength i.on.s3, .rg-strength i.on.s4 { background: var(--ok); }
+.rg-dev { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; background: var(--panel2); color: var(--tx2); flex: none; }
+.rg-proof { display: flex; gap: 14px; padding: 16px; border-radius: 18px; }
+.rg-proof > svg { width: 28px; height: 28px; flex: none; }
+.rg-proof b { display: block; font: 400 26px/1.1 var(--serif); margin-bottom: 6px; }
+.rg-proof p { font-size: 13.5px; line-height: 1.5; }
+.rg-proof.ok { background: var(--ok-bg); color: var(--ok-tx); }
+.rg-proof.err { background: var(--danger-bg); color: var(--danger); }
+.rg-log { display: flex; flex-direction: column; }
+.rg-log li { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 10px; padding: 9px 0; border-top: 1px solid var(--line); font-size: 13.5px; }
+.rg-log li:first-child { border-top: 0; }
+.rg-log .t { color: var(--tx3); font-weight: 600; }
+.rg-log .m span { color: var(--tx2); }
+.rg-log .m small { display: block; margin-top: 2px; font-size: 11.5px; color: var(--tx3); font-variant-numeric: tabular-nums; }
+code { font: 500 .92em ui-monospace, SFMono-Regular, Menlo, monospace; padding: 1px 5px; border-radius: 5px; background: var(--panel3); overflow-wrap: anywhere; }
+@media (max-width: 760px) {
+  .rg { grid-template-columns: minmax(0, 1fr); }
+  .rg.has-cur .rg-nav { display: none; }
+  .rg-nav { position: static; }
+  .rg-link { padding: 14px 12px; background: var(--panel); border-radius: 0; }
+  .rg-group .rg-link:nth-child(2) { border-radius: 16px 16px 0 0; }
+  .rg-group .rg-link:last-child { border-radius: 0 0 16px 16px; }
+  .rg-group .rg-link:only-of-type { border-radius: 16px; }
+  .rg-group .rg-link + .rg-link { border-top: 1px solid var(--line); }
+  .rg-link > svg:last-child { display: block; }
+  .rg-closure { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .rg-closure .input:first-child { grid-column: 1 / -1; }
+  .rg-closure .btn { grid-column: 1 / -1; }
+  .rg-body { padding-bottom: 100px; }
+  .rg-save { bottom: calc(76px + var(--safe-b)); }
+}

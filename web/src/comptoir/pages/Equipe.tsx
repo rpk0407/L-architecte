@@ -298,38 +298,28 @@ function Profile({ st }: { st: Staff }) {
 }
 const ROLE_LABEL: Record<string, string> = { barber: 'Barbier', desk: 'Accueil', manager: 'Responsable', owner: 'Gérant' };
 
-/** A week of working hours: each day on or off, one or two spans (a lunch break). */
-export function ScheduleEditor({ st, onSaved }: { st: Staff; onSaved?: () => void }) {
-  const { boot, reloadBoot } = useApp();
-  const init = () => Object.fromEntries([0, 1, 2, 3, 4, 5, 6].map((d) => [d, (st.schedule?.[d] || []).map((x) => [...x] as [number, number])]));
-  const [w, setW] = useState<Record<number, [number, number][]>>(init);
-  const [busy, setBusy] = useState(false);
-  useEffect(() => { setW(init()); }, [st.id, JSON.stringify(st.schedule)]);
-  const dirty = JSON.stringify(w) !== JSON.stringify(init());
-  const shop = boot.settings.hours as Record<string, [number, number][]>;
-  const total = useMemo(() => Object.values(w).reduce((t, d) => t + d.reduce((x, [a, b]) => x + b - a, 0), 0), [w]);
-  const set = (d: number, v: [number, number][]) => setW({ ...w, [d]: v });
-  const save = async () => {
-    for (const [d, iv] of Object.entries(w)) for (let i = 0; i < iv.length; i++) {
-      if (iv[i][1] <= iv[i][0]) { toast({ kind: 'err', title: cap(dates.DAYS_FR[Number(d)]) + ' : la fin doit suivre le début.' }); return; }
-      if (i && iv[i][0] < iv[i - 1][1]) { toast({ kind: 'err', title: cap(dates.DAYS_FR[Number(d)]) + ' : les plages se chevauchent.' }); return; }
-    }
-    setBusy(true);
-    try {
-      const schedule = Object.fromEntries(Object.entries(w).map(([d, v]) => [d, v]));
-      await api.patch('/api/v1/staff/' + st.id, { schedule });
-      toast({ title: 'Horaires enregistrés', sub: 'Le site propose les nouveaux créneaux tout de suite.', icon: 'check' });
-      refreshAll(); reloadBoot().catch(() => {}); onSaved?.();
-    } catch (e) { toastError(e); } finally { setBusy(false); }
-  };
+export type Week = Record<number, [number, number][]>;
+export const weekOf = (src?: Record<string, [number, number][]>): Week => Object.fromEntries([0, 1, 2, 3, 4, 5, 6].map((d) => [d, (src?.[d] || []).map((x) => [...x] as [number, number])]));
+export const weekMinutes = (w: Week) => Object.values(w).reduce((t, d) => t + d.reduce((x, [a, b]) => x + b - a, 0), 0);
+/** The first problem in a week, in words, or null. */
+export function weekProblem(w: Week) {
+  for (const [d, iv] of Object.entries(w)) for (let i = 0; i < iv.length; i++) {
+    if (iv[i][1] <= iv[i][0]) return cap(dates.DAYS_FR[Number(d)]) + ' : la fin doit suivre le début.';
+    if (i && iv[i][0] < iv[i - 1][1]) return cap(dates.DAYS_FR[Number(d)]) + ' : les plages se chevauchent.';
+  }
+  return null;
+}
+
+/** A week of opening or working hours: each day on or off, with breaks. */
+export function WeekEditor({ value, onChange, reference, offLabel }: { value: Week; onChange: (w: Week) => void; reference?: Record<string, [number, number][]>; offLabel: (d: number) => string }) {
+  const set = (d: number, v: [number, number][]) => onChange({ ...value, [d]: v });
   return (
     <div className="col" style={{ gap: 4 }}>
       {[1, 2, 3, 4, 5, 6, 0].map((d) => {
-        const iv = w[d] || [];
-        const shopOpen = (shop[d] || []).length > 0;
+        const iv = value[d] || [];
         return (
           <div key={d} className={'eq-day' + (iv.length ? '' : ' off')}>
-            <button type="button" role="switch" aria-checked={iv.length > 0} className="eq-day-k" onClick={() => set(d, iv.length ? [] : (shop[d]?.length ? shop[d].map((x) => [...x] as [number, number]) : [[540, 1140]]))}>
+            <button type="button" role="switch" aria-checked={iv.length > 0} className="eq-day-k" onClick={() => set(d, iv.length ? [] : (reference?.[d]?.length ? reference[d].map((x) => [...x] as [number, number]) : [[540, 1140]]))}>
               <span className="switch-k" aria-hidden><i /></span><b>{cap(dates.DAYS_FR[d])}</b>
             </button>
             {iv.length ? (
@@ -344,15 +334,40 @@ export function ScheduleEditor({ st, onSaved }: { st: Staff; onSaved?: () => voi
                 ))}
                 {iv.length < 3 ? <button type="button" className="link eq-add" onClick={() => { const last = iv[iv.length - 1]; const mid = Math.round((last[0] + last[1]) / 2 / 30) * 30; set(d, [...iv.slice(0, -1), [last[0], mid], [Math.min(mid + 60, last[1] - 30), last[1]]]); }}>+ pause</button> : null}
               </div>
-            ) : <span className="faint eq-off">{shopOpen ? 'Repos' : 'Salon fermé'}</span>}
+            ) : <span className="faint eq-off">{offLabel(d)}</span>}
           </div>
         );
       })}
+    </div>
+  );
+}
+
+export function ScheduleEditor({ st, onSaved }: { st: Staff; onSaved?: () => void }) {
+  const { boot, reloadBoot } = useApp();
+  const [w, setW] = useState<Week>(() => weekOf(st.schedule));
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { setW(weekOf(st.schedule)); }, [st.id, JSON.stringify(st.schedule)]);
+  const dirty = JSON.stringify(w) !== JSON.stringify(weekOf(st.schedule));
+  const shop = boot.settings.hours as Record<string, [number, number][]>;
+  const total = useMemo(() => weekMinutes(w), [w]);
+  const save = async () => {
+    const pb = weekProblem(w);
+    if (pb) { toast({ kind: 'err', title: pb }); return; }
+    setBusy(true);
+    try {
+      await api.patch('/api/v1/staff/' + st.id, { schedule: w });
+      toast({ title: 'Horaires enregistrés', sub: 'Le site propose les nouveaux créneaux tout de suite.', icon: 'check' });
+      refreshAll(); reloadBoot().catch(() => {}); onSaved?.();
+    } catch (e) { toastError(e); } finally { setBusy(false); }
+  };
+  return (
+    <>
+      <WeekEditor value={w} onChange={setW} reference={shop} offLabel={(d) => ((shop[d] || []).length ? 'Repos' : 'Salon fermé')} />
       <div className="row" style={{ marginTop: 10 }}>
         <span className="grow faint" style={{ fontSize: 13 }}>{Math.floor(total / 60)} h{total % 60 ? String(total % 60).padStart(2, '0') : ''} par semaine</span>
-        {dirty ? <><Button variant="ghost" onClick={() => setW(init())}>Annuler</Button><Button variant="primary" busy={busy} onClick={save}>Enregistrer</Button></> : null}
+        {dirty ? <><Button variant="ghost" onClick={() => setW(weekOf(st.schedule))}>Annuler</Button><Button variant="primary" busy={busy} onClick={save}>Enregistrer</Button></> : null}
       </div>
-    </div>
+    </>
   );
 }
 

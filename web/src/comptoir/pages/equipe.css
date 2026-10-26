@@ -38,7 +38,7 @@
 .eq-day-k[aria-checked='true'] .switch-k i { transform: translateX(18px); }
 .eq-spans { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
 .eq-span { display: inline-flex; align-items: center; gap: 6px; }
-.eq-span .select { width: 92px; min-height: 38px; padding-top: 0; padding-bottom: 0; font-variant-numeric: tabular-nums; }
+.eq-span .select { width: 112px; min-height: 38px; padding: 0 30px 0 12px; font-variant-numeric: tabular-nums; }
 .eq-add { font-size: 13px; }
 .eq-off { font-size: 13.5px; }
 .eq-month { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; border-radius: 16px; background: var(--panel2); font-size: 13.5px; color: var(--tx2); }

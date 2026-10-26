@@ -6,7 +6,9 @@ import { maskPhone } from '../lib/util.js';
 import { fmtEur } from '../../shared/money.js';
 
 export function renderTemplate(tpl, vars) {
-  return String(tpl).replace(/\{(\w+)\}/g, (m, k) => (vars[k] != null ? String(vars[k]) : m)).replace(/\s+/g, ' ').trim();
+  // typographic quotes and dashes would switch the SMS to Unicode (70 characters instead of 160)
+  return String(tpl).replace(/\{(\w+)\}/g, (m, k) => (vars[k] != null ? String(vars[k]) : m)).replace(/\s+/g, ' ')
+    .replace(/[’‘]/g, "'").replace(/«\s*|\s*»|[“”]/g, '"').replace(/[–—−]/g, '-').replace(/…/g, '...').trim();
 }
 
 export function whenWords(day, start) {

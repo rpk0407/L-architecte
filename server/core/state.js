@@ -5,16 +5,17 @@ import { GENESIS } from './journal.js';
 
 /** @typedef {import('./journal.js').JEvent} JEvent */
 
+// Written in the GSM alphabet (straight apostrophe, no ç, ê or ô) so each text costs one SMS, not three.
 export const TEMPLATES = {
-  confirmation: 'L’Architecte : c’est noté {prenom}. {date} à {heure} avec {barbier}, {prestation}. 16 place Pélabon. Gérer : {lien}',
-  reminder: 'L’Architecte : rappel, demain {heure} avec {barbier}. Un empêchement ? Déplace ou annule ici : {lien}',
-  reminder2h: 'L’Architecte : on t’attend à {heure} avec {barbier}. À tout à l’heure !',
-  review: 'Merci pour ta visite {prenom} ! 30 secondes pour un avis ? Ça nous aide énormément : {avis}',
-  rebook: 'Salut {prenom}, ça fait {jours} jours depuis ta dernière coupe. On recoupe ? Réserve ici : {lien}',
-  waitlist: 'L’Architecte : une place s’est libérée {date} à {heure} avec {barbier}. Elle est à toi pendant 30 min : {lien}',
-  queue: 'L’Architecte : c’est bientôt ton tour, {prenom}. Reviens au salon, on t’installe dans 5 minutes.',
-  cancelled: 'L’Architecte : ton rendez-vous du {date} à {heure} est annulé. Pour en reprendre un : {lien}',
-  receipt: 'L’Architecte : merci {prenom} ! Ton ticket {ticket} de {montant} : {lien}'
+  confirmation: "L'Architecte : c'est noté {prenom} ! {date} à {heure} avec {barbier}. Gérer : {lien}",
+  reminder: "L'Architecte : rappel, demain {heure} avec {barbier}. Un imprévu ? Déplace ou annule ici : {lien}",
+  reminder2h: "L'Architecte : on t'attend à {heure} avec {barbier}, à tout à l'heure !",
+  review: "Merci {prenom} ! 30 secondes pour un avis ? Ça nous aide énormément : {avis}",
+  rebook: "Salut {prenom}, déjà {jours} jours depuis ta dernière coupe. On s'y remet ? Réserve ici : {lien}",
+  waitlist: "L'Architecte : place libérée {date} à {heure} avec {barbier}, à toi pendant 30 min : {lien}",
+  queue: "L'Architecte : c'est presque ton tour, {prenom}. Reviens au salon, on t'installe dans 5 minutes.",
+  cancelled: "L'Architecte : ton rendez-vous du {date} à {heure} est annulé. Pour en reprendre un : {lien}",
+  receipt: "L'Architecte : merci {prenom} ! Ton ticket {ticket} de {montant} : {lien}"
 };
 
 export function defaultSettings() {

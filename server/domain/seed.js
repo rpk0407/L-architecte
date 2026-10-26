@@ -320,7 +320,7 @@ export async function buildDemoJournal(nowReal, opt = {}) {
   }
   // Saturday is full: a few people wait for a cancellation
   const sat = [1, 2, 3, 4, 5, 6, 7].map((i) => addDays(today, i)).find((d) => weekday(d) === 6);
-  const asSite = { actor: /** @type {const} */ ({ t: 'client', id: 'site' }), caps: new Set(), meta: base.meta };
+  const asSite = { actor: /** @type {const} */ ({ t: 'client', id: 'web' }), caps: new Set(), meta: base.meta };
   if (sat) {
     const waiting = [['Rayan', '0639981201', 'any', 'cl', 540, 780], ['Idriss', '0639981202', barberIds[0], 'cb', 840, 1110], ['Théo', '0639981203', 'any', 'tb', 0, 1440]];
     for (const [i, [first, phone, staffId, slug, from, to]] of waiting.entries()) {
@@ -387,7 +387,7 @@ export async function demoTick(engine, meta = {}) {
       const c = clients[Math.floor(r() * clients.length)];
       if (pickSlot && c) {
         // looks exactly like a real client on the site, so the Comptoir reacts the same way
-        const client = { actor: /** @type {const} */ ({ t: 'client', id: 'site', n: c.first }), meta: { ...meta, demoSim: true } };
+        const client = { actor: /** @type {const} */ ({ t: 'client', id: 'web', n: c.first }), meta: { ...meta, demoSim: true } };
         tryStep(bookOnline, { serviceIds: [sv.id], staffId: r() < 0.5 ? 'any' : pickSlot.staffId, day, start: pickSlot.m, first: c.first, last: c.last, phone: c.phone, sms: true, demo: true }, client);
       }
     }
