@@ -3,7 +3,6 @@
 <head>
 <meta charset="utf-8">
 <meta name="robots" content="noindex, nofollow">
-<meta name="lx-api" content="/api/lx">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Barber L’Architecte · Barbier à Marseille 13e, place Pélabon</title>
 <meta name="description" content="Barbier place Pélabon, Marseille 13e. Coupe dès 20 €, barbe dès 15 €, dégradés, décoloration et silver. Du mardi au samedi, 9 h – 18 h 30. 5,0 sur 316 avis Google. Réservation en ligne.">
@@ -860,6 +859,14 @@ position:relative;font:400 17px/1.5 var(--f-sans);color:var(--os);background:var
 .priv{margin-top:16px;font-size:13.5px;line-height:1.45;color:var(--cendre2)}
 .priv a{color:var(--encre);text-decoration:underline;text-underline-offset:3px}
 .demo{margin-top:8px;font-size:12.5px;line-height:1.45;color:var(--cendre2)}
+.dep{margin-top:14px;padding:14px 16px;border-radius:16px;background:rgba(15,14,13,.05);font:500 14px/1.45 var(--f-sans);color:var(--encre)}
+.ld{display:flex;align-items:center;gap:10px;margin:6px 0 10px;font:500 14px/1.3 var(--f-sans);color:var(--cendre2)}
+.ld i{width:14px;height:14px;border-radius:50%;border:2px solid var(--iligne2);border-top-color:var(--encre);animation:lxspin .8s linear infinite}
+@keyframes lxspin{to{transform:rotate(360deg)}}
+.wait-f{margin:4px 0 12px}
+.pay-b{display:flex;flex-direction:column;gap:14px;margin-top:18px;padding:18px;border-radius:20px;background:rgba(235,70,57,.1)}
+.pay-b p{font:500 15px/1.45 var(--f-sans);color:var(--encre)}
+.mg-l{display:block;margin-top:18px;font:600 15px/1.35 var(--f-sans);color:var(--encre);text-decoration:underline;text-underline-offset:4px}
 
 /* confirmé */
 .ok{display:flex;align-items:center;gap:14px;margin-top:4px}
@@ -1292,14 +1299,16 @@ html{scroll-behavior:auto}
 <sc-if value="{{hasEarliest}}" hint-placeholder-val="{{ true }}">
 <button type="button" class="fast" onClick="{{pickEarliest}}"><span class="fast-l"><span class="fast-k">Le plus tôt</span><span class="fast-t">{{earliestLine}}</span></span><span class="fast-go">Choisir</span></button>
 </sc-if>
+<sc-if value="{{slotsLoading}}" hint-placeholder-val="{{ false }}"><p class="ld" role="status"><i aria-hidden="true"></i>On regarde les créneaux libres…</p></sc-if>
 <div class="dstrip" aria-label="Choisis un jour">
 <sc-for list="{{dayCards}}" as="d" hint-placeholder-count="10"><button type="button" class="{{d.cls}}" aria-pressed="{{d.on}}" aria-label="{{d.label}}" onClick="{{d.go}}"><small>{{d.wd}}</small><b>{{d.num}}</b><span>{{d.cnt}}</span></button></sc-for>
 </div>
 <sc-if value="{{dayFull}}" hint-placeholder-val="{{ false }}">
 <div class="full">
 <p class="full-t">{{fullLine}}</p>
+<sc-if value="{{waitAsk}}" hint-placeholder-val="{{ false }}"><div class="fld2 wait-f"><div class="fld"><label for="w-first">Prénom</label><input id="w-first" type="text" autocomplete="given-name" value="{{fFirst}}" onChange="{{setFirst}}"></div><div class="fld"><label for="w-phone">Téléphone</label><input id="w-phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="06 12 34 56 78" value="{{fPhone}}" onChange="{{setPhone}}"></div></div></sc-if>
 <sc-if value="{{notWaited}}" hint-placeholder-val="{{ true }}"><button type="button" class="btn ghost" onClick="{{waitBtn}}">Me prévenir si une place se libère</button></sc-if>
-<sc-if value="{{waited}}" hint-placeholder-val="{{ false }}"><p class="full-ok">C’est noté. Si un créneau se libère ce jour-là, il t’est proposé en premier.</p></sc-if>
+<sc-if value="{{waited}}" hint-placeholder-val="{{ false }}"><p class="full-ok">C’est noté. Si un créneau se libère ce jour-là, il t’est proposé par SMS : tu auras 30 minutes pour le prendre.</p></sc-if>
 </div>
 </sc-if>
 <sc-for list="{{slotGroups}}" as="g" hint-placeholder-count="3">
@@ -1313,6 +1322,7 @@ html{scroll-behavior:auto}
 
 <sc-if value="{{isInfo}}" hint-placeholder-val="{{ false }}">
 <div class="st">
+<sc-if value="{{hasErr}}" hint-placeholder-val="{{ false }}"><p class="bk-err" role="alert">{{bkErr}}</p></sc-if>
 <p class="{{holdCls}}"><i aria-hidden="true"></i><span>{{holdText}}</span><b>{{holdLeft}}</b></p>
 <div class="recap"><p class="recap-w">{{recapWhen}}</p><p class="recap-s">{{recapWhat}} · {{recapWho}}</p></div>
 <div class="fld2">
@@ -1324,7 +1334,8 @@ html{scroll-behavior:auto}
 <div class="fld"><label for="f-note">Un mot pour ton barbier <span class="opt-l">facultatif</span></label><input id="f-note" type="text" placeholder="Ex. : dégradé bas, garder la longueur" value="{{fNote}}" onChange="{{setNote}}"></div>
 <button type="button" class="{{smsCls}}" role="switch" aria-checked="{{smsOn}}" onClick="{{toggleSms}}"><span class="sw-t"><b>Rappel par SMS la veille</b><small>Avec un lien pour déplacer ou annuler.</small></span><span class="sw-k" aria-hidden="true"><i></i></span></button>
 <p class="priv">Tes coordonnées servent uniquement à ce rendez-vous. <a href="{{dataHref}}">Comment elles sont traitées</a></p>
-<p class="demo">Démo&nbsp;: aucun SMS n’est envoyé. Seuls ton prénom et les deux derniers chiffres de ton numéro sont gardés, 7&nbsp;jours.</p>
+<sc-if value="{{hasDeposit}}" hint-placeholder-val="{{ false }}"><p class="dep">{{depLine}}</p></sc-if>
+<sc-if value="{{isDemo}}" hint-placeholder-val="{{ true }}"><p class="demo">Démo&nbsp;: aucun SMS n’est envoyé, aucun paiement n’est débité. La réservation apparaît tout de suite dans le Comptoir.</p></sc-if>
 </div>
 </sc-if>
 
@@ -1338,8 +1349,9 @@ html{scroll-behavior:auto}
 <p class="tk-b">{{tkWho}}</p>
 <p class="tk-a">16, place Pélabon · 13013 Marseille</p>
 </div>
-<p class="sms-k">Le SMS que tu reçois</p>
-<div class="sms"><p>{{smsText}}</p><small>À l’instant</small></div>
+<sc-if value="{{needPay}}" hint-placeholder-val="{{ false }}"><div class="pay-b"><p>{{payLine}}</p><a class="btn" href="{{payUrl}}">Régler l’acompte</a></div></sc-if>
+<sc-if value="{{notPay}}" hint-placeholder-val="{{ true }}"><p class="sms-k">Le SMS que tu reçois</p>
+<div class="sms"><p>{{smsText}}</p><small>À l’instant</small></div></sc-if>
 <div class="done-act">
 <sc-if value="{{hasIcs}}" hint-placeholder-val="{{ false }}"><a class="btn ghost" href="{{icsUrl}}" download="rdv-larchitecte.ics">Ajouter à mon agenda</a></sc-if>
 <a class="btn ghost" href="{{mapsUrl}}" target="_blank" rel="noopener">Itinéraire</a>
@@ -1348,7 +1360,8 @@ html{scroll-behavior:auto}
 <sc-if value="{{notAsking}}" hint-placeholder-val="{{ true }}"><button type="button" class="tl" onClick="{{goMove}}">Déplacer</button><button type="button" class="tl" onClick="{{askCancel}}">Annuler</button></sc-if>
 <sc-if value="{{asking}}" hint-placeholder-val="{{ false }}"><p class="ask">Annuler ce rendez-vous&nbsp;?</p><button type="button" class="btn small" onClick="{{doCancel}}">Oui, annuler</button><button type="button" class="tl" onClick="{{keep}}">Non, je garde</button></sc-if>
 </div>
-<a class="to-ck" href="/comptoir" onClick="{{toCockpit}}"><span><small>Test</small>Voir l’arrivée côté salon</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h15M13 6l6 6-6 6"/></svg></a>
+<a class="mg-l" href="{{manageUrl}}">Ton rendez-vous a sa page&nbsp;: déplacer, annuler, itinéraire</a>
+<sc-if value="{{isDemo}}" hint-placeholder-val="{{ true }}"><a class="to-ck" href="/comptoir" target="_blank" rel="noopener" onClick="{{toCockpit}}"><span><small>Démo</small>Le voir arriver dans le Comptoir</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h15M13 6l6 6-6 6"/></svg></a></sc-if>
 </div>
 </sc-if>
 
@@ -1393,8 +1406,29 @@ html{scroll-behavior:auto}
    d'un côté occupe exactement le même créneau de l'autre.
    ====================================================================== */
 const LXE = (function () {
-  const OPEN = 540, CLOSE = 1110, STEP = 30;
-  const NBSP = ' ';
+  /* L'Architecte · le moteur de réservation du site.
+     Tout vient du salon (/api/public) : les prestations et leurs prix, les barbiers, les créneaux libres.
+     Ce que le site propose est exactement ce que le Comptoir voit libre, à la seconde près. */
+  const NBSP = ' ';
+  const DAYS = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
+  const DAYS_SH = ['dim.', 'lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.'];
+  const MONTHS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+  const MONTHS_SH = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
+  /* what the page shows before the salon answers: the same names, prices and lengths as the catalogue */
+  const SV = {
+    cl: { n: 'Coupe classique', sh: 'Coupe', p: 20, d: 30 },
+    cc: { n: 'Coupe + contour de barbe', sh: 'Coupe + contour', p: 25, d: 30 },
+    ct: { n: 'Coupe + taille de barbe', sh: 'Coupe + taille', p: 30, d: 30 },
+    eb: { n: 'Entretien barbe', sh: 'Entretien barbe', p: 15, d: 30 },
+    tb: { n: 'Taille de barbe', sh: 'Taille de barbe', p: 18, d: 30 },
+    cb: { n: 'Cover barbe', sh: 'Cover barbe', p: 15, d: 30 },
+    tr: { n: 'Transformation', sh: 'Transformation', p: 50, d: 60 },
+    de: { n: 'Décoloration', sh: 'Décoloration', p: 60, d: 60, from: true },
+    co: { n: 'Coloration', sh: 'Coloration', p: 30, d: 60, from: true },
+    si: { n: 'Silver', sh: 'Silver', p: 100, d: 60 },
+    cd: { n: 'Coupe + décoloration', sh: 'Coupe + déco', p: 80, d: 90, from: true },
+    ab: { n: 'Abonnement 5 coupes', sh: 'Abonnement', p: 80, d: 30 }
+  };
   const BARBERS = [
     { id: 'jkut', n: 'JKut', ini: 'JK' },
     { id: 'frank', n: 'Frank', ini: 'F' },
@@ -1403,68 +1437,12 @@ const LXE = (function () {
   ];
   const BMAP = {};
   BARBERS.forEach(function (b) { BMAP[b.id] = b; });
-  const SV = {
-    cl: { n: 'Coupe classique', sh: 'Coupe', p: 20, d: 30, w: 30 },
-    cc: { n: 'Coupe + contour de barbe', sh: 'Coupe + contour', p: 25, d: 30, w: 20 },
-    ct: { n: 'Coupe + taille de barbe', sh: 'Coupe + taille', p: 30, d: 30, w: 24 },
-    eb: { n: 'Entretien barbe', sh: 'Entretien barbe', p: 15, d: 30, w: 5 },
-    tb: { n: 'Taille de barbe', sh: 'Taille de barbe', p: 18, d: 30, w: 5 },
-    cb: { n: 'Cover barbe', sh: 'Cover barbe', p: 15, d: 30, w: 2 },
-    tr: { n: 'Transformation', sh: 'Transformation', p: 50, d: 60, w: 6 },
-    de: { n: 'Décoloration', sh: 'Décoloration', p: 60, d: 60, w: 3, from: true },
-    co: { n: 'Coloration', sh: 'Coloration', p: 30, d: 60, w: 2, from: true },
-    si: { n: 'Silver', sh: 'Silver', p: 100, d: 60, w: 2 },
-    cd: { n: 'Coupe + décoloration', sh: 'Coupe + déco', p: 80, d: 90, w: 0, from: true },
-    ab: { n: 'Abonnement 5 coupes', sh: 'Abonnement', p: 80, d: 30, w: 0 }
-  };
-  const SV_IDS = Object.keys(SV);
-  const WSUM = SV_IDS.reduce(function (t, k) { return t + SV[k].w; }, 0);
-  const DAYS = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
-  const DAYS_SH = ['dim.', 'lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.'];
-  const MONTHS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
-  const MONTHS_SH = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
+  const staffOf = {}, siteOf = {};
+  let salon = null, salonAt = 0, salonP = null, moving = null, skew = 0;
 
   function pad(n) { return n < 10 ? '0' + n : '' + n; }
   function clamp(v, a, b) { return v < a ? a : (v > b ? b : v); }
-  function hash(str) {
-    let h = 2166136261;
-    for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
-    return h >>> 0;
-  }
-  function rng(seed) {
-    let s = seed % 2147483647;
-    if (s <= 0) s += 2147483646;
-    return function () { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; };
-  }
-  function pickService(r) {
-    let x = r() * WSUM;
-    for (let i = 0; i < SV_IDS.length; i++) { x -= SV[SV_IDS[i]].w; if (x <= 0) return SV_IDS[i]; }
-    return 'cl';
-  }
-
-  /* ---------- the client pool: stable, so a regular stays a regular ---------- */
-  const FIRST = ['Yanis', 'Mehdi', 'Lucas', 'Karim', 'Nolan', 'Enzo', 'Sofiane', 'Hugo', 'Adam', 'Ilyes', 'Matteo', 'Bilal', 'Théo', 'Nassim', 'Kylian', 'Jules', 'Samir', 'Walid', 'Ethan', 'Amine', 'Louis', 'Ryad', 'Malik', 'Gabriel', 'Anis', 'Noah', 'Sami', 'Yassine', 'Tom', 'Axel', 'Nathan', 'Ismaël', 'Raphaël', 'Hamza', 'Marius', 'Zakaria', 'Jordan', 'Kenzo', 'Sacha', 'Dylan', 'Younes', 'Lenny', 'Mathis', 'Wassim', 'Imran', 'Léo', 'Djibril', 'Timéo', 'Nabil', 'Kaïs', 'Lounis', 'Bastien', 'Moussa', 'Florian', 'Chris', 'Idriss', 'Kevin', 'Maxime', 'Yann', 'Aymen'];
-  const LAST = 'ABCDEFGHJKLMNOPRSTVZ';
-  const NOTES = ['Dégradé bas, contour net', 'Garde la longueur sur le dessus', 'Barbe : ne pas trop raccourcir', 'Raie à gauche, bien marquée', 'Skin fade, dessus texturé', 'Ciseaux sur le dessus', 'Taper, nuque arrondie', 'Vient avec son fils le samedi', 'Sabot 0,5 sur les côtés', '', '', ''];
-  const CLIENTS = (function () {
-    const r = rng(4242);
-    const out = [];
-    for (let i = 0; i < 64; i++) {
-      const f = FIRST[i % FIRST.length];
-      const fav = pickService(r);
-      const cadence = [14, 21, 21, 28, 28, 35][Math.floor(r() * 6)];
-      out.push({
-        id: 'c' + i, first: f, name: f + ' ' + LAST.charAt(Math.floor(r() * LAST.length)) + '.',
-        last: 3 + Math.floor(r() * r() * 52), visits: 1 + Math.floor(r() * 26), cadence: cadence,
-        barber: BARBERS[Math.floor(r() * 4)].id, fav: fav === 'ab' ? 'cl' : fav,
-        note: NOTES[Math.floor(r() * NOTES.length)], tel: pad(10 + Math.floor(r() * 89)),
-        abo: r() < 0.14 ? 1 + Math.floor(r() * 4) : 0, since: 2019 + Math.floor(r() * 7)
-      });
-    }
-    return out;
-  })();
-  const CMAP = {};
-  CLIENTS.forEach(function (c) { CMAP[c.id] = c; });
+  function slugName(n) { return String(n || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/^(le|la|les|l'|l’)\s*/, '').replace(/[^a-z0-9]/g, '') || 'barbier'; }
 
   /* ---------- dates, always in Paris time ---------- */
   function parisParts(ms) {
@@ -1490,253 +1468,165 @@ const LXE = (function () {
     const A = parts(a), B = parts(b);
     return Math.round((Date.UTC(B.y, B.m - 1, B.d) - Date.UTC(A.y, A.m - 1, A.d)) / 86400000);
   }
-  function isOpenDay(key) { const wd = parts(key).wd; return wd >= 2 && wd <= 6; }
-  function now() {
-    const P = parisParts(Date.now());
-    return { P: P, key: keyOf(P.y, P.m, P.d), min: P.min };
+  /* the salon's clock, not the phone's: a phone set to the wrong time still sees the right slots */
+  function now() { const P = parisParts(Date.now() + skew); return { P: P, key: keyOf(P.y, P.m, P.d), min: P.min }; }
+  function hoursOf(key) {
+    if (!salon) { const wd = parts(key).wd; return wd >= 2 && wd <= 6 ? [[540, 1110]] : []; }
+    if ((salon.closures || []).some(function (c) { return c.from <= key && c.to >= key; })) return [];
+    return salon.hours[parts(key).wd] || [];
   }
-  function nextOpen(key, dir) {
-    let k = key;
-    for (let i = 0; i < 8; i++) { k = addDays(k, dir); if (isOpenDay(k)) return k; }
-    return k;
-  }
-  function aheadOf(key) { return Math.max(0, diffDays(now().key, key)); }
+  function isOpenDay(key) { return hoursOf(key).length > 0; }
+  function nextOpen(key, dir) { let k = key; for (let i = 0; i < 30; i++) { k = addDays(k, dir); if (isOpenDay(k)) return k; } return k; }
   function fmtH(min) { min = Math.round(min); const h = Math.floor(min / 60), m = min % 60; return h + NBSP + 'h' + (m ? NBSP + pad(m) : ''); }
   function hm(min) { min = Math.round(min); return pad(Math.floor(min / 60)) + ':' + pad(min % 60); }
   function dayLong(key) { const p = parts(key); return DAYS[p.wd] + ' ' + p.d + ' ' + MONTHS[p.m - 1]; }
   function dayShort(key) { const p = parts(key); return DAYS_SH[p.wd] + ' ' + p.d + ' ' + MONTHS_SH[p.m - 1]; }
   function dayWord(key) {
-    const N = now();
-    const dd = diffDays(N.key, key);
+    const dd = diffDays(now().key, key);
     if (dd === 0) return 'Aujourd’hui';
     if (dd === 1) return 'Demain';
     const s = dayLong(key);
     return s.charAt(0).toUpperCase() + s.slice(1);
   }
-  function eur(p, from) { return (from ? 'dès ' : '') + p + NBSP + '€'; }
+  function eur(p, from) { return (from ? 'dès ' : '') + String(Math.round(p * 100) / 100).replace('.', ',') + NBSP + '€'; }
 
-  /* ---------- one day of the salon, the same on every screen ---------- */
-  const dayCache = {};
-  function genDay(key, ahead) {
-    const ck = key + '|' + ahead;
-    if (dayCache[ck]) return dayCache[ck];
-    const r = rng(hash('day|' + key));
-    const out = [];
-    const gap = clamp(0.2 + ahead * 0.11, 0.2, 0.72);
-    let ci = Math.floor(r() * CLIENTS.length);
-    BARBERS.forEach(function (b) {
-      const ps = [750, 780, 810][Math.floor(r() * 3)];
-      out.push({ id: key + '-' + b.id + '-pause', kind: 'pause', barber: b.id, start: ps, dur: 30 });
-      let t = OPEN + (r() < 0.3 ? 30 : 0);
-      let guard = 0;
-      while (t < CLOSE - 30 && guard++ < 60) {
-        if (t < ps + 30 && t + 30 > ps) { t = ps + 30; continue; }
-        if (r() < gap) { t += 30; continue; }
-        const cl = CLIENTS[ci % CLIENTS.length];
-        ci += 1 + Math.floor(r() * 5);
-        const isAbo = cl.abo > 0 && r() < 0.6;
-        let f = isAbo ? 'cl' : pickService(r);
-        if ((t < ps && t + SV[f].d > ps) || t + SV[f].d > CLOSE) f = 'cl';
-        if (t + SV[f].d > CLOSE) break;
-        const sr = r();
-        out.push({
-          id: key + '-' + b.id + '-' + t, kind: 'rdv', barber: b.id, start: t, dur: SV[f].d, f: f, client: cl.id,
-          src: isAbo ? 'abo' : (sr < 0.56 ? 'site' : (sr < 0.84 ? 'tel' : 'walk')),
-          price: isAbo ? 0 : SV[f].p, aboN: isAbo ? cl.abo + 1 : 0,
-          createdAgo: Math.floor(20 + r() * 2600), noshow: r() < 0.05
-        });
-        t += SV[f].d;
-        if (r() < 0.08) t += 15;
-      }
-    });
-    dayCache[ck] = out;
-    return out;
-  }
-
-  /* ---------- the shared store: local first, live when an API is present ---------- */
-  const LS = 'lx-demo-v2';
-  let entries = null, resetSeen = 0, apiUrl, mode = 'local', cursor = 0;
+  /* ---------- talking to the salon ---------- */
   const listeners = [];
-  function api() {
-    if (apiUrl === undefined) {
-      try { const m = document.querySelector('meta[name="lx-api"]'); apiUrl = m ? m.getAttribute('content') : null; } catch (e) { apiUrl = null; }
-    }
-    return apiUrl;
-  }
-  function load() {
-    if (entries) return entries;
-    try {
-      const x = JSON.parse(window.localStorage.getItem(LS) || '{}');
-      entries = Array.isArray(x.e) ? x.e : [];
-      resetSeen = x.r || 0;
-    } catch (e) { entries = []; }
-    return entries;
-  }
-  function persist() {
-    try { window.localStorage.setItem(LS, JSON.stringify({ e: entries.slice(-400), r: resetSeen })); } catch (e) { /* storage off: memory only */ }
-  }
   function emit() { listeners.slice().forEach(function (fn) { try { fn(); } catch (e) { /* ignore */ } }); }
-  function on(fn) {
-    listeners.push(fn);
-    return function () { const i = listeners.indexOf(fn); if (i >= 0) listeners.splice(i, 1); };
+  function on(fn) { listeners.push(fn); return function () { const i = listeners.indexOf(fn); if (i >= 0) listeners.splice(i, 1); }; }
+  function call(method, path, body) {
+    const o = { method: method, headers: { accept: 'application/json' }, credentials: 'same-origin', cache: 'no-store' };
+    if (body !== undefined) { o.headers['content-type'] = 'application/json'; o.body = JSON.stringify(body); }
+    return fetch(path, o).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) {
+        if (!r.ok) {
+          const e = new Error((j && j.error && j.error.message) || 'Le salon ne répond pas. Réessaie dans un instant.');
+          e.code = j && j.error ? j.error.code : 'http'; e.status = r.status; e.extra = j && j.error ? j.error.extra : null;
+          throw e;
+        }
+        return j;
+      });
+    }, function () { const e = new Error('Pas de connexion. Vérifie ton réseau et réessaie.'); e.code = 'network'; throw e; });
   }
-  try {
-    window.addEventListener('storage', function (e) { if (e.key === LS) { entries = null; load(); emit(); } });
-  } catch (e) { /* no window */ }
-  function mergeIn(list) {
-    load();
-    const ids = {};
-    entries.forEach(function (x) { ids[x.id] = true; });
-    let changed = false;
-    (list || []).forEach(function (x) {
-      if (x && x.id && !ids[x.id]) { entries.push(x); ids[x.id] = true; changed = true; }
+  function applySalon(j) {
+    salon = j; salonAt = Date.now();
+    if (typeof j.now === 'number') skew = j.now - Date.now();
+    (j.services || []).forEach(function (x) {
+      const slug = x.slug || x.id;
+      SV[slug] = Object.assign(SV[slug] || {}, { id: x.id, n: x.name, sh: x.short || x.name, p: x.price / 100, d: x.dur, from: !!x.from, off: false, deposit: x.deposit });
     });
-    if (changed) { entries.sort(function (a, b) { return (a.at || 0) - (b.at || 0); }); persist(); }
-    return changed;
-  }
-  function applyReset(at) {
-    if (!at || at <= resetSeen) return false;
-    resetSeen = at;
-    entries = load().filter(function (x) { return (x.at || 0) > at; });
-    persist();
-    return true;
-  }
-  function pull() {
-    const u = api();
-    if (!u) { mode = 'local'; return Promise.resolve(false); }
-    return fetch(u + (cursor ? (u.indexOf('?') < 0 ? '?' : '&') + 'since=' + cursor : ''), { cache: 'no-store' }).then(function (r) {
-      if (!r.ok) throw new Error('http ' + r.status);
-      return r.json();
-    }).then(function (j) {
-      mode = 'live';
-      if (j.now) cursor = Math.max(0, j.now - 2000);
-      const a = applyReset(j.resetAt);
-      const b = mergeIn(j.entries);
-      if (a || b) emit();
-      return true;
-    }).catch(function () { mode = 'local'; return false; });
-  }
-  function push(entry) {
-    entry.at = entry.at || Date.now();
-    load();
-    if (!entries.some(function (x) { return x.id === entry.id; })) entries.push(entry);
-    persist();
+    Object.keys(SV).forEach(function (k) { if (!(j.services || []).some(function (x) { return (x.slug || x.id) === k; })) SV[k].off = true; });
+    BARBERS.length = 0;
+    Object.keys(BMAP).forEach(function (k) { delete BMAP[k]; });
+    (j.barbers || []).forEach(function (b) {
+      const id = slugName(b.name);
+      const o = { id: id, n: b.name, ini: b.initials, color: b.color, sid: b.id };
+      staffOf[id] = b.id; siteOf[b.id] = id;
+      BARBERS.push(o); BMAP[id] = o;
+    });
     emit();
-    const u = api();
-    if (!u) return Promise.resolve({ ok: true, mode: 'local' });
-    return fetch(u, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ entry: entry }) }).then(function (r) {
-      if (r.status === 409) {
-        entries = entries.filter(function (x) { return x.id !== entry.id; });
-        persist(); emit();
-        return { ok: false, taken: true };
-      }
-      if (!r.ok) throw new Error('http ' + r.status);
-      return r.json().then(function (j) { mode = 'live'; if (mergeIn(j.entries)) emit(); return { ok: true, mode: 'live' }; });
-    }).catch(function () { mode = 'local'; return { ok: true, mode: 'local' }; });
   }
-  function reset() {
-    resetSeen = Date.now();
-    entries = [];
-    cursor = 0;
-    persist(); emit();
-    const u = api();
-    if (!u) return Promise.resolve(true);
-    return fetch(u, { method: 'DELETE' }).then(function () { return true; }).catch(function () { return false; });
+  function loadSalon(force) {
+    if (salonP && !force) return salonP;
+    salonP = call('GET', '/api/public/salon').then(applySalon).catch(function () { salonP = null; });
+    return salonP;
   }
 
-  /* ---------- what the store means ---------- */
-  function view() {
-    const all = load();
-    const cancelled = {};
-    all.forEach(function (x) { if (x.t === 'cancel') cancelled[x.ref] = x; });
-    const t = Date.now();
-    const bookings = all.filter(function (x) { return x.t === 'booking' && !cancelled[x.id]; });
-    const booked = {};
-    all.forEach(function (x) { if (x.t === 'booking' && x.hold) booked[x.hold] = true; });
-    return {
-      all: all, cancelled: cancelled, bookings: bookings,
-      blocks: all.filter(function (x) { return x.t === 'block' && !cancelled[x.id]; }),
-      waits: all.filter(function (x) { return x.t === 'wait' && !cancelled[x.id]; }),
-      holds: all.filter(function (x) { return x.t === 'hold' && !cancelled[x.id] && !booked[x.id] && x.exp > t; })
-    };
+  /* ---------- free slots, fetched per (prestation, barbier) and kept a few seconds ---------- */
+  const av = {}, used = {};
+  function norm(f) { return typeof f === 'string' && SV[f] ? f : 'cl'; }
+  function avKey(f, who) { return f + '|' + (who || 'any') + '|' + (moving || ''); }
+  function fetchAv(f, who) {
+    const k = avKey(f, who);
+    const e = av[k] || (av[k] = { at: 0, loading: false, days: null });
+    if (e.loading) return e.p;
+    if (!salon) { e.p = loadSalon().then(function () { return salon ? fetchAv(f, who) : null; }); return e.p; }
+    const sid = SV[f] && SV[f].id;
+    const staff = !who || who === 'any' ? 'any' : staffOf[who];
+    if (!sid || !staff) { e.days = {}; e.at = Date.now(); return Promise.resolve(); }
+    e.loading = true;
+    const q = '?from=' + now().key + '&days=14&services=' + encodeURIComponent(sid) + '&staff=' + encodeURIComponent(staff) + (moving ? '&move=' + encodeURIComponent(moving) : '');
+    e.p = call('GET', '/api/public/availability' + q).then(function (j) {
+      const days = {};
+      j.days.forEach(function (d) { days[d.day] = d.slots.map(function (x) { return { m: x.m, free: true, barber: siteOf[x.s] || x.s }; }); });
+      e.days = days; e.err = false;
+    }).catch(function () { e.err = true; if (!e.days) e.days = null; }).then(function () { e.loading = false; e.at = Date.now(); emit(); });
+    return e.p;
   }
-  function intervals(key, barber, V, ignoreHold) {
-    V = V || view();
-    const iv = [];
-    genDay(key, aheadOf(key)).forEach(function (x) {
-      if (x.barber === barber && !V.cancelled[x.id]) iv.push([x.start, x.start + x.dur]);
-    });
-    V.bookings.forEach(function (x) { if (x.day === key && x.barber === barber) iv.push([x.time, x.time + x.dur]); });
-    V.blocks.forEach(function (x) { if (x.day === key && x.barber === barber) iv.push([x.time, x.time + x.dur]); });
-    V.holds.forEach(function (x) { if (x.day === key && x.barber === barber && x.id !== ignoreHold) iv.push([x.time, x.time + x.dur]); });
-    return iv;
+  function entry(f, who) {
+    const k = avKey(f, who);
+    used[k] = Date.now();
+    const e = av[k];
+    if (!e || (!e.loading && Date.now() - e.at > (e.err ? 6000 : 20000))) fetchAv(f, who);
+    return av[k];
   }
-  function fits(iv, s, d) {
-    if (s < OPEN || s + d > CLOSE) return false;
-    for (let i = 0; i < iv.length; i++) { if (iv[i][0] < s + d && s < iv[i][1]) return false; }
-    return true;
-  }
-  /* free starts for one day; who = barber id or 'any' (then each slot names its barber) */
-  function slots(key, who, dur, ignoreHold) {
-    const V = view();
-    const N = now();
-    const minStart = key === N.key ? N.min + 30 : (diffDays(N.key, key) < 0 ? 99999 : 0);
-    const ivs = {};
-    BARBERS.forEach(function (b) { ivs[b.id] = intervals(key, b.id, V, ignoreHold); });
-    const out = [];
-    for (let m = OPEN; m + dur <= CLOSE; m += STEP) {
-      let bar = null;
-      if (m >= minStart && isOpenDay(key)) {
-        if (who && who !== 'any') { if (fits(ivs[who], m, dur)) bar = who; }
-        else {
-          const k0 = (m / STEP) % BARBERS.length;
-          for (let i = 0; i < BARBERS.length; i++) {
-            const b = BARBERS[(k0 + i) % BARBERS.length].id;
-            if (fits(ivs[b], m, dur)) { bar = b; break; }
-          }
-        }
-      }
-      out.push({ m: m, free: !!bar, barber: bar });
-    }
-    return out;
+  function ready(f, who) { const e = entry(norm(f), who || 'any'); return !!(e && e.days); }
+  function slots(key, who, f) {
+    const e = entry(norm(f), who || 'any');
+    return e && e.days && e.days[key] ? e.days[key] : [];
   }
   function openDays(n) {
     const out = [];
+    const max = salon ? salon.booking.maxDaysAhead : 30;
     let k = now().key;
-    for (let i = 0; i < 40 && out.length < n; i++) {
-      if (isOpenDay(k)) out.push(k);
-      k = addDays(k, 1);
-    }
+    for (let i = 0; i <= max && out.length < n; i++) { if (isOpenDay(k)) out.push(k); k = addDays(k, 1); }
     return out;
   }
-  function earliest(who, dur, days) {
+  function earliest(who, f, days) {
     days = days || openDays(10);
     for (let i = 0; i < days.length; i++) {
-      const s = slots(days[i], who, dur).filter(function (x) { return x.free; });
+      const s = slots(days[i], who, f);
       if (s.length) return { day: days[i], m: s[0].m, barber: s[0].barber };
     }
     return null;
   }
-  function stillFree(key, barber, m, dur, ignoreHold) { return fits(intervals(key, barber, view(), ignoreHold), m, dur); }
-
-  function uid(p) { return p + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
-  function code() {
-    const A = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
-    let s = '';
-    for (let i = 0; i < 4; i++) s += A.charAt(Math.floor(Math.random() * A.length));
-    return 'LA-' + s;
+  function stillFree(key, barber, m, f) { return slots(key, barber, f).some(function (x) { return x.m === m; }); }
+  function invalidate() { Object.keys(av).forEach(function (k) { av[k].at = 0; }); }
+  function pull() {
+    const t = Date.now(), jobs = [];
+    if (!salon || t - salonAt > 300000) jobs.push(loadSalon(true));
+    Object.keys(used).forEach(function (k) {
+      if (t - used[k] > 90000) return;
+      const e = av[k];
+      if (e && !e.loading && t - e.at > 8000) { const p = k.split('|'); if ((p[2] || '') === (moving || '')) jobs.push(fetchAv(p[0], p[1])); }
+    });
+    return Promise.all(jobs);
   }
-  function who(first, last2) { return (first || '').trim().toLowerCase() + '|' + (last2 || ''); }
+
+  /* ---------- what a visitor can do ---------- */
+  function hold(f, who, day, start) {
+    return call('POST', '/api/public/holds', { serviceIds: [SV[norm(f)].id], staffId: !who || who === 'any' ? 'any' : staffOf[who], day: day, start: start })
+      .then(function (h) { invalidate(); return { id: h.holdId, barber: siteOf[h.staffId] || who, exp: h.exp }; });
+  }
+  function release(id) { if (id) call('DELETE', '/api/public/holds/' + encodeURIComponent(id)).then(invalidate, function () {}); }
+  function book(o) {
+    return call('POST', '/api/public/bookings', {
+      serviceIds: [SV[norm(o.f)].id], staffId: !o.barber || o.barber === 'any' ? 'any' : staffOf[o.barber], day: o.day, start: o.time, holdId: o.holdId || undefined,
+      first: o.first, last: o.last || undefined, phone: o.phone, email: o.email || undefined, note: o.note || undefined, sms: o.sms !== false
+    }).then(function (r) { invalidate(); emit(); r.barber = siteOf[r.staffId] || o.barber; return r; });
+  }
+  function booking(token) { return call('GET', '/api/public/bookings/' + encodeURIComponent(token)); }
+  function cancel(token) { return call('POST', '/api/public/bookings/' + encodeURIComponent(token) + '/cancel', {}).then(function (r) { invalidate(); emit(); return r; }); }
+  function move(token, day, start) { return call('POST', '/api/public/bookings/' + encodeURIComponent(token) + '/move', { day: day, start: start }).then(function (r) { invalidate(); emit(); return r; }); }
+  function wait(o) {
+    return call('POST', '/api/public/waitlist', { day: o.day, staffId: !o.barber || o.barber === 'any' ? 'any' : staffOf[o.barber], serviceId: SV[norm(o.f)].id, first: o.first, phone: o.phone });
+  }
+  function offer(token) { return call('GET', '/api/public/offers/' + encodeURIComponent(token)).then(function (w) { return { f: Object.keys(SV).filter(function (k) { return SV[k].id === w.serviceId; })[0] || null, barber: siteOf[w.staffId] || null, day: w.day, time: w.start, holdId: w.holdId, exp: w.exp, first: w.first }; }); }
+  let liveV = null, liveAt = 0;
+  function live() {
+    if (Date.now() - liveAt > 30000) { liveAt = Date.now(); call('GET', '/api/public/live').then(function (j) { liveV = j; emit(); }, function () {}); }
+    return liveV;
+  }
+  function setMoving(token) { moving = token || null; emit(); }
+  function uid(p) { return p + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
 
   return {
-    OPEN: OPEN, CLOSE: CLOSE, STEP: STEP, BARBERS: BARBERS, BMAP: BMAP, SV: SV, CLIENTS: CLIENTS, CMAP: CMAP,
-    DAYS: DAYS, DAYS_SH: DAYS_SH, MONTHS: MONTHS, MONTHS_SH: MONTHS_SH,
-    pad: pad, clamp: clamp, hash: hash, rng: rng, parisParts: parisParts, keyOf: keyOf, parts: parts, addDays: addDays,
-    diffDays: diffDays, isOpenDay: isOpenDay, now: now, nextOpen: nextOpen, aheadOf: aheadOf,
-    fmtH: fmtH, hm: hm, dayLong: dayLong, dayShort: dayShort, dayWord: dayWord, eur: eur,
-    genDay: genDay, view: view, slots: slots, openDays: openDays, earliest: earliest, stillFree: stillFree,
-    load: load, pull: pull, push: push, reset: reset, on: on, mode: function () { return api() ? mode : 'local'; }, hasApi: function () { return !!api(); },
-    uid: uid, code: code, who: who
+    BARBERS: BARBERS, BMAP: BMAP, SV: SV, DAYS: DAYS, DAYS_SH: DAYS_SH, MONTHS: MONTHS, MONTHS_SH: MONTHS_SH,
+    pad: pad, clamp: clamp, parisParts: parisParts, keyOf: keyOf, parts: parts, addDays: addDays, diffDays: diffDays,
+    isOpenDay: isOpenDay, hoursOf: hoursOf, now: now, nextOpen: nextOpen, fmtH: fmtH, hm: hm, dayLong: dayLong, dayShort: dayShort, dayWord: dayWord, eur: eur,
+    slots: slots, ready: ready, openDays: openDays, earliest: earliest, stillFree: stillFree, pull: pull, on: on, init: function () { return loadSalon(); },
+    salon: function () { return salon; }, clock: function () { return Date.now() + skew; }, hold: hold, release: release, book: book, booking: booking, cancel: cancel, move: move, wait: wait, offer: offer, live: live,
+    setMoving: setMoving, uid: uid
   };
 })();
 
@@ -2444,22 +2334,32 @@ class Component extends DCLogic {
     else if (k === 'Enter' || k === ' ' || k === 'End') { e.preventDefault(); this.finishShave(); }
   }
 
+  /* open or closed, from the salon's real hours and closures; when open, the live wait without appointment */
   statusOf(P, open) {
-    if (open) return { text: 'Ouvert · jusqu’à 18' + NB + 'h' + NB + '30', cls: 'open' };
-    if (P.wd >= 2 && P.wd <= 6 && P.min < OPEN_MIN) return { text: 'Fermé · ouvre à 9' + NB + 'h', cls: 'shut' };
-    let label = 'mardi';
-    for (let i = 1; i <= 7; i++) {
-      const w = (P.wd + i) % 7;
-      if (w >= 2 && w <= 6) { label = i === 1 ? 'demain' : DAYS_FR[w]; break; }
+    const today = LXE.keyOf(P.y, P.m, P.d);
+    const iv = LXE.hoursOf(today);
+    if (open) {
+      const end = iv.filter((x) => P.min < x[1])[0];
+      const live = LXE.live();
+      const wait = live && live.open && live.waitMin != null ? (live.waitMin <= 5 ? ' · sans rendez-vous, on te prend tout de suite' : ' · sans rendez-vous ~' + live.waitMin + NB + 'min') : '';
+      return { text: 'Ouvert · jusqu’à ' + LXE.fmtH(end ? end[1] : iv[iv.length - 1][1]) + wait, cls: 'open' };
     }
-    return { text: 'Fermé · rouvre ' + label + ' à 9' + NB + 'h', cls: 'shut' };
+    const later = iv.filter((x) => P.min < x[0])[0];
+    if (later) return { text: 'Fermé · ouvre à ' + LXE.fmtH(later[0]), cls: 'shut' };
+    let k = today, label = '';
+    for (let i = 1; i <= 30; i++) {
+      k = LXE.addDays(k, 1);
+      const h = LXE.hoursOf(k);
+      if (h.length) { label = (i === 1 ? 'demain' : DAYS_FR[LXE.parts(k).wd]) + ' à ' + LXE.fmtH(h[0][0]); break; }
+    }
+    return { text: 'Fermé' + (label ? ' · rouvre ' + label : ''), cls: 'shut' };
   }
 
   /* ---------- template values ---------- */
   renderVals() {
     const s = this.state;
-    const P = parisParts(s.now);
-    const open = P.wd >= 2 && P.wd <= 6 && P.min >= OPEN_MIN && P.min < CLOSE_MIN;
+    const P = parisParts(LXE.clock());
+    const open = LXE.hoursOf(LXE.keyOf(P.y, P.m, P.d)).some((iv) => P.min >= iv[0] && P.min < iv[1]);
     const st = this.statusOf(P, open);
     const bv = this.bkVals();
     const mine = this.myUpcoming();
@@ -2468,7 +2368,7 @@ class Component extends DCLogic {
 
     /* hero: your appointment, or the next free slot */
     const days10 = LXE.openDays(10);
-    const nf = mine ? null : LXE.earliest('any', 30, days10);
+    const nf = mine ? null : LXE.earliest('any', 'cl', days10);
     const nextK = mine ? 'Ton rendez-vous' : 'Prochain créneau';
     const nextV = mine ? LXE.dayWord(mine.day).replace(/^(\S+) (\d+) \S+$/, '$1 $2') + ' · ' + LXE.fmtH(mine.time) : (nf ? LXE.dayWord(nf.day) + ' · ' + LXE.fmtH(nf.m) : 'Voir les créneaux');
 
@@ -2476,7 +2376,7 @@ class Component extends DCLogic {
     const barbers = BARBERS.filter((x) => x.id !== 'any').map((x) => {
       let f = null;
       for (let i = 0; i < days10.length && !f; i++) {
-        const fr = LXE.slots(days10[i], x.id, 30).filter((z) => z.free);
+        const fr = LXE.slots(days10[i], x.id, 'cl');
         if (fr.length) f = { day: days10[i], slots: fr.slice(0, 4) };
       }
       const op = s.bOpen === x.id;
@@ -2613,14 +2513,14 @@ function pause(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
 
 const BookingMixin = {
   bkEmpty() {
-    return { step: 'svc', f: null, barber: null, day: null, time: null, assigned: null, holdId: null, holdExp: 0, moving: null, err: '', result: null, busy: false, ask: false, waited: '' };
+    return { step: 'svc', f: null, barber: null, day: null, time: null, assigned: null, holdId: null, holdExp: 0, holdTok: null, moving: null, err: '', result: null, busy: false, ask: false, waited: '', waitAsk: false };
   },
 
   bkInit() {
     const me = readMe() || {};
     this.setState({ fFirst: me.first || '', fLast: me.last || '', fPhone: me.phone || '', fEmail: me.email || '', fNote: '', fSms: true });
-    this._bkOff = LXE.on(() => { if (this._mounted) this.setState({ storeV: Date.now() }); });
-    LXE.pull();
+    this._bkOff = LXE.on(() => { syncFormulas(); if (this._mounted) this.setState({ storeV: Date.now() }); });
+    LXE.init().then(() => this.bkFromUrl());
     this._bkPoll = setInterval(() => {
       if (document.visibilityState === 'hidden') return;
       if (this.state.sheet) LXE.pull();
@@ -2633,18 +2533,46 @@ const BookingMixin = {
     clearInterval(this._holdT);
   },
 
+  /* a place offered from the waiting list (?offre=…) or a direct link to booking (?reserver) */
+  bkFromUrl() {
+    let q;
+    try { q = new URLSearchParams(window.location.search); } catch (e) { return; }
+    const tok = q.get('offre');
+    if (tok) {
+      LXE.offer(tok).then((o) => {
+        if (!this._mounted || !o.f) return;
+        const bk = Object.assign(this.bkEmpty(), { f: o.f, barber: o.barber, assigned: o.barber, day: o.day, time: o.time, holdId: o.holdId, holdExp: o.exp, step: 'info', offer: true });
+        if (o.first && !this.state.fFirst) this.setState({ fFirst: o.first });
+        this.setState({ sheet: true, menu: false, bk: bk });
+        this.bkTick();
+      }).catch((e) => {
+        if (!this._mounted) return;
+        this.setState({ sheet: true, bk: Object.assign(this.bkEmpty(), { step: 'when', err: e.message }) });
+      });
+      try { history.replaceState(null, '', window.location.pathname + window.location.hash); } catch (e) { /* ignore */ }
+    } else if (q.has('reserver')) this.openWith(null);
+  },
+
   /* ---------- who is this visitor ---------- */
   myBookings() {
     const me = readMe();
-    if (!me || !me.ids) return [];
-    const V = LXE.view();
-    return V.bookings.filter((b) => me.ids.indexOf(b.id) >= 0);
+    return me && Array.isArray(me.bookings) ? me.bookings : [];
   },
   myUpcoming() {
     const N = LXE.now();
-    const list = this.myBookings().filter((b) => LXE.diffDays(N.key, b.day) > 0 || (b.day === N.key && b.time + b.dur > N.min));
+    const list = this.myBookings().filter((b) => !b.cancelled && (LXE.diffDays(N.key, b.day) > 0 || (b.day === N.key && b.time + b.dur > N.min)));
     list.sort((a, b) => (a.day < b.day ? -1 : (a.day > b.day ? 1 : a.time - b.time)));
     return list[0] || null;
+  },
+  remember(patch, booking) {
+    const me = readMe() || {};
+    let list = Array.isArray(me.bookings) ? me.bookings : [];
+    if (booking) list = list.filter((x) => x.token !== booking.token).concat(booking);
+    writeMe(Object.assign(me, patch || {}, { bookings: list.slice(-8) }));
+  },
+  forget(token, patch) {
+    const me = readMe() || {};
+    writeMe(Object.assign(me, { bookings: (me.bookings || []).map((x) => (x.token === token ? Object.assign({}, x, patch) : x)) }));
   },
 
   /* ---------- opening the sheet ---------- */
@@ -2652,7 +2580,8 @@ const BookingMixin = {
     try { this._lastFocus = document.activeElement; } catch (e) { /* ignore */ }
     clearTimeout(this._autoOpen);
     let bk = this.state.bk;
-    const finished = !bk || ['done', 'cancelled', 'manage'].indexOf(bk.step) >= 0;
+    const finished = !bk || ['done', 'cancelled', 'manage'].indexOf(bk.step) >= 0 || (pre && pre.fresh);
+    if (finished) LXE.setMoving(null);
     bk = finished ? this.bkEmpty() : Object.assign({}, bk, { err: '', ask: false });
     if (pre) {
       if (pre.formula) bk.f = pre.formula;
@@ -2662,22 +2591,19 @@ const BookingMixin = {
     bk.step = this.bkNext(bk);
     if (bk.step === 'info') this.bkHold(bk);
     this.setState({ sheet: true, menu: false, bk: bk });
+    LXE.pull();
   },
 
-  openManage(b) {
-    try { this._lastFocus = document.activeElement; } catch (e) { /* ignore */ }
-    const bk = Object.assign(this.bkEmpty(), { step: 'manage', result: b, f: b.f });
-    this.setState({ sheet: true, menu: false, bk: bk });
-  },
+  /* your appointment lives on its own page: always up to date, works from the SMS link too */
+  openManage(b) { if (b && b.token) window.location.href = '/r/' + b.token; },
 
-  /* the next step that still needs an answer; a preselected slot must fit the service */
+  /* the next step that still needs an answer; a preselected slot must still be free */
   bkNext(bk) {
-    if (!bk.f || !LXE.SV[bk.f]) return 'svc';
+    if (!bk.f || !LXE.SV[bk.f] || LXE.SV[bk.f].off) return 'svc';
     if (!bk.barber) return 'who';
     if (!bk.day || bk.time == null) return 'when';
-    const dur = LXE.SV[bk.f].d;
-    const s = LXE.slots(bk.day, bk.barber, dur, bk.holdId).find((x) => x.m === bk.time);
-    if (!s || !s.free) { bk.time = null; bk.assigned = null; return 'when'; }
+    const s = LXE.slots(bk.day, bk.barber, bk.f).find((x) => x.m === bk.time);
+    if (!s) { if (LXE.ready(bk.f, bk.barber)) { bk.time = null; bk.assigned = null; } return 'when'; }
     bk.assigned = s.barber;
     return 'info';
   },
@@ -2685,8 +2611,9 @@ const BookingMixin = {
   bkPick(patch) {
     const bk = Object.assign({}, this.state.bk, patch, { err: '' });
     this.bkRelease(this.state.bk);
-    bk.holdId = null;
+    bk.holdId = null; bk.holdTok = null;
     bk.step = this.bkNext(bk);
+    if (bk.step === 'info' && bk.moving) { this.setState({ bk: bk }); this.bkMoveTo(bk); return; }
     if (bk.step === 'info') this.bkHold(bk);
     this.setState({ bk: bk });
     buzz(6);
@@ -2696,20 +2623,26 @@ const BookingMixin = {
     const bk = this.state.bk;
     const i = BK_ORDER.indexOf(bk.step);
     if (bk.step === 'info') this.bkRelease(bk);
-    if (i > 0) this.setState({ bk: Object.assign({}, bk, { step: BK_ORDER[i - 1], err: '', holdId: bk.step === 'info' ? null : bk.holdId }) });
+    if (i > 0) this.setState({ bk: Object.assign({}, bk, { step: BK_ORDER[i - 1], err: '', holdId: bk.step === 'info' ? null : bk.holdId, holdTok: null }) });
   },
 
-  /* ---------- the slot is held for five minutes while you type ---------- */
+  /* ---------- the slot is held on the salon's side while you type ---------- */
   bkHold(bk) {
-    const dur = LXE.SV[bk.f].d;
-    bk.holdId = LXE.uid('h');
-    bk.holdExp = Date.now() + 5 * 60000;
-    const hid = bk.holdId;
-    LXE.push({ t: 'hold', id: hid, day: bk.day, time: bk.time, dur: dur, barber: bk.assigned || bk.barber, exp: bk.holdExp, f: bk.f }).then((r) => {
-      /* someone on another phone got there first: say so now, not after the form */
+    const tok = LXE.uid('t');
+    const sal = LXE.salon();
+    bk.holdTok = tok; bk.holdId = null;
+    bk.holdExp = Date.now() + (sal ? sal.booking.holdMin : 5) * 60000;
+    LXE.hold(bk.f, bk.assigned || bk.barber, bk.day, bk.time).then((h) => {
       const cur = this.state.bk;
-      if (r && r.taken && this._mounted && cur.holdId === hid && cur.step === 'info') this.bkConflict();
+      if (!this._mounted || cur.holdTok !== tok || cur.step !== 'info') { LXE.release(h.id); return; }
+      this.setState({ bk: Object.assign({}, cur, { holdId: h.id, assigned: h.barber }) });
+    }).catch((e) => {
+      const cur = this.state.bk;
+      if (this._mounted && cur.holdTok === tok && cur.step === 'info') this.bkConflict(e.code === 'taken' ? null : e.message);
     });
+    this.bkTick();
+  },
+  bkTick() {
     clearInterval(this._holdT);
     this._holdT = setInterval(() => {
       if (!this._mounted || !this.state.sheet || this.state.bk.step !== 'info') { clearInterval(this._holdT); return; }
@@ -2717,7 +2650,7 @@ const BookingMixin = {
     }, 1000);
   },
   bkRelease(bk) {
-    if (bk && bk.holdId && bk.step === 'info') LXE.push({ t: 'cancel', id: LXE.uid('x'), ref: bk.holdId, by: 'client', why: 'hold' });
+    if (bk && bk.holdId && bk.step === 'info' && !bk.offer) LXE.release(bk.holdId);
   },
 
   bkValid() {
@@ -2732,60 +2665,77 @@ const BookingMixin = {
     const b = s0.bk;
     if (!this.bkValid() || b.busy) return;
     this.setState({ bk: Object.assign({}, b, { busy: true, err: '' }) });
-    const dur = LXE.SV[b.f].d;
-    const barber = b.assigned || b.barber;
-    await LXE.pull();
-    await pause(500);
-    if (!LXE.stillFree(b.day, barber, b.time, dur, b.holdId)) { this.bkConflict(); return; }
-    const ph = String(s0.fPhone).replace(/\D/g, '');
-    const entry = {
-      t: 'booking', id: LXE.uid('b'), code: LXE.code(), day: b.day, time: b.time, dur: dur, f: b.f, barber: barber,
-      any: b.barber === 'any', first: capFirst(String(s0.fFirst).split(/\s+/)[0]).slice(0, 24),
-      init: (String(s0.fLast || '').trim().charAt(0) || '').toUpperCase(), last2: ph.slice(-2),
-      note: String(s0.fNote || '').trim().slice(0, 140), sms: !!s0.fSms, mail: !!String(s0.fEmail || '').trim(),
-      hold: b.holdId, src: 'site'
-    };
-    if (b.moving) entry.moved = b.moving;
-    const res = await LXE.push(entry);
-    if (!res.ok) { this.bkConflict(); return; }
-    if (b.moving) LXE.push({ t: 'cancel', id: LXE.uid('x'), ref: b.moving, by: 'client', why: 'moved' });
-    const me = readMe() || {};
-    writeMe({
-      first: String(s0.fFirst).trim(), last: String(s0.fLast || '').trim(), phone: s0.fPhone, email: String(s0.fEmail || '').trim(),
-      ids: (me.ids || []).concat(entry.id).slice(-12), lastF: b.f, lastBarber: barber
-    });
-    clearInterval(this._holdT);
-    this.setState({ bk: Object.assign(this.bkEmpty(), { step: 'done', result: entry, f: b.f }), icsUrl: this.bkIcs(entry), fNote: '' });
-    buzz([16, 40, 16]);
+    const first = capFirst(String(s0.fFirst).trim().split(/\s+/)[0]).slice(0, 40);
+    try {
+      const r = await LXE.book({
+        f: b.f, barber: b.barber, day: b.day, time: b.time, holdId: b.holdId, first: first, last: String(s0.fLast || '').trim().slice(0, 40),
+        phone: String(s0.fPhone), email: String(s0.fEmail || '').trim(), note: String(s0.fNote || '').trim().slice(0, 200), sms: !!s0.fSms
+      });
+      const F = LXE.SV[b.f];
+      const result = { token: r.token, code: r.code, manage: r.manage, day: b.day, time: b.time, dur: F.d, f: b.f, barber: r.barber, any: b.barber === 'any', first: first, status: r.status, deposit: r.deposit, payUrl: r.payment ? r.payment.url : null };
+      this.remember({ first: String(s0.fFirst).trim(), last: String(s0.fLast || '').trim(), phone: s0.fPhone, email: String(s0.fEmail || '').trim(), lastF: b.f, lastBarber: r.barber }, result);
+      clearInterval(this._holdT);
+      this.setState({ bk: Object.assign(this.bkEmpty(), { step: 'done', result: result, f: b.f }), icsUrl: this.bkIcs(result), fNote: '' });
+      buzz([16, 40, 16]);
+    } catch (e) {
+      if (e.code === 'taken') this.bkConflict();
+      else this.setState({ bk: Object.assign({}, this.state.bk, { busy: false, err: e.message }) });
+    }
   },
 
-  bkConflict() {
+  bkConflict(msg) {
     const b = this.state.bk;
-    this.setState({ bk: Object.assign({}, b, { busy: false, step: 'when', time: null, assigned: null, holdId: null, err: 'Ce créneau vient d’être pris. Choisis-en un autre, tes choix sont gardés.' }) });
+    LXE.pull();
+    this.setState({ bk: Object.assign({}, b, { busy: false, step: 'when', time: null, assigned: null, holdId: null, holdTok: null, err: msg || 'Ce créneau vient d’être pris. Choisis-en un autre, tes choix sont gardés.' }) });
   },
 
-  bkCancel() {
+  async bkCancel() {
     const r = this.state.bk.result;
-    if (!r) return;
-    LXE.push({ t: 'cancel', id: LXE.uid('x'), ref: r.id, by: 'client' });
-    this.setState({ bk: Object.assign(this.bkEmpty(), { step: 'cancelled', result: r, f: r.f }) });
+    if (!r || this.state.bk.busy) return;
+    this.setState({ bk: Object.assign({}, this.state.bk, { busy: true }) });
+    try {
+      await LXE.cancel(r.token);
+      this.forget(r.token, { cancelled: true });
+      this.setState({ bk: Object.assign(this.bkEmpty(), { step: 'cancelled', result: r, f: r.f }) });
+    } catch (e) {
+      this.setState({ bk: Object.assign({}, this.state.bk, { busy: false, ask: false, err: e.message }) });
+    }
   },
 
   bkMove() {
     const r = this.state.bk.result;
     if (!r) return;
-    const bk = Object.assign(this.bkEmpty(), { f: r.f, barber: r.any ? 'any' : r.barber, moving: r.id, step: 'when' });
+    LXE.setMoving(r.token);
+    const bk = Object.assign(this.bkEmpty(), { f: r.f, barber: r.any ? 'any' : r.barber, moving: r.token, result: r, step: 'when' });
     this.setState({ bk: bk });
   },
-
-  bkWait(day) {
-    const s = this.state;
-    LXE.push({ t: 'wait', id: LXE.uid('w'), day: day, barber: s.bk.barber || 'any', f: s.bk.f, first: capFirst(String(s.fFirst || '').split(/\s+/)[0]) || 'Un client' });
-    this.setState({ bk: Object.assign({}, s.bk, { waited: day }) });
+  async bkMoveTo(bk) {
+    this.setState({ bk: Object.assign({}, bk, { busy: true }) });
+    try {
+      const v = await LXE.move(bk.moving, bk.day, bk.time);
+      LXE.setMoving(null);
+      const result = Object.assign({}, bk.result, { day: v.day, time: v.start, barber: v.staff ? (Object.keys(LXE.BMAP).filter((k) => LXE.BMAP[k].sid === v.staff.id)[0] || bk.result.barber) : bk.result.barber });
+      this.remember(null, result);
+      this.setState({ bk: Object.assign(this.bkEmpty(), { step: 'done', result: result, f: result.f, moved: true }), icsUrl: this.bkIcs(result) });
+      buzz([16, 40, 16]);
+    } catch (e) {
+      this.setState({ bk: Object.assign({}, bk, { busy: false, step: 'when', time: null, err: e.message }) });
+    }
   },
 
-  toCockpit(id) {
-    try { window.localStorage.setItem(FOCUS_KEY, JSON.stringify({ id: id, at: Date.now() })); } catch (e) { /* ignore */ }
+  async bkWait(day) {
+    const s = this.state;
+    const ph = String(s.fPhone || '').replace(/\D/g, '');
+    if (String(s.fFirst || '').trim().length < 2 || ph.length !== 10) { this.setState({ bk: Object.assign({}, s.bk, { waitAsk: true }) }); return; }
+    try {
+      await LXE.wait({ day: day, barber: s.bk.barber || 'any', f: s.bk.f, first: capFirst(String(s.fFirst).trim().split(/\s+/)[0]), phone: s.fPhone });
+      this.remember({ first: String(s.fFirst).trim(), phone: s.fPhone });
+      this.setState({ bk: Object.assign({}, this.state.bk, { waited: day, waitAsk: false, err: '' }) });
+    } catch (e) { this.setState({ bk: Object.assign({}, this.state.bk, { err: e.message }) }); }
+  },
+
+  toCockpit(r) {
+    try { window.localStorage.setItem(FOCUS_KEY, JSON.stringify({ code: r && r.code, day: r && r.day, at: Date.now() })); } catch (e) { /* ignore */ }
   },
 
   bkIcs(e) {
@@ -2794,10 +2744,11 @@ const BookingMixin = {
       const t1 = LXE.hm(e.time).replace(':', '') + '00';
       const t2 = LXE.hm(e.time + e.dur).replace(':', '') + '00';
       const st = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z');
+      const b = LXE.BMAP[e.barber];
       const ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Barber LArchitecte//Reservation//FR', 'BEGIN:VEVENT',
-        'UID:' + e.id + '@larchitecte', 'DTSTAMP:' + st, 'DTSTART;TZID=Europe/Paris:' + d + 'T' + t1, 'DTEND;TZID=Europe/Paris:' + d + 'T' + t2,
+        'UID:' + e.code + '@larchitecte', 'DTSTAMP:' + st, 'DTSTART;TZID=Europe/Paris:' + d + 'T' + t1, 'DTEND;TZID=Europe/Paris:' + d + 'T' + t2,
         'SUMMARY:Barber L’Architecte · ' + LXE.SV[e.f].n, 'LOCATION:16 place Pélabon\\, 13013 Marseille',
-        'DESCRIPTION:Avec ' + LXE.BMAP[e.barber].n + '. Code ' + e.code + '.', 'END:VEVENT', 'END:VCALENDAR'].join('\r\n');
+        'DESCRIPTION:' + (b ? 'Avec ' + b.n + '. ' : '') + 'Code ' + e.code + '. Gérer : ' + (e.manage || ''), 'URL:' + (e.manage || ''), 'END:VEVENT', 'END:VCALENDAR'].join('\r\n');
       return URL.createObjectURL(new Blob([ics], { type: 'text/calendar' }));
     } catch (x) { return ''; }
   },
@@ -2805,8 +2756,8 @@ const BookingMixin = {
   smsText(e) {
     const p = LXE.parts(e.day);
     const when = LXE.DAYS_SH[p.wd].charAt(0).toUpperCase() + LXE.DAYS_SH[p.wd].slice(1) + ' ' + p.d + ' ' + LXE.MONTHS_SH[p.m - 1] + ' à ' + LXE.fmtH(e.time);
-    const f = LXE.SV[e.f];
-    return 'L’Architecte : c’est noté, ' + e.first + '. ' + when + ' avec ' + LXE.BMAP[e.barber].n + ', ' + f.n + ' (' + LXE.eur(f.p, f.from) + '). 16 place Pélabon. Déplacer ou annuler : barberlarchitecte.com/r/' + e.code;
+    const b = LXE.BMAP[e.barber];
+    return "L'Architecte : c'est noté " + e.first + ' ! ' + when + (b ? ' avec ' + b.n : '') + '. Gérer : ' + (e.manage || '');
   },
 
   sheetKey(e) {
@@ -2826,10 +2777,10 @@ const BookingMixin = {
     const b = s.bk;
     const step = b.step;
     const F = b.f ? LXE.SV[b.f] : null;
-    const dur = F ? F.d : 30;
     const si = BK_ORDER.indexOf(step);
     const me = readMe();
     const N = LXE.now();
+    const sal = LXE.salon();
     const v = {};
 
     v.bkCls = s.sheet ? 'open' : '';
@@ -2837,16 +2788,18 @@ const BookingMixin = {
     v.sheetKey = (e) => this.sheetKey(e);
     v.bkBackCls = 'bk-back' + (si > 0 && !b.busy ? '' : ' off');
     v.bkBack = () => this.bkBack();
-    v.bkStepLabel = si >= 0 ? 'Étape ' + (si + 1) + ' sur 4 · ' + BK_LABEL[step] : (step === 'done' ? 'Confirmé' : (step === 'manage' ? 'Réservation' : 'Annulation'));
-    v.bkTitle = step === 'done' && b.result ? 'C’est réservé, ' + b.result.first + '.' : BK_TITLE[step];
+    const pending = !!(b.result && b.result.status === 'pending');
+    v.bkStepLabel = b.moving && si >= 0 ? 'Déplacer · ' + BK_LABEL[step] : si >= 0 ? 'Étape ' + (si + 1) + ' sur 4 · ' + BK_LABEL[step] : (step === 'done' ? (pending ? 'Acompte à régler' : (b.moved ? 'Déplacé' : 'Confirmé')) : (step === 'manage' ? 'Réservation' : 'Annulation'));
+    v.bkTitle = step === 'done' && b.result ? (pending ? 'Presque réservé, ' + b.result.first + '.' : (b.moved ? 'C’est déplacé, ' : 'C’est réservé, ') + b.result.first + '.') : (b.moving && step === 'when' ? 'Pour quand ?' : BK_TITLE[step]);
     v.progCls = 'bk-prog' + (si < 0 ? ' off' : '');
     ['pg0', 'pg1', 'pg2', 'pg3'].forEach((k, i) => { v[k] = i < si ? 'done' : (i === si ? 'on' : ''); });
     v.isSvc = step === 'svc'; v.isWho = step === 'who'; v.isWhen = step === 'when'; v.isInfo = step === 'info';
     v.isDone = step === 'done'; v.isManage = step === 'manage'; v.isCancelled = step === 'cancelled';
     v.mapsUrl = MAPS_URL;
+    v.isDemo = !!(sal && sal.mode === 'demo');
 
     /* 1 · prestation */
-    const lastF = me && me.lastF && LXE.SV[me.lastF] ? me.lastF : null;
+    const lastF = me && me.lastF && LXE.SV[me.lastF] && !LXE.SV[me.lastF].off ? me.lastF : null;
     const lastB = me && me.lastBarber && LXE.BMAP[me.lastBarber] ? me.lastBarber : null;
     v.hasRebook = !!(step === 'svc' && lastF && lastB && me.first);
     v.meFirst = me && me.first ? capFirst(me.first.split(/\s+/)[0]) : '';
@@ -2854,7 +2807,7 @@ const BookingMixin = {
     v.rebook = () => this.bkPick({ f: lastF, barber: lastB });
     v.svcGroups = SVC_GROUPS.map((g) => ({
       t: g.t,
-      items: g.ids.map((id) => {
+      items: g.ids.filter((id) => FMAP[id] && !(LXE.SV[id] && LXE.SV[id].off)).map((id) => {
         const f = FMAP[id];
         const on = b.f === id;
         return {
@@ -2863,14 +2816,15 @@ const BookingMixin = {
           go: () => this.bkPick({ f: id })
         };
       })
-    }));
+    })).filter((g) => g.items.length);
 
     /* 2 · barbier */
     const days = LXE.openDays(10);
     const nextOf = (who) => {
-      const e = LXE.earliest(who, dur, days);
+      if (!LXE.ready(b.f, who)) return 'on regarde…';
+      const e = LXE.earliest(who, b.f, days);
       if (!e) return 'Complet ces jours-ci';
-      return (LXE.diffDays(N.key, e.day) <= 1 ? LXE.dayWord(e.day) : LXE.dayShort(e.day)) + ' · ' + LXE.fmtH(e.m) + (who === 'any' ? ' avec ' + LXE.BMAP[e.barber].n : '');
+      return (LXE.diffDays(N.key, e.day) <= 1 ? LXE.dayWord(e.day) : LXE.dayShort(e.day)) + ' · ' + LXE.fmtH(e.m) + (who === 'any' && LXE.BMAP[e.barber] ? ' avec ' + LXE.BMAP[e.barber].n : '');
     };
     if (step === 'who') {
       v.whoCards = [{ id: 'any', n: 'Sans préférence', ini: '✱' }].concat(LXE.BARBERS).map((x) => {
@@ -2886,29 +2840,30 @@ const BookingMixin = {
     /* 3 · créneau */
     v.hasErr = !!b.err; v.bkErr = b.err;
     let dayCards = [], slotGroups = [], dayFull = false, early = null;
+    const who = b.barber || 'any';
+    const loaded = !!F && LXE.ready(b.f, who);
     if (step === 'when' && F) {
-      const who = b.barber || 'any';
-      early = LXE.earliest(who, dur, days);
+      early = loaded ? LXE.earliest(who, b.f, days) : null;
       const sel = b.day || (early ? early.day : days[0]);
       dayCards = days.map((k) => {
-        const n = LXE.slots(k, who, dur, b.holdId).filter((x) => x.free).length;
+        const n = LXE.slots(k, who, b.f).length;
         const p = LXE.parts(k);
         const on = k === sel;
         return {
-          cls: 'dc' + (on ? ' on' : '') + (n ? '' : ' full'), on: on,
-          wd: LXE.diffDays(N.key, k) === 0 ? 'auj.' : LXE.DAYS_SH[p.wd], num: p.d, cnt: n ? n + ' libre' + (n > 1 ? 's' : '') : 'complet',
-          label: LXE.dayWord(k) + ', ' + (n ? n + ' créneaux libres' : 'complet'),
-          go: () => this.setState({ bk: Object.assign({}, this.state.bk, { day: k, time: null, assigned: null, err: '' }) })
+          cls: 'dc' + (on ? ' on' : '') + (n || !loaded ? '' : ' full'), on: on,
+          wd: LXE.diffDays(N.key, k) === 0 ? 'auj.' : LXE.DAYS_SH[p.wd], num: p.d, cnt: !loaded ? '…' : n ? n + ' libre' + (n > 1 ? 's' : '') : 'complet',
+          label: LXE.dayWord(k) + ', ' + (!loaded ? 'chargement' : n ? n + ' créneaux libres' : 'complet'),
+          go: () => this.setState({ bk: Object.assign({}, this.state.bk, { day: k, time: null, assigned: null, err: '', waitAsk: false }) })
         };
       });
-      const free = LXE.slots(sel, who, dur, b.holdId).filter((x) => x.free);
-      dayFull = free.length === 0;
+      const free = LXE.slots(sel, who, b.f);
+      dayFull = loaded && free.length === 0;
       slotGroups = SLOT_GROUPS.map((g) => {
         const items = free.filter((x) => x.m >= g.a && x.m < g.z).map((x) => {
           const on = b.day === sel && b.time === x.m;
           return {
             cls: 'sl' + (on ? ' on' : ''), on: on, t: LXE.fmtH(x.m),
-            label: LXE.fmtH(x.m) + (who === 'any' ? ', avec ' + LXE.BMAP[x.barber].n : ''),
+            label: LXE.fmtH(x.m) + (who === 'any' && LXE.BMAP[x.barber] ? ', avec ' + LXE.BMAP[x.barber].n : ''),
             go: () => this.bkPick({ day: sel, time: x.m })
           };
         });
@@ -2916,24 +2871,30 @@ const BookingMixin = {
       }).filter((g) => g.has);
       v.selDay = sel;
       v.waitBtn = () => this.bkWait(sel);
+      const canWait = !b.moving && (!sal || sal.booking.waitlist);
       v.waited = b.waited === sel;
-      v.notWaited = b.waited !== sel;
-      v.fullLine = LXE.dayWord(sel) + ', c’est complet' + (b.barber && b.barber !== 'any' ? ' avec ' + LXE.BMAP[b.barber].n : '') + '.';
+      v.notWaited = canWait && b.waited !== sel;
+      v.waitAsk = !!b.waitAsk && b.waited !== sel;
+      v.fullLine = LXE.dayWord(sel) + ', c’est complet' + (b.barber && b.barber !== 'any' && LXE.BMAP[b.barber] ? ' avec ' + LXE.BMAP[b.barber].n : '') + '.';
     }
     v.dayCards = dayCards; v.slotGroups = slotGroups; v.dayFull = dayFull;
+    v.slotsLoading = step === 'when' && !!F && !loaded;
     v.hasEarliest = !!early && step === 'when';
-    v.earliestLine = early ? LXE.dayWord(early.day) + ' · ' + LXE.fmtH(early.m) + ' avec ' + LXE.BMAP[early.barber].n : '';
+    v.earliestLine = early ? LXE.dayWord(early.day) + ' · ' + LXE.fmtH(early.m) + (LXE.BMAP[early.barber] ? ' avec ' + LXE.BMAP[early.barber].n : '') : '';
     v.pickEarliest = () => { if (early) this.bkPick({ day: early.day, time: early.m }); };
 
     /* 4 · coordonnées */
     const left = Math.max(0, Math.round((b.holdExp - (s.holdNow || Date.now())) / 1000));
     v.holdLeft = Math.floor(left / 60) + ':' + LXE.pad(left % 60);
-    v.holdCls = 'hold' + (left <= 0 ? ' gone' : '');
-    v.holdText = left > 0 ? 'Créneau gardé pour toi' : 'On revérifie le créneau à la confirmation';
+    v.holdCls = 'hold' + (left <= 0 || (!b.holdId && b.holdTok) ? ' gone' : '');
+    v.holdText = b.offer ? 'Place gardée pour toi' : !b.holdId ? 'On réserve le créneau…' : left > 0 ? 'Créneau gardé pour toi' : 'On revérifie le créneau à la confirmation';
     const bar = b.assigned || (b.barber !== 'any' ? b.barber : null);
     v.recapWhen = b.day && b.time != null ? capFirst(LXE.dayLong(b.day)) + ' · ' + LXE.fmtH(b.time) : '';
     v.recapWhat = F ? F.n + ' · ' + fmtDur(F.d) : '';
-    v.recapWho = bar ? 'avec ' + LXE.BMAP[bar].n : '';
+    v.recapWho = bar && LXE.BMAP[bar] ? 'avec ' + LXE.BMAP[bar].n : '';
+    const dep = F && sal ? depositOf(F, sal.deposits) : 0;
+    v.hasDeposit = dep > 0 && step === 'info';
+    v.depLine = dep > 0 ? 'Un acompte de ' + LXE.eur(dep / 100) + ' est demandé pour cette prestation, déduit au salon. Annulé plus de ' + (sal ? sal.booking.cancelUntilHours : 12) + ' h avant, il est remboursé.' : '';
     v.fFirst = s.fFirst; v.fLast = s.fLast; v.fPhone = s.fPhone; v.fEmail = s.fEmail; v.fNote = s.fNote;
     v.setFirst = (e) => this.setState({ fFirst: e.target.value });
     v.setLast = (e) => this.setState({ fLast: e.target.value });
@@ -2948,51 +2909,73 @@ const BookingMixin = {
     v.phoneCls = 'hint' + (phd.length > 0 && (phd.length < 10 || phd.charAt(0) !== '0') ? ' warn' : '');
     v.dataHref = '/#donnees';
 
-    /* confirmé, gérer, annulé */
+    /* confirmé, annulé */
     const r = b.result;
     if (r) {
       const f = LXE.SV[r.f];
+      const rb = LXE.BMAP[r.barber];
       v.doneCode = r.code;
       v.tkWhen = capFirst(LXE.dayLong(r.day)) + ' · ' + LXE.fmtH(r.time);
       v.tkWhat = f.n + ' · ' + LXE.eur(f.p, f.from);
-      v.tkWho = 'Avec ' + LXE.BMAP[r.barber].n + ' · ' + fmtDur(f.d);
+      v.tkWho = (rb ? 'Avec ' + rb.n + ' · ' : '') + fmtDur(f.d);
       v.smsText = this.smsText(r);
       v.goMove = () => this.bkMove();
       v.askCancel = () => this.setState({ bk: Object.assign({}, this.state.bk, { ask: true }) });
       v.keep = () => this.setState({ bk: Object.assign({}, this.state.bk, { ask: false }) });
       v.doCancel = () => this.bkCancel();
-      v.toCockpit = () => this.toCockpit(r.id);
-      v.cancelLine = capFirst(LXE.dayLong(r.day)) + ' à ' + LXE.fmtH(r.time) + ' avec ' + LXE.BMAP[r.barber].n + '.';
+      v.toCockpit = () => this.toCockpit(r);
+      v.cancelLine = capFirst(LXE.dayLong(r.day)) + ' à ' + LXE.fmtH(r.time) + (rb ? ' avec ' + rb.n : '') + '.';
+      v.manageUrl = r.manage || '';
+      v.needPay = pending && !!r.payUrl;
+      v.payUrl = r.payUrl || '';
+      v.payLine = pending ? 'Il reste à régler l’acompte de ' + LXE.eur((r.deposit || 0) / 100) + ' dans les ' + (sal ? sal.booking.pendingPayMin || 15 : 15) + ' minutes. Sans paiement, le créneau est libéré.' : '';
     } else {
-      v.doneCode = ''; v.tkWhen = ''; v.tkWhat = ''; v.tkWho = ''; v.smsText = ''; v.cancelLine = '';
+      v.doneCode = ''; v.tkWhen = ''; v.tkWhat = ''; v.tkWho = ''; v.smsText = ''; v.cancelLine = ''; v.manageUrl = ''; v.needPay = false; v.payUrl = ''; v.payLine = '';
       v.goMove = () => {}; v.askCancel = () => {}; v.keep = () => {}; v.doCancel = () => {}; v.toCockpit = () => {};
     }
+    v.notPay = !v.needPay;
     v.asking = !!b.ask; v.notAsking = !b.ask;
-    v.hasIcs = !!s.icsUrl && step === 'done';
+    v.hasIcs = !!s.icsUrl && step === 'done' && !v.needPay;
     v.icsUrl = s.icsUrl || '';
-    v.restart = () => this.openWith({ formula: b.f });
+    v.restart = () => this.openWith({ formula: b.f, fresh: true });
 
     /* the footer: a running summary and one clear action */
     let cta = 'Continuer', off = true, go = () => {};
     if (step === 'svc') { off = !b.f; go = () => this.bkPick({}); }
     else if (step === 'who') { off = !b.barber; go = () => this.bkPick({}); }
-    else if (step === 'when') { off = !(b.day && b.time != null); go = () => this.bkPick({}); }
-    else if (step === 'info') { cta = b.busy ? 'Vérification…' : 'Confirmer'; off = b.busy || !this.bkValid(); go = () => this.bkConfirm(); }
+    else if (step === 'when') { cta = b.busy ? 'Un instant…' : (b.moving ? 'Déplacer ici' : 'Continuer'); off = b.busy || !(b.day && b.time != null); go = () => this.bkPick({}); }
+    else if (step === 'info') { cta = b.busy ? 'Vérification…' : (dep > 0 ? 'Réserver et régler l’acompte' : 'Confirmer'); off = b.busy || !this.bkValid(); go = () => this.bkConfirm(); }
+    else if (step === 'done' && v.needPay) { cta = 'Régler l’acompte'; off = false; go = () => { window.location.href = r.payUrl; }; }
     else if (step === 'done' || step === 'manage') { cta = 'Fermer'; off = false; go = () => this.setState({ sheet: false }); }
     else if (step === 'cancelled') { cta = 'Choisir un autre créneau'; off = false; go = () => this.openWith({ formula: b.f, fresh: true }); }
     v.ctaText = cta; v.ctaOff = off; v.ctaGo = go;
     const parts = [];
     if (F) parts.push(F.sh || F.n);
-    if (bar) parts.push(LXE.BMAP[bar].n);
+    if (bar && LXE.BMAP[bar]) parts.push(LXE.BMAP[bar].n);
     else if (b.barber === 'any') parts.push('Sans préférence');
     if (b.day && b.time != null) parts.push(LXE.dayShort(b.day) + ' · ' + LXE.fmtH(b.time));
     v.bkPrice = F ? LXE.eur(F.p, F.from) : '—';
-    v.bkLine = parts.length ? parts.join(' · ') : 'Coupe dès 20 € · 30 min';
+    v.bkLine = parts.length ? parts.join(' · ') : 'Coupe dès ' + LXE.eur(LXE.SV.cl.p) + ' · 30 min';
     v.showSum = step !== 'done' && step !== 'manage' && step !== 'cancelled';
     return v;
   }
 };
 Object.assign(Component.prototype, BookingMixin);
+
+/* the deposit the salon will ask, mirrored from its rule so the client knows before confirming */
+function depositOf(F, d) {
+  const price = Math.round(F.p * 100);
+  if (typeof F.deposit === 'number') return Math.min(price, F.deposit);
+  if (!d || d.mode === 'none' || (d.mode === 'threshold' && price < d.thresholdCents)) return 0;
+  return Math.min(price, Math.max(500, Math.round((price * d.percent) / 100 / 100) * 100));
+}
+/* prices and lengths on the page follow the salon's catalogue */
+function syncFormulas() {
+  FORMULAS.forEach(function (f) {
+    const s = LXE.SV[f.id];
+    if (s && s.id) { f.p = s.p; f.d = s.d; f.from = !!s.from; f.n = s.n; }
+  });
+}
 </script>
 </body>
 </html>
