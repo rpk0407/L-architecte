@@ -39,12 +39,13 @@ export function bookAttrs(o: { slug?: string; serviceIds?: string[]; staffId?: s
   return a.join(' ');
 }
 
-/** "aujourd’hui 16 h", "demain 9 h 30", "jeudi 9 h" */
-export function slotWords(day: string, start: number) {
+/** "aujourd’hui", "demain", "jeudi", then "jeu. 12 nov." */
+export function dayWords(day: string) {
   const d = dates.diffDays(S.today(), day);
-  const w = d === 0 ? 'aujourd’hui' : d === 1 ? 'demain' : d < 7 ? dates.DAYS_FR[dates.dayParts(day).wd] : dates.dayShort(day);
-  return w + ' ' + dates.fmtTime(start);
+  return d === 0 ? 'aujourd’hui' : d === 1 ? 'demain' : d < 7 ? dates.DAYS_FR[dates.dayParts(day).wd] : dates.dayShort(day);
 }
+/** "aujourd’hui 16 h", "demain 9 h 30", "jeudi 9 h" */
+export const slotWords = (day: string, start: number) => dayWords(day) + ' ' + dates.fmtTime(start);
 
 // The API sends slots as { m, s } (s = barber id); the kit's type says staffId. Read both.
 const staffOf = (x: S.Slot) => x.staffId || (x as unknown as { s?: string }).s || '';
