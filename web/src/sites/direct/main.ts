@@ -51,10 +51,15 @@ let sheetOpen = false, deferred = false, failed = false;
 function paintAll() {
   // lists are not rebuilt under an open sheet: closing it must give the focus back to the button that opened it
   if (sheetOpen) { deferred = true; return; }
+  // his appointment card can appear above what he is looking at: keep that element where it was on screen
+  const a = document.activeElement as HTMLElement | null;
+  const anchor = a && a !== document.body && !a.closest('.hero') ? a : null;
+  const y0 = anchor?.getBoundingClientRect().top;
   paintHero(failed);
   paintChairs();
   paintMe();
   paintSalon();
+  if (anchor && y0 != null && anchor.isConnected) { const dy = anchor.getBoundingClientRect().top - y0; if (Math.abs(dy) > 1) window.scrollBy(0, dy); }
 }
 
 /** Ask the salon again (the kit caches 20 s): today's cuts for the hero, the board's service, the live wait. */
@@ -66,7 +71,16 @@ function refresh(fresh = false) {
   ]).then(() => { paintAll(); refreshCommand(); });
 }
 
-initNav((open) => { sheetOpen = open; if (!open && deferred) { deferred = false; paintAll(); } });
+// The sheet walks the history (one entry per step) and closing goes back through it; with automatic
+// restoration the browser would then put back the old scroll offset and undo the anchoring above.
+let restoreT = 0;
+initNav((open) => {
+  sheetOpen = open;
+  clearTimeout(restoreT);
+  if (open) history.scrollRestoration = 'manual';
+  else restoreT = window.setTimeout(() => { history.scrollRestoration = 'auto'; }, 800);
+  if (!open && deferred) { deferred = false; paintAll(); }
+});
 initCommand();
 initBoard();
 initCarte();

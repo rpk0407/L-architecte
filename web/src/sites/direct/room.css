@@ -10,8 +10,9 @@
 
 /* 01 · the hero */
 .hero { position: relative; z-index: 1; padding-top: calc(var(--bar-h) + var(--safe-t) + clamp(104px, 30vw, 230px)); }
-.kicker { display: flex; align-items: center; gap: 10px; font: 600 11.5px/1.2 var(--f-sans); letter-spacing: .12em; text-transform: uppercase; color: var(--os); }
+.kicker { display: flex; flex-wrap: wrap; align-items: center; column-gap: 10px; row-gap: 6px; font: 600 11.5px/1.2 var(--f-sans); letter-spacing: .12em; text-transform: uppercase; color: var(--os); }
 .kicker-a { color: var(--mute); }
+@media (max-width: 429px) { .kicker-a { display: none; } }
 .st { margin-top: var(--s4); }
 .st-big { display: block; font: 400 clamp(84px, 24vw, 196px)/.8 var(--f-serif); letter-spacing: -.045em; }
 /* the full stop is the live signal: green and breathing while open, ash when closed */
@@ -54,16 +55,16 @@
 .cmd-sug[hidden] { display: none; }
 .sug { flex: none; min-height: 44px; padding: 0 16px; border-radius: 999px; box-shadow: inset 0 0 0 1px var(--ligne2); font: 500 14.5px/1 var(--f-sans); white-space: nowrap; transition: background-color .2s, box-shadow .2s; }
 .sug:hover { background: var(--encre3); box-shadow: inset 0 0 0 1px var(--os); }
-.cmd-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.cmd-chips { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
 .cmd-chips[hidden], .cmd-res[hidden] { display: none; }
-.chip { position: relative; display: inline-flex; align-items: center; gap: 8px; max-width: 100%; min-height: 44px; padding: 0 34px 0 14px; border-radius: 12px; background: var(--encre3); font: 600 14px/1 var(--f-sans); }
+.chip { position: relative; display: flex; flex-direction: column; justify-content: center; gap: 5px; min-width: 0; min-height: 54px; padding: 8px 32px 8px 14px; border-radius: 12px; background: var(--encre3); font: 600 14.5px/1.1 var(--f-sans); }
 .chip.set { box-shadow: inset 0 0 0 1px var(--ligne2); }
 .chip-k { font: 600 9.5px/1 var(--f-sans); letter-spacing: .12em; text-transform: uppercase; color: var(--mute); }
 .chip-v { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .chip.auto .chip-v { font-weight: 500; color: var(--mute); }
 .chip select { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; font-size: 16px; -webkit-appearance: none; appearance: none; }
 .chip:focus-within { outline: 2px solid var(--rouge); outline-offset: 2px; }
-.chip-ic { position: absolute; right: 10px; width: 16px; height: 16px; color: var(--mute); pointer-events: none; }
+.chip-ic { position: absolute; right: 10px; top: 50%; width: 16px; height: 16px; margin-top: -8px; color: var(--mute); pointer-events: none; }
 .cmd-res { margin-top: 14px; }
 .cmd-say { margin-bottom: 10px; font: 500 14.5px/1.4 var(--f-sans); color: var(--mute); }
 .cmd-say.miss { color: var(--os); }
@@ -158,7 +159,7 @@
   .bd-go span { display: inline; }
   .bd-rows { min-height: calc(8 * 71px); }
 }
-@container (min-width: 760px) {
+@container (min-width: 700px) {
   .bd-b, .bd-head { grid-template-columns: 143px 104px minmax(0, 1fr) 172px 124px; }
   .bd-b { grid-template-areas: 't d p s go'; min-height: 76px; }
   .bd-hp { display: block; }
@@ -182,11 +183,13 @@
 .slot { min-height: 44px; padding: 0 13px; border-radius: 12px; background: var(--os); color: var(--encre); font: 600 14.5px/1 var(--f-sans); font-variant-numeric: tabular-nums; white-space: nowrap; transition: background-color .15s, transform .15s var(--ease-out); }
 .slot:hover { background: var(--rouge); }
 .slot:active { transform: scale(.96); }
+.ch-day { flex-basis: 100%; font: 600 10.5px/1 var(--f-sans); letter-spacing: .12em; text-transform: uppercase; color: var(--mute); }
 .ch-more, .ch-ig { padding: 0 6px; font-size: 14px; color: var(--mute); }
 
 /* tablet: the board gets the full width, barbers in two columns */
 @media (min-width: 700px) {
   .cmd-sug { flex-wrap: wrap; margin: 12px 0 0; padding: 0; overflow: visible; }
+  .cmd-chips { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .bd-filters { flex-direction: row; flex-wrap: wrap; }
   .ch-list { display: grid; grid-template-columns: 1fr 1fr; column-gap: var(--s6); min-height: calc(2 * 190px); }
   .me { padding: 24px 26px 22px; }

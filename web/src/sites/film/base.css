@@ -11,6 +11,8 @@
   --top-h: 64px;
   --dock-h: calc(86px + var(--safe-b));
   --max: 1440px;
+  /* the container's left edge, for fixed chrome that must sit on the same grid as the content */
+  --edge: max(var(--pad), calc((100% - var(--max)) / 2 + var(--pad)));
 }
 @media (min-width: 900px) { :root { --dock-h: 0px; --top-h: 76px; --hud-clear: calc(var(--bar) * .5 + 56px); } }
 
@@ -68,7 +70,7 @@ a:hover > .ic, button:hover > .ic { transform: translate(2px, -2px); }
 .top {
   position: fixed; z-index: 60; top: 0; left: 0; right: 0; height: calc(var(--top-h) + var(--safe-t));
   display: flex; align-items: center; justify-content: space-between; gap: var(--s3);
-  padding: var(--safe-t) max(12px, calc(var(--pad) - 8px)) 0 var(--pad); pointer-events: none;
+  padding: var(--safe-t) max(12px, calc(var(--edge) - 8px)) 0 var(--edge); pointer-events: none;
 }
 .top::before { content: ''; position: absolute; inset: 0 0 -28px; z-index: -1; background: linear-gradient(180deg, rgba(5, 4, 4, .78), rgba(5, 4, 4, 0)); }
 .top > * { pointer-events: auto; }
@@ -91,7 +93,7 @@ html.on-paper .top-wm { color: var(--encre); }
 @media (min-width: 420px) { .hud-t { display: inline; } }
 @media (min-width: 900px) {
   .top-cta { display: inline-flex; }
-  .hud { position: fixed; left: var(--pad); bottom: calc(var(--bar) * .5 - 22px + var(--safe-b)); padding: 0 18px 0 14px; }
+  .hud { position: fixed; left: var(--edge); bottom: calc(var(--bar) * .5 - 22px + var(--safe-b)); padding: 0 18px 0 14px; }
 }
 
 /* the sequence index: a list under the HUD (phones) or above it (desktop) */
@@ -111,7 +113,7 @@ html.on-paper .top-wm { color: var(--encre); }
 .seqs-l .tc { font: 500 12px/1 var(--f-sans); font-variant-numeric: tabular-nums; color: var(--cendre); }
 .seqs-l a[aria-current] .n, .seqs-l a[aria-current] .t { color: var(--rouge); }
 @media (min-width: 900px) {
-  .seqs { top: auto; right: auto; left: var(--pad); bottom: calc(var(--bar) * .5 + 30px + var(--safe-b)); width: 360px; transform-origin: 0 100%; }
+  .seqs { top: auto; right: auto; left: var(--edge); bottom: calc(var(--bar) * .5 + 30px + var(--safe-b)); width: 360px; transform-origin: 0 100%; }
 }
 
 /* the rail: a thin strip of film, one frame per sequence */

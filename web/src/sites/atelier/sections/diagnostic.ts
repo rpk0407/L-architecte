@@ -10,7 +10,7 @@ import { reduced, scrollToEl } from '../../../site-kit/motion';
 import { dates, eur, dur } from '../../../lib/format';
 import { $, h, text, barbers, svcBySlug, totals, prefill, idsOf, freeSlots, whenLong, whenShort, endOfWeek, type Svc, type Bar, type Free } from '../util';
 import { cote } from '../cote';
-import { setAction } from './chrome';
+import { setAction, avoid } from './chrome';
 
 type Ans = { goal?: string; beard?: string; color?: string; when?: string };
 type Opt = { v: string; t: string; s: string };
@@ -152,6 +152,7 @@ export function mountDiagnostic() {
     for (const k of Object.keys(a) as (keyof Ans)[]) delete a[k];
     done = false; who = 'match'; found = []; note = ''; slotErr = false; tok++;
     setAction('diagnostic', null);
+    avoid('plan', null);
     go(0);
     text(live, 'Diagnostic remis à zéro.');
   }
@@ -194,6 +195,7 @@ export function mountDiagnostic() {
         h('button', { type: 'button', class: 'tl', 'data-reset': '' }, 'Recommencer')));
     paintSlot();
     setAction('diagnostic', { label: 'Réserver ce plan', sub: (t.from ? 'dès ' : '') + eur(t.price), run: () => book() });
+    avoid('plan', $('[data-book-plan]', plan));
   }
 
   function paintSlot() {
@@ -281,7 +283,7 @@ export function mountDiagnostic() {
     if (t.closest('[data-book-plan]')) { book(); return; }
     if (t.closest('[data-reset]')) { reset(); return; }
     const ed = t.closest<HTMLElement>('[data-edit]');
-    if (ed) { done = false; setAction('diagnostic', null); go(Number(ed.dataset.edit)); }
+    if (ed) { done = false; setAction('diagnostic', null); avoid('plan', null); go(Number(ed.dataset.edit)); }
   });
   prev.addEventListener('click', () => go(step - 1));
   next.addEventListener('click', () => go(step + 1));

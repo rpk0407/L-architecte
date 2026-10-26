@@ -1,6 +1,7 @@
 // Planche 06, the barbers: a monogram in a drafting circle in each one's colour, his own bio, his
 // Instagram when he has one, and his next real free slots for a cut; each slot opens the sheet on it.
 import { openBooking } from '../../../site-kit/booking';
+import { reveal } from '../../../site-kit/motion';
 import { dur } from '../../../lib/format';
 import { $, h, svg, text, barbers, svcBySlug, idsOf, freeSlots, whenShort, bookAttrs, onSlots, type Bar } from '../util';
 
@@ -18,7 +19,7 @@ function circle(b: Bar) {
 
 export function mountTeam() {
   const list = $('[data-team]')!, any = $('[data-any-next]');
-  let sig = '';
+  let sig = '', built = false;
 
   const render = () => {
     const team = barbers();
@@ -26,16 +27,18 @@ export function mountTeam() {
     if (s === sig) return;
     sig = s;
     list.replaceChildren(...team.map((b, i) => h('li', { class: 'arch', 'data-reveal': '', 'data-delay': i * 80, 'data-arch': b.id || b.key },
-      h('div', { class: 'arch-head' }, circle(b), h('span', { class: 'arch-m', 'aria-hidden': 'true' }, b.initials), h('span', { class: 'micro arch-fig' }, 'Fig. 06-' + String.fromCharCode(65 + i))),
-      h('h3', { class: 'arch-n' }, b.name),
+      h('div', { class: 'arch-top' },
+        h('div', { class: 'arch-head' }, circle(b), h('span', { class: 'arch-m', 'aria-hidden': 'true' }, b.initials)),
+        h('div', null, h('span', { class: 'micro arch-fig' }, 'Fig. 06-' + String.fromCharCode(65 + i)), h('h3', { class: 'arch-n' }, b.name))),
       h('p', { class: 'arch-bio' }, b.bio),
       b.instagram ? h('a', { class: 'tl arch-ig', href: b.instagram, target: '_blank', rel: 'noopener' }, 'Instagram ', h('span', { class: 'sr-only' }, 'de ' + b.name), h('span', { 'aria-hidden': 'true' }, '↗')) : null,
       h('div', { class: 'arch-slots' },
         h('p', { class: 'micro', 'data-arch-k': '' }, 'Prochains créneaux'),
-        h('div', { class: 'chips', 'data-arch-chips': '', 'aria-live': 'polite' }, h('span', { class: 'chip ghost' }, '…'))),
+        h('div', { class: 'chips', 'data-arch-chips': '' }, h('span', { class: 'chip ghost' }, '…'))),
       h('button', { type: 'button', class: 'tl arch-all', 'data-arch-all': '' }, 'Tout son agenda ', h('span', { 'aria-hidden': 'true' }, '→')))));
-    // reveal() ran at boot; cards built later show at once (they were not on screen yet anyway)
-    list.querySelectorAll('[data-reveal]').forEach((el) => el.classList.add('is-in'));
+    // the first cards are revealed with the page; cards rebuilt with the live team need their own watch
+    if (built) reveal(list);
+    built = true;
   };
 
   const slots = () => {

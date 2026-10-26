@@ -32,8 +32,10 @@ export function paintChairs() {
   keepFocus(host, () => host.replaceChildren(...barbers().map((b) => {
     const mine = all ? all.filter((f) => f.key === b.key) : null;
     const stt = status(mine);
+    // the day is said once, before the times; a later day is spelled on its own chip
+    const d0 = mine?.[0]?.day;
     const slots = (mine || []).slice(0, 3).map((f) => {
-      const btn = h('button', { type: 'button', class: 'slot' }, (f.day === S.today() ? '' : dayName(f.day, true) + ' ') + dates.fmtTime(f.m));
+      const btn = h('button', { type: 'button', class: 'slot' }, (f.day === d0 ? '' : dayName(f.day, true) + ' ') + dates.fmtTime(f.m));
       bookAttrs(btn, { slugs: [st.svc], staff: b.key, day: f.day, start: f.m, source: 'chairs' });
       btn.dataset.fk = b.key + f.day + f.m;
       btn.setAttribute('aria-label', 'Réserver ' + whenWords(f.day, f.m) + ' avec ' + b.name);
@@ -48,7 +50,7 @@ export function paintChairs() {
         h('h3', { class: 'ch-n' }, b.name),
         h('p', { class: 'ch-st' }, h('i', { class: 'live-dot' + (stt?.on ? '' : ' off'), 'aria-hidden': 'true' }), stt ? stt.text : h('span', { class: 'sk sk-t' })),
         b.bio ? h('p', { class: 'ch-bio' }, b.bio) : null),
-      h('div', { class: 'ch-a' }, ...slots, all3,
+      h('div', { class: 'ch-a' }, d0 ? h('span', { class: 'ch-day' }, dayName(d0)) : null, ...slots, all3,
         b.instagram ? h('a', { class: 'tl ch-ig', href: b.instagram, target: '_blank', rel: 'noopener', 'data-fk': b.key + 'ig' }, 'Instagram', svg(OUT)) : null));
   })), (k) => k.replace(/\d.*$/, ''));
   const any = $('[data-ch-any]');

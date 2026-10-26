@@ -57,8 +57,8 @@ export function mountTemps() {
     }
     me.hidden = !(r && r.serviceIds.length);
     // redrawn only when it changed: the live data repaints often, a focused button must stay put
-    if (next.dataset.html === nextHtml) return;
-    next.dataset.html = nextHtml;
+    if (next.dataset.html === nextHtml + endHtml) return;
+    next.dataset.html = nextHtml + endHtml;
     next.innerHTML = nextHtml;
     end.innerHTML = endHtml;
     last = -1;

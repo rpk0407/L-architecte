@@ -66,6 +66,7 @@ function match(all: Free[], q: Q): { items: Item[]; exact: boolean; why: string 
     add(mine.filter((f) => f.day === q.day).sort((a, b) => Math.abs(a.m - t) - Math.abs(b.m - t)), 'Même jour', 2);
     add(mine.filter((f) => f.day > q.day && inWin(f)), 'Un autre jour', 2);
   }
+  add(mine.filter((f) => !q.day || f.day < q.day), q.day ? 'Plus tôt' : '', 5 - out.length);
   add(mine, '', 5 - out.length);
   const day = q.day ? dayPhrase(q.day) : '';
   let why = 'Rien de libre ' + [day, q.timeLabel, q.staff ? 'avec ' + (barber(q.staff)?.name || '') : ''].filter(Boolean).join(' ') + '.';
@@ -86,7 +87,7 @@ function select(k: string, label: string, value: string, opts: [string, string][
   for (const [v, t] of opts) sel.append(h('option', { value: v }, t));
   sel.value = value;
   sel.dataset.k = k;
-  return h('label', { class: 'chip' + (auto ? ' auto' : '') + (value ? ' set' : '') }, h('span', { class: 'chip-k' }, k), h('span', { class: 'chip-v' }, label), sel, svg('<path d="M7 10l5 5 5-5"/>', 'chip-ic'));
+  return h('label', { class: 'chip' + (auto ? ' auto' : '') + (value ? ' set' : '') }, h('span', { class: 'chip-k' }, k), h('span', { class: 'chip-v' }, label.replace(/^./, (c) => c.toUpperCase())), sel, svg('<path d="M7 10l5 5 5-5"/>', 'chip-ic'));
 }
 
 function drawChips(q: Q) {

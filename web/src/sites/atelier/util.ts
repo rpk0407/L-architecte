@@ -26,6 +26,8 @@ export function svg(tag: string, attrs?: Attrs | null, ...kids: (Node | null | f
 }
 export const $ = <T extends Element = HTMLElement>(sel: string, root: ParentNode = document) => root.querySelector(sel) as T | null;
 export const $$ = <T extends Element = HTMLElement>(sel: string, root: ParentNode = document) => Array.from(root.querySelectorAll(sel)) as T[];
+/** French spacing: the space before ? ! : ; » and after « never breaks. */
+export const fr = (s: string) => s.replace(/ ([?!:;»])/g, '\u00a0$1').replace(/« /g, '«\u00a0');
 /** Sets text only when it changed: aria-live regions stay quiet when nothing new happened. */
 export function text(el: Element | null, t: string) { if (el && el.textContent !== t) el.textContent = t; }
 

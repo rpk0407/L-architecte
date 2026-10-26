@@ -52,7 +52,7 @@ export function paintHero(failed = false) {
   $('[data-dot]')?.classList.toggle('off', !st.open);
   document.documentElement.classList.toggle('is-open', st.open);
   const first = M.firstName();
-  $('[data-greet]')!.textContent = first ? 'Salut ' + first + ' · en direct du salon' : 'En direct du salon';
+  $('[data-greet]')!.textContent = first ? 'Salut ' + first + ' · en direct' : 'En direct du salon';
   paintClock();
 
   const pool = knownPool(HERO_SVC);

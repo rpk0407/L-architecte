@@ -19,6 +19,23 @@ function paintDock() {
 }
 /** A plate offers its own next step to the dock (null gives the default back). */
 export function setAction(id: string, a: Action | null) { if (a) actions.set(id, a); else actions.delete(id); if (id === plate) paintDock(); }
+// the dock shows once the hero's own buttons are gone, and steps aside whenever the same action is
+// already on screen (the plan's or the quote's own button, the final call) and for the footer
+const seen = new Set<Element>(), watched = new Map<string, Element>();
+const show = () => {
+  const on = !seen.size;
+  dock.classList.toggle('on', on);
+  dock.setAttribute('aria-hidden', String(!on));
+  dockBtn.tabIndex = on ? 0 : -1;
+};
+const dio = new IntersectionObserver((es) => { for (const e of es) { if (e.isIntersecting && e.target.isConnected) seen.add(e.target); else seen.delete(e.target); } show(); });
+/** The dock steps aside while this element is on screen (a new element under the same key replaces the old). */
+export function avoid(key: string, el: Element | null) {
+  const old = watched.get(key);
+  if (old) { dio.unobserve(old); seen.delete(old); }
+  if (el) { watched.set(key, el); dio.observe(el); } else watched.delete(key);
+  if (old) show();  // the observer reports new elements itself (no flash of the dock on first paint)
+}
 /** The default step: "Réserver" with the next free slot as its subtitle. */
 export function setFallbackSub(sub: string) { fallback = { ...fallback, sub }; paintDock(); }
 
@@ -57,16 +74,7 @@ export function mountChrome() {
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && hd.classList.contains('open')) { setOpen(false); idx.focus(); } });
   addEventListener('scroll', () => { if (hd.classList.contains('open')) setOpen(false); }, { passive: true });
 
-  // the dock shows once the hero's own buttons are gone, and steps aside for the final call and the footer
-  const seen = new Set<Element>();
-  const show = () => {
-    const on = !seen.size;
-    dock.classList.toggle('on', on);
-    dock.setAttribute('aria-hidden', String(!on));
-    dockBtn.tabIndex = on ? 0 : -1;
-  };
-  const dio = new IntersectionObserver((es) => { for (const e of es) { if (e.isIntersecting) seen.add(e.target); else seen.delete(e.target); } show(); });
-  [$('[data-hero-cta]'), $('[data-final-cta]'), $('.ft')].forEach((el) => el && dio.observe(el));
+  [$('[data-hero-cta]'), $('[data-final-cta]'), $('.ft'), $('[data-validate]')].forEach((el, i) => avoid('static' + i, el));
   dockBtn.addEventListener('click', (e) => { e.preventDefault(); if (!isBookingOpen()) (actions.get(plate) || fallback).run(); });
   paintDock();
 }

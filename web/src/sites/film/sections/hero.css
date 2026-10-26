@@ -40,6 +40,7 @@
 @keyframes fm-rise { from { opacity: 0; transform: translateY(22px); } }
 .hero .slug { animation-delay: .35s; }
 .hero .slug.is-greet .slug-t { text-transform: none; letter-spacing: .02em; font-size: 13px; }
+.hero .slug.is-greet .slug-l { display: none; }
 .hero-t { margin-left: -.045em; font: 400 var(--t-mega)/.84 var(--f-serif); letter-spacing: -.04em; white-space: nowrap; }
 .hero-tag { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .hero-row { display: flex; flex-direction: column; gap: var(--s4); margin-top: var(--s2); }

@@ -190,7 +190,7 @@
 .gn-links a { display: inline-flex; align-items: center; min-height: 44px; font: 500 15px/1.3 var(--f-sans); color: var(--pierre); text-decoration: underline; text-decoration-color: var(--ligne2); text-underline-offset: 5px; transition: color .25s, text-decoration-color .25s; }
 .gn-links a:hover { color: var(--os); text-decoration-color: currentColor; }
 .gn-legal { margin-top: var(--s5); font: 400 13px/1.5 var(--f-sans); color: var(--cendre); }
-.gn-legal a { color: var(--pierre); }
+.gn-legal a { display: inline-flex; align-items: center; min-height: 44px; color: var(--pierre); }
 
 /* ---------- reduced motion: every pinned shot becomes a plain page ---------- */
 @media (prefers-reduced-motion: reduce) {

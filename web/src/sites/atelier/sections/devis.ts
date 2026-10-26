@@ -88,12 +88,10 @@ export function mountDevis() {
           const inc = on ? null : includedIn(s, cur);
           const full = !on && !inc && cur.filter((x) => !(group(s) && group(x) === group(s))).length >= MAX;
           const why = inc ? 'Déjà dans « ' + inc.name + ' »' : full ? 'Trois prestations au plus par rendez-vous' : '';
-          const id = 'dv-' + k.replace(/[^\w-]/g, '');
           return h('li', null, h('label', { class: 'item' + (on ? ' on' : '') + (why ? ' off' : '') },
-            h('input', { type: 'checkbox', 'data-k': k, checked: on, disabled: !!why, 'aria-describedby': why ? id + '-w' : null }),
+            h('input', { type: 'checkbox', 'data-k': k, checked: on, disabled: !!why }),
             h('span', { class: 'item-n' }, lot.n + '.' + (i + 1)),
             h('span', { class: 'item-t' }, h('b', null, s.name), h('small', null, why || s.includes.slice(0, 3).join(' · '))),
-            why ? h('span', { class: 'sr-only', id: id + '-w' }, why) : null,
             h('span', { class: 'item-d' }, dur(s.dur)),
             h('span', { class: 'item-p' }, (s.from ? 'dès ' : '') + eur(s.price)),
             h('i', { class: 'item-c', 'aria-hidden': 'true' })));
@@ -105,8 +103,9 @@ export function mountDevis() {
   function renderQuote() {
     const cur = sel(), t = totals(cur);
     text(date, S.getSalon() ? dates.dayShort(S.today()) : '');
+    const num = (s: Svc) => lotOf(s) + '.' + (all().filter((x) => lotOf(x) === lotOf(s)).findIndex((x) => keyOf(x) === keyOf(s)) + 1);
     lines.replaceChildren(...(cur.length ? cur.map((s) => h('li', null,
-      h('span', { class: 'n' }, lotOf(s) + '.' + (all().filter((x) => lotOf(x) === lotOf(s)).indexOf(s) + 1)),
+      h('span', { class: 'n' }, num(s)),
       h('span', { class: 'nm' }, s.name), h('span', { class: 'du' }, dur(s.dur)), h('b', null, (s.from ? 'dès ' : '') + eur(s.price))))
       : [h('li', { class: 'qt-empty' }, 'Aucune prestation cochée.')]));
     text(total, cur.length ? (t.from ? 'dès ' : '') + eur(t.price) : '—');

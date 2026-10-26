@@ -38,7 +38,7 @@ export function mountSeance() {
     const plain = groups.filter((g) => !g.items.every((x) => x.credits));
     const packs = list.filter((x) => x.credits);
     const html = `<div class="se-cols">${plain.map((g, i) => `<section class="se-g" aria-labelledby="se-${i}">
-        <h3 class="se-gh" id="se-${i}"><span>Séance ${ROMAN[i] || i + 1}</span>${esc(g.c)}</h3>
+        <h3 class="se-gh" id="se-${i}"><span aria-hidden="true">Séance ${ROMAN[i] || i + 1}</span>${esc(g.c)}</h3>
         <ul class="tk-l">${g.items.filter((x) => !x.credits).map(ticket).join('')}</ul>
       </section>`).join('')}</div>${packs.map(booklet).join('')}`;
     if (box.dataset.html !== html) { box.dataset.html = html; box.innerHTML = html; }

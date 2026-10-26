@@ -3,7 +3,7 @@
 import * as S from '../../../site-kit/salon';
 import { FAQ, SHOP } from '../../../site-kit/content';
 import { eur, dur } from '../../../lib/format';
-import { $, $$, h, text, services, svcBySlug, bookAttrs, onSlots } from '../util';
+import { $, $$, h, text, fr, services, svcBySlug, bookAttrs, onSlots } from '../util';
 
 export function mountCahier() {
   const spec = $('[data-spec]')!, faq = $('[data-faq]')!, note = $('[data-spec-note]')!;
@@ -38,9 +38,9 @@ export function mountCahier() {
     const where = /Où se trouve/.test(f.q);
     return h('li', { class: 'clause' },
       h('h4', null, h('button', { type: 'button', class: 'clause-q', 'aria-expanded': 'false', 'aria-controls': id + '-a', id: id + '-q' },
-        h('span', { class: 'art-n' }, 'Art. ' + (i + 1)), h('span', { class: 'clause-t' }, f.q), h('i', { class: 'pm', 'aria-hidden': 'true' }))),
+        h('span', { class: 'clause-n' }, 'Art. ' + (i + 1)), h('span', { class: 'clause-t' }, fr(f.q)), h('i', { class: 'pm', 'aria-hidden': 'true' }))),
       h('div', { class: 'clause-a', id: id + '-a', role: 'region', 'aria-labelledby': id + '-q', hidden: true },
-        h('p', null, f.a),
+        h('p', null, fr(f.a)),
         where ? h('a', { class: 'tl', href: SHOP.maps, target: '_blank', rel: 'noopener' }, 'Voir l’itinéraire ', h('span', { 'aria-hidden': 'true' }, '↗')) : null));
   }));
   faq.addEventListener('click', (e) => {

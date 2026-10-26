@@ -58,10 +58,11 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .tm { height: auto; padding-block: var(--s9); }
-  .tm-pin { position: relative; height: auto; display: block; }
-  .tm-fig, .tm-fig.tm-fig { display: block; margin-top: var(--s6); }
-  .tm-ph { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; height: auto; aspect-ratio: auto; background: none; }
+  .tm { height: auto; }
+  .tm-pin { position: relative; height: auto; min-height: 0; display: block; padding-block: var(--s9); }
+  /* block layout honours box alignment now: reset what the pinned grid set */
+  .tm-fig, .tm-fig.tm-fig { display: block; margin-top: var(--s6); place-items: normal; }
+  .tm-ph, .tm-ph.tm-ph { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: 100%; max-width: 920px; height: auto; margin: 0; justify-self: start; aspect-ratio: auto; background: none; overflow: visible; }
   .tm-ph img { position: static; aspect-ratio: 1100 / 1077; height: auto; grid-row: 1; }
   .tm-b { opacity: 1; }
   .tm-lab { display: block; grid-row: 2; font: 600 12px/1 var(--f-sans); letter-spacing: .14em; color: var(--cendre); }
