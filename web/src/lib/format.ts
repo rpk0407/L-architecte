@@ -52,7 +52,8 @@ export function ago(ms: number, now = Date.now()) {
 }
 export function clock(ms: number) { const p = dates.localParts(ms); return dates.hhmm(p.min); }
 export function pct(x: number, digits = 0) { return (x * 100).toFixed(digits).replace('.', ',') + ' %'; }
-export function plural(n: number, one: string, many?: string) { return n + ' ' + (n > 1 ? many || one + 's' : one); }
+// rendez-vous, SMS, prix: words ending in s, x or z do not change
+export function plural(n: number, one: string, many?: string) { return n + ' ' + (n > 1 ? many || (/[sxzS]$/.test(one) ? one : one + 's') : one); }
 export function sinceWords(days: number | null) {
   if (days == null) return 'jamais venu';
   if (days === 0) return 'aujourd’hui';

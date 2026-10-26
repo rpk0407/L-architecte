@@ -24,7 +24,7 @@ import { sendRebook } from '../commands/messages.js';
 export const DEMO = {
   email: 'gerant@larchitecte.fr',
   password: 'Architecte13',
-  ownerPin: '1234',
+  ownerPin: '1313',
   giftcard: 'CADO-DEMO-2026',
   pins: { JKut: '2468', Frank: '1357', 'Le Soldat': '8642', Esteban: '9753' }
 };

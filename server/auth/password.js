@@ -57,5 +57,6 @@ export function pinProblem(pin) {
   const s = String(pin || '');
   if (!/^\d{4,6}$/.test(s)) return 'Le code fait 4 à 6 chiffres.';
   if (/^(\d)\1+$/.test(s)) return 'Évite les codes comme 0000 ou 1111.';
+  if ('0123456789'.includes(s) || '9876543210'.includes(s)) return 'Évite les suites comme 1234.';
   return null;
 }
