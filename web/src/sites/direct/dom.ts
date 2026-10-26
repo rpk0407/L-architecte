@@ -1,11 +1,10 @@
-// Small DOM helpers shared by the sections. Text goes in through textContent; the rare innerHTML is
-// built from escaped values only.
+// Small DOM helpers shared by the sections. Every value from the salon or the visitor goes in through
+// textContent (h() below); innerHTML only ever receives this module's own constant SVG paths.
 import { dates } from '../../lib/format';
 import * as S from '../../site-kit/salon';
 
 export const $ = <T extends Element = HTMLElement>(sel: string, root: ParentNode = document) => root.querySelector(sel) as T | null;
 export const $$ = <T extends Element = HTMLElement>(sel: string, root: ParentNode = document) => Array.from(root.querySelectorAll<T>(sel));
-export const esc = (s: unknown) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
 export const NB = ' ';
 
 type Attrs = Record<string, string | number | boolean | null | undefined>;
@@ -39,19 +38,31 @@ export function bookAttrs(el: HTMLElement, p: { slugs?: string[]; staff?: string
   set('data-book-source', p.source || null);
 }
 
-/** "Aujourd’hui", "Demain", "Jeudi 29" — short enough for a row */
-export function dayName(day: string, short = false) {
+const capF = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+/** "Aujourd’hui", "Demain", "Jeudi 29": short enough for a row */
+export function dayName(day: string) {
   const n = dates.diffDays(S.today(), day);
   if (n === 0) return 'Aujourd’hui';
   if (n === 1) return 'Demain';
   const p = dates.dayParts(day);
-  const wd = dates.DAYS_FR[p.wd];
-  return (short ? wd.charAt(0).toUpperCase() + wd.slice(1, 3) + '.' : wd.charAt(0).toUpperCase() + wd.slice(1)) + ' ' + p.d;
+  return capF(dates.DAYS_FR[p.wd]) + ' ' + p.d;
 }
-/** "aujourd’hui à 16 h", "demain à 9 h 30", "jeudi 29 à 10 h" */
+/** The one short form of a day: "Demain", "Jeu. 29" (lower: "demain", "jeu. 29", for inside a sentence) */
+export function dayShort(day: string, lower = false) {
+  const n = dates.diffDays(S.today(), day);
+  const p = dates.dayParts(day);
+  const w = n === 0 ? 'aujourd’hui' : n === 1 ? 'demain' : dates.DAYS_SH[p.wd] + ' ' + p.d;
+  return lower ? w : capF(w);
+}
+/** "aujourd’hui à 16 h", "demain à 9 h 30", "jeudi 29 octobre à 10 h" */
 export function whenWords(day: string, m: number) {
   const n = dates.diffDays(S.today(), day);
   return (n === 0 ? 'aujourd’hui' : n === 1 ? 'demain' : dates.dayLong(day)) + ' à ' + dates.fmtTime(m);
+}
+/** Only this site's own links and https: ones go into an href (values from storage or the API). */
+export function safeUrl(u: string | null | undefined) {
+  if (!u) return null;
+  try { const x = new URL(u, location.href); return x.origin === location.origin || x.protocol === 'https:' ? u : null; } catch { return null; }
 }
 
 /** Runs cb(true/false) as the element enters or leaves the screen. */
@@ -61,7 +72,7 @@ export function watch(el: Element | null, cb: (on: boolean) => void, margin = '0
   new IntersectionObserver((es) => { for (const e of es) cb(e.isIntersecting); }, { rootMargin: margin }).observe(el);
 }
 
-/** A barber's monogram, in his colour, with the brand's dot screen on the lower half. */
+/** A barber's monogram on stone, the brand's dot screen on the lower half, his colour as a thin ring. */
 export function mono(b: { initials: string; color: string }, cls = 'mono') {
   const el = h('span', { class: cls, 'aria-hidden': 'true' }, b.initials);
   el.style.setProperty('--c', b.color);

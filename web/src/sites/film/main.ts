@@ -15,8 +15,11 @@
      micro-labels at 11.5 px uppercase with .16em tracking, tabular figures for time and money.
    · Spacing: one 4/8 scale (--s1 … --s10 = 4, 8, 12, 16, 24, 32, 48, 64, 96, 144 px).
    · Motion: the scroll is the only clock. Pinned shots are scrubbed through motion.track (one rAF loop,
-     transforms, opacity and cross-fades of pre-filtered layers; nothing re-filters per frame). Entrances
-     use --ease-out. With reduced motion every pinned shot falls back to a plain, complete layout. */
+     transforms, opacity and cross-fades of pre-filtered layers; the opening's two prints are baked once into
+     canvases). Entrances use --ease-out. With reduced motion, or a screen too short to hold a pinned shot,
+     every pinned shot falls back to a plain, complete layout.
+   · Chrome: a solid top matte past the opening (wordmark · HUD · booking), the rail on wide screens, the
+     dock on phones, which steps aside whenever a section's own booking action is under the thumb. */
 import '../../site-kit/tokens.css';
 import './base.css';
 import './sections.css';
@@ -27,6 +30,7 @@ import { reveal, smoothAnchors } from '../../site-kit/motion';
 import { mountChrome } from './chrome';
 import { startLive } from './live';
 import { mountPersonal } from './personal';
+import { mountSheet } from './sheet';
 import { svc, priceText, durText } from './data';
 import { $$, setText } from './util';
 import { mountHero } from './sections/hero';
@@ -64,5 +68,6 @@ paintCatalogue();
 onChange(paintCatalogue);
 reveal();
 smoothAnchors(0);
+mountSheet();
 bootBooking();
 mountVersions('film');

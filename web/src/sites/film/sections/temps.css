@@ -1,5 +1,5 @@
 /* 03 · Le temps: one portrait, J+0 to J+28 */
-.tm { height: 340svh; background: var(--encre); }
+.tm { height: 280svh; background: var(--encre); }
 .tm-pin {
   position: sticky; top: 0; height: 100svh; min-height: 600px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto; gap: var(--s4);
   max-width: var(--max); margin-inline: auto; padding: calc(var(--top-h) + var(--s2)) var(--pad) calc(var(--dock-h) + var(--s4));
@@ -9,12 +9,16 @@
 .tm-ph { position: relative; height: 100%; max-height: 100%; aspect-ratio: 1100 / 1077; max-width: 100%; overflow: hidden; border-radius: 3px; background: var(--encre3); }
 .tm-ph img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .tm-a { filter: grayscale(1) contrast(1.2) brightness(.95); }
-/* the same print, weeks later: softer edge, flatter contrast, washed out. Pre-filtered; only its opacity moves. */
-.tm-b { filter: grayscale(1) blur(3.5px) contrast(.7) brightness(1.16); opacity: 0; will-change: opacity; }
+/* the same print, weeks later, on the hair only: the sides fill in (darker), the contour softens. The face stays
+   sharp. Pre-filtered and pre-masked; only its opacity moves. */
+.tm-b {
+  filter: grayscale(1) blur(2px) brightness(.8) contrast(.86); opacity: 0; will-change: opacity;
+  -webkit-mask-image: radial-gradient(ellipse 30% 24% at 52% 30%, #000 55%, transparent 80%);
+  mask-image: radial-gradient(ellipse 30% 24% at 52% 30%, #000 55%, transparent 80%);
+}
 .tm-dim { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .tm-dim path { fill: none; stroke: var(--rouge2); stroke-width: 2px; vector-effect: non-scaling-stroke; }
 .tm-dim-b { opacity: 0; filter: blur(3px); }
-.tm-mm { position: absolute; left: 75.5%; top: 34.5%; padding: 4px 7px; border-radius: 4px; background: rgba(5, 4, 4, .66); font: 600 12px/1 var(--f-sans); font-variant-numeric: tabular-nums; color: var(--os); white-space: nowrap; }
 .tm-lab { display: none; }
 .tm-end {
   position: absolute; inset: 0; display: grid; place-content: center; gap: 4px; padding: var(--s5); text-align: center;
@@ -44,6 +48,16 @@
 .tm-me[hidden] { display: none; }
 .tm-next { margin-top: var(--s2); }
 
+/* small phones (360 × 640): the photo keeps the room; the slug names the sequence */
+@media (max-width: 899px) and (max-height: 700px) {
+  .tm-pin { gap: var(--s2); }
+  .tm .h2 { display: none; }
+  .tm-ruler { height: 26px; margin-top: var(--s2); }
+  .tm-ticks b { top: 15px; }
+  .tm-next { margin-top: 0; }
+  .tm-next .next-n { display: none; }
+}
+
 @media (min-width: 900px) {
   .tm-pin { grid-template-columns: repeat(12, minmax(0, 1fr)); grid-template-rows: auto minmax(0, 1fr) auto auto; column-gap: var(--s5); padding-bottom: var(--hud-clear); }
   .tm-pin > .seq-h { grid-column: 1 / 6; grid-row: 1; }
@@ -66,7 +80,8 @@
   .tm-ph img { position: static; aspect-ratio: 1100 / 1077; height: auto; grid-row: 1; }
   .tm-b { opacity: 1; }
   .tm-lab { display: block; grid-row: 2; font: 600 12px/1 var(--f-sans); letter-spacing: .14em; color: var(--cendre); }
-  .tm-dim, .tm-mm, .tm-day, .tm-ruler { display: none; }
+  .tm-b { -webkit-mask-image: none; mask-image: none; }
+  .tm-dim, .tm-day, .tm-ruler { display: none; }
   .tm-end { position: static; grid-column: 1 / -1; opacity: 1; background: none; padding: var(--s5) 0 0; text-align: left; place-content: start; }
   .tm-cap { position: static; }
   .tm-subs { position: static; height: auto; text-align: left; margin-top: var(--s5); }
@@ -74,4 +89,11 @@
   .tm.is-end .tm-subs { opacity: 1; }
   .tm-s-last { display: none; }
   .tm-next { margin-top: var(--s6); }
+}
+
+/* screens too short to hold the shot (200 % zoom, a phone on its side): not pinned, the scrub runs as it passes */
+@media (max-height: 560px) and (prefers-reduced-motion: no-preference) {
+  .tm { height: auto; }
+  .tm-pin { position: relative; height: auto; min-height: 0; padding-block: var(--s8); }
+  .tm-ph { height: min(70vw, 420px); width: auto; }
 }

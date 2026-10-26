@@ -13,7 +13,7 @@ export function mountManifesto() {
   $$('.w', txt).forEach((w, i) => { if (/\.$/.test(w.textContent || '') && i < n - 1) starts.push(i + 1); });
   if (reduced()) { txt.style.setProperty('--k', String(n + 4)); steps.forEach((s) => s.classList.add('is-on')); return; }
   track(sec, (p) => {
-    const k = span(p, 0.06, 0.78) * (n + 3);
+    const k = span(p, 0.06, 0.7) * (n + 3);
     txt.style.setProperty('--k', k.toFixed(2));
     steps.forEach((s, i) => s.classList.toggle('is-on', k > (starts[i] ?? n) + 0.5));
   }, 'sticky');

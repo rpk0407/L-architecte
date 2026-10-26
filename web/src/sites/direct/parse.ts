@@ -16,7 +16,7 @@ export type Intent = {
   timeLabel: string;    // "vers 18 h", "à partir de 17 h", "le matin"… ('' when no time was said)
   empty: boolean;       // nothing understood
 };
-export type Ctx = { today: string; slugs: string[]; staff: string[] };
+export type Ctx = { today: string; now?: number; slugs: string[]; staff: string[] }; // now: minutes after midnight, for « dans 1 h »
 
 /* ---------------- calendar, on 'YYYY-MM-DD' keys (UTC noon, no time zone involved) ---------------- */
 
@@ -70,7 +70,9 @@ export function parse(text: string, ctx: Ctx): Intent {
 
   /* days: explicit dates first, then the words */
   let m: RegExpExecArray | null;
-  if ((m = take(/\b(\d{1,2})\s?[\/.-]\s?(\d{1,2})(?:[\/.-](\d{2,4}))?\b/))) out.day = dayMonth(+m[1], +m[2], ctx.today);
+  // "28/10" is a date, "18.30" is a time: a month over 12 leaves it to the time patterns below
+  const dm = /\b(\d{1,2})\s?[\/.-]\s?(\d{1,2})(?:[\/.-](\d{2,4}))?\b/.exec(s);
+  if (dm && +dm[2] >= 1 && +dm[2] <= 12 && (m = take(/\b(\d{1,2})\s?[\/.-]\s?(\d{1,2})(?:[\/.-](\d{2,4}))?\b/))) out.day = dayMonth(+m[1], +m[2], ctx.today);
   else if ((m = take(new RegExp('\\b(\\d{1,2})(?:er)?\\s(' + MONTH_RE + ')\\.?\\b')))) {
     const mo = MONTHS.find(([re]) => re.test(m![2]));
     if (mo) out.day = dayMonth(+m[1], mo[1], ctx.today);
@@ -100,10 +102,15 @@ export function parse(text: string, ctx: Ctx): Intent {
   if (take(/\b(le plus tot( possible)?|des que possible|au plus vite|au plus tot|asap|tout de suite|maintenant|rapidement|vite|urgent|la prochaine place|le prochain creneau)\b/)) out.asap = true;
 
   /* times: a range, a bound, a time, then the named parts of the day */
-  const T = '(\\d{1,2})\\s?(?:h|:|heures?)\\s?(\\d{2})?';
+  const T = '(\\d{1,2})\\s?(?:h|:|\\.|heures?)\\s?(\\d{2})?';
   const hm = (h: string, mm?: string) => { let v = +h; if (v >= 1 && v <= 7) v += 12; return v > 23 ? null : v * 60 + (mm ? Math.min(59, +mm) : 0); };
   const named = (w: string): [number, number] | null => (w === 'midi' ? [720, 720] : null);
-  if ((m = take(new RegExp('\\bentre ' + T + ' et ' + T)))) {
+  // "dans 1 h", "dans 20 min": from now on, today (unread without a clock)
+  if ((m = take(/\bdans (\d{1,2}) ?(h|heures?|min\w*)\b/)) && ctx.now != null) {
+    const a = Math.ceil((ctx.now + +m[1] * (m[2][0] === 'h' ? 60 : 1)) / 5) * 5;
+    if (a < 1440) { out.day = out.day || ctx.today; out.win = { from: a, to: 1440, target: a }; out.timeLabel = 'à partir de ' + fmt(a); }
+  }
+  if (!out.win && (m = take(new RegExp('\\bentre ' + T + ' et ' + T)))) {
     const a = hm(m[1], m[2]), b = hm(m[3], m[4]);
     if (a != null && b != null && b > a) { out.win = { from: a, to: b, target: null }; out.timeLabel = 'entre ' + fmt(a) + ' et ' + fmt(b); }
   }

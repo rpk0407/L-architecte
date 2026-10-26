@@ -2,6 +2,7 @@
 // that breathes at each cut, and the thumb-reachable booking dock on phones.
 // Everything here runs from one scroll callback (motion.track) and positions measured once per resize.
 import { track, clamp, reduced } from '../../site-kit/motion';
+import { onChange } from '../../site-kit/salon';
 import { svc } from './data';
 import { $, $$, esc, pad2 } from './util';
 
@@ -12,56 +13,93 @@ export const SEQ = [
 ].map((s, i) => ({ ...s, n: pad2(i) }));
 
 const FPS = 24;
-let tops: number[] = [], docMax = 1, vh = 1, cur = -1, k = -1, dockOn = false, paper = false;
+let tops: number[] = [], docMax = 1, vh = 1, topH = 64, cur = -1, k = -1, w = -1, dockOn = false, paper = false, past = false;
+// The film lasts as long as a classic cut: the catalogue's duration, read when the catalogue changes, not per frame.
+let frames = 30 * 60 * FPS;
 
-/** HH:MM:SS:FF for a position on the page. The film lasts as long as a classic cut (30 min in the catalogue). */
+/** HH:MM:SS:FF for a position on the page. */
 function timecode(p: number) {
-  const total = (svc('cl')?.dur || 30) * 60 * FPS;
-  const f = Math.round(clamp(p) * total);
+  const f = Math.round(clamp(p) * frames);
   return [f / (3600 * FPS), (f / (60 * FPS)) % 60, (f / FPS) % 60, f % FPS].map(pad2).join(':');
 }
 
 function measure() {
   vh = innerHeight;
+  topH = $('.top')?.offsetHeight || 64;
   docMax = Math.max(1, document.documentElement.scrollHeight - vh);
   tops = SEQ.map((s) => { const el = document.getElementById(s.id); return el ? el.getBoundingClientRect().top + scrollY : 0; });
   $$('[data-seqs] .tc').forEach((el, i) => { el.textContent = timecode(tops[i] / docMax).slice(0, 8); });
 }
 
+/** After an in-page jump (skip link, rail, index, "Lancer le film"), keyboard focus follows the eye. */
+function focusAfterJump() {
+  document.addEventListener('click', (e) => {
+    const a = (e.target as Element).closest?.('a[href^="#"]') as HTMLAnchorElement | null;
+    const id = a?.getAttribute('href')!.slice(1);
+    const target = id ? document.getElementById(id) : null;
+    if (!target) return;
+    if (!target.hasAttribute('tabindex')) target.setAttribute('tabindex', '-1');
+    target.focus({ preventScroll: true });
+  });
+}
+
+/** The dock steps aside while a section's own booking action sits in the thumb zone (the lower 45 % of the screen):
+    one red action under the thumb at a time. Containers are watched, not buttons, because live blocks re-draw. */
+function yieldDock(dock: HTMLElement) {
+  if (typeof IntersectionObserver === 'undefined') return;
+  const inZone = new Set<Element>();
+  const io = new IntersectionObserver((es) => {
+    for (const e of es) { if (e.isIntersecting) inZone.add(e.target); else inZone.delete(e.target); }
+    dock.classList.toggle('is-yield', inZone.size > 0);
+  }, { rootMargin: '-55% 0px 0px 0px' });
+  $$('.film .next, [data-prog], [data-cast], .lk-view').forEach((el) => io.observe(el));
+}
+
 export function mountChrome() {
   const rail = $('[data-rail]')!, list = $('[data-seqs]')!;
-  rail.innerHTML = SEQ.map((s) => `<li><a href="#${s.id}"><span class="n">${s.n}</span><span class="t">${esc(s.t)}</span></a></li>`).join('');
-  list.innerHTML = SEQ.map((s) => `<li><a href="#${s.id}"><span class="n">${s.n}</span><span class="t">${esc(s.t)}</span><span class="tc">00:00:00</span></a></li>`).join('');
+  rail.innerHTML = SEQ.map((s) => `<li><a href="#${s.id}"><span class="n" aria-hidden="true">${s.n}</span><span class="t">${esc(s.t)}</span></a></li>`).join('');
+  list.innerHTML = SEQ.map((s) => `<li><a href="#${s.id}"><span class="n" aria-hidden="true">${s.n}</span><span class="t">${esc(s.t)}</span><span class="tc" aria-hidden="true">00:00:00</span></a></li>`).join('');
 
   const hud = $<HTMLButtonElement>('.hud')!, nav = $('#seqs')!;
   const hudN = $('.hud-n')!, hudT = $('.hud-t')!, hudTc = $('.hud-tc')!;
-  const hair = $('.hair i')!, lbT = $('.lb-t')!, lbB = $('.lb-b')!, dock = $('[data-dock]')!;
+  const hair = $('.hair i')!, lbT = $('.lb-t')!, lbB = $('.lb-b')!, dock = $('[data-dock]')!, wm = $('.top-wm')!;
   const still = reduced();
+  const root = document.documentElement;
 
   /* the index: a disclosure under the HUD */
   const setOpen = (open: boolean, focus = true) => {
     nav.hidden = !open;
     hud.setAttribute('aria-expanded', String(open));
-    document.documentElement.classList.toggle('seqs-open', open);
+    root.classList.toggle('seqs-open', open);
     if (open) { measure(); ($('a[aria-current]', nav) || $('a', nav))?.focus(); }
     else if (focus) hud.focus();
   };
   hud.addEventListener('click', () => setOpen(nav.hidden));
+  // closing without moving focus: focusAfterJump then puts it inside the chosen sequence
   nav.addEventListener('click', (e) => { if ((e.target as Element).closest('a')) setOpen(false, false); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !nav.hidden) setOpen(false); });
   document.addEventListener('click', (e) => { if (!nav.hidden && !nav.contains(e.target as Node) && !hud.contains(e.target as Node)) setOpen(false, false); });
+  focusAfterJump();
 
   const setCurrent = (i: number) => {
     cur = i;
     hudN.textContent = SEQ[i].n;
     hudT.textContent = SEQ[i].t;
-    for (const root of [rail, list]) $$('a', root).forEach((a, j) => { if (j === i) a.setAttribute('aria-current', 'true'); else a.removeAttribute('aria-current'); });
+    // the button names what it shows (WCAG 2.5.3: the visible label is part of the accessible name)
+    hud.setAttribute('aria-label', `Séquence ${SEQ[i].n}, ${SEQ[i].t} : ouvrir l’index du film`);
+    for (const r of [rail, list]) $$('a', r).forEach((a, j) => { if (j === i) a.setAttribute('aria-current', 'true'); else a.removeAttribute('aria-current'); });
   };
 
-  measure();
+  const readFrames = () => { frames = (svc('cl')?.dur || 30) * 60 * FPS; measure(); };
+  readFrames();
+  onChange(readFrames);
   addEventListener('resize', measure, { passive: true });
   // the catalogue, the barbers and the FAQ arrive after first paint: lengths change, so do the cuts
   if (typeof ResizeObserver !== 'undefined') new ResizeObserver(() => measure()).observe($('.film')!);
+
+  // out of sight, the dock is also out of the tab order (visibility, in base.css)
+  const setDock = (on: boolean) => { dockOn = on; dock.classList.toggle('on', on); };
+  yieldDock(dock);
 
   track($('.film'), () => {
     const y = scrollY, p = y / docMax;
@@ -70,11 +108,19 @@ export function mountChrome() {
     let i = 0;
     while (i < tops.length - 1 && tops[i + 1] <= y + vh * 0.45) i++;
     if (i !== cur) setCurrent(i);
-    // the top bar reads on ink; over the paper programme it switches to paper
+    // past the opening the top bar is a solid matte; over the paper programme it turns to paper
+    const ps = y + topH >= (tops[1] || vh);
+    if (ps !== past) { past = ps; root.classList.toggle('past-hero', ps); }
     let u = 0;
-    while (u < tops.length - 1 && tops[u + 1] <= y + 40) u++;
+    while (u < tops.length - 1 && tops[u + 1] <= y + topH) u++;
     const pp = SEQ[u].id === 'seance';
-    if (pp !== paper) { paper = pp; document.documentElement.classList.toggle('on-paper', pp); }
+    if (pp !== paper) { paper = pp; root.classList.toggle('on-paper', pp); }
+
+    // the wordmark takes over from the opening's title card as it leaves (hero pinned over half a screen)
+    if (!still) {
+      const ww = clamp((y - vh * 0.3) / (vh * 0.2));
+      if (ww !== w) { w = ww; wm.style.opacity = ww.toFixed(2); }
+    }
 
     // letterbox: full in the opening shot, opening up as the film starts, closing in briefly at each cut
     if (!still) {
@@ -88,6 +134,6 @@ export function mountChrome() {
 
     // the dock shows once the opening is over and steps aside for the credits (their links stay reachable)
     const on = y > (tops[1] || vh) - vh * 0.5 && y + vh < (tops[tops.length - 1] || docMax + vh) + 60;
-    if (on !== dockOn) { dockOn = on; dock.classList.toggle('on', on); }
+    if (on !== dockOn) setDock(on);
   }, 'sticky');
 }

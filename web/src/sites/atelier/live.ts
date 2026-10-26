@@ -1,14 +1,14 @@
 // The salon right now: open or closed, until when, the wait without appointment. Read from the salon's
 // clock (never the phone's), refreshed every minute while the tab is visible, painted wherever the page
-// asks for it ([data-status], [data-dot], [data-wait]…). Text is only rewritten when it changes, so the
-// aria-live regions announce a real change, not a heartbeat.
+// asks for it ([data-status], [data-dot], [data-wait]…). The visible lines are not live regions: one
+// hidden status line announces a real change (open → closed), never the first paint or a heartbeat.
 import * as S from '../../site-kit/salon';
 import { dur } from '../../lib/format';
-import { $$, text } from './util';
+import { $, $$, text } from './util';
 
 export type LiveView = { ready: boolean; open: boolean; label: string; wait: string | null };
 const subs = new Set<(v: LiveView) => void>();
-let ready = false;
+let ready = false, said: string | null = null;
 
 function view(): LiveView {
   if (!ready) return { ready: false, open: false, label: 'Du mardi au samedi, 9 h – 18 h 30', wait: null };
@@ -22,9 +22,10 @@ function paint() {
   const v = view();
   $$('[data-status]').forEach((el) => text(el, v.label));
   $$('[data-dot]').forEach((el) => el.classList.toggle('off', !v.open));
-  $$('[data-wait]').forEach((el) => text(el, v.wait || ''));
-  $$('[data-wait-cell]').forEach((el) => { el.hidden = !v.wait; });
+  // the hero's cell always holds a line (its height never moves): the wait when there is one
+  $$('[data-wait]').forEach((el) => text(el, v.wait || (v.open ? 'Passe au salon' : 'Aux heures d’ouverture')));
   $$('[data-wait-line]').forEach((el) => { el.hidden = !v.wait; text(el, v.wait ? 'Sans rendez-vous · ' + v.wait : ''); });
+  if (v.ready) { if (said !== null && said !== v.label) text($('[data-live-sr]'), v.label); said = v.label; }
   subs.forEach((fn) => fn(v));
 }
 export function onLive(fn: (v: LiveView) => void) { subs.add(fn); fn(view()); }
@@ -41,6 +42,7 @@ function tick() {
 }
 
 export function startLive() {
-  S.loadSalon().then(() => { ready = true; paint(); tick(); }, () => { /* the static hours stay on screen */ });
+  const go = () => { if (ready) return; ready = true; paint(); tick(); };
+  S.loadSalon().then(go, () => { const off = S.onChange(() => { if (S.getSalon()) { off(); go(); } }); });
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && ready) tick(); else clearTimeout(timer); });
 }

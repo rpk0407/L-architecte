@@ -1,16 +1,22 @@
-// A split-flap display, the board's voice. Each character is a cell of two static halves and two flaps;
-// a change runs the drum through a few letters before it lands, cell after cell, like the real thing.
-// Transforms only (Web Animations), nothing at all when the visitor asked for less motion.
+// A split-flap display, the board's voice. Each character is a cell of two static halves; the two flaps
+// that turn are only built the first time the cell changes, so a board at rest stays light. A change runs
+// the drum through a few letters before it lands, cell after cell, like the real thing. Transforms only
+// (Web Animations), nothing at all when the visitor asked for less motion.
 import { reduced } from '../../site-kit/motion';
 import { h } from './dom';
 
 const DRUM = ' ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789:.’-';
-type Cell = { ub: HTMLElement; db: HTMLElement; a: HTMLElement; ab: HTMLElement; b: HTMLElement; bb: HTMLElement; cur: string; tok: number };
+type Leaf = { el: HTMLElement; b: HTMLElement };
+type Cell = { el: HTMLElement; ub: HTMLElement; db: HTMLElement; a: Leaf | null; b: Leaf | null; cur: string; tok: number };
 
-function cell(): [HTMLElement, Cell] {
-  const half = (cls: string) => { const b = h('b'); return [h('span', { class: cls }, b), b] as const; };
-  const [u, ub] = half('fl-u'), [d, db] = half('fl-d'), [a, ab] = half('fl-a'), [b, bb] = half('fl-b');
-  return [h('span', { class: 'fl' }, u, d, a, b), { ub, db, a, ab, b, bb, cur: ' ', tok: 0 }];
+const half = (cls: string): Leaf => { const b = h('b'); return { el: h('span', { class: cls }, b), b }; };
+function cell(): Cell {
+  const u = half('fl-u'), d = half('fl-d');
+  return { el: h('span', { class: 'fl' }, u.el, d.el), ub: u.b, db: d.b, a: null, b: null, cur: ' ', tok: 0 };
+}
+function leaves(c: Cell) {
+  if (!c.a) { c.a = half('fl-a'); c.b = half('fl-b'); c.el.append(c.a.el, c.b!.el); }
+  return { a: c.a, b: c.b! };
 }
 
 export class Flap {
@@ -19,7 +25,7 @@ export class Flap {
   private value = '';
   constructor(len: number, cls = '') {
     this.el = h('span', { class: 'flap ' + cls, 'aria-hidden': 'true' });
-    for (let i = 0; i < len; i++) { const [el, c] = cell(); this.el.append(el); this.cells.push(c); }
+    for (let i = 0; i < len; i++) { const c = cell(); this.el.append(c.el); this.cells.push(c); }
   }
   /** Shows text (upper-cased, cut or padded to the width). animate=false lands at once. */
   set(text: string, animate = true, delay = 0) {
@@ -45,20 +51,21 @@ export class Flap {
 
 function land(c: Cell, ch: string) {
   c.ub.textContent = c.db.textContent = ch;
-  c.a.style.visibility = c.b.style.visibility = 'hidden';
+  if (c.a) c.a.el.style.visibility = c.b!.el.style.visibility = 'hidden';
   c.cur = ch;
 }
 function flip(c: Cell, next: string): Promise<void> {
   const ms = 52;
+  const { a, b } = leaves(c);
   c.ub.textContent = next;
-  c.ab.textContent = c.cur;
-  c.bb.textContent = next;
-  c.a.style.visibility = 'visible';
-  return c.a.animate([{ transform: 'rotateX(0deg)' }, { transform: 'rotateX(-90deg)' }], { duration: ms, easing: 'cubic-bezier(.55,0,1,.45)' }).finished
+  a.b.textContent = c.cur;
+  b.b.textContent = next;
+  a.el.style.visibility = 'visible';
+  return a.el.animate([{ transform: 'rotateX(0deg)' }, { transform: 'rotateX(-90deg)' }], { duration: ms, easing: 'cubic-bezier(.55,0,1,.45)' }).finished
     .then(() => {
-      c.a.style.visibility = 'hidden';
-      c.b.style.visibility = 'visible';
-      return c.b.animate([{ transform: 'rotateX(90deg)' }, { transform: 'rotateX(0deg)' }], { duration: ms, easing: 'cubic-bezier(0,.55,.45,1)' }).finished;
+      a.el.style.visibility = 'hidden';
+      b.el.style.visibility = 'visible';
+      return b.el.animate([{ transform: 'rotateX(90deg)' }, { transform: 'rotateX(0deg)' }], { duration: ms, easing: 'cubic-bezier(0,.55,.45,1)' }).finished;
     })
-    .then(() => { c.db.textContent = next; c.b.style.visibility = 'hidden'; c.cur = next; });
+    .then(() => { c.db.textContent = next; b.el.style.visibility = 'hidden'; c.cur = next; });
 }

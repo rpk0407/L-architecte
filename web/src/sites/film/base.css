@@ -3,7 +3,8 @@
 :root {
   --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px; --s6: 32px; --s7: 48px; --s8: 64px; --s9: 96px; --s10: 144px;
   --noir: #050404;
-  --t-mega: clamp(60px, min(16.2vw, 30svh), 236px);
+  /* the title card fills the measure on a phone (about 101 px at 390), and stays a title card on a wide screen */
+  --t-mega: clamp(60px, min(26vw, 30svh), 236px);
   --t-h2: clamp(52px, min(12.4vw, 13svh), 168px);
   --t-h3: clamp(30px, 3.4vw, 46px);
   --t-lead: clamp(22px, 2.4vw, 32px);
@@ -14,9 +15,12 @@
   /* the container's left edge, for fixed chrome that must sit on the same grid as the content */
   --edge: max(var(--pad), calc((100% - var(--max)) / 2 + var(--pad)));
 }
-@media (min-width: 900px) { :root { --dock-h: 0px; --top-h: 76px; --hud-clear: calc(var(--bar) * .5 + 56px); } }
+@media (min-width: 600px) { :root { --t-mega: clamp(60px, min(16.2vw, 30svh), 236px); } }
+@media (min-width: 900px) { :root { --dock-h: 0px; --top-h: 76px; --hud-clear: var(--s7); } }
 
-html { scroll-padding-top: 0; }
+/* what the browser scrolls into view (focus, anchors) lands clear of the top matte and the dock */
+html { scroll-padding: calc(var(--top-h) + var(--safe-t) + 12px) 0 calc(var(--dock-h) + 12px); }
+.fm [tabindex='-1']:focus { outline: none; }
 body.fm { background: var(--encre); color: var(--os); }
 .fm sup { font-size: .62em; line-height: 0; vertical-align: .45em; }
 .fm main:focus { outline: none; }
@@ -56,9 +60,11 @@ a:hover > .ic, button:hover > .ic { transform: translate(2px, -2px); }
 /* ---------- slug line: number · title · screenplay heading ---------- */
 .slug { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; font: 600 11.5px/1.3 var(--f-sans); letter-spacing: .16em; text-transform: uppercase; color: var(--cendre); }
 .slug-n { display: inline-flex; align-items: center; gap: 12px; font: italic 400 24px/1 var(--f-serif); letter-spacing: 0; text-transform: none; color: var(--rouge); }
-.slug-n::after { content: ''; width: 28px; height: 1px; background: currentColor; opacity: .6; }
+.slug-n::after { content: ''; width: 28px; height: 1px; background: var(--ligne2); }
 .slug-t { color: var(--os); }
 .slug-l::before { content: '— '; }
+/* phones: the screenplay heading takes its own line rather than starting one with a dash */
+@media (max-width: 419px) { .slug-l { flex-basis: 100%; } .slug-l::before { content: none; } }
 .h2 { margin-top: var(--s5); font: 400 var(--t-h2)/.88 var(--f-serif); letter-spacing: -.03em; text-wrap: balance; }
 .h2 em, .lead em { font-style: italic; }
 .lead { max-width: 30ch; margin-top: var(--s5); font: 400 var(--t-lead)/1.18 var(--f-serif); color: var(--pierre); text-wrap: pretty; }
@@ -66,18 +72,27 @@ a:hover > .ic, button:hover > .ic { transform: translate(2px, -2px); }
 .next-n { font: 500 14px/1.45 var(--f-sans); color: var(--cendre); }
 .seq { position: relative; }
 
-/* ---------- top bar: wordmark, HUD, booking ---------- */
+/* ---------- top bar: wordmark, HUD, booking ----------
+   Over the opening it is only a shade on the photo; past it, a solid matte (the top of the frame), paper over the
+   programme. Nothing scrolls visibly under it. */
 .top {
   position: fixed; z-index: 60; top: 0; left: 0; right: 0; height: calc(var(--top-h) + var(--safe-t));
   display: flex; align-items: center; justify-content: space-between; gap: var(--s3);
   padding: var(--safe-t) max(12px, calc(var(--edge) - 8px)) 0 var(--edge); pointer-events: none;
 }
-.top::before { content: ''; position: absolute; inset: 0 0 -28px; z-index: -1; background: linear-gradient(180deg, rgba(5, 4, 4, .78), rgba(5, 4, 4, 0)); }
+.top::before { content: ''; position: absolute; inset: 0; z-index: -1; background: linear-gradient(180deg, rgba(5, 4, 4, .7), rgba(5, 4, 4, 0)); }
+.top::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: var(--ligne); opacity: 0; transition: opacity .3s; }
+html.past-hero .top::before { background: var(--noir); }
+html.past-hero .top::after { opacity: 1; }
+html.past-hero.on-paper .top::before { background: var(--os); }
+html.past-hero.on-paper .top::after { background: var(--iligne); }
 .top > * { pointer-events: auto; }
-.top::before, .top-wm { transition: background .4s, color .4s; }
-html.on-paper .top::before { background: linear-gradient(180deg, rgba(236, 232, 224, .92), rgba(236, 232, 224, 0)); }
+.top-wm, .hud { transition: color .3s, box-shadow .3s, background-color .3s; }
 html.on-paper .top-wm { color: var(--encre); }
 .top-wm { display: inline-flex; align-items: center; min-height: 44px; font: italic 400 25px/1 var(--f-serif); letter-spacing: -.01em; color: var(--os); text-decoration: none; }
+/* one title card at a time: the wordmark waits for the opening's own title to leave (chrome.ts) */
+@media (prefers-reduced-motion: no-preference) { .top-wm { opacity: 0; } }
+.top-wm:focus-visible { opacity: 1 !important; }
 .top-cta { display: none; }
 .hud {
   display: inline-flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 14px 0 12px; border-radius: 999px;
@@ -85,15 +100,22 @@ html.on-paper .top-wm { color: var(--encre); }
   font: 600 11px/1 var(--f-sans); letter-spacing: .14em; text-transform: uppercase; transition: box-shadow .25s;
 }
 .hud:hover, .hud[aria-expanded='true'] { box-shadow: inset 0 0 0 1px var(--ligne2); }
+html.past-hero .hud { background: transparent; }
+html.on-paper .hud { color: var(--encre); box-shadow: inset 0 0 0 1px var(--iligne2); }
+html.on-paper .hud-tc { color: var(--cendre2); }
+html.on-paper .hud-n { color: #B8322A; }
 .hud-rec { width: 7px; height: 7px; border-radius: 50%; background: var(--rouge); animation: fm-rec 2s steps(2, jump-none) infinite; }
 @keyframes fm-rec { 50% { opacity: .25; } }
 .hud-n { font: italic 400 17px/1 var(--f-serif); letter-spacing: 0; color: var(--rouge); text-transform: none; }
 .hud-t { display: none; }
 .hud-tc { font: 500 12.5px/1 var(--f-sans); letter-spacing: .04em; font-variant-numeric: tabular-nums; color: var(--pierre); }
 @media (min-width: 420px) { .hud-t { display: inline; } }
+/* desktop: wordmark | HUD, centred on the frame | booking */
 @media (min-width: 900px) {
-  .top-cta { display: inline-flex; }
-  .hud { position: fixed; left: var(--edge); bottom: calc(var(--bar) * .5 - 22px + var(--safe-b)); padding: 0 18px 0 14px; }
+  .top { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); }
+  .top-wm { justify-self: start; }
+  .top-cta { display: inline-flex; justify-self: end; }
+  .hud { padding: 0 18px 0 14px; }
 }
 
 /* the sequence index: a list under the HUD (phones) or above it (desktop) */
@@ -113,7 +135,7 @@ html.on-paper .top-wm { color: var(--encre); }
 .seqs-l .tc { font: 500 12px/1 var(--f-sans); font-variant-numeric: tabular-nums; color: var(--cendre); }
 .seqs-l a[aria-current] .n, .seqs-l a[aria-current] .t { color: var(--rouge); }
 @media (min-width: 900px) {
-  .seqs { top: auto; right: auto; left: var(--edge); bottom: calc(var(--bar) * .5 + 30px + var(--safe-b)); width: 360px; transform-origin: 0 100%; }
+  .seqs { right: auto; left: calc(50% - 190px); width: 380px; }
 }
 
 /* the rail: a thin strip of film, one frame per sequence */
@@ -138,6 +160,11 @@ html.on-paper .top-wm { color: var(--encre); }
 .lb { position: fixed; z-index: 45; left: 0; right: 0; height: var(--bar); background: var(--noir); pointer-events: none; will-change: transform; }
 .lb-t { top: 0; transform-origin: 50% 0; }
 .lb-b { bottom: 0; height: calc(var(--bar) + var(--safe-b)); transform-origin: 50% 100%; }
+/* past the opening the top bar closes in from under the matte */
+html.past-hero .lb-t { top: calc(var(--top-h) + var(--safe-t)); }
+/* the iris: on arrival the bars start closed in, then settle on the opening frame */
+.lb { animation: fm-iris 1.1s var(--ease-out) backwards; }
+@keyframes fm-iris { from { transform: scaleY(1.6); } }
 .lb-sub { position: fixed; z-index: 46; left: 0; right: 0; bottom: var(--safe-b); height: var(--bar); display: grid; place-items: center; padding-inline: var(--pad); pointer-events: none; font: italic 400 clamp(19px, 2vw, 28px)/1.1 var(--f-serif); color: var(--os); text-align: center; }
 
 /* film grain: one static tile, drawn once */
@@ -146,20 +173,28 @@ html.on-paper .top-wm { color: var(--encre); }
   background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 1.4 -.35'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E") 0 0 / 160px 160px;
 }
 
-/* the dock: on phones, the booking stays under the thumb once the opening is over */
+/* the dock: on phones, the booking stays under the thumb once the opening is over. It steps aside while a
+   section's own booking action is in the thumb zone (chrome.ts), for the sheet, the index and the credits;
+   out of sight it is also out of the tab order. */
 .dock {
   position: fixed; z-index: 70; left: 0; right: 0; bottom: 0; display: flex; justify-content: center;
   padding: 0 12px calc(12px + var(--safe-b)); pointer-events: none;
-  transform: translateY(130%); transition: transform .55s var(--ease-out);
+  transform: translateY(130%); visibility: hidden; transition: transform .35s var(--ease-out), visibility 0s .35s;
 }
-.dock.on { transform: none; }
-.dock .btn { pointer-events: auto; width: min(100%, 460px); min-height: 60px; justify-content: space-between; padding: 8px 8px 8px 24px; font-size: 17px; box-shadow: 0 18px 40px rgba(0, 0, 0, .45); }
-.dock .btn small { display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px; border-radius: 999px; background: rgba(15, 14, 13, .14); font: 600 14px/1 var(--f-sans); font-variant-numeric: tabular-nums; }
-html.lxb-lock .dock, html.seqs-open .dock { transform: translateY(130%); }
+.dock.on { transform: none; visibility: visible; transition: transform .55s var(--ease-out), visibility 0s; }
+.dock.on.is-yield, html.lxb-lock .dock.on, html.seqs-open .dock.on { transform: translateY(130%); visibility: hidden; transition: transform .35s var(--ease-out), visibility 0s .35s; }
+.dock .btn { pointer-events: auto; width: min(100%, 460px); min-height: 60px; justify-content: space-between; gap: 12px; padding: 8px 8px 8px 24px; font-size: 17px; white-space: nowrap; box-shadow: 0 18px 40px rgba(0, 0, 0, .45); }
+/* inline-block, not flex: its spans must keep the spaces between them */
+.dock .btn small { display: inline-block; height: 44px; line-height: 44px; padding: 0 16px; border-radius: 999px; background: var(--encre); color: var(--os); font: 600 14px/44px var(--f-sans); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.dock .dk-up { background: var(--os); }
+@media (max-width: 379px) {
+  .dock .btn { padding-left: 18px; font-size: 16px; }
+  .dock .dk-k, .dock .dk-d.td { display: none; }
+}
 @media (min-width: 900px) { .dock { display: none; } }
 
-/* the booking sheet, printed on paper like a ticket */
-.lxb {
+/* the booking sheet, printed on paper like a ticket (body.fm: heavier than the kit's own defaults) */
+.fm .lxb {
   --lxb-bg: var(--blanc); --lxb-panel: var(--os); --lxb-ink: var(--encre); --lxb-muted: var(--cendre2); --lxb-faint: #6E685F;
   --lxb-accent: var(--rouge); --lxb-accent-ink: var(--encre); --lxb-veil: rgba(5, 4, 4, .74); --lxb-radius: 20px;
   --lxb-serif: var(--f-serif); --lxb-sans: var(--f-sans);
@@ -170,3 +205,5 @@ html.lxb-lock .dock, html.seqs-open .dock { transform: translateY(130%); }
   .hud-rec { animation: none; }
 }
 @media print { .top, .rail, .hair, .lb, .lb-sub, .grain, .dock, .seqs { display: none !important; } }
+/* the salon cannot be reached: sheet.ts shows why and how to get there; the empty summary goes */
+.lxb.is-down .lxb-foot { display: none; }

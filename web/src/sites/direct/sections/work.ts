@@ -27,5 +27,6 @@ export function initWork() {
       h('div', { class: 'look-b' }, h('h3', { class: 'look-t' }, l.title), h('p', { class: 'look-l' }, l.line), h('p', { class: 'look-s' }), go));
   }));
   paintLooks();
-  if (!reduced()) trackVar($('[data-work]'), '--p', 'through');
+  // each photo carries its own progress, so a scroll frame restyles three frames, not the whole chapter
+  if (!reduced()) $$('.look-ph').forEach((el) => trackVar(el, '--p', 'through'));
 }

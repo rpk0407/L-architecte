@@ -35,19 +35,31 @@
   <i class="led" data-led aria-hidden="true"></i>
 </header>
 
-<main id="main">
+<main id="main" tabindex="-1">
+  <noscript>
+    <div class="ns">
+      <p><b>Barber L’Architecte</b> · 16, place Pélabon, 13013 Marseille</p>
+      <p>Du mardi au samedi, 9 h – 18 h 30. Fermé le dimanche et le lundi.</p>
+      <p><a href="/site">Le site du salon, avec la réservation</a></p>
+    </div>
+  </noscript>
   <div class="room">
+    <figure class="feed" aria-hidden="true">
+      <img src="/img/salon.jpg" width="1100" height="812" alt="" fetchpriority="high">
+      <figcaption><span>Le salon</span>16, place Pélabon, Marseille</figcaption>
+    </figure>
     <div class="lcol">
-    <section class="hero" id="direct" aria-labelledby="t-hero" data-hero>
-      <p class="kicker"><span class="live-dot" data-dot aria-hidden="true"></span><span data-greet>En direct du salon</span><span class="kicker-a"> · place Pélabon</span></p>
-      <h1 class="st" id="t-hero"><span class="sr-only">Barber L’Architecte, barbier à Marseille. </span><span class="st-big" data-st-big>Ouvert</span> <em class="st-sub" data-st-sub>Jusqu’à 18&nbsp;h&nbsp;30.</em></h1>
-      <p class="promise">Dis ce que tu veux. Le salon te répond en direct&nbsp;: <em>quand, et avec qui.</em></p>
+    <section class="hero" id="direct" aria-labelledby="t-hero" data-hero tabindex="-1">
+      <p class="kicker" data-greet>Barbier · place Pélabon · en direct</p>
+      <h1 class="st" id="t-hero"><span class="sr-only">Barber L’Architecte, barbier à Marseille. </span><span class="st-big off" data-st-big data-dot>Le salon</span> <em class="st-sub" data-st-sub>en direct.</em></h1>
+      <p class="sr-only" aria-live="polite" data-st-live></p>
+      <p class="promise">Une coupe construite <em>au millimètre</em>. Dis ce que tu veux&nbsp;: on te dit quand, et avec qui.</p>
 
       <section class="me" id="toi" aria-labelledby="t-me" data-me hidden></section>
 
       <dl class="meters" data-meters>
         <div class="mt"><dt data-mt-k="0">Aujourd’hui</dt><dd><span class="mt-v" data-mt-v="0"><i class="sk"></i></span><small data-mt-s="0">coupes possibles</small></dd></div>
-        <div class="mt"><dt data-mt-k="1">Prochain</dt><dd><button type="button" class="mt-btn" data-mt-b data-book data-book-slug="cl" data-book-source="hero-next"><span class="mt-v" data-mt-v="1"><i class="sk"></i></span><small data-mt-s="1">&nbsp;</small></button></dd></div>
+        <div class="mt"><dt data-mt-k="1">Prochain</dt><dd><button type="button" class="mt-btn" data-mt-b data-book data-book-slug="cl" data-book-source="hero-next" aria-label="Réserver le prochain créneau libre"><span class="mt-v" data-mt-v="1"><i class="sk"></i></span><small data-mt-s="1">&nbsp;</small></button></dd></div>
         <div class="mt"><dt data-mt-k="2">Google</dt><dd><span class="mt-v" data-mt-v="2">5,0</span><small data-mt-s="2">316 avis</small></dd></div>
       </dl>
 
@@ -80,49 +92,44 @@
       </div>
     </section>
 
-    <section class="board" id="departs" aria-labelledby="t-dep" data-board>
+    </div>
+
+    <section class="board" id="departs" aria-labelledby="t-dep" data-board tabindex="-1">
       <header class="sh">
         <p class="kk" data-reveal><span>02</span>Les départs</p>
-        <h2 class="h3" id="t-dep" data-reveal>Les prochains <em>départs.</em></h2>
-        <p class="lead">Les créneaux libres les plus proches, tous barbiers confondus. Le tableau se met à jour toutes les minutes.</p>
+        <h2 class="h3" id="t-dep" data-reveal>Prochains départs.</h2>
+        <p class="lead">Les créneaux libres les plus proches, tous barbiers confondus, mis à jour chaque minute.</p>
       </header>
       <div class="bd-filters">
         <div class="seg" role="group" aria-label="Prestation" data-bd-svc></div>
-        <div class="seg seg-b" role="group" aria-label="Barbier" data-bd-staff></div>
+        <div class="seg" role="group" aria-label="Barbier" data-bd-staff></div>
       </div>
       <div class="bd">
-        <div class="bd-head" aria-hidden="true"><span>Heure</span><span>Jour</span><span class="bd-hp">Prestation</span><span>Barbier</span><span></span></div>
+        <p class="bd-cap" data-bd-cap><b>Coupe classique</b><span>20&nbsp;€ · 30&nbsp;min</span></p>
+        <div class="bd-head" aria-hidden="true"><span>Heure</span><span>Jour</span><span>Barbier</span><span></span></div>
         <ol class="bd-rows" data-rows></ol>
-        <p class="bd-foot"><span class="live-dot" aria-hidden="true"></span><span data-bd-stamp>Connexion au salon…</span></p>
+        <p class="bd-foot"><span class="live-dot off" aria-hidden="true"></span><span data-bd-stamp>Connexion au salon…</span></p>
       </div>
       <div class="next-act">
         <button type="button" class="btn ghost" data-book data-book-slug="cl" data-bd-all>Tous les créneaux</button>
-        <p class="next-note">Ton heure n’y est pas&nbsp;? La feuille de réservation te propose la liste d’attente.</p>
+        <p class="next-note">Ton heure n’y est pas&nbsp;? Réserve quand même&nbsp;: tu peux te mettre sur liste d’attente.</p>
       </div>
     </section>
-    </div>
 
-    <div class="side">
-      <figure class="feed">
-        <img src="/img/salon.jpg" width="1100" height="812" alt="Le salon : long miroir bordé de LED rouge, canapés noir et rouge, fauteuils et bacs à shampooing" fetchpriority="high">
-        <figcaption><span>Le salon</span>16, place Pélabon</figcaption>
-      </figure>
-
-      <section class="chairs" id="barbiers" aria-labelledby="t-ch">
-        <header class="sh">
-          <p class="kk" data-reveal><span>03</span>Au fauteuil</p>
-          <h2 class="h3" id="t-ch" data-reveal>Qui est libre, <em>et quand.</em></h2>
-          <p class="lead" data-ch-lead>Pour une coupe classique · 30&nbsp;min</p>
-        </header>
-        <ul class="ch-list" data-chairs></ul>
-        <div class="next-act">
-          <button type="button" class="btn ghost" data-book data-book-staff="any" data-book-slug="cl" data-ch-any>Le premier libre</button>
-        </div>
-      </section>
-    </div>
+    <section class="chairs" id="barbiers" aria-labelledby="t-ch" tabindex="-1">
+      <header class="sh">
+        <p class="kk" data-reveal><span>03</span>Les barbiers</p>
+        <h2 class="h3" id="t-ch" data-reveal>Au fauteuil.</h2>
+        <p class="lead" data-ch-lead>Pour une coupe classique · 30&nbsp;min</p>
+      </header>
+      <ul class="ch-list" data-chairs></ul>
+      <div class="next-act">
+        <button type="button" class="btn ghost" data-book data-book-staff="any" data-book-slug="cl" data-ch-any>Le premier libre</button>
+      </div>
+    </section>
   </div>
 
-  <section class="work" id="travail" aria-labelledby="t-work" data-work>
+  <section class="work" id="travail" aria-labelledby="t-work" data-work tabindex="-1">
     <div class="wrap">
       <header class="sh sh-xl">
         <p class="kk" data-reveal><span>04</span>Le travail</p>
@@ -142,7 +149,7 @@
     </div>
   </section>
 
-  <section class="proof" id="avis" aria-labelledby="t-proof" data-proof>
+  <section class="proof" id="avis" aria-labelledby="t-proof" data-proof tabindex="-1">
     <div class="wrap pf-g">
       <div class="pf-score">
         <p class="kk" data-reveal><span>05</span>La preuve</p>
@@ -156,35 +163,37 @@
         <ul data-tags></ul>
       </div>
       <div class="next-act pf-act">
-        <button type="button" class="btn" data-book data-book-staff="jkut" data-book-slug="cl" data-book-source="proof">Réserver avec JKut</button>
+        <button type="button" class="btn big" data-book data-book-slug="cl" data-book-source="proof" data-pf-next><span>Réserver ma coupe</span><small data-pf-sub>sans compte · 1 min</small></button>
         <a class="tl" href="https://search.google.com/local/reviews?placeid=ChIJJSWkBLy_yRIRbgAQcMwb-JY" target="_blank" rel="noopener">Lire les 316 avis sur Google</a>
       </div>
     </div>
   </section>
 
-  <section class="carte" id="carte" aria-labelledby="t-carte" data-carte>
+  <section class="carte" id="carte" aria-labelledby="t-carte" data-carte tabindex="-1">
     <div class="wrap">
       <header class="sh sh-xl">
         <p class="kk" data-reveal><span>06</span>La carte express</p>
-        <h2 class="h2" id="t-carte" data-split>Les prix, <em>sans surprise.</em></h2>
+        <h2 class="h2" id="t-carte" data-split>Les prix, sans surprise.</h2>
         <p class="lead" data-reveal>Touche <b>+</b> pour composer&nbsp;: jusqu’à trois prestations dans le même rendez-vous. Le total et la durée suivent.</p>
       </header>
       <div class="cx" data-cx></div>
-      <div class="bask" data-bask>
-        <p class="bask-t" aria-live="polite"><b data-bask-sum>Ton panier est vide</b><span data-bask-meta>Ajoute une prestation avec +</span></p>
+      <div class="bask" data-bask hidden>
+        <p class="bask-t" aria-live="polite"><b data-bask-sum></b><span data-bask-meta></span></p>
         <button type="button" class="btn" data-bask-go disabled>Réserver ça</button>
       </div>
-      <p class="cx-foot">Carte bancaire acceptée au salon · <a href="https://barberlarchitecte.com/a-toutes-occasions-offrez-un-moment-privilegie-a-vos-proches-en-leur-offrant-une-carte-cadeau/" target="_blank" rel="noopener">Offrir une carte cadeau</a></p>
+      <p class="cx-foot"><span>Carte bancaire acceptée au salon</span><a class="tl" href="https://barberlarchitecte.com/a-toutes-occasions-offrez-un-moment-privilegie-a-vos-proches-en-leur-offrant-une-carte-cadeau/" target="_blank" rel="noopener">Offrir une carte cadeau</a></p>
     </div>
   </section>
 
-  <section class="salon" id="venir" aria-labelledby="t-salon" data-salon>
+  <section class="salon" id="venir" aria-labelledby="t-salon" data-salon tabindex="-1">
     <div class="wrap sl-g">
-      <figure class="sl-ph" data-sl-ph><img src="/img/salon.jpg" width="1100" height="812" alt="" loading="lazy" decoding="async"><i class="sl-led" aria-hidden="true"></i></figure>
+      <figure class="sl-ph" data-sl-ph><img src="/img/salon.jpg" width="1100" height="812" alt="Le long miroir du salon, bordé de sa ligne de LED rouge, et les fauteuils devant" loading="lazy" decoding="async"><i class="sl-led" aria-hidden="true"></i></figure>
       <div class="sl-i">
-        <p class="kk" data-reveal><span>07</span>Le salon</p>
-        <h2 class="h2" id="t-salon" data-split>16, place <em>Pélabon.</em></h2>
-        <address class="sl-ad">Barber L’Architecte<br>16, place Pélabon<br>13013 Marseille</address>
+        <header class="sh">
+          <p class="kk" data-reveal><span>07</span>Le salon</p>
+          <h2 class="sl-h" id="t-salon"><span class="sr-only">16, place Pélabon</span><span class="sl-fl" data-sl-flap aria-hidden="true"></span></h2>
+        </header>
+        <address class="sl-ad">Barber L’Architecte · 13013 Marseille</address>
         <p class="sl-st" data-sl-st><span class="live-dot off" aria-hidden="true"></span><span>Du mardi au samedi, 9&nbsp;h – 18&nbsp;h&nbsp;30</span></p>
         <table class="hours">
           <caption class="micro">Horaires</caption>
@@ -199,21 +208,25 @@
     </div>
   </section>
 
-  <section class="faq" id="questions" aria-labelledby="t-faq">
+  <section class="faq" id="questions" aria-labelledby="t-faq" tabindex="-1">
     <div class="wrap fq-g">
       <header class="sh">
         <p class="kk" data-reveal><span>08</span>Questions</p>
-        <h2 class="h2" id="t-faq" data-split>Tu te <em>demandes&nbsp;?</em></h2>
-        <p class="lead" data-reveal>Les réponses courtes aux questions qu’on nous pose le plus.</p>
+        <h2 class="h2" id="t-faq" data-split>Questions.</h2>
+        <p class="lead" data-reveal>Les réponses courtes à ce qu’on nous demande le plus.</p>
       </header>
-      <div class="fq" data-faq></div>
+      <div class="fq-w">
+        <div class="fq" data-faq></div>
+        <p class="fq-more">Une autre question&nbsp;? <a class="tl" href="mailto:larchitectebarber@gmail.com">Écris au salon</a></p>
+      </div>
     </div>
   </section>
 
-  <section class="last" id="reserver" aria-labelledby="t-last">
+  <section class="last" id="reserver" aria-labelledby="t-last" tabindex="-1">
     <div class="wrap">
       <p class="kk" data-reveal><span>09</span>Le départ</p>
-      <h2 class="h2 last-h" id="t-last" data-split>Je passe quand&nbsp;? <em>Maintenant, tu sais.</em></h2>
+      <h2 class="h2 last-h" id="t-last" data-split>Tu passes <em>quand&nbsp;?</em></h2>
+      <p class="lead-xl last-l" data-last-line data-reveal>Choisis ton créneau, en moins d’une minute.</p>
       <div class="last-a">
         <button type="button" class="btn big" data-book data-book-slug="cl" data-book-source="last" data-last-next><span>Réserver</span><small data-last-sub>sans compte · 1 min</small></button>
         <a class="tl" href="#commande">Ou dis-le avec tes mots</a>
@@ -246,13 +259,7 @@
   <button type="button" class="dock-cta" data-book data-book-source="dock">Réserver</button>
 </nav>
 
-<noscript>
-  <div class="ns">
-    <p><b>Barber L’Architecte</b> · 16, place Pélabon, 13013 Marseille</p>
-    <p>Du mardi au samedi, 9 h – 18 h 30. Fermé le dimanche et le lundi.</p>
-    <p><a href="/site">Le site du salon, avec la réservation</a></p>
-  </div>
-</noscript>
+<p class="toast" role="status" aria-live="polite" data-toast></p>
 <script type="module" src="/src/sites/direct/main.ts"></script>
 </body>
 </html>

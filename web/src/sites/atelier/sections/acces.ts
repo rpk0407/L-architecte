@@ -1,14 +1,21 @@
-// Planche 09, getting there: the week's hours from the salon (today marked), an upcoming exceptional
-// closure if there is one, the live state, the final call to book.
+// Planche 09, getting there: the salon itself (its photo, the mirror's red LED line traced when it comes
+// into view), the week's hours from the salon (today marked), an upcoming exceptional closure if there is
+// one, the live state, the final call to book.
 import * as S from '../../../site-kit/salon';
+import { reduced } from '../../../site-kit/motion';
 import { dates, cap } from '../../../lib/format';
 import { $, h, text, onSlots } from '../util';
 import { onLive } from '../live';
+import { decorate, DRAWINGS, PACE } from '../drawing';
 
 const WEEK = [1, 2, 3, 4, 5, 6, 0];
 
 export function mountAcces() {
-  const list = $('[data-hours]')!, closure = $('[data-closure]')!;
+  const list = $('[data-hours]')!, closure = $('[data-closure]')!, draw = $<HTMLElement>('[data-salon]')!;
+  decorate(draw, DRAWINGS.salon, PACE.print);
+  if (reduced()) draw.classList.add('go', 'still');
+  else new IntersectionObserver((es, o) => { if (es.some((e) => e.isIntersecting)) { draw.classList.add('go'); o.disconnect(); } }, { threshold: 0.5 }).observe(draw);
+
   let sig = '';
   const render = () => {
     const sal = S.getSalon(), today = sal ? S.today() : '', wd = today ? dates.dayParts(today).wd : -1;

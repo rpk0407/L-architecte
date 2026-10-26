@@ -4,13 +4,14 @@
 // opens the sheet with all of it filled in.
 // Native radio groups (arrow keys, Space, labels); a pointer click moves on by itself, the keyboard
 // moves on with Enter or "Suivant", so arrowing through the options never skips a question.
+// Re-drawn when the live catalogue arrives (prices, includes), with the focus kept on the same option.
 import * as S from '../../../site-kit/salon';
-import { openBooking } from '../../../site-kit/booking';
 import { reduced, scrollToEl } from '../../../site-kit/motion';
 import { dates, eur, dur } from '../../../lib/format';
-import { $, h, text, barbers, svcBySlug, totals, prefill, idsOf, freeSlots, whenLong, whenShort, endOfWeek, type Svc, type Bar, type Free } from '../util';
+import { $, h, text, fr, barbers, barberOf, svcBySlug, totals, prefill, idsOf, freeSlots, whenLong, whenShort, endOfWeek, keepFocus, type Svc, type Bar, type Free } from '../util';
 import { cote } from '../cote';
 import { setAction, avoid } from './chrome';
+import { book as openSheet, whenClosed } from '../sheet';
 
 type Ans = { goal?: string; beard?: string; color?: string; when?: string };
 type Opt = { v: string; t: string; s: string };
@@ -77,22 +78,22 @@ function matchBarber(a: Ans): Bar | null {
 export function mountDiagnostic() {
   const root = $('[data-dx]')!;
   const a: Ans = {};
+  // who: what the visitor chose in the plan ('any' = "Peu importe"); the barber shown follows the answers
   let step = 0, done = false, who: 'match' | 'any' = 'match', viaKeys = false, tok = 0;
   let found: Free[] = [], note = '', slotErr = false;
 
   const live = h('p', { class: 'sr-only', role: 'status', 'aria-live': 'polite' });
-  const count = h('p', { class: 'micro dx-count' });
   const prog = h('ol', { class: 'dx-prog', 'aria-hidden': 'true' });
   const stage = h('div', { class: 'dx-stage' });
   const prev = h('button', { type: 'button', class: 'tl dx-prev' }, '← Précédent');
-  const next = h('button', { type: 'button', class: 'btn ink dx-next' }, 'Suivant');
-  const qBox = h('div', { class: 'dx-q' }, h('div', { class: 'dx-top' }, count, prog), stage, h('div', { class: 'dx-nav' }, prev, next));
+  const next = h('button', { type: 'button', class: 'tl dx-next' }, 'Suivant →');
+  const qBox = h('div', { class: 'dx-q' }, h('div', { class: 'dx-top' }, prog), stage, h('div', { class: 'dx-nav' }, prev, next));
   const plan = h('div', { class: 'dx-plan' });
   root.append(qBox, plan, live);
 
   const qs = () => questions(a);
   const list = (): Svc[] => slugsFor(a).map(svcBySlug).filter((s): s is Svc => !!s);
-  const barber = () => (who === 'match' ? matchBarber(a) : null);
+  const barber = () => (who === 'any' ? null : matchBarber(a));
 
   function drop() {
     // an answer that no longer fits the questions (beard "cover" after switching away from beard-only)
@@ -102,28 +103,29 @@ export function mountDiagnostic() {
 
   function renderQ() {
     const all = qs(), q = all[step];
-    text(count, done ? 'Plan tracé' : 'Question ' + (step + 1) + ' sur ' + all.length);
     prog.replaceChildren(...all.map((x, i) => h('li', { class: a[x.id] ? 'on' : i === step ? 'cur' : '' })));
     if (done) {
       stage.replaceChildren(h('ol', { class: 'dx-recap' }, ...all.map((x, i) => h('li', null,
         h('span', { class: 'micro' }, 'Q' + (i + 1) + ' · ' + x.label),
         h('b', null, x.opts.find((o) => o.v === a[x.id])?.t || '—'),
-        h('button', { type: 'button', class: 'tl', 'data-edit': i, 'aria-label': 'Modifier : ' + x.label }, 'Modifier')))));
+        h('button', { type: 'button', class: 'tl', 'data-edit': i, 'data-fk': 'edit-' + i, 'aria-label': fr('Modifier : ' + x.label) }, 'Modifier')))));
       prev.hidden = true; next.hidden = true;
       return;
     }
     const name = 'dx-' + q.id;
     const fs = h('fieldset', { class: 'dx-fs' },
-      h('legend', { class: 'dx-leg', tabindex: '-1' }, h('span', { class: 'micro' }, 'Q' + (step + 1) + ' · ' + q.label), h('span', { class: 'dx-lt' }, q.title)),
+      h('legend', { class: 'dx-leg', tabindex: '-1', 'data-fk': 'leg-' + q.id },
+        h('span', { class: 'sr-only' }, 'Question ' + (step + 1) + ' sur ' + all.length + ', '),
+        h('span', { class: 'micro' }, 'Q' + (step + 1) + ' · ' + q.label), h('span', { class: 'dx-lt' }, fr(q.title))),
       h('div', { class: 'dx-opts' }, ...q.opts.map((o, i) => h('label', { class: 'opt' },
-        h('input', { type: 'radio', name, value: o.v, checked: a[q.id] === o.v }),
+        h('input', { type: 'radio', name, value: o.v, checked: a[q.id] === o.v, 'data-fk': name + '-' + o.v }),
         h('span', { class: 'opt-k', 'aria-hidden': 'true' }, String.fromCharCode(65 + i)),
-        h('span', { class: 'opt-t' }, h('b', null, o.t), h('small', null, o.s)),
+        h('span', { class: 'opt-t' }, h('b', null, o.t), h('small', null, fr(o.s))),
         h('i', { class: 'opt-c', 'aria-hidden': 'true' })))));
     stage.replaceChildren(fs);
-    prev.hidden = step === 0; next.hidden = false;
-    next.disabled = !a[q.id];
-    text(next, step === all.length - 1 ? 'Tracer mon plan' : 'Suivant');
+    // "Suivant" only once there is an answer (a click moves on by itself; the keyboard needs it)
+    prev.hidden = step === 0; next.hidden = !a[q.id];
+    text(next, step === all.length - 1 ? 'Tracer mon plan →' : 'Suivant →');
   }
 
   function focusQ() {
@@ -172,27 +174,26 @@ export function mountDiagnostic() {
         h('p', { class: 'plan-hint' }, 'Le plan se trace au fil de tes réponses.'));
       return;
     }
-    const l = list(), t = totals(l), match = matchBarber(a);
-    if (!match) who = 'any';
+    const l = list(), t = totals(l), match = matchBarber(a), cur = match && who === 'match' ? 'match' : 'any';
     dim.set(t.dur);
     const whoOpt = (v: 'match' | 'any', title: string, sub: string, mono?: Bar) => h('label', { class: 'who' },
-      h('input', { type: 'radio', name: 'dx-who', value: v, checked: who === v }),
+      h('input', { type: 'radio', name: 'dx-who', value: v, checked: cur === v, 'data-fk': 'who-' + v }),
       mono ? h('span', { class: 'mono', style: `--c:${mono.color}`, 'aria-hidden': 'true' }, mono.initials) : h('span', { class: 'mono any', 'aria-hidden': 'true' }, '∗'),
       h('span', { class: 'who-t' }, h('b', null, title), h('small', null, sub)));
     plan.replaceChildren(
       h('p', { class: 'micro plan-k' }, h('span', { class: 'pl' }, 'Plan'), 'Tracé le ' + dates.dayShort(S.today())),
-      h('h3', { class: 'plan-h', tabindex: '-1' }, l.map((s) => s.name).join(' + ')),
+      h('h3', { class: 'plan-h', tabindex: '-1', 'data-fk-home': '' }, l.length > 1 ? l.map((s) => s.name).join(' + ') : 'Ton plan'),
       h('ol', { class: 'plan-lines' }, ...l.map((s, i) => h('li', null,
         h('span', { class: 'n' }, 'Art. ' + (i + 1)), h('span', { class: 'nm' }, s.name), h('span', { class: 'du' }, dur(s.dur)), h('b', null, (s.from ? 'dès ' : '') + eur(s.price))))),
       h('p', { class: 'plan-tot' }, h('span', null, 'Total'), h('b', null, (t.from ? 'dès ' : '') + eur(t.price))),
       dim.el,
       h('fieldset', { class: 'plan-who' }, h('legend', { class: 'micro' }, 'Avec'),
-        match ? whoOpt('match', match.name, 'Conseillé · « ' + match.bio + ' »', match) : null,
+        match ? whoOpt('match', match.name, fr('Conseillé · « ' + match.bio + ' »'), match) : null,
         whoOpt('any', 'Peu importe', 'Le premier barbier libre')),
       h('div', { class: 'plan-slot', 'data-slot': '' }),
       h('div', { class: 'plan-a' },
-        h('button', { type: 'button', class: 'btn', 'data-book-plan': '' }, 'Réserver ce plan'),
-        h('button', { type: 'button', class: 'tl', 'data-reset': '' }, 'Recommencer')));
+        h('button', { type: 'button', class: 'btn', 'data-book-plan': '', 'data-fk': 'book-plan' }, 'Réserver ce plan'),
+        h('button', { type: 'button', class: 'tl', 'data-reset': '', 'data-fk': 'reset' }, 'Recommencer')));
     paintSlot();
     setAction('diagnostic', { label: 'Réserver ce plan', sub: (t.from ? 'dès ' : '') + eur(t.price), run: () => book() });
     avoid('plan', $('[data-book-plan]', plan));
@@ -202,17 +203,17 @@ export function mountDiagnostic() {
     const box = $('[data-slot]', plan);
     if (!box) return;
     const l = list();
-    if (!idsOf(l).length || slotErr) { box.replaceChildren(h('p', { class: 'plan-none' }, 'Les créneaux se chargent dans la réservation.')); return; }
+    if (!idsOf(l).length || slotErr) { box.replaceChildren(h('p', { class: 'plan-none' }, 'Les créneaux en ligne sont indisponibles pour le moment.')); return; }
     if (!found.length) { box.replaceChildren(h('p', { class: 'micro' }, 'Premier créneau'), h('p', { class: 'plan-wait' }, note || 'On cherche…')); return; }
     if (a.when === 'plan') {
       box.replaceChildren(h('p', { class: 'micro' }, 'Prochains jours libres'),
-        h('div', { class: 'chips' }, ...found.map((f) => h('button', { type: 'button', class: 'chip', 'data-slot-at': f.day + '|' + f.start + '|' + f.staffId }, whenShort(f)))));
+        h('div', { class: 'chips' }, ...found.map((f, i) => h('button', { type: 'button', class: 'chip', 'data-slot-at': f.day + '|' + f.start + '|' + f.staffId, 'data-fk': 'slot-' + i, 'aria-label': 'Réserver ce plan, ' + whenLong(f) }, whenShort(f)))));
       return;
     }
     const f = found[0];
     box.replaceChildren(h('p', { class: 'micro' }, 'Premier créneau'),
-      h('button', { type: 'button', class: 'slot-big', 'data-slot-at': f.day + '|' + f.start + '|' + f.staffId },
-        h('b', null, whenLong(f)), h('small', null, who === 'any' && barbers().find((x) => x.id === f.staffId) ? 'avec ' + barbers().find((x) => x.id === f.staffId)!.name : 'Touche pour le prendre')),
+      h('button', { type: 'button', class: 'slot-big', 'data-slot-at': f.day + '|' + f.start + '|' + f.staffId, 'data-fk': 'slot-0', 'aria-label': 'Réserver ce plan, ' + whenLong(f) + (barberOf(f.staffId) ? ', avec ' + barberOf(f.staffId)!.name : '') },
+        h('b', null, whenLong(f)), h('small', null, !barber() && barberOf(f.staffId) ? 'avec ' + barberOf(f.staffId)!.name + ' · prendre ce créneau' : 'Prendre ce créneau')),
       note ? h('p', { class: 'plan-note' }, note) : '');
   }
 
@@ -221,17 +222,21 @@ export function mountDiagnostic() {
     const my = ++tok;
     found = []; note = ''; slotErr = false;
     paintSlot();
-    if (!ids.length) return;
     const b = barber(), staff = b?.id || 'any';
+    const say = (f: Free[] | null) => {
+      const l = list(), t = totals(l);
+      text(live, fr('Ton plan : ' + l.map((s) => s.name).join(' + ') + ', ' + (t.from ? 'dès ' : '') + eur(t.price) + ', ' + dur(t.dur) + (b ? ', avec ' + b.name : '')
+        + (f?.[0] ? '. Premier créneau : ' + whenLong(f[0]) + '.' : f ? '. Rien de libre en ligne sur 14 jours.' : '. Créneaux en ligne indisponibles pour le moment.')));
+    };
     const done_ = (f: Free[], n = '') => {
       if (my !== tok) return;
       found = f; note = n;
       if (!f.length) note = 'Rien de libre en ligne sur 14 jours pour ce plan. Réserve quand même : la liste d’attente te prévient.';
       paintSlot();
-      const l = list(), t = totals(l);
-      text(live, 'Ton plan : ' + l.map((s) => s.name).join(' + ') + ', ' + (t.from ? 'dès ' : '') + eur(t.price) + ', ' + dur(t.dur) + (b ? ', avec ' + b.name : '') + (f[0] ? '. Premier créneau : ' + whenLong(f[0]) + '.' : '.'));
+      say(f);
     };
-    const fail = () => { if (my === tok) { slotErr = true; paintSlot(); } };
+    const fail = () => { if (my === tok) { slotErr = true; paintSlot(); say(null); } };
+    if (!ids.length) { if (!S.getSalon()) say(null); return; }
     if (a.when === 'plan') freeSlots(ids, staff, 4, { perDay: true }).then((f) => done_(f), fail);
     else if (a.when === 'week') {
       const until = endOfWeek();
@@ -243,10 +248,9 @@ export function mountDiagnostic() {
     const l = list(), b = barber();
     if (at) {
       const [day, start, staffId] = at.split('|');
-      const bar = b || barbers().find((x) => x.id === staffId) || 'any';
-      openBooking({ ...prefill(l, bar, day, Number(start)), source: 'atelier-diagnostic' });
+      openSheet(prefill(l, b || barberOf(staffId) || 'any', day, Number(start)));
     } else if (found[0] && a.when !== 'plan') book(found[0].day + '|' + found[0].start + '|' + found[0].staffId);
-    else openBooking({ ...prefill(l, b || 'any'), source: 'atelier-diagnostic' });
+    else openSheet(prefill(l, b || 'any'));
   }
 
   /* ---------- events ---------- */
@@ -264,9 +268,8 @@ export function mountDiagnostic() {
     if (!q || t.name !== 'dx-' + q.id) return;
     a[q.id] = t.value;
     drop();
-    next.disabled = false;
+    next.hidden = false;
     prog.replaceChildren(...qs().map((x, i) => h('li', { class: a[x.id] ? 'on' : i === step ? 'cur' : '' })));
-    text(count, 'Question ' + (step + 1) + ' sur ' + qs().length);
     renderPlan();
   });
   root.addEventListener('click', (e) => {
@@ -287,8 +290,11 @@ export function mountDiagnostic() {
   });
   prev.addEventListener('click', () => go(step - 1));
   next.addEventListener('click', () => go(step + 1));
-  addEventListener('lx:booked', () => { if (done) fetchSlot(); });
-  S.loadSalon().then(() => { if (done) { renderPlan(); fetchSlot(); } else renderQ(); }, () => {});
+  // slots move after a booking; the live catalogue replaces the fallback one (never under an open sheet)
+  const refetch = () => { if (done) fetchSlot(); };
+  const live_ = () => keepFocus(root, () => { if (done) { renderPlan(); fetchSlot(); } else renderQ(); });
+  addEventListener('lx:booked', () => whenClosed(refetch));
+  S.loadSalon().then(() => whenClosed(live_), () => { if (done) { slotErr = true; paintSlot(); } });
 
   renderQ(); renderPlan();
 }

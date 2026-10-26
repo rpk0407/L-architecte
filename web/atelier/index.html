@@ -25,11 +25,12 @@
   <div class="hd-in">
     <a class="wm" href="#planche"><span class="wm-a">L’Architecte</span><span class="wm-b">Barbier · Marseille</span></a>
     <button type="button" class="hd-idx" aria-expanded="false" aria-controls="planches" data-idx>
-      <span class="micro">Planche</span><b data-cur-n>01</b><span class="hd-of">/09</span><i aria-hidden="true"></i>
+      <span class="micro">Planche</span><b data-cur-n>01</b><span class="hd-of">&nbsp;/ 09</span><i aria-hidden="true"></i>
     </button>
     <nav class="hd-nav" id="planches" aria-label="Planches">
+      <span class="hd-here micro" aria-hidden="true" data-cur-t>Ouvrage</span>
       <ol>
-        <li><a href="#planche" data-to="planche"><span class="n">01</span><span class="t">Planche</span></a></li>
+        <li><a href="#planche" data-to="planche"><span class="n">01</span><span class="t">Ouvrage</span></a></li>
         <li><a href="#realisations" data-to="realisations"><span class="n">02</span><span class="t">Réalisations</span></a></li>
         <li><a href="#diagnostic" data-to="diagnostic"><span class="n">03</span><span class="t">Diagnostic</span></a></li>
         <li><a href="#chantier" data-to="chantier"><span class="n">04</span><span class="t">Chantier</span></a></li>
@@ -49,44 +50,44 @@
 <main id="main">
 
   <!-- Planche 01 -->
-  <section class="hero paper" id="planche" data-plate="01" data-name="Planche" aria-labelledby="hero-h">
+  <section class="hero" id="planche" data-plate="01" aria-labelledby="hero-h">
     <div class="wrap hero-g">
       <div class="hero-txt">
         <p class="micro hero-k"><span class="pl">Pl. 01</span><span data-greet-base>Barbier · place Pélabon · Marseille 13<sup>e</sup></span><span data-greet hidden></span></p>
         <h1 class="hero-h" id="hero-h">Construction au <em>millimètre.</em></h1>
         <p class="hero-lead">On t’écoute, on trace, puis on construit ta coupe. Pour qu’elle tienne, et que tu saches la coiffer chez toi.</p>
         <div class="hero-cta" data-hero-cta>
-          <a class="btn" href="?reserver" data-book>Réserver <small data-next>sans compte</small></a>
-          <a class="btn ghost" href="#diagnostic">Faire mon diagnostic</a>
+          <a class="btn" href="?reserver" data-book data-hero-book>Réserver <small data-next>sans compte</small></a>
+          <a class="btn ghost" href="#diagnostic" data-hero-dx>Faire mon diagnostic</a>
         </div>
+        <!-- Ton plan: only for a returning client (his appointment, or his last cut and the same plan again) -->
+        <section class="mine" id="ton-plan" aria-labelledby="mine-h" hidden data-mine></section>
         <dl class="cart">
           <div class="c-brand"><dt>Ouvrage</dt><dd>L’Architecte — Barbier</dd></div>
           <div class="c-addr"><dt>Adresse</dt><dd>16, place Pélabon, 13013&nbsp;Marseille</dd></div>
           <div class="c-pl"><dt>Planche</dt><dd>01</dd></div>
           <div class="c-sc"><dt>Échelle</dt><dd>1:1</dd></div>
-          <div class="c-live"><dt>État</dt><dd aria-live="polite"><i class="live-dot off" data-dot></i><span data-status>Du mardi au samedi, 9 h – 18 h 30</span></dd></div>
-          <div class="c-wait" data-wait-cell hidden><dt>Sans RDV</dt><dd data-wait></dd></div>
+          <div class="c-live"><dt>État</dt><dd><i class="live-dot off" data-dot></i><span data-status>Du mardi au samedi, 9 h – 18 h 30</span></dd></div>
+          <div class="c-rev"><dt>Relevé</dt><dd><a href="#releve"><b>5,0</b>/5 · 316 avis Google</a></dd></div>
+          <div class="c-wait"><dt>Sans RDV</dt><dd><span data-wait>Aux heures d’ouverture</span><span class="c-or" data-wait-or hidden></span></dd></div>
         </dl>
       </div>
       <figure class="hero-fig">
         <div class="draw" data-draw>
           <img src="/img/sidepart.jpg" width="1100" height="1355" fetchpriority="high" alt="Raie marquée sur le côté, dégradé bas, nuque tatouée : une coupe de L’Architecte.">
         </div>
-        <figcaption class="draw-cap"><span class="micro">Fig. 01</span> Raie marquée, dégradé bas. Les lettres sont des annotations de dessin, pas des mesures.</figcaption>
+        <figcaption class="draw-cap"><span class="micro">Fig. 01</span> Raie marquée, dégradé bas. Croquis d’intention, non coté.</figcaption>
       </figure>
     </div>
   </section>
 
-  <!-- Ton plan (seulement pour un client qui revient) -->
-  <section class="mine" id="ton-plan" aria-labelledby="mine-h" hidden data-mine></section>
-
   <!-- Planche 02 -->
-  <section class="plate dark" id="realisations" data-plate="02" data-name="Réalisations" aria-labelledby="rea-h">
+  <section class="plate dark" id="realisations" data-plate="02" aria-labelledby="rea-h">
     <div class="wrap">
       <header class="ph" data-reveal>
         <p class="ph-k"><span class="pl">Pl. 02</span><span>Réalisations</span><i></i><span class="ph-r">Tirages</span></p>
         <h2 class="h2" id="rea-h">Sorti du <em>fauteuil.</em></h2>
-        <p class="lead">Trois coupes, trois plans. Chacune se réserve telle quelle, au prix affiché.</p>
+        <p class="lead">Trois coupes, trois plans. Chacune se réserve telle quelle.</p>
       </header>
       <ol class="looks" data-looks></ol>
       <p class="next"><span class="micro">Pas sûr de ce qu’il te faut&nbsp;?</span><a class="tl" href="#diagnostic">Fais le diagnostic, quatre questions <span aria-hidden="true">↓</span></a></p>
@@ -94,7 +95,7 @@
   </section>
 
   <!-- Planche 03 -->
-  <section class="plate paper" id="diagnostic" data-plate="03" data-name="Diagnostic" aria-labelledby="dx-h">
+  <section class="plate" id="diagnostic" data-plate="03" aria-labelledby="dx-h">
     <div class="wrap">
       <header class="ph" data-reveal>
         <p class="ph-k"><span class="pl">Pl. 03</span><span>Le diagnostic</span><i></i><span class="ph-r">4 questions</span></p>
@@ -106,7 +107,7 @@
   </section>
 
   <!-- Planche 04 -->
-  <section class="plate paper chantier" id="chantier" data-plate="04" data-name="Chantier" aria-labelledby="ch-h">
+  <section class="plate chantier" id="chantier" data-plate="04" aria-labelledby="ch-h">
     <div class="wrap">
       <header class="ph" data-reveal>
         <p class="ph-k"><span class="pl">Pl. 04</span><span>Le chantier</span><i></i><span class="ph-r">Méthode</span></p>
@@ -115,54 +116,52 @@
       </header>
       <ol class="steps" data-steps>
         <li class="step">
-          <p class="step-n"><span>01</span>Phase</p>
+          <p class="step-n">Phase <span>01</span></p>
           <h3>Diagnostic</h3>
           <p>On t’écoute et on regarde ce qui te va&nbsp;: ta tête, tes épis, ta façon de te coiffer le matin. Pour une transformation, on étudie la faisabilité avant de toucher aux ciseaux.</p>
         </li>
         <li class="step">
-          <p class="step-n"><span>02</span>Phase</p>
+          <p class="step-n">Phase <span>02</span></p>
           <h3>Construction</h3>
           <p>La coupe se monte par étapes, du dégradé jusqu’au dessus. Chaque transition est reprise jusqu’à ce qu’elle ne se voie plus.</p>
         </li>
         <li class="step">
-          <p class="step-n"><span>03</span>Phase</p>
+          <p class="step-n">Phase <span>03</span></p>
           <h3>Finitions</h3>
           <p>Contours nets, shampooing, coiffage et soin selon ta prestation. Et on te montre comment la recoiffer chez toi.</p>
         </li>
         <li class="step">
-          <p class="step-n"><span>04</span>Phase</p>
+          <p class="step-n">Phase <span>04</span></p>
           <h3>Suivi</h3>
           <p>Un rappel par SMS la veille, un lien pour déplacer ou annuler. Quand la coupe se brouille, ce site garde ton plan&nbsp;: tu le refais en un geste.</p>
         </li>
       </ol>
       <div class="next">
-        <span class="micro">Commencer par le diagnostic au fauteuil</span>
-        <a class="btn ink" href="?reserver" data-book data-book-slug="tr">Réserver une transformation <small data-price="tr">50 €</small></a>
-        <a class="tl" href="?reserver" data-book data-book-slug="cl">ou une coupe classique</a>
+        <span class="micro">La méthode, pour chaque coupe</span>
+        <a class="btn ink" href="?reserver" data-book data-book-slug="cl">Réserver ta coupe <small data-price="cl" data-price-from>dès 20 €</small></a>
+        <a class="tl" href="?reserver" data-book data-book-slug="tr">Changer de tête&nbsp;? Transformation, <span data-price="tr">50 €</span></a>
       </div>
     </div>
   </section>
 
-  <!-- Planche 05 -->
-  <section class="plate dark releve" id="releve" data-plate="05" data-name="Relevé" aria-labelledby="rv-h">
+  <!-- Planche 05: opens on the score itself -->
+  <section class="plate dark releve" id="releve" data-plate="05" aria-labelledby="rv-h">
     <div class="wrap">
-      <header class="ph" data-reveal>
+      <header class="ph rv-ph" data-reveal>
         <p class="ph-k"><span class="pl">Pl. 05</span><span>Le relevé</span><i></i><span class="ph-r">Avis Google</span></p>
-        <h2 class="h2" id="rv-h">Ne nous crois pas <em>sur parole.</em></h2>
-      </header>
-      <div class="rv-g">
-        <div class="rv-score" data-reveal aria-label="Note Google : 5,0 sur 5, sur 316 avis.">
-          <p class="rv-big" aria-hidden="true"><span>5,0</span><small>/ 5</small></p>
-          <svg class="rv-rule" viewBox="0 0 500 44" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+        <div class="rv-score" role="img" aria-label="Note Google : 5,0 sur 5, sur 316 avis.">
+          <p class="rv-big"><span>5,0</span><small>/ 5</small></p>
+          <svg class="rv-rule" viewBox="0 0 500 44" preserveAspectRatio="none" focusable="false">
             <path class="rv-base" d="M0 30 H500"/>
             <path class="rv-ticks" d="M0 22 V38 M100 26 V34 M200 26 V34 M300 26 V34 M400 26 V34 M499 22 V38 M50 28 V32 M150 28 V32 M250 28 V32 M350 28 V32 M450 28 V32"/>
             <path class="rv-fill" pathLength="1" d="M0 30 H500"/>
           </svg>
-          <p class="rv-scale" aria-hidden="true"><span>0</span><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span></p>
-          <p class="rv-n" aria-hidden="true"><b data-count="316">316</b> avis Google, relevés un par un.</p>
+          <p class="rv-scale"><span>0</span><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span></p>
         </div>
-        <ol class="rv-notes" data-notes></ol>
-      </div>
+        <h2 class="h2" id="rv-h">Ne nous crois pas <em>sur parole.</em></h2>
+        <p class="lead rv-n"><b data-count="316">316</b> avis Google. Tous publics.</p>
+      </header>
+      <ol class="rv-notes" data-notes></ol>
       <div class="rv-tags" data-reveal>
         <p class="micro">Ce qui revient dans les avis</p>
         <ul data-tags></ul>
@@ -175,47 +174,51 @@
   </section>
 
   <!-- Planche 06 -->
-  <section class="plate paper" id="architectes" data-plate="06" data-name="Architectes" aria-labelledby="ar-h">
+  <section class="plate" id="architectes" data-plate="06" aria-labelledby="ar-h">
     <div class="wrap">
       <header class="ph" data-reveal>
         <p class="ph-k"><span class="pl">Pl. 06</span><span>Les architectes</span><i></i><span class="ph-r">L’équipe</span></p>
         <h2 class="h2" id="ar-h">Choisis ton <em>barbier.</em></h2>
-        <p class="lead">Chacun sa main, la même exigence. Touche un créneau&nbsp;: il est pré-rempli dans la réservation.</p>
+        <p class="lead">Chacun sa main, la même exigence. Touche un créneau&nbsp;: il t’attend dans la réservation.</p>
       </header>
       <ol class="team" data-team></ol>
       <div class="next">
         <span class="micro">Pas de préférence&nbsp;?</span>
-        <a class="btn ink" href="?reserver" data-book data-book-slug="cl" data-book-staff="any" data-any>Le premier libre <small data-any-next>coupe</small></a>
+        <a class="btn ink" href="?reserver" data-book data-book-slug="cl" data-book-staff="any">Le premier libre <small data-any-next>coupe</small></a>
       </div>
     </div>
   </section>
 
-  <!-- Planche 07 -->
-  <section class="plate paper devis" id="devis" data-plate="07" data-name="Devis" aria-labelledby="dv-h">
+  <!-- Planche 07: the title sits beside the quote -->
+  <section class="plate devis" id="devis" data-plate="07" aria-labelledby="dv-h">
     <div class="wrap">
-      <header class="ph" data-reveal>
-        <p class="ph-k"><span class="pl">Pl. 07</span><span>Le devis</span><i></i><span class="ph-r">En direct</span></p>
-        <h2 class="h2" id="dv-h">Compose, <em>lot par lot.</em></h2>
-        <p class="lead">Coche ce que tu veux. Le total, la durée et l’acompte se calculent aux prix du salon, avant même de réserver.</p>
-      </header>
-      <div class="dv" data-dv></div>
+      <div class="dv" data-dv>
+        <div class="dv-main">
+          <header class="ph" data-reveal>
+            <p class="ph-k"><span class="pl">Pl. 07</span><span>Le devis</span><i></i><span class="ph-r">En direct</span></p>
+            <h2 class="h2" id="dv-h">Compose, <em>lot par lot.</em></h2>
+            <p class="lead">Coche ce que tu veux. Le total, la durée et l’acompte se calculent aux prix du salon, avant même de réserver.</p>
+          </header>
+          <div class="dv-lots" data-dv-lots></div>
+          <p class="spec-note" data-spec-note>« dès »&nbsp;: prix de départ, confirmé au fauteuil après un avis sur la faisabilité, avant qu’on commence. Carte bancaire acceptée au salon.</p>
+        </div>
+      </div>
     </div>
   </section>
 
   <!-- Planche 08 -->
-  <section class="plate paper cahier" id="cahier" data-plate="08" data-name="Cahier" aria-labelledby="ca-h">
+  <section class="plate cahier" id="cahier" data-plate="08" aria-labelledby="ca-h">
     <div class="wrap">
       <header class="ph" data-reveal>
         <p class="ph-k"><span class="pl">Pl. 08</span><span>Cahier des charges</span><i></i><span class="ph-r">Prix TTC</span></p>
         <h2 class="h2" id="ca-h">Les prix, <em>sans surprise.</em></h2>
-        <p class="lead">Chaque article se réserve d’un geste. Rien n’est caché, rien ne s’ajoute au salon.</p>
+        <p class="lead">Chaque article se réserve d’un geste. Les prix «&nbsp;dès&nbsp;» se confirment au fauteuil, avant qu’on commence.</p>
       </header>
       <div class="spec" data-spec></div>
-      <p class="spec-note" data-spec-note>« dès »&nbsp;: prix de départ, confirmé au salon après un avis sur la faisabilité. Carte bancaire acceptée au salon.</p>
       <div class="faq">
         <div class="faq-h">
           <p class="micro"><span class="pl">Titre II</span>Clauses</p>
-          <h3>Tu te demandes&nbsp;?</h3>
+          <h3>Les clauses, <em>en clair.</em></h3>
           <p>Les réponses courtes aux questions qu’on nous pose le plus.</p>
         </div>
         <ol class="faq-l" data-faq></ol>
@@ -227,27 +230,30 @@
     </div>
   </section>
 
-  <!-- Planche 09 -->
-  <section class="plate dark acces" id="acces" data-plate="09" data-name="Accès" aria-labelledby="ac-h">
+  <!-- Planche 09: opens on the salon -->
+  <section class="plate dark acces" id="acces" data-plate="09" aria-labelledby="ac-h">
     <div class="wrap">
-      <header class="ph" data-reveal>
-        <p class="ph-k"><span class="pl">Pl. 09</span><span>Accès</span><i></i><span class="ph-r">Marseille 13<sup>e</sup></span></p>
-        <h2 class="h2" id="ac-h">16, place <em>Pélabon.</em></h2>
-      </header>
+      <p class="ph-k ac-k"><span class="pl">Pl. 09</span><span>Accès</span><i></i><span class="ph-r">Marseille 13<sup>e</sup></span></p>
       <div class="ac-g">
+        <figure class="ac-fig">
+          <div class="draw" data-salon>
+            <img src="/img/salon.jpg" width="1100" height="812" loading="lazy" decoding="async" alt="Le salon : long miroir bordé de LED rouge, canapés noir et rouge, fauteuils et bacs à shampooing.">
+          </div>
+          <figcaption class="draw-cap"><span class="micro">Fig. 09</span> Le salon, élévation. La ligne rouge du miroir, tracée.</figcaption>
+        </figure>
         <div class="ac-now">
-          <p class="ac-st" aria-live="polite"><i class="live-dot off" data-dot></i><span data-status>Du mardi au samedi, 9 h – 18 h 30</span></p>
+          <h2 class="h2" id="ac-h">16, place <em>Pélabon.</em></h2>
+          <p class="ac-st"><i class="live-dot off" data-dot></i><span data-status>Du mardi au samedi, 9 h – 18 h 30</span></p>
           <p class="ac-wait" data-wait-line hidden></p>
-          <p class="ac-addr">Barber L’Architecte<br>16, place Pélabon<br>13013 Marseille</p>
           <div class="ac-cta">
             <a class="btn big" href="?reserver" data-book data-final-cta>Réserver <small data-next>sans compte</small></a>
             <a class="btn ghost" href="https://www.google.com/maps/search/?api=1&amp;query=L%27Architecte%20coiffeur&amp;query_place_id=ChIJJSWkBLy_yRIRbgAQcMwb-JY" target="_blank" rel="noopener" data-maps>Itinéraire <span aria-hidden="true">↗</span></a>
           </div>
-        </div>
-        <div class="ac-hours">
-          <p class="micro">Horaires</p>
-          <ol class="hours" data-hours></ol>
-          <p class="ac-closure" data-closure hidden></p>
+          <div class="ac-hours">
+            <p class="micro">Horaires · 13013 Marseille</p>
+            <ol class="hours" data-hours></ol>
+            <p class="ac-closure" data-closure hidden></p>
+          </div>
         </div>
       </div>
     </div>
@@ -278,6 +284,8 @@
     <p class="ft-c"><span>© Barber L’Architecte · Marseille</span><span>Tracé au millimètre, place Pélabon.</span></p>
   </div>
 </footer>
+
+<p class="sr-only" role="status" data-live-sr></p>
 
 <div class="dock" data-dock aria-hidden="true">
   <a class="btn dock-btn" href="?reserver" data-dock-btn tabindex="-1"><span data-dock-label>Réserver</span><small data-dock-sub>sans compte</small></a>

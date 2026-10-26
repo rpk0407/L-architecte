@@ -4,10 +4,24 @@
 import { dates, plural } from '../../../lib/format';
 import * as S from '../../../site-kit/salon';
 import * as M from '../../../site-kit/memory';
-import { $, bookAttrs, NB } from '../dom';
-import { barber, knownPool } from '../store';
+import { $, bookAttrs, dayShort, NB } from '../dom';
+import { barber, knownPool, svc, type Free } from '../store';
 
 const HERO_SVC = ['cl'];
+let wasOpen: boolean | null = null;
+
+/** Cuts that really fit on a day: per barber, starts that don't overlap the previous one kept (a slot
+ *  grid finer than the service would otherwise count the same half hour twice). */
+function cutsOn(pool: Free[], day: string, len: number) {
+  const end = new Map<string, number>();
+  let n = 0;
+  for (const f of pool) {
+    if (f.day !== day || f.m < (end.get(f.key) ?? -1)) continue;
+    end.set(f.key, f.m + len);
+    n++;
+  }
+  return n;
+}
 
 /** Open now and until when, or when it opens again: the same words the big status and the salon section use. */
 export function statusWords() {
@@ -50,9 +64,11 @@ export function paintHero(failed = false) {
   $('[data-st-big]')!.textContent = st.big;
   $('[data-st-sub]')!.textContent = st.sub;
   $('[data-dot]')?.classList.toggle('off', !st.open);
-  document.documentElement.classList.toggle('is-open', st.open);
+  // the open/closed switch is the one change worth saying out loud, and only when it happens
+  if (wasOpen !== null && wasOpen !== st.open) $('[data-st-live]')!.textContent = st.line;
+  wasOpen = st.open;
   const first = M.firstName();
-  $('[data-greet]')!.textContent = first ? 'Salut ' + first + ' · en direct' : 'En direct du salon';
+  $('[data-greet]')!.textContent = first ? 'Salut ' + first + ' · barbier, place Pélabon' : 'Barbier · place Pélabon · en direct';
   paintClock();
 
   const pool = knownPool(HERO_SVC);
@@ -65,19 +81,19 @@ export function paintHero(failed = false) {
     // the rest of today while the salon is open, otherwise the next day it opens
     const stillToday = iv.some(([, b]) => m < b - 15);
     const day = stillToday ? d : S.openDays(1, dates.addDays(d, 1))[0] || d;
-    const n = pool.filter((x) => x.day === day).length;
+    const n = cutsOn(pool, day, svc(HERO_SVC[0])?.dur || 30);
     const label = day === d ? 'Aujourd’hui' : dates.diffDays(d, day) === 1 ? 'Demain' : dates.DAYS_FR[dates.dayParts(day).wd].replace(/^./, (c) => c.toUpperCase());
     meter(0, label, n ? String(n) : 'Complet', n ? (n > 1 ? 'coupes possibles' : 'coupe possible') : 'en ligne');
     const f = pool[0], b = f ? barber(f.key) : null;
     if (f) {
       const today = f.day === d;
-      meter(1, 'Prochain', (today ? '' : dates.DAYS_SH[dates.dayParts(f.day).wd].replace(/^./, (c) => c.toUpperCase()) + ' ') + dates.fmtTime(f.m), b ? 'avec ' + b.name : '');
+      meter(1, 'Prochain', (today ? '' : dayShort(f.day) + ' ') + dates.fmtTime(f.m), b ? 'avec ' + b.name : '');
       bookAttrs(nextBtn, { slugs: HERO_SVC, staff: f.key, day: f.day, start: f.m, source: 'hero-next' });
       nextBtn.setAttribute('aria-label', 'Réserver ' + (today ? 'aujourd’hui' : dates.dayLong(f.day)) + ' à ' + dates.fmtTime(f.m) + (b ? ' avec ' + b.name : '') + ', coupe classique');
     } else {
       meter(1, 'Prochain', '—', 'rien sous 14 j');
       bookAttrs(nextBtn, { slugs: HERO_SVC, source: 'hero-next' });
-      nextBtn.removeAttribute('aria-label');
+      nextBtn.setAttribute('aria-label', 'Réserver une coupe classique');
     }
   }
   const live = S.knownLive();

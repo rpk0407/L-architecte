@@ -6,7 +6,7 @@ import { FALLBACK_BARBERS, FALLBACK_SERVICES } from '../../site-kit/content';
 
 export type Svc = { id: string | null; slug: string; name: string; short: string; category: string; price: number; from: boolean; dur: number; includes: string[] };
 export type Bar = { id: string | null; key: string; name: string; initials: string; color: string; bio: string; instagram: string };
-export type Free = { day: string; m: number; staffId: string; key: string };
+export type Free = { day: string; m: number; key: string };
 
 export function services(): Svc[] {
   const sal = S.getSalon();
@@ -29,14 +29,13 @@ export function total(slugs: string[]) {
 }
 
 /* ---------------- free slots, every barber at once ---------------- */
+// One availability call per barber: each slot is known to be his without reading the API's staff field.
 
-// The API answers { m, s } per slot while the kit's type says { m, staffId }: read both.
-const staffOf = (x: { m: number; staffId?: string; s?: string }) => x.staffId || x.s || '';
 const idsOf = (slugs: string[]) => slugs.map((s) => S.serviceBySlug(s)?.id).filter((x): x is string => !!x);
 
 function merge(per: { b: Bar; days: S.DaySlots[] | null }[]): Free[] {
   const out: Free[] = [];
-  for (const { b, days } of per) for (const d of days || []) for (const x of d.slots) out.push({ day: d.day, m: x.m, staffId: b.id || staffOf(x), key: b.key });
+  for (const { b, days } of per) for (const d of days || []) for (const x of d.slots) out.push({ day: d.day, m: x.m, key: b.key });
   const order = new Map(barbers().map((b, i) => [b.key, i]));
   return out.sort((a, b) => a.day.localeCompare(b.day) || a.m - b.m || (order.get(a.key)! - order.get(b.key)!));
 }

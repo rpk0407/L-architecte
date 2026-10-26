@@ -1,5 +1,6 @@
-// 04 · La preuve. The score counts up once; the reviews run as subtitles, one per third of the scroll,
-// the client's own words in italic. Only what content.ts holds (Google: 5,0 · 316 avis).
+// 04 · La preuve. The reviews run as subtitles over a darkened still, one per third of the scroll, the client's
+// own words in italic. The rating is stamped (index.html, data-reveal), the number of reviews counts up once.
+// Only what content.ts holds (Google: 5,0 · 316 avis).
 import { REVIEWS, REVIEW_TAGS } from '../../../site-kit/content';
 import { track, countUp, reduced } from '../../../site-kit/motion';
 import { $, $$, esc } from '../util';
@@ -12,7 +13,8 @@ export function mountPreuve() {
       <p class="pv-who">— ${esc(r.name)} <span>· Avis Google · ${esc(r.date)}</span></p>
     </li>`).join('');
   $('[data-tags]', sec)!.innerHTML = REVIEW_TAGS.map((t) => `<li>${esc(t)}</li>`).join('');
-  $$<HTMLElement>('[data-count]', sec).forEach((el) => countUp(el, Number(el.dataset.count), { decimals: Number(el.dataset.dec || 0), ms: 1600 }));
+  // only whole counts are counted: a rating shown mid-count would state a worse score than the real one
+  $$<HTMLElement>('[data-count]:not([data-dec])', sec).forEach((el) => countUp(el, Number(el.dataset.count), { ms: 1600 }));
   const subs = $$('.pv-s', sec);
   if (reduced()) { subs.forEach((s) => s.classList.add('is-on')); return; }
   let cur = -1;

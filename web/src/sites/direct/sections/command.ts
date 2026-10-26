@@ -8,7 +8,7 @@ import * as M from '../../../site-kit/memory';
 import { openBooking } from '../../../site-kit/booking';
 import { scrollToEl } from '../../../site-kit/motion';
 import { parse, type Intent, type Win } from '../parse';
-import { $, $$, h, svg, ARROW, dayName, mono, whenWords } from '../dom';
+import { $, $$, h, svg, ARROW, dayName, keepFocus, mono, whenWords } from '../dom';
 import { barber, barbers, pool, knownPool, services, slugsOf, total, type Free } from '../store';
 
 type Over = { slugs?: string[]; staff?: string; day?: string; time?: string };
@@ -25,9 +25,10 @@ const TIMES: Record<string, { label: string; win: Win | null; asap?: boolean }> 
 for (let t = 540; t <= 1080; t += 60) TIMES['t' + t] = { label: 'Vers ' + dates.fmtTime(t), win: { from: t - 45, to: t + 45, target: t } };
 
 let input: HTMLInputElement, list: HTMLElement, res: HTMLElement, chips: HTMLElement, sug: HTMLElement, sayOut: HTMLElement, live: HTMLElement;
-let intent: Intent | null = null, over: Over = {}, items: Item[] = [], active = -1, seq = 0, liveTimer = 0;
+let intent: Intent | null = null, over: Over = {}, items: Item[] = [], active = -1, seq = 0, liveTimer = 0, said = '';
 
-const ctx = () => ({ today: S.today(), slugs: services().map((x) => x.slug), staff: barbers().map((b) => b.key) });
+const ctx = () => ({ today: S.today(), now: S.nowMin(), slugs: services().map((x) => x.slug), staff: barbers().map((b) => b.key) });
+const keyOf = (it: Item) => it.f.day + it.f.m + it.f.key;
 
 /** The query: what was typed, corrected by the chips, completed by memory ("comme d’hab") and defaults. */
 function query(): Q {
@@ -68,11 +69,14 @@ function match(all: Free[], q: Q): { items: Item[]; exact: boolean; why: string 
   }
   add(mine.filter((f) => !q.day || f.day < q.day), q.day ? 'Plus tôt' : '', 5 - out.length);
   add(mine, '', 5 - out.length);
-  const day = q.day ? dayPhrase(q.day) : '';
-  let why = 'Rien de libre ' + [day, q.timeLabel, q.staff ? 'avec ' + (barber(q.staff)?.name || '') : ''].filter(Boolean).join(' ') + '.';
+  // nearest to what was asked first, whatever the reason it is offered (the tag says that)
+  const d0 = q.day || S.today(), t0 = q.win ? (q.win.target ?? q.win.from) : 0;
+  const dist = (f: Free) => Math.abs(dates.diffDays(d0, f.day)) * 1440 + Math.abs(f.m - t0);
+  out.sort((a, b) => dist(a.f) - dist(b.f));
+  const asked = [q.day ? dayPhrase(q.day) : '', q.timeLabel, q.staff ? 'avec ' + (barber(q.staff)?.name || '') : ''].filter(Boolean).join(' ');
+  let why = asked ? 'Rien de libre ' + asked + '.' : 'Aucun créneau en ligne sous 14 jours.';
   if (q.day && !S.hoursOf(q.day).length) why = 'Le salon est fermé ' + (dates.diffDays(S.today(), q.day) < 7 ? 'le ' + dates.DAYS_FR[dates.dayParts(q.day).wd] : dates.dayLong(q.day)) + '.';
   else if (q.day && dates.diffDays(S.today(), q.day) > 13) why = 'Les créneaux en ligne s’affichent sur 14 jours.';
-  else if (q.day && q.day < S.today()) why = 'Cette date est passée.';
   return { items: out, exact: false, why: why + (out.length ? ' Au plus près :' : '') };
 }
 function dayPhrase(day: string) {
@@ -86,7 +90,7 @@ function select(k: string, label: string, value: string, opts: [string, string][
   const sel = h('select', { 'aria-label': k }) as HTMLSelectElement;
   for (const [v, t] of opts) sel.append(h('option', { value: v }, t));
   sel.value = value;
-  sel.dataset.k = k;
+  sel.dataset.k = sel.dataset.fk = k;
   return h('label', { class: 'chip' + (auto ? ' auto' : '') + (value ? ' set' : '') }, h('span', { class: 'chip-k' }, k), h('span', { class: 'chip-v' }, label.replace(/^./, (c) => c.toUpperCase())), sel, svg('<path d="M7 10l5 5 5-5"/>', 'chip-ic'));
 }
 
@@ -101,14 +105,20 @@ function drawChips(q: Q) {
   const dayOpts: [string, string][] = [['', 'Dès que possible'], ...days.map((d): [string, string] => [d, dayName(d) + (S.hoursOf(d).length ? '' : ' · fermé')])];
   let tv = over.time !== undefined ? over.time : q.asap ? 'asap' : '';
   const timeOpts: [string, string][] = [['', 'Peu importe'], ...Object.entries(TIMES).map(([v, t]): [string, string] => [v, t.label])];
-  if (over.time === undefined && q.win) { tv = 'x'; timeOpts.unshift(['x', q.timeLabel.replace(/^./, (c) => c.toUpperCase())]); }
+  if (over.time === undefined && q.win) {
+    const label = q.timeLabel.replace(/^./, (c) => c.toUpperCase());
+    // "vers 18 h" typed is the menu's own « Vers 18 h »: select it rather than list it twice
+    const same = timeOpts.find(([, t]) => t === label);
+    if (same) tv = same[0]; else { tv = 'x'; timeOpts.unshift(['x', label]); }
+  }
   const b = barber(q.staff);
-  chips.replaceChildren(
+  // a chip changed with the keyboard is rebuilt under the visitor's hands: he keeps his place
+  keepFocus(chips, () => chips.replaceChildren(
     select('Prestation', total(q.slugs).shorts.join(' + ') || 'Coupe', cur, svcOpts, q.auto),
     select('Barbier', b ? b.name : 'Sans préférence', q.staff, staffOpts),
     select('Jour', q.day ? dayName(q.day) : 'Dès que possible', q.day, dayOpts),
     select('Heure', tv === 'x' ? q.timeLabel : TIMES[tv]?.label || 'Peu importe', tv, timeOpts)
-  );
+  ));
 }
 
 function option(it: Item, i: number, slugs: string[]) {
@@ -122,14 +132,16 @@ function option(it: Item, i: number, slugs: string[]) {
   return li;
 }
 
-function setActive(i: number) {
+/** Moves the active option; only the arrow keys scroll it into view (a background refresh never moves the page). */
+function setActive(i: number, scroll = false) {
   active = items.length ? (i + items.length) % items.length : -1;
   $$('.opt', list).forEach((el, k) => el.setAttribute('aria-selected', String(k === active)));
-  if (active >= 0) { input.setAttribute('aria-activedescendant', 'q-o' + active); $('#q-o' + active)?.scrollIntoView({ block: 'nearest' }); }
+  if (active >= 0) { input.setAttribute('aria-activedescendant', 'q-o' + active); if (scroll && document.activeElement === input) $('#q-o' + active)?.scrollIntoView({ block: 'nearest' }); }
   else input.removeAttribute('aria-activedescendant');
 }
 function expand(on: boolean) { input.setAttribute('aria-expanded', String(on)); }
-function announce(text: string) { clearTimeout(liveTimer); liveTimer = window.setTimeout(() => { live.textContent = text; }, 700); }
+/** Polite, once things settle, and only when the answer is new: the minute refresh repeats nothing. */
+function announce(text: string) { clearTimeout(liveTimer); if (text === said) return; liveTimer = window.setTimeout(() => { said = text; live.textContent = text; }, 700); }
 
 async function run() {
   const text = input.value;
@@ -137,7 +149,7 @@ async function run() {
   const empty = !text.trim() && !Object.keys(over).length;
   sug.hidden = !empty;
   chips.hidden = res.hidden = empty;
-  if (empty) { items = []; list.replaceChildren(); expand(false); setActive(-1); return; }
+  if (empty) { items = []; list.replaceChildren(); expand(false); setActive(-1); said = ''; return; }
   const q = query();
   drawChips(q);
   const my = ++seq;
@@ -148,7 +160,7 @@ async function run() {
     try { all = await pool(q.slugs); } catch {
       if (my !== seq) return;
       items = []; list.replaceChildren(); expand(false);
-      sayOut.textContent = 'Le salon ne répond pas pour l’instant. Touche → : la feuille de réservation revérifie tout.';
+      sayOut.textContent = 'Le salon ne répond pas pour l’instant. Touche → pour réserver quand même.';
       announce(sayOut.textContent);
       return;
     }
@@ -158,15 +170,19 @@ async function run() {
 }
 function paintFrom(q: Q, all = knownPool(q.slugs) || []) {
   const r = match(all, q);
+  // a refresh keeps the visitor's arrow-key choice when that slot is still there
+  const was = items[active] ? keyOf(items[active]) : '';
   items = r.items;
   list.replaceChildren(...items.map((it, i) => option(it, i, q.slugs)));
   const n = items.length;
-  sayOut.textContent = !n ? (r.why || 'Aucun créneau en ligne sous 14 jours.') + ' La feuille de réservation te propose la liste d’attente.'
-    : r.exact ? (n === 1 ? 'Un créneau colle.' : n + ' créneaux collent.') + ' Le plus proche : ' + whenWords(items[0].f.day, items[0].f.m) + '.'
-      : r.why;
-  sayOut.classList.toggle('miss', !r.exact);
+  const lost = !!intent?.empty && !Object.keys(over).length;
+  sayOut.textContent = lost ? 'Je n’ai pas compris. Essaie « coupe demain 18 h ». En attendant, les prochains créneaux :'
+    : !n ? r.why + ' Touche → : tu peux te mettre sur liste d’attente.'
+      : r.exact ? (n === 1 ? 'Un créneau colle.' : n + ' créneaux collent.') + ' Le plus proche : ' + whenWords(items[0].f.day, items[0].f.m) + '.'
+        : r.why;
+  sayOut.classList.toggle('miss', lost || !r.exact);
   expand(n > 0);
-  setActive(n ? 0 : -1);
+  setActive(n ? Math.max(0, items.findIndex((it) => keyOf(it) === was)) : -1);
   announce(sayOut.textContent);
 }
 
@@ -196,7 +212,7 @@ export function initCommand() {
   intent = parse('', ctx());
   input.addEventListener('input', onText);
   input.addEventListener('keydown', (e) => {
-    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { if (!items.length) return; e.preventDefault(); setActive(active + (e.key === 'ArrowDown' ? 1 : -1)); }
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { if (!items.length) return; e.preventDefault(); setActive(active + (e.key === 'ArrowDown' ? 1 : -1), true); }
     else if (e.key === 'Enter') { e.preventDefault(); if (input.value.trim() || Object.keys(over).length) book(); }
     else if (e.key === 'Escape') { if (input.value || Object.keys(over).length) { e.preventDefault(); input.value = ''; onText(); } }
   });
