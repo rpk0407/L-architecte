@@ -10,6 +10,8 @@ import { newId } from '../lib/util.js';
 import * as A from '../commands/agenda.js';
 import { createPayment, paymentSucceeded, paymentEnded } from '../commands/payments.js';
 import { ticketNo } from '../domain/cash.js';
+import { maybeTick } from './scheduler.js';
+import { waitUntil } from '@vercel/functions';
 
 const CLIENT = (r, n) => ({ actor: /** @type {const} */ ({ t: 'client', id: 'web', n: n || '' }), caps: new Set(), meta: r.meta });
 const PROVIDER = (r, id) => ({ actor: /** @type {const} */ ({ t: 'provider', id }), caps: new Set(), meta: r.meta });
@@ -62,6 +64,9 @@ export async function refundOnline(r, payment, reason) {
   } catch (e) { console.error('[lx] refund failed', e && e.message); return false; }
 }
 
+/** Client traffic carries the reminders too, so they leave even when no one has the Comptoir open (at most once a minute). */
+function background(r) { const t = maybeTick(r.rt, r.meta); if (t) waitUntil(t); }
+
 export function publicRoutes(app) {
   app.get('/api/public/salon', (r) => {
     const s = r.s;
@@ -78,6 +83,7 @@ export function publicRoutes(app) {
 
   app.get('/api/public/live', (r) => {
     const s = r.s, L = r.local;
+    background(r);
     const open = isOpenNow(s, L);
     const est = open && s.settings.booking.walkinWait ? walkinEstimate(s, r.now, L) : { minutes: null, queued: 0 };
     return json({ open, waitMin: est.minutes, queued: est.queued, today: L.day, min: L.min }, 200, { 'cache-control': 'public, max-age=0, s-maxage=15, stale-while-revalidate=30' });
@@ -85,6 +91,7 @@ export function publicRoutes(app) {
 
   app.get('/api/public/availability', (r) => {
     const s = r.s, L = r.local;
+    background(r);
     const q = r.query;
     const from = isDay(q.get('from') || '') ? /** @type {string} */ (q.get('from')) : L.day;
     const days = Math.max(1, Math.min(14, Number(q.get('days')) || 10));

@@ -182,7 +182,7 @@ function Booking({ s }: { s: any }) {
           </div>
         ) : null}
         <p className="muted" style={{ fontSize: 13.5 }}>{D.mode === 'none' ? 'Aucun acompte : simple, mais les absences ne coûtent rien au client.' : D.mode === 'all' ? 'Chaque réservation en ligne paie ' + D.percent + ' % à l’avance (5 € minimum).' : 'Exemple : une prestation de ' + eur(Math.max(D.thresholdCents, 6000)) + ' demande ' + eur(Math.max(500, Math.round((Math.max(D.thresholdCents, 6000) * D.percent) / 10000) * 100)) + ' d’acompte. En dessous de ' + eur(D.thresholdCents) + ', rien.'} Une prestation peut avoir sa propre règle dans le Catalogue.</p>
-        <Field label="Frais d’absence (carte enregistrée)" hint="Prélevés seulement si tu le décides, sur la fiche du rendez-vous manqué." htmlFor="dp-n"><input id="dp-n" className="input" inputMode="decimal" value={(D.noShowFeeCents / 100).toString().replace('.', ',')} onChange={(e) => d.setV({ ...D, noShowFeeCents: Math.min(20000, money.parseEur(e.target.value) ?? 0) })} /></Field>
+        <Field label="Frais d’absence (carte enregistrée)" hint="Montant prévu pour la carte enregistrée à la réservation (prochaine étape) : rien n’est prélevé pour l’instant." htmlFor="dp-n"><input id="dp-n" className="input" inputMode="decimal" value={(D.noShowFeeCents / 100).toString().replace('.', ',')} onChange={(e) => d.setV({ ...D, noShowFeeCents: Math.min(20000, money.parseEur(e.target.value) ?? 0) })} /></Field>
       </Card>
       <SaveBar dirty={b.dirty || d.dirty} busy={busy} onReset={() => { b.reset(); d.reset(); }} onSave={() => save({ ...(b.dirty ? { booking: B } : {}), ...(d.dirty ? { deposits: D } : {}) })} />
     </div>
