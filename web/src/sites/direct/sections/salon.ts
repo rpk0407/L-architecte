@@ -22,7 +22,7 @@ export function paintSalon() {
   $('[data-hours]')!.replaceChildren(...WEEK.map((w) => {
     const iv = sal ? sal.hours[String(w)] || [] : w >= 2 && w <= 6 ? [[540, 1110]] : [];
     const today = w === wd;
-    return h('tr', { class: today ? 'today' : '' + (iv.length ? '' : ' shut') },
+    return h('tr', { class: (today ? 'today' : '') + (iv.length ? '' : ' shut') },
       h('th', { scope: 'row' }, dates.DAYS_FR[w].replace(/^./, (c) => c.toUpperCase()), today ? h('small', {}, 'aujourd’hui') : null),
       h('td', {}, iv.length ? iv.map(([a, b]) => dates.fmtTime(a) + ' – ' + dates.fmtTime(b)).join(', ') : 'Fermé'));
   }));
