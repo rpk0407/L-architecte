@@ -1,0 +1,76 @@
+/* Rapports */
+.rp-filters { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
+.rp-periods, .rp-staff { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: 0 -4px; padding: 0 4px 2px; }
+.rp-periods::-webkit-scrollbar, .rp-staff::-webkit-scrollbar { display: none; }
+.rp-periods .chip, .rp-staff .chip { flex: none; }
+.rp-dates { gap: 8px; }
+.rp-dates .input { width: auto; min-height: 40px; }
+.rp-span { font-size: 13.5px; margin-top: -6px; }
+.sw { display: inline-block; width: 10px; height: 10px; border-radius: 3px; flex: none; }
+.sw.cur { background: var(--accent); }
+.sw.prev { height: 0; width: 14px; border-radius: 0; border-top: 2px dotted var(--tx2); }
+.rp-legend { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--tx2); white-space: nowrap; }
+@media (max-width: 760px) { .rp-legend { font-size: 11.5px; } .rp-legend .sw.prev { margin-left: 4px; } }
+.rp-legend .sw.prev { margin-left: 10px; }
+.rp-chart { position: relative; width: 100%; }
+.rp-chart svg { display: block; overflow: visible; }
+.rp-chart .grid { stroke: var(--line); stroke-width: 1; }
+.rp-chart .ax { fill: var(--tx3); font: 500 11px var(--sans); font-variant-numeric: tabular-nums; }
+.rp-chart .bar { fill: var(--accent); opacity: .82; transition: opacity .12s; }
+.rp-chart .bar.sat { opacity: 1; }
+.rp-chart .bar.on { opacity: 1; fill: var(--accent2); }
+.rp-chart .prev { fill: none; stroke: var(--tx2); stroke-width: 2; stroke-dasharray: 2 4; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+.rp-tip { position: absolute; top: 0; width: 180px; display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border-radius: 12px; background: var(--panel3); box-shadow: var(--shadow2), inset 0 0 0 1px var(--line2); font-size: 13px; pointer-events: none; z-index: 2; }
+.rp-tip span { display: flex; align-items: center; gap: 8px; color: var(--tx2); font-variant-numeric: tabular-nums; }
+.rp-goal { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; }
+.rp-goal .grow { min-width: 260px; }
+.rp-goal-v { margin: 6px 0 12px; }
+.rp-goal-v b { font: 400 44px/1 var(--serif); }
+.rp-goal-v span { color: var(--tx2); }
+.rp-track { position: relative; height: 12px; border-radius: 6px; background: var(--panel3); }
+.rp-track i { position: absolute; inset: 0 auto 0 0; border-radius: 6px; background: var(--accent); transition: width .6s var(--ease-out); }
+.rp-track s { position: absolute; top: -5px; bottom: -5px; width: 2px; margin-left: -1px; background: var(--tx); border-radius: 1px; }
+.rp-goal-side { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; max-width: 320px; font-size: 14px; }
+.rp-two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 1100px) { .rp-two { grid-template-columns: minmax(0, 1fr); } }
+.rp-heat-grid { display: grid; gap: 3px; align-items: center; }
+.rp-heat-grid .hh { font: 500 10.5px/1 var(--sans); color: var(--tx3); text-align: left; padding-bottom: 4px; }
+.rp-heat-grid .hd { font: 600 12px/1 var(--sans); color: var(--tx2); }
+.rp-heat-grid .cell { height: 28px; border-radius: 5px; background: rgba(235, 70, 57, var(--o)); transition: transform .1s; }
+.rp-heat-grid .cell.off { background: repeating-linear-gradient(135deg, transparent 0 4px, var(--line) 4px 5px); }
+.rp-heat-grid .cell.on { box-shadow: 0 0 0 2px var(--tx); }
+.rp-heat-k { display: flex; align-items: center; gap: 10px; margin-top: 12px; font-size: 13px; min-height: 20px; }
+.rp-scale { display: inline-flex; gap: 3px; margin-left: auto; }
+.rp-scale i { width: 16px; height: 10px; border-radius: 3px; background: rgba(235, 70, 57, var(--o)); }
+.rp-ranked { display: flex; flex-direction: column; gap: 12px; }
+.rp-ranked li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 12px; }
+.rp-ranked .nm { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.rp-ranked .nm b { font: 600 14px/1.25 var(--sans); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rp-ranked .nm small { font-size: 12px; color: var(--tx3); white-space: nowrap; }
+.rp-ranked .vl { font: 400 20px/1 var(--serif); }
+.tr { grid-column: 1 / -1; display: block; height: 6px; border-radius: 3px; background: var(--panel3); overflow: hidden; }
+.tr i { display: block; height: 100%; border-radius: 3px; background: var(--tx2); }
+.rp-split .bar { display: flex; gap: 2px; height: 14px; border-radius: 7px; overflow: hidden; margin-bottom: 14px; }
+.rp-split .bar i { min-width: 3px; }
+.rp-split ul { display: flex; flex-direction: column; gap: 10px; }
+.rp-split li { display: flex; align-items: center; gap: 10px; font-size: 14px; }
+.rp-split li b { font-weight: 600; }
+.rp-split li .faint { min-width: 46px; text-align: right; font-size: 13px; }
+.rp-team td { white-space: nowrap; }
+.rp-team td small { display: block; font-size: 11.5px; color: var(--tx3); }
+.rp-team .tr { margin-top: 8px; width: 140px; height: 4px; }
+.rp-insights { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.rp-ins { display: flex; gap: 12px; padding: 16px; border-radius: 20px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line); }
+.rp-ins > svg { width: 20px; height: 20px; flex: none; margin-top: 2px; color: var(--tx2); }
+.rp-ins b { display: block; font: 600 14.5px/1.3 var(--sans); margin-bottom: 4px; }
+.rp-ins p { font-size: 13.5px; line-height: 1.45; color: var(--tx2); }
+.rp-ins.accent > svg { color: var(--accent); }
+.rp-ins.warn > svg { color: var(--warn); }
+.rp-ins.ok > svg { color: var(--ok); }
+.rp-exports { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
+.rp-exp { display: flex; align-items: center; gap: 12px; padding: 14px; border-radius: 16px; background: var(--panel2); color: inherit; text-decoration: none; transition: background-color .15s; }
+.rp-exp:hover { background: var(--panel3); }
+.rp-exp > svg { width: 20px; height: 20px; color: var(--tx2); flex: none; }
+.rp-exp span { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.rp-exp b { font: 600 14px/1.2 var(--sans); }
+.rp-exp small { font-size: 12px; color: var(--tx3); }

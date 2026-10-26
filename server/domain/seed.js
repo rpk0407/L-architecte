@@ -196,10 +196,12 @@ export async function buildDemoJournal(nowReal, opt = {}) {
     const cadence = [14, 21, 21, 28, 28, 35, 42][Math.floor(r() * 7)];
     // one regular in nine drifts away: they are the ones Relances should bring back
     const stop = i % 9 === 4 ? addDays(today, -(cadence + 8 + Math.floor(r() * 21))) : null;
-    pool.push({ id: res.id, pref: barberIds[Math.floor(r() * barberIds.length)], cadence, fav: slugId[favSlug], last: null, packId: null, abo: i % 19 === 3, booked: null, stop });
+    // the last 200 discover the salon along the way: new clients every week
+    const join = i >= 320 ? addDays(start, Math.floor(((i - 320) / 200) * weeks * 7)) : null;
+    pool.push({ id: res.id, pref: barberIds[Math.floor(r() * barberIds.length)], cadence, fav: slugId[favSlug], last: null, packId: null, abo: i % 19 === 3, booked: null, stop, join });
   }
   const pickClient = (day) => (staffId) => {
-    const due = pool.filter((c) => (!c.booked || c.booked < day) && (!c.stop || day < c.stop)).filter((c) => !c.last || diffDays(c.last, day) >= c.cadence * 0.75);
+    const due = pool.filter((c) => (!c.booked || c.booked < day) && (!c.stop || day < c.stop) && (!c.join || day >= c.join)).filter((c) => !c.last || diffDays(c.last, day) >= c.cadence * 0.75);
     const mine = due.filter((c) => c.pref === staffId);
     const list = mine.length && r() < 0.8 ? mine : due;
     if (!list.length) return null;
