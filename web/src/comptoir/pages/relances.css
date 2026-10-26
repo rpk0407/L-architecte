@@ -1,0 +1,14 @@
+/* Relances */
+.rl-grid { display: grid; grid-template-columns: minmax(0, 1fr) 400px; gap: 16px; align-items: start; }
+@media (max-width: 1100px) { .rl-grid { grid-template-columns: minmax(0, 1fr); } }
+.rl-side { gap: 14px; position: sticky; top: 12px; }
+@media (max-width: 1100px) { .rl-side { position: static; } }
+.rl-row { gap: 10px; }
+.rl-row button.li-main { text-align: left; }
+.rl-check { display: grid; place-items: center; width: 32px; height: 32px; flex: none; cursor: pointer; }
+.rl-check input { width: 20px; height: 20px; accent-color: var(--accent); cursor: pointer; }
+.warn-t { color: var(--warn); font-weight: 600; }
+.dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--tx3); }
+.dot.on { background: var(--ok); }
+.rl-body { max-width: 380px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--tx2); }
+@media (max-width: 760px) { .hide-phone { display: none; } }

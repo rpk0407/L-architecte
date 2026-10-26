@@ -1,0 +1,11 @@
+{
+  "name": "Le Comptoir · L’Architecte",
+  "short_name": "Comptoir",
+  "start_url": "/comptoir",
+  "scope": "/comptoir",
+  "display": "standalone",
+  "background_color": "#0E0D0C",
+  "theme_color": "#0E0D0C",
+  "lang": "fr",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}
