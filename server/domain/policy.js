@@ -6,8 +6,11 @@ import { instantOf } from '../../shared/dates.js';
 export function depositFor(s, services) {
   const d = s.settings.deposits;
   const price = services.reduce((t, x) => t + x.price, 0);
-  const explicit = services.map((x) => s.services.get(x.id)?.deposit).filter((x) => typeof x === 'number' && x > 0);
+  // a service can set its own deposit (0 = never one), otherwise the salon's rule applies
+  const own = services.map((x) => s.services.get(x.id)?.deposit);
+  const explicit = own.filter((x) => typeof x === 'number' && x > 0);
   if (explicit.length) return Math.min(price, explicit.reduce((a, b) => a + b, 0));
+  if (own.length && own.every((x) => x === 0)) return 0;
   if (!d || d.mode === 'none') return 0;
   if (d.mode === 'threshold' && price < d.thresholdCents) return 0;
   return Math.min(price, Math.max(500, Math.round((price * d.percent) / 100 / 100) * 100));

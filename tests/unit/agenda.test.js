@@ -7,6 +7,7 @@ import { localParts, addDays } from '../../shared/dates.js';
 import * as A from '../../server/commands/agenda.js';
 import { addTimeOff } from '../../server/commands/team.js';
 import { addClosure } from '../../server/commands/shop.js';
+import { updateService } from '../../server/commands/catalog.js';
 
 const q = (t, extra = {}) => ({ day: DAY, dur: 30, serviceIds: [t.ids.cut], staffId: 'any', now: t.clock.now, local: localParts(t.clock.now), ...extra });
 
@@ -66,6 +67,17 @@ test('long services above the threshold ask for a deposit and stay pending', asy
   assert.equal(b.status, 'pending');
   assert.equal(b.deposit, 1800, '30 % of 60 €');
   assert.equal([...t.engine.state.messages.values()].length, 0, 'no confirmation before payment');
+});
+
+test('a service can opt out of the deposit, or go back to the salon rule', async () => {
+  const t = await salon({ hour: 9 });
+  await t.engine.run(updateService, { id: t.ids.color, patch: { deposit: 0 } }, t.asOwner());
+  const b = await t.engine.run(A.bookOnline, { serviceIds: [t.ids.color], staffId: 'any', day: DAY, start: 840, first: 'Nolan', phone: '0611220000' }, t.asClient);
+  assert.equal(b.status, 'booked');
+  assert.equal(b.deposit, 0);
+  await t.engine.run(updateService, { id: t.ids.color, patch: { deposit: null } }, t.asOwner());
+  const c = await t.engine.run(A.bookOnline, { serviceIds: [t.ids.color], staffId: 'any', day: DAY, start: 960, first: 'Adam', phone: '0611220001' }, t.asClient);
+  assert.equal(c.deposit, 1800);
 });
 
 test('two servers booking the same chair at the same second: exactly one wins', async () => {

@@ -217,7 +217,7 @@ export async function buildDemoJournal(nowReal, opt = {}) {
     if (weekday(day) === 2 || weekday(day) === 5) {
       at(day, 8 * 60 + 30);
       for (const p of eng.state.products.values()) {
-        if (p.name === 'Pommade brillante' && diffDays(day, today) < 10) continue; // keeps one low-stock alert in the demo
+        if (p.name === 'Pommade brillante' && diffDays(day, today) < 26) continue; // keeps one low-stock alert in the demo
         if (p.stock < p.low + 6) await eng.run(adjustStock, { id: p.id, delta: 12 - Math.min(0, p.stock), reason: 'Livraison fournisseur' }, base);
       }
     }

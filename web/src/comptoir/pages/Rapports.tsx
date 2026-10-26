@@ -359,7 +359,7 @@ function Insights({ r }: { r: Report }) {
   if (r.noShows >= 2 && r.avgTicket) {
     const cost = Math.round((r.noShows * r.avgTicket) / 100) * 100;
     const dep = boot.settings.deposits;
-    out.push({ icon: 'alert', tone: 'warn', title: 'Les absences ont coûté environ ' + eur(cost), body: own ? 'Le rappel la veille et le lien pour déplacer partent tout seuls. Un client qui manque deux fois est signalé sur sa fiche.' : dep.mode === 'off' ? 'Active l’acompte en ligne dans Réglages : les absences baissent nettement quand le client a payé une partie.' : 'L’acompte est actif au-delà de ' + eur(dep.thresholdCents) + '. Le baisser couvrirait plus de rendez-vous.' });
+    out.push({ icon: 'alert', tone: 'warn', title: 'Les absences ont coûté environ ' + eur(cost), body: own ? 'Le rappel la veille et le lien pour déplacer partent tout seuls. Un client qui manque deux fois est signalé sur sa fiche.' : dep.mode === 'none' ? 'Active l’acompte en ligne dans Réglages : les absences baissent nettement quand le client a payé une partie.' : 'L’acompte est actif au-delà de ' + eur(dep.thresholdCents) + '. Le baisser couvrirait plus de rendez-vous.' });
   }
   const done = r.staff.reduce((t, x) => t + x.done, 0);
   const rebook = done ? r.staff.reduce((t, x) => t + x.rebookRate * x.done, 0) / done : 0;

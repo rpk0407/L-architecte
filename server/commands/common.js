@@ -1,7 +1,7 @@
 // @ts-check
 // Helpers shared by the command handlers.
 import { fail } from '../core/engine.js';
-import { str, int, bool, opt, obj, arr, id, oneOf, money } from '../lib/validate.js';
+import { str, int, bool, opt, obj, arr, id, oneOf, money, nullable } from '../lib/validate.js';
 
 /** @typedef {import('../core/state.js').State} State */
 /** @typedef {import('../core/engine.js').Ctx} Ctx */
@@ -46,7 +46,7 @@ export const hex = () => str({ pattern: /^#[0-9A-Fa-f]{6}$/, max: 7 });
 export const serviceShape = {
   name: str({ min: 2, max: 60 }), short: opt(str({ max: 30 })), category: str({ min: 1, max: 40 }), slug: opt(str({ max: 24, pattern: /^[a-z0-9-]+$/ })),
   price: money(500000), from: opt(bool()), dur: int({ min: 5, max: 480 }), buffer: opt(int({ min: 0, max: 120 })),
-  online: opt(bool()), deposit: opt(money(500000)), vat: opt(int({ min: 0, max: 3000 })), order: opt(int({ min: 0, max: 999 })),
+  online: opt(bool()), deposit: nullable(money(500000)), vat: opt(int({ min: 0, max: 3000 })), order: opt(int({ min: 0, max: 999 })),
   description: opt(str({ max: 300 })), includes: opt(arr(str({ min: 1, max: 60 }), { max: 10 })),
   pack: opt(obj({ credits: int({ min: 2, max: 50 }), days: int({ min: 7, max: 730 }), serviceIds: opt(arr(id(), { max: 20 })) }))
 };
