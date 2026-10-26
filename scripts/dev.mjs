@@ -3,7 +3,7 @@
 //
 //   npm run dev               API + static files from public/ (pair with `npm run dev:web` for the app)
 //   npm start                 the built site from dist/ (run `npm run build` first)
-//   options: --port 3000 --memory (no file persistence) --dist
+//   options: --port 3000 --memory (no file persistence) --dist, or --static <dir> (any build output)
 import { createServer } from 'node:http';
 import { readFileSync, existsSync, statSync } from 'node:fs';
 import { join, extname, resolve } from 'node:path';
@@ -14,7 +14,7 @@ const flag = (n) => args.includes('--' + n);
 const opt = (n, d) => { const i = args.indexOf('--' + n); return i >= 0 ? args[i + 1] : d; };
 const ROOT = resolve(new URL('..', import.meta.url).pathname);
 const PORT = Number(opt('port', process.env.PORT || 3000));
-const STATIC = join(ROOT, flag('dist') ? 'dist' : 'public');
+const STATIC = opt('static', null) ? resolve(opt('static')) : join(ROOT, flag('dist') ? 'dist' : 'public');
 if (!flag('memory') && !process.env.LX_DATA_FILE && !process.env.DATABASE_URL && !process.env.BLOB_READ_WRITE_TOKEN) process.env.LX_DATA_FILE = join(ROOT, '.lx-data', 'journal.jsonl');
 if (!process.env.PUBLIC_URL) process.env.PUBLIC_URL = 'http://localhost:' + PORT;
 
@@ -98,4 +98,4 @@ const server = createServer(async (req, res) => {
   }
 });
 const storeLabel = process.env.DATABASE_URL ? 'postgres' : process.env.BLOB_READ_WRITE_TOKEN ? 'blob' : process.env.LX_DATA_FILE ? 'file ' + process.env.LX_DATA_FILE.replace(ROOT + '/', '') : 'memory';
-server.listen(PORT, () => console.log(`L’Architecte · http://localhost:${PORT}  (static: ${STATIC.replace(ROOT + '/', '')}, data: ${storeLabel})`));
+server.listen(PORT, () => console.log(`L’Architecte · http://localhost:${PORT}  (static: ${STATIC.startsWith(ROOT) ? STATIC.replace(ROOT + '/', '') : STATIC}, data: ${storeLabel})`));

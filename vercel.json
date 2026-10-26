@@ -21,7 +21,10 @@
     { "source": "/comptoir/:path*", "destination": "/comptoir/index.html" },
     { "source": "/r/:token", "destination": "/client/index.html" },
     { "source": "/recu/:token", "destination": "/client/index.html" },
-    { "source": "/paiement/:id", "destination": "/client/index.html" }
+    { "source": "/paiement/:id", "destination": "/client/index.html" },
+    { "source": "/film", "destination": "/film/index.html" },
+    { "source": "/atelier", "destination": "/atelier/index.html" },
+    { "source": "/direct", "destination": "/direct/index.html" }
   ],
   "headers": [
     {
