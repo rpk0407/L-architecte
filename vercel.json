@@ -7,7 +7,6 @@
   "cleanUrls": true,
   "trailingSlash": false,
   "regions": ["cdg1"],
-  "git": { "deploymentEnabled": { "claude/barbershop-website-redesign-vgxcrx": false } },
   "functions": {
     "api/main.js": { "maxDuration": 30 }
   },
@@ -22,10 +21,7 @@
     { "source": "/comptoir/:path*", "destination": "/comptoir/index.html" },
     { "source": "/r/:token", "destination": "/client/index.html" },
     { "source": "/recu/:token", "destination": "/client/index.html" },
-    { "source": "/paiement/:id", "destination": "/client/index.html" },
-    { "source": "/film", "destination": "/film/index.html" },
-    { "source": "/atelier", "destination": "/atelier/index.html" },
-    { "source": "/direct", "destination": "/direct/index.html" }
+    { "source": "/paiement/:id", "destination": "/client/index.html" }
   ],
   "headers": [
     {
@@ -42,14 +38,6 @@
       "source": "/(comptoir|r|recu|paiement|client)(.*)",
       "headers": [
         { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self' https://checkout.stripe.com; object-src 'none'" },
-        { "key": "X-Frame-Options", "value": "DENY" },
-        { "key": "Cross-Origin-Opener-Policy", "value": "same-origin" }
-      ]
-    },
-    {
-      "source": "/(film|atelier|direct)(.*)",
-      "headers": [
-        { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'" },
         { "key": "X-Frame-Options", "value": "DENY" },
         { "key": "Cross-Origin-Opener-Policy", "value": "same-origin" }
       ]

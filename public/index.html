@@ -269,35 +269,6 @@ transition:opacity .45s var(--ease),transform .6s var(--ease)}
 .dt-hd span:nth-child(3){display:none}
 .dnote{margin-top:18px;max-width:46em;font-size:13.5px;line-height:1.5;color:var(--cendre)}
 
-/* the three alternative sites */
-.pc-alt{padding:clamp(64px,9vw,120px) 0;border-top:1px solid var(--ligne)}
-.alts{display:grid;gap:12px;margin-top:clamp(28px,4vw,48px)}
-.alt{display:flex;flex-direction:column;height:100%;padding:12px 12px 20px;border-radius:26px;background:var(--encre2);box-shadow:inset 0 0 0 1px var(--ligne);transition:background-color .3s,box-shadow .3s,transform .4s var(--ease)}
-.alt:hover{background:var(--encre3);box-shadow:inset 0 0 0 1px var(--ligne2)}
-.alt:active{transform:scale(.985)}
-.alt>.door-k{margin:20px 8px 0}
-.alt-t{margin:12px 8px 0;font:400 30px/1.02 var(--f-serif);text-wrap:balance}
-.alt-p{margin:12px 8px 0;font-size:15px;line-height:1.5;color:var(--cendre)}
-.alt>.door-go{margin:auto 8px 0;padding-top:22px}
-.alt:hover .door-go svg{transform:translateX(4px)}
-.alt-ill{position:relative;display:block;aspect-ratio:16/10;border-radius:18px;overflow:hidden}
-.a-film .alt-ill{background:#000}
-.af-frame{position:absolute;inset:14% 0;display:grid;place-items:center;background:radial-gradient(circle,rgba(236,232,224,.28) 1.1px,transparent 1.6px) 0 0/7px 7px,linear-gradient(160deg,#3a3633,#0F0E0D)}
-.af-t{font:italic 400 clamp(28px,4vw,40px)/1 var(--f-serif);color:var(--os)}
-.af-tc{position:absolute;top:3.5%;left:12px;z-index:1;font:600 10.5px/1 var(--f-sans);letter-spacing:.12em;color:var(--rouge);font-variant-numeric:tabular-nums}
-.a-atelier .alt-ill{background:linear-gradient(rgba(15,14,13,.09) 1px,transparent 1px) 0 0/12px 12px,linear-gradient(90deg,rgba(15,14,13,.09) 1px,transparent 1px) 0 0/12px 12px,#ECE8E0}
-.aa-sheet{position:absolute;inset:0}
-.aa-cote{position:absolute;left:14%;right:14%;top:50%;height:1.5px;background:var(--encre)}
-.aa-cote::before,.aa-cote::after{content:"";position:absolute;top:-7px;width:1.5px;height:16px;background:var(--encre)}
-.aa-cote::before{left:0}.aa-cote::after{right:0}
-.aa-n{position:absolute;right:10px;bottom:10px;padding:6px 9px;font:600 10.5px/1 var(--f-sans);letter-spacing:.1em;text-transform:uppercase;color:var(--encre);box-shadow:inset 0 0 0 1px var(--encre)}
-.a-direct .alt-ill{display:grid;place-items:center;background:var(--encre)}
-.ad-board{display:grid;gap:6px;width:76%}
-.ad-row{display:flex;justify-content:space-between;gap:10px;padding:8px 10px;border-radius:8px;background:var(--encre3);font:600 14px/1 var(--f-sans);font-variant-numeric:tabular-nums}
-.ad-row b{color:var(--ok)}
-.ad-row i{font-style:normal;color:var(--os)}
-@media (min-width:900px){.alts{grid-template-columns:repeat(3,minmax(0,1fr))}}
-
 /* why */
 .pc-why{padding:clamp(64px,9vw,120px) 0;border-top:1px solid var(--ligne)}
 .why4{display:grid;gap:0;margin-top:clamp(28px,4vw,48px)}
@@ -450,37 +421,6 @@ transition:opacity .45s var(--ease),transform .6s var(--ease)}
 <span class="door-go">Ouvrir le Comptoir<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h15M13 6l6 6-6 6"/></svg></span>
 </a>
 </div>
-</div>
-</section>
-
-<section class="pc-alt" id="versions" aria-labelledby="t-alt">
-<div class="w">
-<p class="pk">Trois autres directions</p>
-<h2 class="h2" id="t-alt">Le même salon,<br>trois <em>façons</em> de le raconter.</h2>
-<p class="pc-lead">Trois versions du site public, toutes branchées sur le même agenda que le Comptoir&nbsp;: mêmes prix, mêmes barbiers, mêmes créneaux libres. Choisis celle qui vous ressemble.</p>
-<ul class="alts">
-<li><a class="alt a-film" href="/film">
-<span class="alt-ill" aria-hidden="true"><span class="af-tc">00:00:12:04</span><span class="af-frame"><span class="af-t">L’Architecte</span></span></span>
-<span class="door-k">A · Le Film</span>
-<span class="alt-t">Le récit, du trottoir au fauteuil.</span>
-<span class="alt-p">Le défilement devient une bande&nbsp;: séquences, sous-titres, générique. La coupe qui vieillit de J+0 à J+28, puis «&nbsp;On recoupe&nbsp;?&nbsp;».</span>
-<span class="door-go">Voir le film<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h15M13 6l6 6-6 6"/></svg></span>
-</a></li>
-<li><a class="alt a-atelier" href="/atelier">
-<span class="alt-ill" aria-hidden="true"><span class="aa-sheet"><span class="aa-cote"></span><span class="aa-n">Planche 01</span></span></span>
-<span class="door-k">B · L’Atelier</span>
-<span class="alt-t">La construction au millimètre.</span>
-<span class="alt-p">La table à dessin de l’architecte&nbsp;: un diagnostic qui recommande la prestation, le barbier et le créneau, et un devis qui se réserve d’un geste.</span>
-<span class="door-go">Ouvrir l’atelier<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h15M13 6l6 6-6 6"/></svg></span>
-</a></li>
-<li><a class="alt a-direct" href="/direct">
-<span class="alt-ill" aria-hidden="true"><span class="ad-board"><span class="ad-row"><b>16:10</b><i>Frank</i></span><span class="ad-row"><b>16:40</b><i>JKut</i></span><span class="ad-row"><b>17:00</b><i>Esteban</i></span></span></span>
-<span class="door-k">C · En direct</span>
-<span class="alt-t">Le salon en temps réel.</span>
-<span class="alt-p">Le plus court chemin vers le fauteuil&nbsp;: le tableau des prochains départs, l’attente sans rendez-vous, et une barre où l’on écrit «&nbsp;coupe demain 18&nbsp;h avec Frank&nbsp;».</span>
-<span class="door-go">Passer en direct<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h15M13 6l6 6-6 6"/></svg></span>
-</a></li>
-</ul>
 </div>
 </section>
 
