@@ -72,7 +72,8 @@ export function clientStats(s, today, now) {
       x.dueIn = x.lastDay ? rhythm - /** @type {number} */ (x.sinceLast) : null;
       x.overdue = !x.next && x.sinceLast != null && x.sinceLast > rhythm + 3 && x.sinceLast < 180;
       x.risk = x.noShows >= 2 || (x.noShows >= 1 && x.visits < 3);
-      x.loyal = x.visits >= 6;
+      // a regular: four cuts or more, coming back at a steady pace
+      x.loyal = x.visits >= 6 || (x.visits >= 4 && !!x.cadence && x.cadence <= 35);
       x.isNew = x.visits <= 1;
       delete x.svc; delete x.staff; delete x.days;
       out.set(id, x);

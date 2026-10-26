@@ -1,5 +1,5 @@
 // @ts-check
-// The demo salon. Six weeks of history are produced by running the real commands through a throwaway
+// The demo salon. Ten weeks of history are produced by running the real commands through a throwaway
 // engine with a simulated clock: every booking, ticket, cash count and Z closure obeys the same rules
 // as live use, so the demo can never show something the product could not do.
 import { createEngine } from '../core/engine.js';
@@ -16,9 +16,10 @@ import { initialize } from '../commands/setup.js';
 import { addStaff, setCredentials } from '../commands/team.js';
 import { addService, updateService, addProduct, adjustStock } from '../commands/catalog.js';
 import { addClient } from '../commands/clients.js';
-import { createAppointment, setStatus, cancelAppointment, bookOnline } from '../commands/agenda.js';
+import { createAppointment, setStatus, cancelAppointment, bookOnline, addWait } from '../commands/agenda.js';
 import { checkout, openDrawer, closeDrawer, closeDay } from '../commands/sales.js';
 import { updateSettings } from '../commands/shop.js';
+import { sendRebook } from '../commands/messages.js';
 
 export const DEMO = {
   email: 'gerant@larchitecte.fr',
@@ -144,17 +145,17 @@ export function demoCheckoutInput(s, a, r, { cash = true, packId = null } = {}) 
   const due = gross - (discount ? discount.amount : 0) + (tip ? tip.amount : 0);
   const payCash = cash && r() < 0.34;
   const given = payCash ? Math.ceil(due / 1000) * 1000 + (r() < 0.3 ? 1000 : 0) : undefined;
-  const payments = due > 0 ? [payCash ? { method: 'cash', amount: due, given } : { method: 'card', amount: due }] : [];
+  const payments = due > 0 ? [payCash ? { method: 'cash', amount: due, given } : { method: 'card', amount: due }] : [{ method: 'card', amount: 0 }];
   return { apptId: a.id, lines, ...(discount ? { discount } : {}), ...(tip ? { tip } : {}), payments };
 }
 
 /**
  * Build the whole demo journal.
  * @param {number} nowReal
- * @param {{ weeks?: number, ahead?: number }} [opt]
+ * @param {{ weeks?: number, ahead?: number, siteUrl?: string }} [opt]
  */
 export async function buildDemoJournal(nowReal, opt = {}) {
-  const weeks = opt.weeks ?? 6, ahead = opt.ahead ?? 14;
+  const weeks = opt.weeks ?? 10, ahead = opt.ahead ?? 14;
   let clock = nowReal;
   const eng = createEngine(memoryStore(), { clock: () => clock, syncEveryMs: 60000 });
   const today = localParts(nowReal).day;
@@ -164,7 +165,7 @@ export async function buildDemoJournal(nowReal, opt = {}) {
 
   at(start, 7 * 60);
   const init = await eng.run(initialize, { mode: 'demo', owner: { name: 'Le gérant', email: DEMO.email }, pwdHash: hashSecretSync(DEMO.password), pinHash: hashSecretSync(DEMO.ownerPin) }, SYS);
-  const base = { ...SYS, staff: eng.state.staff.get(init.ownerId) };
+  const base = { ...SYS, staff: eng.state.staff.get(init.ownerId), meta: { siteUrl: opt.siteUrl || 'https://larchitecte.fr/site' } };
   await eng.run(updateSettings, { shop: { phone: '04 91 00 00 00', legalName: 'L’Architecte SAS', siret: '000 000 000 00000' } }, base);
   for (const [i, b] of BARBERS.entries()) {
     const res = await eng.run(addStaff, { name: b.name, role: 'barber', color: b.color, initials: b.initials, bookable: true, chair: true, schedule: b.week, commission: { service: 4000, product: 1000 }, bio: b.bio, instagram: b.instagram, order: i + 1 }, base);
@@ -192,10 +193,13 @@ export async function buildDemoJournal(nowReal, opt = {}) {
       tags: r() < 0.08 ? ['VIP'] : []
     }, base);
     const favSlug = weighted(r, SERVICES.filter((x) => x.w > 0)).slug;
-    pool.push({ id: res.id, pref: barberIds[Math.floor(r() * barberIds.length)], cadence: [14, 21, 21, 28, 28, 35, 42][Math.floor(r() * 7)], fav: slugId[favSlug], last: null, packId: null, abo: i % 19 === 3, booked: null });
+    const cadence = [14, 21, 21, 28, 28, 35, 42][Math.floor(r() * 7)];
+    // one regular in nine drifts away: they are the ones Relances should bring back
+    const stop = i % 9 === 4 ? addDays(today, -(cadence + 8 + Math.floor(r() * 21))) : null;
+    pool.push({ id: res.id, pref: barberIds[Math.floor(r() * barberIds.length)], cadence, fav: slugId[favSlug], last: null, packId: null, abo: i % 19 === 3, booked: null, stop });
   }
   const pickClient = (day) => (staffId) => {
-    const due = pool.filter((c) => !c.booked || c.booked < day).filter((c) => !c.last || diffDays(c.last, day) >= c.cadence * 0.75);
+    const due = pool.filter((c) => (!c.booked || c.booked < day) && (!c.stop || day < c.stop)).filter((c) => !c.last || diffDays(c.last, day) >= c.cadence * 0.75);
     const mine = due.filter((c) => c.pref === staffId);
     const list = mine.length && r() < 0.8 ? mine : due;
     if (!list.length) return null;
@@ -250,7 +254,7 @@ export async function buildDemoJournal(nowReal, opt = {}) {
       if (res && c && c.abo && !packId && input.lines[0].kind === 'pack') c.packId = [...eng.state.packs.values()].find((k) => k.saleId === res.id)?.id || null;
       if (c) { c.last = day; c.booked = null; }
       // a third of clients book their next cut before leaving
-      if (res && c && r() < 0.33) {
+      if (res && c && r() < 0.33 && (!c.stop || addDays(day, c.cadence) < c.stop)) {
         const next = addDays(day, c.cadence);
         if (diffDays(today, next) <= ahead && diffDays(today, next) >= -60) {
           const free = [600, 660, 720, 840, 900, 960, 1020].find((m) => isFree(eng.state, cur.staffId, next, m, cur.dur, { now: clock }));
@@ -274,8 +278,32 @@ export async function buildDemoJournal(nowReal, opt = {}) {
     }
   };
 
+  // three weeks ago the owner sent a round of relances; a good share of them came back
+  let relanced = false;
+  const sendRelances = async (day) => {
+    at(day, 10 * 60);
+    const stats = clientStats(eng.state, day, clock);
+    const late = pool.filter((c) => stats.get(c.id)?.overdue && eng.state.clients.get(c.id)?.sms).slice(0, 16);
+    if (!late.length) return;
+    await eng.run(sendRebook, { clientIds: late.map((c) => c.id) }, base).catch(() => null);
+    for (const c of late) {
+      if (r() > 0.45) continue;
+      c.stop = null;
+      for (let k = 2; k <= 6; k++) {
+        const next = addDays(day, k);
+        if (next >= today || !eng.state.settings.hours[weekday(next)]?.length) continue;
+        const svc = eng.state.services.get(c.fav);
+        const free = svc && [600, 690, 780, 870, 960, 1020].find((m) => isFree(eng.state, c.pref, next, m, svc.dur + (svc.buffer || 0), { now: clock }));
+        if (free == null) continue;
+        at(day, 10 * 60 + 30 + Math.floor(r() * 400));
+        const res = await eng.run(createAppointment, { clientId: c.id, serviceIds: [c.fav], staffId: c.pref, day: next, start: free, source: 'site', sms: false, demo: true }, base).catch(() => null);
+        if (res) { c.booked = next; break; }
+      }
+    }
+  };
   for (let d = start; d < today; d = addDays(d, 1)) {
     if (!eng.state.settings.hours[weekday(d)]?.length) continue;
+    if (!relanced && diffDays(d, today) <= 20) { relanced = true; await sendRelances(d); }
     await runDay(d, false);
   }
   if (eng.state.settings.hours[weekday(today)]?.length) await runDay(today, true);
@@ -287,6 +315,17 @@ export async function buildDemoJournal(nowReal, opt = {}) {
     const plans = planDay(eng.state, d, fillFor(d, today), r, pickClient(d), clock);
     for (const p of plans) { const c = byId.get(p.clientId); if (c) c.booked = d; await eng.run(createAppointment, p, base).catch(() => null); }
     seeded.push(d);
+  }
+  // Saturday is full: a few people wait for a cancellation
+  const sat = [1, 2, 3, 4, 5, 6, 7].map((i) => addDays(today, i)).find((d) => weekday(d) === 6);
+  const asSite = { actor: /** @type {const} */ ({ t: 'client', id: 'site' }), caps: new Set(), meta: base.meta };
+  if (sat) {
+    const waiting = [['Rayan', '0639981201', 'any', 'cl', 540, 780], ['Idriss', '0639981202', barberIds[0], 'cb', 840, 1110], ['Théo', '0639981203', 'any', 'tb', 0, 1440]];
+    for (const [i, [first, phone, staffId, slug, from, to]] of waiting.entries()) {
+      at(addDays(today, -1), 19 * 60 + i * 47);
+      await eng.run(addWait, { day: sat, staffId, serviceId: slugId[slug], from, to, first, phone }, asSite).catch(() => null);
+    }
+    clock = nowReal;
   }
   await eng.run({ run(s, input, ctx) { ctx.emit('demo.seeded', { days: seeded }); return {}; } }, {}, SYS);
   return eng.journal;

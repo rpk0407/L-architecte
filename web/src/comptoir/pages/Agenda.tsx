@@ -35,7 +35,7 @@ export default function Agenda() {
 
   // deep links from the palette and the feed: ?new=1, ?walkin=1
   useEffect(() => {
-    if (route.query.get('new')) { setCreate({}); setQuery({ new: null }); }
+    if (route.query.get('new')) { setCreate(route.query.get('client') ? { clientId: route.query.get('client')! } : {}); setQuery({ new: null, client: null }); }
     if (route.query.get('walkin')) { setWalkin(true); setQuery({ walkin: null }); }
   }, [route.key]);
   useHotkeys({

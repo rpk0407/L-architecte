@@ -68,6 +68,15 @@ test('an unpaid deposit frees the slot, a freed slot goes to the waiting list', 
   assert.equal(w.offer.start, 840);
   assert.ok(t.engine.state.holds.get(w.offer.holdId), 'the slot is held for the offer');
   assert.ok([...t.engine.state.messages.values()].some((m) => m.template === 'waitlist'));
+  // Adam takes the place from the link: he leaves the list and is never offered it again
+  const hold = t.engine.state.holds.get(w.offer.holdId);
+  const got = await t.engine.run(A.bookOnline, { serviceIds: [t.ids.cut], staffId: w.offer.staffId, day: DAY, start: 840, holdId: hold.id, first: 'Adam', phone: '0600000009' }, t.asClient);
+  assert.equal(t.engine.state.appts.get(got.id).staffId, hold.staffId);
+  assert.equal(w.status, 'booked');
+  assert.equal(w.apptId, got.id);
+  t.clock.now = at(DAY, 10, 0);
+  await t.engine.run(tick, {}, t.sys);
+  assert.equal(w.status, 'booked', 'an expired offer does not put him back on the list');
 });
 
 test('client stats: rhythm, overdue, next appointment', async () => {

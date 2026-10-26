@@ -210,7 +210,7 @@ export function adminRoutes(app) {
     guard('reset|' + r.ip, 3, 10 * 60000);
     const eng = r.rt.engine;
     await eng.reset();
-    await eng.adopt(await buildDemoJournal(eng.clock()));
+    await eng.adopt(await buildDemoJournal(eng.clock(), { siteUrl: r.meta.siteUrl }));
     return { ok: true, version: eng.state.version };
   }, { cap: 'settings' });
 

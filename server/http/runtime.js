@@ -66,7 +66,7 @@ async function boot(opt) {
   const engine = createEngine(store, { clock: opt.clock, syncEveryMs: cfg.db || cfg.blob ? 1500 : 0 });
   await engine.sync(true);
   if (engine.state.version === 0 && cfg.mode === 'demo') {
-    const journal = await buildDemoJournal(engine.clock());
+    const journal = await buildDemoJournal(engine.clock(), { siteUrl: cfg.publicUrl ? cfg.publicUrl + '/site' : undefined });
     await engine.adopt(journal);
   }
   const secret = cfg.sessionSecret || (await store.secret('session', () => randomBytes(32).toString('base64url')));

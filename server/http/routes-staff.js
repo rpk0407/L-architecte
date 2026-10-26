@@ -242,6 +242,14 @@ export function staffRoutes(app) {
   app.del('/api/v1/blocks/:id', (r) => r.run(A.removeBlock, { id: r.params.id }), { cap: 'agenda.own' });
   app.post('/api/v1/queue', (r) => r.run(A.addWalkin, r.body), { cap: 'agenda.own' });
   app.post('/api/v1/queue/:id', (r) => r.run(A.updateWalkin, { ...r.body, id: r.params.id }), { cap: 'agenda.own' });
+  app.get('/api/v1/waitlist', (r) => {
+    const s = r.s;
+    const items = [...s.waitlist.values()].filter((w) => w.day >= r.local.day && (w.status === 'waiting' || w.status === 'offered'))
+      .sort((a, b) => a.day.localeCompare(b.day) || a.from - b.from)
+      .map((w) => ({ id: w.id, first: w.first, phone: r.caps.has('client.contact') ? w.phone : maskPhone(w.phone), day: w.day, staffId: w.staffId, serviceId: w.serviceId, from: w.from, to: w.to, status: w.status, offer: w.offer, at: w.at }));
+    const recent = [...s.waitlist.values()].filter((w) => r.now - w.at < 30 * 86400000);
+    return { items, stats: { added: recent.length, booked: recent.filter((w) => w.status === 'booked').length } };
+  }, { cap: 'agenda.own' });
   app.post('/api/v1/waitlist', (r) => r.run(A.addWait, r.body), { cap: 'agenda.own' });
   app.del('/api/v1/waitlist/:id', (r) => r.run(A.removeWait, { id: r.params.id }), { cap: 'agenda.own' });
 
@@ -367,7 +375,7 @@ export function staffRoutes(app) {
     const d = s.drawer;
     const last = [...s.drawers.values()].filter((x) => x.closedAt).sort((a, b) => b.closedAt - a.closedAt)[0] || null;
     const today = dayTotals(s, r.local.day);
-    const unpaid = [...(s.apptsByDay.get(r.local.day) || [])].map((id) => s.appts.get(id)).filter((a) => a && !a.saleId && (a.status === 'in_chair' || ((a.status === 'booked' || a.status === 'arrived') && a.start + a.dur <= r.local.min))).length;
+    const unpaid = [...(s.apptsByDay.get(r.local.day) || [])].map((id) => s.appts.get(id)).filter((a) => a && !a.saleId && (a.status === 'in_chair' || a.status === 'done' || ((a.status === 'booked' || a.status === 'arrived') && a.start + a.dur <= r.local.min))).length;
     return {
       open: d ? { id: d.id, openedAt: d.openedAt, float: d.float, moves: d.moves, expected: drawerExpected(s, d), openedBy: (s.staff.get(d.openedBy) || {}).name || '' } : null,
       last: last ? { counted: last.counted, expected: last.expected, diff: last.diff, closedAt: last.closedAt, note: last.note } : null,

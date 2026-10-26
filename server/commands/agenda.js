@@ -101,6 +101,8 @@ export const bookOnline = {
       ...(b.demo && ctx.meta.demoSim === true ? { demo: true } : {})
     };
     ctx.emit('appt.booked', a, b.note ? { note: b.note } : undefined);
+    // a place offered from the waiting list, taken: the person leaves the list
+    if (hold) for (const w of s.waitlist.values()) if (w.status === 'offered' && w.offer && w.offer.holdId === hold.id) ctx.emit('waitlist.updated', { id: w.id, patch: { status: 'booked', apptId: aid } });
     const phone = existing ? existing.phone : normPhone(b.phone);
     if (a.status === 'booked') confirmText(s, ctx, { ...a, moves: 0 }, phone, capFirst(b.first));
     return { id: aid, code, status: a.status, staffId, deposit, price };
