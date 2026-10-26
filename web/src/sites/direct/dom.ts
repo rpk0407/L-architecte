@@ -67,3 +67,14 @@ export function mono(b: { initials: string; color: string }, cls = 'mono') {
   el.style.setProperty('--c', b.color);
   return el;
 }
+
+/** Re-renders a list without losing a keyboard user: the focused [data-fk] element, or its fallback
+ *  (fallback(key) → another data-fk), gets the focus back once the new nodes are in. */
+export function keepFocus(host: Element, render: () => void, fallback?: (key: string) => string) {
+  const a = document.activeElement as HTMLElement | null;
+  const k = a && host.contains(a) ? a.dataset.fk : undefined;
+  render();
+  if (!k) return;
+  const el = host.querySelector<HTMLElement>('[data-fk="' + CSS.escape(k) + '"]') || (fallback ? host.querySelector<HTMLElement>('[data-fk="' + CSS.escape(fallback(k)) + '"]') : null);
+  el?.focus({ preventScroll: true });
+}

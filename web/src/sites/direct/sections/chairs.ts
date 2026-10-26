@@ -3,7 +3,7 @@
 // today reads "plus rien en ligne aujourd’hui", never "absent" or "complet" (the page can't know which).
 import { dates, dur } from '../../../lib/format';
 import * as S from '../../../site-kit/salon';
-import { $, h, bookAttrs, mono, dayName, whenWords, OUT, svg } from '../dom';
+import { $, h, bookAttrs, keepFocus, mono, dayName, whenWords, OUT, svg } from '../dom';
 import { barbers, knownPool, shared, svc, type Free } from '../store';
 
 function status(list: Free[] | null): { on: boolean; text: string } | null {
@@ -29,18 +29,17 @@ export function paintChairs() {
   const lead = $('[data-ch-lead]');
   if (lead && s) lead.textContent = 'Pour ' + (st.svc === 'cl' ? 'une coupe classique' : s.name.toLowerCase().replace(/^coupe/, 'une coupe')) + ' · ' + dur(s.dur);
   const host = $('[data-chairs]')!;
-  // a refresh must not pull the focus from under a keyboard user: wait until he leaves the list
-  if (host.contains(document.activeElement)) { host.addEventListener('focusout', () => setTimeout(paintChairs), { once: true }); return; }
-  host.replaceChildren(...barbers().map((b) => {
+  keepFocus(host, () => host.replaceChildren(...barbers().map((b) => {
     const mine = all ? all.filter((f) => f.key === b.key) : null;
     const stt = status(mine);
     const slots = (mine || []).slice(0, 3).map((f) => {
       const btn = h('button', { type: 'button', class: 'slot' }, (f.day === S.today() ? '' : dayName(f.day, true) + ' ') + dates.fmtTime(f.m));
       bookAttrs(btn, { slugs: [st.svc], staff: b.key, day: f.day, start: f.m, source: 'chairs' });
+      btn.dataset.fk = b.key + f.day + f.m;
       btn.setAttribute('aria-label', 'Réserver ' + whenWords(f.day, f.m) + ' avec ' + b.name);
       return btn;
     });
-    const all3 = h('button', { type: 'button', class: 'tl ch-more' }, 'Ses créneaux');
+    const all3 = h('button', { type: 'button', class: 'tl ch-more', 'data-fk': b.key }, 'Ses créneaux');
     bookAttrs(all3, { slugs: [st.svc], staff: b.key, source: 'chairs-all' });
     all3.setAttribute('aria-label', 'Tous les créneaux de ' + b.name);
     return h('li', { class: 'ch' + (stt?.on ? ' on' : '') },
@@ -50,8 +49,8 @@ export function paintChairs() {
         h('p', { class: 'ch-st' }, h('i', { class: 'live-dot' + (stt?.on ? '' : ' off'), 'aria-hidden': 'true' }), stt ? stt.text : h('span', { class: 'sk sk-t' })),
         b.bio ? h('p', { class: 'ch-bio' }, b.bio) : null),
       h('div', { class: 'ch-a' }, ...slots, all3,
-        b.instagram ? h('a', { class: 'tl ch-ig', href: b.instagram, target: '_blank', rel: 'noopener' }, 'Instagram', svg(OUT)) : null));
-  }));
+        b.instagram ? h('a', { class: 'tl ch-ig', href: b.instagram, target: '_blank', rel: 'noopener', 'data-fk': b.key + 'ig' }, 'Instagram', svg(OUT)) : null));
+  })), (k) => k.replace(/\d.*$/, ''));
   const any = $('[data-ch-any]');
   if (any) bookAttrs(any, { slugs: [st.svc], staff: 'any', source: 'chairs-any' });
 }
