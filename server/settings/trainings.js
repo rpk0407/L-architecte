@@ -1,7 +1,11 @@
 // @ts-check
-// Les formations: what /formations says (public/formations.html reads it from /api/public/trainings). The owner edits it
-// in the Comptoir (Le site › Formations, commands/inquiries.js updateTrainings). Defaults are the four modules of the old
-// WordPress page, with its words; their ids are the page's anchors (/formations#barbe, the old addresses redirect there).
+// Les formations: what /formations says (public/formations.html reads it from /api/public/trainings). Fixed content: the
+// owner does not edit the site, so the defaults are what the page shows, the four modules of the old WordPress page with
+// its words; their ids are the page's anchors (/formations#barbe, the old addresses redirect there). The section stays in
+// the registry: a journal from the time Le site › Formations existed may carry its own content, and still shows it.
+// Its schema stays too: no screen writes it, but an owner's PATCH /api/v1/settings {trainings} can (the provider sets
+// the Qualiopi certificate that way), so its rules hold (tests/unit/inquiries.test.js). Taking a module out leaves its
+// sessions in the settings; publicTrainings never shows a session without its module.
 //   modules   price in cents, null for « sur devis »; duration in words ('2 jours · 14 h'), '' when not said
 //   sessions  dates to come, each for one module, with the seats left
 //   nda       the training body's declaration number (numéro de déclaration d’activité), shown with its legal mention
@@ -30,7 +34,7 @@ const moduleSchema = () => obj({
 });
 const sessionSchema = () => obj({ moduleId: str({ min: 1, max: 30, pattern: MODULE_ID }), date: realDay(), seats: int({ min: 0, max: 50 }) });
 
-/** Whichever path saves it (Le site › Formations, or a settings patch): module ids once each, sessions of a module the patch lists. */
+/** A settings patch of it: module ids once each, sessions of a module the patch lists. */
 const trainingsSchema = (() => {
   const o = obj({
     intro: opt(str({ max: LIMITS.intro })),

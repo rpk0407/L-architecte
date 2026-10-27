@@ -3,13 +3,12 @@
 // A visitor writes from /contact or /formations (routes-inquiries.js); the request lands in Relances › Demandes, the
 // owner gets an e-mail (settings.notify, as for an online booking), and answers by SMS or marks it handled.
 // The person's first name, number, e-mail and words travel in pii only: an erasure takes them out of the journal.
-// Also here: Le site › Formations, the modules, sessions and certificates /formations shows (settings/trainings.js).
 import { fail } from '../core/engine.js';
 import { str, id, opt, bool, obj, parse } from '../lib/validate.js';
 import { normPhone, isEmail, fmtPhone } from '../lib/util.js';
 import { queueMessage } from '../domain/messages.js';
 import { ownerEmail } from '../domain/mails.js';
-import { trainingsSchema, LIMITS } from '../settings/trainings.js';
+import { LIMITS } from '../settings/trainings.js';
 import { moduleTitle, gone } from '../projections/inquiries.js';
 
 export const KINDS = /** @type {const} */ (['contact', 'formation']);
@@ -142,20 +141,3 @@ export const eraseInquiry = {
     return { ok: true };
   }
 };
-
-/** Le site › Formations: owner and managers, like the rest of the site's content (`catalog`). */
-export const updateTrainings = {
-  run(/** @type {any} */ s, /** @type {any} */ input, /** @type {import('../core/engine.js').Ctx} */ ctx) {
-    ctx.need('catalog');
-    const patch = parse(trainingsSchema, input || {});
-    if (!Object.keys(patch).length) return { ok: true };
-    const modules = patch.modules || s.settings.trainings.modules || [];
-    const has = (/** @type {string} */ m) => modules.some((x) => x.id === m);
-    if (patch.sessions) patch.sessions.forEach((x, i) => { if (!has(x.moduleId)) fail(400, 'invalid', 'Session ' + (i + 1) + ' : ce module n’existe plus.'); });
-    // a module taken out takes its sessions with it, so the page never lists a date for nothing
-    else if (patch.modules && (s.settings.trainings.sessions || []).some((x) => !has(x.moduleId))) patch.sessions = s.settings.trainings.sessions.filter((x) => has(x.moduleId));
-    ctx.emit('settings.updated', { patch: { trainings: patch } });
-    return { ok: true };
-  }
-};
-

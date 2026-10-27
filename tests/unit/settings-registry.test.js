@@ -8,7 +8,6 @@ import { createEngine } from '../../server/core/engine.js';
 import { defaultSettings, emptyState, TEMPLATES } from '../../server/core/state.js';
 import { TEMPLATES as REGISTRY } from '../../server/core/templates.js';
 import { SECTIONS, settingsSchema } from '../../server/settings/index.js';
-import site from '../../server/settings/site.js';
 import trainings from '../../server/settings/trainings.js';
 import { EXTENSIONS } from '../../server/core/extensions.js';
 import { settingsSchema as fromShop, updateSettings } from '../../server/commands/shop.js';
@@ -65,8 +64,6 @@ const BEFORE = () => {
     goals: { monthCents: 2400000 },
     // WP-02: what the owner is told without opening the Comptoir
     notify: { to: '', phone: '', newBooking: true, cancel: true, evening: '20:00', weekly: true },
-    // the site's own texts (WP-03): long copy, pinned by its own tests (site-settings.test.js)
-    site: site.defaults(),
     // the /formations page (WP-05): its modules and certificates
     trainings: trainings.defaults()
   };

@@ -13,7 +13,6 @@ import { authRoutes } from './routes-auth.js';
 import { staffRoutes } from './routes-staff.js';
 import { adminRoutes } from './routes-admin.js';
 import { importRoutes } from './routes-import.js';
-import { uploadRoutes, readCapped } from './routes-uploads.js';
 import { clientRoutes } from './routes-client.js';
 import { healthRoutes } from './routes-health.js';
 import { inquiryRoutes } from './routes-inquiries.js';
@@ -26,7 +25,6 @@ authRoutes(app);
 staffRoutes(app);
 adminRoutes(app);
 importRoutes(app);
-uploadRoutes(app);
 clientRoutes(app);
 healthRoutes(app);
 inquiryRoutes(app);
@@ -63,19 +61,6 @@ function staleWrite(engine, method, pathname, me, requestId) {
 
 /** A cold start that cannot reach the store: told once per outage, with its stack, not once per request. */
 let bootDown = false;
-
-/**
- * A binary body (a photo), refused past `max` bytes before it is read when the length is announced, and while reading
- * when it is not, so a large upload never sits in memory whole.
- * @param {Request} req @param {number} max
- */
-async function readBytes(req, max) {
-  const tooLarge = () => new HttpError(413, 'too_large', 'Fichier trop lourd : ' + Math.round(max / 1048576) + ' Mo au plus.');
-  if (Number(req.headers.get('content-length') || 0) > max) throw tooLarge();
-  const b = await readCapped(req.body, max);
-  if (!b) throw tooLarge();
-  return b;
-}
 
 /**
  * @param {Request} req
@@ -128,10 +113,8 @@ export async function handle(req, opt = {}) {
 
     let raw = '';
     let body = {};
-    /** @type {Uint8Array|null} */
-    let bytes = null;
     if (opt2.raw) raw = await req.text();
-    else if (!opt2.bytes) body = await readJson(req);
+    else body = await readJson(req);
 
     // the session, checked against the live state (a revoked person or device is out at once)
     let me = null, device = null, session = null;
@@ -150,8 +133,6 @@ export async function handle(req, opt = {}) {
     if (needsAuth && !me) throw idle ? new HttpError(401, 'pin_idle', 'Poste verrouillé après 10 minutes sans activité. Saisis ton code.') : new HttpError(401, 'signed_out', 'Session expirée. Reconnecte-toi.');
     if (opt2.cap && !caps.has(opt2.cap)) throw new HttpError(403, 'forbidden', 'Tu n’as pas accès à cette page.');
     if (stale) staleWrite(engine, req.method, pathname, me, req.headers.get('x-request-id') || undefined);
-    // a photo is read only once the session and the right are checked: nobody else gets 3 MB into memory
-    if (opt2.bytes) bytes = await readBytes(req, opt2.bytes);
 
     const meta = {
       linkFor: (a) => origin + '/r/' + signLink(rt.secret, 'appt', a.code),
@@ -167,7 +148,7 @@ export async function handle(req, opt = {}) {
     // ':' is refused in x-request-id, so a derived key can never equal an id a client sends
     let n = 0;
     const r = {
-      req, url, params, query: url.searchParams, body, raw, bytes, ip, rt, me, caps, device, session, setCookies, meta, origin,
+      req, url, params, query: url.searchParams, body, raw, ip, rt, me, caps, device, session, setCookies, meta, origin,
       get s() { return rt.engine.state; },
       get now() { return rt.engine.clock(); },
       get local() { return localParts(rt.engine.clock()); },

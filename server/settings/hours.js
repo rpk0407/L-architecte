@@ -1,6 +1,7 @@
 // @ts-check
 // Horaires: the shop's usual week, the days it is closed, and the days it opens when it usually doesn't.
 import { week, arr, obj, opt, str, day, id, intervals, either, oneOf, InvalidInput } from '../lib/validate.js';
+import { fmtTime, DAYS_FR } from '../../shared/dates.js';
 
 export default /** @type {const} */ ({
   key: 'hours',
@@ -55,3 +56,40 @@ export const openings = /** @type {const} */ ({
   defaults: () => /** @type {Opening[]} */ ([]),
   schema: openingsSchema
 });
+
+/* ---------------- the hours in words (the site's footer, FAQ and description: /api/public/salon) ---------------- */
+
+const WEEK = [1, 2, 3, 4, 5, 6, 0];
+/** @param {any} hours weekday → [[start, end], …] in minutes @param {number} d */
+const ivOf = (hours, d) => (hours && (hours[d] || hours[String(d)])) || [];
+const ivText = (/** @type {number[][]} */ iv) => iv.map(([a, b]) => fmtTime(a) + ' – ' + fmtTime(b)).join(' et ');
+const andList = (/** @type {string[]} */ xs) => (xs.length < 2 ? xs.join('') : xs.slice(0, -1).join(', ') + ' et ' + xs[xs.length - 1]);
+
+/** "Du mardi au samedi, 9 h – 18 h 30" ; days with other hours get their own part ("… · le samedi, 9 h – 17 h"). */
+export function hoursText(/** @type {any} */ hours) {
+  /** @type {{ sig: string, iv: number[][], days: number[] }[]} */
+  const groups = [];
+  for (const d of WEEK) {
+    const iv = ivOf(hours, d);
+    if (!iv.length) continue;
+    const sig = JSON.stringify(iv);
+    const g = groups.find((x) => x.sig === sig);
+    if (g) g.days.push(d); else groups.push({ sig, iv, days: [d] });
+  }
+  if (!groups.length) return '';
+  const parts = groups.map((g) => {
+    // consecutive days (in the week from Monday) read as "du mardi au samedi"
+    /** @type {number[][]} */
+    const runs = [];
+    for (const d of g.days) { const r = runs[runs.length - 1]; if (r && WEEK.indexOf(d) === WEEK.indexOf(r[r.length - 1]) + 1) r.push(d); else runs.push([d]); }
+    // two days in a row are two items: "le lundi, le mardi et du jeudi au samedi", never "le lundi et le mardi et …"
+    const label = andList(runs.flatMap((r) => (r.length >= 3 ? ['du ' + DAYS_FR[r[0]] + ' au ' + DAYS_FR[r[r.length - 1]]] : r.map((d) => 'le ' + DAYS_FR[d]))));
+    return label + ', ' + ivText(g.iv);
+  });
+  const s = parts.join(' · ');
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+/** "le dimanche et le lundi"; empty when the salon opens every day */
+export function closedText(/** @type {any} */ hours) {
+  return andList([0, 1, 2, 3, 4, 5, 6].filter((d) => !ivOf(hours, d).length).map((d) => 'le ' + DAYS_FR[d]));
+}

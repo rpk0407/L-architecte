@@ -64,7 +64,7 @@ React 19 + TypeScript (strict), built by Vite into `dist/`. No UI library: a sma
 
 ## The site (public/site.html)
 
-The existing site is kept as designed. Its booking engine (`LXE` inside the page) now reads the salon's catalogue, barbers, hours, closures and free slots from `/api/public`, holds the slot on the server, books, takes the deposit, moves and cancels through signed links, and puts people on the waiting list. Prices on the page follow the catalogue: a price changed in the Comptoir is the price on the site.
+The existing site is kept as designed. Its booking engine (`LXE` inside the page) now reads the salon's catalogue, barbers, hours, closures and free slots from `/api/public`, holds the slot on the server, books, takes the deposit, moves and cancels through signed links, and puts people on the waiting list. Prices on the page follow the catalogue: a price changed in the Comptoir is the price on the site. So do the team section (the real barbers, their bio and Instagram from Équipe), the salon's Instagram (Réglages › Salon), the hours in words, the FAQ's prices (`menu`: every active service), the closure and opening banners, and the JSON-LD and meta description. The rest (hero and house texts, the FAQ's questions and words, reviews, photos, the Facebook and YouTube links) is fixed in `site.html`: the owner does not edit the site, a change there goes through the provider.
 
 ## Performance and scale
 

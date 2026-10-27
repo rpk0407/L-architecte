@@ -30,7 +30,7 @@ export const DEMO = {
 };
 
 const BARBERS = [
-  { name: 'JKut', color: '#EB4639', initials: 'JK', bio: 'Dégradés à la précision chirurgicale. Le fondateur de la méthode « construction au millimètre ».', instagram: 'https://www.instagram.com/jkut.nw', video: 'https://www.youtube.com/watch?v=IP4PTgpZg-8', videoTitle: 'Da JKut’z Therapy', week: { 2: [[540, 750], [780, 1110]], 3: [[540, 750], [780, 1110]], 4: [[540, 750], [780, 1110]], 5: [[540, 750], [780, 1110]], 6: [[540, 750], [780, 1110]] } },
+  { name: 'JKut', color: '#EB4639', initials: 'JK', bio: 'Dégradés à la précision chirurgicale. Le fondateur de la méthode « construction au millimètre ».', instagram: 'https://www.instagram.com/jkut.nw', week: { 2: [[540, 750], [780, 1110]], 3: [[540, 750], [780, 1110]], 4: [[540, 750], [780, 1110]], 5: [[540, 750], [780, 1110]], 6: [[540, 750], [780, 1110]] } },
   { name: 'Frank', color: '#F5B544', initials: 'F', bio: 'Coupes classiques et barbes taillées à l’ancienne.', week: { 2: [[540, 780], [810, 1110]], 3: [[540, 780], [810, 1110]], 4: [[540, 780], [810, 1110]], 5: [[540, 780], [810, 1110]], 6: [[540, 780], [810, 1110]] } },
   { name: 'Le Soldat', color: '#60A5FA', initials: 'LS', bio: 'Skin fade, contours nets, couleur et silver.', week: { 2: [[570, 720], [750, 1110]], 3: [[570, 720], [750, 1110]], 4: [[570, 720], [750, 1110]], 5: [[570, 720], [750, 1110]], 6: [[540, 1050]] } },
   { name: 'Esteban', color: '#4ADE80', initials: 'E', bio: 'Textures, boucles et transformations.', week: { 2: [[540, 810], [840, 1110]], 4: [[540, 810], [840, 1110]], 5: [[540, 810], [840, 1110]], 6: [[540, 810], [840, 1110]] } }
@@ -168,7 +168,7 @@ export async function buildDemoJournal(nowReal, opt = {}) {
   const base = { ...SYS, staff: eng.state.staff.get(init.ownerId), meta: { siteUrl: opt.siteUrl || 'https://larchitecte.fr/site' } };
   await eng.run(updateSettings, { shop: { phone: '04 91 00 00 00', legalName: 'L’Architecte SAS', legalForm: 'SAS', siret: '000 000 000 00000' } }, base);
   for (const [i, b] of BARBERS.entries()) {
-    const res = await eng.run(addStaff, { name: b.name, role: 'barber', color: b.color, initials: b.initials, bookable: true, chair: true, schedule: b.week, commission: { service: 4000, product: 1000 }, bio: b.bio, instagram: b.instagram, ...(b.video ? { video: b.video, videoTitle: b.videoTitle } : {}), order: i + 1 }, base);
+    const res = await eng.run(addStaff, { name: b.name, role: 'barber', color: b.color, initials: b.initials, bookable: true, chair: true, schedule: b.week, commission: { service: 4000, product: 1000 }, bio: b.bio, instagram: b.instagram, order: i + 1 }, base);
     await eng.run(setCredentials, { id: res.id, pinHash: hashSecretSync(DEMO.pins[b.name]) }, base);
   }
   const slugId = {};

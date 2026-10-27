@@ -981,19 +981,16 @@ position:relative;font:400 17px/1.5 var(--f-sans);color:var(--os);background:var
 html{scroll-behavior:auto}
 }
 
-/* Le site (Comptoir): the owner's banner, his texts, the barbers' photos, the days beyond the first ten */
+/* the closure and opening banners (Réglages › Horaires), the barbers' bios and away notes, the days beyond the first ten */
 .ann{display:inline-flex;align-items:center;gap:10px;max-width:100%;min-height:44px;padding:9px 16px 9px 14px;border-radius:18px;background:var(--encre);color:var(--os);font:600 14.5px/1.3 var(--f-sans);text-wrap:pretty;animation:rise .9s .35s var(--ease) both}
 .ann i{flex:none;width:8px;height:8px;border-radius:50%;background:var(--rouge);box-shadow:0 0 0 4px color-mix(in srgb,var(--rouge) 26%,transparent)}
-.ann svg{flex:none;width:16px;height:16px;opacity:.8}
-a.ann:hover span{text-decoration:underline;text-underline-offset:4px}
 .mn-ann{padding:12px 14px;border-radius:14px;background:rgba(236,232,224,.07);box-shadow:inset 3px 0 0 var(--rouge);font:600 15px/1.35 var(--f-sans)}
-/* closures and exceptional openings (Réglages › Horaires): the same banner, green when the salon opens */
+/* an exceptional opening: green */
 .ann.ann-op i{background:#4ADE80;box-shadow:0 0 0 4px rgba(74,222,128,.22)}
 .mn-ann.ann-op{box-shadow:inset 3px 0 0 #4ADE80}
 .bb-i.away .bb-next i{background:var(--cendre2)}
-.hr-sub{white-space:pre-line}
-.ms-lead,.fq-a p,.bb-bio{white-space:pre-line}
-.bb-av img,.wh-av img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+/* a barber's bio and the FAQ's answers keep their line breaks */
+.fq-a p,.bb-bio{white-space:pre-line}
 .bb-bio{max-width:46ch;margin-bottom:16px;font:400 16px/1.5 var(--f-sans);color:var(--os)}
 .dnav{display:flex;align-items:center;gap:6px;margin-top:16px}
 .dnav-t{flex:1;min-width:0;font:600 12px/1.2 var(--f-sans);letter-spacing:.06em;text-transform:uppercase;color:var(--cendre2)}
@@ -1028,7 +1025,6 @@ a.ann:hover span{text-decoration:underline;text-underline-offset:4px}
 <p class="{{mnSt}}"><i aria-hidden="true"></i><span>{{stText}}</span></p>
 <sc-if value="{{hasNotice}}" hint-placeholder-val="{{ false }}"><p class="{{noticeMnCls}}">{{noticeText}}</p></sc-if>
 <sc-if value="{{hasNotice2}}" hint-placeholder-val="{{ false }}"><p class="{{notice2MnCls}}">{{notice2Text}}</p></sc-if>
-<sc-if value="{{hasAnn}}" hint-placeholder-val="{{ false }}"><p class="mn-ann">{{annText}}</p></sc-if>
 <p class="mn-ad">{{addrLine}}</p>
 <button type="button" class="btn" onClick="{{openMain}}">Réserver</button>
 </div>
@@ -1039,14 +1035,13 @@ a.ann:hover span{text-decoration:underline;text-underline-offset:4px}
 <main id="main">
 <div class="dk">
 <section class="hero" id="frais" data-tone="light" data-cov ref="{{r.hero}}" aria-labelledby="t-hero">
-<h1 class="vh" id="t-hero">{{heroTitle}} Barber L’Architecte, barbier place Pélabon à Marseille</h1>
-<div class="hr-ph"><div class="hr-ph-in" ref="{{r.heroPh}}"><sc-if value="{{heroShipped}}" hint-placeholder-val="{{ true }}"><img src="/img/fade.jpg" width="1220" height="1194" alt="{{heroPh.alt}}" fetchpriority="high"></sc-if><sc-if value="{{heroOwn}}" hint-placeholder-val="{{ false }}"><img src="{{heroPh.url}}" width="1220" height="1194" alt="{{heroPh.alt}}" loading="lazy" fetchpriority="high" ref="{{r.heroOwn}}"></sc-if></div></div>
+<h1 class="vh" id="t-hero">Frais. Barber L’Architecte, barbier place Pélabon à Marseille</h1>
+<div class="hr-ph"><div class="hr-ph-in" ref="{{r.heroPh}}"><img src="/img/fade.jpg" width="1220" height="1194" alt="Client de profil : cheveux décolorés, dégradé à blanc net sur les côtés" fetchpriority="high"></div></div>
 <div class="hr-top">
 <sc-if value="{{hasNotice}}" hint-placeholder-val="{{ false }}"><p class="{{noticeCls}}" role="status"><i aria-hidden="true"></i><span>{{noticeText}}</span></p></sc-if>
 <sc-if value="{{hasNotice2}}" hint-placeholder-val="{{ false }}"><p class="{{notice2Cls}}" role="status"><i aria-hidden="true"></i><span>{{notice2Text}}</span></p></sc-if>
-<sc-if value="{{hasAnn}}" hint-placeholder-val="{{ false }}"><sc-if value="{{annLinked}}" hint-placeholder-val="{{ false }}"><a class="ann" href="{{annLink}}"><i aria-hidden="true"></i><span>{{annText}}</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17L17 7M8 7h9v9"/></svg></a></sc-if><sc-if value="{{annPlain}}" hint-placeholder-val="{{ true }}"><p class="ann" role="status"><i aria-hidden="true"></i><span>{{annText}}</span></p></sc-if></sc-if>
 <div class="hr-word"><canvas class="ht" ref="{{r.heroCv}}" aria-hidden="true"></canvas></div>
-<p class="hr-sub">{{heroSub}}</p>
+<p class="hr-sub">Barbier, place Pélabon.<br>Marseille 13<sup>e</sup>.</p>
 <sc-if value="{{hasRating}}" hint-placeholder-val="{{ true }}"><a class="hr-rate" href="#preuve"><span class="stars" style="--off: {{starOff}}" aria-hidden="true"><svg class="st-bg" viewBox="0 0 120 22"><path d="M11 1.6l2.7 6.2 6.7.6-5.1 4.5 1.5 6.6L11 16l-5.8 3.5 1.5-6.6L1.6 8.4l6.7-.6z"/><path transform="translate(24 0)" d="M11 1.6l2.7 6.2 6.7.6-5.1 4.5 1.5 6.6L11 16l-5.8 3.5 1.5-6.6L1.6 8.4l6.7-.6z"/><path transform="translate(48 0)" d="M11 1.6l2.7 6.2 6.7.6-5.1 4.5 1.5 6.6L11 16l-5.8 3.5 1.5-6.6L1.6 8.4l6.7-.6z"/><path transform="translate(72 0)" d="M11 1.6l2.7 6.2 6.7.6-5.1 4.5 1.5 6.6L11 16l-5.8 3.5 1.5-6.6L1.6 8.4l6.7-.6z"/><path transform="translate(96 0)" d="M11 1.6l2.7 6.2 6.7.6-5.1 4.5 1.5 6.6L11 16l-5.8 3.5 1.5-6.6L1.6 8.4l6.7-.6z"/></svg><svg class="st-fg" viewBox="0 0 120 22"><path d="M11 1.6l2.7 6.2 6.7.6-5.1 4.5 1.5 6.6L11 16l-5.8 3.5 1.5-6.6L1.6 8.4l6.7-.6z"/><path transform="translate(24 0)" d="M11 1.6l2.7 6.2 6.7.6-5.1 4.5 1.5 6.6L11 16l-5.8 3.5 1.5-6.6L1.6 8.4l6.7-.6z"/><path transform="translate(48 0)" d="M11 1.6l2.7 6.2 6.7.6-5.1 4.5 1.5 6.6L11 16l-5.8 3.5 1.5-6.6L1.6 8.4l6.7-.6z"/><path transform="translate(72 0)" d="M11 1.6l2.7 6.2 6.7.6-5.1 4.5 1.5 6.6L11 16l-5.8 3.5 1.5-6.6L1.6 8.4l6.7-.6z"/><path transform="translate(96 0)" d="M11 1.6l2.7 6.2 6.7.6-5.1 4.5 1.5 6.6L11 16l-5.8 3.5 1.5-6.6L1.6 8.4l6.7-.6z"/></svg></span><span>{{rateShort}}</span></a></sc-if>
 </div>
 <div class="hr-next-w">
@@ -1061,17 +1056,16 @@ a.ann:hover span{text-decoration:underline;text-underline-offset:4px}
 <div class="wrap ms-txt">
 <p class="kk" data-rv><span>01</span>La maison</p>
 <h2 class="ms-h" id="t-ms" data-rv="lines"><span class="ln"><span>Prends</span></span><span class="ln"><span><em>place.</em></span></span></h2>
-<p class="ms-lead" data-rv>{{house}}</p>
+<p class="ms-lead" data-rv>Ici, on prend le temps. On t’écoute, on regarde ce qui te va, on te conseille. Puis on construit ta coupe au millimètre, pour qu’elle tienne et que tu saches la coiffer chez toi.</p>
 <p class="ms-meta" data-rv>Place Pélabon · Marseille 13<sup>e</sup> · Pour l’homme de tout âge</p>
 </div>
 <div class="ms-pin">
 <div class="ms-st" data-cov="#coupes">
 <figure class="ms-fr" data-tone="dark">
-<sc-if value="{{hasHousePh}}" hint-placeholder-val="{{ false }}"><div class="ms-ph"><img src="{{housePh.url}}" alt="{{housePh.alt}}" loading="lazy"></div></sc-if>
-<sc-if value="{{noHousePh}}" hint-placeholder-val="{{ true }}"><div class="ms-ph" role="img" aria-label="Photo du salon Barber L’Architecte, à venir">
+<div class="ms-ph" role="img" aria-label="Photo du salon Barber L’Architecte, à venir">
 <span class="ms-ph-w" aria-hidden="true">L’Architecte</span>
 <span class="ms-ph-l" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l1.6-2.2h6.8L17 8h3v11H4z"/><circle cx="12" cy="13.2" r="3.6"/></svg>Photo du salon · à venir</span>
-</div></sc-if>
+</div>
 <figcaption class="ms-cap"><span>Le salon</span>16, place Pélabon, Marseille</figcaption>
 </figure>
 <div class="cov-veil" aria-hidden="true"></div>
@@ -1119,7 +1113,9 @@ a.ann:hover span{text-decoration:underline;text-underline-offset:4px}
 </div>
 <div class="pv-body">
 <div class="wrap pv-qs">
-<sc-for list="{{quotes}}" as="q" hint-placeholder-count="3"><figure class="pv-q" data-rv><blockquote>« <sc-for list="{{q.parts}}" as="t" hint-placeholder-count="1"><sc-if value="{{t.em}}" hint-placeholder-val="{{ false }}"><em>{{t.t}}</em></sc-if><sc-if value="{{t.plain}}" hint-placeholder-val="{{ true }}">{{t.t}}</sc-if></sc-for> »</blockquote><figcaption><span class="pv-av" aria-hidden="true">{{q.ini}}</span><span>{{q.author}}<small>{{q.when}}</small></span></figcaption></figure></sc-for>
+<figure class="pv-q" data-rv><blockquote>« Ce n’est pas une simple coupe, c’est une réelle <em>construction au millimètre</em>. »</blockquote><figcaption><span class="pv-av" aria-hidden="true">M</span><span>Maï<small>Avis Google · févr. 2026</small></span></figcaption></figure>
+<figure class="pv-q" data-rv><blockquote>« …accueil chaleureux… très bonne ambiance <em>amicale, convivial, et familiale</em>… je suis vraiment très satisfait. »</blockquote><figcaption><span class="pv-av" aria-hidden="true">E</span><span>Elias R.<small>Avis Google · mars 2026</small></span></figcaption></figure>
+<figure class="pv-q" data-rv><blockquote>« Très sympa et <em>très à l’écoute</em>. »</blockquote><figcaption><span class="pv-av" aria-hidden="true">C</span><span>Un client<small>Avis Google · mars 2026</small></span></figcaption></figure>
 </div>
 <div class="pv-solid">
 <div class="wrap">
@@ -1129,7 +1125,7 @@ a.ann:hover span{text-decoration:underline;text-underline-offset:4px}
 </div>
 <div class="pv-cards">
 <a class="pv-c pv-c1" data-rv href="/formations"><span class="pv-ck">Salon formateur agréé</span><span class="pv-ct">On forme aussi les barbiers.</span><span class="pv-cl">Les formations de L’Archi<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h15M13 6l6 6-6 6"/></svg></span></a>
-<sc-if value="{{hasVid}}" hint-placeholder-val="{{ true }}"><a class="pv-c pv-c2" data-rv href="{{vid.url}}" target="_blank" rel="noopener"><span class="pv-ck">En vidéo</span><span class="pv-ct">{{vid.title}}</span><span class="pv-cl">{{vid.line}}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17L17 7M8 7h9v9"/></svg></span></a></sc-if>
+<a class="pv-c pv-c2" data-rv href="https://www.youtube.com/watch?v=IP4PTgpZg-8" target="_blank" rel="noopener"><span class="pv-ck">En vidéo</span><span class="pv-ct">«&nbsp;Da JKut’z Therapy&nbsp;»</span><span class="pv-cl">La vidéo de JKut sur YouTube<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17L17 7M8 7h9v9"/></svg></span></a>
 <sc-if value="{{hasIg}}" hint-placeholder-val="{{ true }}"><a class="pv-c pv-c3" data-rv href="{{igUrl}}" target="_blank" rel="noopener"><span class="pv-ck">Sur Instagram</span><span class="pv-ct">Les coupes de la semaine.</span><span class="pv-cl">{{igHandle}}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17L17 7M8 7h9v9"/></svg></span></a></sc-if>
 </div>
 <a class="tl pv-link" data-rv href="{{mapsUrl}}" target="_blank" rel="noopener">{{rateRead}}</a>
@@ -1138,7 +1134,7 @@ a.ann:hover span{text-decoration:underline;text-underline-offset:4px}
 </div>
 </section>
 <section class="team sheet" id="barbiers" data-ch="4" data-tone="dark" aria-labelledby="t-team">
-<img class="team-bg" src="{{salonPh.url}}" width="1220" height="901" alt="" loading="lazy">
+<img class="team-bg" src="/img/salon.jpg" width="1220" height="901" alt="" loading="lazy">
 <div class="wrap">
 <p class="kk" data-rv><span>04</span>L’équipe</p>
 <h2 class="h2" id="t-team" data-rv="lines"><span class="ln"><span>Choisis ton</span></span><span class="ln"><span>barbier.</span></span></h2>
@@ -1147,7 +1143,7 @@ a.ann:hover span{text-decoration:underline;text-underline-offset:4px}
 <sc-for list="{{barbers}}" as="b" hint-placeholder-count="4">
 <li class="{{b.cls}}">
 <button type="button" class="bb-row" aria-expanded="{{b.open}}" onClick="{{b.toggle}}">
-<span class="bb-av" aria-hidden="true">{{b.ini}}<sc-if value="{{b.hasPh}}" hint-placeholder-val="{{ false }}"><img src="{{b.photo}}" alt="" loading="lazy"></sc-if></span>
+<span class="bb-av" aria-hidden="true">{{b.ini}}</span>
 <span class="bb-id"><span class="bb-n">{{b.n}}</span><span class="bb-next"><i aria-hidden="true"></i>{{b.next}}</span></span>
 <svg class="bb-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
 </button>
@@ -1157,7 +1153,7 @@ a.ann:hover span{text-decoration:underline;text-underline-offset:4px}
 <div class="bb-slots"><sc-for list="{{b.slots}}" as="s" hint-placeholder-count="4"><button type="button" class="chip" onClick="{{s.go}}">{{s.t}}</button></sc-for></div>
 <div class="bb-more">
 <button type="button" class="tl" onClick="{{b.other}}">Un autre jour</button>
-<sc-if value="{{b.hasIg}}" hint-placeholder-val="{{ false }}"><a class="tl" href="{{b.ig}}" target="_blank" rel="noopener">Instagram</a></sc-if><sc-if value="{{b.hasVid}}" hint-placeholder-val="{{ false }}"><a class="tl" href="{{b.video}}" target="_blank" rel="noopener">{{b.videoLine}}</a></sc-if>
+<sc-if value="{{b.hasIg}}" hint-placeholder-val="{{ false }}"><a class="tl" href="{{b.ig}}" target="_blank" rel="noopener">Instagram</a></sc-if>
 </div>
 </div></div>
 </li>
@@ -1241,7 +1237,7 @@ a.ann:hover span{text-decoration:underline;text-underline-offset:4px}
 </main>
 <footer class="ft sheet" id="venir" data-ch="8" data-tone="light" aria-labelledby="t-ft">
 <div class="wrap ft-g">
-<figure class="ft-ph" data-rv><img src="{{salonPh.url}}" width="1220" height="901" alt="{{salonPh.alt}}" loading="lazy"></figure>
+<figure class="ft-ph" data-rv><img src="/img/salon.jpg" width="1220" height="901" alt="Le salon : long miroir bordé de LED rouge, canapés noir et rouge, fauteuils et bacs à shampooing" loading="lazy"></figure>
 <div class="ft-i">
 <p class="kk" data-rv><span>08</span>Venir</p>
 <h2 class="h2" id="t-ft" data-rv="lines"><span class="ln"><span>16, place</span></span><span class="ln"><span>Pélabon.</span></span></h2>
@@ -1254,8 +1250,8 @@ a.ann:hover span{text-decoration:underline;text-underline-offset:4px}
 </div>
 <ul class="ft-links">
 <sc-if value="{{hasIg}}" hint-placeholder-val="{{ true }}"><li><a href="{{igUrl}}" target="_blank" rel="noopener">Instagram</a></li></sc-if>
-<sc-if value="{{hasFb}}" hint-placeholder-val="{{ true }}"><li><a href="{{fbUrl}}" target="_blank" rel="noopener">Facebook</a></li></sc-if>
-<sc-if value="{{hasYt}}" hint-placeholder-val="{{ true }}"><li><a href="{{ytUrl}}" target="_blank" rel="noopener">YouTube</a></li></sc-if>
+<li><a href="https://www.facebook.com/pg/barbershop.larchitecte/" target="_blank" rel="noopener">Facebook</a></li>
+<li><a href="https://www.youtube.com/channel/UCi2oLstkv0IIucLyd211G8A" target="_blank" rel="noopener">YouTube</a></li>
 <li><a href="/contact">Écrire au salon</a></li>
 <li><a href="/formations">Formations</a></li>
 <li><a href="/carte-cadeau">Carte cadeau</a></li>
@@ -1304,7 +1300,7 @@ a.ann:hover span{text-decoration:underline;text-underline-offset:4px}
 <div class="st whs">
 <sc-for list="{{whoCards}}" as="o" hint-placeholder-count="5">
 <button type="button" class="{{o.cls}}" aria-pressed="{{o.on}}" onClick="{{o.go}}">
-<span class="wh-av" aria-hidden="true">{{o.ini}}<sc-if value="{{o.hasPh}}" hint-placeholder-val="{{ false }}"><img src="{{o.photo}}" alt="" loading="lazy"></sc-if></span>
+<span class="wh-av" aria-hidden="true">{{o.ini}}</span>
 <span class="wh-t"><b>{{o.n}}</b><small><i aria-hidden="true"></i>{{o.next}}</small></span>
 <span class="wh-ck" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>
 </button>
@@ -1461,7 +1457,7 @@ const LXE = (function () {
   ];
   const BMAP = {};
   BARBERS.forEach(function (b) { BMAP[b.id] = b; });
-  const staffOf = {}, siteOf = {};
+  const staffOf = {}, barberIdOf = {};
   /* the old site's names for the team, still in links people kept (?barbier=larchi) */
   const ALIAS = { larchi: 'frank' };
   let salon = null, salonAt = 0, salonP = null, moving = null, skew = 0, catalog = null;
@@ -1585,8 +1581,8 @@ const LXE = (function () {
     Object.keys(BMAP).forEach(function (k) { delete BMAP[k]; });
     (j.barbers || []).forEach(function (b) {
       const id = slugName(b.name);
-      const o = { id: id, n: b.name, ini: b.initials, color: b.color, sid: b.id, photo: b.photo || '', bio: b.bio || '', ig: b.instagram || '', video: b.video || '', videoTitle: b.videoTitle || '', away: b.away && b.away.note ? b.away : null };
-      staffOf[id] = b.id; siteOf[b.id] = id;
+      const o = { id: id, n: b.name, ini: b.initials, color: b.color, sid: b.id, bio: b.bio || '', ig: b.instagram || '', away: b.away && b.away.note ? b.away : null };
+      staffOf[id] = b.id; barberIdOf[b.id] = id;
       BARBERS.push(o); BMAP[id] = o;
     });
     emit();
@@ -1626,7 +1622,7 @@ const LXE = (function () {
     const q = '?from=' + addDays(now().key, w * WIN) + '&days=' + WIN + '&services=' + encodeURIComponent(sid) + '&staff=' + encodeURIComponent(staff) + (moving ? '&move=' + encodeURIComponent(moving) : '');
     e.p = call('GET', '/api/public/availability' + q).then(function (j) {
       const days = {};
-      j.days.forEach(function (d) { days[d.day] = d.slots.map(function (x) { return { m: x.m, free: true, barber: siteOf[x.s] || x.s }; }); });
+      j.days.forEach(function (d) { days[d.day] = d.slots.map(function (x) { return { m: x.m, free: true, barber: barberIdOf[x.s] || x.s }; }); });
       e.days = days; e.err = false;
     }).catch(function () { e.err = true; if (!e.days) e.days = null; }).then(function () { e.loading = false; e.at = Date.now(); emit(); });
     return e.p;
@@ -1682,7 +1678,7 @@ const LXE = (function () {
   }
   function hold(f, who, day, start) {
     return sid(f).then(function (id) { return call('POST', '/api/public/holds', { serviceIds: [id], staffId: !who || who === 'any' ? 'any' : staffOf[who], day: day, start: start }); })
-      .then(function (h) { invalidate(); return { id: h.holdId, barber: siteOf[h.staffId] || who, exp: h.exp }; });
+      .then(function (h) { invalidate(); return { id: h.holdId, barber: barberIdOf[h.staffId] || who, exp: h.exp }; });
   }
   function release(id) { if (id) call('DELETE', '/api/public/holds/' + encodeURIComponent(id)).then(invalidate, function () {}); }
   function book(o) {
@@ -1690,7 +1686,7 @@ const LXE = (function () {
       serviceIds: [id], staffId: !o.barber || o.barber === 'any' ? 'any' : staffOf[o.barber], day: o.day, start: o.time, holdId: o.holdId || undefined,
       first: o.first, last: o.last || undefined, phone: o.phone, email: o.email || undefined, note: o.note || undefined, sms: o.sms !== false,
       marketing: o.marketing === true ? true : undefined
-    }); }).then(function (r) { invalidate(); emit(); r.barber = siteOf[r.staffId] || o.barber; return r; });
+    }); }).then(function (r) { invalidate(); emit(); r.barber = barberIdOf[r.staffId] || o.barber; return r; });
   }
   function booking(token) { return call('GET', '/api/public/bookings/' + encodeURIComponent(token)); }
   function cancel(token) { return call('POST', '/api/public/bookings/' + encodeURIComponent(token) + '/cancel', {}).then(function (r) { invalidate(); emit(); return r; }); }
@@ -1698,7 +1694,7 @@ const LXE = (function () {
   function wait(o) {
     return sid(o.f).then(function (id) { return call('POST', '/api/public/waitlist', { day: o.day, staffId: !o.barber || o.barber === 'any' ? 'any' : staffOf[o.barber], serviceId: id, first: o.first, phone: o.phone }); });
   }
-  function offer(token) { return call('GET', '/api/public/offers/' + encodeURIComponent(token)).then(function (w) { return { f: Object.keys(SV).filter(function (k) { return SV[k].id === w.serviceId; })[0] || null, barber: siteOf[w.staffId] || null, day: w.day, time: w.start, holdId: w.holdId, exp: w.exp, first: w.first }; }); }
+  function offer(token) { return call('GET', '/api/public/offers/' + encodeURIComponent(token)).then(function (w) { return { f: Object.keys(SV).filter(function (k) { return SV[k].id === w.serviceId; })[0] || null, barber: barberIdOf[w.staffId] || null, day: w.day, time: w.start, holdId: w.holdId, exp: w.exp, first: w.first }; }); }
   let liveV = null, liveAt = 0;
   function live() {
     if (Date.now() - liveAt > 30000) { liveAt = Date.now(); call('GET', '/api/public/live').then(function (j) { liveV = j; emit(); }, function () {}); }
@@ -1770,51 +1766,60 @@ const TABS = [
   { t: 'Changer de tête', ids: ['tr', 'de', 'co', 'si'] },
   { t: 'Abonnement', ids: ['ab'] }
 ];
-/* ---------- what the owner writes in the Comptoir (Le site), served by /api/public/salon as `site` ----------
-   SITE0 is what the page says until the salon answers: the defaults of server/settings/site.js, their tokens resolved
-   with the old menu. Once it answers, everything comes from the salon: texts, FAQ, reviews, links, photos, hours. */
-const SITE0 = {
-  announce: null,
-  hero: { title: 'Frais.', sub: 'Barbier, place Pélabon.\nMarseille 13ᵉ.' },
-  house: 'Ici, on prend le temps. On t’écoute, on regarde ce qui te va, on te conseille. Puis on construit ta coupe au millimètre, pour qu’elle tienne et que tu saches la coiffer chez toi.',
-  faq: [
-    { q: 'Combien coûte une coupe chez L’Architecte ?', a: 'La coupe classique est à 20 €. Avec le contour de barbe, 25 €. Avec la taille de barbe, 30 €. La transformation complète est à 50 €.' },
-    { q: 'Quels sont les horaires du salon ?', a: 'Du mardi au samedi, 9 h – 18 h 30. Le salon est fermé le dimanche et le lundi.' },
-    { q: 'Où se trouve le salon ?', a: 'Au 16, place Pélabon, 13013 Marseille.', link: 'https://www.google.com/maps/search/?api=1&query=L%27Architecte%20coiffeur&query_place_id=ChIJJSWkBLy_yRIRbgAQcMwb-JY', linkLabel: 'Voir l’itinéraire' },
-    { q: 'Comment réserver ?', a: 'En ligne, en moins d’une minute et sans créer de compte : tu choisis ta prestation, ton barbier et ton créneau.' },
-    { q: 'Faites-vous les décolorations et le silver ?', a: 'Oui. Décoloration dès 60 €, coloration dès 30 €, silver (blanc ou gris) à 100 €, toujours après un avis sur la faisabilité.' },
-    { q: 'Existe-t-il un abonnement ?', a: 'Oui : 5 coupes sur 5 semaines pour 80 €, soit 16 € la coupe, hors barbe. Tu réserves la première, le salon fixe les suivantes avec toi.' },
-    { q: 'Le salon forme-t-il des barbiers ?', a: 'Oui. L’Architecte est titulaire d’un agrément de formateur en coiffure et propose des stages, de l’entretien de la barbe à la coupe homme complexe.', link: '/formations', linkLabel: 'Les formations de L’Archi' },
-    { q: 'Peut-on payer par carte ?', a: 'Oui, la carte bancaire est acceptée au salon.' }
-  ],
-  reviews: {
-    rating: 5, count: 316, quotes: [
-      { text: 'Ce n’est pas une simple coupe, c’est une réelle *construction au millimètre*.', author: 'Maï', date: '2026-02' },
-      { text: '…accueil chaleureux… très bonne ambiance *amicale, convivial, et familiale*… je suis vraiment très satisfait.', author: 'Elias R.', date: '2026-03' },
-      { text: 'Très sympa et *très à l’écoute*.', author: 'Un client', date: '2026-03' }
-    ]
-  },
-  links: { instagram: 'https://www.instagram.com/barbershoplarchitecte/', facebook: 'https://www.facebook.com/pg/barbershop.larchitecte/', youtube: 'https://www.youtube.com/channel/UCi2oLstkv0IIucLyd211G8A' },
-  photos: {
-    hero: { url: '/img/fade.jpg', alt: 'Client de profil : cheveux décolorés, dégradé à blanc net sur les côtés' },
-    salon: { url: '/img/salon.jpg', alt: 'Le salon : long miroir bordé de LED rouge, canapés noir et rouge, fauteuils et bacs à shampooing' },
-    work: [
-      { url: '/img/sidepart.jpg', alt: 'Raie marquée sur le côté, dégradé bas, nuque tatouée', caption: 'La raie marquée', tag: 'Dégradé bas, raie tracée', service: 'cl' },
-      { url: '/img/curls.jpg', alt: 'Boucles serrées sur le dessus, dégradé net et barbe taillée, face au miroir du salon', caption: 'Boucles et barbe', tag: 'Contour net, barbe taillée', service: 'ct' },
-      { url: '/img/fade.jpg', alt: 'Cheveux décolorés et dégradé à blanc derrière l’oreille', caption: 'Décoloré, à blanc', tag: 'Dégradé à blanc, décoloré', service: 'cd' }
-    ]
-  },
-  hoursText: 'Du mardi au samedi, 9 h – 18 h 30', closedText: 'le dimanche et le lundi'
-};
-/* until the salon answers, JKut's video (the old site's) fills the 'En vidéo' card */
-const VIDEO0 = { url: 'https://www.youtube.com/watch?v=IP4PTgpZg-8', title: '« Da JKut’z Therapy »', line: 'La vidéo de JKut sur YouTube' };
-/* the photos shipped with the site keep the framing and the zoom point they were shot for */
-const FRAME = {
-  '/img/sidepart.jpg': { pos: '50% 30%', ox: '60%', oy: '47%', zs: 2.4 },
-  '/img/curls.jpg': { pos: '45% 45%', ox: '52%', oy: '58%', zs: 2.3 },
-  '/img/fade.jpg': { pos: '62% 40%', ox: '58%', oy: '42%', zs: 2.2 }
-};
-function siteNow() { const s = LXE.salon(); return s && s.site ? s.site : SITE0; }
+/* ---------- the site's own words: fixed, the owner does not edit the site ----------
+   Prices and hours come from the salon (/api/public/salon `menu` and `hoursText`), the old menu until it answers. */
+const HERO_WORD = 'Frais.';
+/* the Google rating as shown on the page, with its count (never in the structured data: Google shows its own) */
+const REVIEWS = { rating: 5, count: 316 };
+const IG0 = 'https://www.instagram.com/barbershoplarchitecte/';
+/* the 'Le travail' cards: each books the service it shows, when the catalogue sells it */
+const WORK = [
+  { url: '/img/sidepart.jpg', alt: 'Raie marquée sur le côté, dégradé bas, nuque tatouée', caption: 'La raie marquée', tag: 'Dégradé bas, raie tracée', service: 'cl', pos: '50% 30%', ox: '60%', oy: '47%', zs: 2.4 },
+  { url: '/img/curls.jpg', alt: 'Boucles serrées sur le dessus, dégradé net et barbe taillée, face au miroir du salon', caption: 'Boucles et barbe', tag: 'Contour net, barbe taillée', service: 'ct', pos: '45% 45%', ox: '52%', oy: '58%', zs: 2.3 },
+  { url: '/img/fade.jpg', alt: 'Cheveux décolorés et dégradé à blanc derrière l’oreille', caption: 'Décoloré, à blanc', tag: 'Dégradé à blanc, décoloré', service: 'cd', pos: '62% 40%', ox: '58%', oy: '42%', zs: 2.2 }
+];
+const HOURS0 = { hoursText: 'Du mardi au samedi, 9 h – 18 h 30', closedText: 'le dimanche et le lundi' };
+/* the FAQ: x.p('cl') is the price of the service of code cl as on the menu ('20 €'), x.c('cl') the same in cents; a
+   question whose price is not sold any more, or whose hours are not set, stays off the page rather than showing a hole */
+const FAQ = [
+  { q: 'Combien coûte une coupe chez L’Architecte ?', a: (x) => 'La coupe classique est à ' + x.p('cl') + '. Avec le contour de barbe, ' + x.p('cc') + '. Avec la taille de barbe, ' + x.p('ct') + '. La transformation complète est à ' + x.p('tr') + '.' },
+  { q: 'Quels sont les horaires du salon ?', a: (x) => x.hours() + '.' + (x.closed ? ' Le salon est fermé ' + x.closed + '.' : '') },
+  { q: 'Où se trouve le salon ?', a: (x) => 'Au ' + x.address + '.', link: () => mapsOf(), linkLabel: 'Voir l’itinéraire' },
+  { q: 'Comment réserver ?', a: () => 'En ligne, en moins d’une minute et sans créer de compte : tu choisis ta prestation, ton barbier et ton créneau.' },
+  { q: 'Faites-vous les décolorations et le silver ?', a: (x) => 'Oui. Décoloration dès ' + x.p('de') + ', coloration dès ' + x.p('co') + ', silver (blanc ou gris) à ' + x.p('si') + ', toujours après un avis sur la faisabilité.' },
+  { q: 'Existe-t-il un abonnement ?', a: (x) => 'Oui : 5 coupes sur 5 semaines pour ' + x.p('ab') + perCut(x.c('ab'), 5) + ', hors barbe. Tu réserves la première, le salon fixe les suivantes avec toi.' },
+  { q: 'Le salon forme-t-il des barbiers ?', a: () => 'Oui. L’Architecte est titulaire d’un agrément de formateur en coiffure et propose des stages, de l’entretien de la barbe à la coupe homme complexe.', link: '/formations', linkLabel: 'Les formations de L’Archi' },
+  { q: 'Peut-on payer par carte ?', a: () => 'Oui, la carte bancaire est acceptée au salon.' }
+];
+/* ', soit 16 € la coupe' from the subscription's price, said only when it falls on whole cents */
+function perCut(cents, n) { return cents && cents % n === 0 ? ', soit ' + num(cents / n / 100) + NB + '€ la coupe' : ''; }
+/* the FAQ as the page shows it now: the salon's whole menu (online or not: a price quoted is a price) and hours */
+function faqNow() {
+  const sal = LXE.salon();
+  const menu = sal && sal.menu ? sal.menu : null;
+  const sh = (sal && sal.shop) || {};
+  return FAQ.map(function (f) {
+    let miss = false;
+    const c = function (k) {
+      const m = menu ? menu.filter(function (y) { return y.slug === k; })[0] : (FMAP[k] ? { price: Math.round(FMAP[k].p * 100) } : null);
+      if (!m) miss = true;
+      return m ? m.price : 0;
+    };
+    const x = {
+      c: c,
+      p: function (k) { const v = c(k); return miss ? '' : num(v / 100) + NB + '€'; },
+      hours: function () { const t = sal ? sal.hoursText : HOURS0.hoursText; if (!t) miss = true; return t || ''; },
+      closed: sal ? sal.closedText || '' : HOURS0.closedText,
+      address: sh.address || sh.zip || sh.city ? [sh.address, [sh.zip, sh.city].filter(Boolean).join(' ')].filter(Boolean).join(', ') : '16, place Pélabon, 13013 Marseille'
+    };
+    const a = f.a(x);
+    return miss ? null : { q: f.q, a: a, link: (typeof f.link === 'function' ? f.link() : f.link) || '', linkLabel: f.linkLabel || '' };
+  }).filter(Boolean);
+}
+/* the hours in words, from the salon's settings (the old ones until it answers) */
+function hoursNow() { const sal = LXE.salon(); return sal ? sal.hoursText || '' : HOURS0.hoursText; }
+/* the salon's Instagram is Réglages › Salon's (shop.instagram, always a link there); one that is not a link is left out */
+function igNow() { const sal = LXE.salon(); return sal && sal.shop ? igUrl(sal.shop.instagram) : IG0; }
 /* an Instagram link from what was typed: a full https link, @pseudo or pseudo */
 function igUrl(x) {
   x = String(x || '').trim();
@@ -1823,9 +1828,6 @@ function igUrl(x) {
   return /^[\w.]{1,30}$/.test(h) ? 'https://www.instagram.com/' + h + '/' : '';
 }
 function igHandle(u) { const m = /instagram\.com\/([^/?#]+)/i.exec(u || ''); return m ? '@' + m[1] : 'Instagram'; }
-/* *between stars* is underlined, like the designer's quotes */
-function emParts(t) { return String(t || '').split(/\*([^*]+)\*/).map((x, i) => ({ t: x, em: i % 2 === 1, plain: i % 2 === 0 })).filter((x) => x.t); }
-function monthLabel(ym) { const m = /^(\d{4})-(\d{2})$/.exec(ym || ''); return m ? MONTHS_SH[+m[2] - 1] + ' ' + m[1] : ''; }
 function ratingText(r) { return typeof r === 'number' ? r.toFixed(1).replace('.', ',') : ''; }
 
 const TM_LINES = [
@@ -2096,8 +2098,6 @@ class Component extends DCLogic {
       hero: function (el) { self._hero = el; },
       ms: function (el) { self._ms = el; self._msPin = el ? el.querySelector('.ms-pin') : null; },
       heroPh: function (el) { self._heroPh = el; },
-      // the owner's hero photo is the page's largest image: eager once it is a real address (lazy only kept the raw template from being fetched)
-      heroOwn: function (el) { if (el) try { el.loading = 'eager'; el.fetchPriority = 'high'; } catch (e) { /* older browser */ } },
       heroCv: function (el) { self._heroCv = el; if (!el) self.htHero = null; self.boot(); },
       cuts: function (el) { self.bindCuts(el); },
       time: function (el) { self._time = el; },
@@ -2187,14 +2187,12 @@ class Component extends DCLogic {
     try { document.documentElement.style.overflow = ''; } catch (e) { /* ignore */ }
   }
 
-  /* the salon answered (or answered again): the hero's word, the structured data and the description follow it */
+  /* the salon answered (or answered again): the structured data and the description follow it */
   syncSite() {
     const sal = LXE.salon();
     if (!sal || sal === this._siteFor) return;
     this._siteFor = sal;
-    const S = siteNow();
-    if (this.htHero && this.htHero.o.lines[0] !== S.hero.title) { this.htHero.setLines([S.hero.title]); this.drawHero(); }
-    try { writeSeo(sal, S); } catch (e) { /* the page works without it */ }
+    try { writeSeo(sal); } catch (e) { /* the page works without it */ }
   }
 
   componentDidUpdate() {
@@ -2242,7 +2240,7 @@ class Component extends DCLogic {
     const vh = window.innerHeight || 800;
     const wide = (window.innerWidth || 400) > 900;
     if (this._heroCv && (!this.htHero || this.htHero.cv !== this._heroCv)) {
-      this.htHero = new Halftone(this._heroCv, { lines: [siteNow().hero.title], fill: 1, cellK: 30, seed: 3, maxH: vh * (wide ? 0.5 : 0.3) });
+      this.htHero = new Halftone(this._heroCv, { lines: [HERO_WORD], fill: 1, cellK: 30, seed: 3, maxH: vh * (wide ? 0.5 : 0.3) });
       this.htHero.layout();
       this.drawHero();
     }
@@ -2585,8 +2583,7 @@ class Component extends DCLogic {
       const aw = x.away && x.away.until >= LXE.now().key ? x.away : null;
       return {
         n: x.n, ini: x.ini, open: op, cls: 'bb-i' + (op ? ' open' : '') + (aw ? ' away' : ''),
-        hasPh: !!x.photo, photo: x.photo || '', hasBio: !!x.bio, bio: x.bio || '',
-        hasIg: !!igUrl(x.ig), ig: igUrl(x.ig), hasVid: !!x.video, video: x.video || '', videoLine: x.videoTitle ? 'Sa vidéo « ' + x.videoTitle + ' »' : 'Sa vidéo',
+        hasBio: !!x.bio, bio: x.bio || '', hasIg: !!igUrl(x.ig), ig: igUrl(x.ig),
         // the name is right above: 'JKut revient le 12 novembre' reads 'Revient le 12 novembre' under it
         next: aw ? (aw.note.indexOf(x.n + ' ') === 0 ? aw.note.charAt(x.n.length + 1).toUpperCase() + aw.note.slice(x.n.length + 2) : aw.note) : f ? 'Libre ' + (dd === 0 ? 'aujourd’hui' : (dd === 1 ? 'demain' : LXE.dayLong(f.day).replace(/ \S+$/, ''))) + ' · ' + LXE.fmtH(f.slots[0].m) : 'Complet ces jours-ci',
         dayLabel: f ? LXE.dayWord(f.day) + (dd <= 1 ? ', ' + LXE.dayLong(f.day) : '') : '',
@@ -2596,34 +2593,23 @@ class Component extends DCLogic {
       };
     });
 
-    /* the site's own words and photos (Le site, in the Comptoir) */
-    const S = siteNow();
+    /* the site's own words (fixed), with the salon's prices, hours and Instagram */
     const sal = LXE.salon();
-    const links = S.links || {};
-    const photos = S.photos || SITE0.photos;
-    const rv = S.reviews || {};
+    const rv = REVIEWS;
     const rate = ratingText(rv.rating), nrev = rv.count || 0;
-    const ig = links.instagram || '';
-    /* the 'Le travail' cards book the service they show, when the catalogue sells it */
-    const cuts = (photos.work || []).map((w, i) => {
+    const ig = igNow();
+    const cuts = WORK.map((w, i) => {
       const k = w.service && LXE.serviceOf(w.service) ? w.service : null;
       const f = k ? LXE.SV[k] : null;
-      const fr = FRAME[w.url] || { pos: '50% 40%', ox: '50%', oy: '45%', zs: 2.2 };
       return {
-        cls: 'ct' + (s.zoom === i ? ' zoomed' : ''), url: w.url, alt: w.alt || '', n: w.caption || '', hasTag: !!w.tag, tag: w.tag || '', pos: fr.pos, ox: fr.ox, oy: fr.oy, zs: fr.zs,
+        cls: 'ct' + (s.zoom === i ? ' zoomed' : ''), url: w.url, alt: w.alt, n: w.caption, hasTag: !!w.tag, tag: w.tag, pos: w.pos, ox: w.ox, oy: w.oy, zs: w.zs,
         z: s.zoom === i, zl: s.zoom === i ? 'Fermer' : 'Le détail', zoom: () => this.setState({ zoom: s.zoom === i ? -1 : i }),
         on: !!f, line: f ? f.n + ' · ' + fmtDur(f.d) : 'Sur demande au salon', pre: f && f.from ? 'dès' : '', p: f ? num(f.p) + NB + '€' : '', go: () => this.openWith(f ? { formula: k } : null)
       };
     });
     const cutTotal = cuts.length + (ig ? 1 : 0);
-    /* 'En vidéo': the first barber who has one, else the salon's channel */
-    const vb = sal ? LXE.BARBERS.filter((x) => x.video)[0] : null;
-    const vid = !sal ? VIDEO0 : vb ? { url: vb.video, title: vb.videoTitle ? '« ' + vb.videoTitle + ' »' : vb.n + ' en vidéo.', line: 'La vidéo de ' + vb.n + (/youtu/.test(vb.video) ? ' sur YouTube' : '') } : links.youtube ? { url: links.youtube, title: 'Le salon en vidéo.', line: 'Notre chaîne YouTube' } : null;
-    const ann = S.announce && S.announce.text ? S.announce : null;
+    const hours = hoursNow();
     const nts = LXE.notices(), nt = nts[0] || null, nt2 = nts[1] || null;
-    const salonPh = photos.salon || SITE0.photos.salon;
-    // 'La maison' waits for a photo of the salon by the owner (the one shipped with the site is the footer's)
-    const housePh = photos.salon && !/^\/img\//.test(photos.salon.url) ? photos.salon : null;
     /* the lowest price online, for 'Réserver · dès …' */
     const live = LXE.services();
     const low = (live || FORMULAS).reduce((m, f) => Math.min(m, f.p), Infinity);
@@ -2685,25 +2671,15 @@ class Component extends DCLogic {
       cutPrev: () => this.cutStep(-1),
       cutNext: () => this.cutStep(1),
 
-      heroTitle: S.hero.title, heroSub: S.hero.sub, heroPh: photos.hero || SITE0.photos.hero,
-      // the shipped photo is a literal src, fetched as the page parses; the owner's own arrives with the template (lazy: no fetch of '{{…}}')
-      heroShipped: !photos.hero || photos.hero.url === '/img/fade.jpg', heroOwn: !!photos.hero && photos.hero.url !== '/img/fade.jpg',
-      hasAnn: !!ann, annText: ann ? ann.text : '', annLink: ann ? ann.link : '', annLinked: !!(ann && ann.link), annPlain: !!(ann && !ann.link),
       hasNotice: !!nt, noticeText: nt ? nt.text : '', noticeCls: 'ann ann-h' + (nt && nt.kind === 'open' ? ' ann-op' : ''), noticeMnCls: 'mn-ann' + (nt && nt.kind === 'open' ? ' ann-op' : ''),
       hasNotice2: !!nt2, notice2Text: nt2 ? nt2.text : '', notice2Cls: 'ann ann-h' + (nt2 && nt2.kind === 'open' ? ' ann-op' : ''), notice2MnCls: 'mn-ann' + (nt2 && nt2.kind === 'open' ? ' ann-op' : ''),
-      house: S.house,
-      hasHousePh: !!housePh, noHousePh: !housePh, housePh: housePh || { url: '', alt: '' },
-      salonPh: salonPh,
       // the filled stars stop at the rating: 3,2 is three stars and a fifth, never five (star n spans 24n to 24n + 22 of 120)
       starOff: (rate ? (120 - (Math.floor(rv.rating) * 24 + (rv.rating - Math.floor(rv.rating)) * 22)) / 120 * 100 : 100).toFixed(1) + '%',
       hasRating: !!rate && nrev > 0, rateShort: rate + ' · ' + nrev + ' avis Google', rateNum: rate || '—', rateCount: nrev + ' avis Google',
       rateVh: 'Note Google : ' + rate + ' sur 5, sur ' + nrev + ' avis.', rateRead: nrev ? 'Lire les ' + nrev + ' avis sur Google' : 'Lire les avis sur Google',
-      quotes: (rv.quotes || []).map((q) => ({ parts: emParts(q.text), author: q.author || 'Un client', ini: (q.author || 'C').trim().charAt(0).toUpperCase(), when: 'Avis Google' + (monthLabel(q.date) ? ' · ' + monthLabel(q.date) : '') })),
-      hasVid: !!vid, vid: vid || { url: '', title: '', line: '' },
       hasIg: !!ig, igUrl: ig, igHandle: igHandle(ig),
-      hasFb: !!links.facebook, fbUrl: links.facebook || '', hasYt: !!links.youtube, ytUrl: links.youtube || '',
-      faq: (S.faq || []).map((q, i) => ({ num: LXE.pad(i + 1), q: q.q, a: q.a, hasLink: !!q.link, link: q.link || '', linkLabel: q.linkLabel || 'En savoir plus', target: /^https:/.test(q.link || '') ? '_blank' : '_self' })),
-      hoursLine: S.hoursText ? S.hoursText + '.' : '', hasHours: !!S.hoursText,
+      faq: faqNow().map((q, i) => ({ num: LXE.pad(i + 1), q: q.q, a: q.a, hasLink: !!q.link, link: q.link, linkLabel: q.linkLabel || 'En savoir plus', target: /^https:/.test(q.link) ? '_blank' : '_self' })),
+      hoursLine: hours ? hours + '.' : '', hasHours: !!hours,
       addrLine: sal && sal.shop ? sal.shop.address + ' · ' + sal.shop.zip + ' ' + sal.shop.city : '16, place Pélabon · 13013 Marseille',
 
 
@@ -2761,9 +2737,9 @@ const FOCUS_KEY = 'lx-focus';
 const MAPS_URL = 'https://www.google.com/maps/search/?api=1&query=L%27Architecte%20coiffeur&query_place_id=ChIJJSWkBLy_yRIRbgAQcMwb-JY';
 /* ---------- what search engines read: rebuilt from the salon's settings and catalogue ----------
    The static block in <head> is the fallback (and the base: description, specialities, region); once the salon answers,
-   the hours, the menu, the team, the links and the FAQ are the live ones. No rating: Google shows its own. */
+   the hours, the menu, the team, the Instagram and the FAQ's prices are the live ones. No rating: Google shows its own. */
 const WD_EN = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-function writeSeo(sal, S) {
+function writeSeo(sal) {
   const el = document.getElementById('lx-ld');
   if (!el) return;
   const ld = JSON.parse(el.getAttribute('data-base') || el.textContent);
@@ -2795,20 +2771,21 @@ function writeSeo(sal, S) {
       shop.priceRange = num(lo / 100) + NB + '€' + (hi > lo ? ' – ' + num(hi / 100) + NB + '€' : '');
       shop.makesOffer = menu.map((x) => Object.assign({ '@type': 'Offer', itemOffered: { '@type': 'Service', name: x.name }, priceCurrency: 'EUR' }, x.from ? { priceSpecification: { '@type': 'PriceSpecification', minPrice: String(x.price / 100), priceCurrency: 'EUR' } } : { price: String(x.price / 100) }));
     } else delete shop.makesOffer;
-    shop.employee = (sal.barbers || []).map((b) => Object.assign({ '@type': 'Person', name: b.name, jobTitle: 'Barbier' }, b.photo ? { image: abs(b.photo) } : {}, igUrl(b.instagram) ? { sameAs: [igUrl(b.instagram)] } : {}));
-    const same = ['instagram', 'facebook', 'youtube'].map((k) => (S.links || {})[k]).filter(Boolean);
-    if (same.length) shop.sameAs = same; else delete shop.sameAs;
-    if (S.photos && S.photos.hero) shop.image = abs(S.photos.hero.url);
+    shop.employee = (sal.barbers || []).map((b) => Object.assign({ '@type': 'Person', name: b.name, jobTitle: 'Barbier' }, igUrl(b.instagram) ? { sameAs: [igUrl(b.instagram)] } : {}));
+    // the static block's Facebook and YouTube stay; the Instagram is Réglages › Salon's
+    const ig = igNow();
+    shop.sameAs = (shop.sameAs || []).filter((u) => !/instagram\.com/i.test(u)).concat(ig ? [ig] : []);
+    shop.image = abs('/img/fade.jpg'); // the hero's photo
   }
   const site = g.filter((x) => x['@type'] === 'WebSite')[0];
   if (site) { site['@id'] = base + '#site'; site.url = base; site.publisher = { '@id': base + '#salon' }; }
   const faq = g.filter((x) => x['@type'] === 'FAQPage')[0];
-  if (faq) { faq['@id'] = base + '#faq'; faq.mainEntity = (S.faq || []).map((q) => ({ '@type': 'Question', name: q.q, acceptedAnswer: { '@type': 'Answer', text: q.a } })); }
+  if (faq) { faq['@id'] = base + '#faq'; faq.mainEntity = faqNow().map((q) => ({ '@type': 'Question', name: q.q, acceptedAnswer: { '@type': 'Answer', text: q.a } })); }
   el.textContent = JSON.stringify(ld);
   /* the description: prices from the catalogue, hours from the settings, never the rating */
   const from = (re, not) => { const xs = (sal.menu || []).filter((x) => re.test(x.name) && !(not && not.test(x.name))).map((x) => x.price); return xs.length ? num(Math.min.apply(null, xs) / 100) + NB + '€' : ''; };
   const cut = from(/^coupe/i), beard = from(/barbe/i, /^coupe/i);
-  const desc = 'Barbier place Pélabon, Marseille 13e.' + (cut ? ' Coupe dès ' + cut + (beard ? ', barbe dès ' + beard : '') + ', dégradés, décoloration et silver.' : ' Dégradés, barbe, décoloration et silver.') + (S.hoursText ? ' ' + S.hoursText + '.' : '') + ' Réservation en ligne.';
+  const desc = 'Barbier place Pélabon, Marseille 13e.' + (cut ? ' Coupe dès ' + cut + (beard ? ', barbe dès ' + beard : '') + ', dégradés, décoloration et silver.' : ' Dégradés, barbe, décoloration et silver.') + (sal.hoursText ? ' ' + sal.hoursText + '.' : '') + ' Réservation en ligne.';
   ['lx-desc', 'lx-ogdesc'].forEach((id) => { const m = document.getElementById(id); if (m) m.setAttribute('content', desc); });
 }
 function mapsOf() { const s = LXE.salon(); return (s && s.shop && s.shop.mapsUrl) || MAPS_URL; }
@@ -3176,7 +3153,7 @@ const BookingMixin = {
       v.whoCards = [{ id: 'any', n: 'Sans préférence', ini: '✱' }].concat(LXE.BARBERS).map((x) => {
         const on = b.barber === x.id;
         return {
-          cls: 'wh' + (on ? ' on' : '') + (x.id === 'any' ? ' any' : ''), on: on, ini: x.ini, n: x.n, hasPh: !!x.photo, photo: x.photo || '',
+          cls: 'wh' + (on ? ' on' : '') + (x.id === 'any' ? ' any' : ''), on: on, ini: x.ini, n: x.n,
           next: (x.id === 'any' ? 'Le plus tôt : ' : 'Libre ') + nextOf(x.id).replace(/^Aujourd’hui/, 'aujourd’hui').replace(/^Demain/, 'demain'),
           go: () => this.bkPick({ barber: x.id, assigned: null })
         };

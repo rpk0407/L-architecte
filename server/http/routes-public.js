@@ -13,7 +13,7 @@ import { ticketNo } from '../domain/cash.js';
 import { smsOptOut } from '../commands/messages.js';
 import { webhookKey, parseSmsWebhook } from '../messaging/sms.js';
 import { maybeTick } from './scheduler.js';
-import { publicSite } from '../settings/site.js';
+import { hoursText, closedText } from '../settings/hours.js';
 import { waitUntil } from '@vercel/functions';
 import { fulfilGiftcard } from './routes-giftshop.js';
 
@@ -105,7 +105,7 @@ export function publicRoutes(app) {
     // no online payment: no deposit is asked, so the site must not announce one either
     const active = [...s.services.values()].filter((x) => x.active).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
     const services = active.filter((x) => x.online !== false).map((x) => (live ? serviceView(x) : { ...serviceView(x), deposit: 0 }));
-    // the whole price list (the CGV show it, the FAQ quotes it): booked at the salon only when online is false
+    // the whole price list (the CGV show it, the site's FAQ quotes it): booked at the salon only when online is false
     const menu = active.map((x) => ({ slug: x.slug || null, name: x.name, category: x.category, price: x.price, from: !!x.from, dur: x.dur, online: x.online !== false }));
     const chairs = [...s.staff.values()].filter((x) => x.active && x.chair && x.bookable).sort((a, b) => (a.order ?? 99) - (b.order ?? 99));
     const barbers = chairs.map((x) => ({ ...staffView(x), away: awayOf(s, x, L.day) }));
@@ -115,10 +115,11 @@ export function publicRoutes(app) {
     const openings = (s.settings.openings || []).filter((o) => o.day >= L.day && !closures.some((c) => o.day >= c.from && o.day <= c.to) && (!Array.isArray(o.staff) || chairs.some((x) => staffIntervals(s, x.id, o.day).length))).map((o) => ({ day: o.day, intervals: o.intervals, label: o.label }));
     const b = s.settings.booking;
     return json({
-      shop: { ...s.settings.shop }, hours: s.settings.hours, closures, openings,
+      // the hours in words too, for every place the site writes them (footer, FAQ, description)
+      shop: { ...s.settings.shop }, hours: s.settings.hours, hoursText: hoursText(s.settings.hours), closedText: closedText(s.settings.hours), closures, openings,
       booking: { enabled: b.enabled, stepMin: b.stepMin, minNoticeMin: b.minNoticeMin, maxDaysAhead: b.maxDaysAhead, holdMin: b.holdMin, pendingPayMin: payWindowMin(s, { stripe: r.rt.pay.name === 'stripe' }), cancelUntilHours: b.cancelUntilHours, waitlist: b.waitlist, walkinWait: b.walkinWait },
       // sms: does a text really leave? payments.live: is a deposit really taken online? (false: the site books without one)
-      deposits: live ? s.settings.deposits : { ...s.settings.deposits, mode: 'none' }, services, menu, barbers, site: publicSite(s.settings, active, L.day), sms: !!r.rt.sms || isDemo(r), payments: { provider: r.rt.pay.name, live }, mode: s.mode, today: L.day, now: r.now
+      deposits: live ? s.settings.deposits : { ...s.settings.deposits, mode: 'none' }, services, menu, barbers, sms: !!r.rt.sms || isDemo(r), payments: { provider: r.rt.pay.name, live }, mode: s.mode, today: L.day, now: r.now
     }, 200, { 'cache-control': 'public, max-age=0, s-maxage=20, stale-while-revalidate=60' });
   });
 

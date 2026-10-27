@@ -285,49 +285,6 @@ export function blobBackups(o = {}) {
 }
 /** @typedef {ReturnType<typeof blobBackups>} BlobBackups */
 
-/**
- * The site's photos (Le site, the barbers' portraits), as `site/<sha256>.<ext>`: content-addressed, so a file never
- * changes once written and the same photo uploaded twice is one file. Written public as asked of a public store; a store
- * created Private (the one the backups need, see docs/operations.md) refuses public files, and they are then kept private.
- * Either way the site shows them through /api/public/media/<name> (same origin: the Comptoir's CSP allows only 'self').
- * @param {{ dir?: string, sdk?: any }} [o]
- */
-export function blobMedia(o = {}) {
-  const dir = (o.dir || 'site').replace(/\/+$/, '');
-  const NAME = /^[a-f0-9]{64}\.(jpg|png|webp)$/;
-  /** @type {any} */
-  let sdk = o.sdk || null;
-  const api = async () => { if (!sdk) sdk = await realSdk(); return sdk; };
-  /** @type {'public'|'private'} the access this store took last (a guess for the first read) */
-  let access = 'public';
-  return {
-    /** @param {string} name <sha256>.<ext> @param {Uint8Array} bytes @param {string} contentType */
-    async putPublic(name, bytes, contentType) {
-      if (!NAME.test(name)) throw new Error('nom de photo invalide : ' + name);
-      const s = await api();
-      const opt = { contentType, addRandomSuffix: false, allowOverwrite: true, cacheControlMaxAge: 31536000 };
-      try { const r = await s.put(dir + '/' + name, bytes, { ...opt, access: 'public' }); access = 'public'; return { pathname: dir + '/' + name, url: r && r.url ? r.url : null, access }; }
-      catch (e) {
-        const r = await s.put(dir + '/' + name, bytes, { ...opt, access: 'private' }).catch(() => { throw e; });
-        access = 'private';
-        return { pathname: dir + '/' + name, url: r && r.url ? r.url : null, access };
-      }
-    },
-    /** The file as a stream, or null when absent (tries the other access when the first one does not know it). */
-    async getPublic(name) {
-      if (!NAME.test(name)) return null;
-      const s = await api();
-      for (const a of access === 'public' ? ['public', 'private'] : ['private', 'public']) {
-        let r = null;
-        try { r = await s.get(dir + '/' + name, { access: a }); } catch { r = null; }
-        if (r && r.stream) { access = /** @type {any} */ (a); return { stream: /** @type {ReadableStream} */ (r.stream), type: (r.blob && r.blob.contentType) || '', size: r.blob ? r.blob.size : null }; }
-      }
-      return null;
-    }
-  };
-}
-/** @typedef {ReturnType<typeof blobMedia>} BlobMedia */
-
 /** An in-memory stand-in for the Blob SDK, with real ETag semantics (tests). */
 export function fakeBlobSdk() {
   const files = new Map();
@@ -335,8 +292,6 @@ export function fakeBlobSdk() {
   const err = (name, msg) => Object.assign(new Error(msg), { name });
   return {
     files,
-    /** set true to behave like a store created Private */
-    privateStore: false,
     async get(path, opt) {
       const f = files.get(path);
       if (!f || (opt && opt.access && f.access && opt.access !== f.access)) throw err('BlobNotFoundError', 'not found');
@@ -348,8 +303,6 @@ export function fakeBlobSdk() {
       const f = files.get(path);
       if (opt.ifMatch !== undefined && (!f || f.etag !== opt.ifMatch)) throw err('BlobPreconditionFailedError', 'precondition failed');
       if (f && opt.allowOverwrite === false) throw err('BlobError', 'already exists');
-      // a store created Private refuses public files, as Vercel's does
-      if (this.privateStore && opt.access === 'public') throw err('BlobError', 'Cannot use public access on a private store');
       const etag = '"e' + ++n + '"';
       files.set(path, { body, etag, at: new Date(), type: opt.contentType, access: opt.access });
       return { pathname: path, etag, url: opt.access === 'public' ? 'https://fake.public.blob.vercel-storage.com/' + path : undefined };

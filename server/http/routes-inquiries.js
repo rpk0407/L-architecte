@@ -1,12 +1,13 @@
 // @ts-check
 // Les demandes and les formations over HTTP. The site's two forms (public/contact.html, public/formations.html) post here
-// without an account; the Comptoir reads the inbox in Relances › Demandes and edits the training page in Le site › Formations.
+// without an account; the Comptoir reads the inbox in Relances › Demandes. /formations shows the fixed training content
+// (settings/trainings.js: its defaults are the old WordPress page's four modules).
 import { failureGuard, HttpError } from './kit.js';
 import { maybeTick } from './scheduler.js';
 import { fmtPhone, maskPhone, maskEmail } from '../lib/util.js';
-import { receiveInquiry, markInquiryHandled, replyInquiry, eraseInquiry, updateTrainings } from '../commands/inquiries.js';
+import { receiveInquiry, markInquiryHandled, replyInquiry, eraseInquiry } from '../commands/inquiries.js';
 import { KIND_FR, gone as isGone, moduleTitle } from '../projections/inquiries.js';
-import trainings, { publicTrainings, LIMITS } from '../settings/trainings.js';
+import { publicTrainings } from '../settings/trainings.js';
 import { waitUntil } from '@vercel/functions';
 
 const HOUR_MS = 3600000;
@@ -72,8 +73,4 @@ export function inquiryRoutes(app) {
     return out;
   }, { cap: 'marketing' });
   app.post('/api/v1/inquiries/:id/erase', (r) => r.run(eraseInquiry, { id: r.params.id }), { cap: 'client.erase' });
-
-  /* Le site › Formations */
-  app.get('/api/v1/trainings', (r) => ({ trainings: r.s.settings.trainings, defaults: trainings.defaults(), limits: LIMITS }), { cap: 'catalog' });
-  app.patch('/api/v1/trainings', (r) => r.run(updateTrainings, r.body), { cap: 'catalog' });
 }

@@ -1,6 +1,7 @@
 /* The site's two forms, /contact and /formations: one request to POST /api/public/inquiries (server/http/routes-inquiries.js),
    which lands in the Comptoir (Relances › Demandes) and e-mails the owner. On /formations, the modules, the sessions to
-   come and the certificates come from /api/public/trainings (Le site › Formations); the page's own text is the fallback.
+   come and the certificates come from /api/public/trainings (fixed content: the defaults in server/settings/trainings.js,
+   or what an older journal wrote); the page's own text is the fallback.
      form[data-inquiry="contact|formation"]  the form; [data-inquiry-done] the confirmation shown in its place
      [data-trainings]                        the module list, rebuilt from the salon's answer
    What the booking sheet remembers on this phone (lx-me: first name, number, e-mail) fills the fields in.

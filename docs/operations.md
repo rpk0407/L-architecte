@@ -129,6 +129,7 @@ Si le site ne répond pas ou que les réservations échouent et que ce n’est p
 - The fiscal archive: Réglages › Données › "Archive complète du journal" (JSON, without personal data, so it cannot restore the salon), verifiable offline. Keep one per month, and one per year for 6 years (fiscal archiving).
 - Postgres providers keep their own point-in-time history, short on free plans (Neon: hours, not days; check the plan): not a backup to count on.
 - Client file export (CSV) from the same screen.
+- **Photos left from the old site editor**: while the Comptoir had « Le site » (removed), photos the owner uploaded or copied from WordPress, barbers' portraits among them (personal data), went to the Blob store under `site/` (or a `media/` folder next to `LX_DATA_FILE`). Nothing reads, serves or deletes them any more: if that salon ever used it, delete the `site/` prefix in Vercel's Blob screen (never `backups/`) and that `media/` folder.
 
 ## Incidents
 

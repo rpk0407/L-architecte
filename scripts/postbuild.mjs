@@ -20,9 +20,8 @@ const PRIVATE = new Set(['demo.html', 'ancien-lien.html', '404.html']);
 const ROBOTS_META = /[ \t]*<meta\s+name=["']robots["'][^>]*>[ \t]*\r?\n?/gi;
 const CANONICAL = /[ \t]*<link\s+rel=["']canonical["'][^>]*>[ \t]*\r?\n?/gi;
 const OPEN_PATHS = ['/comptoir', '/r/', '/recu/', '/paiement/', '/api/', '/demo'];
-// the site renders its catalogue, prices and barbers from these: a crawler that cannot fetch them indexes the fallback;
-// the owner's photos (hero, work, portraits, the JSON-LD image) are served from /api/public/media/
-const API_READS = ['/api/public/salon', '/api/public/live', '/api/public/media/'];
+// the site renders its catalogue, prices and barbers from these: a crawler that cannot fetch them indexes the fallback
+const API_READS = ['/api/public/salon', '/api/public/live'];
 
 /** The faces site.html declares (@font-face src: /fonts/<file>), Latin only like the Comptoir's. */
 export const FONTS = [

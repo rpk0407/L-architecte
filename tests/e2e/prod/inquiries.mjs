@@ -1,7 +1,7 @@
 // Production: a barber who wants to train lands on /formations from the old address of the beard module, asks for it from
 // his phone, and reads 'C’est envoyé. Frank te rappelle sous 48 h.' The owner finds the request in Relances › Demandes,
 // with a badge on the tab, and marks it handled; an alert e-mail waits in the outbox. The CPF line stays off the page
-// until the owner fills in a Qualiopi certificate (Le site › Formations). No font from Google, no sideways scroll.
+// until the training settings carry a Qualiopi certificate. No font from Google, no sideways scroll.
 // Run by tests/e2e/prod.mjs: export default async ({ browser, h, page }), h = { base, setup(), loginOwner(page), api(), shot() }.
 export const name = '/formations: a training request lands in Relances › Demandes; CPF only with Qualiopi';
 
@@ -72,8 +72,8 @@ export default async ({ browser, h, page }) => {
   if (!out.some((x) => x.template === 'owner_inquiry' && x.channel === 'email')) throw new Error('no alert e-mail for the owner in the outbox');
   watchOwner();
 
-  /* a Qualiopi certificate in Le site › Formations: the CPF line appears */
-  ok(await h.api('/api/v1/trainings', { method: 'PATCH', body: { qualiopi: 'Certificat n° B-2026-17' } }), 'save qualiopi');
+  /* a Qualiopi certificate in the training settings (no screen edits them: set for the salon): the CPF line appears */
+  ok(await h.api('/api/v1/settings', { method: 'PATCH', body: { trainings: { qualiopi: 'Certificat n° B-2026-17' } } }), 'save qualiopi');
   const q = await browser.newPage();
   await q.goto(h.base + '/formations');
   await q.waitForFunction(() => document.documentElement.getAttribute('data-trainings-ready') === '1', null, { timeout: 10000 });

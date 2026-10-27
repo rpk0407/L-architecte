@@ -12,10 +12,11 @@ import messages from './messages.js';
 import team from './team.js';
 import goals from './goals.js';
 import notify from './notify.js';
-import site from './site.js';
 import trainings from './trainings.js';
 
-// one entry per line, so sections added by different branches merge cleanly
+// one entry per line, so sections added by different branches merge cleanly. A section taken out stays readable: `site`
+// (the texts and photos of the old Le site editor) is still in some journals' settings.updated; replay keeps it in the
+// projection, nothing reads it, and a patch can no longer write it.
 const TYPED = /** @type {const} */ ([
   shop,
   hours,
@@ -28,7 +29,6 @@ const TYPED = /** @type {const} */ ([
   team,
   goals,
   notify,
-  site,
   trainings
 ]);
 export const SECTIONS = TYPED;

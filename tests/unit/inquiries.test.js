@@ -1,5 +1,5 @@
 // Les demandes: the site's contact and training forms land in Relances › Demandes, with the person's details in pii only,
-// an e-mail to the owner, an SMS answer, and an erasure that leaves nothing of them in the journal. Plus Le site › Formations.
+// an e-mail to the owner, an SMS answer, and an erasure that leaves nothing of them in the journal. Plus /formations' content.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { salon, rejects, at, DAY } from '../helpers.js';
@@ -12,8 +12,9 @@ import { randomBytes } from 'node:crypto';
 import { DEMO } from '../../server/domain/seed.js';
 import { eraseClient } from '../../server/commands/clients.js';
 import { setCredentials } from '../../server/commands/team.js';
+import { updateSettings } from '../../server/commands/shop.js';
 import { hashSecret } from '../../server/auth/password.js';
-import { receiveInquiry, markInquiryHandled, replyInquiry, eraseInquiry, updateTrainings, ownerMailId } from '../../server/commands/inquiries.js';
+import { receiveInquiry, markInquiryHandled, replyInquiry, eraseInquiry, ownerMailId } from '../../server/commands/inquiries.js';
 import { INQUIRIES_PER_HOUR } from '../../server/http/routes-inquiries.js';
 import trainings, { publicTrainings } from '../../server/settings/trainings.js';
 import { addDays } from '../../shared/dates.js';
@@ -278,7 +279,7 @@ test('an e-mail only request cannot be answered by SMS; a barber has no inbox', 
   await rejects(t.engine.run(replyInquiry, { id: q.id, text: 'Bonjour Inès' }, t.asStaff('Ali')), 'forbidden');
 });
 
-test('Le site › Formations: the four WordPress modules by default, the CPF only with Qualiopi, sessions to come', async () => {
+test('the training content: the four WordPress modules by default, the CPF only with Qualiopi, sessions to come', async () => {
   const t = await salon();
   const d = trainings.defaults();
   assert.deepEqual(d.modules.map((m) => m.id), ['barbe', 'classique', 'complexe', 'image']);
@@ -288,29 +289,24 @@ test('Le site › Formations: the four WordPress modules by default, the CPF onl
   assert.equal(pub().cpf, false);
   assert.equal(pub().qualiopi, '');
 
+  // a journal from before the editor went (WP-05's Le site › Formations) may carry its own content: the page shows it
   const next = addDays(DAY, 9), past = addDays(DAY, -2);
   const modules = d.modules.map((m) => (m.id === 'barbe' ? { ...m, duration: '2 jours · 14 h', price: 45000 } : m));
-  await t.engine.run(updateTrainings, { modules, sessions: [{ moduleId: 'barbe', date: next, seats: 3 }, { moduleId: 'barbe', date: past, seats: 2 }, { moduleId: 'image', date: next, seats: 6 }], qualiopi: 'Certificat n° 2024-QUA-0193 (AFNOR)', nda: '93 13 12345 13' }, t.asOwner());
+  await t.engine.run(updateSettings, { trainings: { modules, sessions: [{ moduleId: 'barbe', date: next, seats: 3 }, { moduleId: 'barbe', date: past, seats: 2 }, { moduleId: 'image', date: next, seats: 6 }], qualiopi: 'Certificat n° 2024-QUA-0193 (AFNOR)', nda: '93 13 12345 13' } }, t.asOwner());
   const p = pub();
   assert.equal(p.cpf, true);
   assert.deepEqual(p.modules[0].sessions, [{ date: next, seats: 3 }], 'past sessions are off the page');
   assert.equal(p.modules[0].price, 45000);
   assert.equal(p.modules[0].duration, '2 jours · 14 h');
   // the CPF line goes with the certificate
-  await t.engine.run(updateTrainings, { qualiopi: '' }, t.asOwner());
+  await t.engine.run(updateSettings, { trainings: { qualiopi: '' } }, t.asOwner());
   assert.equal(pub().cpf, false);
-  // a module taken out takes its sessions; a session needs a module; a code once
-  await t.engine.run(updateTrainings, { modules: modules.filter((m) => m.id !== 'image') }, t.asOwner());
-  assert.deepEqual(t.engine.state.settings.trainings.sessions.map((x) => x.moduleId), ['barbe', 'barbe']);
-  await rejects(t.engine.run(updateTrainings, { sessions: [{ moduleId: 'image', date: next, seats: 1 }] }, t.asOwner()), 'invalid');
-  await rejects(t.engine.run(updateTrainings, { modules: [modules[0], { ...modules[1], id: 'barbe' }] }, t.asOwner()), 'invalid');
-  await rejects(t.engine.run(updateTrainings, { sessions: [{ moduleId: 'barbe', date: '2026-02-30', seats: 1 }] }, t.asOwner()), 'invalid');
-  await rejects(t.engine.run(updateTrainings, { qualiopi: 'x' }, t.asStaff('Ali')), 'forbidden');
-  // a request names a module the page still lists
+  // a request names a module the page lists
+  await t.engine.run(updateSettings, { trainings: { modules: modules.filter((m) => m.id !== 'image') } }, t.asOwner());
   await rejects(t.engine.run(receiveInquiry, { kind: 'formation', first: 'Karim', phone: '0698765432', module: 'image' }, t.asClient), 'invalid');
 });
 
-test('the public training page and its editor over HTTP', async () => {
+test('the public training page over HTTP; the Comptoir no longer edits it', async () => {
   const rt = await testRuntime({ clock: () => at(DAY, 10) });
   const site = browser(rt);
   const b = browser(rt);
@@ -320,17 +316,34 @@ test('the public training page and its editor over HTTP', async () => {
   assert.deepEqual(pub.json.modules.map((m) => m.id), ['barbe', 'classique', 'complexe', 'image']);
   assert.equal(pub.json.cpf, false);
   assert.ok(!('sessions' in pub.json), 'sessions come with their module');
-  const ed = await b.get('/api/v1/trainings');
-  assert.equal(ed.status, 200);
-  assert.deepEqual(ed.json.trainings, ed.json.defaults);
-  assert.equal((await b.patch('/api/v1/trainings', { intro: 'Des stages au salon, en petit groupe.', qualiopi: 'Certificat B-2026-17' })).status, 200);
+  assert.equal((await b.get('/api/v1/trainings')).status, 404, 'Le site › Formations is gone');
+  assert.equal((await b.patch('/api/v1/trainings', { qualiopi: 'x' })).status, 404);
+});
+
+test('the training settings over PATCH /api/v1/settings keep their rules (the provider’s only way to write them)', async () => {
+  const rt = await testRuntime({ clock: () => at(DAY, 10) });
+  const site = browser(rt);
+  const b = browser(rt);
+  await b.post('/api/auth/login', { email: DEMO.email, password: DEMO.password });
+  const d = trainings.defaults();
+  const next = addDays(DAY, 9);
+  const put = (/** @type {any} */ x) => b.patch('/api/v1/settings', { trainings: x });
+  assert.equal((await put({ qualiopi: 'Certificat B-2026-17', sessions: [{ moduleId: 'barbe', date: next, seats: 3 }] })).status, 200);
   const after = (await site.get('/api/public/trainings')).json;
-  assert.equal(after.intro, 'Des stages au salon, en petit groupe.');
   assert.equal(after.cpf, true);
-  assert.equal((await site.patch('/api/v1/trainings', { qualiopi: '' })).status, 401);
-  assert.equal((await b.patch('/api/v1/trainings', { modules: [{ id: 'A B', title: 'Barbe' }] })).status, 400);
+  assert.deepEqual(after.modules[0].sessions, [{ date: next, seats: 3 }]);
+  assert.equal((await site.patch('/api/v1/settings', { trainings: { qualiopi: '' } })).status, 401);
   // a code the page already uses as an id (the form #demande, a heading tm-…) would send its links to the wrong place
-  for (const id of ['demande', 'main', 't-fin', 'tm-barbe', 'dm-f']) assert.equal((await b.patch('/api/v1/trainings', { modules: [{ id, title: 'Rasage' }] })).status, 400, id);
+  for (const id of ['demande', 'main', 't-fin', 'tm-barbe', 'dm-f', 'A B']) assert.equal((await put({ modules: [{ id, title: 'Rasage' }] })).status, 400, id);
+  // a code once; a session names a module of the patch; a real day
+  assert.equal((await put({ modules: [d.modules[0], { ...d.modules[1], id: 'barbe' }] })).status, 400, 'twice the same code');
+  assert.equal((await put({ modules: d.modules.slice(0, 1), sessions: [{ moduleId: 'image', date: next, seats: 1 }] })).status, 400, 'unknown module');
+  assert.equal((await put({ sessions: [{ moduleId: 'barbe', date: '2026-02-30', seats: 1 }] })).status, 400, 'no such day');
+  // a module taken out keeps its sessions in the settings, never on the page
+  assert.equal((await put({ modules: d.modules.filter((m) => m.id !== 'barbe') })).status, 200);
+  const left = (await site.get('/api/public/trainings')).json;
+  assert.ok(!left.modules.some((m) => m.id === 'barbe'));
+  assert.ok(!JSON.stringify(left).includes(next), 'the orphan session is not shown');
 });
 
 test('/formations without the API says what the defaults say, and loads no font from Google', () => {
