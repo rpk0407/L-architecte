@@ -5,7 +5,8 @@ import { HttpError } from './kit.js';
 import { agendaView, apptView, clientCard, clientFull, saleView, staffView, serviceView, productView } from './views.js';
 import { freeSlots, staffIntervals, walkinEstimate } from '../domain/availability.js';
 import { clientStats, report, previousPeriod } from '../domain/insights.js';
-import { drawerExpected, dayTotals, METHOD_LABEL, ticketNo, closureNo } from '../domain/cash.js';
+import { drawerExpected, dayTotals, zFigures, METHOD_LABEL, ticketNo, closureNo } from '../domain/cash.js';
+import { missedZ, closingWarnings, dayWords, dayAndDate } from '../commands/tick-steps.js';
 import { addDays, isDay, weekStart, monthStart, monthEnd, diffDays, dayShort, fmtTime, localParts } from '../../shared/dates.js';
 import { fmtEur } from '../../shared/money.js';
 import { maskPhone, normGiftCode, sha256 } from '../lib/util.js';
@@ -76,7 +77,8 @@ function feedItem(r, f) {
     case 'queue.added':
       return { ...base, kind: 'walkin', title: (s.queue.get(d.id)?.name || 'Un client') + ' attend sans rendez-vous', sub: (s.services.get(d.serviceId)?.name || '') + (d.staffId !== 'any' ? ' · ' + staffName(d.staffId) : '') };
     case 'day.closed':
-      return r.caps.has('closure') || r.caps.has('report.shop') ? { ...base, kind: 'closure', title: 'Journée clôturée · ' + closureNo(d.number), sub: fmtEur(d.net) + ' · ' + d.tickets + ' tickets', money: true } : null;
+      if (!r.caps.has('closure') && !r.caps.has('report.shop')) return null;
+      return { ...base, kind: 'closure', title: d.auto ? 'Z du ' + dayAndDate(d.day) + ' fait automatiquement' : 'Journée clôturée · ' + closureNo(d.number), sub: (d.auto ? closureNo(d.number) + ' · ' : '') + fmtEur(d.net) + ' · ' + d.tickets + ' tickets', money: true };
     case 'drawer.closed':
       return r.caps.has('drawer') ? { ...base, kind: 'drawer', title: 'Caisse comptée', sub: d.diff ? 'Écart ' + fmtEur(d.diff) : 'Aucun écart', money: true } : null;
     case 'stock.adjusted': {
@@ -87,6 +89,21 @@ function feedItem(r, f) {
     default: for (const x of EXTENSIONS) if (x.item && x.feed?.includes(f.type)) return x.item(r, f); return null;
   }
 }
+
+/**
+ * The live feed keeps no system events; the Z the scheduler made on its own is one the owner must hear about.
+ * Read from the journal after version `from`, looking back a bounded number of events.
+ */
+function autoZ(r, from) {
+  const j = r.rt.engine.journal;
+  const out = [];
+  for (let i = Math.max(from, j.length - 5000); i < j.length; i++) {
+    const e = j[i];
+    if (e.type === 'day.closed' && e.actor.t === 'system' && e.data && e.data.auto) out.push({ v: e.v, type: e.type, at: e.at, actor: e.actor, data: e.data });
+  }
+  return out;
+}
+const byV = (a, b) => a.v - b.v;
 
 function badges(r) {
   const s = r.s, L = r.local;
@@ -144,21 +161,22 @@ export function staffRoutes(app) {
       services: [...s.services.values()].filter((x) => x.active || r.caps.has('catalog')).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)).map(serviceView),
       products: [...s.products.values()].filter((x) => x.active || r.caps.has('catalog')).map(productView),
       providers: { payments: r.rt.pay.name, paymentsLive: !!r.rt.pay.live, sms: r.rt.sms ? r.rt.sms.name : null, store: r.rt.store.kind },
-      warnings: r.me.role === 'owner' ? r.rt.warnings : []
+      warnings: r.me.role === 'owner' ? [...r.rt.warnings, ...closingWarnings(s, r.local.day)] : []
     };
   });
 
   /** Polled every few seconds: cheap, and the carrier of the background work. */
   app.get('/api/v1/pulse', (r) => {
     const since = Number(r.query.get('since')) || 0;
-    const items = since ? r.s.feed.filter((f) => f.v > since).slice(-40).map((f) => feedItem(r, f)).filter(Boolean) : [];
+    const items = since ? [...r.s.feed.filter((f) => f.v > since), ...autoZ(r, since)].sort(byV).slice(-40).map((f) => feedItem(r, f)).filter(Boolean) : [];
     const t = maybeTick(r.rt, r.meta);
     if (t) waitUntil(t);
     return { version: r.s.version, cfg: r.s.cfgVersion, now: r.now, today: r.local.day, min: r.local.min, feed: items, badges: badges(r) };
   });
 
   app.get('/api/v1/feed', (r) => {
-    const items = r.s.feed.slice(-120).map((f) => feedItem(r, f)).filter(Boolean).reverse().slice(0, 50);
+    const recent = r.s.feed.slice(-120);
+    const items = [...recent, ...autoZ(r, recent.length ? recent[0].v : 0)].sort(byV).map((f) => feedItem(r, f)).filter(Boolean).reverse().slice(0, 50);
     return { items };
   });
 
@@ -377,19 +395,29 @@ export function staffRoutes(app) {
     const last = [...s.drawers.values()].filter((x) => x.closedAt).sort((a, b) => b.closedAt - a.closedAt)[0] || null;
     const today = dayTotals(s, r.local.day);
     const unpaid = [...(s.apptsByDay.get(r.local.day) || [])].map((id) => s.appts.get(id)).filter((a) => a && !a.saleId && (a.status === 'in_chair' || a.status === 'done' || ((a.status === 'booked' || a.status === 'arrived') && a.start + a.dur <= r.local.min))).length;
+    const z = s.closures.get(r.local.day);
+    const missed = missedZ(s, r.local.day);
+    // the float to leave in the drawer tonight is the one the day started with
+    const lastFloat = [...s.drawers.values()].sort((a, b) => b.openedAt - a.openedAt)[0];
     return {
-      open: d ? { id: d.id, openedAt: d.openedAt, float: d.float, moves: d.moves, expected: drawerExpected(s, d), openedBy: (s.staff.get(d.openedBy) || {}).name || '' } : null,
-      last: last ? { counted: last.counted, expected: last.expected, diff: last.diff, closedAt: last.closedAt, note: last.note } : null,
-      today, closure: s.closures.get(r.local.day) || null, unpaid, grandTotal: s.grandTotal
+      open: d ? { id: d.id, day: d.day, openedAt: d.openedAt, float: d.float, moves: d.moves, expected: drawerExpected(s, d), openedBy: (s.staff.get(d.openedBy) || {}).name || '' } : null,
+      // day: the drawer's own day, so a forgotten drawer counted this morning does not read as "counted tonight"
+      last: last ? { day: last.day, counted: last.counted, expected: last.expected, diff: last.diff, closedAt: last.closedAt, note: last.note } : null,
+      today, closure: z ? { ...z, ...zFigures(z) } : null, unpaid, grandTotal: s.grandTotal,
+      remaining: S.remainingAppts(s, r.local.day, r.local.min), closesAt: S.closingMin(s, r.local.day),
+      floatHint: lastFloat ? lastFloat.float : 15000,
+      missed: missed.close.map((day) => ({ day, words: dayWords(day, r.local.day), tickets: (s.salesByDay.get(day) || []).length })),
+      warnings: closingWarnings(s, r.local.day)
     };
   }, { cap: 'drawer' });
   app.post('/api/v1/drawer/open', (r) => r.run(S.openDrawer, r.body), { cap: 'drawer' });
   app.post('/api/v1/drawer/move', (r) => r.run(S.moveDrawer, r.body), { cap: 'drawer' });
   app.post('/api/v1/drawer/close', (r) => r.run(S.closeDrawer, r.body), { cap: 'drawer' });
-  app.post('/api/v1/closures', (r) => r.run(S.closeDay, {}), { cap: 'closure' });
+  // early: the owner closes before the end of the day on purpose; day: catching up a past day nobody closed
+  app.post('/api/v1/closures', (r) => r.run(S.closeDay, { early: r.body.early === true, day: isDay(r.body.day) ? r.body.day : undefined }), { cap: 'closure' });
   app.get('/api/v1/closures', (r) => {
     const items = [...r.s.closures.values()].sort((a, b) => b.number - a.number).slice(0, Math.min(400, Number(r.query.get('limit')) || 60))
-      .map((z) => ({ ...z, ref: closureNo(z.number), by: (r.s.staff.get(z.by) || {}).name || 'Système' }));
+      .map((z) => ({ ...z, ...zFigures(z), ref: closureNo(z.number), by: (r.s.staff.get(z.by) || {}).name || (z.auto ? 'Automatique' : 'Système') }));
     return { items, grandTotal: r.s.grandTotal };
   }, { cap: 'closure' });
 

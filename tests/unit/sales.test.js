@@ -121,7 +121,7 @@ test('refunds are credit notes within what was paid; Z closure seals the day', a
   assert.equal(rf.number, 1);
   const tot = dayTotals(t.engine.state, DAY);
   assert.equal(tot.net, 1500);
-  const z = await t.engine.run(S.closeDay, {}, t.asOwner());
+  const z = await t.engine.run(S.closeDay, { early: true }, t.asOwner()); // 10:00: closing early on purpose
   assert.equal(z.number, 1);
   assert.equal(z.grandTotal, 1500);
   const b = await apptFor(t, 'Ben');

@@ -1,11 +1,13 @@
 // @ts-check
 // What the salon does on its own, checked about once a minute: unpaid bookings expire, reminders and
-// review requests are queued, a freed slot is offered to the waiting list.
+// review requests are queued, a freed slot is offered to the waiting list. Then the registered steps
+// (tick-steps.js) run, such as the Z of a day nobody closed.
 // Every message has a deterministic id, so running this twice (two servers, a retry) sends nothing twice.
 import { addDays, instantOf } from '../../shared/dates.js';
 import { freeSlots } from '../domain/availability.js';
 import { queueMessage, apptVars, whenWords } from '../domain/messages.js';
 import { payDeadline } from '../domain/policy.js';
+import { runSteps } from './tick-steps.js';
 
 const OFFER_MIN = 30;
 
@@ -78,6 +80,8 @@ export const tick = {
       if (q.status === 'called' && q.calledAt && ctx.now - q.calledAt > 20 * 60000) ctx.emit('queue.updated', { id: q.id, patch: { status: 'left', auto: true } });
       else if (q.status === 'waiting' && ctx.now - q.at > 4 * 3600000) ctx.emit('queue.updated', { id: q.id, patch: { status: 'left', auto: true } });
     }
-    return { queued: n };
+    // 9. the registered steps (a forgotten Z…)
+    const steps = runSteps(s, ctx);
+    return { queued: n, warnings: steps.warnings, failed: steps.failed };
   }
 };

@@ -42,23 +42,51 @@ export function Receipt({ sale }: { sale: Sale }) {
   );
 }
 
-export function ZReport({ z }: { z: any }) {
+/** A Z as the server sends it (dayTotals, or a sealed closure read through zFigures). */
+export type ZFigures = {
+  tickets: number; first: number | null; last: number | null; grossTtc: number; refundsTotal: number; refundsByMethod: Record<string, number>;
+  netTtc: number; htNet: number; vatNet: { rate: number; base: number; tax: number }[]; paymentsNet: Record<string, number>; paidTotal: number; takings: number; prepaid: number; tips: number; giftcardsSold: number;
+};
+export type ZRow = { k: string; v?: number; t?: string; tone?: 'total' | 'sub' | 'head' };
+
+const ORDER = ['card', 'cash', 'online', 'deposit', 'giftcard'];
+const rate = (r: number) => String(r / 100).replace('.', ',') + ' %';
+const tk = (n: number) => 'T' + String(n).padStart(6, '0');
+
+/** The one Z layout: the screen, the printed Z and the CSV list the same lines in the same order. */
+export function zRows(z: ZFigures): ZRow[] {
+  const methods = (o: Record<string, number>) => Object.keys(o || {}).sort((a, b) => (ORDER.indexOf(a) + 1 || 99) - (ORDER.indexOf(b) + 1 || 99));
+  return [
+    { k: 'Tickets', t: String(z.tickets) + (z.first ? ' (' + tk(z.first) + ' → ' + tk(z.last || z.first) + ')' : '') },
+    { k: 'CA TTC brut', v: z.grossTtc },
+    { k: 'Remboursements', v: -z.refundsTotal },
+    ...methods(z.refundsByMethod).filter((m) => z.refundsByMethod[m]).map((m): ZRow => ({ k: METHOD[m] || m, v: -z.refundsByMethod[m], tone: 'sub' })),
+    { k: 'CA TTC net', v: z.netTtc, tone: 'total' },
+    { k: 'dont HT', v: z.htNet, tone: 'sub' },
+    // a day with no sale has no rate to show: one plain line rather than a made-up "0 %"
+    ...(z.vatNet.length ? z.vatNet.map((x): ZRow => ({ k: 'dont TVA ' + rate(x.rate), v: x.tax, tone: 'sub' })) : [{ k: 'dont TVA', v: 0, tone: 'sub' } as ZRow]),
+    { k: 'Règlements, remboursements déduits', tone: 'head' },
+    ...methods(z.paymentsNet).map((m): ZRow => ({ k: METHOD[m] || m, v: z.paymentsNet[m] })),
+    { k: 'Total des règlements', v: z.paidTotal, tone: 'total' },
+    // a gift card used or a deposit settles the ticket, but that money came in on another day
+    ...(z.prepaid ? [{ k: 'dont carte cadeau et acompte', v: z.prepaid, tone: 'sub' } as ZRow] : []),
+    { k: 'dont pourboires', v: z.tips, tone: 'sub' },
+    { k: 'dont cartes cadeaux vendues', v: z.giftcardsSold, tone: 'sub' }
+  ];
+}
+export const zValue = (r: ZRow) => (r.t != null ? r.t : r.v != null ? eur(r.v, { decimals: true }) : '');
+
+export function ZReport({ z }: { z: ZFigures & { number: number; day: string; grandTotal: number; seal?: string; early?: boolean; late?: boolean; auto?: boolean } }) {
   return createPortal(
     <div className="print-only receipt" aria-hidden>
       <Shop />
       <hr />
       <div className="r"><b>CLÔTURE Z{String(z.number).padStart(4, '0')}</b><b>{z.day.split('-').reverse().join('/')}</b></div>
+      {z.auto ? <p className="c">Faite automatiquement</p> : z.late ? <p className="c">Clôture de rattrapage</p> : z.early ? <p className="c">Clôturée en avance</p> : null}
       <hr />
-      <div className="r"><span>Tickets</span><span>{z.tickets}{z.first ? ' (T' + String(z.first).padStart(6, '0') + ' → T' + String(z.last).padStart(6, '0') + ')' : ''}</span></div>
-      <div className="r"><span>CA TTC</span><span>{eur(z.revenue, { decimals: true })}</span></div>
-      <div className="r"><span>CA HT</span><span>{eur(z.revenueHT, { decimals: true })}</span></div>
-      {z.vat.map((v: any) => <div key={v.rate} className="r"><span>TVA {v.rate / 100} %</span><span>{eur(v.tax, { decimals: true })}</span></div>)}
-      <div className="r"><span>Remboursements</span><span>-{eur(z.refunded, { decimals: true })}</span></div>
-      <div className="r"><b>Net</b><b>{eur(z.net, { decimals: true })}</b></div>
-      <hr />
-      {Object.entries(z.byMethod || {}).map(([m, v]) => <div key={m} className="r"><span>{METHOD[m] || m}</span><span>{eur(v as number, { decimals: true })}</span></div>)}
-      <div className="r"><span>Pourboires</span><span>{eur(z.tips, { decimals: true })}</span></div>
-      <div className="r"><span>Cartes cadeaux vendues</span><span>{eur(z.liability, { decimals: true })}</span></div>
+      {zRows(z).map((r, i) => r.tone === 'head' ? <p key={i} style={{ marginTop: 6 }}><b>{r.k}</b></p> : (
+        <div key={i} className="r" style={r.tone === 'sub' ? { paddingLeft: 8 } : undefined}>{r.tone === 'total' ? <><b>{r.k}</b><b>{zValue(r)}</b></> : <><span>{r.k}</span><span>{zValue(r)}</span></>}</div>
+      ))}
       <hr />
       <div className="r"><b>Grand total perpétuel</b><b>{eur(z.grandTotal, { decimals: true })}</b></div>
       <p style={{ wordBreak: 'break-all', fontSize: 9, marginTop: 6 }}>Sceau : {z.seal || ''}</p>

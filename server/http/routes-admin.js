@@ -5,7 +5,8 @@ import { staffView, serviceView, productView } from './views.js';
 import { verifyChain, publicEvent } from '../core/journal.js';
 import { hashSecret, passwordProblem, pinProblem } from '../auth/password.js';
 import { report } from '../domain/insights.js';
-import { ticketNo, refundNo, closureNo, METHOD_LABEL } from '../domain/cash.js';
+import { ticketNo, refundNo, closureNo, METHOD_LABEL, METHODS, zFigures } from '../domain/cash.js';
+import { closingWarnings } from '../commands/tick-steps.js';
 import { isDay, dayRange, monthStart } from '../../shared/dates.js';
 import { fmtEur } from '../../shared/money.js';
 import { fmtPhone, safeEqual } from '../lib/util.js';
@@ -37,12 +38,15 @@ const LABELS = {
 };
 const STATUS = { arrived: 'arrivé', in_chair: 'au fauteuil', booked: 'remis à venir', no_show: 'absent' };
 
+/** Z CSV columns, written out: a gift card used or a deposit settles a ticket without money coming in that day. */
+const Z_CSV_METHOD = { card: 'Encaissé carte (TPE)', cash: 'Encaissé espèces', online: 'Encaissé paiement en ligne', deposit: 'Réglé par acompte en ligne', giftcard: 'Réglé par carte cadeau' };
+
 function summary(s, e) {
   const d = e.data || {};
   switch (e.type) {
     case 'sale.completed': return ticketNo(d.number) + ' · ' + fmtEur(d.totals.due) + ' · ' + d.payments.map((p) => METHOD_LABEL[p.method] || p.method).join(' + ');
     case 'sale.refunded': return refundNo(d.number) + ' · ' + fmtEur(d.amount) + ' sur ' + ticketNo(d.saleNumber) + ' · ' + d.reason;
-    case 'day.closed': return closureNo(d.number) + ' · ' + d.day + ' · ' + fmtEur(d.net);
+    case 'day.closed': return closureNo(d.number) + ' · ' + d.day + ' · ' + fmtEur(d.net) + (d.auto ? ' · automatique' : d.late ? ' · rattrapage' : d.early ? ' · en avance' : '');
     case 'drawer.opened': return 'Fond de caisse ' + fmtEur(d.float);
     case 'drawer.moved': return fmtEur(d.amount) + ' · ' + d.reason;
     case 'drawer.closed': return 'Compté ' + fmtEur(d.counted) + (d.diff ? ' · écart ' + fmtEur(d.diff) : ' · juste');
@@ -180,11 +184,19 @@ export function adminRoutes(app) {
       for (const rf of [...s.refunds.values()].filter((x) => days.has(x.day))) rows.push([refundNo(rf.number), rf.day, '', '', 'Avoir sur ' + ticketNo(rf.saleNumber) + ' · ' + rf.reason, 'avoir', 1, eu(-rf.amount), eu(-rf.amount), '', '', METHOD_LABEL[rf.method] || rf.method, '']);
       body = csv(rows);
     } else if (kind === 'vat' || kind === 'closures') {
-      const rows = [['Clôture', 'Jour', 'Tickets', 'Premier', 'Dernier', 'CA TTC', 'CA HT', 'TVA', 'Remboursements', 'Net', 'Pourboires', 'Carte', 'Espèces', 'En ligne', 'Carte cadeau', 'Acompte', 'Cartes cadeaux vendues', 'Grand total perpétuel']];
-      for (const z of [...s.closures.values()].filter((z) => days.has(z.day)).sort((a, b) => a.number - b.number)) {
-        const tax = z.vat.reduce((t, v) => t + v.tax, 0);
-        rows.push([closureNo(z.number), z.day, z.tickets, z.first ? ticketNo(z.first) : '', z.last ? ticketNo(z.last) : '', eu(z.revenue), eu(z.revenueHT), eu(tax), eu(z.refunded), eu(z.net), eu(z.tips),
-          eu(z.byMethod.card || 0), eu(z.byMethod.cash || 0), eu(z.byMethod.online || 0), eu(z.byMethod.giftcard || 0), eu(z.byMethod.deposit || 0), eu(z.liability), eu(z.grandTotal)]);
+      // the same layout as the screen and the printed Z: gross, refunds, net = HT + VAT, then money in by method
+      const zs = [...s.closures.values()].filter((z) => days.has(z.day)).sort((a, b) => a.number - b.number).map((z) => ({ z, f: zFigures(z) }));
+      // VAT columns: the shop's rates (default, catalog) and any found, so two exports keep the same columns
+      const rates = [...new Set([s.settings.payments.vat, ...[...s.services.values(), ...s.products.values()].filter((x) => x.active).map((x) => x.vat),
+        ...zs.flatMap(({ f }) => f.vatNet.map((v) => v.rate))].filter((x) => typeof x === 'number'))].sort((a, b) => b - a);
+      const pct = (rate) => String(rate / 100).replace('.', ',') + ' %';
+      const rows = [['Clôture', 'Jour', 'Type', 'Tickets', 'Premier', 'Dernier', 'CA TTC brut', 'Remboursements', 'CA TTC net', 'CA HT net', 'TVA nette',
+        ...rates.map((rt) => 'TVA ' + pct(rt)), ...METHODS.map((m) => Z_CSV_METHOD[m]), 'Total des règlements', 'dont carte, espèces, en ligne', 'dont carte cadeau et acompte', 'Pourboires', 'Cartes cadeaux vendues', 'Grand total perpétuel', 'Sceau']];
+      for (const { z, f } of zs) {
+        const tax = f.vatNet.reduce((t, v) => t + v.tax, 0);
+        rows.push([closureNo(z.number), z.day, z.auto ? 'automatique' : z.late ? 'rattrapage' : z.early ? 'en avance' : 'normale', z.tickets, z.first ? ticketNo(z.first) : '', z.last ? ticketNo(z.last) : '',
+          eu(f.grossTtc), eu(-f.refundsTotal), eu(f.netTtc), eu(f.htNet), eu(tax), ...rates.map((rt) => eu((f.vatNet.find((v) => v.rate === rt) || { tax: 0 }).tax)),
+          ...METHODS.map((m) => eu(f.paymentsNet[m] || 0)), eu(f.paidTotal), eu(f.takings), eu(f.prepaid), eu(f.tips), eu(f.giftcardsSold), eu(z.grandTotal), z.seal || '']);
       }
       body = csv(rows);
     } else if (kind === 'commissions') {
@@ -209,7 +221,7 @@ export function adminRoutes(app) {
   /* system */
   app.get('/api/v1/system', (r) => ({
     mode: r.s.mode, store: r.rt.store.kind, version: r.s.version, events: r.rt.engine.journal.length, head: r.s.head,
-    payments: { provider: r.rt.pay.name, live: !!r.rt.pay.live }, sms: r.rt.sms ? r.rt.sms.name : null, warnings: r.rt.warnings, setupProtected: !!r.rt.cfg.setupToken,
+    payments: { provider: r.rt.pay.name, live: !!r.rt.pay.live }, sms: r.rt.sms ? r.rt.sms.name : null, warnings: [...r.rt.warnings, ...closingWarnings(r.s, r.local.day)], setupProtected: !!r.rt.cfg.setupToken,
     devices: [...r.s.devices.values()].filter((d) => !d.revoked).length
   }), { cap: 'settings' });
 

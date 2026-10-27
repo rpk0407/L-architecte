@@ -5,10 +5,11 @@ import { fail } from '../core/engine.js';
 import { str, int, opt, obj, arr, id, oneOf, money, record, parse } from '../lib/validate.js';
 import { ticketTotals } from '../../shared/money.js';
 import { maxDiscountPct } from '../domain/permissions.js';
-import { drawerExpected, dayTotals } from '../domain/cash.js';
+import { drawerExpected, dayTotals, zRecord, missedZ, hadTill, dayWords } from '../domain/cash.js';
 import { getService, getProduct, getClient, getAppt, getStaff } from './common.js';
 import { giftCode, normGiftCode, sha256 } from '../lib/util.js';
-import { addDays } from '../../shared/dates.js';
+import { addDays, isDay, fmtTime } from '../../shared/dates.js';
+import { shopIntervals } from '../domain/availability.js';
 import { DENOMS } from '../../shared/money.js';
 import { queueMessage } from '../domain/messages.js';
 
@@ -254,16 +255,59 @@ export const closeDrawer = {
 
 /* ---------------- Z: the day is sealed ---------------- */
 
+const STILL_TO_COME = new Set(['booked', 'arrived', 'in_chair']);
+
+/**
+ * Appointments of the day nobody has finished yet: after the Z they could not be paid. A booking whose time
+ * is over and that nobody seated (min given) is a no-show nobody marked: the "unpaid" note covers it.
+ */
+export function remainingAppts(s, day, min) {
+  return [...(s.apptsByDay.get(day) || [])].map((id) => s.appts.get(id)).filter((a) => a && STILL_TO_COME.has(a.status) && !a.saleId && !(a.status === 'booked' && min != null && a.start + a.dur <= min))
+    .sort((a, b) => a.start - b.start)
+    .map((a) => {
+      const c = a.clientId ? s.clients.get(a.clientId) : null;
+      return { name: c ? c.first + (c.last ? ' ' + c.last.charAt(0) + '.' : '') : a.name || 'Client', start: a.start, staff: (s.staff.get(a.staffId) || {}).name || '' };
+    });
+}
+/** End of the day's last opening interval, in minutes (0 when the shop is closed that day). */
+export function closingMin(s, day) { return Math.max(0, ...shopIntervals(s, day).map((x) => x[1])); }
+
 export const closeDay = {
   run(s, input, ctx) {
     ctx.need('closure');
-    const day = ctx.actor.t === 'system' && typeof input.day === 'string' && input.day < ctx.local.day ? input.day : ctx.local.day;
+    const today = ctx.local.day;
+    const past = isDay(input.day) && input.day < today;
+    const day = past ? input.day : today;
     if (s.closures.has(day)) fail(409, 'closed', 'La journée est déjà clôturée.');
-    if (s.drawer && s.drawer.day <= day) fail(409, 'drawer_open', 'Compte la caisse avant de clôturer la journée.');
+    if (s.drawer && s.drawer.day <= day) fail(409, 'drawer_open', day === today ? 'Compte la caisse avant de clôturer la journée.' : 'La caisse de ce jour-là n’est pas encore comptée. Compte-la avant de clôturer.');
+    // Z numbers and the grand total follow the calendar: a forgotten day is sealed before any later one
+    const older = (({ close, uncounted }) => [...close, ...uncounted])(missedZ(s, today)).filter((d) => d < day);
+    if (older.length) fail(409, 'missed', `La journée de ${dayWords(older[0], today)} n’est pas encore clôturée\u202f: clôture-la d’abord.`, { missed: older });
+    // a forgotten day is caught up only if something happened at the till (the demo seeds its own past days)
+    if (past && !hadTill(s, day)) fail(409, 'nothing', 'Aucun ticket ce jour-là\u202f: rien à clôturer.');
+    let early = false;
+    if (!past && ctx.actor.t === 'staff') {
+      // after the Z nothing can be paid today: a Z at 15:35 with clients still due is a mistake, unless it is said out loud
+      const remaining = remainingAppts(s, day, ctx.local.min);
+      const end = closingMin(s, day);
+      const open = ctx.local.min < end;
+      if (remaining.length || open) {
+        if (input.early !== true) {
+          const last = remaining[remaining.length - 1], n = remaining.length;
+          fail(409, 'too_early', !open
+            ? `Il reste ${n} client${n > 1 ? 's' : ''} à encaisser. Après la clôture, plus aucun encaissement aujourd’hui.`
+            : n ? `Il reste ${n} rendez-vous aujourd’hui (le dernier à ${fmtTime(last.start)}). Après la clôture, plus aucun encaissement aujourd’hui.`
+              : `Le salon est ouvert jusqu’à ${fmtTime(end)}. Après la clôture, plus aucun encaissement aujourd’hui.`, { remaining, closesAt: end, open });
+        }
+        // "early" is said of the hour only: after closing time, the shop really was closed
+        early = open;
+      }
+    }
     const t = dayTotals(s, day);
     const number = s.closureSeq + 1;
     const grandTotal = s.grandTotal + t.net;
-    ctx.emit('day.closed', { id: ctx.id('zc'), number, ...t, grandTotal, ...(day !== ctx.local.day ? { at: input.at } : {}) });
-    return { number, ...t, grandTotal };
+    const backdated = past && ctx.actor.t === 'system' && typeof input.at === 'number' ? { at: input.at } : {};
+    ctx.emit('day.closed', { id: ctx.id('zc'), number, ...zRecord(t), grandTotal, ...(early ? { early: true } : {}), ...(past ? { late: true } : {}), ...(past && input.auto === true && ctx.actor.t === 'system' ? { auto: true } : {}), ...backdated });
+    return { number, ...t, grandTotal, early, late: past };
   }
 };

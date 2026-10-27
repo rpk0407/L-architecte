@@ -126,6 +126,8 @@ export function freeSlots(s, q) {
   const step = q.step || s.settings.booking.stepMin;
   const online = q.online !== false;
   if (online && !s.settings.booking.enabled) return [];
+  // a sealed day (Z done, even early) takes nobody else: nothing could be paid
+  if (s.closures.has(q.day)) return [];
   const minStart = minStartFor(s, q.day, q.local, { online });
   if (minStart === Infinity) return [];
   const pool = q.staffId && q.staffId !== 'any'
@@ -158,6 +160,7 @@ export function freeSlots(s, q) {
  */
 export function walkinEstimate(s, now, local, dur = 30) {
   const day = local.day;
+  if (s.closures.has(day)) return { minutes: null, queued: 0 };
   const staff = eligibleStaff(s, []).filter((st) => staffIntervals(s, st.id, day).length);
   const start = Math.ceil(local.min / 5) * 5;
   if (!staff.length) return { minutes: null, queued: 0 };
