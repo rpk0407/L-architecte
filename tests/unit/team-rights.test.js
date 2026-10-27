@@ -203,7 +203,8 @@ test('a barber’s own figures: the salon in % and the team without commissions,
   assert.equal(typeof r.salon.goalPct, 'number');
   assert.ok(r.salon.fill >= 0 && r.salon.fill <= 1);
   assert.equal(r.team, undefined);
-  assert.equal(r.goal, null, 'no euros of the goal');
+  // no euros of the salon's goal: his own goal only (TEAM-03, goals.showBarbers)
+  assert.equal(r.goal.staffId, ids.JKut);
 
   await setTeam({ teamView: 'named' });
   r = (await jkut.get('/api/v1/reports?from=2026-10-01&to=2026-10-31')).json;

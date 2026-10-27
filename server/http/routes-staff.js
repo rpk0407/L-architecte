@@ -4,7 +4,8 @@
 import { HttpError } from './kit.js';
 import { agendaView, apptView, clientCard, clientFull, saleView, staffView, serviceView, productView } from './views.js';
 import { freeSlots, staffIntervals, walkinEstimate } from '../domain/availability.js';
-import { clientStats, report, previousPeriod } from '../domain/insights.js';
+import { clientStats, report, previousPeriod, goalOf, goalShares, autoGoal } from '../domain/insights.js';
+import { staffStatement } from '../domain/statement.js';
 import { drawerExpected, dayTotals, zFigures, METHOD_LABEL, ticketNo, closureNo } from '../domain/cash.js';
 import { missedZ, closingWarnings, dayWords, dayAndDate } from '../commands/tick-steps.js';
 import { addDays, isDay, weekStart, monthStart, monthEnd, diffDays, dayShort, fmtTime, hhmm, localParts } from '../../shared/dates.js';
@@ -288,11 +289,13 @@ function dayKpis(r, day) {
   const noShows = appts.filter((a) => a.status === 'no_show').length;
   const upcoming = appts.filter((a) => ['booked', 'pending', 'arrived'].includes(a.status) && (day > r.local.day || a.start >= r.local.min)).length;
   let revenue = 0, tips = 0;
-  for (const id of s.salesByDay.get(day) || []) {
+  if (mine) {
+    // his Chiffre réalisé, as Mes chiffres and his statement count it (TEAM-03): cut values in, refunds out on their day
+    const own = report(s, { from: day, to: day, staffId: r.me.id, today: r.local.day, now: r.now });
+    revenue = own.revenue; tips = own.tips;
+  } else for (const id of s.salesByDay.get(day) || []) {
     const x = s.sales.get(id);
-    if (!x) continue;
-    if (mine) { revenue += x.lines.filter((l) => l.staffId === r.me.id && l.kind !== 'giftcard').reduce((t, l) => t + l.net, 0); if (x.tip && x.tip.staffId === r.me.id) tips += x.tip.amount; }
-    else { revenue += x.totals.revenue - x.refunded; tips += x.totals.tip; }
+    if (x) { revenue += x.totals.revenue - x.refunded; tips += x.totals.tip; }
   }
   const planned = appts.filter((a) => a.status !== 'no_show').reduce((t, a) => t + a.price, 0);
   const staffIds = mine ? [r.me.id] : [...s.staff.values()].filter((x) => x.active && x.chair).map((x) => x.id);
@@ -318,7 +321,7 @@ function teamSide(r, from, to) {
     out.salon = { goalPct: target > 0 ? Math.round((m.revenue / target) * 100) : null, fill: m.occupancy };
   }
   if (r.caps.has('report.team')) {
-    out.team = report(s, { from, to, staffId: null, today: L.day, now: r.now }).staff.filter((x) => s.staff.get(x.id)?.active)
+    out.team = report(s, { from, to, staffId: null, today: L.day, now: r.now }).staff.filter((x) => s.staff.get(x.id)?.active && s.staff.get(x.id)?.chair)
       .map((x) => ({ id: x.id, name: x.name, color: x.color, revenue: x.revenue, done: x.done, occupancy: x.occupancy, rebookRate: x.rebookRate, noShows: x.noShows, avgTicket: x.avgTicket }));
   }
   return out;
@@ -686,11 +689,45 @@ export function staffRoutes(app) {
     const pp = previousPeriod(from, to);
     const prev = report(r.s, { ...pp, staffId, today: L.day, now: r.now });
     const pick = (x) => ({ revenue: x.revenue, tickets: x.tickets, avgTicket: x.avgTicket, clients: x.clients, newClients: x.newClients, occupancy: x.occupancy, noShowRate: x.noShowRate, tips: x.tips, series: x.series.map((d) => d.revenue) });
-    const ms = monthStart(L.day), me = monthEnd(L.day);
-    const month = own ? null : report(r.s, { from: ms, to: L.day, staffId: null, today: L.day, now: r.now });
-    const goal = own ? null : { target: r.s.settings.goals.monthCents, done: month ? month.revenue : 0, days: diffDays(ms, me) + 1, elapsed: diffDays(ms, L.day) + 1 };
-    return { ...cur, scope: own ? 'own' : staffId ? 'staff' : 'shop', prev: pick(prev), prevRange: pp, goal, ...(own ? teamSide(r, from, to) : {}) };
+    // the goal of the chosen month (TEAM-03): the salon's on Encaissé, a barber's on his Chiffre réalisé. A period over
+    // several months (7 days astride two, 3 months, the year) follows the month it ends in, today's for the usual ones;
+    // a barber sees his own only when the owner lets barbers see theirs, never the salon's in euros
+    const ms = monthStart(to), me = monthEnd(to);
+    const gday = me < L.day ? me : ms > L.day ? ms : L.day;
+    const elapsed = me < L.day ? diffDays(ms, me) + 1 : ms > L.day ? 0 : diffDays(ms, L.day) + 1;
+    const showGoal = !own || r.s.settings.goals.showBarbers !== false;
+    const goal = showGoal ? { ...goalOf(r.s, staffId, gday, r.now), days: diffDays(ms, me) + 1, elapsed } : null;
+    const mine = staffId ? cur.staff[0] : null;
+    return {
+      ...cur, scope: own ? 'own' : staffId ? 'staff' : 'shop', prev: pick(prev), prevRange: pp, goal,
+      ...(own ? { rebookRate: mine ? mine.rebookRate : 0, ...teamSide(r, from, to) } : {})
+    };
   }, { cap: 'report.own' });
+
+  /* ---------------- monthly statement and goals (TEAM-03) ---------------- */
+
+  // a barber's month: his own, unless the asker manages the team (then any chair's, ?staff=)
+  app.get('/api/v1/statements', (r) => {
+    const L = r.local;
+    const month = r.query.get('month') || L.day.slice(0, 7);
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) throw new HttpError(400, 'invalid', 'Mois attendu au format AAAA-MM.');
+    if (month > L.day.slice(0, 7)) throw new HttpError(400, 'future', 'Ce mois n’a pas encore commencé.');
+    const want = r.query.get('staff');
+    const staffId = want && r.caps.has('team') ? want : r.me.id;
+    if (!r.s.staff.get(staffId)) throw new HttpError(404, 'not_found', 'Membre de l’équipe introuvable.');
+    return staffStatement(r.s, staffId, month, L.day, r.now);
+  }, { cap: 'report.own' });
+
+  // Objectifs: each chair's share of this month's open chair minutes, so the screen shows « Auto · 4 200 € » as typed
+  app.get('/api/v1/goals', (r) => {
+    const s = r.s, day = r.local.day;
+    const G = s.settings.goals;
+    const shares = goalShares(s, day);
+    return {
+      month: day.slice(0, 7), monthCents: G.monthCents, showBarbers: G.showBarbers !== false,
+      staff: [...shares.entries()].map(([id, share]) => ({ id, share, auto: autoGoal(G.monthCents, share), typed: G.staff && typeof G.staff[id] === 'number' ? G.staff[id] : null }))
+    };
+  }, { cap: 'settings' });
 
   /* ---------------- relances ---------------- */
 

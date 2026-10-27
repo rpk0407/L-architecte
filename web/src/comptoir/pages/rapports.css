@@ -67,3 +67,72 @@
 .rp-ins.accent > svg { color: var(--accent); }
 .rp-ins.warn > svg { color: var(--warn); }
 .rp-ins.ok > svg { color: var(--ok); }
+/* TEAM-03: Mes chiffres (six figures, my goal, my statement), the team table and the gap line */
+.kpis.k6 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 1100px) { .kpis.k6 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.rp-salon { display: flex; align-items: center; gap: 8px; margin-top: -4px; font-size: 14px; color: var(--tx2); }
+.rp-salon svg { color: var(--tx3); flex: none; }
+.rp-statement-cta { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.rp-statement-cta .btn { min-height: 44px; }
+.rp-statement-cta .faint { font-size: 13px; }
+.rp-mygoal { padding-block: 18px; }
+.rp-goal-line { margin: 0 0 12px; font-size: 16px; line-height: 1.45; }
+.rp-goal-line .money { font-weight: 600; }
+.rp-goal-week { margin-top: 10px; font-size: 13px; }
+.rp-rules { font-size: 13px; text-align: right; }
+.rp-gap { margin: -2px 0 12px; padding: 10px 12px; border-radius: 12px; background: var(--panel2); font-size: 13.5px; line-height: 1.45; color: var(--tx2); font-variant-numeric: tabular-nums; }
+.rp-team th { white-space: normal; vertical-align: bottom; line-height: 1.25; }
+.rp-team th.num { min-width: 64px; }
+.rp-team th, .rp-team td { padding-left: 7px; padding-right: 7px; }
+/* the secondary columns go first, so Commission (the one payroll reads) never slides out of view */
+@media (max-width: 1400px) { .rp-team .rp-m { display: none; } }
+@media (max-width: 1250px) { .rp-team .rp-m2 { display: none; } }
+.rp-who { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; margin: -10px 0 -6px; padding: 0 8px 0 0; border-radius: 10px; color: inherit; text-align: left; }
+.rp-who > svg { color: var(--tx3); }
+.rp-who:hover b, .rp-who:focus-visible b { text-decoration: underline; text-underline-offset: 3px; }
+/* the owner's table: Barbier, Chiffre, Commission on a tablet and a phone, the rest in the row sheet */
+@media (max-width: 1100px) { .rp-shop .rp-x { display: none; } }
+@media (max-width: 760px) {
+  .rp-team .rp-x { display: none; }
+  .rp-team .tr { width: 96px; }
+  .rp-rules { text-align: left; }
+}
+/* the narrowest phones: the three columns still fit without a sideways scroll */
+@media (max-width: 360px) {
+  .rp-team { font-size: 13px; }
+  .rp-team .tr { width: 64px; }
+  .rp-team th, .rp-team td { padding-left: 4px; padding-right: 4px; }
+  .rp-team th.num { min-width: 0; }
+  .rp-who { gap: 7px; }
+  .rp-who > svg { display: none; }
+}
+.rp-row { display: flex; flex-direction: column; }
+.rp-row > div { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; padding: 11px 0; border-bottom: 1px solid var(--line); }
+.rp-row > div:last-child { border-bottom: 0; }
+.rp-row dt { display: flex; flex-direction: column; gap: 2px; font-size: 14px; font-weight: 600; min-width: 0; }
+.rp-row dt small { font-weight: 400; font-size: 12.5px; color: var(--tx3); }
+.rp-row dd { font-size: 15px; white-space: nowrap; }
+.rp-st { display: flex; flex-direction: column; gap: 14px; }
+.rp-st-top { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.rp-st-top > div { display: flex; flex-direction: column; gap: 4px; padding: 14px; border-radius: 16px; background: var(--panel2); }
+.rp-st-top span { font-size: 12.5px; }
+.rp-st-top b { font: 400 30px/1.1 var(--serif); }
+.rp-st-top small { font-size: 12px; color: var(--tx3); }
+@media (max-width: 420px) { .rp-st-top { grid-template-columns: minmax(0, 1fr); } }
+.rp-st-t th { font: 500 14px/1.3 var(--sans); color: var(--tx); white-space: normal; border-bottom: 1px solid var(--line); padding: 10px 6px; }
+.rp-st-t th small { display: block; font-size: 12px; color: var(--tx3); font-weight: 400; }
+.rp-st-t td { padding: 10px 6px; white-space: nowrap; }
+.rp-st-t .tot th, .rp-st-t .tot td { font-weight: 700; border-top: 1px solid var(--line2); }
+.rp-st-t tr:last-child th { border-bottom: 0; }
+.rp-st-rules { font-size: 12.5px; }
+/* the statement on paper: an A4 page of its own, whatever the till's printer page says */
+@page statement { size: A4; margin: 14mm; }
+@media print {
+  html:has(.rp-print), body:has(.rp-print) { background: #fff !important; }
+  /* hidden is not gone: the app would still take its height and print blank pages after the statement */
+  body:has(.rp-print) > :not(.rp-print) { display: none !important; }
+  .print-only.rp-print { width: auto; right: 0; font: 11pt/1.4 var(--sans), Arial, sans-serif; page: statement; }
+  .rp-print h1 { font: 600 16pt/1.2 var(--sans), Arial, sans-serif; margin-bottom: 10pt; }
+  .rp-print .note, .rp-print .rp-st-top > div { background: none; box-shadow: none; border: 1px solid #999; }
+  .rp-print .table th, .rp-print .table td, .rp-print .faint, .rp-print small, .rp-print .note, .rp-print .note * { color: #000 !important; }
+}

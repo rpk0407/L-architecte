@@ -24,7 +24,7 @@ What exists is listed in the [README](../README.md). These are the next steps, o
 
 - **Card terminal integration** (SumUp or Stripe Terminal): the amount is pushed to the terminal from the till, no double entry.
 - **Supplier orders**: the stock alerts turn into a purchase order to send by e-mail; deliveries received in one tap.
-- **Payroll export**: commissions and tips per barber per month, in the format the accountant uses.
+- **Payroll in the provider's format**: the monthly statement per barber and the payroll CSV exist (Rapports › Relevés de paie: réalisé, commission on TTC or HT, tips card and cash, carnet and membership cuts, days); an import file in the payroll provider's own format (Silae, PayFit) remains.
 - **Chair rental** (barbers renting a chair): rent schedule, their own till and figures, the salon's cut.
 - **Several salons**: one owner, several locations, figures side by side, clients shared. The journal per salon already makes this a configuration rather than a rewrite.
 - **Offline till**: tickets queued on the tablet when the internet drops, sent with their idempotency key when it comes back (the server side is already idempotent).

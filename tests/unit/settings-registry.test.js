@@ -75,8 +75,11 @@ const BEFORE = () => {
     },
     // DO-05: a barber's own absence waits for the owner
     // TEAM-01: what barbers see of colleagues, the nudge of their own regulars, their phones and calendars
-    team: { barberCheckout: true, barberAllAgenda: true, barberMaxDiscountPct: 10, barberSeeRevenue: false, timeoffApproval: true, teamView: 'salon', barberRebook: false, personalPhones: true, staffCalendar: true },
-    goals: { monthCents: 2400000 },
+    team: { barberCheckout: true, barberAllAgenda: true, barberMaxDiscountPct: 10, barberSeeRevenue: false, timeoffApproval: true, teamView: 'salon', barberRebook: false, personalPhones: true, staffCalendar: true,
+      // TEAM-03: the commission rules (Équipe › Rémunération)
+      commissionBase: 'ttc', cutCredit: 'performer', memberCredit: 'split', rewardCredit: 'list' },
+    // TEAM-03: each barber's goal (null = automatic) and whether barbers see theirs
+    goals: { monthCents: 2400000, staff: {}, showBarbers: true },
     // WP-02: what the owner is told without opening the Comptoir
     notify: { to: '', phone: '', newBooking: true, cancel: true, evening: '20:00', weekly: true },
     // the /formations page (WP-05): its modules and certificates
