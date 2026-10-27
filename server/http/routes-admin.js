@@ -51,7 +51,7 @@ const LABELS = {
 // CPT-01a: the month and year closures, their signatures, the technical log
 Object.assign(LABELS, { 'period.closed': 'Clôture du mois ou de l’année', 'seal.signed': 'Clôture signée', 'tech.logged': 'Journal technique' });
 // AC-01: the client space
-Object.assign(LABELS, { 'account.signedIn': 'Espace client : connexion', 'account.codeMissed': 'Espace client : code erroné', 'account.codeBurned': 'Espace client : code bloqué', 'account.revoked': 'Espace client : appareils déconnectés', 'account.closed': 'Espace client supprimé' });
+Object.assign(LABELS, { 'account.signedIn': 'Espace client : connexion', 'account.codeMissed': 'Espace client : code erroné', 'account.codeBurned': 'Espace client : code bloqué', 'account.fenceOpened': 'Espace client : ouvert sur une fiche inactive', 'account.revoked': 'Espace client : appareils déconnectés', 'account.closed': 'Espace client supprimé' });
 const STATUS = { arrived: 'arrivé', in_chair: 'au fauteuil', booked: 'remis à venir', no_show: 'absent' };
 
 const END_FR = { cancelled: 'résilié', unpaid: 'faute de paiement', withdrawn: 'rétractation', abandoned: 'paiement jamais fait' };

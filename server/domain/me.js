@@ -18,6 +18,18 @@ const dayOfMs = (ms) => localParts(ms).day;
  * @typedef {{ now: number, today: string, tokenFor: (a: any) => string, origin: string, receiptFor?: (sale: any) => string, demo?: boolean }} MeCtx
  */
 
+/**
+ * What the space may say of the file's holder. Unnamed (the first name was not given at the opening: maybe the new holder
+ * of a recycled number): nothing, not even the name he could not give. Fenced: the first name he gave, not the last name
+ * nor the birthday of a file that may be someone else's.
+ * @param {any} c @param {any} account
+ */
+export function shownIdentity(c, account) {
+  const named = !account || account.named !== false;
+  const fenced = !!(account && account.fenced);
+  return { first: named ? c.first || '' : '', last: named && !fenced ? c.last || '' : '', birthday: named && !fenced ? c.birthday || '' : '' };
+}
+
 const staffOf = (s, id) => { const st = id ? s.staff.get(id) : null; return st ? { id: st.id, name: st.name, initials: st.initials || '', color: st.color || '' } : null; };
 /** From the fence's day on (inclusive): what a fenced account may show. */
 const after = (account, day) => !account || !account.fenced || !account.historyFrom || day >= account.historyFrom;
@@ -85,9 +97,11 @@ export function meHome(s, c, ids, account, ctx) {
   const team = [...s.staff.values()].filter((x) => x.active && x.chair && x.bookable).sort((a, b) => (a.order ?? 99) - (b.order ?? 99)).map((x) => staffOf(s, x.id));
   const sh = s.settings.shop;
   const prefStaff = account && account.prefs && account.prefs.staffId;
+  const who = shownIdentity(c, account);
   return {
-    first: c.first, last: c.last, birthday: c.birthday || '', since: account ? account.since : 0, fenced, historyFrom: fenced ? account.historyFrom : null,
-    consent: { sms: c.sms !== false, marketing: !!c.marketing, marketingAt: c.marketingAt || null },
+    ...who, since: account ? account.since : 0, fenced, historyFrom: fenced ? account.historyFrom : null,
+    // the switches stay usable; when the previous holder said yes to offers is his, not shown to an unnamed space
+    consent: { sms: c.sms !== false, marketing: !!c.marketing, marketingAt: account && account.named === false ? null : c.marketingAt || null },
     prefs: { staffId: prefStaff && s.staff.get(prefStaff) && s.staff.get(prefStaff).active ? prefStaff : null },
     rhythm: rhythmOf(stats),
     usual: usualOf(s, ids, account),

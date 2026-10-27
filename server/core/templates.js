@@ -14,7 +14,7 @@ export const TEMPLATES = {
   cancelled: "L'Architecte : ton rendez-vous du {date} à {heure} est annulé. Pour en reprendre un : {lien}",
   receipt: "L'Architecte : merci {prenom} ! Ton ticket {ticket} de {montant} : {lien}",
   // asked from /mon-rendez-vous: the next appointment's link, {suite} the one after it (or nothing), {espace} the client
-  // space's line when it is open (AC-01: " Tout retrouver : https://…/moi", or nothing)
+  // space's line when it is open (AC-01: " Ton espace : salon.fr/moi", or nothing)
   lookup: "L'Architecte : ton rendez-vous {date} à {heure} : {lien}{suite}{espace}",
   // DO-03: the code of a gift card, sent from the till's voucher to the person it is for
   giftcardCode: "L'Architecte : {acheteur} t'offre une carte cadeau de {montant} ! Code {code}, valable jusqu'au {date}. Réserve : {lien}",

@@ -20,7 +20,7 @@ import { router } from '../../server/http/kit.js';
 import { signLink } from '../../server/auth/session.js';
 import { capsOf } from '../../server/domain/permissions.js';
 import { DEMO } from '../../server/domain/seed.js';
-import { OTP_TEXT, OTP_TTL, otpCode, fillOtp, liveCodes, missesOf } from '../../server/domain/otp.js';
+import { OTP_TEXT, OTP_LATE_TEXT, OTP_TTL, otpCode, fillOtp, liveCodes, missesOf } from '../../server/domain/otp.js';
 import { sendCode, verifyCode, detachPhone, personaOf, sameFirst, CLIENT_ACTOR } from '../../server/commands/accounts.js';
 import { accountsExtension, accountOf } from '../../server/projections/accounts.js';
 import { meRoutes, ACCOUNT_TIMING, START_MESSAGE, settled } from '../../server/http/routes-me.js';
@@ -93,6 +93,9 @@ test('a known number gets one code whose digits are nowhere but in the text that
   assert.equal(sent[0].body, OTP_TEXT.replace('{code}', code) + '\n\n@salon.test #' + code);
   assert.equal(fillOtp({ id: m.id, body: OTP_TEXT }, rt.secret, 'salon.test'), sent[0].body);
   assert.equal(fillOtp({ id: m.id, body: 'Rien à remplir' }, rt.secret, 'salon.test'), 'Rien à remplir');
+  // a text that leaves after its code died (no route for a while) carries no dead digits
+  assert.equal(fillOtp({ id: m.id, body: OTP_TEXT, at: 0 }, rt.secret, 'salon.test', OTP_TTL), OTP_LATE_TEXT);
+  assert.equal(fillOtp({ id: m.id, body: OTP_TEXT, at: 0 }, rt.secret, 'salon.test', OTP_TTL - 1), sent[0].body);
   // the journal (chained data and pii) never holds the digits; the actor names nobody
   const stored = (await t.store.read(0)).events;
   assert.ok(!JSON.stringify(stored).includes(code), 'the code is not in the journal');
@@ -214,7 +217,7 @@ test('five wrong codes burn the file’s codes; a code is dead after 10 minutes'
   assert.equal(liveCodes(rt.engine.state, yanis.id, t.clock.now).length, 0);
   const late = await b.post('/api/public/account/verify', { phone: yanis.phone, code: right, first: 'Yanis' });
   assert.equal(late.status, 429);
-  assert.equal(late.json.error.message, 'Trop d’essais. Réessaie dans une heure ou appelle le salon.');
+  assert.equal(late.json.error.message, 'Trop d’essais. Réessaie un peu plus tard ou appelle le salon.');
   const ctx = { actor: CLIENT_ACTOR, caps: new Set(), meta: { otpCode: (id) => otpCode(rt.secret, id) } };
   assert.deepEqual(await rt.engine.run(verifyCode, { phone: yanis.phone, code: right, first: 'Yanis' }, ctx), { ok: false });
 
@@ -290,6 +293,36 @@ test('« Garde ton espace » after a guest booking: a code to that booking’s n
   assert.equal((await site.get('/api/me')).json.first, 'Karim');
   assert.equal((await site.post('/api/public/account/keep', { token: 'LA-NOPE.xxxxxxxxxxxxxxxxxxxxxx' })).status, 404);
   assert.equal((await site.post('/api/public/account/keep', {})).status, 404);
+});
+
+test('the salon’s « acc » invite: a code to the file’s number for 48 h, then the first name; expired, tampered or erased is a 404', async () => {
+  const { t, rt, client, lastCode } = await setup();
+  const y = await client({ first: 'Yanis' });
+  const acc = (cid, ms = 48 * 3600000) => signLink(rt.secret, 'acc', cid + '~' + (t.clock.now + ms).toString(36));
+  const b = browser(rt);
+  const tok = acc(y.id);
+  const keep = await b.post('/api/public/account/keep', { token: tok });
+  assert.equal(keep.status, 200, keep.text);
+  assert.deepEqual(keep.json, { ok: true, sentTo: '07 •• •• •• ' + y.e164.slice(-2) });
+  // the link proves the phone, as a code does: the first opening still asks the first name
+  const ask = await b.post('/api/public/account/verify', { token: tok, code: lastCode(y.id) });
+  assert.deepEqual({ ok: ask.json.ok, ask: ask.json.ask }, { ok: false, ask: 'first' });
+  const v = await b.post('/api/public/account/verify', { token: tok, code: lastCode(y.id), first: 'Yanis' });
+  assert.equal(v.status, 200, v.text);
+  assert.deepEqual(v.json, { ok: true, first: 'Yanis' });
+  assert.equal((await b.get('/api/me')).json.first, 'Yanis');
+  // dead links
+  const nope = browser(rt);
+  const expired = acc(y.id, -1000);
+  assert.equal((await nope.post('/api/public/account/keep', { token: expired })).status, 404);
+  assert.equal((await nope.post('/api/public/account/keep', { token: tok.slice(0, -2) + (tok.endsWith('AA') ? 'BB' : 'AA') })).status, 404, 'tampered');
+  assert.equal((await nope.post('/api/public/account/keep', { token: signLink(rt.secret, 'appt', y.id + '~' + (t.clock.now + 9e6).toString(36)) })).status, 404, 'another kind of link');
+  const gone = await client();
+  for (let i = 0; i < 3; i++) if ((await t.engine.run(eraseClient, { id: gone.id, cancelUpcoming: true }, ownerCtx(t))).erased) break;
+  assert.equal((await nope.post('/api/public/account/keep', { token: acc(gone.id) })).status, 404, 'erased file');
+  const ve = await nope.post('/api/public/account/verify', { token: expired, code: lastCode(y.id), first: 'Yanis' });
+  assert.equal(ve.status, 400);
+  assert.equal(ve.json.error.code, 'bad_code');
 });
 
 test('the session ends with « Déconnecter tous mes appareils », and a new sign-in works', async () => {
@@ -404,9 +437,10 @@ test('a file inactive for 600 days opens fenced: nothing before today, a line fo
   const home = await b.get('/api/me/home');
   assert.equal(home.json.rhythm.visits, 0);
   assert.equal(home.json.rhythm.lastDay, null);
-  // the feed line, for whoever may read the files (client.view), not for someone without it
+  // the feed line, for whoever may read the files (client.view), not for someone without it; a sign-in is not news
   const s = rt.engine.state;
-  const f = s.feed.find((x) => x.type === 'account.signedIn');
+  assert.equal(s.feed.filter((x) => x.type === 'account.signedIn').length, 0, 'sign-ins stay out of the feed');
+  const f = s.feed.find((x) => x.type === 'account.fenceOpened');
   assert.ok(f, 'kept in the feed');
   const line = accountsExtension.item({ s, caps: new Set(['client.view']) }, f);
   assert.deepEqual(line, { v: f.v, at: f.at, by: 'client', kind: 'account', clientId: id, staffId: null, title: 'Espace ouvert sur une fiche inactive', sub: 'Yanis · vérifie que c’est la même personne' });
@@ -419,15 +453,45 @@ test('a file inactive for 600 days opens fenced: nothing before today, a line fo
   assert.equal(again.data.fenced, true);
   assert.equal(again.data.historyFrom, DAY);
   assert.equal(again.data.opened, undefined);
-  assert.equal(accountsExtension.item({ s, caps: new Set(['client.view']) }, s.feed.filter((x) => x.type === 'account.signedIn').at(-1)), null);
+  assert.equal(events(rt, 'account.fenceOpened').length, 1, 'one feed line, at the opening');
 });
 
-test('a recycled number after 120 days: three wrong first names open the space fenced and unnamed', async () => {
+test('a file not seen for 600 days stays fenced when its number books today: a booking is not a visit', async () => {
+  const { t, rt } = await setup();
+  const old = addDays(DAY, -600);
+  t.clock.now = at(old, 10);
+  const who = freshPhone();
+  const id = (await t.engine.run(addClient, { first: 'Yanis', last: 'Martin', phone: who.phone, birthday: '12-03' }, ownerCtx(t))).id;
+  const a = await t.engine.run(A.createAppointment, { clientId: id, serviceIds: [t.ids.cut], staffId: t.ids.Ali, day: old, start: 600 }, ownerCtx(t));
+  t.clock.now = at(old, 10, 40);
+  await t.engine.run(S.checkout, { apptId: a.id, lines: [{ kind: 'service', ref: t.ids.cut }], payments: [{ method: 'card', amount: 2000 }] }, ownerCtx(t));
+  // a stale booking from long ago, never closed, proves nothing either
+  await t.engine.run(A.createAppointment, { clientId: id, serviceIds: [t.ids.cut], staffId: t.ids.Ali, day: addDays(old, 1), start: 600 }, ownerCtx(t));
+  t.clock.now = at(DAY, 9);
+  // the new holder of the number books for today on the site, with the same first name: it lands on the old file
+  const site = browser(rt);
+  const book = await site.post('/api/public/bookings', { serviceIds: [t.ids.cut], staffId: 'any', day: DAY, start: 960, first: 'Yanis', phone: who.phone });
+  assert.equal(book.status, 201, book.text);
+  assert.equal(rt.engine.state.appts.get(book.json.id || [...rt.engine.state.appts.values()].at(-1).id).clientId, id);
+  assert.equal((await site.post('/api/public/account/keep', { token: book.json.token })).status, 200);
+  const m = [...rt.engine.state.messages.values()].filter((x) => x.template === 'otp' && x.cid === id).at(-1);
+  const v = await site.post('/api/public/account/verify', { token: book.json.token, code: otpCode(rt.secret, m.id), first: 'Yanis' });
+  assert.equal(v.status, 200, v.text);
+  const row = accountOf(rt.engine.state, [id]);
+  assert.deepEqual({ fenced: row.fenced, historyFrom: row.historyFrom, named: row.named }, { fenced: true, historyFrom: DAY, named: true });
+  // fenced but named: the first name he gave, not the last name nor the birthday of a file that may be someone else's
+  const me = (await site.get('/api/me')).json, home = (await site.get('/api/me/home')).json;
+  assert.deepEqual([me.first, me.last], ['Yanis', '']);
+  assert.deepEqual([home.first, home.last, home.birthday], ['Yanis', '', '']);
+  assert.deepEqual((await site.get('/api/me/history')).json.items, []);
+});
+
+test('a recycled number after 120 days: three wrong first names open the space fenced and unnamed, and it says nothing of the file', async () => {
   const { t, rt } = await setup();
   const old = addDays(DAY, -120);
   t.clock.now = at(old, 10);
   const who = freshPhone();
-  const id = (await t.engine.run(addClient, { first: 'Mehdi', phone: who.phone }, ownerCtx(t))).id;
+  const id = (await t.engine.run(addClient, { first: 'Mehdi', last: 'Benali', birthday: '04-02', phone: who.phone, marketing: true }, ownerCtx(t))).id;
   t.clock.now = at(DAY, 10);
   const b = browser(rt);
   await b.post('/api/public/account/start', { phone: who.phone });
@@ -442,18 +506,101 @@ test('a recycled number after 120 days: three wrong first names open the space f
   assert.equal(events(rt, 'account.signedIn').length, 0);
   const third = await b.post('/api/public/account/verify', { phone: who.phone, code, first: 'Nordine' });
   assert.equal(third.status, 200, third.text);
-  assert.equal(third.json.ok, true);
+  assert.deepEqual(third.json, { ok: true, first: '' }, 'not even the name he could not give');
   const row = accountOf(rt.engine.state, [id]);
   assert.equal(row.fenced, true);
   assert.equal(row.named, false, 'AC-02 refuses the export and the erasure request: !fenced && named');
   assert.equal(row.historyFrom, DAY);
+  // nothing of the previous holder: no first or last name, no birthday, not when he said yes to offers
+  const seen = JSON.stringify([(await b.get('/api/me')).json, (await b.get('/api/me/home')).json, (await b.get('/api/public/account')).json]);
+  for (const x of ['Mehdi', 'Benali', '04-02']) assert.ok(!seen.includes(x), x + ' in ' + seen);
+  const home = (await b.get('/api/me/home')).json;
+  assert.deepEqual([home.first, home.last, home.birthday, home.consent.marketingAt], ['', '', '', null]);
+  assert.equal((await b.get('/api/public/account')).json.first, '');
   // the same file named right at the first opening would not be fenced at 120 days
   assert.equal(sameFirst('mehdi', 'Mehdi'), true);
   assert.equal(sameFirst('Jean', 'Jean-Pierre'), true);
   assert.equal(sameFirst('Élodie', 'elodie'), true);
-  assert.equal(sameFirst('Je', 'Jean'), false, 'three letters at least');
+  assert.equal(sameFirst('Jean-Pierre', 'Jean'), true);
+  assert.equal(sameFirst('Alex', 'Alexandre'), true, 'shortened from 4 letters');
+  assert.equal(sameFirst('Je', 'Jean'), false);
+  assert.equal(sameFirst('Meh', 'Mehdi'), false, 'three letters do not sweep a name');
+  assert.equal(sameFirst('Mar', 'Marc'), false);
   assert.equal(sameFirst('Mo', 'Mo'), true, 'or the whole of a short name');
   assert.equal(sameFirst('Karim', 'Mehdi'), false);
+  assert.equal(sameFirst('أحمد', 'أحمد'), true, 'any script');
+  assert.equal(sameFirst('ахмед', 'Ахмед'), true);
+  assert.equal(sameFirst('Ахмед', 'Мехди'), false);
+});
+
+test('wrong first names count over days: two one day, one the next, and the space opens fenced and unnamed', async () => {
+  const { t, rt } = await setup();
+  t.clock.now = at(addDays(DAY, -30), 10);
+  const who = freshPhone();
+  const id = (await t.engine.run(addClient, { first: 'Mehdi', last: 'Benali', phone: who.phone }, ownerCtx(t))).id;
+  t.clock.now = at(DAY, 10);
+  const b = browser(rt);
+  const ask = async (first) => {
+    await b.post('/api/public/account/start', { phone: who.phone });
+    await settled();
+    const m = [...rt.engine.state.messages.values()].filter((x) => x.template === 'otp' && x.cid === id).at(-1);
+    return b.post('/api/public/account/verify', { phone: who.phone, code: otpCode(rt.secret, m.id), first });
+  };
+  const WRONG = { ok: false, ask: 'first', message: 'Ce n’est pas le prénom de la fiche. Réessaie.' };
+  for (const first of ['Karim', 'Sofiane']) assert.deepEqual((await ask(first)).json, WRONG, first);
+  // the next day: the count goes on
+  t.clock.now = at(addDays(DAY, 1), 10);
+  const third = await ask('Nordine');
+  assert.deepEqual(third.json, { ok: true, first: '' });
+  const row = accountOf(rt.engine.state, [id]);
+  assert.deepEqual({ fenced: row.fenced, named: row.named, historyFrom: row.historyFrom }, { fenced: true, named: false, historyFrom: addDays(DAY, 1) });
+  assert.equal(rt.engine.state.nameMisses.get(id), undefined, 'the opening clears the count');
+  // the right name later changes nothing: the space keeps its first fence
+  await b.post('/api/me/signout');
+  t.clock.now += 3600000;
+  // (a code queued straight: this process already let the number ask three times today)
+  const { msgId } = await rt.engine.run(sendCode, { phone: who.phone }, { actor: CLIENT_ACTOR, caps: new Set(), meta: {} });
+  const v = await b.post('/api/public/account/verify', { phone: who.phone, code: otpCode(rt.secret, msgId), first: 'Mehdi' });
+  assert.deepEqual(v.json, { ok: true, first: '' });
+  assert.equal(accountOf(rt.engine.state, [id]).named, false);
+});
+
+test('a space unused for longer than the fence, on a file not seen since: the question comes back and the fence starts again', async () => {
+  const { t, rt, signIn } = await setup();
+  const old = addDays(DAY, -600);
+  t.clock.now = at(old, 10);
+  const who = freshPhone();
+  const id = (await t.engine.run(addClient, { first: 'Yanis', last: 'Martin', birthday: '12-03', phone: who.phone }, ownerCtx(t))).id;
+  const a = await t.engine.run(A.createAppointment, { clientId: id, serviceIds: [t.ids.cut], staffId: t.ids.Ali, day: old, start: 600 }, ownerCtx(t));
+  t.clock.now = at(old, 10, 40);
+  await t.engine.run(S.checkout, { apptId: a.id, lines: [{ kind: 'service', ref: t.ids.cut }], payments: [{ method: 'card', amount: 2000 }] }, ownerCtx(t));
+  // Yanis opens his space the day after his visit: named, not fenced
+  t.clock.now = at(addDays(old, 1), 10);
+  await signIn(browser(rt), { id, ...who });
+  assert.equal(accountOf(rt.engine.state, [id]).fenced, false);
+  // 600 days later someone else holds the number: the code alone is not enough
+  t.clock.now = at(DAY, 10);
+  const b = browser(rt);
+  await b.post('/api/public/account/start', { phone: who.phone });
+  await settled();
+  const m = [...rt.engine.state.messages.values()].filter((x) => x.template === 'otp' && x.cid === id).at(-1);
+  const code = otpCode(rt.secret, m.id);
+  const r0 = await b.post('/api/public/account/verify', { phone: who.phone, code });
+  assert.deepEqual({ ok: r0.json.ok, ask: r0.json.ask }, { ok: false, ask: 'first' });
+  for (const first of ['Karim', 'Sofiane']) assert.equal((await b.post('/api/public/account/verify', { phone: who.phone, code, first })).json.message, 'Ce n’est pas le prénom de la fiche. Réessaie.');
+  const r3 = await b.post('/api/public/account/verify', { phone: who.phone, code, first: 'Nordine' });
+  assert.deepEqual(r3.json, { ok: true, first: '' });
+  const row = accountOf(rt.engine.state, [id]);
+  assert.deepEqual({ fenced: row.fenced, named: row.named, historyFrom: row.historyFrom }, { fenced: true, named: false, historyFrom: DAY });
+  const ev = events(rt, 'account.signedIn').at(-1);
+  assert.equal(ev.data.refenced, true);
+  assert.equal(events(rt, 'account.fenceOpened').length, 1);
+  const seen = JSON.stringify([(await b.get('/api/me')).json, (await b.get('/api/me/home')).json, (await b.get('/api/me/history')).json]);
+  for (const x of ['Yanis', 'Martin', '12-03', 'Coupe']) assert.ok(!seen.includes(x), x + ' in ' + seen);
+  // replay folds the same
+  const s2 = emptyState();
+  for (const e of rt.engine.journal) evolve(s2, e);
+  assert.deepEqual(accountOf(s2, [id]), accountOf(rt.engine.state, [id]));
 });
 
 test('a file brought from WordPress and never seen here opens fenced', async () => {
@@ -575,7 +722,9 @@ test('the lookup text says where to find everything while the space is open', as
   await m.route.fn(r);
   await Promise.all(pending);
   const text = [...rt.engine.state.messages.values()].find((x) => x.template === 'lookup' && x.cid === y.id);
-  assert.ok(text.body.endsWith(' Tout retrouver : https://salon.test/moi'), text.body);
+  assert.ok(text.body.endsWith(' Ton espace : salon.test/moi'), text.body);
+  // with the salon's real address the text for one booking is still one SMS
+  assert.ok(text.body.replaceAll('salon.test', 'barberlarchitecte.com').length <= 160, text.body);
 });
 
 /* ---------------- the demo ---------------- */
@@ -635,6 +784,14 @@ function describeDemo() {
     assert.equal((await owner.post('/api/v1/clients/' + persona.id + '/detach-phone')).status, 403);
     assert.equal((await owner.get('/api/v1/accounts/stats')).status, 403);
     assert.equal((await owner.get('/api/v1/clients/' + persona.id + '/account')).status, 200, 'barbers see the files');
+    // someone whose role does not hold client.view: no account to read (the route's capability, on a real session)
+    const role = (x) => rt.engine.run({ run: (s, i, ctx) => { ctx.emit('staff.updated', { id: ids.JKut, patch: { role: x } }); return {}; } }, {}, { actor: { t: 'system', id: 'test', n: '' }, caps: new Set(), meta: {} });
+    await role('stagiaire');
+    try {
+      assert.equal(capsOf(rt.engine.state.staff.get(ids.JKut), rt.engine.state.settings).has('client.view'), false);
+      assert.equal((await owner.get('/api/v1/clients/' + persona.id + '/account')).status, 403);
+    } finally { await role('barber'); }
+    assert.equal((await owner.get('/api/v1/clients/' + persona.id + '/account')).status, 200);
   });
 
   test('demo: a code is shown for the persona’s number only, and for a visitor’s own fresh booking', async () => {
@@ -643,8 +800,21 @@ function describeDemo() {
     const p = await b.post('/api/public/account/start', { phone: persona.phone });
     assert.equal(p.status, 200);
     assert.match(p.json.demoCode, /^\d{6}$/);
+    // no « Ton prénom ? » for the showcase (a visitor cannot know it), never fenced, and its cookie is the persona's
+    const w0 = rt.engine.journal.length;
     const v = await b.post('/api/public/account/verify', { phone: persona.phone, code: p.json.demoCode });
     assert.equal(v.status, 200, v.text);
+    assert.deepEqual(v.json, { ok: true, first: persona.first });
+    assert.equal((await b.get('/api/me')).json.demo, true);
+    assert.ok(rt.engine.journal.slice(w0).every((e) => !e.type.startsWith('account.')), 'a re-opening of the persona writes nothing');
+    for (const first of ['Marc', 'Paul', 'Jean']) {
+      const again = await browser(rt).post('/api/public/account/start', { phone: persona.phone });
+      assert.equal(again.json.demoCode, p.json.demoCode, 'the live code is shared, past the daily caps');
+      assert.equal((await browser(rt).post('/api/public/account/verify', { phone: persona.phone, code: again.json.demoCode, first })).status, 200);
+    }
+    const row = accountOf(rt.engine.state, [persona.id]);
+    assert.deepEqual({ fenced: row.fenced, named: row.named }, { fenced: false, named: true });
+    assert.equal(events(rt, 'account.fenceOpened').length, 0);
     // any other number: the same words, no code (a visitor's real number typed by another opens nothing)
     const seeded = [...rt.engine.state.clients.values()].find((c) => c.phone && c.id !== persona.id && !c.erased && !c.mergedInto);
     for (const phone of [seeded.phone, freshPhone().phone]) {

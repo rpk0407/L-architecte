@@ -11,7 +11,7 @@ import { localParts, diffDays } from '../../shared/dates.js';
 import { queueMessage, messageId } from '../domain/messages.js';
 import { linkAllowed } from '../domain/linkcap.js';
 import { OTP_TEXT, OTP_PER_DAY, OTP_TRIES, otpKey, liveCodes, missesOf } from '../domain/otp.js';
-import { accountOf, accountPastOf } from '../projections/accounts.js';
+import { accountOf, accountPastOf, nameMissesOf } from '../projections/accounts.js';
 import { accountsOn } from '../settings/accounts.js';
 import { clientStats } from '../domain/insights.js';
 import { fileIds } from './clients.js';
@@ -23,6 +23,13 @@ export const CLIENT_ACTOR = /** @type {const} */ ({ t: 'client', id: 'moi', n: '
 export const NAME_TRIES = 3;
 /** The demo's visitors' own files (created through the site) are erased this long after (commands/steps/demo-purge.js). */
 export const DEMO_PURGE_MS = 2 * 3600000;
+/** The demo's persona: codes a day (one live code is handed to every visitor in turn, the texts are simulated). */
+export const DEMO_CODES_PER_DAY = 48;
+const DAY_MS = 86400000;
+/** settings.accounts.fenceDays */
+const fenceDaysOf = (s) => (s.settings.accounts && s.settings.accounts.fenceDays) || 180;
+/** Is this file the demo's persona? Its space is the showcase: never asked a name, never fenced. */
+const isPersonaFile = (s, c, now) => s.mode === 'demo' && !!c && (personaOf(s, now) || {}).id === c.id;
 
 /** The file, followed through its merges (at most 20), or null. */
 export function rootFile(s, cid) {
@@ -33,8 +40,9 @@ export function rootFile(s, cid) {
 
 /**
  * The file a sign-in is about, or null: by the number (only the number on file: a merged file's old number, an erased
- * file, a number moved to another file open nothing, exactly as lookup.js), or by a booking (the token holder's).
- * @param {{ phone?: string, apptId?: string }} x
+ * file, a number moved to another file open nothing, exactly as lookup.js), by a booking (the token holder's), or by the
+ * file itself (cid: only from the salon's « acc » link, checked by the route, never from a body).
+ * @param {{ phone?: string, apptId?: string, cid?: string }} x
  */
 export function fileForSignIn(s, x) {
   let c = null;
@@ -46,7 +54,7 @@ export function fileForSignIn(s, x) {
   } else if (x && x.apptId) {
     const a = s.appts.get(x.apptId);
     c = a && a.clientId ? rootFile(s, a.clientId) : null;
-  }
+  } else if (x && x.cid) c = rootFile(s, x.cid);
   return c && !c.erased && c.phone ? c : null;
 }
 
@@ -56,21 +64,29 @@ export function createdByBooking(s, c, apptId) {
   return !!a && a.clientId === c.id && c.source === 'site' && a.source === 'site' && c.createdAt === a.createdAt;
 }
 
-const fold = (v) => String(v || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '');
-/** « Ton prénom ? »: accents, case and dashes aside, one a prefix of the other (Jean / Jean-Pierre), 3 letters at least. */
+/** The words of a first name, accents and case aside, in any script (Ахмед, أحمد, Élodie). */
+const words = (v) => String(v || '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+/**
+ * « Ton prénom ? »: the first word typed against the first word on file (Jean / Jean-Pierre), accents, case and dashes
+ * aside; a shortened one (Alex / Alexandre) only from 4 letters, so three tries cannot sweep « Meh », « Mar », « Moh ».
+ */
 export function sameFirst(typed, onFile) {
-  const a = fold(typed), b = fold(onFile);
-  if (!a || !b || a.length < Math.min(3, b.length)) return false;
-  return a.startsWith(b) || b.startsWith(a);
+  const a = words(typed)[0], b = words(onFile)[0];
+  if (!a || !b) return false;
+  if (a === b) return true;
+  const [short, long] = a.length < b.length ? [a, b] : [b, a];
+  return [...short].length >= 4 && long.startsWith(short);
 }
 
-/** The last day this group of files shows life here: a visit or a booking passed, a ticket, the file's creation. */
+/**
+ * The last day this group of files was seen at the salon: a visit (done, or under way), a ticket, the file's creation.
+ * A booking proves nothing, whatever its day: the new holder of a number books on the site before he opens the space.
+ */
 export function lastActivity(s, c, ids, today) {
   const set = new Set(ids);
   let last = localParts(c.createdAt || 0).day;
   for (const a of s.appts.values()) {
-    // a booking still to come proves nothing: the new holder of a number books before he looks at its history
-    if (!set.has(a.clientId) || a.day > today || ['cancelled', 'no_show', 'pending'].includes(a.status)) continue;
+    if (!set.has(a.clientId) || a.day > today || !['done', 'arrived', 'in_chair'].includes(a.status)) continue;
     if (a.day > last) last = a.day;
   }
   for (const x of s.sales.values()) if (set.has(x.clientId) && x.day > last) last = x.day;
@@ -84,13 +100,6 @@ export function importedUnseen(s, c, ids) {
   for (const a of s.appts.values()) if (set.has(a.clientId) && a.status === 'done' && !a.legacy && a.source !== 'import') return false;
   for (const x of s.sales.values()) if (set.has(x.clientId)) return false;
   return true;
-}
-
-/** Wrong first names typed today against this file's codes. */
-function nameMissesToday(s, cid, day) {
-  let n = 0;
-  for (const m of s.messages.values()) if (m.template === 'otp' && m.cid === cid && localParts(m.at).day === day) n += missesOf(s, m.id).names;
-  return n;
 }
 
 /** One wrong try against a live code, by its deterministic id (two instances counting the same try count it once). */
@@ -116,10 +125,14 @@ export const sendCode = {
     const c = fileForSignIn(s, input || {});
     if (!c) return { sent: false };
     const day = ctx.local.day;
-    if (!linkAllowed(s, c.id, day)) return { sent: false, cid: c.id };
+    // the demo's persona: every visitor shares its live code (no new text while one lives), outside the daily caps
+    const persona = isPersonaFile(s, c, ctx.now);
+    if (persona) { const [live] = liveCodes(s, c.id, ctx.now).slice(-1); if (live) return { sent: false, cid: c.id, msgId: live.id }; }
+    else if (!linkAllowed(s, c.id, day)) return { sent: false, cid: c.id };
+    const cap = persona ? DEMO_CODES_PER_DAY : OTP_PER_DAY;
     let n = 0;
-    while (n < OTP_PER_DAY && s.messages.has(messageId(otpKey(c.id, day, n)))) n++;
-    if (n >= OTP_PER_DAY) return { sent: false, cid: c.id };
+    while (n < cap && s.messages.has(messageId(otpKey(c.id, day, n)))) n++;
+    if (n >= cap) return { sent: false, cid: c.id };
     const id = queueMessage(s, ctx, { key: otpKey(c.id, day, n), template: 'otp', to: c.phone, cid: c.id, vars: {}, text: OTP_TEXT });
     return id ? { sent: true, cid: c.id, msgId: id } : { sent: false, cid: c.id };
   }
@@ -129,10 +142,15 @@ export const sendCode = {
  * The code typed back. Compared in constant time with every live code of the file (ctx.meta.otpCode(msgId), handed in
  * by the route: the command stays pure). Wrong: one account.codeMissed per live code, so a code dies after OTP_TRIES
  * tries whichever instance counted them. Right, at the first opening of the file's space: « Ton prénom ? » (first) unless
- * the booking being kept created the file; after NAME_TRIES wrong names it opens anyway, fenced. Fenced too: a file
- * inactive for longer than settings.accounts.fenceDays, or brought from WordPress and never seen here; then nothing from
- * before today shows in the space (historyFrom). A re-opening keeps the first fence and name.
- * @returns {{ ok: true, cid: string, first: string, iat: number, fenced: boolean } | { ok: false, ask?: 'first', wrong?: boolean }}
+ * the booking being kept created the file; after NAME_TRIES wrong names it opens anyway, fenced and unnamed. The wrong
+ * names count over the file's life until an opening (s.nameMisses), not per day nor per code. Fenced too: a file not
+ * seen at the salon for longer than settings.accounts.fenceDays, or brought from WordPress and never seen here; then
+ * nothing from before today shows in the space (historyFrom). A re-opening keeps the first fence and name, except after
+ * a long silence on both sides (no sign-in and no visit for fenceDays): the number may have changed hands since, so the
+ * question comes back and the fence is set again from today (account.signedIn refenced). The salon's « acc » link proves
+ * the phone only, like a code: it is asked the name like any first opening. The demo's persona is never asked nor fenced,
+ * and its re-openings write nothing.
+ * @returns {{ ok: true, cid: string, first: string, iat: number, fenced: boolean, named: boolean, persona: boolean } | { ok: false, ask?: 'first', wrong?: boolean }}
  */
 export const verifyCode = {
   run(s, input, ctx) {
@@ -151,24 +169,35 @@ export const verifyCode = {
     const row = accountOf(s, ids), past = accountPastOf(s, ids);
     const today = ctx.local.day;
     const prev = row || past;
-    let named, fenced, historyFrom;
-    if (prev) ({ named, fenced, historyFrom } = prev);
-    else {
-      named = createdByBooking(s, c, x.apptId) || (x.first != null && sameFirst(x.first, c.first));
-      if (!named) {
-        if (x.first == null || !String(x.first).trim()) return { ok: false, ask: 'first' };
-        // the code stays good for the next name; the third wrong one opens the space fenced
-        if (nameMissesToday(s, c.id, today) + 1 < NAME_TRIES) { miss(s, ctx, c.id, hit.id, true); return { ok: false, ask: 'first', wrong: true }; }
-      }
-      const days = (s.settings.accounts && s.settings.accounts.fenceDays) || 180;
-      fenced = !named || diffDays(lastActivity(s, c, ids, today), today) > days || importedUnseen(s, c, ids);
-      historyFrom = fenced ? today : null;
-    }
     // the account stays on the file it was first opened on (a merge since keeps it there): its revocations stay with it
     const anchor = (prev && prev.cid) || c.id;
-    ctx.emit('account.signedIn', { id: anchor, cid: anchor, msgId: hit.id, fenced: !!fenced, ...(fenced && historyFrom ? { historyFrom } : {}), named: !!named, ...(prev ? {} : { opened: true }) });
+    const days = fenceDaysOf(s);
+    const persona = isPersonaFile(s, c, ctx.now);
+    if (persona) {
+      // the showcase: opened once, named, never fenced; a visitor after that writes nothing (amendment 10)
+      if (!row) ctx.emit('account.signedIn', { id: anchor, cid: anchor, msgId: hit.id, fenced: false, named: true, opened: true });
+      return { ok: true, cid: c.id, first: c.first, iat: ctx.now, fenced: false, named: true, persona: true };
+    }
+    const inactive = diffDays(lastActivity(s, c, ids, today), today) > days;
+    const refenced = !!prev && inactive && ctx.now - (prev.lastAt || 0) > days * DAY_MS;
+    let named, fenced, historyFrom;
+    if (prev && !refenced) ({ named, fenced, historyFrom } = prev);
+    else {
+      named = (!prev && createdByBooking(s, c, x.apptId)) || (x.first != null && sameFirst(x.first, c.first));
+      if (!named) {
+        if (x.first == null || !String(x.first).trim()) return { ok: false, ask: 'first' };
+        // the code stays good for the next name; the third wrong one since the last opening opens the space fenced
+        if (nameMissesOf(s, anchor) + 1 < NAME_TRIES) { miss(s, ctx, anchor, hit.id, true); return { ok: false, ask: 'first', wrong: true }; }
+      }
+      fenced = !named || inactive || importedUnseen(s, c, ids);
+      historyFrom = fenced ? today : null;
+    }
+    ctx.emit('account.signedIn', { id: anchor, cid: anchor, msgId: hit.id, fenced: !!fenced, ...(fenced && historyFrom ? { historyFrom } : {}), named: !!named, ...(prev ? {} : { opened: true }), ...(refenced ? { refenced: true } : {}) });
+    // the salon checks it is the same person (staff feed): kept apart from the sign-ins, which are not news
+    if (fenced && (!prev || refenced)) ctx.emit('account.fenceOpened', { id: anchor, cid: anchor });
     if (!prev) mailOpened(s, ctx, c);
-    return { ok: true, cid: c.id, first: c.first, iat: ctx.now, fenced: !!fenced };
+    // who could not give the first name learns nothing of the file's holder (not even the name he could not give)
+    return { ok: true, cid: c.id, first: named ? c.first : '', iat: ctx.now, fenced: !!fenced, named: !!named, persona: false };
   }
 };
 

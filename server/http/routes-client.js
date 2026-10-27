@@ -15,8 +15,11 @@ const DAY_MS = 86400000, HOUR_MS = 3600000;
 // in the background) and always leaves after this long plus a little noise, so the time it takes says nothing, on any store
 const MIN_MS = 450, JITTER_MS = 200;
 
-/** AC-01: the text's last line, « Tout retrouver : https://…/moi », while the client space is open; nothing otherwise. */
-export const espaceLine = (r) => (accountsOn(r.s) && r.origin ? ' Tout retrouver : ' + r.origin + '/moi' : '');
+/**
+ * AC-01: the text's last line, « Ton espace : salon.fr/moi », while the client space is open; nothing otherwise. The host
+ * without its scheme (phones still make it a link), so the text for one booking stays one SMS (160 characters).
+ */
+export const espaceLine = (r) => (accountsOn(r.s) && r.origin ? ' Ton espace : ' + r.origin.replace(/^https?:\/\//, '') + '/moi' : '');
 // the actor is chained and can never be erased: no name and no number in it (the number travels as pii)
 const CLIENT = (r) => ({ actor: /** @type {const} */ ({ t: 'client', id: 'web', n: '' }), caps: new Set(), meta: { ...r.meta, espace: espaceLine(r) } });
 const wait = (ms) => new Promise((done) => setTimeout(done, ms));

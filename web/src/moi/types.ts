@@ -19,7 +19,10 @@ export type MeUpcoming = {
 export type MeCarnet = { id: string; name: string; left: number; total: number; expires: string };
 export type MeGiftcard = { id: string; last4: string; balance: number; expires: string };
 
-/** GET /api/me/home. fenced: an account opened on a file that may have changed hands; nothing before historyFrom shows. */
+/**
+ * GET /api/me/home. fenced: an account opened on a file that may have changed hands; nothing before historyFrom shows,
+ * and last and birthday are ''. Unnamed (the first name was not given at the opening): first is '' too (say « Bonjour »).
+ */
 export type Me = {
   first: string; last: string; birthday: string; since: number; fenced: boolean; historyFrom: string | null;
   consent: { sms: boolean; marketing: boolean; marketingAt: number | null };

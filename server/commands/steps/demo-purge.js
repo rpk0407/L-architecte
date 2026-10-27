@@ -11,15 +11,21 @@ import { isLive, graceOf } from '../../domain/membership.js';
 
 export const PER_TICK = 20;
 const OPEN = new Set(['pending', 'booked', 'arrived', 'in_chair']);
+/** A file whose erasure was refused waits this long before it is tried again (this instance), so it never holds a slot. */
+export const RETRY_MS = 3600000;
+/** cid → when its erasure was last refused, in this instance (not state: what is emitted stays the journal's). */
+const refused = new Map();
 
-/** The visitors' files due now: created through the site, more than two hours ago, not erased or merged since. Only in
- *  the seeded demo (its showcase, demo.seeded): a demo journal nobody seeded has no visitors to forget. */
+/** The visitors' files due now: created through the site, more than two hours ago, not erased or merged since, not
+ *  refused within the hour. Only in the seeded demo (its showcase, demo.seeded): a demo journal nobody seeded has no
+ *  visitors to forget. */
 export function visitorFiles(s, now) {
   if (s.mode !== 'demo' || !s.demoDays.size) return [];
   const out = [];
   for (const c of s.clients.values()) {
     if (out.length >= PER_TICK) break;
     if (c.erased || c.mergedInto || c.demo || c.source !== 'site' || now - c.createdAt < DEMO_PURGE_MS) continue;
+    if (now - (refused.get(c.id) ?? -Infinity) < RETRY_MS) continue;
     out.push(c);
   }
   return out;
@@ -53,6 +59,7 @@ export default {
         ctx.emit('client.erased', { id: c.id, cid: c.id, ids, demo: true });
       } catch (e) {
         ctx.drafts.length = mark;
+        refused.set(c.id, ctx.now);
         console.error('[lx] demo-purge', c.id, e && /** @type {any} */ (e).message);
       }
     }

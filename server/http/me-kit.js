@@ -4,7 +4,8 @@
 //   const run = runAs(r, me);                       // commands as the client: actor { t: 'client', id: 'moi', n: '' }, meta.me = { cid }
 //   await run(handler, { ... });                    // the file is always ctx.meta.me.cid, never a cid from the body
 //   if (isPersona(me)) return { ok: true, demo: true };   // the demo's persona changes nothing for the next visitor
-// Routes never build a client ctx by hand. Client routes live under /api/me/*, sign-in under /api/public/account/*.
+// Routes never build a client ctx by hand: before a session exists (the sign-in routes), runSigningIn(r, meta) runs as
+// the same client actor. Client routes live under /api/me/*, sign-in under /api/public/account/*.
 import { HttpError, parseCookies, cookie } from './kit.js';
 import { CLIENT_COOKIE, CLIENT_SLIDE, readClient, liveClient, signClient, phoneTag } from '../auth/client-session.js';
 import { fileIds } from '../commands/clients.js';
@@ -62,9 +63,22 @@ export function runAs(r, me) {
   return (handler, input) => {
     const n = i++;
     const requestId = header ? 'me' + me.cid + ':' + header + (n ? ':' + n : '') : undefined;
-    return r.rt.engine.run(handler, input, { actor: CLIENT_ACTOR, caps: new Set(), meta: { ...r.meta, me: { cid: me.cid } }, ...(requestId ? { requestId } : {}) });
+    return r.rt.engine.run(handler, input, { ...clientCtx(r, { me: { cid: me.cid } }), ...(requestId ? { requestId } : {}) });
   };
 }
+
+/**
+ * Commands as a client who is not signed in yet (the sign-in routes): the same actor, no file in meta (the command finds
+ * it from the number or the link), extra meta such as otpCode. No idempotency key: each ask is its own.
+ * @param {any} r @param {Record<string, any>} [meta]
+ * @returns {(handler: import('../core/engine.js').Handler, input: any) => Promise<any>}
+ */
+export function runSigningIn(r, meta = {}) {
+  return (handler, input) => r.rt.engine.run(handler, input, clientCtx(r, meta));
+}
+
+/** The one place a client ctx is built. */
+const clientCtx = (r, meta) => ({ actor: CLIENT_ACTOR, caps: new Set(), meta: { ...r.meta, ...meta } });
 
 /**
  * Sign this phone in: lx_c for settings.accounts.sessionDays. HttpOnly, Secure, SameSite=Lax (see auth/client-session.js).

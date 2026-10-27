@@ -27,15 +27,19 @@ export function otpCode(secret, msgId) {
   return String(h.readUInt32BE(0) % 1000000).padStart(6, '0');
 }
 
+/** What a code text says when it leaves after its code died (no SMS route for a while, an outage): no dead digits. */
+export const OTP_LATE_TEXT = "L'Architecte : ce code a expiré avant de partir. Redemande-en un si tu veux ouvrir ton espace.";
+
 /**
  * The words the text leaves with: {code} filled, and a last line Android Chrome reads (WebOTP, `@host #code`); iOS and
  * Android keyboards offer the code anyway through autocomplete="one-time-code". A body without the placeholder (a text
- * queued by hand) leaves as it is.
- * @param {{ id: string, body: string }} m @param {string} secret @param {string} host
+ * queued by hand) leaves as it is. Past OTP_TTL (now given), the code is dead: the text says so instead.
+ * @param {{ id: string, body: string, at?: number }} m @param {string} secret @param {string} host @param {number} [now]
  */
-export function fillOtp(m, secret, host) {
+export function fillOtp(m, secret, host, now) {
   const body = String(m.body || '');
   if (!body.includes('{code}')) return body;
+  if (now != null && m.at != null && now - m.at >= OTP_TTL) return OTP_LATE_TEXT;
   const code = otpCode(secret, m.id);
   return body.split('{code}').join(code) + (host ? '\n\n@' + host + ' #' + code : '');
 }
@@ -45,7 +49,7 @@ export function otpHost(rt) {
   try { return new URL((rt.cfg && rt.cfg.publicUrl) || rt.origin).host; } catch { return ''; }
 }
 
-FILLERS.otp = (m, rt) => fillOtp(m, rt.secret, otpHost(rt));
+FILLERS.otp = (m, rt) => fillOtp(m, rt.secret, otpHost(rt), rt.engine && typeof rt.engine.clock === 'function' ? rt.engine.clock() : Date.now());
 
 /** Wrong tries recorded against this code (projections/accounts.js). */
 export const missesOf = (s, msgId) => (s.codeMisses && s.codeMisses.get(msgId)) || { n: 0, names: 0 };
