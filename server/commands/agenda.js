@@ -10,6 +10,7 @@ import { queueMessage, apptVars } from '../domain/messages.js';
 import { getStaff, getAppt, getClient, snapshotServices, totalDur, totalPrice, needChair } from './common.js';
 import { upsertClient } from './clients.js';
 import { diffDays } from '../../shared/dates.js';
+import { cgvVersionOf } from '../settings/shop.js';
 
 const serviceIds = () => arr(id(), { min: 1, max: 4 });
 const minute = () => int({ min: 0, max: 1439 });
@@ -18,6 +19,11 @@ const ACTIVE = new Set(['pending', 'booked', 'arrived', 'in_chair']);
 function uniqueCode(s, ctx) {
   for (let i = 0; i < 20; i++) { const c = ctx.code('LA'); if (!s.apptByCode.has(c)) return c; }
   return ctx.code('LA') + ctx.id('').slice(-2).toUpperCase();
+}
+
+/** A sealed day (Z done, even early) takes no booking from anyone: nothing more could be paid that day. */
+function notSealed(s, day) {
+  if (s.closures.has(day)) fail(409, 'day_closed', 'Cette journée est clôturée : plus aucun rendez-vous ce jour-là.');
 }
 
 /** Is that exact start offered online right now? Returns the chair that gets it. */
@@ -72,6 +78,8 @@ export const bookOnline = {
     if (!s.settings.booking.enabled) fail(409, 'closed', 'La réservation en ligne est momentanément fermée. Appelle le salon.');
     const services = snapshotServices(s, b.serviceIds);
     if (services.some((x) => !s.services.get(x.id)?.online)) fail(409, 'not_online', 'Cette prestation se réserve au salon.');
+    // a hold taken before an early Z must not slip through
+    if (s.closures.has(b.day)) fail(409, 'taken', 'Le salon a fermé ses réservations pour ce jour-là. Choisis un autre jour, tes choix sont gardés.');
     const dur = totalDur(services);
     let staffId = null;
     const hold = b.holdId ? s.holds.get(b.holdId) : null;
@@ -83,8 +91,11 @@ export const bookOnline = {
       if (!slot) fail(409, 'taken', 'Ce créneau vient d’être pris. Choisis-en un autre, tes choix sont gardés.');
       staffId = slot.staffId;
     }
-    const client = upsertClient(s, ctx, { first: b.first, last: b.last || '', phone: b.phone, email: b.email || '', sms: b.sms !== false, marketing: !!b.marketing }, 'site');
+    const consent = b.marketing === true;
+    const client = upsertClient(s, ctx, { first: b.first, last: b.last || '', phone: b.phone, email: b.email || '', sms: b.sms !== false, marketing: consent }, 'site');
     const existing = client.created ? null : getClient(s, client.id);
+    // the proof of consent: when and where the client said yes (an unticked box takes nothing back)
+    if (consent && (client.created || !existing.marketing)) ctx.emit('client.updated', { id: client.id, cid: client.id, patch: { marketing: true, marketingAt: ctx.now, marketingSrc: 'site' }, fields: [] });
     if (existing) {
       const upcoming = [...s.appts.values()].filter((a) => a.clientId === existing.id && ACTIVE.has(a.status) && diffDays(ctx.local.day, a.day) >= 0);
       if (upcoming.length >= 3) fail(409, 'too_many', 'Tu as déjà 3 rendez-vous à venir. Appelle le salon pour en ajouter.');
@@ -95,10 +106,13 @@ export const bookOnline = {
     const deposit = depositFor(s, services, { payLive: ctx.meta.payLive !== false });
     const aid = ctx.id('ap');
     const code = uniqueCode(s, ctx);
+    const cgv = cgvVersionOf(s.settings.shop);
     const a = {
       id: aid, code, clientId: client.id, staffId, anyStaff: b.staffId === 'any', day: b.day, start: b.start, dur,
       services, price, source: 'site', status: deposit > 0 ? 'pending' : 'booked', sms: b.sms !== false,
       deposit: deposit > 0 ? { amount: deposit, paid: 0, paymentId: null, until: ctx.now + payWindowMin(s, { stripe: ctx.meta.payProvider === 'stripe' }) * 60000 } : null, holdId: hold ? hold.id : null, cid: client.id,
+      // the CGV version in force when the client booked: the later of the owner's last rule change and the text's own date
+      cgv,
       ...(b.demo && ctx.meta.demoSim === true ? { demo: true } : {})
     };
     ctx.emit('appt.booked', a, b.note ? { note: b.note } : undefined);
@@ -122,6 +136,7 @@ export const createAppointment = {
     const x = parse(createSchema, input);
     if (ctx.actor.t !== 'system') { if (x.source === 'site') x.source = 'salon'; delete x.demo; }
     needChair(ctx, x.staffId);
+    notSealed(s, x.day);
     const st = getStaff(s, x.staffId);
     if (!st.active || !st.chair) fail(409, 'no_chair', st.name + ' ne prend pas de rendez-vous.');
     const services = snapshotServices(s, x.serviceIds);
@@ -167,6 +182,7 @@ export const moveAppointment = {
     const st = getStaff(s, to);
     if (!st.active || !st.chair) fail(409, 'no_chair', st.name + ' ne prend pas de rendez-vous.');
     if (x.day === a.day && x.start === a.start && to === a.staffId) return { ok: true };
+    notSealed(s, x.day);
     const free = isFree(s, to, x.day, x.start, a.dur, { now: ctx.now, ignoreAppt: a.id });
     if (!free && !x.force) fail(409, 'taken', 'Ce créneau n’est pas libre.', { canForce: ctx.can('agenda.edit') });
     if (!free && !ctx.can('agenda.edit')) fail(403, 'forbidden', 'Seul le gérant peut forcer un créneau.');
@@ -326,6 +342,8 @@ export const addWalkin = {
     const x = parse(walkSchema, input);
     snapshotServices(s, [x.serviceId]);
     if (x.staffId !== 'any') getStaff(s, x.staffId);
+    // after the Z nobody could be seated: say so at the desk, not when the barber calls them
+    notSealed(s, ctx.local.day);
     const phone = x.phone ? normPhone(x.phone) : '';
     if (x.phone && !phone) fail(400, 'invalid', 'Numéro de téléphone invalide.');
     const qid = ctx.id('wq');
@@ -349,6 +367,7 @@ export const updateWalkin = {
     }
     const staffId = x.staffId || (q.staffId !== 'any' ? q.staffId : ctx.staff?.id);
     if (!staffId) fail(400, 'invalid', 'Choisis le barbier.');
+    notSealed(s, ctx.local.day);
     const st = getStaff(s, staffId);
     const services = snapshotServices(s, [q.serviceId]);
     const start = Math.floor(ctx.local.min / 5) * 5;

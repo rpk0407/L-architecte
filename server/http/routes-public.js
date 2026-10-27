@@ -6,10 +6,12 @@ import { freeSlots, walkinEstimate, shopIntervals } from '../domain/availability
 import { clientMayChange, payWindowMin, payDeadline } from '../domain/policy.js';
 import { signLink, checkLink } from '../auth/session.js';
 import { addDays, isDay, diffDays } from '../../shared/dates.js';
-import { newId } from '../lib/util.js';
+import { newId, safeEqual } from '../lib/util.js';
 import * as A from '../commands/agenda.js';
 import { createPayment, paymentSucceeded, paymentEnded } from '../commands/payments.js';
 import { ticketNo } from '../domain/cash.js';
+import { smsOptOut } from '../commands/messages.js';
+import { webhookKey, parseSmsWebhook } from '../messaging/sms.js';
 import { maybeTick } from './scheduler.js';
 import { waitUntil } from '@vercel/functions';
 
@@ -21,7 +23,8 @@ export const payLive = (r) => r.rt.pay.name !== 'simulated' || isDemo(r);
 const CLIENT = (r) => ({ actor: /** @type {const} */ ({ t: 'client', id: 'web', n: '' }), caps: new Set(), meta: { ...r.meta, payLive: payLive(r), payProvider: r.rt.pay.name } });
 const PROVIDER = (r, id) => ({ actor: /** @type {const} */ ({ t: 'provider', id }), caps: new Set(), meta: r.meta });
 
-function isOpenNow(s, L) { return shopIntervals(s, L.day).some(([a, b]) => L.min >= a && L.min < b); }
+// once today's Z is done (an early close), the shop takes nobody else: the site stops saying "Ouvert"
+function isOpenNow(s, L) { return !s.closures.has(L.day) && shopIntervals(s, L.day).some(([a, b]) => L.min >= a && L.min < b); }
 
 function bookingView(r, a) {
   const s = r.s;
@@ -96,7 +99,7 @@ export function publicRoutes(app) {
     background(r);
     const open = isOpenNow(s, L);
     const est = open && s.settings.booking.walkinWait ? walkinEstimate(s, r.now, L) : { minutes: null, queued: 0 };
-    return json({ open, waitMin: est.minutes, queued: est.queued, today: L.day, min: L.min }, 200, { 'cache-control': 'public, max-age=0, s-maxage=15, stale-while-revalidate=30' });
+    return json({ open, closedToday: s.closures.has(L.day), waitMin: est.minutes, queued: est.queued, today: L.day, min: L.min }, 200, { 'cache-control': 'public, max-age=0, s-maxage=15, stale-while-revalidate=30' });
   });
 
   app.get('/api/public/availability', (r) => {
@@ -118,7 +121,8 @@ export function publicRoutes(app) {
       const day = addDays(from, i);
       if (diffDays(L.day, day) > s.settings.booking.maxDaysAhead) break;
       const slots = freeSlots(s, { day, dur, serviceIds: ids, staffId, now: r.now, local: L, online: true, ignoreAppt, ignoreHold: q.get('hold') || null });
-      out.push({ day, open: shopIntervals(s, day).length > 0, slots: slots.map((x) => ({ m: x.m, s: x.staffId })) });
+      // a day sealed early (Z done) is closed, not "complet"
+      out.push({ day, open: !s.closures.has(day) && shopIntervals(s, day).length > 0, slots: slots.map((x) => ({ m: x.m, s: x.staffId })) });
     }
     const cacheable = !ignoreAppt && !q.get('hold');
     return json({ dur, days: out, now: r.now }, 200, { 'cache-control': cacheable ? 'public, max-age=0, s-maxage=5, stale-while-revalidate=10' : 'no-store' });
@@ -224,6 +228,24 @@ export function publicRoutes(app) {
     if (ev.kind === 'paid') await afterProviderPaid(r, ev, 'stripe');
     else await r.rt.engine.run(paymentEnded, { id: pid, status: ev.kind === 'expired' ? 'expired' : 'failed' }, PROVIDER(r, 'stripe'));
     return { received: true };
+  }, { raw: true, csrf: false });
+
+  /** Brevo (unsubscribe event, reply STOP) or Twilio (inbound STOP): that client gets no more offers. */
+  app.post('/api/sms/webhook', async (r) => {
+    guard('smswh|' + r.ip, 120, 60000);
+    const key = webhookKey(r.rt.cfg.cronSecret);
+    if (!key) throw new HttpError(404, 'not_found', 'Indisponible.');
+    if (!safeEqual(r.query.get('k') || '', key)) throw new HttpError(401, 'unauthorized', 'Non autorisé.');
+    const stops = parseSmsWebhook(r.raw, r.req.headers.get('content-type')).filter((ev) => ev.stop);
+    if (!stops.length) return { received: true };
+    let optedOut = 0;
+    for (const ev of stops) {
+      for (const phone of ev.phones) {
+        const res = await r.rt.engine.run(smsOptOut, { phone }, PROVIDER(r, r.rt.sms ? r.rt.sms.name : 'sms'));
+        if (res.found) { optedOut++; break; }
+      }
+    }
+    return optedOut ? { received: true, optedOut: true } : { received: true, unknown: true };
   }, { raw: true, csrf: false });
 }
 

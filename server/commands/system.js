@@ -5,7 +5,7 @@
 // Every message has a deterministic id, so running this twice (two servers, a retry) sends nothing twice.
 import { addDays, instantOf } from '../../shared/dates.js';
 import { freeSlots } from '../domain/availability.js';
-import { queueMessage, apptVars, whenWords } from '../domain/messages.js';
+import { queueMessage, apptVars, whenWords, afterQuiet } from '../domain/messages.js';
 import { payDeadline } from '../domain/policy.js';
 import { runSteps } from './tick-steps.js';
 
@@ -44,12 +44,13 @@ export const tick = {
       }
     }
 
-    // 5. the waiting list gets a freed slot first
+    // 5. the waiting list gets a freed slot first; no new offer during quiet hours: a 30-minute offer texted in the morning would be gone
+    const quiet = afterQuiet(M.quiet, ctx.now) > ctx.now;
     if (s.settings.booking.waitlist && M.waitlist) {
       for (const w of s.waitlist.values()) {
         if (n >= cap) break;
         if (w.status === 'offered' && w.offer && w.offer.exp < ctx.now) { ctx.emit('waitlist.updated', { id: w.id, patch: { status: 'waiting', offer: null } }); n++; continue; }
-        if (w.status !== 'waiting' || w.day < L.day) continue;
+        if (w.status !== 'waiting' || w.day < L.day || quiet) continue;
         const sv = s.services.get(w.serviceId);
         if (!sv) continue;
         const slot = freeSlots(s, { day: w.day, dur: sv.dur + (sv.buffer || 0), serviceIds: [sv.id], staffId: w.staffId, now: ctx.now, local: L, online: true })

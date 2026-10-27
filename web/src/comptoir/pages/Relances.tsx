@@ -4,7 +4,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { api } from '../../lib/api';
 import { refreshAll, useQuery } from '../../lib/query';
 import { Link, navigate, useRoute } from '../../lib/router';
-import { ago, cap, clock, dates, dayShortWord, pct, plural, rhythmWords, time } from '../../lib/format';
+import { ago, cap, clock, dates, dayShortWord, eur, pct, plural, rhythmWords, time } from '../../lib/format';
+// @ts-ignore — plain JS module with JSDoc types: the server's own quiet hours and STOP rule
+import * as SmsRules from '../../../../shared/sms.js';
 import { Icon } from '../../ui/Icon';
 import { Avatar, Button, Empty, Kpi, Note, Skeleton, confirm, toast, toastError } from '../../ui/kit';
 import { useApp } from '../state';
@@ -12,17 +14,42 @@ import { PageTitle } from '../App';
 import type { ClientCard } from '../types';
 import './relances.css';
 
-type Overdue = ClientCard & { lastText: number | null };
+type Overdue = ClientCard & { lastText: number | null; lastDue?: number | null };
 type WaitItem = { id: string; first: string; phone: string; day: string; staffId: string; serviceId: string; from: number; to: number; status: string; offer: { start: number; staffId: string; exp: number } | null; at: number };
-type Msg = { id: string; template: string; status: string; at: number; sentAt: number | null; to: string; body: string; error: string };
+type Msg = { id: string; template: string; status: string; at: number; dueAt: number; sentAt: number | null; to: string; body: string; error: string };
+type Back = { sent: number; clientsBack: number; revenueBack: number; rate: number };
+type Quiet = { from: number; to: number; sunday: boolean; holidays?: boolean } | undefined;
+type RebookData = { items: Overdue[]; excludedNoConsent: number; stats: Back; template: string; stop: string; quiet?: Quiet };
+
+const sms = SmsRules as { afterQuiet(q: Quiet, t: number): number; withStop(body: string, stop: string): string };
+/** When a quiet text sent at `t` really leaves (the server's own rule): `t` itself outside the quiet hours. */
+export const afterQuiet = (q: Quiet, t: number) => sms.afterQuiet(q, t);
+/** The opt-out mention the server adds to every marketing text, unless the text already ends with it. */
+export const withStop = (body: string, stop: string) => sms.withStop(body, stop);
+/** "à 8 h", "demain à 8 h", "lun. 9 à 8 h", read from the current day (the counter tablet stays open past midnight). */
+function leavesWords(t: number, now: number) {
+  const p = dates.localParts(t), today = dates.localParts(now).day;
+  return (p.day === today ? 'à ' : dayShortWord(p.day, today) + ' à ') + time(p.min);
+}
 
 const LABEL: Record<string, string> = { confirmation: 'Confirmation', reminder: 'Rappel la veille', reminder2h: 'Rappel 2 h avant', review: 'Demande d’avis', rebook: 'Relance', waitlist: 'Place libérée', queue: 'File d’attente', cancelled: 'Annulation', receipt: 'Reçu', moved: 'Déplacement', deposit: 'Lien d’acompte' };
 const STATUS: Record<string, [string, string]> = { sent: ['envoyé', 'badge-ok'], simulated: ['simulé (démo)', 'badge-info'], failed: ['échec', 'badge-danger'], skipped: ['non envoyé', 'badge-warn'], expired: ['trop tard', 'badge-warn'], claimed: ['en cours', ''], queued: ['en file', ''] };
 /** Outside the demo nothing is simulated: without a provider a text waits for one (and an old 'simulé' never left). */
-function msgStatus(status: string, demo: boolean, provider: string | null): [string, string] {
+function msgStatus(m: Msg, demo: boolean, provider: string | null, now: number): [string, string] {
+  const status = m.status;
   if (!demo && status === 'queued' && !provider) return ['en attente d’un fournisseur SMS', 'badge-warn'];
+  // held back by the quiet hours: it says when it leaves
+  if (status === 'queued' && m.dueAt > now + 60000) return ['part ' + leavesWords(m.dueAt, now), 'badge-info'];
   if (!demo && status === 'simulated') return ['jamais parti', 'badge-warn'];
   return STATUS[status] || [status, ''];
+}
+
+/** "Pas d’envoi entre 20 h et 8 h, ni le dimanche et les jours fériés (sauf confirmations)." */
+export function quietWords(q: Quiet) {
+  if (!q || (q.from === q.to && !q.sunday && !q.holidays)) return 'Les SMS partent à toute heure.';
+  const hours = q.from !== q.to ? 'entre ' + time(q.from) + ' et ' + time(q.to) : '';
+  const days = q.sunday && q.holidays ? 'le dimanche et les jours fériés' : q.sunday ? 'le dimanche' : q.holidays ? 'les jours fériés' : '';
+  return 'Pas d’envoi ' + (hours && days ? hours + ', ni ' + days : hours || days) + ' (sauf confirmations).';
 }
 
 export default function Relances() {
@@ -48,11 +75,14 @@ export default function Relances() {
 /* ---------------- who to bring back ---------------- */
 
 function Rebook() {
-  const { now } = useApp();
-  const { data, loading } = useQuery<{ items: Overdue[]; stats: { sent: number; booked: number }; template: string }>('/api/v1/relances');
+  const { now, boot } = useApp();
+  const { data, loading } = useQuery<RebookData>('/api/v1/relances');
   const [sel, setSel] = useState<Set<string>>(new Set());
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
+  // the last send: how many, when, when they leave, and the selection it left (the button waits until that changes)
+  const [done, setDone] = useState<{ n: number; at: number; due: number; left: string } | null>(null);
+  const quiet: Quiet = data?.quiet || boot.settings.messages?.quiet;
   const recent = (c: Overdue) => !!c.lastText && now() - c.lastText < 14 * 86400000;
   useEffect(() => {
     if (!data) return;
@@ -60,36 +90,52 @@ function Rebook() {
     setText((t) => t || data.template);
   }, [data?.items.length]);
   const sample = data?.items.find((c) => sel.has(c.id)) || data?.items[0];
-  const preview = useMemo(() => render(text, sample, location.origin + '/site'), [text, sample?.id]);
+  const preview = useMemo(() => withStop(render(text, sample, location.origin + '/site'), data?.stop || ''), [text, sample?.id, data?.stop]);
   const seg = smsSegments(preview);
   const allOn = !!data && data.items.length > 0 && data.items.every((c) => sel.has(c.id));
+  const selKey = [...sel].sort().join(',');
+  const justSent = !!done && done.left === selKey;
 
   const send = async () => {
     const ids = [...sel];
     if (!ids.length) return;
-    const yes = await confirm({ title: 'Envoyer ' + plural(ids.length, 'SMS') + ' ?', body: 'Chaque client reçoit un message personnalisé avec le lien de réservation.' + (seg.count > 1 ? ' Attention : ce texte compte pour ' + seg.count + ' SMS par client.' : ''), ok: 'Envoyer' });
+    const t = now(), out = afterQuiet(quiet, t);
+    const later = out > t;
+    const when = later ? leavesWords(out, t) : '';
+    const yes = await confirm({ title: 'Envoyer ' + plural(ids.length, 'SMS') + ' ?', body: 'Chaque client reçoit un message personnalisé avec le lien de réservation.' + (later ? ' Hors des heures d’envoi : ils partiront ' + when + '.' : '') + (seg.count > 1 ? ' Attention : ce texte compte pour ' + seg.count + ' SMS par client.' : ''), ok: 'Envoyer' });
     if (!yes) return;
     setBusy(true);
+    const sentIds = new Set<string>();
     try {
       let sent = 0, skipped = 0;
       for (let i = 0; i < ids.length; i += 200) {
-        const r = await api.post<{ sent: number; skipped: number }>('/api/v1/relances/send', { clientIds: ids.slice(i, i + 200), text: text !== data?.template ? text : undefined });
+        const r = await api.post<{ sent: number; skipped: number; ids?: string[] }>('/api/v1/relances/send', { clientIds: ids.slice(i, i + 200), text: text !== data?.template ? text : undefined });
         sent += r.sent; skipped += r.skipped;
+        for (const id of r.ids || []) sentIds.add(id);
       }
-      toast({ title: plural(sent, 'relance') + ' en route', sub: skipped ? skipped + ' déjà relancé' + (skipped > 1 ? 's' : '') + ' aujourd’hui ou sans SMS' : 'Les réservations qui suivent sont comptées ici.', icon: 'sms' });
+      // the rows that left are unticked; what stays ticked was not sent (already texted today)
+      const left = new Set(ids.filter((id) => !sentIds.has(id)));
+      setSel(left);
+      if (sent) setDone({ n: sent, at: now(), due: out, left: [...left].sort().join(',') });
+      // skipped: already texted today, or a number the salon does not text (abroad)
+      const notSent = skipped ? plural(skipped, 'SMS') + ' non ' + (skipped > 1 ? 'envoyés' : 'envoyé') + ' (déjà relancé aujourd’hui ou numéro non autorisé)' : '';
+      toast(sent
+        ? { title: plural(sent, 'relance') + (later ? ' prévue' + (sent > 1 ? 's' : '') + ' ' + when : ' en route'), sub: notSent || 'Les réservations qui suivent sont comptées ici.', icon: 'sms' }
+        : { title: 'Aucun SMS envoyé', sub: notSent, icon: 'sms' });
       refreshAll();
     } catch (e) { toastError(e); } finally { setBusy(false); }
   };
 
   if (loading && !data) return <div className="rl-grid"><Skeleton h={420} r={22} /><Skeleton h={320} r={22} /></div>;
   if (!data) return null;
-  const rate = data.stats.sent ? data.stats.booked / data.stats.sent : 0;
+  const st = data.stats;
   return (
     <>
       <section className="kpis">
         <Kpi k="À relancer" v={data.items.length} s="en retard sur leur rythme" icon="clock" hot={data.items.length > 0} />
-        <Kpi k="Relancés" v={data.stats.sent} s="ces 60 derniers jours" icon="sms" />
-        <Kpi k="Revenus" v={data.stats.booked} s={data.stats.sent ? pct(rate) + ' ont repris rendez-vous' : 'après une relance'} icon="calendar" bar={rate} />
+        <Kpi k="Relancés" v={st.sent} s={(st.sent > 1 ? 'clients' : 'client') + ' ces 60 derniers jours'} icon="sms" />
+        {/* distinct clients who booked within 21 days of their text: never more than were texted */}
+        <Kpi k="Revenus" v={st.clientsBack} s={st.sent ? (st.clientsBack > 1 ? 'clients' : 'client') + ' sur ' + st.sent + ' (' + st.rate + ' %) · ' + eur(st.revenueBack, { decimals: false }) + ' de rendez-vous' : 'après une relance'} icon="calendar" bar={st.rate / 100} />
       </section>
       <div className="rl-grid">
         <section className="card">
@@ -97,6 +143,7 @@ function Rebook() {
             <h2><Icon name="clients" size={16} />{plural(data.items.length, 'client')} à relancer</h2>
             {data.items.length ? <button type="button" className="link" onClick={() => setSel(allOn ? new Set() : new Set(data.items.map((c) => c.id)))}>{allOn ? 'Tout décocher' : 'Tout cocher'}</button> : null}
           </div>
+          {data.excludedNoConsent ? <p className="faint" style={{ fontSize: 12.5, margin: '0 2px 8px' }}>{plural(data.excludedNoConsent, 'client')} {data.excludedNoConsent > 1 ? 'exclus' : 'exclu'} : pas d’accord pour les bons plans</p> : null}
           {!data.items.length ? <Empty icon="heart" title="Tout le monde est à jour">Aucun habitué n’a dépassé son rythme. Les clients en retard apparaîtront ici d’eux-mêmes.</Empty> : (
             <ul className="list">
               {data.items.map((c) => (
@@ -105,7 +152,7 @@ function Rebook() {
                   <Avatar name={c.first + ' ' + c.last} size="sm" />
                   <button type="button" className="li-main" onClick={() => navigate('/clients/' + c.id)}>
                     <b>{c.first} {c.last}</b>
-                    <small>{c.sinceLast} j sans venir{c.cadence ? ' · venait ' + rhythmWords(c.cadence) : ' · une seule visite'}{c.lastText ? ' · relancé ' + ago(c.lastText, now()) : ''}</small>
+                    <small>{c.sinceLast} j sans venir{c.cadence ? ' · venait ' + rhythmWords(c.cadence) : ' · une seule visite'}{c.lastDue && c.lastDue > now() ? ' · relance prévue ' + leavesWords(c.lastDue, now()) : c.lastText ? ' · relancé ' + ago(c.lastText, now()) : ''}</small>
                   </button>
                   <span className="li-end"><span className={'badge ' + ((c.dueIn ?? 0) < -21 ? 'badge-danger' : 'badge-warn')}>{-(c.dueIn ?? 0)} j de retard</span></span>
                 </li>
@@ -120,8 +167,8 @@ function Rebook() {
             <div className="chips">{['{prenom}', '{jours}', '{lien}'].map((v) => <button key={v} type="button" className="chip chip-sm" onClick={() => setText((t) => (t.endsWith(' ') || !t ? t : t + ' ') + v)}>{v}</button>)}<span className="grow" />{text !== data.template ? <button type="button" className="link" onClick={() => setText(data.template)}>Texte d’origine</button> : null}</div>
             <div className="bubble" aria-label="Aperçu"><small>{sample ? 'Aperçu pour ' + sample.first : 'Aperçu'}</small><p>{preview}</p></div>
             {seg.unicode ? <p className="faint" style={{ fontSize: 12.5 }}>Les caractères {seg.offenders.map((c) => '« ' + c + ' »').join(', ')} font passer le SMS en Unicode (70 caractères au lieu de 160). Remplace-les pour payer moins.</p> : null}
-            <Button variant="primary" size="lg" block icon="sms" busy={busy} disabled={!sel.size || text.trim().length < 10} onClick={send}>Envoyer à {plural(sel.size, 'client')}</Button>
-            <p className="faint" style={{ fontSize: 12.5 }}>Seuls les clients qui acceptent les SMS sont listés. Personne n’est relancé deux fois le même jour ; ceux relancés il y a moins de 14 jours sont décochés.</p>
+            <Button variant="primary" size="lg" block icon={justSent ? 'check' : 'sms'} busy={busy} disabled={justSent || !sel.size || text.trim().length < 10} onClick={send}>{justSent && done ? (done.due > now() ? 'Prévu pour ' + done.n + ' · part ' + leavesWords(done.due, now()) : 'Envoyé à ' + done.n + ' · ' + ago(done.at, now())) : 'Envoyer à ' + plural(sel.size, 'client')}</Button>
+            <p className="faint" style={{ fontSize: 12.5 }}>Seuls les clients d’accord pour les bons plans sont listés, et le texte finit par la mention STOP. Personne n’est relancé deux fois le même jour ; ceux relancés il y a moins de 14 jours sont décochés. {quietWords(quiet)}</p>
           </section>
           <Automations />
         </aside>
@@ -219,7 +266,7 @@ function Waiting() {
 /* ---------------- the outbox ---------------- */
 
 function Sent() {
-  const { can } = useApp();
+  const { can, now } = useApp();
   const { data, loading } = useQuery<{ items: Msg[]; provider: string | null; mode: string }>(can('marketing') ? '/api/v1/messages?limit=150' : null);
   if (!can('marketing')) return <Empty icon="lock" title="Réservé à l’accueil et au gérant" />;
   if (loading && !data) return <Skeleton h={320} r={22} />;
@@ -234,7 +281,7 @@ function Sent() {
           <table className="table rl-table">
             <thead><tr><th className="hide-phone">Quand</th><th>Message</th><th className="hide-phone">À</th>{can('settings') ? <th className="hide-phone">Texte</th> : null}<th>État</th></tr></thead>
             <tbody>{data.items.map((m) => {
-              const [label, tone] = msgStatus(m.status, data.mode === 'demo', data.provider);
+              const [label, tone] = msgStatus(m, data.mode === 'demo', data.provider, now());
               const day = dates.localParts(m.at).day;
               return (
                 <tr key={m.id}>

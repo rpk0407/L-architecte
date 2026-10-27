@@ -17,6 +17,9 @@ import * as A from '../commands/agenda.js';
 import * as C from '../commands/clients.js';
 import * as S from '../commands/sales.js';
 import { sendRebook } from '../commands/messages.js';
+import { attribution } from '../domain/attribution.js';
+import { webhookUrl } from '../messaging/sms.js';
+import { TEMPLATE_FLAGS } from '../core/templates.js';
 import { maybeTick } from './scheduler.js';
 import { waitUntil } from '@vercel/functions';
 
@@ -116,10 +119,13 @@ function badges(r) {
   }
   const queue = [...s.queue.values()].filter((q) => q.status === 'waiting' || q.status === 'called').length;
   let relances = 0;
-  if (r.caps.has('marketing')) for (const st of clientStats(s, L.day, r.now).values()) if (st.overdue) relances++;
+  if (r.caps.has('marketing')) for (const [id, st] of clientStats(s, L.day, r.now)) { const c = st.overdue && s.clients.get(id); if (c && rebookable(c, st)) relances++; }
   const waitlist = [...s.waitlist.values()].filter((w) => w.status === 'waiting' && w.day >= L.day).length;
   return { toPay, queue, relances, waitlist };
 }
+
+/** Can this client get a follow-up text? Agreed to the offers, takes SMS, and not seen in the last week. */
+function rebookable(c, st) { return !c.erased && !c.mergedInto && c.sms && !!c.phone && c.marketing && st.sinceLast != null && st.sinceLast >= 7; }
 
 /* ---------------- day figures ---------------- */
 
@@ -448,19 +454,31 @@ export function staffRoutes(app) {
   app.get('/api/v1/relances', (r) => {
     const s = r.s;
     const stats = clientStats(s, r.local.day, r.now);
-    const items = [...s.clients.values()].filter((c) => !c.erased && !c.mergedInto && c.sms && c.phone && stats.get(c.id)?.overdue)
+    const overdue = [...s.clients.values()].filter((c) => !c.erased && !c.mergedInto && c.sms && c.phone && stats.get(c.id)?.overdue);
+    // without consent to the offers, no follow-up: they are counted, not listed
+    const items = overdue.filter((c) => rebookable(c, stats.get(c.id)))
       .map((c) => clientCard(s, c, r.caps, stats)).sort((a, b) => (a.dueIn ?? 0) - (b.dueIn ?? 0)).slice(0, 200);
-    const sent = [...s.messages.values()].filter((m) => m.template === 'rebook' && r.now - m.at < 60 * 86400000);
-    const sentIds = new Set(sent.map((m) => m.cid));
-    const came = [...s.appts.values()].filter((a) => a.clientId && sentIds.has(a.clientId) && a.createdAt > Math.min(...sent.filter((m) => m.cid === a.clientId).map((m) => m.at))).length;
-    const recent = new Map(sent.map((m) => [m.cid, m.at]));
-    return { items: items.map((c) => ({ ...c, lastText: recent.get(c.id) || null })), stats: { sent: sent.length, booked: came }, template: s.settings.messages.templates.rebook };
+    /** @type {Map<string, any>} */
+    const recent = new Map();
+    for (const m of s.messages.values()) if (m.template === 'rebook' && r.now - m.at < 60 * 86400000 && m.at > (recent.get(m.cid)?.at || 0)) recent.set(m.cid, m);
+    const stat = attribution(s, { now: r.now, templates: ['rebook'] }).rebook;
+    // lastDue: the last text is still held by the quiet hours and leaves then ("relance prévue à 8 h")
+    const last = (id) => { const m = recent.get(id); return { lastText: m ? m.at : null, lastDue: m && m.status === 'queued' && m.dueAt > r.now ? m.dueAt : null }; };
+    return {
+      items: items.map((c) => ({ ...c, ...last(c.id) })), excludedNoConsent: overdue.filter((c) => !c.marketing).length,
+      stats: stat, template: s.settings.messages.templates.rebook, stop: s.settings.messages.stopSuffix, quiet: s.settings.messages.quiet
+    };
   }, { cap: 'marketing' });
   app.post('/api/v1/relances/send', (r) => r.run(sendRebook, r.body), { cap: 'marketing' });
 
   app.get('/api/v1/messages', (r) => {
     const items = [...r.s.messages.values()].sort((a, b) => b.at - a.at).slice(0, Math.min(300, Number(r.query.get('limit')) || 100))
-      .map((m) => ({ id: m.id, template: m.template, status: m.status, at: m.at, sentAt: m.sentAt || null, to: m.toMasked || maskPhone(m.to), body: r.caps.has('settings') ? m.body : '', error: m.error || '' }));
+      .map((m) => ({ id: m.id, template: m.template, status: m.status, at: m.at, dueAt: m.dueAt || m.at, sentAt: m.sentAt || null, to: m.toMasked || maskPhone(m.to), body: r.caps.has('settings') ? m.body : '', error: m.error || '' }));
     return { items, provider: r.rt.sms ? r.rt.sms.name : null, mode: r.s.mode };
   }, { cap: 'marketing' });
+  /** The address that brings STOP replies back (sent with every text; also for the provider's own settings). */
+  // marketing: the templates that get the STOP mention (TEMPLATE_FLAGS), so Réglages counts it without a copy of the list
+  app.get('/api/v1/messages/webhook', (r) => ({
+    url: webhookUrl(r.origin, r.rt.cfg.cronSecret) || null, marketing: Object.keys(TEMPLATE_FLAGS).filter((k) => TEMPLATE_FLAGS[k].marketing)
+  }), { cap: 'settings' });
 }

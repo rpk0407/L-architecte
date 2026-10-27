@@ -1,10 +1,11 @@
 // Messages: which SMS go out on their own, when, and the owner's version of each text with a live preview.
 import { useState } from 'react';
 import { cap, plural } from '../../../../lib/format';
+import { useQuery } from '../../../../lib/query';
 import { Icon } from '../../../../ui/Icon';
 import { Field, Note, Switch } from '../../../../ui/kit';
 import { useApp } from '../../../state';
-import { smsSegments } from '../../Relances';
+import { quietWords, smsSegments, withStop } from '../../Relances';
 import { Card, SaveBar, useSave, useSection, type SectionProps } from '../shared';
 
 const TPL: { k: string; t: string; when: string; vars: string[] }[] = [
@@ -26,6 +27,9 @@ export default function Messages({ s, data }: SectionProps) {
   const m = useSection(s.messages);
   const { busy, save } = useSave();
   const [open, setOpen] = useState<string | null>(null);
+  // url: where STOP replies come back; marketing: the texts the server adds the STOP mention to (counted here too)
+  const hook = useQuery<{ url: string | null; marketing?: string[] }>('/api/v1/messages/webhook');
+  const marketing = new Set(hook.data?.marketing || ['rebook']);
   const M = m.v;
   const toggles: [string, string, string][] = [['confirmation', 'Confirmation de rendez-vous', 'Avec le lien pour déplacer ou annuler soi-même.'], ['reminder', 'Rappel la veille', 'Le meilleur remède contre les absences.'], ['reminder2h', 'Rappel 2 h avant', 'En plus, pour les oublis du jour même.'], ['review', 'Demande d’avis Google', 'Une fois par trimestre au plus par client.'], ['waitlist', 'Place libérée', 'Proposée au premier de la liste d’attente.'], ['rebook', 'Relances', 'Proposées dans Relances, jamais envoyées sans toi.']];
   const bad = TPL.find((t) => (M.templates[t.k] || '').trim().length < 10);
@@ -37,14 +41,21 @@ export default function Messages({ s, data }: SectionProps) {
           <Field label="Heure du rappel de la veille"><select className="input select" value={M.reminderHour} onChange={(e) => m.setV({ ...M, reminderHour: Number(e.target.value) })}>{Array.from({ length: 14 }, (_, i) => i + 8).map((h) => <option key={h} value={h}>{h} h</option>)}</select></Field>
           <Field label="Demande d’avis, après la visite"><select className="input select" value={M.reviewDelayMin} onChange={(e) => m.setV({ ...M, reviewDelayMin: Number(e.target.value) })}>{[30, 60, 120, 240, 1440].map((n) => <option key={n} value={n}>{n < 60 ? n + ' min' : n === 1440 ? 'le lendemain' : n / 60 + ' h'}</option>)}</select></Field>
         </div>
+        <Note icon="moon">{quietWords(M.quiet)} Les avis, les relances et les places libérées attendent le matin.</Note>
         {!boot.providers.sms && boot.mode !== 'demo' ? <Note tone="warn" icon="alert">Branche Brevo ou Twilio (variables <code>SMS_PROVIDER</code>, <code>BREVO_API_KEY</code> ou <code>TWILIO_*</code>) pour que les SMS partent vraiment. En attendant, ils restent dans la boîte d’envoi.</Note> : null}
+      </Card>
+      <Card title="Bons plans et STOP" icon="shield">
+        <p className="muted" style={{ fontSize: 13.5 }}>Les relances ne partent qu’aux clients qui ont coché « Les bons plans du salon par SMS » sur le site (ou dont la fiche le dit), avec la mention « {(M.stopSuffix || '').trim()} » à la fin. Un client qui répond STOP est retiré tout seul. Aucun SMS ne part vers un numéro hors des indicatifs autorisés{Array.isArray(M.countries) && M.countries.length ? ' (' + M.countries.join(', ') + ')' : ''}.</p>
+        {hook.data?.url ? <Field label="Adresse des désinscriptions (webhook Brevo)" hint="Envoyée avec chaque SMS. À renseigner aussi dans les webhooks SMS de Brevo, pour les réponses STOP."><input className="input" readOnly value={hook.data.url} onFocus={(e) => e.currentTarget.select()} /></Field>
+          : hook.data && boot.mode !== 'demo' ? <Note tone="warn" icon="alert">Définis <code>CRON_SECRET</code> pour que les réponses STOP reviennent dans les fiches clients.</Note> : null}
       </Card>
       <Card title="Les textes" icon="edit">
         <p className="muted" style={{ fontSize: 13.5 }}>Les mots entre accolades sont remplacés pour chaque client. Un SMS fait 160 caractères ; un « ç », un « ê » ou un « ô » le fait passer à 70 (les apostrophes courbes sont corrigées automatiquement).</p>
         <ul className="list">
           {TPL.map((t) => {
             const txt = M.templates[t.k] || '';
-            const preview = txt.replace(/\{(\w+)\}/g, (x: string, k: string) => SAMPLE[k] ?? x).replace(/[’‘]/g, "'").replace(/«\s*|\s*»|[“”]/g, '"').replace(/[–—−]/g, '-');
+            const plain = txt.replace(/\{(\w+)\}/g, (x: string, k: string) => SAMPLE[k] ?? x).replace(/[’‘]/g, "'").replace(/«\s*|\s*»|[“”]/g, '"').replace(/[–—−]/g, '-');
+            const preview = marketing.has(t.k) ? withStop(plain, M.stopSuffix || '') : plain;
             const seg = smsSegments(preview);
             const isOpen = open === t.k;
             return (

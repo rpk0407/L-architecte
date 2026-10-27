@@ -13,3 +13,13 @@ export const TEMPLATES = {
   cancelled: "L'Architecte : ton rendez-vous du {date} à {heure} est annulé. Pour en reprendre un : {lien}",
   receipt: "L'Architecte : merci {prenom} ! Ton ticket {ticket} de {montant} : {lien}"
 };
+
+// What a text is, beyond its words, keyed like TEMPLATES (the same owner adds both). marketing: sent only to
+// clients who agreed, with the STOP mention (settings.messages.stopSuffix). quiet: never at night nor on Sunday,
+// it waits for settings.messages.quiet to end. A text with no entry is a service message and leaves at once.
+/** @type {Record<string, { marketing?: boolean, quiet?: boolean }>} */
+export const TEMPLATE_FLAGS = {
+  review: { quiet: true },
+  rebook: { marketing: true, quiet: true },
+  waitlist: { quiet: true }
+};

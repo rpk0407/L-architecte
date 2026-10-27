@@ -730,6 +730,8 @@ position:relative;font:400 17px/1.5 var(--f-sans);color:var(--os);background:var
 .ft-links{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:2px 18px;margin-top:clamp(48px,8vw,80px);padding-top:22px;border-top:1px solid var(--iligne)}
 .ft-links a{display:inline-flex;align-items:center;min-height:44px;font-size:16px}
 .ft-links a:hover{text-decoration:underline;text-underline-offset:5px}
+.ft-legal button{display:inline-block;padding:12px 0;font:inherit;color:inherit;text-decoration:underline;text-underline-offset:3px}
+.ft-legal button:hover{color:var(--encre)}
 .ft-legal{margin-top:26px;font-size:13px;color:var(--cendre2)}
 
 /* booking sheet */
@@ -1256,7 +1258,7 @@ html{scroll-behavior:auto}
 <li><a href="/cgv">CGV</a></li>
 <li><a class="ft-pro" href="/comptoir">Espace barbier</a></li>
 </ul>
-<p class="ft-legal">© Barber L’Architecte · Marseille</p>
+<p class="ft-legal">© Barber L’Architecte · Marseille<sc-if value="{{meKnown}}" hint-placeholder-val="{{ false }}"> · <button type="button" onClick="{{forgetMe}}">Oublier mes infos sur ce téléphone</button></sc-if><sc-if value="{{meForgot}}" hint-placeholder-val="{{ false }}"> · <span role="status">C’est oublié sur ce téléphone.</span></sc-if></p>
 </div>
 </div>
 </footer>
@@ -1343,7 +1345,8 @@ html{scroll-behavior:auto}
 <div class="fld"><label for="f-email">E-mail <span class="opt-l">facultatif</span></label><input id="f-email" type="email" inputmode="email" autocomplete="email" value="{{fEmail}}" onChange="{{setEmail}}"><span class="hint">Pour recevoir le rendez-vous dans ton agenda.</span></div>
 <div class="fld"><label for="f-note">Un mot pour ton barbier <span class="opt-l">facultatif</span></label><input id="f-note" type="text" placeholder="Ex. : dégradé bas, garder la longueur" value="{{fNote}}" onChange="{{setNote}}"></div>
 <button type="button" class="{{smsCls}}" role="switch" aria-checked="{{smsOn}}" onClick="{{toggleSms}}"><span class="sw-t"><b>Rappel par SMS la veille</b><small>Avec un lien pour déplacer ou annuler.</small></span><span class="sw-k" aria-hidden="true"><i></i></span></button>
-<p class="priv">Tes coordonnées servent uniquement à ce rendez-vous. <a href="{{dataHref}}" target="_blank" rel="noopener">Comment elles sont traitées</a></p>
+<button type="button" id="f-mkt" class="{{mktCls}}" role="switch" aria-checked="{{mktOn}}" onClick="{{toggleMkt}}"><span class="sw-t"><b>Les bons plans du salon par SMS</b><small>Places de dernière minute, rappel de coupe. Tu arrêtes quand tu veux : STOP, comme indiqué dans chaque SMS.</small></span><span class="sw-k" aria-hidden="true"><i></i></span></button>
+<p class="priv">Tes coordonnées servent à ce rendez-vous, et aux bons plans seulement si tu coches. <a href="{{dataHref}}" target="_blank" rel="noopener">Comment elles sont traitées</a></p>
 <sc-if value="{{hasDeposit}}" hint-placeholder-val="{{ false }}"><p class="dep">{{depLine}}</p></sc-if>
 <sc-if value="{{isDemo}}" hint-placeholder-val="{{ true }}"><p class="demo">Démo&nbsp;: aucun SMS n’est envoyé, aucun paiement n’est débité. La réservation apparaît tout de suite dans le Comptoir.</p></sc-if>
 </div>
@@ -1633,7 +1636,8 @@ const LXE = (function () {
   function book(o) {
     return sid(o.f).then(function (id) { return call('POST', '/api/public/bookings', {
       serviceIds: [id], staffId: !o.barber || o.barber === 'any' ? 'any' : staffOf[o.barber], day: o.day, start: o.time, holdId: o.holdId || undefined,
-      first: o.first, last: o.last || undefined, phone: o.phone, email: o.email || undefined, note: o.note || undefined, sms: o.sms !== false
+      first: o.first, last: o.last || undefined, phone: o.phone, email: o.email || undefined, note: o.note || undefined, sms: o.sms !== false,
+      marketing: o.marketing === true ? true : undefined
     }); }).then(function (r) { invalidate(); emit(); r.barber = siteOf[r.staffId] || o.barber; return r; });
   }
   function booking(token) { return call('GET', '/api/public/bookings/' + encodeURIComponent(token)); }
@@ -1975,7 +1979,7 @@ class Component extends DCLogic {
       now: Date.now(), chap: 0, tone: 'light', scrolled: false, ctaHide: false, tmStage: 0, menu: false,
       finDone: false, shaved: false, cut: 0, zoom: -1, bOpen: null,
       tab: 0, crOpen: null,
-      sheet: false, bk: this.bkEmpty(), fFirst: '', fLast: '', fPhone: '', fEmail: '', fNote: '', fSms: true, icsUrl: '', holdNow: 0, storeV: 0
+      sheet: false, bk: this.bkEmpty(), fFirst: '', fLast: '', fPhone: '', fEmail: '', fNote: '', fSms: true, fMkt: false, forgot: false, icsUrl: '', holdNow: 0, storeV: 0
     };
     this._s = 0; this._t = 0; this._par = 0; this._intro = 0; this._ap = 0;
     this._rm = false;
@@ -2008,7 +2012,7 @@ class Component extends DCLogic {
     this._tick = setInterval(() => this.setState({ now: Date.now() }), 30000);
     window.addEventListener('scroll', this.onScroll, { passive: true });
     window.addEventListener('resize', this.onResize);
-    const go = () => { if (!this._mounted || this._fontsOk) return; this._fontsOk = true; this.boot(); this.measure(true); this.intro(); };
+    const go = () => { if (!this._mounted || this._fontsOk) return; this._fontsOk = true; this.boot(); this.measure(true); this.intro(); this.toHash(); };
     try {
       if (document.fonts && document.fonts.load) {
         Promise.all([document.fonts.load('400 100px "Instrument Serif"'), document.fonts.load('italic 400 100px "Instrument Serif"')])
@@ -2020,6 +2024,15 @@ class Component extends DCLogic {
     this._t2 = setTimeout(() => this.measure(false), 700);
     this._t3 = setTimeout(() => this.setupReveal(), 60);
     this.bkInit();
+  }
+
+  /* the old WordPress pages (/nos-services, /creations) land on #carte or #coupes: go there once the page is laid out */
+  toHash() {
+    let id = '';
+    try { id = decodeURIComponent(String(window.location.hash || '').slice(1)); } catch (e) { return; }
+    const el = id && /^[a-z][\w-]*$/.test(id) ? document.getElementById(id) : null;
+    if (!el || !el.classList.contains('sheet')) return;
+    setTimeout(() => { if (this._mounted) el.scrollIntoView({ block: 'start', behavior: 'auto' }); }, 80);
   }
 
   /* ---------- reveals: things arrive as you reach them ---------- */
@@ -2379,7 +2392,7 @@ class Component extends DCLogic {
   }
 
   /* open or closed, from the salon's real hours and closures; when open, the live wait without appointment */
-  statusOf(P, open) {
+  statusOf(P, open, shut) {
     const today = LXE.keyOf(P.y, P.m, P.d);
     const iv = LXE.hoursOf(today);
     if (open) {
@@ -2388,7 +2401,7 @@ class Component extends DCLogic {
       const wait = live && live.open && live.waitMin != null ? (live.waitMin <= 5 ? ' · sans rendez-vous, on te prend tout de suite' : ' · sans rendez-vous ~' + live.waitMin + NB + 'min') : '';
       return { text: 'Ouvert · jusqu’à ' + LXE.fmtH(end ? end[1] : iv[iv.length - 1][1]) + wait, cls: 'open' };
     }
-    const later = iv.filter((x) => P.min < x[0])[0];
+    const later = shut ? null : iv.filter((x) => P.min < x[0])[0];
     if (later) return { text: 'Fermé · ouvre à ' + LXE.fmtH(later[0]), cls: 'shut' };
     let k = today, label = '';
     for (let i = 1; i <= 30; i++) {
@@ -2403,8 +2416,14 @@ class Component extends DCLogic {
   renderVals() {
     const s = this.state;
     const P = parisParts(LXE.clock());
-    const open = LXE.hoursOf(LXE.keyOf(P.y, P.m, P.d)).some((iv) => P.min >= iv[0] && P.min < iv[1]);
-    const st = this.statusOf(P, open);
+    // the salon closed its day early (Z done): closed, whatever the hours say. Asked only between the day's first
+    // opening and its last closing (lunch break included): at night and on closed days the hours say it all
+    const ivs = LXE.hoursOf(LXE.keyOf(P.y, P.m, P.d));
+    const inDay = ivs.length > 0 && P.min >= ivs[0][0] && P.min < ivs[ivs.length - 1][1];
+    const lv = inDay ? LXE.live() : null;
+    const shut = !!(lv && lv.closedToday && lv.today === LXE.keyOf(P.y, P.m, P.d));
+    const open = !shut && ivs.some((iv) => P.min >= iv[0] && P.min < iv[1]);
+    const st = this.statusOf(P, open, shut);
     const bv = this.bkVals();
     const mine = this.myUpcoming();
     const F = s.bk.f ? LXE.SV[s.bk.f] : null;
@@ -2526,6 +2545,11 @@ class Component extends DCLogic {
       stText: st.text,
       stCls: 'ft-st ' + st.cls,
 
+      // a shared phone or a borrowed one: the visitor wipes what the site remembers (name, number, bookings)
+      meKnown: !s.forgot && !!readMe(),
+      meForgot: !!s.forgot,
+      forgetMe: () => { clearMe(); this.setState({ forgot: true, fFirst: '', fLast: '', fPhone: '', fEmail: '', fNote: '', fMkt: false }); },
+
       mapsUrl: MAPS_URL
     }, bv);
   }
@@ -2564,6 +2588,7 @@ function fmtPhone(v) {
 function capFirst(t) { t = String(t || '').trim(); return t ? t.charAt(0).toUpperCase() + t.slice(1) : ''; }
 function readMe() { try { return JSON.parse(window.localStorage.getItem(ME_KEY) || 'null'); } catch (e) { return null; } }
 function writeMe(m) { try { window.localStorage.setItem(ME_KEY, JSON.stringify(m)); } catch (e) { /* storage off */ } }
+function clearMe() { try { window.localStorage.removeItem(ME_KEY); } catch (e) { /* storage off */ } }
 function pause(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
 
 const BookingMixin = {
@@ -2573,7 +2598,8 @@ const BookingMixin = {
 
   bkInit() {
     const me = readMe() || {};
-    this.setState({ fFirst: me.first || '', fLast: me.last || '', fPhone: me.phone || '', fEmail: me.email || '', fNote: '', fSms: true });
+    // the offers switch always starts off: consent is asked, never assumed (not even from a previous visit)
+    this.setState({ fFirst: me.first || '', fLast: me.last || '', fPhone: me.phone || '', fEmail: me.email || '', fNote: '', fSms: true, fMkt: false });
     this._bkOff = LXE.on(() => {
       if (!this._mounted) return;
       // the owner took the chosen service off the site while the sheet was open: back to step 1, never another service
@@ -2742,7 +2768,7 @@ const BookingMixin = {
     try {
       const r = await LXE.book({
         f: b.f, barber: b.barber, day: b.day, time: b.time, holdId: b.holdId, first: first, last: String(s0.fLast || '').trim().slice(0, 40),
-        phone: String(s0.fPhone), email: String(s0.fEmail || '').trim(), note: String(s0.fNote || '').trim().slice(0, 200), sms: !!s0.fSms
+        phone: String(s0.fPhone), email: String(s0.fEmail || '').trim(), note: String(s0.fNote || '').trim().slice(0, 200), sms: !!s0.fSms, marketing: s0.fMkt === true
       });
       // the ticket keeps what was booked, even if the service leaves the catalogue later
       const result = { token: r.token, code: r.code, manage: r.manage, day: b.day, time: b.time, dur: F.d, f: b.f, n: F.n, p: F.p, from: !!F.from, barber: r.barber, any: b.barber === 'any', first: first, status: r.status, deposit: r.deposit, payUrl: r.payment ? r.payment.url : null };
@@ -2751,7 +2777,7 @@ const BookingMixin = {
       this.setState({ bk: Object.assign(this.bkEmpty(), { step: 'done', result: result, f: b.f }), icsUrl: this.bkIcs(result), fNote: '' });
       buzz([16, 40, 16]);
     } catch (e) {
-      if (e.code === 'taken') this.bkConflict();
+      if (e.code === 'taken') this.bkConflict(e.message);
       else if (e.code === 'service_gone') this.bkGone();
       else this.setState({ bk: Object.assign({}, this.state.bk, { busy: false, err: e.message }) });
     }
@@ -2990,9 +3016,13 @@ const BookingMixin = {
     v.setNote = (e) => this.setState({ fNote: e.target.value });
     v.smsOn = !!s.fSms;
     v.smsCls = 'sw' + (s.fSms ? ' on' : '');
-    v.toggleSms = () => this.setState({ fSms: !this.state.fSms });
+    // the offers come by SMS: no SMS, no offers (a yes that could never be used is no consent at all)
+    v.toggleSms = () => this.setState(this.state.fSms ? { fSms: false, fMkt: false } : { fSms: true });
+    v.mktOn = !!s.fMkt;
+    v.mktCls = 'sw' + (s.fMkt ? ' on' : '');
+    v.toggleMkt = () => this.setState(this.state.fMkt ? { fMkt: false } : { fMkt: true, fSms: true });
     const phd = String(s.fPhone || '').replace(/\D/g, '');
-    v.phoneHint = phd.length > 0 && (phd.length < 10 || phd.charAt(0) !== '0') ? 'Un numéro français à 10 chiffres, comme 06 12 34 56 78.' : 'Pour la confirmation et le rappel, rien d’autre.';
+    v.phoneHint = phd.length > 0 && (phd.length < 10 || phd.charAt(0) !== '0') ? 'Un numéro français à 10 chiffres, comme 06 12 34 56 78.' : s.fMkt ? 'Pour la confirmation, le rappel et les bons plans.' : 'Pour la confirmation et le rappel, rien d’autre.';
     v.phoneCls = 'hint' + (phd.length > 0 && (phd.length < 10 || phd.charAt(0) !== '0') ? ' warn' : '');
     v.dataHref = '/confidentialite';
     v.hasTerms = step === 'info' && dep > 0;

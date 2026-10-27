@@ -7,6 +7,7 @@ import { claimMessage, messageResult } from '../commands/messages.js';
 import { demoTick } from '../domain/seed.js';
 import { startsAt } from '../domain/policy.js';
 import { nightlyBackup } from '../core/backup.js';
+import { webhookUrl } from '../messaging/sms.js';
 
 const SYSTEM = { actor: /** @type {const} */ ({ t: 'system', id: 'scheduler', n: 'Automatique' }), caps: new Set() };
 
@@ -68,7 +69,8 @@ export async function dispatch(rt, limit = 10) {
     const late = staleReason(e.state, m, now);
     if (late) { outcomes.push({ id, status: 'expired', error: late }); continue; }
     if (!m.to) { outcomes.push({ id, status: 'skipped', error: 'Numéro effacé' }); continue; }
-    try { const r = await rt.sms.send(m.to, m.body); outcomes.push({ id, status: 'sent', providerRef: r.ref }); }
+    // marketing: Brevo's promotional type; the webhook brings STOP replies back to the client file
+    try { const r = await rt.sms.send(m.to, m.body, { marketing: !!m.marketing, webhookUrl: webhookUrl(rt.origin, rt.cfg.cronSecret) }); outcomes.push({ id, status: 'sent', providerRef: r.ref }); }
     catch (err) { outcomes.push({ id, status: 'failed', error: String(err && err.message || err) }); }
   }
   if (outcomes.length) await e.batch((step) => { for (const o of outcomes) step(messageResult, o, SYSTEM); });

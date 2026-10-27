@@ -281,8 +281,8 @@ function Overdue({ c }: { c: ClientFull }) {
   return (
     <div className="note warn cl-next">
       <Icon name="clock" />
-      <div><b>{c.first} n’est pas revenu depuis {c.sinceLast} jours.</b> {c.cadence ? 'Il venait ' + rhythmWords(c.cadence) + ' : un' : 'Une seule visite jusqu’ici : un'} petit SMS avec le lien de réservation suffit souvent.</div>
-      {can('marketing') && c.sms && c.hasPhone ? <Button size="sm" variant="ghost" icon="sms" disabled={sent} onClick={async () => { try { const r = await api.post<{ sent: number }>('/api/v1/relances/send', { clientIds: [c.id] }); setSent(true); toast(r.sent ? 'Relance envoyée' : 'Déjà relancé aujourd’hui'); refreshAll(); } catch (e) { toastError(e); } }}>{sent ? 'Envoyé' : 'Relancer'}</Button> : null}
+      <div><b>{c.first} n’est pas revenu depuis {c.sinceLast} jours.</b> {c.marketing ? (c.cadence ? 'Il venait ' + rhythmWords(c.cadence) + ' : un' : 'Une seule visite jusqu’ici : un') + ' petit SMS avec le lien de réservation suffit souvent.' : (c.cadence ? 'Il venait ' + rhythmWords(c.cadence) + '. ' : '') + 'Pas d’accord pour les bons plans : pas de relance par SMS.'}</div>
+      {can('marketing') && c.sms && c.marketing && c.hasPhone ? <Button size="sm" variant="ghost" icon="sms" disabled={sent} onClick={async () => { try { const r = await api.post<{ sent: number }>('/api/v1/relances/send', { clientIds: [c.id] }); setSent(true); toast(r.sent ? 'Relance envoyée' : 'Déjà relancé aujourd’hui'); refreshAll(); } catch (e) { toastError(e); } }}>{sent ? 'Envoyé' : 'Relancer'}</Button> : null}
     </div>
   );
 }
