@@ -218,6 +218,7 @@ test('erasing the client blanks the text that was sent, and the journal still ve
 });
 
 test('the texts are in the registry: lookup, and DO-03’s gift card code', () => {
-  assert.equal(TEMPLATES.lookup, "L'Architecte : ton rendez-vous {date} à {heure} : {lien}{suite}");
+  // AC-01: {espace}, the client space's line while it is open (nothing otherwise)
+  assert.equal(TEMPLATES.lookup, "L'Architecte : ton rendez-vous {date} à {heure} : {lien}{suite}{espace}");
   assert.equal(TEMPLATES.giftcardCode, "L'Architecte : {acheteur} t'offre une carte cadeau de {montant} ! Code {code}, valable jusqu'au {date}. Réserve : {lien}");
 });

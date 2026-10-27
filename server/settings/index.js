@@ -15,6 +15,7 @@ import notify from './notify.js';
 import trainings from './trainings.js';
 import membership from './membership.js';
 import fiscal from './fiscal.js';
+import accounts from './accounts.js';
 
 // one entry per line, so sections added by different branches merge cleanly. A section taken out stays readable: `site`
 // (the texts and photos of the old Le site editor) is still in some journals' settings.updated; replay keeps it in the
@@ -33,7 +34,8 @@ const TYPED = /** @type {const} */ ([
   notify,
   trainings,
   membership,
-  fiscal
+  fiscal,
+  accounts
 ]);
 export const SECTIONS = TYPED;
 

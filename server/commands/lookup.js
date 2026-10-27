@@ -41,7 +41,7 @@ export const lookupAppointments = {
     const linkFor = ctx.meta && ctx.meta.linkFor;
     const [a, b] = list;
     const next = b ? whenWords(b.day, b.start) : null;
-    const vars = { ...apptVars(s, a, linkFor), suite: next ? ' Puis ' + next.date + ' à ' + next.heure + ' : ' + (linkFor ? linkFor(b) : '') : '' };
+    const vars = { ...apptVars(s, a, linkFor), suite: next ? ' Puis ' + next.date + ' à ' + next.heure + ' : ' + (linkFor ? linkFor(b) : '') : '', espace: (ctx.meta && ctx.meta.espace) || '' };
     // asked for by the person holding the phone, now: a service text, sent even to a client who turned reminders off
     const id = queueMessage(s, ctx, { key: key(n), template: 'lookup', to: c.phone, cid: c.id, apptId: a.id, vars });
     // the id: the route sends that text at once (dispatchNow), the client is waiting for it
