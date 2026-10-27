@@ -108,7 +108,8 @@ export function evolve(s, e) {
     case 'timeoff.withdrawn': s.timeoffRequests.delete(d.id); break;
 
     case 'device.enrolled':
-      s.devices.set(d.id, { id: d.id, name: d.name, tokenHash: d.tokenHash, by: e.actor.id, at: e.at, revoked: false });
+      // a barber's own linked phone (TEAM-02): whose it is, and the single-use link that enrolled it
+      s.devices.set(d.id, { id: d.id, name: d.name, tokenHash: d.tokenHash, by: e.actor.id, at: e.at, revoked: false, ...(d.personal ? { staffId: d.staffId, personal: true, link: d.link || null } : {}) });
       s.deviceByHash.set(d.tokenHash, d.id);
       break;
     case 'device.revoked': { const x = s.devices.get(d.id); if (x) { x.revoked = true; s.deviceByHash.delete(x.tokenHash); } break; }

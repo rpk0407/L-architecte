@@ -9,6 +9,10 @@ export const DEVICE_COOKIE = 'lx_d';
 export const HOUR = 3600000;
 /** a PIN session (a shared salon device) ends after this long without a request, whatever the screen does */
 export const PIN_IDLE = 10 * 60000;
+/** the same on a barber's own linked phone (TEAM-02): his code about once a day, not each time it leaves the pocket */
+export const PIN_IDLE_PHONE = 12 * HOUR;
+/** how long a PIN session on a linked phone lives at most: the device cookie and the 12 h idle do the rest */
+export const PIN_PHONE_DAYS = 30;
 /** how often a PIN session's lastSeen is re-signed: often enough to slide, rarely enough to stay cheap */
 const PIN_TOUCH = 60000;
 
@@ -18,7 +22,8 @@ function eq(a, b) { const x = Buffer.from(a), y = Buffer.from(b); return x.lengt
 
 /**
  * seen: a PIN session's last request (signed with it, so the server alone decides when it went idle)
- * @typedef {{ sid: string, uid: string, did?: string|null, kind: 'pwd'|'pin', iat: number, exp: number, seen?: number }} SessionPayload
+ * ph: a PIN session opened on the person's own linked phone (PIN_IDLE_PHONE), only valid on that personal device
+ * @typedef {{ sid: string, uid: string, did?: string|null, kind: 'pwd'|'pin', iat: number, exp: number, seen?: number, ph?: 1 }} SessionPayload
  */
 
 /** @param {string} secret @param {Omit<SessionPayload, 'sid'> & { sid?: string }} p */
@@ -29,9 +34,10 @@ export function signSession(secret, p) {
   return payload + '.' + mac(secret, 'session:' + payload);
 }
 
-/** A PIN session nobody used for PIN_IDLE: refused, whatever its expiry says. A password session never idles out. */
+/** A PIN session nobody used for PIN_IDLE (PIN_IDLE_PHONE on a linked phone): refused, whatever its expiry says.
+ *  A password session never idles out. */
 export function pinIdle(p, now) {
-  return p.kind === 'pin' && now - (p.seen ?? p.iat) > PIN_IDLE;
+  return p.kind === 'pin' && now - (p.seen ?? p.iat) > (p.ph ? PIN_IDLE_PHONE : PIN_IDLE);
 }
 
 /** The same PIN session seen now, when the last re-issue is a minute old; null when it is fresher. */
@@ -69,6 +75,8 @@ export function liveSession(s, p, deviceToken) {
     // a PIN session only lives on the device it was opened on
     if (p.kind === 'pin' && (!deviceToken || s.deviceByHash.get(sha256(deviceToken)) !== p.did)) return null;
   }
+  // a phone's long session: only on that person's own linked phone, and only while the salon allows linked phones
+  if (p.ph && (p.kind !== 'pin' || !device || !device.personal || device.staffId !== p.uid || s.settings.team?.personalPhones === false)) return null;
   return { staff, device };
 }
 

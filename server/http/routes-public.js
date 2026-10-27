@@ -135,7 +135,8 @@ export function publicRoutes(app) {
     // the whole price list (the CGV show it, the site's FAQ quotes it): booked at the salon only when online is false
     const menu = active.map((x) => ({ slug: x.slug || null, name: x.name, category: x.category, price: x.price, from: !!x.from, dur: x.dur, online: x.online !== false }));
     const chairs = [...s.staff.values()].filter((x) => x.active && x.chair && x.bookable).sort((a, b) => (a.order ?? 99) - (b.order ?? 99));
-    const barbers = chairs.map((x) => ({ ...staffView(x), away: awayOf(s, x, L.day) }));
+    // the team's photo (TEAM-02) is the Comptoir's, not the site's
+    const barbers = chairs.map((x) => ({ ...staffView(x), photo: undefined, away: awayOf(s, x, L.day) }));
     // the days it opens when it usually doesn't, or with other hours; one a closure covers is closed (it wins, as in
     // availability.js), and one for named barbers nobody can be booked on (archived, all away) is not announced
     const closures = s.settings.closures.filter((c) => c.to >= L.day);

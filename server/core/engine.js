@@ -65,6 +65,23 @@ export function erasedMatch(erased) {
 }
 
 /**
+ * A team member's own personal data of the given types, in the events before version `before` (TEAM-02: a photo
+ * replaced, removed, or archived with its owner leaves no earlier copy in the store).
+ * @param {string} staffId @param {string[]} types @param {number} [before] @returns {(e: JEvent) => boolean}
+ */
+export function staffRedact(staffId, types, before = Infinity) {
+  const kinds = new Set(types);
+  return (x) => kinds.has(x.type) && !!x.data && x.data.id === staffId && x.v < before;
+}
+
+/** What an appended event makes erasable elsewhere in the journal, or null: a client's erasure, a staff photo's change. */
+function redactionOf(e) {
+  if (e.type === 'client.erased') return erasedMatch(e);
+  if (e.type === 'staff.photo' && e.data && e.data.id) return staffRedact(e.data.id, ['staff.photo'], e.v);
+  return null;
+}
+
+/**
  * @param {Store} store
  * @param {{ clock?: () => number, syncEveryMs?: number, onEvents?: (ev: JEvent[], engine: any) => void }} [opts]
  */
@@ -103,9 +120,9 @@ export function createEngine(store, opts = {}) {
       if (e.v !== state.version + 1) throw new Error('journal gap at ' + e.v);
       evolve(state, e);
       journal.push(e);
-      // an erasure made by another instance reaches this one here: its memory forgets the client too
-      if (e.type === 'client.erased') {
-        const match = erasedMatch(e);
+      // an erasure made by another instance reaches this one here: its memory forgets the client (or the old photo) too
+      const match = redactionOf(e);
+      if (match) {
         let kept = false;
         for (const x of journal) if (x.pii != null && match(x)) { if (fresh.has(x) && !own) kept = true; delete x.pii; }
         // read just now with its personal data although its erasure is in the store too: the store never redacted it
@@ -247,7 +264,8 @@ export function createEngine(store, opts = {}) {
   async function afterAppend(list) {
     for (const e of list) {
       // memory was cleaned by apply; the store forgets now, or after its next read if it fails here (the write stands)
-      if (e.type === 'client.erased') redactLater.push(erasedMatch(e));
+      const match = redactionOf(e);
+      if (match) redactLater.push(match);
     }
     if (redactLater.length) await redactPending();
     if (opts.onEvents) { try { opts.onEvents(list, api); } catch { /* hooks never break a write */ } }

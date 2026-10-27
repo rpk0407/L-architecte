@@ -2,7 +2,7 @@
 // Signing in. The owner uses e-mail + password anywhere; on a device enrolled as "poste du salon",
 // the team switches with a 4–6 digit PIN. A PIN is useless anywhere else.
 import { HttpError, guard, failureGuard, cookie } from './kit.js';
-import { signSession, SESSION_COOKIE, DEVICE_COOKIE, HOUR } from '../auth/session.js';
+import { signSession, checkLink, SESSION_COOKIE, DEVICE_COOKIE, HOUR, PIN_PHONE_DAYS } from '../auth/session.js';
 import { hashSecret, verifySecret, verifyDummy, passwordProblem, pinProblem } from '../auth/password.js';
 import { capsOf, ROLES } from '../domain/permissions.js';
 import { staffView } from './views.js';
@@ -12,21 +12,27 @@ import { initialize } from '../commands/setup.js';
 import { DEMO } from '../domain/seed.js';
 import { isEmail } from '../lib/util.js';
 import { backupKey, backupsOf, keyProblem, restoreBackup } from '../core/backup.js';
+import { prefsOf, linkUsed, ofName } from '../projections/staffprefs.js';
 
 const DAY = 24 * HOUR;
 /** an uploaded backup arrives in parts: the function body limit is 4.5 MB on Vercel */
 const PART_MAX = 3 * 1024 * 1024;
 const PARTS_MAX = 64;
 
+/** prefs (TEAM-02): this person's own Comptoir over his role's defaults; device.personal: his own linked phone */
 export function meView(s, staff, device, kind) {
   const caps = capsOf(staff, s.settings);
-  return { ...staffView(staff, true), caps: [...caps], device: device ? { id: device.id, name: device.name } : null, session: kind, roleLabel: ROLES[staff.role] };
+  return { ...staffView(staff, true), caps: [...caps], device: device ? { id: device.id, name: device.name, personal: !!device.personal } : null, session: kind, roleLabel: ROLES[staff.role], prefs: prefsOf(s, staff) };
 }
+
+/** A barber's own phone (TEAM-02): his code about once a day (ph, auth/session.js), for 30 days at most. */
+const onPhone = (r, staff) => !!(r.device && r.device.personal && r.device.staffId === staff.id);
 
 function setSession(r, staff, kind, remember) {
   const now = r.rt.engine.clock();
-  const exp = now + (kind === 'pin' ? 12 * HOUR : remember ? 30 * DAY : 12 * HOUR);
-  const token = signSession(r.rt.secret, { uid: staff.id, did: r.device ? r.device.id : null, kind, iat: now + 1, exp });
+  const ph = kind === 'pin' && onPhone(r, staff);
+  const exp = now + (ph ? PIN_PHONE_DAYS * DAY : kind === 'pin' ? 12 * HOUR : remember ? 30 * DAY : 12 * HOUR);
+  const token = signSession(r.rt.secret, { uid: staff.id, did: r.device ? r.device.id : null, kind, iat: now + 1, exp, ...(ph ? { ph: /** @type {1} */ (1) } : {}) });
   r.setCookies.push(cookie(SESSION_COOKIE, token, { maxAge: (exp - now) / 1000, secure: r.rt.cfg.secureCookies }));
 }
 
@@ -34,10 +40,12 @@ export function authRoutes(app) {
   /** What the sign-in screen needs: who may sign in on this device. */
   app.get('/api/auth/state', (r) => {
     const s = r.s;
-    const team = r.device ? [...s.staff.values()].filter((x) => x.active && x.hasPin).sort((a, b) => (a.order ?? 99) - (b.order ?? 99)).map((x) => ({ id: x.id, name: x.name, initials: x.initials, color: x.color, role: x.role, roleLabel: ROLES[x.role] })) : [];
+    // a linked phone opens for its owner alone
+    const mine = (x) => !r.device.personal || x.id === r.device.staffId;
+    const team = r.device ? [...s.staff.values()].filter((x) => x.active && x.hasPin && mine(x)).sort((a, b) => (a.order ?? 99) - (b.order ?? 99)).map((x) => ({ id: x.id, name: x.name, initials: x.initials, color: x.color, role: x.role, roleLabel: ROLES[x.role], photo: x.photoV || null })) : [];
     return {
       mode: s.mode, needsSetup: s.version === 0, shop: { name: s.settings.shop.name },
-      device: r.device ? { id: r.device.id, name: r.device.name } : null, team,
+      device: r.device ? { id: r.device.id, name: r.device.name, personal: !!r.device.personal } : null, team,
       me: r.me ? meView(s, r.me, r.device, r.session && r.session.kind) : null,
       demo: s.mode === 'demo' ? { email: DEMO.email, password: DEMO.password, ownerPin: DEMO.ownerPin, pins: DEMO.pins, giftcard: DEMO.giftcard } : null
     };
@@ -59,6 +67,11 @@ export function authRoutes(app) {
   app.post('/api/auth/pin', async (r) => {
     if (!r.device) throw new HttpError(403, 'no_device', 'Ce poste n’est pas enregistré. Le gérant doit d’abord s’y connecter.');
     const staff = r.s.staff.get(String(r.body.staffId || ''));
+    // someone's linked phone is his alone: nobody else's code opens it
+    if (r.device.personal) {
+      if (!staff || staff.id !== r.device.staffId) throw new HttpError(403, 'not_yours', 'Ce téléphone est lié à quelqu’un d’autre.');
+      if (r.s.settings.team.personalPhones === false) throw new HttpError(403, 'phones_off', 'Le salon n’autorise plus les téléphones personnels.');
+    }
     guard('pin-dev|' + r.device.id, 30, 5 * 60000);
     const tries = failureGuard('pin|' + r.device.id + '|' + (staff ? staff.id : 'x'), 5, 5 * 60000, 'Trop d’essais. Patiente 5 minutes ou demande au gérant.');
     const creds = staff && staff.active ? r.s.creds.get(staff.id) : null;
@@ -89,6 +102,37 @@ export function authRoutes(app) {
     await r.rt.engine.run(enrollDevice, { name: 'Poste démo', tokenHash: sha256(token), demo: true }, { actor: { t: 'system', id: 'demo' }, caps: new Set(['devices']) });
     r.setCookies.push(cookie(DEVICE_COOKIE, token, { maxAge: 30 * 86400, secure: r.rt.cfg.secureCookies }));
     return { ok: true };
+  }, { auth: false });
+
+  /**
+   * A phone link (TEAM-02, POST /api/v1/staff/:id/phone-link): « staffId~exp~nonce », signed. Who it is for, or why
+   * not: a link already used (409), expired (410), anything else (404). Said before the tap and checked again by it.
+   */
+  const phoneLink = (r, token) => {
+    guard('link|' + r.ip, 30, 15 * 60000);
+    const id = checkLink(r.rt.secret, 'phone', token);
+    const [staffId, exp36, nonce] = id ? id.split('~') : [];
+    const st = staffId ? r.s.staff.get(staffId) : null;
+    if (!st || !st.active || !nonce) throw new HttpError(404, 'bad_link', 'Ce lien n’est pas valide. Demande-en un nouveau.');
+    if (linkUsed(r.s, nonce)) throw new HttpError(409, 'used', 'Ce lien a déjà servi. Demande-en un nouveau.');
+    if (r.now > parseInt(exp36, 36)) throw new HttpError(410, 'expired', 'Ce lien a expiré.');
+    return { st, nonce, exp: parseInt(exp36, 36) };
+  };
+  app.get('/api/auth/link/:token', (r) => {
+    const { st, exp } = phoneLink(r, r.params.token);
+    return { staff: { id: st.id, name: st.name, initials: st.initials, color: st.color }, exp };
+  }, { auth: false });
+  /** Link this phone to the person the link names: a personal device cookie, then his code alone opens it. */
+  app.post('/api/auth/link', async (r) => {
+    const { st, nonce } = phoneLink(r, String(r.body.token || ''));
+    // a salon post that opens the link would lose its own device cookie: the link is for the phone
+    if (r.device && !r.device.personal) throw new HttpError(409, 'salon_device', 'Ce navigateur est un poste du salon : ouvre le lien sur ton téléphone.');
+    const token = newToken();
+    const name = String(r.body.name || '').trim().slice(0, 40) || 'Téléphone ' + ofName(st.name);
+    // as the person himself (his link vouches for him): his feed and the owner's say he linked it
+    await r.rt.engine.run(enrollDevice, { name, tokenHash: sha256(token), staffId: st.id, personal: true, link: nonce }, { actor: { t: 'staff', id: st.id, n: st.name }, staff: st, caps: new Set() });
+    r.setCookies.push(cookie(DEVICE_COOKIE, token, { maxAge: 400 * 86400, secure: r.rt.cfg.secureCookies }));
+    return { staff: { id: st.id, name: st.name } };
   }, { auth: false });
 
   app.post('/api/auth/forget-device', (r) => {
