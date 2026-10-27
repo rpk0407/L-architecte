@@ -302,7 +302,8 @@ function cancel(s, ctx, m, o) {
     ],
     button: link ? { label: 'Mon abonnement', url: link } : null
   }) : null;
-  ctx.emit('member.cancelRequested', { id: m.id, at: ctx.now, effective: o.effective, by: o.by, channel: o.channel, msgIds: ids(sms, mail), cid }, o.reason ? { reason: o.reason } : undefined);
+  // verified false: asked without the member's link nor his session (PAY-03's /resilier fallback), the salon confirms it
+  ctx.emit('member.cancelRequested', { id: m.id, at: ctx.now, effective: o.effective, by: o.by, channel: o.channel, msgIds: ids(sms, mail), ...(o.verified === false ? { verified: false } : {}), cid }, o.reason ? { reason: o.reason } : undefined);
   // the client's own cancellation, here or in the provider's portal (by 'provider', channel 'stripe'): the owner hears of it
   if ((o.by === 'client' || o.channel === 'stripe') && ctx.actor.t !== 'staff' && m.activatedAt) ownerAlert(s, ctx, { key: 'omcx_' + m.id, cid, subject: 'Résiliation d’abonnement : ' + (k.first || 'un client') + ' · ' + m.name, lines: ['Résilié ' + (CHANNEL_FR[o.channel] || '') + ' le ' + dateWords(today) + '. ' + (now ? 'Fin immédiate.' : 'Coupes incluses jusqu’au ' + dateWords(last) + ', plus rien n’est prélevé ensuite.')] });
   if (now) ctx.emit('member.ended', { id: m.id, reason: m.activatedAt ? 'cancelled' : 'abandoned', cid });
@@ -312,7 +313,7 @@ function cancel(s, ctx, m, o) {
 // no cid: the client's file is the one the ctx vouches for (needOwnerOrSelf); a cid in the body is dropped
 const cancelSchema = obj({
   id: id(), by: oneOf(/** @type {const} */ (['client', 'salon', 'provider'])), channel: oneOf(/** @type {const} */ (['site', 'moi', 'comptoir', 'stripe'])),
-  now: opt(bool()), reason: opt(str({ max: 200 }))
+  now: opt(bool()), reason: opt(str({ max: 200 })), verified: opt(bool())
 });
 /**
  * Cancel: it takes effect at the end of the paid period (the cuts stay included until then), or today when nothing is
@@ -330,7 +331,7 @@ export const requestCancel = {
     if (statusIn(s, m, today) === 'ended') fail(409, 'ended', 'Cet abonnement est déjà terminé.');
     const p = periodIn(s, m, today);
     const effective = x.now ? today : p && p.paid ? p.end : today;
-    return cancel(s, ctx, m, { effective, by: x.by, channel: x.channel, reason: x.reason || '' });
+    return cancel(s, ctx, m, { effective, by: x.by, channel: x.channel, reason: x.reason || '', verified: x.verified });
   }
 };
 
@@ -410,7 +411,8 @@ export const withdrawMember = {
     });
     ctx.emit('member.withdrawn', { id: m.id, at: ctx.now, refund, used, msgIds: ids(sms, mail), cid });
     ctx.emit('member.ended', { id: m.id, reason: 'withdrawn', cid });
-    if (self || (machine(ctx) && x.by !== 'salon')) ownerAlert(s, ctx, { key: 'omwd_' + m.id, cid, subject: 'Rétractation d’abonnement : ' + (k.first || 'un client') + ' · ' + m.name, lines: ['À rembourser : ' + amount + (first ? ' sur le ticket de l’abonnement' : '') + '.'] });
+    // meta.refundsAfter: the route refunds right after and tells the owner how it went (PAY-03), never « à rembourser » twice
+    if ((self || (machine(ctx) && x.by !== 'salon')) && !(ctx.meta && ctx.meta.refundsAfter)) ownerAlert(s, ctx, { key: 'omwd_' + m.id, cid, subject: 'Rétractation d’abonnement : ' + (k.first || 'un client') + ' · ' + m.name, lines: ['À rembourser : ' + amount + (first ? ' sur le ticket de l’abonnement' : '') + '.'] });
     return { id: m.id, refund, used, saleId: first ? first.saleId : null, paymentId: first ? first.paymentId : null };
   }
 };

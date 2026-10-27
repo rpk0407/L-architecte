@@ -54,6 +54,8 @@ const LABELS = {
 Object.assign(LABELS, { 'period.closed': 'Clôture du mois ou de l’année', 'seal.signed': 'Clôture signée', 'tech.logged': 'Journal technique' });
 // TEAM-02: linked phones, photos, personal prefs
 Object.assign(LABELS, { 'phone.linkIssued': 'Lien de téléphone créé', 'phone.pinMissed': 'Code faux sur un téléphone lié', 'phone.pinCleared': 'Code juste après des erreurs', 'phone.locked': 'Téléphone bloqué (codes faux)', 'staff.photo': 'Photo de l’équipe modifiée', 'prefs.set': 'Réglages personnels modifiés' });
+// PAY-03: the salon confirms a cancellation asked from /resilier without the member's link
+Object.assign(LABELS, { 'member.cancelConfirmed': 'Résiliation confirmée' });
 const STATUS = { arrived: 'arrivé', in_chair: 'au fauteuil', booked: 'remis à venir', no_show: 'absent' };
 
 const END_FR = { cancelled: 'résilié', unpaid: 'faute de paiement', withdrawn: 'rétractation', abandoned: 'paiement jamais fait' };

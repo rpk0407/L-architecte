@@ -19,7 +19,7 @@ function App() {
   const parts = location.pathname.split('/').filter(Boolean);
   const q = new URLSearchParams(location.search);
   if (parts[0] === 'r' && parts[1]) return <Manage token={parts[1]} back={q.get('paiement')} />;
-  if (parts[0] === 'paiement' && parts[1] === 'merci') return <Thanks ok={q.get('paiement') !== 'annule'} />;
+  if (parts[0] === 'paiement' && parts[1] === 'merci') return <Thanks ok={q.get('paiement') !== 'annule'} member={q.get('abonnement')} />;
   if (parts[0] === 'paiement' && parts[1]) return <Checkout id={parts[1]} />;
   if (parts[0] === 'recu' && parts[1]) return <Receipt token={parts[1]} />;
   if (parts[0] === 'cadeau' && parts[1]) return <Gift token={parts[1]} back={q.get('paiement')} />;
@@ -189,7 +189,10 @@ function Move({ b, token, onDone, onCancel }: { b: Booking; token: string; onDon
 
 /* ---------------- paying (test page, while no real provider is connected) ---------------- */
 
-type Pay = { id: string; status: string; amount: number; label: string; kind: string; provider: string; exp: number; shop: string; back: string | null };
+// start: a membership not started now (PAY-03), the day its first month is charged
+type Pay = { id: string; status: string; amount: number; label: string; kind: string; provider: string; exp: number; shop: string; back: string | null; start?: string | null };
+/** « Ton abonnement commence le lundi 17 novembre », for a start not asked for now */
+const startWords = (day: string) => 'Ton abonnement commence le ' + dates.dayLong(day) + ' : rien n’est prélevé avant.';
 function Checkout({ id }: { id: string }) {
   const [p, setP] = useState<Pay | null>(null);
   const [err, setErr] = useState('');
@@ -198,18 +201,24 @@ function Checkout({ id }: { id: string }) {
   // a gift card bought on /carte-cadeau comes back to its own page (only that kind of address: never an open redirect)
   const retour = new URLSearchParams(location.search).get('retour') || '';
   const gift = /^\/cadeau\/[A-Za-z0-9_.-]{8,120}$/.test(retour) ? retour : null;
-  const after = (ok: boolean) => {
+  const after = (ok: boolean, res?: { status?: string; start?: string }) => {
     if (gift) { location.href = ok ? gift + '?paiement=ok' : '/carte-cadeau?paiement=annule'; return; }
+    // a membership says what happened: paid now, or recorded for its start day (nothing charged)
+    if (ok && p!.kind === 'membership') { location.href = '/paiement/merci?abonnement=' + encodeURIComponent(res && res.status === 'scheduled' && res.start ? res.start : 'ok'); return; }
     location.href = p!.back ? p!.back + '?paiement=' + (ok ? 'ok' : 'annule') : '/paiement/merci' + (ok ? '' : '?paiement=annule');
   };
   const run = async (outcome: 'ok' | 'cancel') => {
     setBusy(outcome);
-    try { await api.post('/api/public/payments/' + encodeURIComponent(id) + '/simulate', { outcome }); await new Promise((r) => setTimeout(r, 700)); after(outcome === 'ok'); }
+    try { const res = await api.post<{ status?: string; start?: string }>('/api/public/payments/' + encodeURIComponent(id) + '/simulate', { outcome }); await new Promise((r) => setTimeout(r, 700)); after(outcome === 'ok', res); }
     catch (e: any) { setErr(e.message); setBusy(''); }
   };
   if (err) return <Shell><Lost msg={err} /></Shell>;
   if (!p) return <Shell><Spinner /></Shell>;
+  // a member's « Changer de carte » in the demo (PAY-03, simulated portalUrl): nothing to change
+  if (p.kind === 'membership' && new URLSearchParams(location.search).has('carte')) return <Shell shop={p.shop}><section className="c-card c-center"><p className="c-k">Carte de paiement</p><h1 className="c-h">Démo : la carte est à jour.</h1><p className="c-muted">Avec Stripe, cette page est celle de Stripe : la nouvelle carte sert dès le prochain prélèvement.</p></section></Shell>;
+  if (p.kind === 'membership' && p.status === 'scheduled' && p.start) return <Shell shop={p.shop}><section className="c-card c-center"><p className="c-k">Abonnement enregistré</p><h1 className="c-h">{startWords(p.start)}</h1><p className="c-muted">La confirmation est partie par e-mail.</p></section></Shell>;
   if (p.status !== 'pending') return <Shell shop={p.shop}><section className="c-card c-center"><p className="c-k">Paiement</p><h1 className="c-h">{p.status === 'paid' ? 'Déjà payé. Merci !' : 'Ce paiement n’est plus en attente.'}</h1>{gift ? <a className="c-btn" href={gift}>Voir ma carte cadeau</a> : p.back ? <a className="c-btn" href={p.back}>Voir mon rendez-vous</a> : null}</section></Shell>;
+  const later = p.kind === 'membership' && p.start ? p.start : null;
   return (
     <Shell shop={p.shop}>
       <section className="c-card c-pay">
@@ -218,7 +227,8 @@ function Checkout({ id }: { id: string }) {
         <h1 className="c-amount">{eur(p.amount, { decimals: p.amount % 100 !== 0 })}</h1>
         <p className="c-muted">{p.label}</p>
         <div className="c-cardfield" aria-hidden><span>Carte</span><b>4242 4242 4242 4242</b><small>12 / 34 · 123</small></div>
-        <button type="button" className="c-btn" disabled={!!busy} onClick={() => run('ok')}>{busy === 'ok' ? 'Paiement…' : 'Payer ' + eur(p.amount, { decimals: p.amount % 100 !== 0 })}</button>
+        {later ? <p className="c-muted">{startWords(later)}</p> : null}
+        <button type="button" className="c-btn" disabled={!!busy} onClick={() => run('ok')}>{busy === 'ok' ? (later ? 'Enregistrement…' : 'Paiement…') : later ? 'Confirmer mon abonnement' : 'Payer ' + eur(p.amount, { decimals: p.amount % 100 !== 0 })}</button>
         <button type="button" className="c-link" disabled={!!busy} onClick={() => run('cancel')}>Annuler</button>
         <p className="c-muted c-small">Une fois Stripe branché, cette étape se fait sur la page sécurisée de Stripe (carte, Apple Pay, Google Pay).</p>
       </section>
@@ -226,13 +236,17 @@ function Checkout({ id }: { id: string }) {
   );
 }
 
-function Thanks({ ok }: { ok: boolean }) {
+/** member: a membership's checkout (PAY-03), 'ok' paid now, else the day it starts (nothing charged before) */
+function Thanks({ ok, member }: { ok: boolean; member?: string | null }) {
+  const later = ok && member && /^\d{4}-\d{2}-\d{2}$/.test(member) ? member : null;
+  const title = !ok ? 'Paiement annulé.' : later ? 'Abonnement enregistré.' : member ? 'Merci, ton abonnement est actif.' : 'Merci, c’est payé.';
+  const sub = !ok ? 'Rien n’a été débité. Montre l’écran au barbier pour payer autrement.' : later ? startWords(later) + ' La confirmation est partie par e-mail.' : member ? 'La confirmation part par SMS et par e-mail. Tes coupes sont incluses dès aujourd’hui.' : 'Le salon l’a reçu, tu peux ranger ton téléphone.';
   return (
     <Shell>
       <section className="c-card c-center">
         <span className={'c-check' + (ok ? '' : ' no')} aria-hidden>{ok ? '✓' : '×'}</span>
-        <h1 className="c-h">{ok ? 'Merci, c’est payé.' : 'Paiement annulé.'}</h1>
-        <p className="c-muted">{ok ? 'Le salon l’a reçu, tu peux ranger ton téléphone.' : 'Rien n’a été débité. Montre l’écran au barbier pour payer autrement.'}</p>
+        <h1 className="c-h">{title}</h1>
+        <p className="c-muted">{sub}</p>
       </section>
     </Shell>
   );

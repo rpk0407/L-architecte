@@ -49,6 +49,8 @@ export function periodAt(m, at, grace) {
   const periods = m.periods || [];
   // ended by an event or past its cancellation: a period paid beyond it covers nothing (refunded, or the owner stopped it)
   if (m.ended || m.withdrawn || (m.cancel && m.cancel.effective <= day)) return null;
+  // a month disputed by the bank (PAY-03): nothing is covered while the dispute is open, nor once it is lost
+  if (disputeHeld(m)) return null;
   const paid = periods.find((p) => p.start <= day && day < p.end);
   if (paid) return { start: paid.start, end: paid.end, paid: true, invoice: paid.invoice };
   if (!m.activatedAt || !periods.length) return null;
@@ -61,6 +63,9 @@ export function periodAt(m, at, grace) {
   }
   return day === last.end ? { ...next, renewing: true } : null;
 }
+
+/** A chargeback open or lost on one of its months: billing held at the provider, no cut covered. @param {any} m */
+export const disputeHeld = (m) => (m.disputes || []).some((x) => x.status === 'open' || x.status === 'lost');
 
 /** Pending past its checkout's expiry: abandoned (derived, no event). @param {any} m @param {string|number} at */
 export function abandoned(m, at) {

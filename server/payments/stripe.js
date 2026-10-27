@@ -2,7 +2,7 @@
 // Stripe through its REST API (no SDK: fewer dependencies, faster cold starts).
 // Card data never touches this server: clients pay on Stripe Checkout (Apple Pay, Google Pay, cards),
 // which keeps the salon in the lightest PCI scope (SAQ A).
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { createHmac, createHash, timingSafeEqual } from 'node:crypto';
 import { STRIPE_PAY_MIN } from '../domain/policy.js';
 
 const API = 'https://api.stripe.com/v1';
@@ -43,6 +43,19 @@ export function verifyStripeSignature(rawBody, header, secret, nowSec = Math.flo
 const DISPUTE_OPEN = new Set(['warning_needs_response', 'warning_under_review', 'needs_response', 'under_review']);
 const disputeStatus = (st, closed) => (st === 'won' || st === 'lost' ? st : !closed && DISPUTE_OPEN.has(st) ? 'open' : 'warning_closed');
 
+/** « Visa •• 4242 », « SEPA •• 1234 »: a card or a mandate as the member and the owner read it, never more than the last four. */
+const BRAND = { visa: 'Visa', mastercard: 'Mastercard', amex: 'Amex', cartes_bancaires: 'CB', diners: 'Diners', discover: 'Discover', jcb: 'JCB', unionpay: 'UnionPay' };
+export function cardLabel(pm) {
+  if (!pm || typeof pm !== 'object') return '';
+  if (pm.card) { const b = String(pm.card.display_brand || pm.card.brand || '').toLowerCase(); return ((Object.hasOwn(BRAND, b) ? BRAND[b] : 'Carte') + ' •• ' + String(pm.card.last4 || '')).trim(); }
+  if (pm.sepa_debit) return 'SEPA •• ' + String(pm.sepa_debit.last4 || '');
+  return '';
+}
+/** an object Stripe may send expanded or as its id */
+const idOf = (x) => (x && typeof x === 'object' ? x.id : x) || undefined;
+/** the subscription an invoice bills: under parent since the basil version, on the invoice itself before */
+const invoiceSub = (o) => idOf(o.parent && o.parent.subscription_details && o.parent.subscription_details.subscription) || idOf(o.subscription) || undefined;
+
 /**
  * @param {{ secretKey: string, webhookSecret: string, fetchImpl?: typeof fetch }} o webhookSecret: one signing secret, or
  * several separated by commas (a secret being rolled, the test and live endpoints): a signature valid for any passes.
@@ -79,10 +92,25 @@ export function stripeProvider({ secretKey, webhookSecret, fetchImpl = fetch }) 
     return body;
   }
   const q = (params) => '?' + formEncode(params).toString();
+  /** lookup key → Price id, per instance: the same plan at the same price is asked of Stripe once */
+  const prices = new Map();
+  /** A subscription as it is now: status, the cancellation set, the card's label, our member (metadata.lx). */
+  async function getSubscription(sub) {
+    const x = await call('GET', '/subscriptions/' + encodeURIComponent(sub) + q({ 'expand[]': 'default_payment_method' }));
+    const item = x.items && x.items.data && x.items.data[0];
+    const periodEnd = ((item && item.current_period_end) || x.current_period_end || 0) * 1000;
+    return {
+      id: x.id, status: String(x.status || ''), lx: (x.metadata && x.metadata.lx) || '', customer: idOf(x.customer) || '', card: cardLabel(x.default_payment_method),
+      cancelAtPeriodEnd: !!x.cancel_at_period_end, cancelAt: x.cancel_at_period_end ? periodEnd || null : x.cancel_at ? x.cancel_at * 1000 : null,
+      pausedUntil: x.pause_collection ? (x.pause_collection.resumes_at || 0) * 1000 || null : null, held: !!x.pause_collection,
+      endReason: String((x.cancellation_details && x.cancellation_details.reason) || ''), periodEnd, latestInvoice: idOf(x.latest_invoice) || '',
+      trialEnd: (x.trial_end || 0) * 1000 || null
+    };
+  }
   return {
     name: 'stripe',
     live: /^(sk|rk)_live_/.test(String(secretKey)),
-    caps: { checkout: true, refund: true, setup: true, offSession: true, billing: false, portal: false, terminal: false, payouts: true },
+    caps: { checkout: true, refund: true, setup: true, offSession: true, billing: true, portal: true, terminal: false, payouts: true },
     sigHeader: 'stripe-signature',
     /**
      * payMin: how long the booking waits for this payment. The page outlives it by a minute, so a client
@@ -99,7 +127,9 @@ export function stripeProvider({ secretKey, webhookSecret, fetchImpl = fetch }) 
     },
     /** metadata.lx marks it ours, so its charge.refunded notice is never taken for a refund made in the dashboard */
     async refund(chargeRef, amount, idem) {
-      const r = await call('POST', '/refunds', { payment_intent: chargeRef, amount, metadata: { lx: idem } }, 'lx-rf-' + idem);
+      // a membership's invoice paid without a PaymentIntent names its charge (ch_…): Stripe refunds that one by charge
+      const target = String(chargeRef).startsWith('ch_') ? { charge: chargeRef } : { payment_intent: chargeRef };
+      const r = await call('POST', '/refunds', { ...target, amount, metadata: { lx: idem } }, 'lx-rf-' + idem);
       return { ref: r.id, status: r.status };
     },
     /** A charge's refunds (the last 100), each told ours (refund() above) or not; failed and cancelled ones left out. */
@@ -122,11 +152,88 @@ export function stripeProvider({ secretKey, webhookSecret, fetchImpl = fetch }) 
         return { ref: x.pi, status: x.code === 'authentication_required' ? 'requires_action' : 'failed', code: x.decline || x.code || 'card_declined' };
       }
     },
-    /** The PaymentIntent behind a checkout page (a payment recorded before its charge was known). */
+    /** The PaymentIntent behind a checkout page (a payment recorded before its charge was known), or the subscription
+     *  a membership's checkout started (a member whose first invoice is not paid yet: no subscription in our records). */
     async retrieveCharge(sessionId) {
       const s = await call('GET', '/checkout/sessions/' + encodeURIComponent(sessionId));
-      const pi = s && s.payment_intent;
-      return { chargeRef: (pi && typeof pi === 'object' ? pi.id : pi) || null };
+      return { chargeRef: idOf(s && s.payment_intent) || null, subscription: idOf(s && s.subscription) || null };
+    },
+
+    /* ---------------- Stripe Billing: the monthly membership (PAY-03) ---------------- */
+
+    /**
+     * The Price of a plan at a price, found by its lookup key (lx_<planId>_<cents>) or created once: nothing is stored on
+     * our side, a price change makes a new Price and members keep theirs (Stripe bills each subscription its own).
+     * @param {{ id: string, name: string }} plan @param {number} price
+     */
+    async ensurePrice(plan, price) {
+      const key = 'lx_' + plan.id + '_' + price;
+      if (prices.has(key)) return prices.get(key);
+      const found = await call('GET', '/prices' + q({ 'lookup_keys[]': key, active: true, limit: 1 }));
+      let id = found && found.data && found.data[0] ? found.data[0].id : '';
+      // transfer_lookup_key: a Price archived in the dashboard gives its key to the new one instead of refusing it
+      if (!id) id = (await call('POST', '/prices', { currency: 'eur', unit_amount: price, recurring: { interval: 'month' }, product_data: { name: plan.name }, lookup_key: key, transfer_lookup_key: true }, 'lx-price-' + plan.id + '-' + price)).id;
+      prices.set(key, id);
+      return id;
+    },
+    /**
+     * The membership's Checkout page (mode subscription). Not starting now (the client did not tick « commencer tout de
+     * suite »): nothing is charged before startAt (trial_end, the day after the 14 days of withdrawal); our words never
+     * say « essai ». metadata.lx on the session and the subscription: every later notice finds its member. The page
+     * lives 31 minutes like a deposit's, or expiresMin (an offer texted by the salon: up to Stripe's 24 hours). note:
+     * the line above Stripe's button (a deferred start: « rien n'est prélevé avant », against Stripe's own trial words).
+     * A retry must send Stripe the same parameters under the same key (else Stripe answers 400): the page's end counts
+     * from the next 10-minute mark, and the key names the parameters, so a request sent again gets the same page and
+     * one whose parameters moved gets a new page, never an error.
+     */
+    async createSubscription(o) {
+      const mark = Math.ceil(Date.now() / 600000) * 600;
+      const expires = mark + Math.min(24 * 60 - 11, Math.max(STRIPE_PAY_MIN, o.expiresMin || 0)) * 60;
+      const params = {
+        mode: 'subscription', line_items: [{ price: o.price, quantity: 1 }], customer_email: o.email || undefined, client_reference_id: o.id,
+        metadata: { lx: o.id }, subscription_data: { metadata: { lx: o.id }, ...(o.startNow || !o.startAt ? {} : { trial_end: Math.floor(o.startAt / 1000) }) },
+        payment_method_types: o.sepa ? ['card', 'sepa_debit'] : ['card'], locale: 'fr', expires_at: expires, success_url: o.successUrl, cancel_url: o.cancelUrl,
+        ...(o.note ? { custom_text: { submit: { message: String(o.note).slice(0, 1200) } } } : {})
+      };
+      const key = 'lx-sub-' + o.id + '-' + createHash('sha256').update(formEncode(params).toString()).digest('hex').slice(0, 16);
+      const s = await call('POST', '/checkout/sessions', params, key);
+      return { ref: s.id, url: s.url, exp: expires * 1000 };
+    },
+    /** A subscription as it is now: every billing notice re-reads it, so one seen twice or out of order says the same. */
+    getSubscription,
+    /** An invoice as it is now: what it paid (amount_paid), the period it covers, the PaymentIntent a refund goes through. */
+    async getInvoice(inv) {
+      const x = await call('GET', '/invoices/' + encodeURIComponent(inv) + q({ 'expand[]': 'payments' }));
+      const line = x.lines && x.lines.data && x.lines.data[0];
+      const pay = x.payments && x.payments.data && x.payments.data.find((p) => p.status === 'paid') || (x.payments && x.payments.data && x.payments.data[0]);
+      const chargeRef = (pay && pay.payment && (idOf(pay.payment.payment_intent) || idOf(pay.payment.charge))) || idOf(x.payment_intent) || idOf(x.charge) || '';
+      return {
+        id: x.id, subscription: invoiceSub(x) || '', status: String(x.status || ''), amount: x.amount_paid || 0, due: x.amount_due || 0,
+        periodStart: ((line && line.period && line.period.start) || x.period_start || 0) * 1000, periodEnd: ((line && line.period && line.period.end) || x.period_end || 0) * 1000,
+        chargeRef, hostedUrl: x.hosted_invoice_url || '', attempt: x.attempt_count || 0, nextAt: (x.next_payment_attempt || 0) * 1000
+      };
+    },
+    /**
+     * now: the subscription ends today (DELETE) and its open invoice is voided, so Smart Retries stop; otherwise it
+     * stops at the end of the paid period (cancel_at_period_end). Already cancelled at Stripe: nothing to do.
+     */
+    async cancelSubscription(sub, { now = false } = {}) {
+      const path = '/subscriptions/' + encodeURIComponent(sub);
+      if (!now) { await call('POST', path, { cancel_at_period_end: true }); return { ok: true }; }
+      try { await call('DELETE', path); }
+      catch (e) { if ((await getSubscription(sub)).status !== 'canceled') throw e; }
+      const open = await call('GET', '/invoices' + q({ subscription: sub, status: 'open', limit: 10 }));
+      for (const x of (open && open.data) || []) await call('POST', '/invoices/' + encodeURIComponent(x.id) + '/void');
+      return { ok: true };
+    },
+    /** A disputed membership: the invoices to come are voided (pause_collection void) until released; nothing else. */
+    async holdBilling(sub) { await call('POST', '/subscriptions/' + encodeURIComponent(sub), { pause_collection: { behavior: 'void' } }); return { ok: true }; },
+    /** The dispute won: billing goes on as before. */
+    async releaseBilling(sub) { await call('POST', '/subscriptions/' + encodeURIComponent(sub), { pause_collection: '' }); return { ok: true }; },
+    /** Stripe's hosted page to change the card (its portal on the payment-method flow), back to returnUrl after. */
+    async portalUrl(customer, returnUrl) {
+      const x = await call('POST', '/billing_portal/sessions', { customer, return_url: returnUrl, flow_data: { type: 'payment_method_update' } });
+      return { url: x.url };
     },
     /**
      * What a payout carried: each balance transaction with its fee (Stripe's fees come from Ireland: the salon
@@ -159,7 +266,9 @@ export function stripeProvider({ secretKey, webhookSecret, fetchImpl = fetch }) 
       const ev = JSON.parse(rawBody);
       const o = ev.data && ev.data.object;
       if (!o) return null;
-      const pi = (x) => (x && typeof x === 'object' ? x.id : x) || undefined;
+      const pi = idOf;
+      // a membership's checkout (PAY-03): the subscription it started; its invoices say the money
+      if (ev.type === 'checkout.session.completed' && o.mode === 'subscription') return { kind: 'sub.started', ref: o.id, subscription: idOf(o.subscription) || '', customer: idOf(o.customer) || '' };
       if ((ev.type === 'checkout.session.completed' || ev.type === 'checkout.session.async_payment_succeeded') && (o.payment_status === 'paid' || o.mode === 'setup')) {
         return { kind: 'paid', ref: o.id, amount: o.amount_total ?? undefined, chargeRef: pi(o.payment_intent), customer: o.customer || undefined, pm: o.setup_intent || undefined };
       }
@@ -179,6 +288,13 @@ export function stripeProvider({ secretKey, webhookSecret, fetchImpl = fetch }) 
       if (ev.type === 'payout.paid' || ev.type === 'payout.reconciliation_completed') {
         return { kind: 'payout', ref: o.id, amount: o.amount, arrival: (o.arrival_date || 0) * 1000, ...(o.reconciliation_status ? { reconciliation: String(o.reconciliation_status) } : {}) };
       }
+      // Stripe Billing (PAY-03): each one re-read from Stripe by its handler (payments/billing.js) before anything is written.
+      // invoice.created and the others are answered at once (null: 200): Stripe holds an invoice up to 72 h while its
+      // invoice.created notice fails
+      if (ev.type === 'invoice.paid') return { kind: 'invoice.paid', ref: o.id, invoice: o.id, subscription: invoiceSub(o) || '' };
+      if (ev.type === 'invoice.payment_failed') return { kind: 'invoice.failed', ref: o.id, invoice: o.id, subscription: invoiceSub(o) || '', attempt: o.attempt_count || 1, nextAt: (o.next_payment_attempt || 0) * 1000 };
+      if (ev.type === 'invoice.payment_action_required') return { kind: 'invoice.action', ref: o.id, invoice: o.id, subscription: invoiceSub(o) || '', url: o.hosted_invoice_url || '' };
+      if (/^customer\.subscription\.(updated|deleted|paused|resumed)$/.test(ev.type)) return { kind: 'sub.changed', ref: o.id, subscription: o.id };
       return null;
     }
   };
