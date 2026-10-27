@@ -50,6 +50,8 @@ const LABELS = {
 };
 // CPT-01a: the month and year closures, their signatures, the technical log
 Object.assign(LABELS, { 'period.closed': 'Clôture du mois ou de l’année', 'seal.signed': 'Clôture signée', 'tech.logged': 'Journal technique' });
+// PAY-03: the salon confirms a cancellation asked from /resilier without the member's link
+Object.assign(LABELS, { 'member.cancelConfirmed': 'Résiliation confirmée' });
 const STATUS = { arrived: 'arrivé', in_chair: 'au fauteuil', booked: 'remis à venir', no_show: 'absent' };
 
 const END_FR = { cancelled: 'résilié', unpaid: 'faute de paiement', withdrawn: 'rétractation', abandoned: 'paiement jamais fait' };

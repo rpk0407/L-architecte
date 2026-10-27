@@ -11,9 +11,11 @@
 //   activatedAt (0: pending), periods [{ start, end, invoice, amount, paymentId, saleId, at }] (paid, by start),
 //   invoices (every invoice seen paid or failed, so a webhook seen twice changes nothing), pastDue { invoice, attempt,
 //   nextAt, action, at } | null (the failure being retried), failed (every invoice ever refused), uses [{ saleId, periodStart, day, forced, at }],
-//   cancel { at, effective, by, channel, reason } | null, withdrawn { at, refund, used } | null, ended { at, reason } | null,
+//   cancel { at, effective, by, channel, reason, verified?: false (asked from /resilier without link nor session, until the
+//   salon confirms it) } | null, withdrawn { at, refund, used } | null, ended { at, reason } | null,
 //   acks [{ kind: 'welcome'|'cancel'|'withdraw', at, msgIds }] (the acknowledgements sent: PAY-04 says « Confirmation
-//   envoyée le … » or « Envoi en cours » from those messages' status) }
+//   envoyée le … » or « Envoi en cours » from those messages' status), disputes? [{ id, paymentId, status, at }] (PAY-03:
+//   chargebacks on its months, folded from payment.disputed and payment.disputeClosed; absent until the first) }
 // s.memberByRef: the provider's references (checkout, subscription) → member id. The subscription comes from pii, so an
 // erasure (refused while the contract runs, commands/clients.js) takes it out with the rest; the checkout's stays.
 // member.paused, member.resumed, member.planChanged and member.adopted are reserved names: no command writes them in v1.
@@ -21,6 +23,12 @@ import { fmtEur } from '../../shared/money.js';
 
 /** @param {any} s @param {string} id */
 const get = (s, id) => (s.members ? s.members.get(id) : null);
+
+/** the member a payment paid a month of */
+function memberOfPayment(s, pid) {
+  const py = s.payments.get(pid);
+  return py && py.kind === 'membership' && py.memberId ? get(s, py.memberId) : null;
+}
 
 /** the first name on the file (or the one typed at the checkout), for the feed */
 function firstOf(s, m) {
@@ -75,14 +83,29 @@ export const membershipsExtension = {
     'member.cancelRequested': (s, e, d, p) => {
       const m = get(s, d.id);
       if (!m) return;
-      m.cancel = { at: e.at, effective: d.effective, by: d.by, channel: d.channel, reason: p.reason || '' };
+      m.cancel = { at: e.at, effective: d.effective, by: d.by, channel: d.channel, reason: p.reason || '', ...(d.verified === false ? { verified: false } : {}) };
       if (d.msgIds && d.msgIds.length) m.acks.push({ kind: 'cancel', at: e.at, msgIds: d.msgIds });
     },
+    // PAY-03: the salon confirmed a cancellation asked without the member's link
+    'member.cancelConfirmed': (s, e, d) => { const m = get(s, d.id); if (m && m.cancel) delete m.cancel.verified; },
     'member.withdrawn': (s, e, d) => {
       const m = get(s, d.id);
       if (!m) return;
       m.withdrawn = { at: e.at, refund: d.refund, used: d.used };
       if (d.msgIds && d.msgIds.length) m.acks.push({ kind: 'withdraw', at: e.at, msgIds: d.msgIds });
+    },
+    // a chargeback on one of its months (PAY-03): while it is open or lost the member reads unpaid (domain/membership.js)
+    'payment.disputed': (s, e, d) => {
+      const m = memberOfPayment(s, d.id);
+      if (!m || !d.dispute) return;
+      // kept only once there is one, so a member's record without any keeps its shape
+      if (!m.disputes) m.disputes = [];
+      if (!m.disputes.some((x) => x.id === d.dispute.id)) m.disputes.push({ id: d.dispute.id, paymentId: d.id, status: 'open', at: e.at });
+    },
+    'payment.disputeClosed': (s, e, d) => {
+      const m = memberOfPayment(s, d.id);
+      const x = m && m.disputes ? m.disputes.find((y) => y.id === d.disputeId) : null;
+      if (x) x.status = d.status;
     },
     'member.ended': (s, e, d) => { const m = get(s, d.id); if (m && !m.ended) m.ended = { at: e.at, reason: d.reason || 'cancelled' }; },
     // the file's members lose what names or reaches the person; the contract's figures (the books') stay

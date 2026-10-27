@@ -36,6 +36,8 @@ const get = (o, path) => path.split('.').reduce((x, k) => (x == null ? undefined
 /** the whole chain is checked again at most this often: a long journal takes a second or two */
 const VERIFY_EVERY_MS = 10 * 60000;
 const WEBHOOK_TYPES = new Set(['payment.succeeded', 'payment.failed', 'payment.expired', 'payment.refundedOutside', 'payment.disputed', 'payment.disputeClosed', 'payout.recorded']);
+// PAY-03: Stripe Billing's notices that write no payment (a refused renewal, a cancellation in the portal, an end)
+for (const t of ['member.pastDue', 'member.cancelRequested', 'member.ended']) WEBHOOK_TYPES.add(t);
 
 /** Things only the journal knows. The journal only grows, so each visit reads just the events added since the last one
  *  (from the start again when it was replaced: a demo reset, a restore). */

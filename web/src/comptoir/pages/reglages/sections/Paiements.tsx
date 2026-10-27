@@ -11,7 +11,9 @@ import { Card, SaveBar, useSave, useSection, type SectionProps } from '../shared
 /** The events to tick on Stripe's webhook endpoint, one line per package that handles more (PAY-03 adds its billing ones). */
 const WEBHOOK_EVENTS = [
   'checkout.session.completed', 'checkout.session.expired', 'checkout.session.async_payment_succeeded', 'checkout.session.async_payment_failed',
-  'charge.refunded', 'charge.dispute.created', 'charge.dispute.closed', 'payout.paid', 'payout.reconciliation_completed'
+  'charge.refunded', 'charge.dispute.created', 'charge.dispute.closed', 'payout.paid', 'payout.reconciliation_completed',
+  // PAY-03: the monthly memberships, billed by Stripe Billing
+  'invoice.paid', 'invoice.payment_failed', 'invoice.payment_action_required', 'customer.subscription.updated', 'customer.subscription.deleted'
 ];
 /** a 44 px target for the icon buttons */
 const TAP = { '--h': '44px' } as CSSProperties;
@@ -54,8 +56,8 @@ export default function Paiements({ s }: SectionProps) {
           <Field label="Adresse du webhook" htmlFor="pay-wh">
             <div className="row" style={{ gap: 8 }}><input id="pay-wh" className="input grow" readOnly value={webhook} onFocus={(e) => e.target.select()} /><Button icon="copy" style={TAP} aria-label="Copier l’adresse" onClick={() => copy(webhook, 'Adresse')} /></div>
           </Field>
-          <Field label="Événements à cocher" htmlFor="pay-ev" hint="Les paiements, les remboursements faits chez Stripe, les litiges et les virements (avec leurs frais) arrivent alors d’eux-mêmes dans la Caisse. Garde les virements automatiques quotidiens.">
-            <div className="row" style={{ gap: 8, alignItems: 'flex-start' }}><textarea id="pay-ev" className="input textarea grow" rows={4} readOnly value={events} onFocus={(e) => e.target.select()} /><Button icon="copy" style={TAP} aria-label="Copier les événements" onClick={() => copy(events, 'Liste')} /></div>
+          <Field label="Événements à cocher" htmlFor="pay-ev" hint="Les paiements, les remboursements faits chez Stripe, les litiges, les virements (avec leurs frais) et les mois d’abonnement arrivent alors d’eux-mêmes dans la Caisse. Garde les virements automatiques quotidiens.">
+            <div className="row" style={{ gap: 8, alignItems: 'flex-start' }}><textarea id="pay-ev" className="input textarea grow" rows={6} readOnly value={events} onFocus={(e) => e.target.select()} /><Button icon="copy" style={TAP} aria-label="Copier les événements" onClick={() => copy(events, 'Liste')} /></div>
           </Field>
           <div><Button variant="ghost" icon="card" onClick={() => navigate('/caisse?enligne=1')}>Voir les paiements et virements</Button></div>
         </div>

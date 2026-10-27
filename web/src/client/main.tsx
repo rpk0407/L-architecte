@@ -209,6 +209,8 @@ function Checkout({ id }: { id: string }) {
   };
   if (err) return <Shell><Lost msg={err} /></Shell>;
   if (!p) return <Shell><Spinner /></Shell>;
+  // a member's « Changer de carte » in the demo (PAY-03, simulated portalUrl): nothing to change
+  if (p.kind === 'membership' && new URLSearchParams(location.search).has('carte')) return <Shell shop={p.shop}><section className="c-card c-center"><p className="c-k">Carte de paiement</p><h1 className="c-h">Démo : la carte est à jour.</h1><p className="c-muted">Avec Stripe, cette page est celle de Stripe : la nouvelle carte sert dès le prochain prélèvement.</p></section></Shell>;
   if (p.status !== 'pending') return <Shell shop={p.shop}><section className="c-card c-center"><p className="c-k">Paiement</p><h1 className="c-h">{p.status === 'paid' ? 'Déjà payé. Merci !' : 'Ce paiement n’est plus en attente.'}</h1>{gift ? <a className="c-btn" href={gift}>Voir ma carte cadeau</a> : p.back ? <a className="c-btn" href={p.back}>Voir mon rendez-vous</a> : null}</section></Shell>;
   return (
     <Shell shop={p.shop}>

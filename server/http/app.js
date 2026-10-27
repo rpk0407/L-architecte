@@ -21,6 +21,7 @@ import { channelRoutes } from './routes-channels.js';
 import { reviewRoutes } from './routes-reviews.js';
 import { fiscalRoutes } from './routes-fiscal.js';
 import { paymentRoutes } from './routes-payments.js';
+import { membershipRoutes } from './routes-membership.js';
 
 // A REGISTRY: one line per route file
 const app = router();
@@ -38,6 +39,7 @@ giftshopRoutes(app);
 channelRoutes(app);
 reviewRoutes(app);
 fiscalRoutes(app);
+membershipRoutes(app);
 
 const MUTATING = new Set(['POST', 'PATCH', 'PUT', 'DELETE']);
 const READ_DOWN = 'La base de données ne répond pas. Réessaie dans un instant.';

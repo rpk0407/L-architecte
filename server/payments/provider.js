@@ -34,10 +34,24 @@ export { providerLabel };
  *   refund: (chargeRef: string, amount: number, idem: string) => Promise<{ ref: string, status: string }>,
  *   chargeSaved: (o: { customer: string, pm: string, amount: number, label: string, idem: string }) => Promise<ChargeResult>,
  *   parseWebhook: (rawBody: string, sigHeader: string|null) => ProviderEvent|null,
- *   retrieveCharge: (ref: string) => Promise<{ chargeRef: string|null }>,
+ *   retrieveCharge: (ref: string) => Promise<{ chargeRef: string|null, subscription?: string|null }>,
  *   listRefunds?: (chargeRef: string) => Promise<{ ref: string, amount: number, ours: boolean, at: number }[]>,
- *   listPayout: (id: string) => Promise<{ amount: number, arrival: number, items: PayoutItem[], truncated?: boolean }>
+ *   listPayout: (id: string) => Promise<{ amount: number, arrival: number, items: PayoutItem[], truncated?: boolean }>,
+ *   ensurePrice?: (plan: { id: string, name: string }, price: number) => Promise<string>,
+ *   createSubscription?: (o: { id: string, price: string, planId: string, name: string, email?: string, startNow: boolean, startAt?: number, sepa?: boolean, successUrl: string, cancelUrl: string, expiresMin?: number }) => Promise<{ ref: string, url: string, exp: number }>,
+ *   getSubscription?: (sub: string) => Promise<Subscription>,
+ *   getInvoice?: (inv: string) => Promise<Invoice>,
+ *   cancelSubscription?: (sub: string, o?: { now?: boolean }) => Promise<{ ok: boolean }>,
+ *   holdBilling?: (sub: string) => Promise<{ ok: boolean }>,
+ *   releaseBilling?: (sub: string) => Promise<{ ok: boolean }>,
+ *   portalUrl?: (customer: string, returnUrl: string, o?: { ref?: string }) => Promise<{ url: string }>
  * }} PaymentProvider
+ */
+
+/**
+ * The billing objects as the membership reads them (PAY-03; caps.billing, caps.portal). Instants in ms.
+ * @typedef {{ id: string, status: string, lx: string, customer: string, card: string, cancelAtPeriodEnd: boolean, cancelAt: number|null, pausedUntil: number|null, held: boolean, endReason: string, periodEnd: number, latestInvoice: string, trialEnd?: number|null }} Subscription
+ * @typedef {{ id: string, subscription: string, status: string, amount: number, due: number, periodStart: number, periodEnd: number, chargeRef: string, hostedUrl: string, attempt: number, nextAt: number }} Invoice
  */
 
 /**

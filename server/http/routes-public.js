@@ -19,6 +19,10 @@ import { waitUntil } from '@vercel/functions';
 import { fulfilGiftcard } from './routes-giftshop.js';
 import { providerFor, providerLabel } from '../payments/provider.js';
 import { providerKnown } from '../projections/payments.js';
+import { memberPaid, endMember } from '../commands/memberships.js';
+import { addMonths, abandoned } from '../domain/membership.js';
+import { BILLING } from '../payments/billing.js';
+import { fmtEur } from '../../shared/money.js';
 
 /** The demo, for real: both the configuration and the journal say so (a demo journal opened in production is not one). */
 export const isDemo = (r) => r.rt.cfg.mode === 'demo' && r.s.mode === 'demo';
@@ -246,6 +250,9 @@ export function publicRoutes(app) {
 
   app.get('/api/public/payments/:id', (r) => {
     const p = r.s.payments.get(r.params.id);
+    // a membership's test checkout (PAY-03: simulated.js createSubscription points here with the member's id)
+    const m = !p && r.s.members ? r.s.members.get(r.params.id) : null;
+    if (m) return memberCheckout(r, m);
     if (!p) throw new HttpError(404, 'not_found', 'Paiement introuvable.');
     const a = p.apptId ? r.s.appts.get(p.apptId) : null;
     return { id: p.id, status: p.status, amount: p.amount, label: p.label, kind: p.kind, provider: p.provider, exp: p.exp, shop: r.s.settings.shop.name, back: a ? '/r/' + signLink(r.rt.secret, 'appt', a.code) : null };
@@ -255,6 +262,8 @@ export function publicRoutes(app) {
     guard('sim|' + r.ip, 20, 60000);
     // the test checkout only exists in the demo: in production it would confirm deposits nobody paid
     if (r.rt.pay.name !== 'simulated' || !isDemo(r)) throw new HttpError(404, 'not_found', 'Indisponible.');
+    const m = r.s.members ? r.s.members.get(r.params.id) : null;
+    if (m && m.provider === 'simulated') return simulateMember(r, m);
     const p = r.s.payments.get(r.params.id);
     if (!p || p.status !== 'pending') throw new HttpError(409, 'closed', 'Ce paiement n’est plus en attente.');
     if (r.body && r.body.outcome === 'cancel') { await r.rt.engine.run(paymentEnded, { id: p.id, status: 'failed', reason: 'Annulé par le client' }, PROVIDER(r, 'simulated')); }
@@ -304,6 +313,30 @@ export function publicRoutes(app) {
     }
     return optedOut ? { received: true, optedOut: true } : { received: true, unknown: true };
   }, { raw: true, csrf: false });
+}
+
+/** What the test checkout page shows of a membership: « Abonnement Essentiel · 34 €/mois », and when it starts. */
+function memberCheckout(r, m) {
+  const status = m.activatedAt ? 'paid' : m.ended || abandoned(m, r.now) ? 'expired' : 'pending';
+  const label = 'Abonnement ' + m.name + ' · ' + fmtEur(m.price) + '/mois' + (m.startNow ? '' : ' · rien n’est prélevé avant 14 jours');
+  return { id: m.id, status, amount: m.price, label, kind: 'membership', provider: m.provider, exp: m.exp, shop: r.s.settings.shop.name, back: null };
+}
+
+/**
+ * The demo's test checkout of a membership: confirmed, its first month is paid as Stripe's first invoice would be
+ * (invoice sim_<id>_0, the numbering the demo's billing goes on with, steps/sim-billing.js); cancelled, the member
+ * ends unpaid (abandoned). A start in 14 days pays nothing now: the member waits for it, as with Stripe.
+ */
+async function simulateMember(r, m) {
+  if (m.activatedAt || m.ended) throw new HttpError(409, 'closed', 'Ce paiement n’est plus en attente.');
+  if (r.body && r.body.outcome === 'cancel') { await r.rt.engine.run(endMember, { id: m.id, reason: 'abandoned' }, BILLING(r)); return { status: 'failed' }; }
+  if (!m.startNow) return { status: 'scheduled' };
+  const day = r.local.day;
+  await r.rt.engine.run(memberPaid, {
+    id: m.id, invoice: 'sim_' + m.id + '_0', amount: m.price, periodStart: day, periodEnd: addMonths(day, 1), chargeRef: 'sim_ch_' + m.id + '_0',
+    customer: 'cus_sim_' + m.id, subscription: 'sub_sim_' + m.id, card: 'Visa •• 4242'
+  }, BILLING(r));
+  return { status: 'paid' };
 }
 
 /** A payment went through (the provider's notice, payments/handlers.js, or the test page): record it; if its booking

@@ -181,3 +181,10 @@ test('demo reset rebuilds a fresh salon (owner only)', async () => {
   await tab.post('/api/auth/pin', { staffId: team.find((x) => x.name === 'Frank').id, pin: DEMO.pins.Frank });
   assert.equal((await tab.post('/api/v1/demo/reset')).status, 403);
 });
+
+test('a production salon on a Stripe test key sells no membership: 409 before any call to Stripe (PAY-03)', async () => {
+  const rt = await testRuntime({ env: { LX_MODE: 'production', STRIPE_SECRET_KEY: 'sk_test_x', STRIPE_WEBHOOK_SECRET: 'whsec_x' } });
+  const res = await browser(rt).post('/api/public/memberships', { planId: 'essentiel', first: 'Karim', phone: '06 11 22 33 44', email: 'karim@exemple.fr', startNow: true });
+  assert.deepEqual([res.status, res.json.error.code], [409, 'soon']);
+  assert.equal((await browser(rt).get('/api/public/memberships')).json.live, false);
+});

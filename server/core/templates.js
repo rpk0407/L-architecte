@@ -36,7 +36,8 @@ export const TEMPLATES = {
   memberWithdrawnNone: "L'Architecte : rétractation enregistrée le {date}. Tes coupes valent le mois : rien à rembourser. {lien}",
   memberEnded: "L'Architecte : ton abonnement a pris fin faute de paiement. Pour le reprendre : {lien}",
   memberOffer: "L'Architecte : ton abonnement {formule} ({prix}/mois) : {lien}",
-  memberLink: "L'Architecte : pour gérer ou résilier ton abonnement (lien valable 1 h) : {lien}"
+  memberLink: "L'Architecte : pour gérer ou résilier ton abonnement (lien valable 1 h) : {lien}",
+  memberCard: "L'Architecte : pour mettre à jour la carte de ton abonnement {formule} : {lien}"
 };
 
 // What a text is, beyond its words, keyed like TEMPLATES (the same owner adds both). Three classes, one rule each
@@ -66,6 +67,7 @@ export const TEMPLATE_FLAGS = {
   memberWithdrawn: { legal: true },
   memberWithdrawnNone: { legal: true },
   memberLink: { requested: true },
+  memberLinkMail: { requested: true },
   lookup: { requested: true }
 };
 

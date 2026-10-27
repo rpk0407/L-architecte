@@ -64,7 +64,8 @@ const BEFORE = () => {
         memberWithdrawnNone: "L'Architecte : rétractation enregistrée le {date}. Tes coupes valent le mois : rien à rembourser. {lien}",
         memberEnded: "L'Architecte : ton abonnement a pris fin faute de paiement. Pour le reprendre : {lien}",
         memberOffer: "L'Architecte : ton abonnement {formule} ({prix}/mois) : {lien}",
-        memberLink: "L'Architecte : pour gérer ou résilier ton abonnement (lien valable 1 h) : {lien}"
+        memberLink: "L'Architecte : pour gérer ou résilier ton abonnement (lien valable 1 h) : {lien}",
+        memberCard: "L'Architecte : pour mettre à jour la carte de ton abonnement {formule} : {lien}"
       },
       // GL-08: quiet hours, the STOP mention, the countries texted
       quiet: { from: 1200, to: 480, sunday: true, holidays: true }, stopSuffix: ' STOP au 36173', countries: ['+33', '+32', '+41', '+352', '+262', '+590', '+594', '+596', '+508', '+681', '+687', '+689'],
