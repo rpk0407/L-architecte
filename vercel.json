@@ -56,6 +56,7 @@
     { "source": "/", "destination": "/site" },
     { "source": "/api/:path*", "destination": "/api/main?route=:path*" },
     { "source": "/comptoir/:path*", "destination": "/comptoir" },
+    { "source": "/moi/:path*", "destination": "/moi" },
     { "source": "/r/:token", "destination": "/client" },
     { "source": "/recu/:token", "destination": "/client" },
     { "source": "/paiement/:id", "destination": "/client" },
@@ -72,10 +73,10 @@
         { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=(), payment=()" }
       ]
     },
-    { "source": "/(comptoir|r|recu|paiement|cadeau|client|api|demo|ancien-lien|avis)", "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }] },
-    { "source": "/(comptoir|r|recu|paiement|cadeau|client|api|demo|ancien-lien|avis)/(.*)", "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }] },
+    { "source": "/(comptoir|r|recu|paiement|cadeau|client|api|demo|ancien-lien|avis|moi)", "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }] },
+    { "source": "/(comptoir|r|recu|paiement|cadeau|client|api|demo|ancien-lien|avis|moi)/(.*)", "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }] },
     {
-      "source": "/(comptoir|r|recu|paiement|cadeau|client)(.*)",
+      "source": "/(comptoir|r|recu|paiement|cadeau|client|moi)(.*)",
       "headers": [
         { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self' https://checkout.stripe.com; object-src 'none'" },
         { "key": "X-Frame-Options", "value": "DENY" },

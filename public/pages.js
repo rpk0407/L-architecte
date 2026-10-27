@@ -112,7 +112,7 @@
           if (l[0] === here) a.setAttribute('aria-current', 'page');
           return h('li', {}, [a]);
         }))]),
-        h('p', { class: 'ft-c' }, ['© ' + new Date().getFullYear() + ' ', h('span', { 'data-f': 'editor' }, ['Barber L’Architecte']), ' · Pas de cookie, pas de mesure d’audience.'])
+        h('p', { class: 'ft-c' }, ['© ' + new Date().getFullYear() + ' ', h('span', { 'data-f': 'editor' }, ['Barber L’Architecte']), ' · Pas de pistage, pas de mesure d’audience.'])
       ]));
     });
   }

@@ -1,0 +1,89 @@
+// /moi is hosted like the other client pages (AC-03a): its own Vite entry, every /moi/<tab> served by the one page,
+// never indexed, the strict CSP (the app is the bundle: no inline script), out of robots.txt; and the public pages stop
+// promising « Pas de cookie » now that signing in to the space sets one.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync, readdirSync } from 'node:fs';
+import { join, resolve, extname } from 'node:path';
+import { robotsTxt } from '../../scripts/postbuild.mjs';
+
+const ROOT = resolve(new URL('../..', import.meta.url).pathname);
+const read = (f) => readFileSync(join(ROOT, f), 'utf8');
+const cfg = JSON.parse(read('vercel.json'));
+
+/** A vercel.json source as Vercel matches it (the subset this project uses: literals, (a|b) groups, (.*), :name, :name*). */
+function matches(source, path) {
+  let re = '';
+  for (let i = 0; i < source.length; i++) {
+    const ch = source[i];
+    if (ch === ':') {
+      const m = /^:([A-Za-z_]\w*)(\*)?/.exec(source.slice(i));
+      if (m[2] && re.endsWith('/')) re = re.slice(0, -1) + '(?:/.*)?';
+      else re += m[2] ? '.*' : '[^/]+';
+      i += m[0].length - 1;
+    } else if (ch === '(') { const end = source.indexOf(')', i); re += source.slice(i, end + 1); i = end; }
+    else re += ch.replace(/[.+?^${}|[\]\\]/g, '\\$&');
+  }
+  return new RegExp('^' + re + '$').test(path);
+}
+const headersOf = (path) => Object.fromEntries(cfg.headers.filter((r) => matches(r.source, path)).flatMap((r) => r.headers.map((h) => [h.key, h.value])));
+const rewriteOf = (path) => { const r = cfg.rewrites.find((x) => matches(x.source, path)); return r ? r.destination : null; };
+
+test('every /moi/<tab> is served by the /moi page, /moi itself by its own index', () => {
+  for (const p of ['/moi/historique', '/moi/profil', '/moi/x', '/moi/abonnement/resilier']) assert.equal(rewriteOf(p), '/moi', p);
+  // /moi is the built moi/index.html (Vite input), found before any rewrite
+  assert.match(read('web/vite.config.ts'), /moi: here\('moi\/index\.html'\)/);
+  const html = read('web/moi/index.html');
+  assert.match(html, /<script type="module" src="\/src\/moi\/main\.tsx"><\/script>/);
+  assert.match(html, /<title>Mon espace · L’Architecte<\/title>/);
+  assert.match(html, /<meta name="theme-color" content="#ECE8E0">/);
+  // AC-03b adds the manifest and the touch icon with its files
+  assert.doesNotMatch(html, /rel="manifest"|apple-touch-icon/);
+});
+
+test('/moi is never indexed and carries the strict CSP, like /r/', () => {
+  const html = read('web/moi/index.html');
+  assert.match(html, /<meta name="robots" content="noindex, nofollow">/);
+  for (const p of ['/moi', '/moi/historique', '/moi/profil']) {
+    const h = headersOf(p);
+    assert.equal(h['X-Robots-Tag'], 'noindex, nofollow', p);
+    assert.equal(h['Content-Security-Policy'], headersOf('/r/abc')['Content-Security-Policy'], p);
+    assert.match(h['Content-Security-Policy'], /script-src 'self';/);
+    assert.doesNotMatch(h['Content-Security-Policy'], /script-src[^;]*unsafe/);
+    assert.equal(h['X-Frame-Options'], 'DENY', p);
+  }
+  // no inline script in the page: the CSP would block it
+  assert.doesNotMatch(html, /<script(?![^>]*\bsrc=)[^>]*>/);
+  // the public pages next to it stay indexable
+  assert.equal(headersOf('/mon-rendez-vous')['X-Robots-Tag'], undefined);
+  assert.equal(headersOf('/mon-rendez-vous')['Content-Security-Policy'], undefined);
+});
+
+test('robots.txt keeps /moi out once the site is indexed', () => {
+  assert.match(robotsTxt(true, 'https://barberlarchitecte.com'), /^Disallow: \/moi$/m);
+  assert.equal(robotsTxt(false, 'https://barberlarchitecte.com'), 'User-agent: *\nDisallow: /\n');
+});
+
+test('the public pages no longer say « Pas de cookie »', () => {
+  const pub = readdirSync(join(ROOT, 'public')).filter((f) => ['.html', '.js'].includes(extname(f)));
+  assert.ok(pub.includes('confidentialite.html') && pub.includes('pages.js'));
+  for (const f of pub) assert.doesNotMatch(read('public/' + f), /Pas de cookie/i, f);
+  const conf = read('public/confidentialite.html');
+  // the cookie the space sets is named, with how long it lasts and how to remove it
+  assert.match(conf, /un seul cookie te garde connecté sur ce téléphone \(180 jours au plus/);
+  assert.match(conf, /<h2 id="t-space">Ton espace<\/h2>/);
+  assert.match(read('public/pages.js'), /Pas de pistage, pas de mesure d’audience\./);
+});
+
+test('the site, /r/ and /mon-rendez-vous lead to the space, only while the salon has it open', () => {
+  const site = read('public/site.html');
+  assert.match(site, /<sc-if value="\{\{espaceNew\}\}"[^>]*><div class="card espace" data-guide="site.espace"><h3>Crée ton espace<\/h3><p>Tous tes rendez-vous et tes reçus au même endroit, sur ce téléphone\.<\/p><a class="btn" href="\{\{espaceUrl\}\}">Créer mon espace<\/a><\/div><\/sc-if>/);
+  assert.match(site, /<sc-if value="\{\{espaceOn\}\}"[^>]*><li><a href="\/moi">Mon espace<\/a><\/li><\/sc-if>/);
+  assert.match(site, /espaceUrl: '\/moi\?garder=' \+ encodeURIComponent\(/);
+  const r = read('web/src/client/main.tsx');
+  assert.match(r, /if \(!acc \|\| !acc\.enabled\) return null;/);
+  assert.match(r, /href=\{'\/moi\?garder=' \+ encodeURIComponent\(token\)\}>Créer mon espace</);
+  const mrdv = read('public/mon-rendez-vous.html');
+  assert.match(mrdv, /<p id="lk-espace" class="hint espace" hidden>/);
+  assert.match(mrdv, /if \(a && a\.enabled\) document\.getElementById\('lk-espace'\)\.hidden = false;/);
+});
