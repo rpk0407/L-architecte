@@ -45,6 +45,8 @@ export function clientStats(s, today, now) {
       const x = get(a.clientId);
       if (a.status === 'done') {
         x.visits++; x.days.push(a.day);
+        // a visit from the old site has no ticket here: its price is what the client paid then
+        if (a.legacy && !a.saleId) x.spend += a.price || 0;
         for (const sv of a.services) x.svc.set(sv.id, (x.svc.get(sv.id) || 0) + 1);
         x.staff.set(a.staffId, (x.staff.get(a.staffId) || 0) + 1);
       } else if (a.status === 'no_show') x.noShows++;
@@ -159,9 +161,12 @@ export function report(s, q) {
     for (const b of s.appts.values()) { if (!b.clientId) continue; let l = byClient.get(b.clientId); if (!l) { l = []; byClient.set(b.clientId, l); } l.push(b); }
     for (const d of days) for (const aid of s.apptsByDay.get(d) || []) {
       const a = s.appts.get(aid);
-      if (!a || (one && a.staffId !== one)) continue;
+      // history taken over from the old site took no chair time here: it stays out of occupancy and the team's figures
+      if (!a || a.legacy || (one && a.staffId !== one)) continue;
       if (a.status === 'cancelled') { cancelled++; if (a.cancel && a.cancel.by === 'client') lateCancels++; continue; }
-      sources[a.source] = (sources[a.source] || 0) + 1;
+      // upcoming bookings taken over from the old site were booked online there
+      const src = a.source === 'import' ? 'site' : a.source;
+      sources[src] = (sources[src] || 0) + 1;
       if (a.status === 'no_show') { noShows++; const st = byStaff.get(a.staffId); if (st) st.noShows++; continue; }
       bookedMin += a.dur;
       const st = byStaff.get(a.staffId);

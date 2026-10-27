@@ -12,6 +12,7 @@ import type { SectionProps } from './reglages/shared';
 import './reglages.css';
 
 const System = lazy(() => import('./reglages/System'));
+const Wordpress = lazy(() => import('./reglages/Wordpress'));
 
 // The salon sections are one file each but load together, on the first visit to any of them, so moving between them
 // never waits again (as when they were all in Shop).
@@ -43,6 +44,7 @@ const SECTIONS: Section[] = [
   { id: 'objectifs', label: 'Objectifs', hint: 'Chiffre visé chaque mois', icon: 'target', cap: 'settings', group: 'Salon', component: salon(() => import('./reglages/sections/Objectifs')) },
   { id: 'appareils', label: 'Appareils', hint: 'Postes autorisés à la connexion par code', icon: 'device', cap: 'devices', group: 'Sécurité', component: system('appareils') },
   { id: 'donnees', label: 'Données et intégrité', hint: 'Vérification, exports, système', icon: 'shieldOk', cap: 'data', group: 'Sécurité', component: system('donnees') },
+  { id: 'wordpress', label: 'Reprendre WordPress', hint: 'Clients, rendez-vous, cartes cadeaux', icon: 'download', cap: 'settings', group: 'Sécurité', component: () => <Wordpress /> },
   { id: 'journal', label: 'Journal d’activité', hint: 'Qui a fait quoi, quand', icon: 'journal', cap: 'audit', group: 'Sécurité', component: system('journal') }
 ];
 

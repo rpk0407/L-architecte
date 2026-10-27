@@ -78,6 +78,9 @@ export function normPhone(v) {
   return '';
 }
 
+// the old WordPress site's numbers: shared with the import wizard's preview
+export { PHONE_PREFIXES, normPhoneImport } from '../../shared/phone.js';
+
 /** "+33612345678" → "06 12 34 56 78" */
 export function fmtPhone(e164) {
   if (!e164) return '';

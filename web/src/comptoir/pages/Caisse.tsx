@@ -48,8 +48,8 @@ function Till() {
 
   const { toPay, later, paid } = useMemo(() => {
     const appts = (data?.appts || []).filter((a) => !['cancelled', 'no_show'].includes(a.status) && (!mine || a.staffId === boot.me.id));
-    const toPay = appts.filter((a) => !a.saleId && (a.status === 'in_chair' || a.status === 'done' || (['booked', 'arrived'].includes(a.status) && a.start + a.dur <= nowMin)));
-    const later = appts.filter((a) => !a.saleId && !toPay.includes(a) && a.status !== 'pending').slice(0, 8);
+    const toPay = appts.filter((a) => !a.saleId && !a.legacy && (a.status === 'in_chair' || a.status === 'done' || (['booked', 'arrived'].includes(a.status) && a.start + a.dur <= nowMin)));
+    const later = appts.filter((a) => !a.saleId && !a.legacy && !toPay.includes(a) && a.status !== 'pending').slice(0, 8);
     const paid = appts.filter((a) => a.saleId).length;
     return { toPay, later, paid };
   }, [data, nowMin]);

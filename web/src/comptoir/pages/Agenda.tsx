@@ -61,7 +61,7 @@ export default function Agenda() {
 
   const k = data?.kpis;
   const next = data && day === today ? data.appts.filter((a) => ['booked', 'arrived', 'pending'].includes(a.status) && a.start + 5 >= nowMin && (can('agenda.all') || a.staffId === boot.me.id)).sort((a, b) => a.start - b.start)[0] : null;
-  const toPay = data && day === today ? data.appts.filter((a) => !a.saleId && (a.status === 'in_chair' || a.status === 'done' || (['booked', 'arrived'].includes(a.status) && a.start + a.dur <= nowMin))) : [];
+  const toPay = data && day === today ? data.appts.filter((a) => !a.saleId && !a.legacy && (a.status === 'in_chair' || a.status === 'done' || (['booked', 'arrived'].includes(a.status) && a.start + a.dur <= nowMin))) : [];
   const moneyOk = k?.revenue != null;
   return (
     <>

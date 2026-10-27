@@ -19,6 +19,8 @@ export function emptyState() {
     services: new Map(), products: new Map(),
     clients: new Map(), clientByPhone: new Map(),
     appts: new Map(), apptsByDay: new Map(), apptByToken: new Map(), apptByCode: new Map(),
+    /** imported from WordPress: post id → appointment id (old e-mail links, re-runs of the import) */
+    apptByWp: new Map(),
     holds: new Map(), blocks: new Map(), blocksByDay: new Map(), timeoff: new Map(),
     queue: new Map(), waitlist: new Map(),
     sales: new Map(), salesByDay: new Map(), saleSeq: 0, refunds: new Map(), refundSeq: 0,
@@ -105,7 +107,7 @@ export function evolve(s, e) {
     case 'stock.adjusted': { const x = s.products.get(d.productId); if (x) x.stock = (x.stock || 0) + d.delta; break; }
 
     case 'client.added': {
-      const c = { id: d.id, first: p.first || '', last: p.last || '', phone: p.phone || '', email: p.email || '', notes: p.notes || '', tech: p.tech || '', birthday: p.birthday || '', tags: d.tags || [], sms: d.sms !== false, marketing: !!d.marketing, source: d.source || 'salon', createdAt: e.at, erased: false, mergedInto: null, demo: !!d.demo };
+      const c = { id: d.id, first: p.first || '', last: p.last || '', phone: p.phone || '', email: p.email || '', notes: p.notes || '', tech: p.tech || '', birthday: p.birthday || '', tags: d.tags || [], sms: d.sms !== false, marketing: !!d.marketing, source: d.source || 'salon', createdAt: d.createdAt || e.at, erased: false, mergedInto: null, demo: !!d.demo };
       s.clients.set(d.id, c);
       if (c.phone) s.clientByPhone.set(c.phone, d.id);
       break;
@@ -151,12 +153,15 @@ export function evolve(s, e) {
         id: d.id, code: d.code, tokenHash: d.tokenHash || '', clientId: d.clientId || null, name: p.name || '', note: p.note || '',
         staffId: d.staffId, anyStaff: !!d.anyStaff, day: d.day, start: d.start, dur: d.dur, services: d.services, price: d.price,
         source: d.source, status: d.status || 'booked', createdAt: d.createdAt || e.at, createdBy: e.actor.id, sms: d.sms !== false,
-        deposit: d.deposit || null, saleId: null, cancel: null, moves: 0, demo: !!d.demo, statusAt: {}
+        deposit: d.deposit || null, saleId: null, cancel: d.cancel ? { ...d.cancel, actor: e.actor.id } : null, moves: 0, demo: !!d.demo, statusAt: {},
+        // imported from the old site: its post id and link secret (ext), and whether it is only history (legacy)
+        ext: d.ext || null, legacy: !!d.legacy
       };
       s.appts.set(a.id, a);
       index(s.apptsByDay, a.day, a.id);
       if (a.tokenHash) s.apptByToken.set(a.tokenHash, a.id);
       if (a.code) s.apptByCode.set(a.code, a.id);
+      if (d.ext && d.ext.wp) s.apptByWp.set(String(d.ext.wp), a.id);
       if (d.holdId) s.holds.delete(d.holdId);
       break;
     }
@@ -278,7 +283,9 @@ export function evolve(s, e) {
   if (CFG.test(e.type)) s.cfgVersion = e.v;
   s.version = e.v;
   s.head = e.h;
-  if ((FEED.has(e.type) || EXTENSIONS.some((x) => x.item && x.feed?.includes(e.type))) && !(e.actor.t === 'system' && (e.type !== 'appt.cancelled' || e.actor.id === 'seed' || e.actor.id === 'demo'))) {
+  // an import writes hundreds of bookings at once: they are not news, and would push the real ones out of the feed
+  const imported = e.type === 'appt.booked' && d.source === 'import';
+  if (!imported && (FEED.has(e.type) || EXTENSIONS.some((x) => x.item && x.feed?.includes(e.type))) && !(e.actor.t === 'system' && (e.type !== 'appt.cancelled' || e.actor.id === 'seed' || e.actor.id === 'demo'))) {
     s.feed.push({ v: e.v, type: e.type, at: e.at, actor: e.actor, data: e.data });
     if (s.feed.length > 300) s.feed.splice(0, s.feed.length - 300);
   }

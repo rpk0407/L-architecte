@@ -11,12 +11,14 @@ import { publicRoutes } from './routes-public.js';
 import { authRoutes } from './routes-auth.js';
 import { staffRoutes } from './routes-staff.js';
 import { adminRoutes } from './routes-admin.js';
+import { importRoutes } from './routes-import.js';
 
 const app = router();
 publicRoutes(app);
 authRoutes(app);
 staffRoutes(app);
 adminRoutes(app);
+importRoutes(app);
 
 const MUTATING = new Set(['POST', 'PATCH', 'PUT', 'DELETE']);
 
@@ -74,8 +76,8 @@ export async function handle(req, opt = {}) {
 
     const meta = {
       linkFor: (a) => origin + '/r/' + signLink(rt.secret, 'appt', a.code),
-      siteUrl: origin + '/site',
-      offerLink: (wid) => origin + '/site?offre=' + encodeURIComponent(signLink(rt.secret, 'offer', wid)),
+      siteUrl: origin + '/',
+      offerLink: (wid) => origin + '/?offre=' + encodeURIComponent(signLink(rt.secret, 'offer', wid)),
       receiptLink: (sale) => origin + '/recu/' + signLink(rt.secret, 'receipt', String(sale.number)),
       ip
     };

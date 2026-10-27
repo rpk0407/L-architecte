@@ -27,9 +27,9 @@ function App() {
 function Shell({ children, shop }: { children: ReactNode; shop?: string }) {
   return (
     <div className="c-page">
-      <header className="c-top"><a href="/site" className="c-brand"><b>L’Architecte</b><small>{shop && shop !== 'Barber L’Architecte' ? shop : 'Barber · Marseille'}</small></a></header>
+      <header className="c-top"><a href="/" className="c-brand"><b>L’Architecte</b><small>{shop && shop !== 'Barber L’Architecte' ? shop : 'Barber · Marseille'}</small></a></header>
       <main className="c-main">{children}</main>
-      <footer className="c-foot"><a href="/site">barberlarchitecte.com</a></footer>
+      <footer className="c-foot"><a href="/">barberlarchitecte.com</a></footer>
     </div>
   );
 }
@@ -39,7 +39,7 @@ function Lost({ msg }: { msg?: string }) {
       <p className="c-k">Lien introuvable</p>
       <h1 className="c-h">{msg || 'Ce lien n’est pas (ou plus) valable.'}</h1>
       <p className="c-muted">Vérifie le lien reçu par SMS, ou réserve directement sur le site.</p>
-      <a className="c-btn" href="/site?reserver">Réserver un créneau</a>
+      <a className="c-btn" href="/?reserver">Réserver un créneau</a>
     </section>
   );
 }
@@ -144,7 +144,7 @@ function Manage({ token, back }: { token: string; back: string | null }) {
       {!upcoming && b.status !== 'pending' ? (
         <section className="c-card c-center">
           <p className="c-muted">{b.status === 'done' ? 'Ça t’a plu ? Le prochain se réserve en 30 secondes.' : 'Envie d’un autre créneau ?'}</p>
-          <a className="c-btn" href="/site?reserver">Reprendre rendez-vous</a>
+          <a className="c-btn" href="/?reserver">Reprendre rendez-vous</a>
         </section>
       ) : null}
     </Shell>
@@ -259,7 +259,7 @@ function Receipt({ token }: { token: string }) {
         </div>
         <p className="c-legal">{r.shop.legalName || r.shop.name} · {r.shop.address}{r.shop.siret ? ' · SIRET ' + r.shop.siret : ''}{r.shop.vatNumber ? ' · TVA ' + r.shop.vatNumber : ''}</p>
         {r.footer ? <p className="c-muted">{r.footer}</p> : null}
-        <div className="c-row c-noprint"><button type="button" className="c-btn ghost" onClick={() => window.print()}>Imprimer ou enregistrer en PDF</button><a className="c-link" href="/site?reserver">Reprendre rendez-vous</a></div>
+        <div className="c-row c-noprint"><button type="button" className="c-btn ghost" onClick={() => window.print()}>Imprimer ou enregistrer en PDF</button><a className="c-link" href="/?reserver">Reprendre rendez-vous</a></div>
       </section>
     </Shell>
   );

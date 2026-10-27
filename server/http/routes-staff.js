@@ -111,7 +111,7 @@ function badges(r) {
   let toPay = 0;
   for (const id of s.apptsByDay.get(L.day) || []) {
     const a = s.appts.get(id);
-    if (!a || a.saleId || (mineOnly && a.staffId !== r.me.id)) continue;
+    if (!a || a.saleId || a.legacy || (mineOnly && a.staffId !== r.me.id)) continue; // legacy: paid on the old site's till
     if (a.status === 'in_chair' || a.status === 'done' || ((a.status === 'booked' || a.status === 'arrived') && a.start + a.dur <= L.min)) toPay++;
   }
   const queue = [...s.queue.values()].filter((q) => q.status === 'waiting' || q.status === 'called').length;
@@ -394,7 +394,7 @@ export function staffRoutes(app) {
     const d = s.drawer;
     const last = [...s.drawers.values()].filter((x) => x.closedAt).sort((a, b) => b.closedAt - a.closedAt)[0] || null;
     const today = dayTotals(s, r.local.day);
-    const unpaid = [...(s.apptsByDay.get(r.local.day) || [])].map((id) => s.appts.get(id)).filter((a) => a && !a.saleId && (a.status === 'in_chair' || a.status === 'done' || ((a.status === 'booked' || a.status === 'arrived') && a.start + a.dur <= r.local.min))).length;
+    const unpaid = [...(s.apptsByDay.get(r.local.day) || [])].map((id) => s.appts.get(id)).filter((a) => a && !a.saleId && !a.legacy && (a.status === 'in_chair' || a.status === 'done' || ((a.status === 'booked' || a.status === 'arrived') && a.start + a.dur <= r.local.min))).length;
     const z = s.closures.get(r.local.day);
     const missed = missedZ(s, r.local.day);
     // the float to leave in the drawer tonight is the one the day started with
