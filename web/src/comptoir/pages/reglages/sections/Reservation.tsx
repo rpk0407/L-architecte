@@ -41,10 +41,18 @@ export default function Reservation({ s }: SectionProps) {
             <Field label="Montant de l’acompte (% du prix)" htmlFor="dp-p"><input id="dp-p" className="input" inputMode="numeric" value={D.percent} onChange={(e) => d.setV({ ...D, percent: num(e.target.value, 5, 100) })} /></Field>
           </div>
         ) : null}
-        <p className="muted" style={{ fontSize: 13.5 }}>{noOnline && D.mode !== 'none' ? <><b>Sans Stripe, aucun acompte n’est demandé en ligne.</b> Cette règle s’appliquera dès qu’il sera branché. </> : null}{D.mode === 'none' ? 'Aucun acompte : simple, mais les absences ne coûtent rien au client.' : D.mode === 'all' ? 'Chaque réservation en ligne paie ' + D.percent + ' % à l’avance (5 € minimum).' : 'Exemple : une prestation de ' + eur(Math.max(D.thresholdCents, 6000)) + ' demande ' + eur(Math.max(500, Math.round((Math.max(D.thresholdCents, 6000) * D.percent) / 10000) * 100)) + ' d’acompte. En dessous de ' + eur(D.thresholdCents) + ', rien.'} Une prestation peut avoir sa propre règle dans le Catalogue.</p>
+        {D.mode === 'threshold' ? (
+          // the cheap cuts are the ones clients skip: the threshold lets every one of them through
+          <Switch on={!!D.riskBased} onChange={(v) => d.setV({ ...D, riskBased: v })} title="Aussi pour les clients qui ont déjà manqué un rendez-vous"
+            hint={'Deux absences, ou une seule avant sa troisième visite : même une coupe à ' + eur(2000) + ' lui demande ' + eur(riskExample(D.percent)) + ' d’acompte. Sa fiche client permet de l’en dispenser.'} />
+        ) : null}
+        <p className="muted" style={{ fontSize: 13.5 }}>{noOnline && D.mode !== 'none' ? <><b>Sans Stripe, aucun acompte n’est demandé en ligne.</b> Cette règle s’appliquera dès qu’il sera branché. </> : null}{D.mode === 'none' ? 'Aucun acompte : simple, mais les absences ne coûtent rien au client.' : D.mode === 'all' ? 'Chaque réservation en ligne paie ' + D.percent + ' % à l’avance (5 € minimum).' : 'Exemple : une prestation de ' + eur(Math.max(D.thresholdCents, 6000)) + ' demande ' + eur(Math.max(500, Math.round((Math.max(D.thresholdCents, 6000) * D.percent) / 10000) * 100)) + ' d’acompte. En dessous de ' + eur(D.thresholdCents) + ', rien' + (D.riskBased ? ', sauf pour un client qui a déjà manqué.' : '.')} Une prestation peut avoir sa propre règle dans le Catalogue.</p>
         <Field label="Frais d’absence (carte enregistrée)" hint="Montant prévu pour la carte enregistrée à la réservation (prochaine étape) : rien n’est prélevé pour l’instant." htmlFor="dp-n"><input id="dp-n" className="input" inputMode="decimal" value={(D.noShowFeeCents / 100).toString().replace('.', ',')} onChange={(e) => d.setV({ ...D, noShowFeeCents: Math.min(20000, money.parseEur(e.target.value) ?? 0) })} /></Field>
       </Card>
       <SaveBar dirty={b.dirty || d.dirty} busy={busy} onReset={() => { b.reset(); d.reset(); }} onSave={() => save({ ...(b.dirty ? { booking: B } : {}), ...(d.dirty ? { deposits: D } : {}) }, cgvChanged ? 'Réglages enregistrés, CGV mises à jour' : undefined)} />
     </div>
   );
 }
+
+/** As server/domain/policy.js depositFor counts it for a 20 € cut: the percent, rounded to the euro, 5 € at least. */
+function riskExample(percent: number) { return Math.min(2000, Math.max(500, Math.round((2000 * percent) / 10000) * 100)); }

@@ -49,7 +49,9 @@ export default async ({ h, page }) => {
   await page.getByRole('button', { name: 'Plus d’actions' }).click();
   await page.getByRole('menuitem', { name: 'Effacer (RGPD)' }).click();
   await h.expectText(page, 'Encore ouvert sur sa fiche');
-  const box = page.getByRole('checkbox', { name: /Annuler ses rendez-vous et le prévenir par SMS avant l’effacement/ });
+  // the dialog names what leaves: the text, and the mail with its calendar file when the merged file has an address
+  const mailed = !!(await h.api('/api/v1/clients/' + kept + '/open')).json.email;
+  const box = page.getByRole('checkbox', { name: 'Annuler ses rendez-vous et le prévenir par SMS' + (mailed ? ' et par e-mail' : '') + ' avant l’effacement' });
   if (!(await box.isChecked())) throw new Error('the cancellation is not checked by default');
   await h.shot(page, 'client-erase');
   await page.getByRole('button', { name: 'Effacer définitivement' }).click();

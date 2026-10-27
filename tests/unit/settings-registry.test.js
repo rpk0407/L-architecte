@@ -30,7 +30,7 @@ const BEFORE = () => {
     hours: { 0: [], 1: [], 2: day, 3: day, 4: day, 5: day, 6: day },
     closures: [],
     booking: { enabled: true, stepMin: 30, minNoticeMin: 30, maxDaysAhead: 90, holdMin: 5, pendingPayMin: 15, cancelUntilHours: 12, waitlist: true, walkinWait: true },
-    deposits: { mode: 'threshold', thresholdCents: 5000, percent: 30, noShowFeeCents: 1000 },
+    deposits: { mode: 'threshold', thresholdCents: 5000, percent: 30, noShowFeeCents: 1000, riskBased: false },
     payments: { card: true, cash: true, qr: true, giftcard: true, tips: true, tipPresets: [200, 500, 1000], vat: 2000, receiptFooter: 'Merci et à bientôt !' },
     messages: {
       confirmation: true, reminder: true, reminderHour: 18, reminder2h: false, review: true, reviewDelayMin: 120, rebook: true, waitlist: true,

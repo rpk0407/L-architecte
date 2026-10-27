@@ -31,7 +31,7 @@
     // as domain/policy.js depositFor counts it: on the booking's total, rounded to the euro, never more than the price
     var rule = '', of = d.percent + NB + '% du total (arrondi à l’euro, ' + eur(500) + ' au minimum, jamais plus que le prix)';
     if (d.mode === 'all') rule = 'Chaque réservation en ligne demande un acompte d’environ ' + of + '.';
-    else if (d.mode === 'threshold') rule = 'Une réservation en ligne dont le total atteint ' + eur(d.thresholdCents) + ' demande un acompte d’environ ' + of + ' ; en dessous, aucun.';
+    else if (d.mode === 'threshold') rule = 'Une réservation en ligne dont le total atteint ' + eur(d.thresholdCents) + ' demande un acompte d’environ ' + of + ' ; en dessous, aucun' + (d.riskBased ? ', sauf pour un client qui a déjà manqué un rendez-vous sans prévenir : le même acompte peut alors lui être demandé quel que soit le montant.' : '.');
     // the CGV in force: the salon's version, or this page's own text when it is newer (server/settings/shop.js CGV_TEXT)
     var cgv = newer(sh.cgvVersion, document.documentElement.getAttribute('data-cgv-text'));
     return {

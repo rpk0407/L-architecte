@@ -29,7 +29,7 @@ type Open = {
   appts: { id: string; day: string; start: number; staffId: string; services: string[]; deposit: number; passed?: boolean }[];
   packs: { id: string; name: string; left: number; expires: string }[];
   giftcards: { id: string; last4: string; balance: number; expires: string }[];
-  sms: boolean; smsLive?: boolean;
+  sms: boolean; smsLive?: boolean; email?: boolean;
 };
 
 // rare: shown only when it has someone (or is open), for whoever can act on it
@@ -47,6 +47,8 @@ const SEGMENTS: { v: string; t: string; hint: string; rare?: boolean; cap?: stri
 ];
 const SORTS = [{ v: 'recent', t: 'Dernière visite' }, { v: 'overdue', t: 'À relancer d’abord' }, { v: 'spend', t: 'Dépense' }, { v: 'visits', t: 'Visites' }, { v: 'name', t: 'Nom' }];
 const TAGS = ['VIP', 'Barbe', 'Enfant', 'Étudiant', 'Sensible', 'Parle peu'];
+// the tag that spares a client the deposit asked of those who missed (server/domain/policy.js TRUSTED)
+const TRUSTED = 'confiance';
 const MSG: Record<string, string> = { confirm: 'Confirmation', confirmation: 'Confirmation', reminder: 'Rappel la veille', reminder2h: 'Rappel 2 h avant', moved: 'Déplacement', cancelled: 'Annulation', review: 'Demande d’avis', rebook: 'Relance', receipt: 'Reçu', waitlist: 'Créneau libéré', deposit: 'Lien d’acompte', lookup: 'Lien Mon rendez-vous', giftcardCode: 'Code carte cadeau' };
 
 export default function Clients() {
@@ -293,7 +295,9 @@ function ClientFile({ id }: { id: string }) {
           <h2>{c.first} {c.last}</h2>
           <div className="row wrap" style={{ gap: 6, marginTop: 8 }}>
             {c.badges.map((b) => <span key={b} className={'badge ' + badgeTone(b)}>{b}</span>)}
-            {c.tags.filter((t) => t !== 'VIP').map((t) => <span key={t} className="badge">{t}</span>)}
+            {c.tags.filter((t) => t !== 'VIP' && t !== TRUSTED).map((t) => <span key={t} className="badge">{t}</span>)}
+            {/* the tag's own word: a trusted client still pays the salon's deposit from the threshold up */}
+            {c.tags.includes(TRUSTED) ? <span className="badge badge-ok">confiance</span> : null}
           </div>
           <p className="cl-contact">
             {c.hasPhone ? contact ? <a href={'tel:' + c.phone.replace(/\s/g, '')}><Icon name="phone" size={14} />{c.phone}</a> : <span><Icon name="phone" size={14} />{c.phone}</span> : <span className="faint">Pas de numéro</span>}
@@ -445,16 +449,34 @@ export function consentWords(c: { marketing: boolean; marketingSrc?: string; mar
 }
 
 function Prefs({ c }: { c: FileClient }) {
-  const { can } = useApp();
+  const { boot, can } = useApp();
   const ro = !can('client.edit');
   const patch = async (p: Record<string, unknown>) => { try { await api.patch('/api/v1/clients/' + c.id, p); refreshAll(); } catch (e) { toastError(e); } };
   const toggleTag = (t: string) => patch({ tags: c.tags.includes(t) ? c.tags.filter((x) => x !== t) : [...c.tags, t].slice(0, 8) });
+  // the deposit asked of clients who already missed (Réglages › Réservation): shown where it applies, or to take it back
+  const trusted = c.tags.includes(TRUSTED);
+  const dep = boot.settings.deposits || {};
+  const rule = !!dep.riskBased && dep.mode === 'threshold';
+  const askRisk = rule && c.badges.includes('absences');
+  // as Réglages › Réservation says it: in production without Stripe, no deposit is asked at all yet
+  const noOnline = boot.mode !== 'demo' && boot.providers.payments === 'simulated';
+  const boss = can('agenda.edit');
+  const riskHint = trusted
+    ? rule ? 'Le site ne lui demande plus l’acompte prévu pour les absences. À partir de ' + eur(dep.thresholdCents ?? 5000) + ', la règle du salon reste la même.' : 'Sans effet tant que l’acompte pour les absences est coupé (Réglages › Réservation).'
+    : plural(c.noShows, 'absence') + (noOnline ? ' : le site lui demandera un acompte même pour une coupe, dès que Stripe sera branché.' : ' : le site lui demande un acompte même pour une coupe.');
   return (
     <div className="card col" style={{ gap: 10 }}>
       <div className="card-h"><h2><Icon name="star" size={16} />Préférences</h2></div>
       <div className="chips">{TAGS.map((t) => <Chip key={t} small on={c.tags.includes(t)} disabled={ro} onClick={() => toggleTag(t)}>{t}</Chip>)}</div>
       <Switch on={c.sms} disabled={ro} onChange={(v) => patch({ sms: v })} title="SMS de confirmation et de rappel" hint={c.sms ? 'Activés' : 'Il a demandé à ne plus en recevoir'} />
       <Switch on={c.marketing} disabled={ro} onChange={(v) => patch({ marketing: v })} title={'SMS bons plans : ' + consentWords(c)} hint="Offres et nouveautés · il peut répondre STOP" />
+      {askRisk || trusted ? (
+        // a money decision (the server asks agenda.edit): a barber sees it, dimmed, and who can take it
+        <div style={boss ? undefined : { opacity: 0.65 }}>
+          <Switch on={trusted} disabled={ro || !boss} onChange={(v) => patch({ tags: v ? [TRUSTED, ...c.tags].slice(0, 8) : c.tags.filter((x) => x !== TRUSTED) })} title="Ne plus demander d’acompte"
+            hint={riskHint + (boss ? trusted ? '' : ' Si tu lui fais confiance, active.' : trusted ? ' Seul le gérant ou l’accueil peut le changer.' : ' Seul le gérant ou l’accueil peut l’en dispenser.')} />
+        </div>
+      ) : null}
       {c.birthday ? <p className="muted" style={{ fontSize: 13.5 }}><Icon name="gift" size={14} /> Anniversaire le {Number(c.birthday.slice(0, 2))} {dates.MONTHS_FR[Number(c.birthday.slice(3, 5)) - 1]}</p> : null}
     </div>
   );
@@ -586,13 +608,16 @@ function EraseModal({ c, onClose }: { c: FileClient; onClose: () => void }) {
   const [changed, setChanged] = useState(false);
   const n = data?.appts.length || 0;
   const texts = !!data && data.sms && data.smsLive !== false;
+  // the cancellation mail (with its calendar file) leaves too; an older API without the flag: the file and the setting
+  const mails = !!data && (data.email ?? (!!c.email && !!boot.settings.messages?.email));
+  const by = texts && mails ? 'par SMS et par e-mail' : texts ? 'par SMS' : mails ? 'par e-mail' : '';
   const go = async () => {
     if (!data) return;
     setBusy(true);
     try {
       // only what the owner saw is given up: a booking made since the list loaded comes back as a 409, then is shown
       const r = await api.post<{ cancelled: number; texted: number; unsent: number; refunded: number }>('/api/v1/clients/' + c.id + '/erase', { cancelUpcoming: n ? cancel : !!(data.packs.length || data.giftcards.length) });
-      const sub = [r.cancelled ? plural(r.cancelled, 'rendez-vous annulé', 'rendez-vous annulés') : '', r.texted ? 'SMS envoyé' : '', r.unsent ? 'SMS non parti' : '', r.refunded ? plural(r.refunded, 'acompte remboursé', 'acomptes remboursés') : ''].filter(Boolean).join(' · ');
+      const sub = [r.cancelled ? plural(r.cancelled, 'rendez-vous annulé', 'rendez-vous annulés') : '', r.texted ? 'client prévenu' : '', r.unsent ? plural(r.unsent, 'message non parti', 'messages non partis') : '', r.refunded ? plural(r.refunded, 'acompte remboursé', 'acomptes remboursés') : ''].filter(Boolean).join(' · ');
       toast({ title: 'Fiche effacée', sub: sub || undefined, icon: 'trash' });
       refreshAll(); onClose(); navigate('/clients');
     } catch (e: any) {
@@ -615,10 +640,10 @@ function EraseModal({ c, onClose }: { c: FileClient; onClose: () => void }) {
           {n ? (
             <label className="cl-check">
               <input type="checkbox" checked={cancel} onChange={(e) => setCancel(e.target.checked)} />
-              <span>{texts ? 'Annuler ses rendez-vous et le prévenir par SMS avant l’effacement' : 'Annuler ses rendez-vous avant l’effacement'}</span>
+              <span>{by ? 'Annuler ses rendez-vous et le prévenir ' + by + ' avant l’effacement' : 'Annuler ses rendez-vous avant l’effacement'}</span>
             </label>
           ) : null}
-          {n && cancel && !texts ? <Note tone="warn" icon="phone">{data.sms ? 'Les SMS ne partent pas encore (Réglages › Messages)' : 'Il ne reçoit pas de SMS'} : préviens-le toi-même avant d’effacer, son numéro disparaît avec la fiche.</Note> : null}
+          {n && cancel && !by ? <Note tone="warn" icon="phone">{data.sms ? 'Les SMS ne partent pas encore (Réglages › Messages)' : 'Il ne reçoit pas de SMS'} : préviens-le toi-même avant d’effacer, son numéro disparaît avec la fiche.</Note> : null}
           {changed ? <Note tone="warn" icon="info">Du nouveau sur sa fiche depuis l’ouverture : vérifie la liste avant d’effacer.</Note> : null}
           {n && !cancel ? <Note tone="warn" icon="alert">Sans ça, ses rendez-vous resteraient dans l’agenda au nom de « Client effacé ». Annule-les ou garde la fiche.</Note> : null}
         </div>

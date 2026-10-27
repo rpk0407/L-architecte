@@ -7,6 +7,8 @@ import { createHmac } from 'node:crypto';
 import { normPhone, isEmail, capFirst } from '../lib/util.js';
 import { localParts } from '../../shared/dates.js';
 import { queueMessage, apptVars } from '../domain/messages.js';
+import { mailCancellation } from '../domain/mails.js';
+import { TRUSTED } from '../domain/policy.js';
 import { getClient } from './common.js';
 
 const fields = {
@@ -54,6 +56,8 @@ export const addClient = {
   run(s, input, ctx) {
     ctx.need('client.edit');
     const x = parse(addSchema, input);
+    // a new file born trusted would skip the deposit as surely as one marked later (updateClient)
+    if ((x.tags || []).includes(TRUSTED)) ctx.need('agenda.edit');
     const { pii } = clientParts(x);
     if (pii.phone && s.clientByPhone.has(pii.phone)) fail(409, 'exists', 'Un client a déjà ce numéro.', { id: s.clientByPhone.get(pii.phone) });
     return upsertClient(s, ctx, x, 'salon');
@@ -67,6 +71,8 @@ export const updateClient = {
     if (c.erased) fail(409, 'erased', 'Cette fiche a été effacée.');
     const x = parse(patchSchema, input.patch || {});
     const { pii, plain } = clientParts(x);
+    // sparing a client the deposit asked of those who missed is a money decision: who edits every booking takes it
+    if (plain.tags && plain.tags.includes(TRUSTED) !== (c.tags || []).includes(TRUSTED)) ctx.need('agenda.edit');
     if (pii.phone && pii.phone !== c.phone && s.clientByPhone.has(pii.phone)) fail(409, 'exists', 'Un autre client a déjà ce numéro.', { id: s.clientByPhone.get(pii.phone) });
     if (!Object.keys(pii).length && !Object.keys(plain).length) return { ok: true };
     // consent given or withdrawn at the counter: the file says so, and since when ("oui (salon, 12/10/2026)")
@@ -211,15 +217,17 @@ export function openItems(s, c, local) {
     .map((a) => ({ id: a.id, day: a.day, start: a.start, staffId: a.staffId, services: a.services.map((x) => x.name), deposit: a.deposit && a.deposit.paid ? a.deposit.paid : 0, passed: a.day === local.day && a.start + a.dur <= local.min }));
   const packs = [...s.packs.values()].filter((k) => ids.has(k.clientId) && k.used < k.total && k.expires >= local.day).map((k) => ({ id: k.id, name: k.name, left: k.total - k.used, expires: k.expires }));
   const giftcards = [...s.giftcards.values()].filter((g) => ids.has(g.cid) && g.status === 'active' && g.balance > 0 && g.expires >= local.day).map((g) => ({ id: g.id, last4: g.last4, balance: g.balance, expires: g.expires }));
-  return { appts, packs, giftcards, sms: !!(c.phone && c.sms) };
+  // email: the cancellation mail (METHOD:CANCEL) leaves too, so the Comptoir names both channels before erasing
+  return { appts, packs, giftcards, sms: !!(c.phone && c.sms), email: !!(c.email && isEmail(c.email) && s.settings.messages.email) };
 }
 
 const eraseSchema = obj({ id: id(), cancelUpcoming: opt(bool()) });
 /**
  * Erase a file (GDPR). Anything still open is refused (409, the list in extra.open) unless cancelUpcoming: the owner
  * saw the list and closes it all, the bookings cancelled with a text, the cuts and balance given up.
- * When a cancellation is texted, this write cancels and queues the texts and returns erased: false: the erasure is
- * the next run, once the texts have left (queued in the same write, a text would lose its number with the file).
+ * When a cancellation is texted or mailed, this write cancels and queues the messages (their ids in texts) and returns
+ * erased: false: the erasure is the next run, once they have left (queued in the same write, a text would lose its
+ * number with the file, a mail its address).
  */
 export const eraseClient = {
   run(s, input, ctx) {
@@ -233,9 +241,14 @@ export const eraseClient = {
     const texts = [];
     for (const o of open.appts) {
       const a = s.appts.get(o.id);
+      const unpaid = a.status === 'pending';
       ctx.emit('appt.cancelled', { id: a.id, by: 'salon', reason: 'Fiche effacée à la demande du client', cid: a.clientId || undefined });
       const m = open.sms && !o.passed ? queueMessage(s, ctx, { key: 'cx_' + a.id, template: 'cancelled', to: c.phone, cid: c.id, apptId: a.id, vars: { ...apptVars(s, a), lien: ctx.meta.siteUrl || '' } }) : null;
       if (m) texts.push(m);
+      // the calendar file (METHOD:CANCEL) takes it out of the client's agenda, and must leave while the address exists;
+      // a booking still waiting for its deposit was never sent one
+      const mail = !o.passed && !unpaid && c.email ? mailCancellation(s, ctx, a, { to: c.email, first: c.first, by: 'salon' }) : null;
+      if (mail) texts.push(mail);
     }
     const done = { ok: true, cancelled: open.appts.map((a) => a.id), deposits: open.appts.filter((a) => a.deposit).map((a) => s.appts.get(a.id).deposit.paymentId).filter(Boolean) };
     if (texts.length) return { ...done, erased: false, texts };

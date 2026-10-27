@@ -6,6 +6,7 @@ import { str, int, bool, opt, obj, arr, day, id, oneOf, parse } from '../lib/val
 import { freeSlots, isFree, staffIntervals, canDo, busyIntervals, intersect, subtract } from '../domain/availability.js';
 import { normPhone, capFirst } from '../lib/util.js';
 import { depositFor, clientMayChange, payWindowMin } from '../domain/policy.js';
+import { riskDeposit } from '../domain/risk.js';
 import { queueMessage, apptVars } from '../domain/messages.js';
 import { mailConfirmation, mailCancellation, mailOwner } from '../domain/mails.js';
 import { getStaff, getAppt, getClient, snapshotServices, totalDur, totalPrice, needChair } from './common.js';
@@ -116,8 +117,10 @@ export const bookOnline = {
       // the file's address receives every later mail with its links to move or cancel (only the salon sets it there)
     }
     const price = totalPrice(services);
-    // ctx.meta.payLive: the API says whether a deposit can really be paid online (false: production without Stripe)
-    const deposit = depositFor(s, services, { payLive: ctx.meta.payLive !== false });
+    // ctx.meta.payLive: the API says whether a deposit can really be paid online (false: production without Stripe);
+    // the file found by the phone above brings its history: a client who already missed may owe one below the threshold
+    const payLive = ctx.meta.payLive !== false;
+    const deposit = depositFor(s, services, { payLive, risk: payLive && !!existing && riskDeposit(s, existing.id, ctx.local.day) });
     const aid = ctx.id('ap');
     const code = uniqueCode(s, ctx);
     const cgv = cgvVersionOf(s.settings.shop);

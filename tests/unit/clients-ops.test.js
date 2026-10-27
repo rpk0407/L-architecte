@@ -30,9 +30,12 @@ async function owner(t, watch = '') {
   const rt = await createRuntime({ env: { LX_MODE: 'production', SESSION_SECRET: 'test-secret-0123456789' }, store: t.store, clock: () => t.clock.now });
   const sent = [];
   rt.sms = { name: 'fake', send: async (to, body) => { sent.push({ to, body, erased: !!rt.engine.state.clients.get(watch)?.erased }); return { ref: 'sms-' + sent.length }; } };
+  // and a fake e-mail provider that does the same for each mail
+  const mails = [];
+  rt.email = { name: 'fake', send: async (m) => { mails.push({ ...m, erased: !!rt.engine.state.clients.get(watch)?.erased }); return { ref: 'mail-' + mails.length }; } };
   const b = browser(rt);
   assert.equal((await b.post('/api/auth/login', { email: 'patron@test.fr', password: 'Patron-1313!', remember: true })).status, 200);
-  return { rt, b, sent };
+  return { rt, b, sent, mails };
 }
 const add = async (t, x) => (await t.engine.run(C.addClient, x, t.asOwner())).id;
 // what the routes hand the commands: the tombstones' key, derived from the session secret
@@ -45,7 +48,7 @@ test('erasing a client with bookings to come: refused with the list, or cancelle
   const a = await t.engine.run(A.createAppointment, { clientId: cid, serviceIds: [t.ids.cut], staffId: t.ids.Ali, day: TOMORROW, start: 600 }, t.asOwner());
   await t.engine.run(importPack, { clientId: cid, left: 3, expires: addDays(DAY, 40) }, t.asOwner());
   await t.engine.run(S.checkout, { clientId: cid, lines: [{ kind: 'giftcard', unit: 3000, recipient: 'Pour Adam' }], payments: [{ method: 'card', amount: 3000 }] }, t.asOwner());
-  const { rt, b, sent } = await owner(t, cid);
+  const { rt, b, sent, mails } = await owner(t, cid);
 
   // what the confirmation lists before anything happens
   const open = (await b.get('/api/v1/clients/' + cid + '/open')).json;
@@ -54,6 +57,7 @@ test('erasing a client with bookings to come: refused with the list, or cancelle
   assert.deepEqual(open.giftcards.map((g) => g.balance), [3000]);
   assert.equal(open.sms, true);
   assert.equal(open.smsLive, true);
+  assert.equal(open.email, true, 'the dialog names the mail too');
 
   // without cancelUpcoming: 409, the open items in the answer, nothing written
   const v = rt.engine.state.version;
@@ -65,16 +69,22 @@ test('erasing a client with bookings to come: refused with the list, or cancelle
   assert.equal(rt.engine.state.version, v);
   assert.equal(rt.engine.state.clients.get(cid).erased, false);
 
-  // with it: the booking is cancelled, the text queued and sent while the number exists, then the file is erased
+  // with it: the booking is cancelled, the text and the mail queued and sent while the number and the address exist,
+  // then the file is erased
   const ok = await b.post('/api/v1/clients/' + cid + '/erase', { cancelUpcoming: true });
   assert.equal(ok.status, 200, JSON.stringify(ok.json));
-  assert.deepEqual({ ...ok.json }, { ok: true, cancelled: 1, texted: 1, unsent: 0, refunded: 0 });
+  assert.deepEqual({ ...ok.json }, { ok: true, cancelled: 1, texted: 2, unsent: 0, refunded: 0 });
   const s = rt.engine.state;
   assert.equal(s.appts.get(a.id).status, 'cancelled');
   assert.equal(s.appts.get(a.id).cancel.by, 'salon');
   assert.equal(s.clients.get(cid).erased, true);
   const cx = sent.filter((x) => /annulé/.test(x.body));
   assert.deepEqual(cx.map((x) => [x.to, x.erased]), [['+33611223344', false]], 'texted once, before the erasure');
+  // the mail's calendar file takes the event out of his agenda (METHOD:CANCEL), sent before the address goes
+  const mx = mails.filter((m) => (m.attachments || []).some((f) => /method=CANCEL/.test(f.type)));
+  assert.deepEqual(mx.map((m) => [m.to, m.erased]), [['karim@exemple.fr', false]], 'mailed once, before the erasure');
+  assert.match(mx[0].attachments[0].content, /METHOD:CANCEL/);
+  assert.match(mx[0].text, /annulé par le salon/);
   const j = rt.engine.journal;
   const iCancel = j.findIndex((e) => e.type === 'appt.cancelled' && e.data.id === a.id);
   const iQueued = j.findIndex((e) => e.type === 'message.queued' && e.data.template === 'cancelled' && e.data.apptId === a.id);
@@ -82,9 +92,12 @@ test('erasing a client with bookings to come: refused with the list, or cancelle
   const iErased = j.findIndex((e) => e.type === 'client.erased');
   assert.ok(iCancel >= 0 && iCancel < iQueued && iQueued < iSent && iSent < iErased, 'cancelled, queued, sent, then erased: ' + [iCancel, iQueued, iSent, iErased]);
   // and then the number is gone from the text too, in memory and in the store
-  const msg = [...s.messages.values()].find((m) => m.apptId === a.id && m.template === 'cancelled');
+  const msg = [...s.messages.values()].find((m) => m.apptId === a.id && m.template === 'cancelled' && m.channel !== 'email');
   assert.equal(msg.to, '');
   assert.equal(msg.status, 'sent');
+  const mail = [...s.messages.values()].find((m) => m.apptId === a.id && m.template === 'cancelled' && m.channel === 'email');
+  assert.equal(mail.to, '');
+  assert.equal(mail.status, 'sent');
   const stored = JSON.stringify((await t.store.read(0)).events.map((e) => e.pii || null));
   for (const x of ['Karim', '0611223344', '+33611223344', 'karim@exemple.fr', 'Pour Adam']) assert.ok(!stored.includes(x), x + ' left in the store');
   assert.equal(s.giftcards.size, 1);
@@ -93,6 +106,7 @@ test('erasing a client with bookings to come: refused with the list, or cancelle
   // a second tap (or a retry) changes nothing
   assert.equal((await b.post('/api/v1/clients/' + cid + '/erase', { cancelUpcoming: true })).status, 200);
   assert.equal(sent.filter((x) => /annulé/.test(x.body)).length, 1);
+  assert.equal(mails.filter((m) => /annulé/.test(m.subject)).length, 1);
 });
 
 test('erasure without a text to send happens in one write; a barber may not erase', async () => {
@@ -118,6 +132,22 @@ test('erasure without a text to send happens in one write; a barber may not eras
   const r2 = await t.engine.run(C.eraseClient, { id: late, cancelUpcoming: true }, t.asOwner());
   assert.equal(r2.erased, true, 'nothing to text: one write');
   assert.equal(t.engine.state.appts.get(am.id).status, 'cancelled');
+});
+
+test('erasure mails the cancellation to a client without SMS before the address goes, but not for a deposit never paid', async () => {
+  const t = await salon({ hour: 9 });
+  const cid = await add(t, { first: 'Inès', phone: '0622330000', email: 'ines@exemple.fr', sms: false });
+  const a = await t.engine.run(A.createAppointment, { clientId: cid, serviceIds: [t.ids.cut], staffId: t.ids.Ali, day: TOMORROW, start: 600 }, t.asOwner());
+  // waiting for its deposit: never confirmed by mail, so nothing to take out of an agenda
+  const p = await t.engine.run(A.bookOnline, { serviceIds: [t.ids.color], staffId: t.ids.Ben, day: TOMORROW, start: 600, first: 'Inès', phone: '0622330000' }, t.asClient);
+  assert.equal(t.engine.state.appts.get(p.id).status, 'pending');
+  const r = await t.engine.run(C.eraseClient, { id: cid, cancelUpcoming: true }, withKey(t.asOwner()));
+  assert.equal(r.erased, false, 'the mail leaves first');
+  const queued = r.texts.map((id) => t.engine.state.messages.get(id));
+  assert.deepEqual(queued.map((m) => [m.channel, m.template, m.apptId, m.to]), [['email', 'cancelled', a.id, 'ines@exemple.fr']]);
+  const r2 = await t.engine.run(C.eraseClient, { id: cid, cancelUpcoming: true }, withKey(t.asOwner()));
+  assert.equal(r2.erased, true);
+  assert.equal(t.engine.state.messages.get(queued[0].id).to, '', 'the address goes with the file');
 });
 
 test('erasure takes him off the waiting list, pays the deposit back, and only for who may erase', async () => {

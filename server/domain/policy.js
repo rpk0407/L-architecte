@@ -5,11 +5,16 @@ import { instantOf } from '../../shared/dates.js';
 /** Stripe Checkout lives at least 30 minutes: a booking must wait at least that long for its deposit. */
 export const STRIPE_PAY_MIN = 31;
 
+/** The tag on a client file that spares them the deposit asked of clients who missed (Clients › Préférences, domain/risk.js). */
+export const TRUSTED = 'confiance';
+
 /**
  * Deposit to pay online for these services, in cents (0 = none).
  * Without a real way to pay online (production on the simulated provider) there is never one:
  * a client must not "pay" a fake deposit that the till then deducts.
- * @param {any} s @param {{ id: string, price: number }[]} services @param {{ payLive?: boolean }} [o]
+ * risk (domain/risk.js riskDeposit, for the file found by phone): a client who already missed pays it under the threshold too.
+ * @param {any} s @param {{ id: string, price: number }[]} services
+ * @param {{ payLive?: boolean, risk?: boolean }} [o]
  */
 export function depositFor(s, services, o = {}) {
   if (o.payLive === false) return 0;
@@ -21,7 +26,8 @@ export function depositFor(s, services, o = {}) {
   if (explicit.length) return Math.min(price, explicit.reduce((a, b) => a + b, 0));
   if (own.length && own.every((x) => x === 0)) return 0;
   if (!d || d.mode === 'none') return 0;
-  if (d.mode === 'threshold' && price < d.thresholdCents) return 0;
+  // a 20 € cut never reaches the threshold: the clients who miss are the ones it lets through
+  if (d.mode === 'threshold' && price < d.thresholdCents && !o.risk) return 0;
   return Math.min(price, Math.max(500, Math.round((price * d.percent) / 100 / 100) * 100));
 }
 
