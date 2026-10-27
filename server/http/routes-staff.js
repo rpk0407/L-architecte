@@ -482,12 +482,8 @@ export function staffRoutes(app) {
     if (!x) throw new HttpError(404, 'not_found', 'Ticket introuvable.');
     let providerRef;
     if (r.body.method === 'online') {
-      // check everything the credit note will check before any money moves at the provider
-      const left = x.totals.revenue - x.refunded;
-      const amount = Number(r.body.amount);
-      if (!Number.isInteger(amount) || amount <= 0 || amount > left) throw new HttpError(400, 'invalid', 'Montant remboursable au maximum : ' + fmtEur(left) + '.');
-      if (String(r.body.reason || '').trim().length < 3) throw new HttpError(400, 'invalid', 'Indique la raison du remboursement.');
-      if (r.s.closures.has(r.local.day)) throw new HttpError(409, 'day_closed', 'La journée est clôturée.');
+      // every rule of the credit note, run before any money moves at the provider: what it refuses never leaves
+      S.checkRefund(r.s, { ...r.body, saleId: x.id }, { local: r.local, actor: { t: 'staff' }, staff: r.me });
       const pay = x.payments.map((p) => p.paymentId && r.s.payments.get(p.paymentId)).find((p) => p && p.status === 'paid');
       if (!pay) throw new HttpError(400, 'invalid', 'Aucun paiement en ligne à rembourser sur ce ticket.');
       if (r.body.amount > pay.amount) throw new HttpError(400, 'invalid', 'Le remboursement en ligne ne peut dépasser ' + fmtEur(pay.amount) + '.');
@@ -501,10 +497,11 @@ export function staffRoutes(app) {
   app.get('/api/v1/giftcards/check', (r) => {
     const g = r.s.giftcards.get(r.s.giftByHash.get(sha256(normGiftCode(r.query.get('code')))) || '');
     if (!g) throw new HttpError(404, 'not_found', 'Carte cadeau inconnue.');
-    return { id: g.id, last4: g.last4, balance: g.balance, amount: g.amount, expires: g.expires, status: g.status, expired: g.expires < r.local.day };
+    const nw = g.replacedBy ? r.s.giftcards.get(g.replacedBy) : null;
+    return { id: g.id, last4: g.last4, balance: g.balance, amount: g.amount, expires: g.expires, status: g.status, expired: g.expires < r.local.day, replacedBy: nw ? nw.last4 : null };
   }, { cap: 'sale.create' });
   app.get('/api/v1/giftcards', (r) => {
-    const items = [...r.s.giftcards.values()].sort((a, b) => b.issuedAt - a.issuedAt).map((g) => ({ id: g.id, last4: g.last4, amount: g.amount, balance: g.balance, expires: g.expires, status: g.status, recipient: g.recipient, buyer: g.buyer, issuedAt: g.issuedAt, uses: g.uses.length }));
+    const items = [...r.s.giftcards.values()].sort((a, b) => b.issuedAt - a.issuedAt).map((g) => ({ id: g.id, last4: g.last4, amount: g.amount, balance: g.balance, expires: g.expires, status: g.status, recipient: g.recipient, buyer: g.buyer, issuedAt: g.issuedAt, uses: g.uses.length, legacy: !!g.legacy, reissueOf: g.reissueOf || null, voidReason: g.voidReason || '', replacedBy: g.replacedBy ? (r.s.giftcards.get(g.replacedBy) || {}).last4 || null : null }));
     const outstanding = items.filter((g) => g.status === 'active' && g.expires >= r.local.day).reduce((t, g) => t + g.balance, 0);
     return { items, outstanding };
   }, { cap: 'sale.all' });

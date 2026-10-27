@@ -228,7 +228,8 @@ export function evolve(s, e) {
 
     case 'sale.completed': {
       // a typed discount reason travels in pii (chained data says "Autre"), so erasure removes it
-      const x = { ...d, at: d.at || e.at, by: e.actor.id, refunded: 0, refundIds: [], discountNote: p.discountReason || '' };
+      // refunded: revenue given back; refundedLiability: gift cards cancelled and paid back; lineRefunds: line index → { qty, amount }
+      const x = { ...d, at: d.at || e.at, by: e.actor.id, refunded: 0, refundedLiability: 0, refundIds: [], lineRefunds: {}, discountNote: p.discountReason || '' };
       s.sales.set(d.id, x);
       let list = s.salesByDay.get(d.day);
       if (!list) { list = []; s.salesByDay.set(d.day, list); }
@@ -244,7 +245,11 @@ export function evolve(s, e) {
       s.refunds.set(d.id, { ...d, at: d.at || e.at, by: e.actor.id });
       s.refundSeq = Math.max(s.refundSeq, d.number);
       const x = s.sales.get(d.saleId);
-      if (x) { x.refunded += d.amount; x.refundIds.push(d.id); }
+      if (x) {
+        // a cancelled gift card is a debt paid back, not revenue: it stays out of what was refunded of the revenue
+        x.refunded += d.amount - (d.liability || 0); x.refundedLiability += d.liability || 0; x.refundIds.push(d.id);
+        for (const l of d.lines || []) { const r = x.lineRefunds[l.i] || { qty: 0, amount: 0 }; x.lineRefunds[l.i] = { qty: r.qty + l.qty, amount: r.amount + l.amount }; }
+      }
       break;
     }
 
@@ -285,10 +290,13 @@ export function evolve(s, e) {
       s.giftByHash.set(d.codeHash, d.id);
       break;
     case 'giftcard.redeemed': { const g = s.giftcards.get(d.id); if (g) { g.balance -= d.amount; g.uses.push({ saleId: d.saleId, amount: d.amount, at: e.at }); } break; }
-    case 'giftcard.voided': { const g = s.giftcards.get(d.id); if (g) g.status = 'void'; break; }
+    // the hash stays indexed, so the till can say the card was cancelled (and replaced) rather than unknown
+    case 'giftcard.voided': { const g = s.giftcards.get(d.id); if (g) Object.assign(g, { status: 'void', voidedAt: e.at, voidReason: d.reason || '', replacedBy: d.replacedBy || null }); break; }
     case 'pack.sold': s.packs.set(d.id, { ...d, used: 0, uses: [], soldAt: e.at }); break;
     case 'pack.used': { const k = s.packs.get(d.id); if (k) { k.used += 1; k.uses.push({ saleId: d.saleId, at: e.at }); } break; }
-    case 'pack.returned': { const k = s.packs.get(d.id); if (k) k.used = Math.max(0, k.used - 1); break; }
+    case 'pack.returned': { const k = s.packs.get(d.id); if (k && !k.voided) k.used = Math.max(0, k.used - 1); break; }
+    // cancelled with a refund: no cut left, so everything that counts what is left (the till, the client file) sees none
+    case 'pack.voided': { const k = s.packs.get(d.id); if (k && !k.voided) { k.voided = { at: e.at, left: k.total - k.used, saleId: d.saleId || null, refundId: d.refundId || null }; k.total = k.used; } break; }
 
     case 'demo.seeded': for (const k of d.days || []) s.demoDays.add(k); break;
     case 'message.queued':

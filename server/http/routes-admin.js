@@ -5,7 +5,7 @@ import { staffView, serviceView, productView } from './views.js';
 import { verifyChain, publicEvent } from '../core/journal.js';
 import { hashSecret, passwordProblem, pinProblem } from '../auth/password.js';
 import { report } from '../domain/insights.js';
-import { ticketNo, refundNo, closureNo, METHOD_LABEL, METHODS, zFigures } from '../domain/cash.js';
+import { ticketNo, refundNo, closureNo, METHOD_LABEL, METHODS, zFigures, refundParts } from '../domain/cash.js';
 import { closingWarnings } from '../commands/tick-steps.js';
 import { isDay, dayRange, monthStart } from '../../shared/dates.js';
 import { fmtEur } from '../../shared/money.js';
@@ -13,6 +13,7 @@ import { fmtPhone, safeEqual } from '../lib/util.js';
 import * as T from '../commands/team.js';
 import * as K from '../commands/catalog.js';
 import * as SH from '../commands/shop.js';
+import { refundPlan, sendGiftcode, reissueGiftcard } from '../commands/sales.js';
 import { buildDemoJournal } from '../domain/seed.js';
 import { TEMPLATES } from '../core/state.js';
 import { CAPS, ROLES, capsOf } from '../domain/permissions.js';
@@ -35,7 +36,7 @@ const LABELS = {
   'payment.succeeded': 'Paiement en ligne reçu', 'payment.failed': 'Paiement en ligne échoué', 'payment.expired': 'Paiement en ligne expiré', 'payment.refunded': 'Paiement en ligne remboursé',
   'drawer.opened': 'Caisse ouverte', 'drawer.moved': 'Mouvement de caisse', 'drawer.closed': 'Caisse comptée', 'day.closed': 'Clôture journalière',
   'giftcard.issued': 'Carte cadeau émise', 'giftcard.redeemed': 'Carte cadeau utilisée', 'giftcard.voided': 'Carte cadeau annulée', 'pack.sold': 'Abonnement vendu',
-  'pack.used': 'Coupe d’abonnement', 'message.queued': 'Message programmé', 'message.updated': 'Message', 'demo.seeded': 'Démo préparée'
+  'pack.used': 'Coupe d’abonnement', 'pack.voided': 'Abonnement annulé', 'pack.returned': 'Coupe rendue à l’abonnement', 'message.queued': 'Message programmé', 'message.updated': 'Message', 'demo.seeded': 'Démo préparée'
 };
 const STATUS = { arrived: 'arrivé', in_chair: 'au fauteuil', booked: 'remis à venir', no_show: 'absent' };
 
@@ -46,7 +47,7 @@ function summary(s, e) {
   const d = e.data || {};
   switch (e.type) {
     case 'sale.completed': return ticketNo(d.number) + ' · ' + fmtEur(d.totals.due) + ' · ' + d.payments.map((p) => METHOD_LABEL[p.method] || p.method).join(' + ');
-    case 'sale.refunded': return refundNo(d.number) + ' · ' + fmtEur(d.amount) + ' sur ' + ticketNo(d.saleNumber) + ' · ' + d.reason;
+    case 'sale.refunded': return refundNo(d.number) + ' · ' + fmtEur(d.amount) + ' sur ' + ticketNo(d.saleNumber) + ' · ' + refundMethods(d) + (d.liability ? ' · carte cadeau annulée' : '') + ' · ' + d.reason;
     case 'day.closed': return closureNo(d.number) + ' · ' + d.day + ' · ' + fmtEur(d.net) + (d.auto ? ' · automatique' : d.late ? ' · rattrapage' : d.early ? ' · en avance' : '');
     case 'drawer.opened': return 'Fond de caisse ' + fmtEur(d.float);
     case 'drawer.moved': return fmtEur(d.amount) + ' · ' + d.reason;
@@ -65,10 +66,16 @@ function summary(s, e) {
     case 'staff.added': return d.staff ? d.staff.name : '';
     case 'service.updated': case 'product.updated': return Object.keys(d.patch || {}).join(', ');
     case 'payment.succeeded': { const p = s.payments.get(d.id); return p ? fmtEur(p.amount) + ' · ' + p.label : ''; }
-    case 'giftcard.issued': return '•••• ' + d.last4 + ' · ' + fmtEur(d.amount);
+    case 'giftcard.issued': return '•••• ' + d.last4 + ' · ' + fmtEur(d.amount) + (d.reissueOf ? ' · réémise (remplace •••• ' + ((s.giftcards.get(d.reissueOf) || {}).last4 || '') + ')' : d.legacy ? ' · reprise' : '');
+    case 'giftcard.voided': return '•••• ' + ((s.giftcards.get(d.id) || {}).last4 || '') + (d.reason === 'reissued' ? ' · remplacée' : d.reason === 'refunded' ? ' · remboursée' : '');
+    case 'pack.voided': { const k = s.packs.get(d.id); return k ? k.name + (k.voided ? ' · ' + k.voided.left + ' restante' + (k.voided.left > 1 ? 's' : '') + ' annulée' + (k.voided.left > 1 ? 's' : '') : '') : ''; }
     case 'client.updated': return (d.fields || []).join(', ');
     default: return '';
   }
+}
+/** "Carte (TPE)", or "Carte (TPE) 15,00 € + Espèces 10,00 €" for a credit note split as the payment was. */
+function refundMethods(rf) {
+  return rf.parts && rf.parts.length > 1 ? refundParts(rf).map((p) => (METHOD_LABEL[p.method] || p.method) + ' ' + fmtEur(p.amount, { decimals: true })).join(' + ') : METHOD_LABEL[rf.method] || rf.method;
 }
 function actorName(s, a) {
   if (a.t === 'staff') return (s.staff.get(a.id) || {}).name || 'Équipe';
@@ -125,6 +132,31 @@ export function adminRoutes(app) {
   app.patch('/api/v1/products/:id', (r) => r.run(K.updateProduct, { id: r.params.id, patch: r.body }), { cap: 'catalog' });
   app.post('/api/v1/products/:id/archive', (r) => r.run(K.archiveProduct, { id: r.params.id, restore: !!r.body.restore }), { cap: 'catalog' });
   app.post('/api/v1/products/:id/stock', (r) => r.run(K.adjustStock, { id: r.params.id, delta: r.body.delta, reason: r.body.reason }), { cap: 'catalog' });
+
+  /* credit notes and gift cards after the sale */
+  app.get('/api/v1/sales/:id/refund-plan', (r) => {
+    const x = r.s.sales.get(r.params.id);
+    if (!x) throw new HttpError(404, 'not_found', 'Ticket introuvable.');
+    return refundPlan(r.s, x);
+  }, { cap: 'sale.refund' });
+  // the credit note as printed: its number, the ticket it corrects, the lines given back, the VAT given back
+  app.get('/api/v1/refunds/:id', (r) => {
+    const rf = r.s.refunds.get(r.params.id);
+    // whoever may open the ticket may reprint its credit notes (a barber, his own tickets), as GET /api/v1/sales/:id
+    const x = rf && r.s.sales.get(rf.saleId);
+    if (!rf || !x || (!r.caps.has('sale.all') && x.cashierId !== r.me.id && !x.lines.some((l) => l.staffId === r.me.id))) throw new HttpError(404, 'not_found', 'Avoir introuvable.');
+    const by = (r.s.staff.get(rf.by) || {}).name || 'Système';
+    return {
+      id: rf.id, ref: refundNo(rf.number), saleId: rf.saleId, saleRef: ticketNo(rf.saleNumber), day: rf.day, at: rf.at, amount: rf.amount, liability: rf.liability || 0,
+      method: rf.method, parts: refundParts(rf).map((p) => ({ method: p.method, amount: p.amount })), reason: rf.reason, vat: rf.vat || [], lines: rf.lines || [], by
+    };
+  }, { cap: 'sale.create' });
+  app.post('/api/v1/giftcards/:id/send', (r) => {
+    // a code is checked against its hash here: a few tries per minute, no guessing
+    guard('gcsend|' + r.me.id, 10, 60000);
+    return r.run(sendGiftcode, { ...r.body, id: r.params.id });
+  }, { cap: 'sale.create' });
+  app.post('/api/v1/giftcards/:id/reissue', (r) => r.run(reissueGiftcard, { id: r.params.id }), { cap: 'sale.refund' });
 
   /* settings and devices */
   app.get('/api/v1/settings', (r) => ({
@@ -187,7 +219,7 @@ export function adminRoutes(app) {
         const at = new Date(x.at).toLocaleTimeString('fr-FR', { timeZone: 'Europe/Paris', hour: '2-digit', minute: '2-digit' });
         x.lines.forEach((l, i) => rows.push([ticketNo(x.number), x.day, at, c ? c.first + ' ' + c.last : '', l.name, l.kind, l.qty, eu(l.unit), eu(l.net), l.vat / 100, (s.staff.get(l.staffId) || {}).name || '', i === 0 ? pays : '', i === 0 && x.tip ? eu(x.tip.amount) : '']));
       }
-      for (const rf of [...s.refunds.values()].filter((x) => days.has(x.day))) rows.push([refundNo(rf.number), rf.day, '', '', 'Avoir sur ' + ticketNo(rf.saleNumber) + ' · ' + rf.reason, 'avoir', 1, eu(-rf.amount), eu(-rf.amount), '', '', METHOD_LABEL[rf.method] || rf.method, '']);
+      for (const rf of [...s.refunds.values()].filter((x) => days.has(x.day))) rows.push([refundNo(rf.number), rf.day, '', '', 'Avoir sur ' + ticketNo(rf.saleNumber) + ' · ' + rf.reason, rf.liability ? (rf.liability === rf.amount ? 'avoir carte cadeau' : 'avoir dont carte cadeau ' + eu(rf.liability)) : 'avoir', 1, eu(-rf.amount), eu(-rf.amount), '', '', refundMethods(rf), '']);
       body = csv(rows);
     } else if (kind === 'vat' || kind === 'closures') {
       // the same layout as the screen and the printed Z: gross, refunds, net = HT + VAT, then money in by method

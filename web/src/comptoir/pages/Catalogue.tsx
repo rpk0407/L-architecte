@@ -10,10 +10,12 @@ import { Button, Chip, Empty, Field, Kpi, Modal, Note, Sheet, Skeleton, Switch, 
 import { useApp } from '../state';
 import { PageTitle, Reserved } from '../App';
 import type { Product, Service } from '../types';
+import { GiftCode, Voucher, printNow, type VoucherCard } from './caisse/Receipt';
 import './catalogue.css';
 
 type Catalog = { services: Service[]; products: Product[] };
-type Gift = { id: string; last4: string; amount: number; balance: number; expires: string; status: string; recipient: string; buyer: string; issuedAt: number; uses: number };
+// legacy: a paper card taken over ('reprise'); reissueOf: the card it replaced
+type Gift = { id: string; last4: string; amount: number; balance: number; expires: string; status: string; recipient: string; buyer: string; issuedAt: number; uses: number; legacy?: boolean; reissueOf?: string | null; voidReason?: string; replacedBy?: string | null };
 const VATS = [{ v: 2000, t: '20 %' }, { v: 1000, t: '10 %' }, { v: 550, t: '5,5 %' }, { v: 0, t: '0 %' }];
 const DURS = [10, 15, 20, 30, 45, 60, 90, 120];
 const euros = (c: number) => (c / 100).toFixed(2).replace('.', ',').replace(/,00$/, '');
@@ -487,10 +489,16 @@ function Inventory({ open, items, onClose }: { open: boolean; items: Product[]; 
 /* ---------------- gift cards ---------------- */
 
 function Gifts() {
-  const { boot, now } = useApp();
+  const { boot, now, can } = useApp();
   const { data, loading } = useQuery<{ items: Gift[]; outstanding: number }>('/api/v1/giftcards');
   const [code, setCode] = useState('');
   const [found, setFound] = useState<any>(null);
+  const [open, setOpen] = useState<Gift | null>(null);
+  const [takeover, setTakeover] = useState(false);
+  // a code shown once (reissued, or printed for a paper card taken over), and what the printer gets
+  const [fresh, setFresh] = useState<{ card: VoucherCard; title: string } | null>(null);
+  const [voucher, setVoucher] = useState<VoucherCard | null>(null);
+  useEffect(() => { const off = () => setVoucher(null); window.addEventListener('afterprint', off); return () => window.removeEventListener('afterprint', off); }, []);
   const check = async () => {
     try { setFound(await api.get('/api/v1/giftcards/check?code=' + encodeURIComponent(code.trim()))); } catch (e) { setFound(null); toastError(e); }
   };
@@ -498,11 +506,17 @@ function Gifts() {
   if (!data) return null;
   const live = data.items.filter((g) => g.status === 'active' && g.balance > 0 && g.expires >= boot.today);
   const soon = live.filter((g) => dates.diffDays(boot.today, g.expires) <= 30);
+  // a reissued card is the same money under a new code, a paper card taken over was sold before: neither is a sale here
+  const sold = data.items.filter((g) => !g.reissueOf && !g.legacy);
+  const taken = data.items.filter((g) => g.legacy && !g.reissueOf).length;
+  const state = (g: Gift) => (g.status !== 'active' ? (g.voidReason === 'reissued' ? 'remplacée' : g.voidReason === 'refunded' ? 'remboursée' : 'annulée') : '');
+  // a void card holds nothing any more (a reissued one's balance moved to its new card)
+  const off = (g: Gift) => g.status !== 'active';
   return (
     <>
       <section className="kpis">
         <Kpi k="En circulation" v={eur(data.outstanding)} s={plural(live.length, 'carte') + ' encore utilisable' + (live.length > 1 ? 's' : '')} icon="gift" />
-        <Kpi k="Vendues" v={data.items.length} s={eur(data.items.reduce((t, g) => t + g.amount, 0)) + ' au total'} icon="ticket" />
+        <Kpi k="Vendues" v={sold.length} s={eur(sold.reduce((t, g) => t + g.amount, 0)) + ' au total' + (taken ? ' · ' + plural(taken, 'reprise') : '')} icon="ticket" />
         <Kpi k="Expirent bientôt" v={soon.length} s="dans les 30 jours" icon="clock" hot={soon.length > 0} />
       </section>
       <Note icon="info">Une carte cadeau n’est pas du chiffre d’affaires à la vente : c’est une dette envers le client, comptée au moment où elle paie une prestation. La TVA suit la même règle.</Note>
@@ -510,22 +524,94 @@ function Gifts() {
         <section className="card col" style={{ gap: 10 }}>
           <div className="card-h"><h2><Icon name="search" size={16} />Vérifier un code</h2></div>
           <div className="row" style={{ gap: 8 }}><input className="input tnum" value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="CADO-XXXX-XXXX" onKeyDown={(e) => e.key === 'Enter' && code.trim() && check()} aria-label="Code de la carte" /><Button variant="primary" disabled={code.trim().length < 6} onClick={check}>Vérifier</Button></div>
-          {found ? <div className={'note ' + (found.expired || found.status !== 'active' ? 'warn' : found.balance ? 'ok' : '')}><Icon name="gift" /><div><b>{found.balance ? eur(found.balance, { decimals: true }) + ' disponibles' : 'Carte épuisée'}</b> sur {eur(found.amount)} · •••• {found.last4} · {found.expired ? 'expirée le ' : 'valable jusqu’au '}{dates.dayShort(found.expires)} {found.expires.slice(0, 4)}</div></div> : null}
+          {found ? <div className={'note ' + (found.expired || found.status !== 'active' ? 'warn' : found.balance ? 'ok' : '')}><Icon name="gift" /><div><b>{found.status !== 'active' ? (found.replacedBy ? 'Carte remplacée par •••• ' + found.replacedBy : 'Carte annulée') : found.balance ? eur(found.balance, { decimals: true }) + ' disponibles' : 'Carte épuisée'}</b>{found.status === 'active' ? ' sur ' + eur(found.amount) : ''} · •••• {found.last4} · {found.expired ? 'expirée le ' : 'valable jusqu’au '}{dates.dayShort(found.expires)} {found.expires.slice(0, 4)}</div></div> : null}
           <Button variant="ghost" icon="plus" onClick={() => navigate('/caisse?vente=1')}>Vendre une carte cadeau</Button>
+          {can('settings') ? <Button variant="ghost" icon="gift" onClick={() => setTakeover(true)}>Reprendre une carte existante</Button> : null}
+          {fresh ? <><p className="section-k">{fresh.title}</p><GiftCode card={fresh.card} onPrint={() => { setVoucher(fresh.card); printNow(); }} /></> : null}
         </section>
         <section className="card">
           <div className="card-h"><h2><Icon name="gift" size={16} />Toutes les cartes</h2></div>
           {!data.items.length ? <Empty icon="gift" title="Aucune carte vendue">Elles se vendent depuis la caisse, en vente libre.</Empty> : (
             <ul className="list">{data.items.slice(0, 80).map((g) => (
-              <li key={g.id} className="li">
+              <li key={g.id}><button type="button" className="li" onClick={() => setOpen(g)} style={{ width: '100%', textAlign: 'left' }}>
                 <span className="ct-card"><Icon name="gift" size={16} /></span>
-                <span className="li-main"><b>•••• {g.last4}{g.recipient ? ' · ' + g.recipient : ''}</b><small>Vendue {ago(g.issuedAt, now())} · {g.uses ? plural(g.uses, 'utilisation') + ' · ' : ''}{g.expires < boot.today ? 'expirée' : 'valable jusqu’au ' + dates.dayShort(g.expires) + (g.expires.slice(0, 4) !== boot.today.slice(0, 4) ? ' ' + g.expires.slice(0, 4) : '')}</small></span>
-                <span className="li-end"><b className="money tnum">{eur(g.balance, { decimals: g.balance % 100 !== 0 })}</b><small className="faint">sur {eur(g.amount)}</small></span>
-              </li>
+                <span className="li-main"><b>•••• {g.last4}{g.recipient ? ' · ' + g.recipient : ''}{g.legacy && !g.reissueOf ? <span className="badge" style={{ marginLeft: 8 }}>reprise</span> : null}{g.reissueOf ? <span className="badge badge-info" style={{ marginLeft: 8 }}>réémise</span> : null}{state(g) ? <span className="badge badge-warn" style={{ marginLeft: 8 }}>{state(g)}</span> : null}</b><small>{g.legacy && !g.reissueOf ? 'Reprise' : g.reissueOf ? 'Réémise' : 'Vendue'} {ago(g.issuedAt, now())} · {g.uses ? plural(g.uses, 'utilisation') + ' · ' : ''}{g.expires < boot.today ? 'expirée' : 'valable jusqu’au ' + dates.dayShort(g.expires) + (g.expires.slice(0, 4) !== boot.today.slice(0, 4) ? ' ' + g.expires.slice(0, 4) : '')}</small></span>
+                <span className="li-end">{off(g) ? <b className="faint">—</b> : <b className="money tnum">{eur(g.balance, { decimals: g.balance % 100 !== 0 })}</b>}<small className="faint">{off(g) && g.replacedBy ? '→ •••• ' + g.replacedBy : 'sur ' + eur(g.amount)}</small></span>
+              </button></li>
             ))}</ul>
           )}
         </section>
       </div>
+      <GiftSheet gift={open} onClose={() => setOpen(null)} onReissued={(card) => { setOpen(null); setFresh({ card, title: 'Nouvelle carte · l’ancien code ne marche plus' }); }} />
+      <TakeoverModal open={takeover} onClose={() => setTakeover(false)} onDone={(card) => { setTakeover(false); setFresh({ card, title: 'Carte reprise' }); }} />
+      {voucher ? <Voucher card={voucher} /> : null}
     </>
+  );
+}
+
+/** One card: where it stands, and for the owner, a new code when the old one is lost or leaked. */
+function GiftSheet({ gift: g, onClose, onReissued }: { gift: Gift | null; onClose: () => void; onReissued: (c: VoucherCard) => void }) {
+  const { boot, can } = useApp();
+  const [busy, setBusy] = useState(false);
+  const usable = !!g && g.status === 'active' && g.balance > 0 && g.expires >= boot.today;
+  const reissue = async () => {
+    if (!g || !await confirm({ title: 'Annuler •••• ' + g.last4 + ' et réémettre ?', body: 'L’ancien code ne marchera plus. Une nouvelle carte de ' + eur(g.balance, { decimals: g.balance % 100 !== 0 }) + ', valable jusqu’au ' + g.expires.split('-').reverse().join('/') + ', reçoit un nouveau code, affiché une seule fois.', ok: 'Annuler et réémettre', danger: true })) return;
+    setBusy(true);
+    try {
+      const r = await api.post<{ id: string; code: string; amount: number; expires: string; recipient: string }>('/api/v1/giftcards/' + g.id + '/reissue', {});
+      refreshAll(); toast({ title: 'Nouvelle carte •••• ' + r.code.slice(-4), icon: 'gift' });
+      onReissued({ id: r.id, code: r.code, amount: r.amount, expires: r.expires, recipient: r.recipient });
+    } catch (e) { toastError(e); } finally { setBusy(false); }
+  };
+  return (
+    <Sheet open={!!g} onClose={onClose} title={g ? 'Carte •••• ' + g.last4 : 'Carte cadeau'} kicker={g ? (g.legacy && !g.reissueOf ? 'Reprise de l’ancien salon' : g.reissueOf ? 'Réémise' : 'Vendue au salon') : ''}
+      footer={g && usable && can('sale.refund') ? <><span className="grow" /><Button variant="danger" icon="gift" busy={busy} onClick={reissue}>Annuler et réémettre</Button></> : null}>
+      {g ? (
+        <div className="card card-tight">
+          <div className="kv"><span>Solde</span>{g.status !== 'active' ? <b className="faint">— (carte de {eur(g.amount)})</b> : <b className="money">{eur(g.balance, { decimals: true })} sur {eur(g.amount)}</b>}</div>
+          <div className="kv"><span>Valable jusqu’au</span><b>{g.expires.split('-').reverse().join('/')}</b></div>
+          {g.recipient ? <div className="kv"><span>Pour</span><b>{g.recipient}</b></div> : null}
+          {g.buyer ? <div className="kv"><span>Offerte par</span><b>{g.buyer}</b></div> : null}
+          <div className="kv"><span>Utilisations</span><b>{g.uses}</b></div>
+          <div className="kv"><span>État</span><b>{g.status !== 'active' ? (g.voidReason === 'reissued' ? 'Remplacée par ' + (g.replacedBy ? '•••• ' + g.replacedBy : 'une nouvelle carte') : g.voidReason === 'refunded' ? 'Annulée et remboursée' : 'Annulée') : g.expires < boot.today ? 'Expirée' : g.balance ? 'Utilisable' : 'Épuisée'}</b></div>
+        </div>
+      ) : null}
+      {g && usable ? <p className="faint" style={{ fontSize: 12.5 }}>Carte perdue ou code divulgué ? « Annuler et réémettre » bloque l’ancien code et en donne un nouveau, avec le même solde et la même date.</p> : null}
+    </Sheet>
+  );
+}
+
+/** A paper card sold before the switch: its code (or a new one printed for it), its balance, its date. Not a sale: no Z counts it. */
+function TakeoverModal({ open, onClose, onDone }: { open: boolean; onClose: () => void; onDone: (c: VoucherCard) => void }) {
+  const { boot } = useApp();
+  const [code, setCode] = useState('');
+  const [bal, setBal] = useState('');
+  const [exp, setExp] = useState('');
+  const [buyer, setBuyer] = useState('');
+  const [to, setTo] = useState('');
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { if (open) { setCode(''); setBal(''); setExp(dates.addDays(boot.today, 365)); setBuyer(''); setTo(''); } }, [open]);
+  const amount = money.parseEur(bal) || 0;
+  const go = async () => {
+    setBusy(true);
+    try {
+      const r = await api.post<{ id: string; last4: string; code?: string }>('/api/v1/import/giftcard', { code: code.trim() || undefined, amount, expires: exp, buyer: buyer.trim() || undefined, recipient: to.trim() || undefined });
+      refreshAll(); toast({ title: 'Carte •••• ' + r.last4 + ' reprise', icon: 'gift' });
+      onDone({ id: r.id, code: r.code || code.trim().toUpperCase(), amount, expires: exp, recipient: to.trim() });
+    } catch (e) { toastError(e); } finally { setBusy(false); }
+  };
+  return (
+    <Modal open={open} onClose={onClose} label="Reprendre une carte existante">
+      <h2>Reprendre une carte</h2>
+      <p>Une carte vendue avant le passage au Comptoir (papier, ancien site) : elle entre avec son solde, sans compter une deuxième fois dans le chiffre.</p>
+      <Field label="Code de la carte" htmlFor="tk-c" hint="Laisse vide pour imprimer un nouveau code à la place."><input id="tk-c" className="input tnum" value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="KDO-2025-0042" autoComplete="off" maxLength={40} /></Field>
+      <div className="row wrap" style={{ gap: 10 }}>
+        <Field label="Solde restant" htmlFor="tk-b"><input id="tk-b" className="input input-money" inputMode="decimal" value={bal} onChange={(e) => setBal(e.target.value)} placeholder="50,00" /></Field>
+        <Field label="Valable jusqu’au" htmlFor="tk-e"><input id="tk-e" className="input" type="date" value={exp} min={boot.today} onChange={(e) => setExp(e.target.value)} /></Field>
+      </div>
+      <Field label="Offerte par" htmlFor="tk-f"><input id="tk-f" className="input" value={buyer} onChange={(e) => setBuyer(e.target.value)} maxLength={60} placeholder="Facultatif" /></Field>
+      <Field label="Pour" htmlFor="tk-t"><input id="tk-t" className="input" value={to} onChange={(e) => setTo(e.target.value)} maxLength={60} placeholder="Facultatif" /></Field>
+      <div className="acts"><Button variant="ghost" onClick={onClose}>Annuler</Button><Button variant="primary" busy={busy} disabled={amount < 100 || !exp || exp < boot.today} onClick={go}>Reprendre {amount ? eur(amount, { decimals: amount % 100 !== 0 }) : 'la carte'}</Button></div>
+    </Modal>
   );
 }

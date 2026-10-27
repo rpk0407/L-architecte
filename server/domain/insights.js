@@ -3,6 +3,7 @@
 // Results are cached per journal version, so a dashboard refresh costs nothing until something changes.
 import { diffDays, dayRange, weekday, addDays } from '../../shared/dates.js';
 import { staffIntervals, shopIntervals } from './availability.js';
+import { refundParts } from './cash.js';
 
 /** @typedef {import('../core/state.js').State} State */
 
@@ -147,10 +148,12 @@ export function report(s, q) {
     }
     for (const r of s.refunds.values()) {
       if (!inRange(r.day) || one) continue;
-      refunds += r.amount; revenue -= r.amount;
-      const bd = byDay.get(r.day); if (bd) bd.revenue -= r.amount;
+      // a cancelled gift card paid back (liability) never was revenue: only the rest comes off, by method as the Z does
+      const back = r.amount - (r.liability || 0);
+      refunds += back; revenue -= back;
+      const bd = byDay.get(r.day); if (bd) bd.revenue -= back;
       for (const row of r.vat || []) { revenueHT -= row.base; vatTax -= row.tax; }
-      methods['refund_' + r.method] = (methods['refund_' + r.method] || 0) + r.amount;
+      for (const p of refundParts(r)) if (p.revenue) methods['refund_' + p.method] = (methods['refund_' + p.method] || 0) + p.revenue;
     }
     // appointments: sources, absences, occupancy, rebooking
     const sources = { site: 0, phone: 0, walkin: 0, salon: 0 };
