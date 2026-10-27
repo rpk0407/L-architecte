@@ -81,6 +81,9 @@
 .av-sm { --s: 30px; }
 .av-lg { --s: 56px; }
 .av-xl { --s: 84px; }
+/* TEAM-02: a photo over the initials (they show again if it fails), without the halftone */
+.av-pic img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.av-pic::after { display: none; }
 
 /* Cards, sections */
 .card { background: var(--panel); border-radius: var(--r4); padding: 18px; }
