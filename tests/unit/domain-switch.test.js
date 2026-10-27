@@ -152,8 +152,8 @@ const ruleOf = (path) => cfg.redirects.find((r) => !r.has && sourceRe(r.source).
 const destOf = (path) => { const r = ruleOf(path); return r && { status: r.permanent ? 308 : 307, to: r.destination }; };
 
 test('the sub-sitemaps and the stylesheet the live index lists, and the WordPress archives, are redirected', () => {
-  for (const p of ['/wp-sitemap-posts-page-1.xml', '/wp-sitemap-index.xsl', '/wp-sitemap-taxonomies-category-1.xml']) assert.deepEqual(destOf(p), { status: 308, to: '/sitemap.xml' }, p);
-  for (const p of ['/author/admin', '/author/admin/page/2', '/tag/redken', '/tag/redken/feed', '/page/2', '/brews-redken/feed']) assert.deepEqual(destOf(p), { status: 308, to: '/' }, p);
+  for (const p of ['/wp-sitemap-posts-page-1.xml', '/wp-sitemap-index.xsl', '/wp-sitemap.xsl', '/wp-sitemap-taxonomies-category-1.xml']) assert.deepEqual(destOf(p), { status: 308, to: '/sitemap.xml' }, p);
+  for (const p of ['/author/admin', '/author/admin/page/2', '/tag/redken', '/tag/redken/feed', '/page/2', '/page/2/feed', '/brews-redken/feed']) assert.deepEqual(destOf(p), { status: 308, to: '/' }, p);
   // the old rules still answer first, and nothing the app serves is taken by a new one
   assert.equal(destOf('/wp-sitemap.xml').to, '/sitemap.xml');
   assert.equal(destOf('/comments/feed').to, '/');

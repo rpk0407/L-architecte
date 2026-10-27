@@ -37,7 +37,7 @@ export type Health = {
     team: { chairs: { id: string; name: string; pin: boolean }[] };
     devices: number;
     // WP-10: where the takeover stands, from the runs and the Jour J record (hold: client texts wait for the switch)
-    import: { clients: number; appts: number; last: number | null; runs: number; lastRun: number | null; frozenAt: number | null; finalSyncAt: number | null; switchedAt: number | null; hold: { on: boolean; queued: number } };
+    import: { clients: number; appts: number; runs: number; lastRun: number | null; frozenAt: number | null; finalSyncAt: number | null; switchedAt: number | null; hold: { on: boolean; queued: number } };
     siteBooking: number | null;
   };
 };
@@ -123,7 +123,8 @@ export function stepsOf(h: Health, robots: boolean | null, countries: string[], 
       : !sms.provider ? 'Aucun fournisseur' + (sms.queuedNoProvider ? ' : ' + s(sms.queuedNoProvider, 'SMS attend', 'SMS attendent') + ' dans la boîte d’envoi.' : ' : rien ne part.')
         + ' Il se branche le jour J, juste après le passage du domaine : avant, les clients repris de WordPress recevraient un second rappel, avec un lien vers l’ancien site.'
         : (sms.provider === 'brevo' ? 'Brevo' : sms.provider === 'twilio' ? 'Twilio' : sms.provider === 'gateway' ? 'Le téléphone du salon' : sms.provider) + (sms.whatsapp ? ' (WhatsApp en premier)' : '') + ' branché' + (sms.failed24h ? ', mais ' + s(sms.failed24h, 'SMS a échoué', 'SMS ont échoué') + ' en 24 h.' : '.')
-          + (h.publicUrlCustom ? '' : ' Règle PUBLIC_URL avant le premier SMS : les liens partiraient vers ' + (h.publicUrl || 'une adresse provisoire') + '.'),
+          + (h.publicUrlCustom ? '' : ' Règle PUBLIC_URL avant le premier SMS : les liens partiraient vers ' + (h.publicUrl || 'une adresse provisoire') + '.')
+          + (st.import.hold.on ? ' Les SMS aux clients attendent la bascule (Jour J) ; ceux qu’ils demandent eux-mêmes partent.' : ''),
     more: <>À confirmer avec Brevo avant d’ouvrir : le numéro STOP des offres (« STOP au 36173 » par défaut), les champs de son webhook et le nom d’expéditeur. Pays où les SMS partent : {countries.join(' ')}{countries.includes('+377') ? '' : ' (Monaco +377 non compris)'}.</>,
     extra: <TestSms disabled={!demo && !sms.provider} /> });
 
@@ -132,7 +133,7 @@ export function stepsOf(h: Health, robots: boolean | null, countries: string[], 
     tone: demo ? 'info' : !em.provider ? 'todo' : em.failed24h ? 'warn' : 'ok',
     line: demo ? 'Démo : les e-mails sont simulés.'
       : !em.provider ? 'Pas encore branché' + (em.queuedNoProvider ? ' : ' + s(em.queuedNoProvider, 'e-mail attend', 'e-mails attendent') + '.' : ' : aucun e-mail ne part (confirmation, résumé du soir).')
-        : 'Branché' + (em.failed24h ? ', mais ' + s(em.failed24h, 'e-mail a échoué', 'e-mails ont échoué') + ' en 24 h.' : '.') });
+        : 'Branché' + (em.failed24h ? ', mais ' + s(em.failed24h, 'e-mail a échoué', 'e-mails ont échoué') + ' en 24 h.' : '.') + (st.import.hold.on ? ' Les e-mails aux clients attendent la bascule (Jour J).' : '') });
 
   // REV-02: the link the review request leads to must open the Google review form, not the profile or the map
   const kind = reviewLinkKind(review.url);
@@ -147,7 +148,7 @@ export function stepsOf(h: Health, robots: boolean | null, countries: string[], 
   // the takeover of WordPress, from the runs themselves: todo until a first run, then the switch (Reprendre WordPress › Jour J)
   const wp = st.import;
   const dm = (ms: number) => { const d = dates.dayParts(dates.localParts(ms).day); return d.d + (d.d === 1 ? 'er ' : ' ') + dates.MONTHS_FR[d.m - 1]; };
-  const took = s(wp.clients, 'client') + ', ' + s(wp.appts, 'rendez-vous') + ' repris' + (wp.lastRun || wp.last ? ' · dernier apport ' + since(wp.lastRun || wp.last || 0) : '');
+  const took = s(wp.clients, 'client') + ', ' + s(wp.appts, 'rendez-vous') + ' repris' + (wp.lastRun ? ' · dernier apport ' + since(wp.lastRun) : '');
   out.push({ id: 'wordpress', title: 'Reprise WordPress', to: '/reglages/wordpress', go: 'Jour J',
     tone: wp.switchedAt ? 'ok' : wp.runs ? (demo ? 'info' : 'warn') : demo ? 'info' : 'todo',
     line: wp.switchedAt ? 'Bascule faite le ' + dm(wp.switchedAt) + '. ' + took + '.'

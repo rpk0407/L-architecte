@@ -46,7 +46,8 @@ export function Bascule() {
   const [typed, setTyped] = useState<string | null>(null);
   const [busy, setBusy] = useState('');
   const [force, setForce] = useState<string | null>(null);
-  const key = '/api/v1/bascule' + qs({ domain });
+  // the browser's memory is a fallback the server uses only when nothing else names the domain
+  const key = '/api/v1/bascule' + qs({ remembered: domain });
   const { data, error, loading } = useQuery<Data>(key);
 
   /** One gesture at a time; the screens that read the same facts (Mise en route, Santé) follow. */
@@ -61,7 +62,7 @@ export function Bascule() {
     const k = '/api/v1/bascule' + qs({ domain: next });
     const fresh = await api.get<Data>(k + (next ? '&' : '?') + 'refresh=1');
     remember(next); setDomain(next); setTyped(null);
-    prime(k, fresh);
+    prime('/api/v1/bascule' + qs({ remembered: next }), fresh);
   });
   const freeze = () => act('freeze', () => api.post('/api/v1/bascule/freeze', {}).catch((e) => {
     // already frozen (a retry, another screen): only the reminders are left to tick
@@ -83,22 +84,24 @@ export function Bascule() {
   const st = (id: string): Step => by[id] || { id, state: 'info', line: '' };
   const switched = st('switch').state === 'ok';
   const ready = st('freeze').state === 'ok' && st('final-sync').state === 'ok';
+  // why « Ouvrir les envois » is greyed out, in words
+  const waits = st('freeze').state !== 'ok' ? 'Dis d’abord que WordPress est bloqué (étape 2).' : st('final-sync').state === 'err' ? 'Coupe la réservation en ligne sur WordPress, puis refais la synchro finale (étape 3).' : st('final-sync').state !== 'ok' ? 'Fais d’abord la synchro finale, après le blocage (étape 3).' : '';
   const done = (id: string) => st(id).state === 'ok';
-  const text = typed ?? (domain || data.domain);
+  const text = typed ?? data.domain;
 
   const rows: Row[] = [
     { id: 'first-run', title: 'Premier passage' },
     {
       id: 'freeze', title: 'Bloque les réservations sur WordPress et coupe ses rappels',
       sub: 'Salon Booking › Réglages : réservation en ligne désactivée, rappels SMS et e-mail coupés.',
-      go: !done('freeze') ? <Button variant="primary" icon="check" busy={busy === 'freeze'} onClick={freeze}>C’est fait</Button> : undefined,
+      go: !done('freeze') && !switched ? <Button variant="primary" icon="check" busy={busy === 'freeze'} onClick={freeze}>C’est fait</Button> : undefined,
       // the freeze also notes the reminders as cut; only a freeze noted another way leaves them to say
       extra: done('freeze') && !done('reminders-off')
         ? <div className="jj-after"><span>{st('reminders-off').line}</span><Button variant="subtle" icon="check" busy={busy === 'reminders-off'} onClick={() => tick('reminders-off')}>Rappels coupés</Button></div> : undefined
     },
     {
       id: 'final-sync', title: 'Synchro finale',
-      go: !done('final-sync') || st('final-sync').state === 'err' ? <Button variant={st('freeze').state === 'ok' ? 'primary' : 'subtle'} icon="download" onClick={toDrop}>Synchroniser</Button> : undefined
+      go: !switched && (!done('final-sync') || st('final-sync').state === 'err') ? <Button variant={st('freeze').state === 'ok' ? 'primary' : 'subtle'} icon="download" onClick={toDrop}>Synchroniser</Button> : undefined
     },
     {
       id: 'cold-backup', title: 'Copie complète de l’ancien site',
@@ -127,9 +130,10 @@ export function Bascule() {
     {
       id: 'switch', title: 'Bascule faite',
       sub: switched ? undefined : data.hold.on ? 'Tant que les envois sont fermés, aucun SMS ni e-mail ne part vers un client. Ceux que le client a demandés (code, lien) partent quand même.' : undefined,
-      go: !switched ? <Button variant="primary" icon="sms" busy={busy === 'switch'} disabled={!ready} onClick={() => void open()}>Ouvrir les envois</Button> : undefined,
+      go: !switched ? <Button variant="primary" icon="sms" busy={busy === 'switch'} disabled={!ready} aria-describedby={waits ? 'jj-waits' : undefined} onClick={() => void open()}>Ouvrir les envois</Button> : undefined,
       extra: !switched ? (
         <>
+          {waits ? <p id="jj-waits" className="jj-sub">{waits}</p> : null}
           <div className="jj-before">
             <b id="jj-before">Avant d’ouvrir les envois</b>
             <ul aria-labelledby="jj-before">{BEFORE.map((x) => <li key={x}>{x}</li>)}</ul>
@@ -161,7 +165,8 @@ export function Bascule() {
     }
   ];
   // the step the owner is on: the first one that is neither done nor for later
-  const current = rows.find((r) => st(r.id).state !== 'ok' && st(r.id).state !== 'info')?.id;
+  // (once the sends are open, the steps before it are behind: forced or not, they are no longer « now »)
+  const current = rows.slice(switched ? rows.findIndex((r) => r.id === 'switch') + 1 : 0).find((r) => st(r.id).state !== 'ok' && st(r.id).state !== 'info')?.id;
   const shownLine = (r: Row) => {
     const s = st(r.id);
     if (r.id === 'licences' && done('ancien-removed')) return s.line + ' ' + st('ancien-removed').line;
@@ -199,11 +204,11 @@ export function Bascule() {
             <li>Il remet les deux adresses de WordPress à <code>https://barberlarchitecte.com</code> et décoche la case d’indexation.</li>
             <li>Il retire <code>SMS_PROVIDER</code>, <code>EMAIL_FROM</code> et <code>PUBLIC_URL</code> du nouveau salon et redéploie : plus rien ne part d’ici.</li>
             <li><b>Remets WordPress en route : réservation en ligne et rappels.</b></li>
-            <li>Saisis dans WordPress les rendez-vous pris ici depuis la bascule, puis on recommence un autre lundi.</li>
+            <li>Saisis dans WordPress les rendez-vous pris ici depuis son blocage, puis on recommence un autre lundi.</li>
           </ol>
           <div className="row jj-back-acts">
-            <a className="btn btn-subtle" href="/api/v1/bascule/since" download><Icon name="download" />Télécharger les rendez-vous pris ici depuis la bascule (CSV)</a>
-            <span className="faint">{data.since.at ? (data.since.count ? plural(data.since.count, 'rendez-vous') + ' à saisir dans WordPress' : 'Aucun rendez-vous pris ici depuis ' + (switched ? 'la bascule' : 'le blocage')) : 'La liste commence au blocage de WordPress.'}</span>
+            <a className="btn btn-subtle" href="/api/v1/bascule/since" download><Icon name="download" />Télécharger les rendez-vous pris ici depuis le blocage de WordPress (CSV)</a>
+            <span className="faint">{data.since.at ? (data.since.count ? plural(data.since.count, 'rendez-vous') + ' à saisir dans WordPress' : 'Aucun rendez-vous pris ici depuis le blocage') : 'La liste commence au blocage de WordPress.'}</span>
           </div>
         </div>
       </details>

@@ -32,5 +32,5 @@
 .mr-feat .mr-main { padding-top: 0; }
 @media (max-width: 760px) {
   .mr-feat { grid-template-columns: minmax(0, 1fr); gap: 8px; padding: 14px; }
-  .mr-feat .mr-go { justify-self: start; }
+  .mr-feat .mr-go { grid-column: 1; justify-self: start; }
 }

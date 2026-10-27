@@ -47,4 +47,6 @@
 @media (prefers-reduced-motion: reduce) { .jj-step { transition: none; } }
 .jj-before { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; font-size: 12.5px; line-height: 1.45; color: var(--tx3); }
 .jj-before b { font-weight: 600; color: var(--tx2); }
-.jj-before ul { display: flex; flex-direction: column; gap: 3px; margin: 0; padding-left: 18px; }
+.jj-before ul { display: flex; flex-direction: column; gap: 3px; margin: 0; padding-left: 18px; list-style: disc; }
+.jj-before li { display: list-item; }
+.jj-before li::marker { color: var(--tx3); }

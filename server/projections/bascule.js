@@ -52,3 +52,19 @@ export function finalSync(s) {
   for (const r of s.imports.runs.values()) if (r.finishedAt > frozen && !r.undoneAt && (!best || r.finishedAt > best.finishedAt)) best = r;
   return best;
 }
+
+/**
+ * Bookings the final sync brought that the old site took after the freeze: online booking was not cut when it was made.
+ * Only the latest run after the freeze counts: a clean sync after the booking was really switched off clears it.
+ * createdAt is the old site's own clock when the export has one; without it the state falls back on the import's time,
+ * at or after the run's start.
+ * @param {any} s
+ */
+export function lateBookings(s) {
+  const frozen = s.bascule && s.bascule.frozenAt;
+  const run = finalSync(s);
+  if (!frozen || !run) return 0;
+  let n = 0;
+  for (const a of s.appts.values()) if (a.source === 'import' && a.ext && a.ext.run === run.id && a.createdAt > frozen && a.createdAt < run.startedAt) n++;
+  return n;
+}

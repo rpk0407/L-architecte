@@ -11,10 +11,12 @@ import { freezeWordpress, markSwitched, tickBascule } from '../../server/command
 import { tick } from '../../server/commands/system.js';
 import * as A from '../../server/commands/agenda.js';
 import { queueMessage } from '../../server/domain/messages.js';
-import { cutoverHold, cutoverHeld } from '../../server/projections/bascule.js';
+import { cutoverHold, cutoverHeld, lateBookings } from '../../server/projections/bascule.js';
 import { dispatch } from '../../server/http/scheduler.js';
-import { basculeOf, sinceCsv, domainOf, takenHere } from '../../server/http/routes-bascule.js';
+import { basculeOf, sinceCsv, domainOf, takenHere, csv } from '../../server/http/routes-bascule.js';
 import { featuresOf } from '../../server/domain/features.js';
+import { healthOf } from '../../server/http/routes-health.js';
+import { localParts } from '../../shared/dates.js';
 import { testRuntime, browser } from '../api/client.js';
 import { DEMO } from '../../server/domain/seed.js';
 
@@ -170,8 +172,18 @@ test('freeze and final sync: a run before the freeze does not count, one after i
   await run(t, [row(t, 5003, { first: 'Louis', phone: '06 55 44 33 22', createdAt: frozen + 30 * 60000 })]);
   b = await basculeOf(rt());
   assert.equal(step(b, 'final-sync').state, 'err');
-  assert.equal(step(b, 'final-sync').line, '1 rendez-vous pris sur WordPress après le gel : la réservation en ligne est-elle bien coupée ?');
+  assert.equal(step(b, 'final-sync').line, '1 rendez-vous pris sur WordPress après le gel : la réservation en ligne est-elle bien coupée ? Coupe-la, puis refais la synchro.');
+  // the switch is refused while it reads red, forcing it is recorded; a clean sync after the booking was switched off clears it
+  await rejects(t.engine.run(markSwitched, {}, owner(t)), 'late_bookings');
+  t.clock.now += HOUR;
+  await run(t);
+  b = await basculeOf(rt());
+  assert.equal(step(b, 'final-sync').state, 'ok', 'only the latest sync after the freeze counts');
+  assert.equal(late(t), 0);
+  await t.engine.run(markSwitched, {}, owner(t));
+  assert.equal(t.engine.state.bascule.forced, null);
 });
+const late = (t) => lateBookings(t.engine.state);
 
 test('a booking without the old site’s creation time is not mistaken for one taken after the freeze', async () => {
   const t = await salon();
@@ -298,7 +310,9 @@ test('dns: Vercel’s address or CNAME is the new site, an IONOS address is not,
   assert.equal(d.state, 'ok');
   d = await check(dns(['217.160.0.1'], noData));
   assert.equal(d.state, 'todo');
-  assert.match(d.line, /pointe encore vers 217\.160\.0\.1/);
+  assert.match(d.line, /pointe vers 217\.160\.0\.1, pas vers le nouveau site/);
+  assert.equal((await check(dns(['216.198.79.1'], noData))).state, 'ok', 'the newer address');
+  assert.equal((await check(dns(noData, ['3f2a9c1b.vercel-dns-017.com']))).state, 'ok', 'a project’s own CNAME');
   d = await check(dns(noData, noData));
   assert.equal(d.state, 'todo');
   assert.match(d.line, /n’a pas d’adresse/);
@@ -313,6 +327,10 @@ test('dns: Vercel’s address or CNAME is the new site, an IONOS address is not,
   assert.equal(domainOf(t.engine.state, { publicUrl: 'https://salon-xyz.vercel.app' }), '');
   assert.equal(domainOf(t.engine.state, { publicUrl: 'http://localhost:3000' }), '');
   assert.equal(domainOf(t.engine.state, { publicUrl: '' }, 'ancien.autre.fr'), 'autre.fr');
+  // what the browser remembers is a fallback: the public address wins over it, a typed domain over both
+  assert.equal(domainOf(t.engine.state, { publicUrl: '' }, '', 'www.vieux.fr'), 'vieux.fr');
+  assert.equal(domainOf(t.engine.state, { publicUrl: 'https://barberlarchitecte.com' }, '', 'vieux.fr'), 'barberlarchitecte.com');
+  assert.equal(domainOf(t.engine.state, { publicUrl: 'https://barberlarchitecte.com' }, 'autre.fr', 'vieux.fr'), 'autre.fr');
 });
 
 test('the DNS answer is kept a minute, and « Vérifier » asks again', async () => {
@@ -376,12 +394,30 @@ test('the parked old site: noindex by header or tag is fine, an indexable one is
   assert.equal(a.state, 'warn');
   assert.match(a.line, /répond mais reste indexable/);
   assert.equal((await ancien(page('', 404))).state, 'todo');
+  // a redirect: the sub-domain exists, WordPress’s own addresses are not moved to it yet
+  const moved = await ancien(page('', 301, { location: 'https://barberlarchitecte.com/' }));
+  assert.equal(moved.state, 'todo');
+  assert.match(moved.line, /renvoie vers https:\/\/barberlarchitecte\.com\/ : passe les deux adresses de WordPress/);
   assert.equal((await ancien(async () => { throw Object.assign(new Error('getaddrinfo ENOTFOUND'), { cause: { code: 'ENOTFOUND' } }); })).state, 'todo');
   assert.equal((await ancien(async () => { throw new Error('socket hang up'); })).state, 'warn');
   // never an address inside the datacenter, whatever the owner typed
   const privately = await ancien(page(''), { dnsResolve: async () => ['10.0.0.5'] });
   assert.equal(privately.state, 'warn');
   assert.match(privately.line, /adresse privée/);
+  // IPv4-mapped IPv6 is the same private address
+  for (const ip of ['::ffff:127.0.0.1', '::ffff:10.0.0.1', '::ffff:a00:1', '0.0.0.0', '::']) assert.match((await ancien(page(''), { dnsResolve: async () => [ip] })).line, /adresse privée/, ip);
+  // no address at all: nothing is fetched. An unknown name is to do, a resolver that failed is a doubt
+  let fetched = 0;
+  const counting = async () => { fetched++; return new Response(''); };
+  assert.equal((await ancien(counting, { dnsResolve: async () => { throw Object.assign(new Error('x'), { code: 'ENOTFOUND' }); } })).state, 'todo');
+  assert.equal((await ancien(counting, { dnsResolve: async () => { throw new Error('queryA ESERVFAIL'); } })).state, 'warn');
+  assert.equal((await ancien(counting, { dnsResolve: async () => [] })).state, 'todo');
+  assert.equal(fetched, 0);
+  // only the first 64 KB of the page are read: a meta tag after them is not seen, and the stream is cut
+  let pulled = 0;
+  const endless = async () => new Response(new ReadableStream({ pull(c) { pulled++; c.enqueue(new TextEncoder().encode(' '.repeat(16384))); } }), { status: 200 });
+  assert.equal((await ancien(endless)).state, 'warn');
+  assert.ok(pulled < 10, 'stopped after ' + pulled + ' chunks');
   // the owner’s word stands when the check cannot say
   await t.engine.run(tickBascule, { item: 'ancien-noindex', done: true }, owner(t));
   assert.equal((await ancien(page('<meta name="description" content="x">'))).state, 'ok');
@@ -420,11 +456,15 @@ test('since: the bookings made here after the switch, the imported one left out,
   assert.equal(text.charCodeAt(0), 0xFEFF, 'UTF-8 BOM');
   const lines = text.slice(1).split('\r\n').filter(Boolean);
   assert.equal(lines[0], 'date;heure;barbier;prestations;client;téléphone;e-mail;état;pris le');
-  // the imported one (5001), the one made before the switch and the cancelled one are out; the others come in agenda order
-  assert.equal(lines.length, 3);
-  assert.equal(lines[1], '05/11/2026;11:00;Ben;Coupe + barbe;Passage =cmd;;;confirmé;03/11/2026 14:00');
-  assert.equal(lines[2], '06/11/2026;11:00;Ali;Coupe;Yanis Martin;06 12 34 56 78;;confirmé;03/11/2026 14:00');
-  assert.equal((await basculeOf(rtOf(t))).since.count, 2);
+  // the imported one (5001) and the cancelled one are out; the one made between the freeze and the switch stays (WordPress
+  // did not know it either); the others come in agenda order
+  assert.equal(lines.length, 4);
+  assert.match(lines[1], /^05\/11\/2026;11:00;Ben;Coupe \+ barbe;Passage =cmd;;;confirmé;03\/11\/2026 14:00$/);
+  assert.match(lines[2], /^06\/11\/2026;10:00;Ali;Coupe;Yanis Martin;06 12 34 56 78;;confirmé;03\/11\/2026 12:00$/);
+  assert.match(lines[3], /^06\/11\/2026;11:00;Ali;Coupe;Yanis Martin;06 12 34 56 78;;confirmé;03\/11\/2026 14:00$/);
+  const b = await basculeOf(rtOf(t));
+  assert.equal(b.since.count, 3);
+  assert.equal(b.since.at, t.engine.state.bascule.frozenAt, 'the list starts at the freeze');
 });
 
 test('since: nothing before the freeze, and a name that would be read as a formula is quoted', async () => {
@@ -478,6 +518,44 @@ test('the routes: owner only, the CSV downloads, ticks and the switch go through
   for (const p of ['/api/v1/bascule/freeze', '/api/v1/bascule/switch', '/api/v1/bascule/tick']) assert.equal((await o.post(p, { item: 'licences', done: true })).status, 403, p);
 });
 
+test('csv: a foreign phone number is not quoted, a text that would be read as a formula is', () => {
+  const text = csv([['+41 79 123 45 67', '+33612345678', '+cmd|calc', '=1+1', '-5', '@sum', 'a;b']]);
+  assert.equal(text.slice(1), '+41 79 123 45 67;+33612345678;\'+cmd|calc;\'=1+1;\'-5;\'@sum;"a;b"\r\n');
+});
+
+test('health: texts held for the switch are not a scheduler that stopped, and neither are those that waited for it', async () => {
+  const t = await salon();
+  await run(t, [row(t, 5001)]);
+  // the evening summary leaves at 18:00 (a text has gone: the lateness has its `from`), then the client’s reminder is queued and held
+  t.clock.now = at(DAY, 18, 0);
+  await q(t, { key: 'digest', template: 'digest', to: '+33699999999', vars: {}, text: 'Résumé du soir' });
+  const sms = fakeSms();
+  const rt = () => rtOf(t, { sms, pay: { name: 'simulated' }, lastTick: Date.now() });
+  await dispatch(rt());
+  assert.equal(sms.sent.length, 1);
+  t.clock.now = at(DAY, 19, 0);
+  await runTick(t);
+  const rem = [...t.engine.state.messages.values()].find((m) => m.template === 'reminder' && m.cid);
+  await dispatch(rt());
+  assert.equal(get(t, rem.id).status, 'queued');
+  t.clock.now += 2 * HOUR;
+  const L = () => localParts(t.clock.now);
+  let h = await healthOf(rt(), L());
+  assert.equal(h.tick.overdue, 0, 'held, not forgotten');
+  assert.equal(h.tick.late24h, 0);
+  // the switch: what was due before it and goes out after it is not late either
+  await t.engine.run(freezeWordpress, {}, owner(t));
+  t.clock.now += 5 * 60000;
+  await run(t);
+  await t.engine.run(markSwitched, {}, owner(t));
+  t.clock.now += 5 * 60000;
+  await dispatch(rt());
+  t.clock.now += 5 * 60000;
+  h = await healthOf(rt(), L());
+  assert.equal(h.tick.overdue, 0);
+  assert.equal(h.tick.late24h, 0, 'the delay was the hold');
+});
+
 test('features: each settings section’s golive, one row each, and one that fails does not hide the others', async () => {
   const rt = await demoRt();
   const f = featuresOf(rt.engine.state, rt);
@@ -493,6 +571,10 @@ test('features: each settings section’s golive, one row each, and one that fai
   const p = featuresOf(t.engine.state, { signer: { source: 'store' } });
   assert.deepEqual(p.find((x) => x.id === 'membership'), { id: 'membership', label: 'Abonnements', on: false, blocker: 'En attente de la relecture des CGV', to: 'paiements' });
   assert.equal(p.find((x) => x.id === 'fiscal').blocker, 'gardée avec les données');
+  // a section whose state() throws: the others are still returned, the failing one says it could not check
+  const stub = [{ key: 'a', golive: { label: 'A', state: () => ({ on: true }) } }, { key: 'b', golive: { label: 'B', state: () => { throw new Error('boum'); } } }, { key: 'c', golive: { label: 'C', state: () => ({ on: false, blocker: 'attend' }) } }];
+  const bad = featuresOf(rt.engine.state, rt, stub);
+  assert.deepEqual(bad.map((x) => [x.id, x.on, x.blocker]), [['a', true, ''], ['b', false, 'Vérification impossible : boum'], ['c', false, 'attend']]);
   // the route
   const o = browser(rt);
   await o.post('/api/auth/login', { email: DEMO.email, password: DEMO.password });

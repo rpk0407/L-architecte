@@ -13,12 +13,12 @@ const DEFAULT_TO = /** @type {Record<string, string>} */ ({
 });
 
 /**
- * @param {any} s the projection @param {any} rt the runtime
+ * @param {any} s the projection @param {any} rt the runtime @param {readonly any[]} [sections] (the registry; a test passes its own)
  * @returns {{ id: string, label: string, on: boolean, blocker: string, to: string }[]}
  */
-export function featuresOf(s, rt) {
+export function featuresOf(s, rt, sections = SECTIONS) {
   const out = [];
-  for (const sec of SECTIONS) {
+  for (const sec of sections) {
     const g = /** @type {any} */ (sec).golive;
     if (!g || typeof g.state !== 'function') continue;
     let st;

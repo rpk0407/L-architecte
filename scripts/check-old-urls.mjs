@@ -119,4 +119,4 @@ async function main() {
   console.log('\n' + (rows.length - bad.length) + ' adresses sur ' + rows.length + ' arrivent quelque part sur ' + origin + '.');
   if (bad.length) { console.error(bad.length + ' adresse(s) à corriger :\n' + bad.map((r) => r.path + ' (' + r.problem + ')').join('\n')); process.exit(1); }
 }
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) await main();
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) await main().catch((err) => { console.error(String((err && err.message) || err)); process.exit(1); });

@@ -57,6 +57,12 @@ export default async ({ h, page }) => {
   }
   // the switch waits for the freeze and a sync after it
   if (!(await step('switch').getByRole('button', { name: 'Ouvrir les envois' }).isDisabled())) throw new Error('« Ouvrir les envois » is open before the freeze');
+  // why it is shut, in words, and the list of what to check has its bullets
+  await h.expectText(page, 'Dis d’abord que WordPress est bloqué');
+  if ((await step('switch').getByRole('button', { name: 'Ouvrir les envois' }).getAttribute('aria-describedby')) !== 'jj-waits') throw new Error('the shut button is not described by its reason');
+  if ((await step('switch').locator('.jj-before li').first().evaluate((li) => getComputedStyle(li).display)) !== 'list-item') throw new Error('the list has no bullets');
+  await step('switch').scrollIntoViewIfNeeded();
+  await h.shot(page, 'wp-bascule-switch-desktop');
   await page.locator('.jj').evaluate((el) => el.scrollIntoView());
   await h.shot(page, 'wp-bascule-desktop');
 
@@ -104,13 +110,18 @@ export default async ({ h, page }) => {
   await step('app-password').getByRole('button', { name: 'C’est fait' }).waitFor();
   await step('app-password').getByRole('button', { name: 'C’est fait' }).click();
   await expectState('app-password', 'ok');
+  // once the sends are open the steps behind it are no longer « now », and offer no button
+  if (await page.locator('.jj-step.now').count()) throw new Error('a step is still « now » after the switch: ' + (await page.locator('.jj-step.now').getAttribute('data-step')));
+  if (await step('freeze').getByRole('button').count()) throw new Error('the freeze still offers a button after the switch');
+  await step('licences').scrollIntoViewIfNeeded();
+  await h.shot(page, 'wp-bascule-switched-desktop');
 
   // the return plan is folded, with the CSV link
   const plan = page.locator('.jj-back');
   if (await plan.evaluate((d) => d.open)) throw new Error('the return plan is open');
   await plan.locator('summary').click();
   await h.expectText(page, 'Remets WordPress en route : réservation en ligne et rappels');
-  const csv = await plan.getByRole('link', { name: /Télécharger les rendez-vous pris ici depuis la bascule/ }).getAttribute('href');
+  const csv = await plan.getByRole('link', { name: /Télécharger les rendez-vous pris ici depuis le blocage/ }).getAttribute('href');
   if (csv !== '/api/v1/bascule/since') throw new Error('csv link ' + csv);
   const file = await h.api('/api/v1/bascule/since');
   if (file.status !== 200 || !/^date;heure;barbier;prestations;client;téléphone;e-mail;état;pris le/.test(file.text.replace(/^﻿/, ''))) throw new Error('csv: ' + file.status + ' ' + file.text.slice(0, 80));

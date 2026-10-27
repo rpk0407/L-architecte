@@ -31,8 +31,8 @@ export const CASES = [
   ['/feed', 308, '/', '/(feed|comments/feed)'], ['/comments/feed', 308, '/', '/(feed|comments/feed)'],
   ['/wp-sitemap.xml', 308, '/sitemap.xml', '/(wp-sitemap.xml|sitemap_index.xml)'], ['/sitemap_index.xml', 308, '/sitemap.xml', '/(wp-sitemap.xml|sitemap_index.xml)'],
   // the sub-sitemaps and the stylesheet the live index lists, then the archives WordPress generates
-  ['/wp-sitemap-posts-page-1.xml', 308, '/sitemap.xml', '/wp-sitemap-:rest*'], ['/wp-sitemap-index.xsl', 308, '/sitemap.xml', '/wp-sitemap-:rest*'],
-  ['/author/admin', 308, '/', '/author/:slug*'], ['/tag/redken', 308, '/', '/tag/:slug*'], ['/page/2', 308, '/', '/page/:n'], ['/brews-redken/feed', 308, '/', '/:slug/feed'],
+  ['/wp-sitemap-posts-page-1.xml', 308, '/sitemap.xml', '/wp-sitemap-:rest*'], ['/wp-sitemap-index.xsl', 308, '/sitemap.xml', '/wp-sitemap-:rest*'], ['/wp-sitemap.xsl', 308, '/sitemap.xml', '/wp-sitemap.xsl'],
+  ['/author/admin', 308, '/', '/author/:slug*'], ['/tag/redken', 308, '/', '/tag/:slug*'], ['/page/2', 308, '/', '/page/:n'], ['/page/2/feed', 308, '/', '/page/:n/feed'], ['/brews-redken/feed', 308, '/', '/:slug/feed'],
   ['/wp-login.php', 307, '/comptoir', '/wp-login.php'], ['/wp-admin', 307, '/comptoir', '/wp-admin/:path*'], ['/wp-admin/edit.php?post_type=sln_booking', 307, '/comptoir?post_type=sln_booking', '/wp-admin/:path*'],
   ['/wp-content/uploads/2020/11/INFO-COVID.pdf', 308, '/', '/wp-content/uploads/:path*'],
   // WordPress addresses end with a slash: trailingSlash:false strips it first, keeping the query

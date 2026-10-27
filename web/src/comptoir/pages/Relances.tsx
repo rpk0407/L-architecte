@@ -18,7 +18,7 @@ type Overdue = ClientCard & { lastText: number | null; lastDue?: number | null }
 type WaitItem = { id: string; first: string; phone: string; day: string; staffId: string; serviceId: string; from: number; to: number; status: string; offer: { start: number; staffId: string; exp: number } | null; at: number };
 // via, fallback (MSG-02): the way a text really left ('whatsapp' or 'sms'; 'fallback': by Brevo after the salon's phone
 // refused it, FID-01), and why the first way handed it on
-type Msg = { id: string; channel?: 'sms' | 'email'; template: string; status: string; at: number; dueAt: number; sentAt: number | null; to: string; body: string; subject?: string; error: string; via?: 'sms' | 'whatsapp' | 'fallback' | null; fallback?: string };
+type Msg = { id: string; channel?: 'sms' | 'email'; template: string; status: string; at: number; dueAt: number; sentAt: number | null; to: string; body: string; subject?: string; error: string; via?: 'sms' | 'whatsapp' | 'fallback' | null; fallback?: string; held?: boolean };
 type Back = { sent: number; clientsBack: number; revenueBack: number; rate: number };
 type Quiet = { from: number; to: number; sunday: boolean; holidays?: boolean } | undefined;
 type RebookData = { items: Overdue[]; excludedNoConsent: number; stats: Back; template: string; stop: string; quiet?: Quiet };
@@ -47,6 +47,8 @@ const STATUS: Record<string, [string, string]> = { sent: ['envoyé', 'badge-ok']
 /** Outside the demo nothing is simulated: without a provider a message waits for one (and an old 'simulé' never left). */
 function msgStatus(m: Msg, demo: boolean, provider: string | null, now: number): [string, string] {
   const status = m.status;
+  // kept back for the Jour J switch (Réglages › Reprendre WordPress), whatever the provider
+  if (status === 'queued' && m.held) return ['attend la bascule', 'badge-info'];
   // short enough for a phone row: the icon beside it says which channel, the tooltip says it in words
   if (!demo && status === 'queued' && !provider) return ['attend un fournisseur', 'badge-warn'];
   // held back by the quiet hours: it says when it leaves

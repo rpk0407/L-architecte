@@ -7,7 +7,7 @@
 // ticks and the list of features waiting for the switch (domain/features.js). Owner only ('settings').
 import dns from 'node:dns';
 import { HttpError, guard } from './kit.js';
-import { cutoverHold, heldByCutover, finalSync } from '../projections/bascule.js';
+import { cutoverHold, heldByCutover, finalSync, lateBookings } from '../projections/bascule.js';
 import { freezeWordpress, markSwitched, tickBascule } from '../commands/bascule.js';
 import { featuresOf } from '../domain/features.js';
 import { staleReason } from './scheduler.js';
@@ -16,9 +16,10 @@ import { localParts, dayParts, MONTHS_FR, hhmm } from '../../shared/dates.js';
 import { fmtPhone } from '../lib/util.js';
 
 const DAY = 86400000;
-/** The address Vercel gives an apex domain, and the CNAME of a subdomain (docs/operations.md, « DNS chez IONOS »). */
-const VERCEL_A = '76.76.21.21';
-const VERCEL_CNAME = /\.vercel-dns\.com\.?$/i;
+/** The addresses Vercel gives an apex domain (the long-standing one and the newer range), and the CNAME of a subdomain, the
+ *  generic one or a project's own (xxxx.vercel-dns-017.com): docs/operations.md, « DNS chez IONOS ». */
+const VERCEL_A = ['76.76.21.21', '216.198.79.1'];
+const VERCEL_CNAME = /\.vercel-dns(-\d+)?\.com\.?$/i;
 /** a hostname with at least one dot and a letters-only ending: not an IP, not « localhost », no port, no path */
 const HOSTNAME = /^(?=.{4,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,24}$/;
 const CACHE_MS = 60000;
@@ -38,8 +39,12 @@ function within(p, ms) {
   return Promise.race([p, new Promise((_, no) => { timer = setTimeout(() => no(new Error('délai dépassé')), ms); })]).finally(() => clearTimeout(timer));
 }
 
-/** The domain the salon will be served on: typed, else the public address (unless it is Vercel's or local), else the old site's. @param {any} s @param {any} cfg @param {string} [typed] */
-export function domainOf(s, cfg, typed = '') {
+/**
+ * The domain the salon will be served on: typed (a one-off check), else the public address (unless it is Vercel's or
+ * local), else the old site's last run, else the one the card remembers (the owner's browser: a fallback, never an override).
+ * @param {any} s @param {any} cfg @param {string} [typed] @param {string} [remembered]
+ */
+export function domainOf(s, cfg, typed = '', remembered = '') {
   const host = (u) => { try { return new URL(u).hostname.toLowerCase(); } catch { return ''; } };
   const clean = (h) => h.replace(/^(www|ancien)\./, '');
   const own = host(cfg.publicUrl || '');
@@ -50,7 +55,7 @@ export function domainOf(s, cfg, typed = '') {
     const h = r && r.site && r.site.url ? host(r.site.url) : '';
     if (h && HOSTNAME.test(h)) return clean(h);
   }
-  return '';
+  return remembered ? clean(remembered.toLowerCase()) : '';
 }
 
 /** The salon's own https address, not Vercel's provisional one. */
@@ -72,8 +77,8 @@ async function dnsStep(rt, domain) {
   const [a, c] = await Promise.allSettled([within(resolve(domain, 'A'), CHECK_MS), within(resolve(domain, 'CNAME'), CHECK_MS)]);
   const ips = a.status === 'fulfilled' ? a.value.map(String) : [];
   const names = c.status === 'fulfilled' ? c.value.map(String) : [];
-  if (ips.includes(VERCEL_A) || names.some((n) => VERCEL_CNAME.test(n))) return { id: 'dns', state: 'ok', line: domain + ' pointe vers le nouveau site.' };
-  if (ips.length || names.length) return { id: 'dns', state: 'todo', line: domain + ' pointe encore vers ' + [...ips, ...names].join(', ') + ' (l’ancien site) : change les DNS chez IONOS, tableau du jour J.' };
+  if (ips.some((ip) => VERCEL_A.includes(ip)) || names.some((n) => VERCEL_CNAME.test(n))) return { id: 'dns', state: 'ok', line: domain + ' pointe vers le nouveau site.' };
+  if (ips.length || names.length) return { id: 'dns', state: 'todo', line: domain + ' pointe vers ' + [...ips, ...names].join(', ') + ', pas vers le nouveau site : change les DNS chez IONOS, tableau du jour J.' };
   // neither answered: an unknown name is a step to do, anything else (a timeout, a refusing resolver) is a doubt
   const errs = [a, c].map((x) => (x.status === 'rejected' ? x.reason : null)).filter(Boolean);
   if (errs.every((e) => e && (e.code === 'ENODATA' || e.code === 'ENOTFOUND'))) return { id: 'dns', state: 'todo', line: domain + ' n’a pas d’adresse pour l’instant : change les DNS chez IONOS, tableau du jour J.' };
@@ -106,8 +111,33 @@ async function redirectsStep(rt, publicUrl) {
   return { id: 'redirects', state: 'ok', line: pl(CASES.length, 'ancienne adresse redirige', 'anciennes adresses redirigent') + ' comme prévu.' };
 }
 
-/** 10.x, 127.x, 169.254.x, 172.16-31.x, 192.168.x, 100.64-127.x, ::1, fc00::/7, fe80::/10: never fetched for the owner. */
-const privateIp = (ip) => /^(0\.|10\.|127\.|169\.254\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.)/.test(ip) || /^(::1?$|f[cd]|fe[89ab])/i.test(ip);
+/** An IPv4-mapped IPv6 address (::ffff:10.0.0.1, or ::ffff:a00:1) read as the IPv4 it stands for. */
+function plain(ip) {
+  const d = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/i.exec(ip);
+  if (d) return d[1];
+  const h = /^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/i.exec(ip);
+  if (!h) return ip;
+  const x = parseInt(h[1], 16), y = parseInt(h[2], 16);
+  return [x >> 8, x & 255, y >> 8, y & 255].join('.');
+}
+/** 0.x, 10.x, 127.x, 169.254.x, 172.16-31.x, 192.168.x, 100.64-127.x, ::, ::1, fc00::/7, fe80::/10 (also written IPv4-mapped): never fetched for the owner. */
+const privateIp = (raw) => { const ip = plain(String(raw).trim()); return /^(0\.|10\.|127\.|169\.254\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.)/.test(ip) || /^(::1?$|f[cd]|fe[89ab])/i.test(ip); };
+
+/** The first bytes of a response body, no more than max: the rest is never downloaded. @param {Response} r @param {number} max */
+async function head(r, max) {
+  if (!r.body || typeof r.body.getReader !== 'function') return (await r.text()).slice(0, max);
+  const rd = r.body.getReader(), dec = new TextDecoder();
+  let out = '', n = 0;
+  try {
+    for (;;) {
+      const { done, value } = await rd.read();
+      if (done) break;
+      n += value.length; out += dec.decode(value, { stream: true });
+      if (n >= max) break;
+    }
+  } finally { rd.cancel().catch(() => {}); }
+  return out.slice(0, max);
+}
 
 /** The old site, parked at ancien.{domain}: it answers, and Google is told to stay away. @returns {Promise<Step>} */
 async function ancienStep(rt, domain) {
@@ -115,15 +145,24 @@ async function ancienStep(rt, domain) {
   const resolve = rt.dnsResolve || ((h, t) => dns.promises.resolve(h, t));
   try {
     // the host is typed by the owner: an address inside the datacenter is never read
-    const ips = (await within(Promise.all(['A', 'AAAA'].map((type) => Promise.resolve(resolve(host, type)).catch(() => []))), CHECK_MS)).flat();
-    if (ips.some((ip) => privateIp(String(ip)))) return { id: 'ancien', state: 'warn', line: 'Vérification impossible : ' + host + ' pointe vers une adresse privée.' };
+    const got = await within(Promise.allSettled(['A', 'AAAA'].map((type) => Promise.resolve(resolve(host, type)))), CHECK_MS);
+    const ips = got.flatMap((x) => (x.status === 'fulfilled' ? x.value : [])).map(String);
+    // no address at all: nothing is read. An unknown name is a step to do; a resolver that failed is a doubt
+    if (!ips.length) {
+      const errs = got.map((x) => (x.status === 'rejected' ? x.reason : null)).filter(Boolean);
+      if (errs.length && !errs.every((e) => e && (e.code === 'ENODATA' || e.code === 'ENOTFOUND'))) return { id: 'ancien', state: 'warn', line: 'Vérification impossible : ' + reason(errs[0]) };
+      return { id: 'ancien', state: 'todo', line: host + ' n’existe pas encore : crée le sous-domaine chez IONOS, sur l’hébergement WordPress.' };
+    }
+    if (ips.some((ip) => privateIp(ip))) return { id: 'ancien', state: 'warn', line: 'Vérification impossible : ' + host + ' pointe vers une adresse privée.' };
     const r = await (rt.fetch || fetch)('https://' + host + '/', { redirect: 'manual', signal: AbortSignal.timeout(CHECK_MS), headers: { accept: 'text/html' } });
+    // the sub-domain exists but sends back to the main one: WordPress's own two addresses are not yet moved to it
+    if (r.status >= 300 && r.status < 400) return { id: 'ancien', state: 'todo', line: host + ' renvoie vers ' + (String(r.headers.get('location') || 'une autre adresse').slice(0, 100)) + ' : passe les deux adresses de WordPress à https://' + host + ' (Réglages › Général).' };
     if (r.status !== 200) return { id: 'ancien', state: 'todo', line: host + ' ne répond pas encore (code ' + r.status + ') : crée le sous-domaine chez IONOS, sur l’hébergement WordPress.' };
     const tag = r.headers.get('x-robots-tag') || '';
     let noindex = /noindex/i.test(tag);
     if (!noindex) {
       // the first bytes of the page only: <meta name='robots' content='noindex, nofollow'> sits in the head
-      const html = (await within(r.text(), CHECK_MS)).slice(0, READ_MAX);
+      const html = await within(head(r, READ_MAX), CHECK_MS);
       noindex = [...html.matchAll(/<meta\b[^>]*>/gi)].some((m) => /name\s*=\s*["']robots["']/i.test(m[0]) && /content\s*=\s*["'][^"']*noindex/i.test(m[0]));
     }
     return noindex ? { id: 'ancien', state: 'ok', line: host + ' répond et reste hors de Google.' }
@@ -150,11 +189,13 @@ async function cached(rt, key, refresh, fn, id) {
 }
 
 /**
- * The bookings taken here since the freeze that WordPress does not know: booked or pending, not brought by an import.
+ * The bookings taken here since the freeze that WordPress does not know: booked or pending, not brought by an import. The
+ * freeze is the moment WordPress stopped hearing about bookings, so the list starts there even after the switch (a switch
+ * with no freeze, forced, starts at the switch).
  * @param {any} s
  */
 export function takenHere(s) {
-  const since = s.bascule.switchedAt || s.bascule.frozenAt;
+  const since = s.bascule.frozenAt || s.bascule.switchedAt;
   if (!since) return [];
   return [...s.appts.values()].filter((a) => a.source !== 'import' && !a.demo && a.createdAt > since && (a.status === 'booked' || a.status === 'pending'))
     .sort((a, b) => (a.day < b.day ? -1 : a.day > b.day ? 1 : a.start - b.start));
@@ -168,24 +209,9 @@ export function heldQueued(s, now) {
   return n;
 }
 
-/** Bookings brought by a run finished after the freeze that the old site took after it: online booking is not cut. @param {any} s */
-function lateBookings(s) {
-  const frozen = s.bascule.frozenAt;
-  if (!frozen) return 0;
-  const runs = new Map([...s.imports.runs.values()].filter((r) => r.finishedAt > frozen && !r.undoneAt).map((r) => [r.id, r]));
-  if (!runs.size) return 0;
-  let n = 0;
-  for (const a of s.appts.values()) {
-    const r = a.source === 'import' && a.ext && a.ext.run ? runs.get(a.ext.run) : null;
-    // createdAt is the old site's own clock when the export has one; without it the state falls back on the import's time, at or after the run's start
-    if (r && a.createdAt > frozen && a.createdAt < r.startedAt) n++;
-  }
-  return n;
-}
-
 /**
  * Everything GET /api/v1/bascule returns.
- * @param {any} rt @param {{ domain?: string, refresh?: boolean }} [o]
+ * @param {any} rt @param {{ domain?: string, remembered?: string, refresh?: boolean }} [o]
  */
 export async function basculeOf(rt, o = {}) {
   const e = rt.engine;
@@ -195,7 +221,7 @@ export async function basculeOf(rt, o = {}) {
   const demo = s.mode !== 'production';
   const runs = [...s.imports.order].map((id) => s.imports.runs.get(id)).filter((r) => r && r.finishedAt && !r.undoneAt);
   const first = runs[0];
-  const domain = domainOf(s, rt.cfg, o.domain || '');
+  const domain = domainOf(s, rt.cfg, o.domain || '', o.remembered || '');
   const tick = (id) => B.ticks[id] || 0;
   /** @type {Step[]} */
   const steps = [];
@@ -203,7 +229,7 @@ export async function basculeOf(rt, o = {}) {
   if (first) {
     const c = first.counts || {}, a = c.appts || {}, cl = c.clients || {};
     const made = (a.done || 0) + (a.noShow || 0) + (a.cancelled || 0) + (a.booked || 0);
-    steps.push({ id: 'first-run', state: 'ok', at: first.finishedAt, line: pl((cl.added || 0) + (cl.merged || 0), 'client') + ', ' + pl(made, 'rendez-vous') + ' · ' + dm(first.finishedAt) });
+    steps.push({ id: 'first-run', state: 'ok', at: first.finishedAt, line: pl(cl.added || 0, 'client') + ', ' + pl(made, 'rendez-vous') + ' · ' + dm(first.finishedAt) });
   } else steps.push({ id: 'first-run', state: 'todo', line: 'Pas de premier passage : dépose les exports de WordPress.' });
 
   steps.push(B.frozenAt ? { id: 'freeze', state: 'ok', at: B.frozenAt, line: 'WordPress est bloqué depuis le ' + dm(B.frozenAt) + ' à ' + hhmm(localParts(B.frozenAt).min) + '.' }
@@ -215,7 +241,7 @@ export async function basculeOf(rt, o = {}) {
 
   const sync = finalSync(s);
   const late = lateBookings(s);
-  steps.push(late ? { id: 'final-sync', state: 'err', at: sync.finishedAt, line: pl(late, 'rendez-vous pris') + ' sur WordPress après le gel : la réservation en ligne est-elle bien coupée ?' }
+  steps.push(late ? { id: 'final-sync', state: 'err', at: sync.finishedAt, line: pl(late, 'rendez-vous pris') + ' sur WordPress après le gel : la réservation en ligne est-elle bien coupée ? Coupe-la, puis refais la synchro.' }
     : sync ? { id: 'final-sync', state: 'ok', at: sync.finishedAt, line: 'Faite à ' + hhmm(localParts(sync.finishedAt).min) + ', après le gel.' }
       : { id: 'final-sync', state: 'todo', line: B.frozenAt ? 'Refais l’export de WordPress et dépose-le : seul ce qui a changé depuis le gel est repris.' : 'Elle vient après le gel de WordPress : refais l’export et dépose-le.' });
 
@@ -256,12 +282,12 @@ export async function basculeOf(rt, o = {}) {
     : { id: 'ancien-removed', state: 'info', line: 'Une fois les licences résiliées, ton prestataire supprime le sous-domaine ancien.' });
 
   const taken = takenHere(s);
-  return { steps, hold: { on: cutoverHold(s), queued: held }, since: { at: B.switchedAt || B.frozenAt || 0, count: taken.length }, domain, demo };
+  return { steps, hold: { on: cutoverHold(s), queued: held }, since: { at: B.frozenAt || B.switchedAt || 0, count: taken.length }, domain, demo };
 }
 
-/** UTF-8 BOM, `;`, CRLF; a text that Excel would read as a formula is prefixed. */
-function csv(rows) {
-  const esc = (v) => { let t = v == null ? '' : String(v); if (/^[=+\-@\t\r]/.test(t)) t = "'" + t; return /[;"\r\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t; };
+/** UTF-8 BOM, `;`, CRLF; a text that Excel would read as a formula is prefixed (a foreign phone number, +41 79…, is not one). */
+export function csv(rows) {
+  const esc = (v) => { let t = v == null ? '' : String(v); if (/^[=+\-@\t\r]/.test(t) && !/^\+\d[\d ]*$/.test(t)) t = "'" + t; return /[;"\r\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t; };
   return '﻿' + rows.map((r) => r.map(esc).join(';')).join('\r\n') + '\r\n';
 }
 const dmy = (day) => day.split('-').reverse().join('/');
@@ -281,13 +307,22 @@ export function sinceCsv(s) {
   return csv(rows);
 }
 
+/** Was this domain checked in the last minute on this instance? (then asking again costs the network nothing) */
+function isCached(rt, domain) {
+  const m = memo.get(rt), hit = m && m.get('dns|' + domain);
+  return !!hit && Date.now() - hit.t < CACHE_MS;
+}
+
 export function basculeRoutes(app) {
+  // `domain`: typed by the owner for a one-off check; `remembered`: what his browser kept, used only when nothing else names the domain
   app.get('/api/v1/bascule', (r) => {
-    const domain = String(r.query.get('domain') || '').trim().toLowerCase();
-    if (domain && !HOSTNAME.test(domain)) throw new HttpError(400, 'invalid', 'domain : indique un nom de domaine, par exemple barberlarchitecte.com.');
+    const clean = (k) => { const v = String(r.query.get(k) || '').trim().toLowerCase(); if (v && !HOSTNAME.test(v)) throw new HttpError(400, 'invalid', k + ' : indique un nom de domaine, par exemple barberlarchitecte.com.'); return v; };
+    const domain = clean('domain'), remembered = clean('remembered');
     const refresh = r.query.get('refresh') === '1';
-    if (refresh) guard('bascule|' + r.me.id, 12, 60000, 'Trop de vérifications. Réessaie dans une minute.');
-    return basculeOf(r.rt, { domain, refresh });
+    // each new domain starts DNS lookups and an outgoing request: the one the config names is free, any other is paced
+    const eff = domainOf(r.s, r.rt.cfg, domain, remembered);
+    if (refresh || (r.s.mode === 'production' && eff && eff !== domainOf(r.s, r.rt.cfg) && !isCached(r.rt, eff))) guard('bascule|' + r.me.id, 12, 60000, 'Trop de vérifications. Réessaie dans une minute.');
+    return basculeOf(r.rt, { domain, remembered, refresh });
   }, { cap: 'settings' });
 
   // the return plan's list: what clients booked here since the freeze (the switch once made), to re-enter in WordPress
