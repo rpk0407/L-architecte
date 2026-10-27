@@ -2,10 +2,10 @@
 // The public API: what the client site and the "mon rendez-vous" page use. No account, no personal data out.
 import { HttpError, guard, json } from './kit.js';
 import { serviceView, staffView } from './views.js';
-import { freeSlots, walkinEstimate, shopIntervals } from '../domain/availability.js';
+import { freeSlots, walkinEstimate, shopIntervals, staffIntervals, UNDECIDED } from '../domain/availability.js';
 import { clientMayChange, payWindowMin, payDeadline } from '../domain/policy.js';
 import { signLink, checkLink } from '../auth/session.js';
-import { addDays, isDay, diffDays } from '../../shared/dates.js';
+import { addDays, isDay, diffDays, dayLong } from '../../shared/dates.js';
 import { newId, safeEqual } from '../lib/util.js';
 import * as A from '../commands/agenda.js';
 import { createPayment, paymentSucceeded, paymentEnded } from '../commands/payments.js';
@@ -15,6 +15,7 @@ import { webhookKey, parseSmsWebhook } from '../messaging/sms.js';
 import { maybeTick } from './scheduler.js';
 import { publicSite } from '../settings/site.js';
 import { waitUntil } from '@vercel/functions';
+import { fulfilGiftcard } from './routes-giftshop.js';
 
 /** The demo, for real: both the configuration and the journal say so (a demo journal opened in production is not one). */
 export const isDemo = (r) => r.rt.cfg.mode === 'demo' && r.s.mode === 'demo';
@@ -26,6 +27,24 @@ const PROVIDER = (r, id) => ({ actor: /** @type {const} */ ({ t: 'provider', id 
 
 // once today's Z is done (an early close), the shop takes nobody else: the site stops saying "Ouvert"
 function isOpenNow(s, L) { return !s.closures.has(L.day) && shopIntervals(s, L.day).some(([a, b]) => L.min >= a && L.min < b); }
+
+/**
+ * What the site may say of a barber who is away today: only when the absence carries a public note (DO-05's
+ * publicNote, its text or true for the plain 'JKut revient le …'). Back-to-back absences read as one.
+ * @returns {{ until: string, back: string|null, note: string }|null}
+ */
+export function awayOf(s, st, today) {
+  const off = [...s.timeoff.values()].filter((t) => t.staffId === st.id && (t.startMin == null || t.from !== t.to) && !UNDECIDED.has(t.status));
+  const cur = off.find((t) => t.from <= today && t.to >= today && t.publicNote);
+  if (!cur) return null;
+  let until = cur.to;
+  for (let more = true; more;) { more = false; for (const t of off) if (t.from <= addDays(until, 1) && t.to > until) { until = t.to; more = true; } }
+  let back = null;
+  for (let i = 1; i <= 60 && !back; i++) { const d = addDays(until, i); if (staffIntervals(s, st.id, d).length) back = d; }
+  const own = typeof cur.publicNote === 'string' ? cur.publicNote.trim().slice(0, 120) : '';
+  const note = own || (back ? st.name + ' revient le ' + dayLong(back) : '');
+  return note ? { until, back, note } : null;
+}
 
 function bookingView(r, a) {
   const s = r.s;
@@ -88,10 +107,15 @@ export function publicRoutes(app) {
     const services = active.filter((x) => x.online !== false).map((x) => (live ? serviceView(x) : { ...serviceView(x), deposit: 0 }));
     // the whole price list (the CGV show it, the FAQ quotes it): booked at the salon only when online is false
     const menu = active.map((x) => ({ slug: x.slug || null, name: x.name, category: x.category, price: x.price, from: !!x.from, dur: x.dur, online: x.online !== false }));
-    const barbers = [...s.staff.values()].filter((x) => x.active && x.chair && x.bookable).sort((a, b) => (a.order ?? 99) - (b.order ?? 99)).map((x) => staffView(x));
+    const chairs = [...s.staff.values()].filter((x) => x.active && x.chair && x.bookable).sort((a, b) => (a.order ?? 99) - (b.order ?? 99));
+    const barbers = chairs.map((x) => ({ ...staffView(x), away: awayOf(s, x, L.day) }));
+    // the days it opens when it usually doesn't, or with other hours; one a closure covers is closed (it wins, as in
+    // availability.js), and one for named barbers nobody can be booked on (archived, all away) is not announced
+    const closures = s.settings.closures.filter((c) => c.to >= L.day);
+    const openings = (s.settings.openings || []).filter((o) => o.day >= L.day && !closures.some((c) => o.day >= c.from && o.day <= c.to) && (!Array.isArray(o.staff) || chairs.some((x) => staffIntervals(s, x.id, o.day).length))).map((o) => ({ day: o.day, intervals: o.intervals, label: o.label }));
     const b = s.settings.booking;
     return json({
-      shop: { ...s.settings.shop }, hours: s.settings.hours, closures: s.settings.closures.filter((c) => c.to >= L.day),
+      shop: { ...s.settings.shop }, hours: s.settings.hours, closures, openings,
       booking: { enabled: b.enabled, stepMin: b.stepMin, minNoticeMin: b.minNoticeMin, maxDaysAhead: b.maxDaysAhead, holdMin: b.holdMin, pendingPayMin: payWindowMin(s, { stripe: r.rt.pay.name === 'stripe' }), cancelUntilHours: b.cancelUntilHours, waitlist: b.waitlist, walkinWait: b.walkinWait },
       // sms: does a text really leave? payments.live: is a deposit really taken online? (false: the site books without one)
       deposits: live ? s.settings.deposits : { ...s.settings.deposits, mode: 'none' }, services, menu, barbers, site: publicSite(s.settings, active, L.day), sms: !!r.rt.sms || isDemo(r), payments: { provider: r.rt.pay.name, live }, mode: s.mode, today: L.day, now: r.now
@@ -103,7 +127,7 @@ export function publicRoutes(app) {
     background(r);
     const open = isOpenNow(s, L);
     const est = open && s.settings.booking.walkinWait ? walkinEstimate(s, r.now, L) : { minutes: null, queued: 0 };
-    return json({ open, closedToday: s.closures.has(L.day), waitMin: est.minutes, queued: est.queued, today: L.day, min: L.min }, 200, { 'cache-control': 'public, max-age=0, s-maxage=15, stale-while-revalidate=30' });
+    return json({ open, closedToday: s.closures.has(L.day), waitMin: est.minutes, queued: est.queued, today: L.day, min: L.min }, 200, { 'cache-control': 'public, max-age=0, s-maxage=15' });
   });
 
   app.get('/api/public/availability', (r) => {
@@ -256,9 +280,9 @@ export function publicRoutes(app) {
 /** A payment went through: record it; if its booking expired meanwhile, give the money back. */
 async function afterProviderPaid(r, ev, provider) {
   const res = await r.rt.engine.run(paymentSucceeded, { providerRef: ev.ref, amount: ev.amount, chargeRef: ev.chargeRef, pm: ev.pm, customer: ev.customer }, PROVIDER(r, provider));
-  if (res && res.late) {
-    const p = r.s.payments.get(r.s.paymentByRef.get(ev.ref));
-    await refundOnline(r, p, 'Réservation expirée avant le paiement');
-  }
+  const p = r.s.payments.get(r.s.paymentByRef.get(ev.ref));
+  if (res && res.late) await refundOnline(r, p, 'Réservation expirée avant le paiement');
+  // a gift card bought online (IN-01): the sale and the code's SMS, on every paid notice (fulfilGiftcard is idempotent)
+  if (p && p.kind === 'giftcard' && p.status === 'paid') await fulfilGiftcard(r, p);
   return res;
 }

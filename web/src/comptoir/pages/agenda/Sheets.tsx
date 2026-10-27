@@ -5,6 +5,7 @@ import { refreshAll, useQuery } from '../../../lib/query';
 import { navigate } from '../../../lib/router';
 import { cap, dates, dayShortWord, dayWord, dur, eur, hhmm, rhythmWords, sinceWords, STATUS, SOURCE, time, ago } from '../../../lib/format';
 import { useDebounced } from '../../../lib/hooks';
+import { shopOpenOn } from '../../../lib/hours';
 import { Icon } from '../../../ui/Icon';
 import { Avatar, Button, Chip, Field, Money, Note, Sheet, Switch, confirm, toast, toastError, Skeleton } from '../../../ui/kit';
 import { useApp } from '../../state';
@@ -56,7 +57,7 @@ export function SlotPicker({ serviceIds, staffId, day, value, onPick, ignore, ho
   return (
     <div className="col" style={{ gap: 12 }}>
       <div className="days" role="group" aria-label="Jour">
-        {days.map((k) => { const p = dates.dayParts(k); const open = (boot.settings.hours[p.wd] || []).length > 0; return <button key={k} type="button" className="dayc" aria-pressed={k === d} disabled={!open} onClick={() => setD(k)}><small>{k === boot.today ? 'auj.' : dates.DAYS_SH[p.wd]}</small><b>{p.d}</b></button>; })}
+        {days.map((k) => { const p = dates.dayParts(k); const open = shopOpenOn(boot.settings, k); return <button key={k} type="button" className="dayc" aria-pressed={k === d} disabled={!open} onClick={() => setD(k)}><small>{k === boot.today ? 'auj.' : dates.DAYS_SH[p.wd]}</small><b>{p.d}</b></button>; })}
       </div>
       {loading ? <Skeleton h={100} /> : !slots.length ? <Note icon="clock">Plus rien de libre ce jour-là{staffId !== 'any' ? ' pour ' + (staffById.get(staffId)?.name || '') : ''}. Essaie un autre jour ou « le premier libre ».</Note> : parts.map((pt) => {
         const list = slots.filter((x) => x.m >= pt.a && x.m < pt.b);

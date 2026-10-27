@@ -4,7 +4,7 @@
 // schema validates a patch of that key (PATCH /api/v1/settings); null means the key is written by its own commands.
 import { opt, obj } from '../lib/validate.js';
 import shop from './shop.js';
-import hours, { closures } from './hours.js';
+import hours, { closures, openings } from './hours.js';
 import booking from './booking.js';
 import deposits from './deposits.js';
 import payments from './payments.js';
@@ -20,6 +20,7 @@ const TYPED = /** @type {const} */ ([
   shop,
   hours,
   closures,
+  openings,
   booking,
   deposits,
   payments,

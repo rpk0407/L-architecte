@@ -987,6 +987,10 @@ html{scroll-behavior:auto}
 .ann svg{flex:none;width:16px;height:16px;opacity:.8}
 a.ann:hover span{text-decoration:underline;text-underline-offset:4px}
 .mn-ann{padding:12px 14px;border-radius:14px;background:rgba(236,232,224,.07);box-shadow:inset 3px 0 0 var(--rouge);font:600 15px/1.35 var(--f-sans)}
+/* closures and exceptional openings (Réglages › Horaires): the same banner, green when the salon opens */
+.ann.ann-op i{background:#4ADE80;box-shadow:0 0 0 4px rgba(74,222,128,.22)}
+.mn-ann.ann-op{box-shadow:inset 3px 0 0 #4ADE80}
+.bb-i.away .bb-next i{background:var(--cendre2)}
 .hr-sub{white-space:pre-line}
 .ms-lead,.fq-a p,.bb-bio{white-space:pre-line}
 .bb-av img,.wh-av img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
@@ -1022,6 +1026,8 @@ a.ann:hover span{text-decoration:underline;text-underline-offset:4px}
 </ol>
 <div class="mn-foot">
 <p class="{{mnSt}}"><i aria-hidden="true"></i><span>{{stText}}</span></p>
+<sc-if value="{{hasNotice}}" hint-placeholder-val="{{ false }}"><p class="{{noticeMnCls}}">{{noticeText}}</p></sc-if>
+<sc-if value="{{hasNotice2}}" hint-placeholder-val="{{ false }}"><p class="{{notice2MnCls}}">{{notice2Text}}</p></sc-if>
 <sc-if value="{{hasAnn}}" hint-placeholder-val="{{ false }}"><p class="mn-ann">{{annText}}</p></sc-if>
 <p class="mn-ad">{{addrLine}}</p>
 <button type="button" class="btn" onClick="{{openMain}}">Réserver</button>
@@ -1036,6 +1042,8 @@ a.ann:hover span{text-decoration:underline;text-underline-offset:4px}
 <h1 class="vh" id="t-hero">{{heroTitle}} Barber L’Architecte, barbier place Pélabon à Marseille</h1>
 <div class="hr-ph"><div class="hr-ph-in" ref="{{r.heroPh}}"><sc-if value="{{heroShipped}}" hint-placeholder-val="{{ true }}"><img src="/img/fade.jpg" width="1220" height="1194" alt="{{heroPh.alt}}" fetchpriority="high"></sc-if><sc-if value="{{heroOwn}}" hint-placeholder-val="{{ false }}"><img src="{{heroPh.url}}" width="1220" height="1194" alt="{{heroPh.alt}}" loading="lazy" fetchpriority="high" ref="{{r.heroOwn}}"></sc-if></div></div>
 <div class="hr-top">
+<sc-if value="{{hasNotice}}" hint-placeholder-val="{{ false }}"><p class="{{noticeCls}}" role="status"><i aria-hidden="true"></i><span>{{noticeText}}</span></p></sc-if>
+<sc-if value="{{hasNotice2}}" hint-placeholder-val="{{ false }}"><p class="{{notice2Cls}}" role="status"><i aria-hidden="true"></i><span>{{notice2Text}}</span></p></sc-if>
 <sc-if value="{{hasAnn}}" hint-placeholder-val="{{ false }}"><sc-if value="{{annLinked}}" hint-placeholder-val="{{ false }}"><a class="ann" href="{{annLink}}"><i aria-hidden="true"></i><span>{{annText}}</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17L17 7M8 7h9v9"/></svg></a></sc-if><sc-if value="{{annPlain}}" hint-placeholder-val="{{ true }}"><p class="ann" role="status"><i aria-hidden="true"></i><span>{{annText}}</span></p></sc-if></sc-if>
 <div class="hr-word"><canvas class="ht" ref="{{r.heroCv}}" aria-hidden="true"></canvas></div>
 <p class="hr-sub">{{heroSub}}</p>
@@ -1248,7 +1256,7 @@ a.ann:hover span{text-decoration:underline;text-underline-offset:4px}
 <sc-if value="{{hasIg}}" hint-placeholder-val="{{ true }}"><li><a href="{{igUrl}}" target="_blank" rel="noopener">Instagram</a></li></sc-if>
 <sc-if value="{{hasFb}}" hint-placeholder-val="{{ true }}"><li><a href="{{fbUrl}}" target="_blank" rel="noopener">Facebook</a></li></sc-if>
 <sc-if value="{{hasYt}}" hint-placeholder-val="{{ true }}"><li><a href="{{ytUrl}}" target="_blank" rel="noopener">YouTube</a></li></sc-if>
-<li><a href="mailto:larchitectebarber@gmail.com">Écrire au salon</a></li>
+<li><a href="/contact">Écrire au salon</a></li>
 <li><a href="/formations">Formations</a></li>
 <li><a href="/carte-cadeau">Carte cadeau</a></li>
 <li><a href="/mon-rendez-vous">Mon rendez-vous</a></li>
@@ -1488,10 +1496,47 @@ const LXE = (function () {
   }
   /* the salon's clock, not the phone's: a phone set to the wrong time still sees the right slots */
   function now() { const P = parisParts(Date.now() + skew); return { P: P, key: keyOf(P.y, P.m, P.d), min: P.min }; }
+  /* a closure beats an exceptional opening, which beats the usual week (as the salon's own availability does) */
+  function closureOf(key) { return salon ? (salon.closures || []).filter(function (c) { return c.from <= key && c.to >= key; })[0] || null : null; }
+  function openingOf(key) { return salon && !closureOf(key) ? (salon.openings || []).filter(function (o) { return o.day === key; })[0] || null : null; }
   function hoursOf(key) {
     if (!salon) { const wd = parts(key).wd; return wd >= 2 && wd <= 6 ? [[540, 1110]] : []; }
-    if ((salon.closures || []).some(function (c) { return c.from <= key && c.to >= key; })) return [];
-    return salon.hours[parts(key).wd] || [];
+    if (closureOf(key)) return [];
+    const op = openingOf(key);
+    return op ? op.intervals : salon.hours[parts(key).wd] || [];
+  }
+  function dm(key) { const p = parts(key); return (p.d === 1 ? '1er' : p.d) + ' ' + MONTHS[p.m - 1]; }
+  function ivText(iv) { return iv.map(function (x) { return fmtH(x[0]) + ' – ' + fmtH(x[1]); }).join(' et '); }
+  /* an opening on a day the salon usually opens is other hours (an early close on the 24th), not an exceptional opening */
+  function specialOf(key) { return !!openingOf(key) && (salon.hours[parts(key).wd] || []).length > 0; }
+  /* the next closure and the next exceptional opening within 14 days, in date order and in words: 'Fermé du 24 au
+     26 décembre · Congés', 'Ouvert exceptionnellement lundi 21 décembre, 9 h – 18 h 30', 'Horaires spéciaux jeudi
+     24 décembre : 9 h – 14 h' (openings of the same kind with the same hours read together) */
+  function notices() {
+    if (!salon) return [];
+    const today = now().key, out = [];
+    const soon = function (k) { return diffDays(today, k) <= 14; };
+    const cl = (salon.closures || []).filter(function (c) { return c.to >= today && soon(c.from); }).sort(function (a, b) { return a.from < b.from ? -1 : 1; })[0];
+    if (cl) {
+      const why = cl.label ? ' · ' + cl.label : '';
+      const a = parts(cl.from), b = parts(cl.to);
+      out.push({ at: cl.from, kind: 'closed', text: (cl.from <= today ? (cl.to === today ? 'Fermé aujourd’hui' : 'Fermé jusqu’au ' + dm(cl.to) + ' inclus')
+        : cl.from === cl.to ? 'Fermé ' + (diffDays(today, cl.from) === 1 ? 'demain, ' : '') + dayLong(cl.from)
+        : 'Fermé du ' + (a.m === b.m && a.y === b.y ? (a.d === 1 ? '1er' : a.d) : dm(cl.from)) + ' au ' + dm(cl.to)) + why });
+    }
+    const ops = (salon.openings || []).filter(function (o) { return o.day >= today && soon(o.day) && !closureOf(o.day); }).sort(function (a, b) { return a.day < b.day ? -1 : 1; });
+    if (ops.length) {
+      const sig = function (o) { return JSON.stringify(o.intervals) + specialOf(o.day); };
+      const same = ops.filter(function (o) { return sig(o) === sig(ops[0]); });
+      const P = same.map(function (o) { return parts(o.day); });
+      let when;
+      if (same.length === 1) when = same[0].day === today ? 'aujourd’hui' : dayLong(same[0].day);
+      else if (P.every(function (p) { return p.wd === P[0].wd && p.m === P[0].m; })) when = 'les ' + DAYS[P[0].wd] + 's ' + P.map(function (p) { return p.d === 1 ? '1er' : p.d; }).join(', ').replace(/, ([^,]+)$/, ' et $1') + ' ' + MONTHS[P[0].m - 1];
+      else when = same.map(function (o) { return dayLong(o.day); }).join(', ').replace(/, ([^,]+)$/, ' et $1');
+      const iv = ivText(same[0].intervals);
+      out.push({ at: same[0].day, kind: 'open', text: specialOf(same[0].day) ? 'Horaires spéciaux ' + when + ' : ' + iv : 'Ouvert exceptionnellement ' + when + ', ' + iv });
+    }
+    return out.sort(function (a, b) { return a.at < b.at ? -1 : a.at > b.at ? 1 : 0; });
   }
   function isOpenDay(key) { return hoursOf(key).length > 0; }
   function nextOpen(key, dir) { let k = key; for (let i = 0; i < 30; i++) { k = addDays(k, dir); if (isOpenDay(k)) return k; } return k; }
@@ -1540,7 +1585,7 @@ const LXE = (function () {
     Object.keys(BMAP).forEach(function (k) { delete BMAP[k]; });
     (j.barbers || []).forEach(function (b) {
       const id = slugName(b.name);
-      const o = { id: id, n: b.name, ini: b.initials, color: b.color, sid: b.id, photo: b.photo || '', bio: b.bio || '', ig: b.instagram || '', video: b.video || '', videoTitle: b.videoTitle || '' };
+      const o = { id: id, n: b.name, ini: b.initials, color: b.color, sid: b.id, photo: b.photo || '', bio: b.bio || '', ig: b.instagram || '', video: b.video || '', videoTitle: b.videoTitle || '', away: b.away && b.away.note ? b.away : null };
       staffOf[id] = b.id; siteOf[b.id] = id;
       BARBERS.push(o); BMAP[id] = o;
     });
@@ -1665,7 +1710,7 @@ const LXE = (function () {
   return {
     BARBERS: BARBERS, BMAP: BMAP, SV: SV, DAYS: DAYS, DAYS_SH: DAYS_SH, MONTHS: MONTHS, MONTHS_SH: MONTHS_SH,
     pad: pad, clamp: clamp, parisParts: parisParts, keyOf: keyOf, parts: parts, addDays: addDays, diffDays: diffDays,
-    isOpenDay: isOpenDay, hoursOf: hoursOf, now: now, nextOpen: nextOpen, fmtH: fmtH, hm: hm, dayLong: dayLong, dayShort: dayShort, dayWord: dayWord, eur: eur,
+    isOpenDay: isOpenDay, hoursOf: hoursOf, closureOf: closureOf, openingOf: openingOf, specialOf: specialOf, notices: notices, now: now, nextOpen: nextOpen, fmtH: fmtH, hm: hm, dayLong: dayLong, dayShort: dayShort, dayWord: dayWord, eur: eur,
     slots: slots, ready: ready, openDays: openDays, earliest: earliest, stillFree: stillFree, pull: pull, on: on, init: function () { return loadSalon(); },
     salon: function () { return salon; }, services: function () { return catalog; }, first: first, barberOf: barberOf, serviceOf: serviceOf, clock: function () { return Date.now() + skew; }, hold: hold, release: release, book: book, booking: booking, cancel: cancel, move: move, wait: wait, offer: offer, live: live,
     setMoving: setMoving, uid: uid
@@ -2487,17 +2532,20 @@ class Component extends DCLogic {
       const end = iv.filter((x) => P.min < x[1])[0];
       const live = LXE.live();
       const wait = live && live.open && live.waitMin != null ? (live.waitMin <= 5 ? ' · sans rendez-vous, on te prend tout de suite' : ' · sans rendez-vous ~' + live.waitMin + NB + 'min') : '';
-      return { text: 'Ouvert · jusqu’à ' + LXE.fmtH(end ? end[1] : iv[iv.length - 1][1]) + wait, cls: 'open' };
+      return { text: (LXE.specialOf(today) ? 'Ouvert · horaires spéciaux' : LXE.openingOf(today) ? 'Ouvert exceptionnellement' : 'Ouvert') + ' · jusqu’à ' + LXE.fmtH(end ? end[1] : iv[iv.length - 1][1]) + wait, cls: 'open' };
     }
     const later = shut ? null : iv.filter((x) => P.min < x[0])[0];
     if (later) return { text: 'Fermé · ouvre à ' + LXE.fmtH(later[0]), cls: 'shut' };
     let k = today, label = '';
-    for (let i = 1; i <= 30; i++) {
+    for (let i = 1; i <= 60; i++) {
       k = LXE.addDays(k, 1);
       const h = LXE.hoursOf(k);
-      if (h.length) { label = (i === 1 ? 'demain' : DAYS_FR[LXE.parts(k).wd]) + ' à ' + LXE.fmtH(h[0][0]); break; }
+      // beyond the week, the weekday alone would be ambiguous: 'rouvre lundi 4 janvier'
+      if (h.length) { label = (i === 1 ? 'demain' : i < 7 ? DAYS_FR[LXE.parts(k).wd] : LXE.dayLong(k)) + ' à ' + LXE.fmtH(h[0][0]); break; }
     }
-    return { text: 'Fermé' + (label ? ' · rouvre ' + label : ''), cls: 'shut' };
+    // why: a closure today (Congés, Inventaire…)
+    const cl = shut ? null : LXE.closureOf(today);
+    return { text: 'Fermé' + (cl && cl.label ? ' · ' + cl.label : '') + (label ? ' · rouvre ' + label : ''), cls: 'shut' };
   }
 
   /* ---------- template values ---------- */
@@ -2533,11 +2581,14 @@ class Component extends DCLogic {
       }
       const op = s.bOpen === x.id;
       const dd = f ? LXE.diffDays(LXE.now().key, f.day) : 0;
+      // away today, with a note for the site (the owner's choice): 'JKut revient le 12 novembre'
+      const aw = x.away && x.away.until >= LXE.now().key ? x.away : null;
       return {
-        n: x.n, ini: x.ini, open: op, cls: 'bb-i' + (op ? ' open' : ''),
+        n: x.n, ini: x.ini, open: op, cls: 'bb-i' + (op ? ' open' : '') + (aw ? ' away' : ''),
         hasPh: !!x.photo, photo: x.photo || '', hasBio: !!x.bio, bio: x.bio || '',
         hasIg: !!igUrl(x.ig), ig: igUrl(x.ig), hasVid: !!x.video, video: x.video || '', videoLine: x.videoTitle ? 'Sa vidéo « ' + x.videoTitle + ' »' : 'Sa vidéo',
-        next: f ? 'Libre ' + (dd === 0 ? 'aujourd’hui' : (dd === 1 ? 'demain' : LXE.dayLong(f.day).replace(/ \S+$/, ''))) + ' · ' + LXE.fmtH(f.slots[0].m) : 'Complet ces jours-ci',
+        // the name is right above: 'JKut revient le 12 novembre' reads 'Revient le 12 novembre' under it
+        next: aw ? (aw.note.indexOf(x.n + ' ') === 0 ? aw.note.charAt(x.n.length + 1).toUpperCase() + aw.note.slice(x.n.length + 2) : aw.note) : f ? 'Libre ' + (dd === 0 ? 'aujourd’hui' : (dd === 1 ? 'demain' : LXE.dayLong(f.day).replace(/ \S+$/, ''))) + ' · ' + LXE.fmtH(f.slots[0].m) : 'Complet ces jours-ci',
         dayLabel: f ? LXE.dayWord(f.day) + (dd <= 1 ? ', ' + LXE.dayLong(f.day) : '') : '',
         slots: f ? f.slots.map((sl) => ({ t: LXE.fmtH(sl.m), go: () => this.openWith({ formula: this.state.bk.f || null, barber: x.id, day: f.day, time: sl.m }) })) : [],
         other: () => this.openWith({ barber: x.id }),
@@ -2569,6 +2620,7 @@ class Component extends DCLogic {
     const vb = sal ? LXE.BARBERS.filter((x) => x.video)[0] : null;
     const vid = !sal ? VIDEO0 : vb ? { url: vb.video, title: vb.videoTitle ? '« ' + vb.videoTitle + ' »' : vb.n + ' en vidéo.', line: 'La vidéo de ' + vb.n + (/youtu/.test(vb.video) ? ' sur YouTube' : '') } : links.youtube ? { url: links.youtube, title: 'Le salon en vidéo.', line: 'Notre chaîne YouTube' } : null;
     const ann = S.announce && S.announce.text ? S.announce : null;
+    const nts = LXE.notices(), nt = nts[0] || null, nt2 = nts[1] || null;
     const salonPh = photos.salon || SITE0.photos.salon;
     // 'La maison' waits for a photo of the salon by the owner (the one shipped with the site is the footer's)
     const housePh = photos.salon && !/^\/img\//.test(photos.salon.url) ? photos.salon : null;
@@ -2637,6 +2689,8 @@ class Component extends DCLogic {
       // the shipped photo is a literal src, fetched as the page parses; the owner's own arrives with the template (lazy: no fetch of '{{…}}')
       heroShipped: !photos.hero || photos.hero.url === '/img/fade.jpg', heroOwn: !!photos.hero && photos.hero.url !== '/img/fade.jpg',
       hasAnn: !!ann, annText: ann ? ann.text : '', annLink: ann ? ann.link : '', annLinked: !!(ann && ann.link), annPlain: !!(ann && !ann.link),
+      hasNotice: !!nt, noticeText: nt ? nt.text : '', noticeCls: 'ann ann-h' + (nt && nt.kind === 'open' ? ' ann-op' : ''), noticeMnCls: 'mn-ann' + (nt && nt.kind === 'open' ? ' ann-op' : ''),
+      hasNotice2: !!nt2, notice2Text: nt2 ? nt2.text : '', notice2Cls: 'ann ann-h' + (nt2 && nt2.kind === 'open' ? ' ann-op' : ''), notice2MnCls: 'mn-ann' + (nt2 && nt2.kind === 'open' ? ' ann-op' : ''),
       house: S.house,
       hasHousePh: !!housePh, noHousePh: !housePh, housePh: housePh || { url: '', alt: '' },
       salonPh: salonPh,
@@ -2731,6 +2785,10 @@ function writeSeo(sal, S) {
     const spec = [], by = {};
     [1, 2, 3, 4, 5, 6, 0].forEach((d) => (sal.hours[d] || []).forEach((iv) => { const k = iv[0] + '-' + iv[1]; if (!by[k]) { by[k] = { '@type': 'OpeningHoursSpecification', dayOfWeek: [], opens: LXE.hm(iv[0]), closes: LXE.hm(iv[1]) }; spec.push(by[k]); } by[k].dayOfWeek.push(WD_EN[d]); }));
     shop.openingHoursSpecification = spec;
+    // the closures and exceptional openings to come: special hours, as search engines read them
+    const special = (sal.closures || []).map((c) => ({ '@type': 'OpeningHoursSpecification', opens: '00:00', closes: '00:00', validFrom: c.from, validThrough: c.to }))
+      .concat(...(sal.openings || []).map((o) => o.intervals.map((iv) => ({ '@type': 'OpeningHoursSpecification', opens: LXE.hm(iv[0]), closes: LXE.hm(iv[1]), validFrom: o.day, validThrough: o.day }))));
+    if (special.length) shop.specialOpeningHoursSpecification = special; else delete shop.specialOpeningHoursSpecification;
     const menu = (sal.menu || []).filter((x) => x.price > 0);
     if (menu.length) {
       const lo = Math.min.apply(null, menu.map((x) => x.price)), hi = Math.max.apply(null, menu.map((x) => x.price));

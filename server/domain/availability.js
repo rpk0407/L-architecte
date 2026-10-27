@@ -31,20 +31,41 @@ export function subtract(a, cut) {
   return cur;
 }
 
-/** Shop opening hours for a day, minus exceptional closures. */
-export function shopIntervals(s, day) {
-  if (s.settings.closures.some((c) => day >= c.from && day <= c.to)) return [];
-  return (s.settings.hours[weekday(day)] || []).map((x) => /** @type {Iv} */ ([x[0], x[1]]));
+/**
+ * Time off not decided yet (DO-05: a barber's own request waits for the owner) or turned down: it takes no slot away
+ * and the site says nothing of it.
+ */
+export const UNDECIDED = new Set(['requested', 'pending', 'refused', 'rejected']);
+
+/** The exceptional opening of that day, if any (one per day: settings/hours.js). */
+export function openingOn(s, day) {
+  return (s.settings.openings || []).find((o) => o.day === day) || null;
 }
 
-/** When a staff member works that day: their week template ∩ shop hours − time off. */
+/** Shop opening hours for a day: a closure beats an exceptional opening, which beats the usual week. */
+export function shopIntervals(s, day) {
+  if (s.settings.closures.some((c) => day >= c.from && day <= c.to)) return [];
+  const op = openingOn(s, day);
+  return ((op && op.intervals) || s.settings.hours[weekday(day)] || []).map((x) => /** @type {Iv} */ ([x[0], x[1]]));
+}
+
+/**
+ * When a staff member works that day: their week template ∩ shop hours − time off. On an exceptional opening, a
+ * barber it names works the opening's hours (a longer Saturday before Christmas); on a day the salon is usually
+ * closed, 'all' gives them to every barber whose template is empty that weekday. Anyone else keeps his own hours,
+ * inside the opening's: on a usual day, 'all' only changes the salon's hours (an early close on the 24th).
+ */
 export function staffIntervals(s, staffId, day) {
   const st = s.staff.get(staffId);
   if (!st || !st.active || !st.chair) return [];
-  const tpl = (st.schedule && st.schedule[weekday(day)]) || [];
+  const wd = weekday(day);
+  let tpl = (st.schedule && st.schedule[wd]) || [];
+  const op = openingOn(s, day);
+  const named = !!op && Array.isArray(op.staff) && op.staff.includes(staffId);
+  if (op && (named || (!tpl.length && !Array.isArray(op.staff) && !(s.settings.hours[wd] || []).length))) tpl = op.intervals;
   let iv = intersect(shopIntervals(s, day), tpl);
   for (const t of s.timeoff.values()) {
-    if (t.staffId !== staffId || day < t.from || day > t.to) continue;
+    if (t.staffId !== staffId || day < t.from || day > t.to || UNDECIDED.has(t.status)) continue;
     if (t.startMin == null || t.from !== t.to) return [];
     iv = subtract(iv, [[t.startMin, t.endMin]]);
   }
