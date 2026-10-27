@@ -12,7 +12,8 @@ export const TEMPLATES = {
   waitlist: "L'Architecte : place libérée {date} à {heure} avec {barbier}, à toi pendant 30 min : {lien}",
   queue: "L'Architecte : c'est presque ton tour, {prenom}. Reviens au salon, on t'installe dans 5 minutes.",
   cancelled: "L'Architecte : ton rendez-vous du {date} à {heure} est annulé. Pour en reprendre un : {lien}",
-  receipt: "L'Architecte : merci {prenom} ! Ton ticket {ticket} de {montant} : {lien}",
+  // {fidelite}: the loyalty card after this ticket (FID-02), « Carte : 6/9. », « Ta prochaine coupe est offerte ! » or nothing
+  receipt: "L'Architecte : merci {prenom} ! Ton ticket {ticket} de {montant} : {lien}{fidelite}",
   // asked from /mon-rendez-vous: the next appointment's link, {suite} the one after it (or nothing)
   lookup: "L'Architecte : ton rendez-vous {date} à {heure} : {lien}{suite}",
   // DO-03: the code of a gift card, sent from the till's voucher to the person it is for

@@ -12,6 +12,7 @@ import { mailCancellation } from '../domain/mails.js';
 import { TRUSTED } from '../domain/policy.js';
 import { getClient } from './common.js';
 import { isLive, graceOf, statusOf, periodAt } from '../domain/membership.js';
+import { referralEventIds } from '../domain/loyalty.js';
 
 const fields = {
   first: opt(str({ min: 1, max: 40 })), last: opt(str({ max: 40 })), phone: opt(str({ max: 24 })), email: opt(str({ max: 120, lower: true })),
@@ -267,7 +268,9 @@ export const eraseClient = {
       ctx.emit('waitlist.updated', { id: w.id, patch: { status: 'removed' } });
       if (w.offer && w.offer.holdId && s.holds.has(w.offer.holdId)) ctx.emit('hold.released', { id: w.offer.holdId });
     }
-    ctx.emit('client.erased', { id: c.id, cid: c.id, ids, tombs: tombsOfFiles(s, ids, ctx.meta.tombKey) });
+    // a referral names the other person too (FID-02): its events are dropped by id, whichever side is erased
+    const linked = referralEventIds(s, ids);
+    ctx.emit('client.erased', { id: c.id, cid: c.id, ids, tombs: tombsOfFiles(s, ids, ctx.meta.tombKey), ...(linked.length ? { drop: linked } : {}) });
     return { ...done, erased: true, texts };
   }
 };
@@ -343,7 +346,7 @@ export const purgeRetention = {
     const drop = others.slice(0, PURGE_OTHER);
     if (!ids.length && !drop.length) return { erased: 0, other: 0, left: 0, more: false };
     // files: how many were anonymised, for the activity log and a retried request (ids also holds the merged-away ones)
-    ctx.emit('client.erased', { ids, tombs: tombsOfFiles(s, ids, ctx.meta.tombKey), drop, retention: true, files: batch.length, before: retentionCutoff(ctx.local.day) });
+    ctx.emit('client.erased', { ids, tombs: tombsOfFiles(s, ids, ctx.meta.tombKey), drop: [...drop, ...referralEventIds(s, ids)], retention: true, files: batch.length, before: retentionCutoff(ctx.local.day) });
     const left = files.length - batch.length;
     return { erased: batch.length, other: drop.length, left, more: left > 0 || others.length > drop.length };
   }

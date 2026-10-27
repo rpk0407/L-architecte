@@ -38,7 +38,8 @@ export const CAPS = {
   'devices': 'Gérer les appareils',
   'audit': 'Voir le journal d’activité',
   'data': 'Exporter et vérifier les données',
-  'member.manage': 'Gérer les abonnements (résiliation, coupe hors forfait)'
+  'member.manage': 'Gérer les abonnements (résiliation, coupe hors forfait)',
+  'loyalty.manage': 'Gérer la fidélité (ajustements, récompenses offertes)'
 };
 
 const ALL = Object.keys(CAPS);

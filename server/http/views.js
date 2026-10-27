@@ -8,6 +8,7 @@ import { ROLES } from '../domain/permissions.js';
 import { ticketNo, refundNo } from '../domain/cash.js';
 import { membersOf, statusOf, periodAt, graceOf, abandoned } from '../domain/membership.js';
 import { localParts, addDays } from '../../shared/dates.js';
+import { cardLine } from '../domain/loyalty.js';
 
 export function staffView(st, full = false) {
   const v = { id: st.id, name: st.name, initials: st.initials, color: st.color, role: st.role, roleLabel: ROLES[st.role], chair: !!st.chair, bookable: !!st.bookable, active: st.active, order: st.order ?? 99, bio: st.bio || '', instagram: st.instagram || '' };
@@ -60,12 +61,15 @@ export function clientCard(s, c, caps, stats, now = Date.now()) {
   if (memberships.some((x) => x.status !== 'pending')) badges.push('abonné');
   if (packs.length) badges.push('carnet');
   if (c.tags && c.tags.includes('VIP')) badges.push('VIP');
+  // FID-02: the stamp card when the programme runs, « récompense » while one waits to be used
+  const loyalty = cardLine(s, c, localParts(now).day);
+  if (loyalty && loyalty.rewards) badges.push('récompense');
   return {
     id: c.id, first: c.first, last: c.last, name: (c.first + ' ' + (c.last ? c.last.charAt(0) + '.' : '')).trim(),
     phone: caps.has('client.contact') ? fmtPhone(c.phone) : maskPhone(c.phone), hasPhone: !!c.phone,
     badges, visits: st ? st.visits : 0, lastDay: st ? st.lastDay : null, sinceLast: st ? st.sinceLast : null, cadence: st ? st.cadence : null,
     spend: st ? st.spend : 0, noShows: st ? st.noShows : 0, next: st ? st.next : null, overdue: st ? st.overdue : false, dueIn: st ? st.dueIn : null,
-    tech: c.tech || '', sms: c.sms, packs: packs.map((k) => ({ id: k.id, name: k.name, used: k.used, total: k.total, expires: k.expires, serviceIds: k.serviceIds || [] })), memberships
+    tech: c.tech || '', sms: c.sms, packs: packs.map((k) => ({ id: k.id, name: k.name, used: k.used, total: k.total, expires: k.expires, serviceIds: k.serviceIds || [] })), memberships, ...(loyalty ? { loyalty } : {})
   };
 }
 

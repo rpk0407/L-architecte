@@ -15,6 +15,8 @@ import { queueMessage } from '../domain/messages.js';
 import { TEMPLATES } from '../core/templates.js';
 import { clientParts } from './clients.js';
 import { cover, coverWords, cutValue, label as memberLabel, rootOf, liveIn } from '../domain/membership.js';
+import { earnOf, receiptWords } from '../domain/loyalty.js';
+import { withReward, loyaltyAfterSale, loyaltyAfterRefund } from './loyalty.js';
 
 const lineSchema = obj({
   kind: oneOf(/** @type {const} */ (['service', 'product', 'giftcard', 'pack', 'fee', 'membership'])), ref: opt(id()), name: opt(str({ max: 60 })),
@@ -22,7 +24,9 @@ const lineSchema = obj({
   recipient: opt(str({ max: 60 })), code: opt(str({ max: 20 })),
   // PAY-02: a cut the member's plan pays (force: the owner or a manager gives it although the plan does not cover it today),
   // and the system's own line of a month paid (commands/memberships.js memberPaid)
-  memberId: opt(id()), force: opt(bool()), period: opt(obj({ start: dayField(), end: dayField() }))
+  memberId: opt(id()), force: opt(bool()), period: opt(obj({ start: dayField(), end: dayField() })),
+  // FID-02: a reward of the client's loyalty card, taken off this line (commands/loyalty.js withReward)
+  rewardId: opt(id())
 });
 const paySchema = obj({ method: oneOf(/** @type {const} */ (['card', 'cash', 'online', 'giftcard', 'deposit'])), amount: money(1000000), given: opt(money(1000000)), ref: opt(str({ max: 40 })) });
 const checkoutSchema = obj({
@@ -108,6 +112,8 @@ export const checkout = {
     const packUses = new Map();
     /** member id → the cuts it pays on this ticket: { periodStart, forced } each */
     const memberUses = new Map();
+    /** the loyalty rewards on this ticket (one at most) */
+    const rewarded = new Set();
     for (const [i, l] of x.lines.entries()) {
       const qty = l.qty || 1;
       if (l.kind === 'service') {
@@ -153,11 +159,11 @@ export const checkout = {
         }
         // a cut paid by a carnet or a membership keeps its price: a refund of the carnet later values the cuts taken at it
         // (refundPlan); the membership's cut also carries its share of the month (credit)
-        lines.push({ kind: 'service', ref: sv.id, name, qty, unit, discount: member ? 0 : l.discount || 0, staffId: performer(l), vat: sv.vat ?? P.vat, packId, category: sv.category, ...(packId || member ? { listPrice: price } : {}), ...(member ? { memberId: member.id, credit: cutValue(member) } : {}) });
+        lines.push(withReward(s, client, l.rewardId, { kind: 'service', ref: sv.id, name, qty, unit, discount: member ? 0 : l.discount || 0, staffId: performer(l), vat: sv.vat ?? P.vat, packId, category: sv.category, ...(packId || member ? { listPrice: price } : {}), ...(member ? { memberId: member.id, credit: cutValue(member) } : {}) }, day, rewarded));
       } else if (l.kind === 'product') {
         const p = getProduct(s, l.ref || '');
         if (!p.active) fail(409, 'inactive', `« ${p.name} » n’est plus en vente.`);
-        lines.push({ kind: 'product', ref: p.id, name: p.name, qty, unit: p.price, discount: l.discount || 0, staffId: performer(l), vat: p.vat ?? P.vat, cost: p.cost || 0 });
+        lines.push(withReward(s, client, l.rewardId, { kind: 'product', ref: p.id, name: p.name, qty, unit: p.price, discount: l.discount || 0, staffId: performer(l), vat: p.vat ?? P.vat, cost: p.cost || 0 }, day, rewarded));
       } else if (l.kind === 'giftcard') {
         // a card already paid online is issued even if the owner switched cards off since
         if (!P.giftcard && !online) fail(409, 'off', 'Les cartes cadeaux sont désactivées.');
@@ -185,7 +191,8 @@ export const checkout = {
 
     const discount = x.discount ? x.discount.amount : 0;
     const totals = ticketTotals(lines, discount, x.tip && P.tips ? x.tip.amount : 0);
-    const granted = totals.discount;
+    // a loyalty reward is the system's, not the cashier's: the cap counts only what was typed
+    const granted = totals.discount - lines.reduce((t, l) => t + (l.reward ? l.reward.amount : 0), 0);
     if (granted > 0) {
       if (!ctx.can('sale.discount')) fail(403, 'discount', 'Tu ne peux pas faire de remise.');
       const base = lines.filter((l) => l.kind !== 'giftcard').reduce((t, l) => t + l.unit * l.qty, 0);
@@ -238,12 +245,15 @@ export const checkout = {
 
     const sid = ctx.id('sa');
     const number = s.saleSeq + 1;
+    // the stamp this ticket earns travels on it (projections/loyalty.js says why)
+    const stamps = earnOf(s, client, lines.map((l, i) => ({ ...l, net: totals.nets[i] })), day);
     ctx.emit('sale.completed', {
       id: sid, number, day, cashierId: ctx.staff ? ctx.staff.id : null, apptId: appt ? appt.id : null, clientId: client ? client.id : null, cid: client ? client.id : undefined,
       lines: lines.map((l, i) => ({ ...l, net: totals.nets[i] })), discount: x.discount ? { amount: discount, reason: typed ? 'Autre' : why } : null,
       tip: totals.tip ? { amount: totals.tip, staffId: /** @type {any} */ (x.tip).staffId } : null, totals: { gross: totals.gross, discount: totals.discount, total: totals.total, tip: totals.tip, due: totals.due, revenue: totals.revenue, revenueHT: totals.revenueHT, liability: totals.liability, vat: totals.vat },
-      payments, note: x.note || '', ...(backfill ? { at: input.at } : {}), ...(ctx.actor.t === 'system' && !online ? { demo: true } : {})
+      payments, note: x.note || '', ...(backfill ? { at: input.at } : {}), ...(ctx.actor.t === 'system' && !online ? { demo: true } : {}), ...(stamps ? { loyalty: { units: stamps } } : {})
     }, typed ? { discountReason: typed } : undefined);
+    loyaltyAfterSale(s, ctx, ctx.drafts.find((d) => d.type === 'sale.completed' && d.data.id === sid).data);
     for (const l of lines) if (l.kind === 'product') ctx.emit('stock.adjusted', { productId: l.ref, delta: -l.qty, reason: 'Vente', saleId: sid, name: l.name });
     // online: the name the buyer typed ("De la part de"), which may not be the one on the file their number found
     const buyer = online && typeof input.buyer === 'string' ? input.buyer.slice(0, 60) : client ? (client.first + ' ' + client.last).trim() : '';
@@ -544,6 +554,7 @@ export const refund = {
       ...(liability ? { liability } : {}), ...(picked.length ? { lines: picked.map((o) => ({ i: o.i, qty: o.n, name: o.name, kind: o.kind, amount: o.amount, vat: o.kind === 'giftcard' ? 0 : o.vat })) } : {}),
       drawerId: cash ? s.drawer.id : null, providerRef: x.providerRef || null, ...(override ? { override: true } : {}), cid: sale.clientId || undefined
     });
+    loyaltyAfterRefund(s, ctx, sale, ctx.drafts.find((d) => d.type === 'sale.refunded' && d.data.id === rid).data);
     for (const o of picked) {
       if (o.kind === 'pack' && o.pack) ctx.emit('pack.voided', { id: o.pack.id, saleId: sale.id, refundId: rid, cid: sale.clientId || undefined });
       if (o.kind === 'giftcard' && o.giftcard) {
@@ -631,7 +642,7 @@ export const sendReceipt = {
     if (!to) fail(400, 'invalid', 'Aucun numéro pour envoyer le reçu.');
     const id = queueMessage(s, ctx, {
       key: 'receipt_' + sale.id + '_' + (input.n || 0), template: 'receipt', to, cid: c ? c.id : null,
-      vars: { prenom: c ? c.first : '', ticket: 'T' + String(sale.number).padStart(6, '0'), montant: (sale.totals.due / 100).toFixed(2).replace('.', ',') + ' €', lien: ctx.meta.receiptLink ? ctx.meta.receiptLink(sale) : '' }
+      vars: { prenom: c ? c.first : '', ticket: 'T' + String(sale.number).padStart(6, '0'), montant: (sale.totals.due / 100).toFixed(2).replace('.', ',') + ' €', lien: ctx.meta.receiptLink ? ctx.meta.receiptLink(sale) : '', fidelite: receiptWords(s, sale, ctx.local.day) }
     });
     return { id };
   }

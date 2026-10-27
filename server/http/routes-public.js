@@ -19,6 +19,8 @@ import { waitUntil } from '@vercel/functions';
 import { fulfilGiftcard } from './routes-giftshop.js';
 import { providerFor, providerLabel } from '../payments/provider.js';
 import { providerKnown } from '../projections/payments.js';
+import { claimFromLink } from './routes-loyalty.js';
+import { receiptLoyalty } from '../domain/loyalty.js';
 
 /** The demo, for real: both the configuration and the journal say so (a demo journal opened in production is not one). */
 export const isDemo = (r) => r.rt.cfg.mode === 'demo' && r.s.mode === 'demo';
@@ -200,6 +202,8 @@ export function publicRoutes(app) {
       const sv = r.s.appts.get(res.id);
       payment = await startPayment(r, { kind: 'deposit', amount: res.deposit, label: 'Acompte · ' + sv.services.map((x) => x.name).join(' + '), apptId: res.id, returnPath: '/r/' + token, email: r.body.email });
     }
+    // FID-02: a booking that came through a referrer's link (?parrain=); a refusal never touches the booking
+    if (r.body && r.body.parrain) await claimFromLink(r, res.id, r.body.parrain);
     return json({ code: res.code, token, manage: r.origin + '/r/' + token, status: res.status, deposit: res.deposit, staffId: res.staffId, payment }, 201);
   });
 
@@ -272,7 +276,8 @@ export function publicRoutes(app) {
       ref: ticketNo(x.number), day: x.day, at: x.at, first: c ? c.first : '',
       shop: { name: sh.name, legalName: sh.legalName, address: sh.address + ', ' + sh.zip + ' ' + sh.city, siret: sh.siret, vatNumber: sh.vatNumber },
       lines: x.lines.map((l) => ({ name: l.name, qty: l.qty, net: l.net })), totals: x.totals, discount: x.discount, tip: x.tip,
-      payments: x.payments.map((p) => ({ method: p.method, amount: p.amount })), refunded: x.refunded, footer: r.s.settings.payments.receiptFooter
+      payments: x.payments.map((p) => ({ method: p.method, amount: p.amount })), refunded: x.refunded, footer: r.s.settings.payments.receiptFooter,
+      loyalty: receiptLoyalty(r.s, x, r.local.day)
     };
   });
 
