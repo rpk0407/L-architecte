@@ -1,13 +1,15 @@
 // @ts-check
 // The salon's background work, carried by regular traffic (the Comptoir polls every few seconds while
 // the shop is open) and by /api/cron/tick when a platform cron is available. At most once a minute.
-// It also writes the nightly encrypted backup (core/backup.js), after 03:00 Paris.
+// It also writes the nightly encrypted backup (core/backup.js), after 03:00 Paris, and delivers SMS and e-mail.
 import { tick } from '../commands/system.js';
 import { claimMessage, messageResult } from '../commands/messages.js';
 import { demoTick } from '../domain/seed.js';
 import { startsAt } from '../domain/policy.js';
-import { nightlyBackup } from '../core/backup.js';
+import { nightlyBackup, backupsOf, backupState, backupOff, ownBackups, salonOf } from '../core/backup.js';
 import { webhookUrl } from '../messaging/sms.js';
+import { digestDue } from '../commands/steps/digest.js';
+import { localParts } from '../../shared/dates.js';
 
 const SYSTEM = { actor: /** @type {const} */ ({ t: 'system', id: 'scheduler', n: 'Automatique' }), caps: new Set() };
 
@@ -20,7 +22,7 @@ export function maybeTick(rt, meta, { force = false } = {}) {
     const e = rt.engine;
     if (!e.state.version) return;
     try {
-      await e.run(tick, {}, { ...SYSTEM, meta });
+      await e.run(tick, {}, { ...SYSTEM, meta: await tickMeta(rt, meta) });
       if (e.state.mode === 'demo') await demoTick(e, meta);
       await dispatch(rt);
     } finally {
@@ -29,6 +31,32 @@ export function maybeTick(rt, meta, { force = false } = {}) {
     }
   })().catch((err) => console.error('[lx] tick', err && err.stack ? err.stack : err)).finally(() => { rt.ticking = null; });
   return rt.ticking;
+}
+
+const LOOKUP_MS = 2000;
+/** A promise that gives up after ms: the tick never waits on a slow Blob. */
+function within(p, ms) {
+  let timer;
+  return Promise.race([p, new Promise((_, no) => { timer = setTimeout(() => no(new Error('timeout')), ms); })]).finally(() => clearTimeout(timer));
+}
+
+/**
+ * What the tick's steps cannot see in the state: which providers are there and, when the owner's evening summary is due,
+ * the last backup (looked up in Blob at most once a day per instance, within 2 s, so the tick stays cheap).
+ */
+async function tickMeta(rt, meta) {
+  const e = rt.engine;
+  const out = { ...meta, providers: { sms: !!rt.sms, email: !!rt.email } };
+  const local = localParts(e.clock());
+  if (!digestDue(e.state, local)) return out;
+  const off = backupOff(rt), blob = off ? null : backupsOf(rt), st = backupState(rt);
+  let unknown = false;
+  if (blob && !st.last && rt.digestLookup !== local.day) {
+    rt.digestLookup = local.day;
+    // a lookup that fails says "état inconnu", never "aucune"
+    try { st.last = ownBackups(await within(blob.listBackups(), LOOKUP_MS), salonOf(e.journal))[0] || null; } catch { unknown = true; }
+  }
+  return { ...out, backup: { at: st.last ? st.last.at : 0, off, unknown } };
 }
 
 const STALE_MS = 6 * 3600000;
@@ -46,14 +74,17 @@ export function staleReason(s, m, now) {
   return '';
 }
 
-/** Deliver queued messages: claim them in one write, send, record the outcome in one write. */
+/** Deliver queued messages: claim them in one write, send each by its channel, record the outcomes in one write. */
 export async function dispatch(rt, limit = 10) {
   const e = rt.engine;
   const demo = e.state.mode === 'demo';
-  // production without a provider: nothing is claimed, the messages wait in the outbox for one
-  if (!rt.sms && !demo) return 0;
+  /** @type {Record<string, any>} */
+  const providers = { sms: rt.sms, email: rt.email };
+  // production without a provider for a channel: its messages are not claimed, they wait in the outbox for one
+  const live = (m) => demo || !!providers[m.channel || 'sms'];
+  if (!demo && !rt.sms && !rt.email) return 0;
   const now = e.clock();
-  const queued = [...e.state.messages.values()].filter((m) => m.status === 'queued' && m.dueAt <= now);
+  const queued = [...e.state.messages.values()].filter((m) => m.status === 'queued' && m.dueAt <= now && live(m));
   // the stale ones go first and cost nothing to close, so a backlog never holds the fresh ones back
   const stale = demo ? [] : queued.filter((m) => staleReason(e.state, m, now)).slice(0, 100);
   const isStale = new Set(stale);
@@ -65,13 +96,23 @@ export async function dispatch(rt, limit = 10) {
   for (const id of claimed) {
     const m = e.state.messages.get(id);
     if (!m || m.status !== 'claimed') continue;
-    if (!rt.sms || demo) { outcomes.push({ id, status: 'simulated' }); continue; }
+    const email = m.channel === 'email';
+    const provider = providers[email ? 'email' : 'sms'];
+    if (!provider || demo) { outcomes.push({ id, status: 'simulated' }); continue; }
     const late = staleReason(e.state, m, now);
     if (late) { outcomes.push({ id, status: 'expired', error: late }); continue; }
-    if (!m.to) { outcomes.push({ id, status: 'skipped', error: 'Numéro effacé' }); continue; }
-    // marketing: Brevo's promotional type; the webhook brings STOP replies back to the client file
-    try { const r = await rt.sms.send(m.to, m.body, { marketing: !!m.marketing, webhookUrl: webhookUrl(rt.origin, rt.cfg.cronSecret) }); outcomes.push({ id, status: 'sent', providerRef: r.ref }); }
-    catch (err) { outcomes.push({ id, status: 'failed', error: String(err && err.message || err) }); }
+    if (!m.to) { outcomes.push({ id, status: 'skipped', error: email ? 'Adresse effacée' : 'Numéro effacé' }); continue; }
+    try {
+      if (email) {
+        const mail = m.mail || {};
+        const r = await provider.send({ to: m.to, subject: mail.subject || '', text: m.body, html: mail.html, cta: mail.cta, links: mail.links, attachments: mail.attachments, fromName: e.state.settings.shop.name, tag: m.template });
+        outcomes.push({ id, status: 'sent', providerRef: r.ref });
+      } else {
+        // marketing: Brevo's promotional type; the webhook brings STOP replies back to the client file
+        const r = await provider.send(m.to, m.body, { marketing: !!m.marketing, webhookUrl: webhookUrl(rt.origin, rt.cfg.cronSecret) });
+        outcomes.push({ id, status: 'sent', providerRef: r.ref });
+      }
+    } catch (err) { outcomes.push({ id, status: 'failed', error: String(err && err.message || err) }); }
   }
   if (outcomes.length) await e.batch((step) => { for (const o of outcomes) step(messageResult, o, SYSTEM); });
   return outcomes.length;

@@ -16,7 +16,7 @@ import './relances.css';
 
 type Overdue = ClientCard & { lastText: number | null; lastDue?: number | null };
 type WaitItem = { id: string; first: string; phone: string; day: string; staffId: string; serviceId: string; from: number; to: number; status: string; offer: { start: number; staffId: string; exp: number } | null; at: number };
-type Msg = { id: string; template: string; status: string; at: number; dueAt: number; sentAt: number | null; to: string; body: string; error: string };
+type Msg = { id: string; channel?: 'sms' | 'email'; template: string; status: string; at: number; dueAt: number; sentAt: number | null; to: string; body: string; subject?: string; error: string };
 type Back = { sent: number; clientsBack: number; revenueBack: number; rate: number };
 type Quiet = { from: number; to: number; sunday: boolean; holidays?: boolean } | undefined;
 type RebookData = { items: Overdue[]; excludedNoConsent: number; stats: Back; template: string; stop: string; quiet?: Quiet };
@@ -32,12 +32,13 @@ function leavesWords(t: number, now: number) {
   return (p.day === today ? 'à ' : dayShortWord(p.day, today) + ' à ') + time(p.min);
 }
 
-const LABEL: Record<string, string> = { confirmation: 'Confirmation', reminder: 'Rappel la veille', reminder2h: 'Rappel 2 h avant', review: 'Demande d’avis', rebook: 'Relance', waitlist: 'Place libérée', queue: 'File d’attente', cancelled: 'Annulation', receipt: 'Reçu', moved: 'Déplacement', deposit: 'Lien d’acompte', lookup: 'Lien Mon rendez-vous', giftcardCode: 'Code carte cadeau' };
+const LABEL: Record<string, string> = { confirmation: 'Confirmation', reminder: 'Rappel la veille', reminder2h: 'Rappel 2 h avant', review: 'Demande d’avis', rebook: 'Relance', waitlist: 'Place libérée', queue: 'File d’attente', cancelled: 'Annulation', receipt: 'Reçu', moved: 'Déplacement', deposit: 'Lien d’acompte', lookup: 'Lien Mon rendez-vous', giftcardCode: 'Code carte cadeau', owner_booking: 'Alerte : réservation', owner_cancel: 'Alerte : annulation', digest: 'Résumé du soir', weekly: 'Bilan de la semaine' };
 const STATUS: Record<string, [string, string]> = { sent: ['envoyé', 'badge-ok'], simulated: ['simulé (démo)', 'badge-info'], failed: ['échec', 'badge-danger'], skipped: ['non envoyé', 'badge-warn'], expired: ['trop tard', 'badge-warn'], claimed: ['en cours', ''], queued: ['en file', ''] };
-/** Outside the demo nothing is simulated: without a provider a text waits for one (and an old 'simulé' never left). */
+/** Outside the demo nothing is simulated: without a provider a message waits for one (and an old 'simulé' never left). */
 function msgStatus(m: Msg, demo: boolean, provider: string | null, now: number): [string, string] {
   const status = m.status;
-  if (!demo && status === 'queued' && !provider) return ['en attente d’un fournisseur SMS', 'badge-warn'];
+  // short enough for a phone row: the icon beside it says which channel, the tooltip says it in words
+  if (!demo && status === 'queued' && !provider) return ['attend un fournisseur', 'badge-warn'];
   // held back by the quiet hours: it says when it leaves
   if (status === 'queued' && m.dueAt > now + 60000) return ['part ' + leavesWords(m.dueAt, now), 'badge-info'];
   if (!demo && status === 'simulated') return ['jamais parti', 'badge-warn'];
@@ -59,7 +60,7 @@ export default function Relances() {
   const tabs = [
     { to: '/relances', id: 'relancer', label: 'À relancer', icon: 'relances', count: pulse?.badges.relances },
     { to: '/relances/attente', id: 'attente', label: 'Liste d’attente', icon: 'wait', count: pulse?.badges.waitlist },
-    { to: '/relances/envoyes', id: 'envoyes', label: 'SMS envoyés', icon: 'sms' }
+    { to: '/relances/envoyes', id: 'envoyes', label: 'Messages envoyés', icon: 'sms' }
   ];
   return (
     <>
@@ -267,31 +268,34 @@ function Waiting() {
 
 function Sent() {
   const { can, now } = useApp();
-  const { data, loading } = useQuery<{ items: Msg[]; provider: string | null; mode: string }>(can('marketing') ? '/api/v1/messages?limit=150' : null);
+  const { data, loading } = useQuery<{ items: Msg[]; provider: string | null; emailProvider?: string | null; mode: string }>(can('marketing') ? '/api/v1/messages?limit=150' : null);
   if (!can('marketing')) return <Empty icon="lock" title="Réservé à l’accueil et au gérant" />;
   if (loading && !data) return <Skeleton h={320} r={22} />;
   if (!data) return null;
   const failed = data.items.filter((m) => m.status === 'failed').length;
+  const failedMail = data.items.filter((m) => m.status === 'failed' && m.channel === 'email').length;
+  const why = failedMail === failed ? 'adresse invalide ou fournisseur e-mail indisponible' : failedMail ? 'numéro ou adresse invalide, ou fournisseur indisponible' : 'numéro invalide ou fournisseur SMS indisponible';
   return (
     <section className="card">
-      <div className="card-h"><h2><Icon name="sms" size={16} />Derniers messages</h2><span className="faint" style={{ fontSize: 13 }}>{data.mode === 'demo' ? 'Démo · envois simulés' : data.provider ? 'Envoi via ' + cap(data.provider) : 'Aucun fournisseur branché'}</span></div>
-      {failed ? <Note tone="warn" icon="alert">{plural(failed, 'message')} en échec : numéro invalide ou fournisseur indisponible. Le détail est dans chaque ligne.</Note> : null}
+      <div className="card-h"><h2><Icon name="sms" size={16} />Derniers messages</h2><span className="faint" style={{ fontSize: 13 }}>{data.mode === 'demo' ? 'Démo · envois simulés' : 'SMS : ' + (data.provider ? cap(data.provider) : 'aucun fournisseur') + ' · e-mail : ' + (data.emailProvider ? cap(data.emailProvider) : 'aucun fournisseur')}</span></div>
+      {failed ? <Note tone="warn" icon="alert">{plural(failed, 'message')} en échec : {why}. Le détail est dans chaque ligne.</Note> : null}
       {!data.items.length ? <Empty icon="sms" title="Aucun message pour l’instant" /> : (
         <div className="table-wrap">
           <table className="table rl-table">
             <thead><tr><th className="hide-phone">Quand</th><th>Message</th><th className="hide-phone">À</th>{can('settings') ? <th className="hide-phone">Texte</th> : null}<th>État</th></tr></thead>
             <tbody>{data.items.map((m) => {
-              const [label, tone] = msgStatus(m, data.mode === 'demo', data.provider, now());
+              const mail = m.channel === 'email';
+              const [label, tone] = msgStatus(m, data.mode === 'demo', mail ? data.emailProvider || null : data.provider, now());
               const day = dates.localParts(m.at).day;
               return (
                 <tr key={m.id}>
                   <td className="tnum hide-phone" style={{ whiteSpace: 'nowrap' }}>{dates.dayShort(day)} · {clock(m.at)}</td>
                   {/* on a phone, when and to whom fold under the message so the state stays in view */}
-                  <td>{LABEL[m.template] || m.template}<small className="rl-meta tnum">{dates.dayShort(day)} · {clock(m.at)} · {m.to}</small></td>
+                  <td><span className="faint" style={{ display: 'inline-flex', verticalAlign: '-2px', marginRight: 6 }}><Icon name={mail ? 'mail' : 'sms'} size={15} title={mail ? 'E-mail' : 'SMS'} /></span>{LABEL[m.template] || m.template}<small className="rl-meta tnum">{dates.dayShort(day)} · {clock(m.at)} · {m.to}</small></td>
                   <td className="tnum hide-phone" style={{ whiteSpace: 'nowrap' }}>{m.to}</td>
-                  {can('settings') ? <td className="hide-phone rl-body" title={m.body}>{m.body}</td> : null}
+                  {can('settings') ? <td className="hide-phone rl-body" title={m.body}>{mail && m.subject ? m.subject : m.body}</td> : null}
                   {/* why it did not leave, in words: a tooltip never shows on a phone */}
-                  <td><span className={'badge ' + tone}>{label}</span>{m.error && ['expired', 'failed', 'skipped'].includes(m.status) ? <small className="rl-why">{m.status === 'expired' ? cap(m.error.replace(/^Trop tard : /, '')) : m.error}</small> : null}</td>
+                  <td><span className={'badge ' + tone} title={label === 'attend un fournisseur' ? 'En attente d’un fournisseur ' + (mail ? 'e-mail' : 'SMS') : undefined}>{label}</span>{m.error && ['expired', 'failed', 'skipped'].includes(m.status) ? <small className="rl-why">{m.status === 'expired' ? cap(m.error.replace(/^Trop tard : /, '')) : m.error}</small> : null}</td>
                 </tr>
               );
             })}</tbody>

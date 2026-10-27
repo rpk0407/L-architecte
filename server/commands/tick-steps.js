@@ -6,6 +6,7 @@
 import { closeDay } from './sales.js';
 import { missedZ, dayWords } from '../domain/cash.js';
 import { DAYS_FR, dayParts } from '../../shared/dates.js';
+import digest from './steps/digest.js';
 
 export { missedZ, dayWords };
 /** "samedi 31" for the feed. */
@@ -39,7 +40,9 @@ export const REGISTRY = [
       }
       return { warnings: closingWarnings(s, ctx.local.day) };
     }
-  }
+  },
+  // the owner's evening summary and Monday report, by e-mail (WP-02)
+  digest
 ];
 
 /** Run every registered step; a failing step costs only its own work. */

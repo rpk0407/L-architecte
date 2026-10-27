@@ -8,6 +8,7 @@ import { createEngine } from '../../server/core/engine.js';
 import { defaultSettings, emptyState, TEMPLATES } from '../../server/core/state.js';
 import { TEMPLATES as REGISTRY } from '../../server/core/templates.js';
 import { SECTIONS, settingsSchema } from '../../server/settings/index.js';
+import site from '../../server/settings/site.js';
 import { EXTENSIONS } from '../../server/core/extensions.js';
 import { settingsSchema as fromShop, updateSettings } from '../../server/commands/shop.js';
 
@@ -47,10 +48,16 @@ const BEFORE = () => {
         giftcardCode: "L'Architecte : {acheteur} t'offre une carte cadeau de {montant} ! Code {code}, valable jusqu'au {date}. Réserve : {lien}"
       },
       // GL-08: quiet hours, the STOP mention, the countries texted
-      quiet: { from: 1200, to: 480, sunday: true, holidays: true }, stopSuffix: ' STOP au 36173', countries: ['+33', '+32', '+41', '+352', '+262', '+590', '+594', '+596', '+508', '+681', '+687', '+689']
+      quiet: { from: 1200, to: 480, sunday: true, holidays: true }, stopSuffix: ' STOP au 36173', countries: ['+33', '+32', '+41', '+352', '+262', '+590', '+594', '+596', '+508', '+681', '+687', '+689'],
+      // WP-02: confirmations and cancellations by e-mail too
+      email: true
     },
     team: { barberCheckout: true, barberAllAgenda: true, barberMaxDiscountPct: 10, barberSeeRevenue: false },
-    goals: { monthCents: 2400000 }
+    goals: { monthCents: 2400000 },
+    // WP-02: what the owner is told without opening the Comptoir
+    notify: { to: '', phone: '', newBooking: true, cancel: true, evening: '20:00', weekly: true },
+    // the site's own texts (WP-03): long copy, pinned by its own tests (site-settings.test.js)
+    site: site.defaults()
   };
 };
 

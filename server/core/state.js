@@ -47,6 +47,9 @@ export function mergeDeep(a, b) {
 function index(map, key, id) { let s = map.get(key); if (!s) { s = new Set(); map.set(key, s); } s.add(id); }
 function unindex(map, key, id) { const s = map.get(key); if (s) s.delete(id); }
 
+/** A message's final states: nothing will send it again. */
+const DONE = new Set(['sent', 'simulated', 'expired', 'skipped']);
+
 /** Events that change what the Comptoir loads once at start (settings, team, catalogue). */
 const CFG = /^(shop|settings|staff|timeoff|device|service|product|stock)\./;
 
@@ -67,6 +70,8 @@ export function evolve(s, e) {
       break;
     case 'settings.updated':
       s.settings = mergeDeep(s.settings, d.patch);
+      // the owner's alert address and mobile, out of the chain (commands/shop.js)
+      if (p.notify) s.settings = mergeDeep(s.settings, { notify: p.notify });
       break;
 
     case 'staff.added':
@@ -138,7 +143,7 @@ export function evolve(s, e) {
         Object.assign(c, { first: 'Client', last: 'effacé', phone: '', email: '', notes: '', tech: '', birthday: '', erased: true, sms: false, marketing: false });
       }
       for (const a of s.appts.values()) if (ids.has(a.clientId)) { a.note = ''; if (a.cancel && a.cancel.by === 'client') a.cancel.reason = ''; }
-      for (const m of s.messages.values()) if (ids.has(m.cid)) { m.to = ''; m.body = ''; }
+      for (const m of s.messages.values()) if (ids.has(m.cid)) { m.to = ''; m.body = ''; if (m.mail) m.mail = null; }
       for (const x of s.sales.values()) if (ids.has(x.clientId)) x.discountNote = '';
       for (const w of s.waitlist.values()) if (ids.has(w.clientId)) { w.first = ''; w.phone = ''; }
       for (const q of s.queue.values()) if (ids.has(q.clientId)) { q.name = 'Client effacé'; q.phone = ''; }
@@ -273,9 +278,17 @@ export function evolve(s, e) {
 
     case 'demo.seeded': for (const k of d.days || []) s.demoDays.add(k); break;
     case 'message.queued':
-      s.messages.set(d.id, { ...d, to: p.to || '', body: p.body || '', status: 'queued', at: e.at });
+      // an e-mail's subject, button and calendar file (WP-02) travel in pii with its text
+      s.messages.set(d.id, { ...d, to: p.to || '', body: p.body || '', ...(p.mail ? { mail: p.mail } : {}), status: 'queued', at: e.at });
       break;
-    case 'message.updated': { const m = s.messages.get(d.id); if (m) Object.assign(m, d.patch, { updatedAt: e.at }); break; }
+    case 'message.updated': {
+      const m = s.messages.get(d.id);
+      if (!m) break;
+      Object.assign(m, d.patch, { updatedAt: e.at });
+      // a mail's calendar file is needed until it leaves, not in memory for good (a copy: the event's pii stays as hashed)
+      if (m.mail && m.mail.attachments && DONE.has(m.status)) { const { attachments, ...rest } = m.mail; m.mail = rest; }
+      break;
+    }
     default:
       // own keys only: an event type never reaches an inherited method (constructor, __proto__…)
       for (const x of EXTENSIONS) if (Object.hasOwn(x.on, e.type)) x.on[e.type](s, e, d, p);

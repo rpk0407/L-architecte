@@ -4,6 +4,7 @@
 import { fail } from '../core/engine.js';
 import { getAppt, getClient } from './common.js';
 import { queueMessage, apptVars } from '../domain/messages.js';
+import { mailConfirmation, mailOwner } from '../domain/mails.js';
 import { payDeadline } from '../domain/policy.js';
 import { busyIntervals } from '../domain/availability.js';
 
@@ -45,6 +46,10 @@ export const paymentSucceeded = {
         if (c && c.phone && a.sms && s.settings.messages.confirmation) {
           queueMessage(s, ctx, { key: 'conf_' + a.id + '_' + a.moves, template: 'confirmation', to: c.phone, cid: c.id, apptId: a.id, vars: apptVars(s, a, ctx.meta.linkFor) });
         }
+        // the e-mail with the calendar file, and the owner's alert of an online booking, wait for the deposit (WP-02)
+        const paid = { ...a, status: 'booked', deposit: a.deposit && py.kind === 'deposit' ? { ...a.deposit, paid: py.amount } : a.deposit };
+        if (c) mailConfirmation(s, ctx, paid, { to: c.email, first: c.first, link: ctx.meta.linkFor ? ctx.meta.linkFor(a) : '' });
+        if (a.source === 'site') mailOwner(s, ctx, paid, 'booked');
       } else if (a.status === 'cancelled') {
         // paid after the booking expired: the API refunds it, we only keep the record
         return { ok: true, late: true };

@@ -167,7 +167,7 @@ export function staffRoutes(app) {
       staff: [...s.staff.values()].filter((x) => x.active || full).sort((a, b) => (a.order ?? 99) - (b.order ?? 99)).map((x) => staffView(x, full || x.id === r.me.id)),
       services: [...s.services.values()].filter((x) => x.active || r.caps.has('catalog')).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)).map(serviceView),
       products: [...s.products.values()].filter((x) => x.active || r.caps.has('catalog')).map(productView),
-      providers: { payments: r.rt.pay.name, paymentsLive: !!r.rt.pay.live, sms: r.rt.sms ? r.rt.sms.name : null, store: r.rt.store.kind },
+      providers: { payments: r.rt.pay.name, paymentsLive: !!r.rt.pay.live, sms: r.rt.sms ? r.rt.sms.name : null, email: r.rt.email ? r.rt.email.name : null, store: r.rt.store.kind },
       warnings: r.me.role === 'owner' ? [...r.rt.warnings, ...closingWarnings(s, r.local.day)] : []
     };
   });
@@ -246,7 +246,7 @@ export function staffRoutes(app) {
     const c = a.clientId ? s.clients.get(a.clientId) : null;
     const history = c ? [...s.appts.values()].filter((x) => x.clientId === c.id && x.id !== a.id && (x.status === 'done' || x.status === 'no_show')).sort((x, y) => (x.day < y.day ? 1 : -1)).slice(0, 8)
       .map((x) => ({ id: x.id, day: x.day, start: x.start, services: x.services.map((v) => v.name), staff: (s.staff.get(x.staffId) || {}).name, status: x.status, price: x.saleId ? (s.sales.get(x.saleId)?.totals.revenue ?? x.price) : x.price })) : [];
-    const messages = [...s.messages.values()].filter((m) => m.apptId === a.id).map((m) => ({ id: m.id, template: m.template, status: m.status, at: m.at, sentAt: m.sentAt || null, to: m.toMasked }));
+    const messages = [...s.messages.values()].filter((m) => m.apptId === a.id).map((m) => ({ id: m.id, channel: m.channel || 'sms', template: m.template, status: m.status, at: m.at, sentAt: m.sentAt || null, to: m.toMasked }));
     const payments = [...s.payments.values()].filter((p) => p.apptId === a.id).map((p) => ({ id: p.id, kind: p.kind, amount: p.amount, status: p.status, at: p.createdAt }));
     return { appt: apptView(s, a, r.caps, stats), client: c && r.caps.has('client.view') ? clientFull(s, c, r.caps, stats) : null, history, messages, payments, sale: a.saleId && s.sales.get(a.saleId) ? saleView(s, s.sales.get(a.saleId), r.caps) : null };
   }, { cap: 'agenda.own' });
@@ -325,7 +325,8 @@ export function staffRoutes(app) {
       .map((a) => ({ id: a.id, day: a.day, start: a.start, dur: a.dur, status: a.status, services: a.services.map((x) => x.name), staffId: a.staffId, price: a.price, source: a.source, saleId: a.saleId, note: a.note || '' }));
     const sales = [...s.sales.values()].filter((x) => x.clientId === c.id).sort((a, b) => b.at - a.at).slice(0, 40).map((x) => ({ id: x.id, ref: ticketNo(x.number), day: x.day, due: x.totals.due, revenue: x.totals.revenue, refunded: x.refunded, lines: x.lines.map((l) => l.name) }));
     const packs = [...s.packs.values()].filter((k) => k.clientId === c.id).map((k) => ({ id: k.id, name: k.name, used: k.used, total: k.total, expires: k.expires, soldAt: k.soldAt }));
-    const messages = [...s.messages.values()].filter((m) => m.cid === c.id).sort((a, b) => b.at - a.at).slice(0, 20).map((m) => ({ id: m.id, template: m.template, status: m.status, at: m.at }));
+    // the owner's alerts carry the client's id so erasure blanks them, but the client never received them
+    const messages = [...s.messages.values()].filter((m) => m.cid === c.id && !m.template.startsWith('owner_')).sort((a, b) => b.at - a.at).slice(0, 20).map((m) => ({ id: m.id, channel: m.channel || 'sms', template: m.template, status: m.status, at: m.at }));
     return { client: clientFull(s, c, r.caps, stats), appts, sales: r.caps.has('sale.all') || r.caps.has('report.shop') ? sales : [], packs, messages };
   }, { cap: 'client.view' });
 
@@ -474,8 +475,8 @@ export function staffRoutes(app) {
 
   app.get('/api/v1/messages', (r) => {
     const items = [...r.s.messages.values()].sort((a, b) => b.at - a.at).slice(0, Math.min(300, Number(r.query.get('limit')) || 100))
-      .map((m) => ({ id: m.id, template: m.template, status: m.status, at: m.at, dueAt: m.dueAt || m.at, sentAt: m.sentAt || null, to: m.toMasked || maskPhone(m.to), body: r.caps.has('settings') ? m.body : '', error: m.error || '' }));
-    return { items, provider: r.rt.sms ? r.rt.sms.name : null, mode: r.s.mode };
+      .map((m) => ({ id: m.id, channel: m.channel || 'sms', template: m.template, status: m.status, at: m.at, dueAt: m.dueAt || m.at, sentAt: m.sentAt || null, to: m.toMasked || maskPhone(m.to), body: r.caps.has('settings') ? m.body : '', subject: r.caps.has('settings') && m.mail ? m.mail.subject || '' : '', error: m.error || '' }));
+    return { items, provider: r.rt.sms ? r.rt.sms.name : null, emailProvider: r.rt.email ? r.rt.email.name : null, mode: r.s.mode };
   }, { cap: 'marketing' });
   /** The address that brings STOP replies back (sent with every text; also for the provider's own settings). */
   // marketing: the templates that get the STOP mention (TEMPLATE_FLAGS), so Réglages counts it without a copy of the list

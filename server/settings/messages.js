@@ -1,5 +1,5 @@
 // @ts-check
-// Messages: which automatic SMS go out, when, and the owner's version of each text.
+// Messages: which automatic SMS go out, when, and the owner's version of each text; whether clients also get e-mails.
 import { str, int, bool, opt, obj, arr, record } from '../lib/validate.js';
 import { TEMPLATES } from '../core/templates.js';
 
@@ -17,7 +17,9 @@ export default /** @type {const} */ ({
     quiet: { from: 1200, to: 480, sunday: true, holidays: true },
     // the opt-out mention French law asks of every marketing text (number to confirm with Brevo)
     stopSuffix: ' STOP au 36173',
-    countries: [...COUNTRIES]
+    countries: [...COUNTRIES],
+    // WP-02: the confirmation (with the calendar file) and the cancellation also by e-mail, to clients who gave one
+    email: true
   }),
   schema: obj({
     confirmation: opt(bool()), reminder: opt(bool()), reminderHour: opt(int({ min: 8, max: 21 })), reminder2h: opt(bool()), review: opt(bool()),
@@ -27,6 +29,7 @@ export default /** @type {const} */ ({
     quiet: opt(obj({ from: int({ min: 0, max: 1439 }), to: int({ min: 0, max: 1439 }), sunday: bool(), holidays: opt(bool()) })),
     // it can be reworded, never removed
     stopSuffix: opt(str({ min: 6, max: 40, trim: false, pattern: /\bSTOP\b/ })),
-    countries: opt(arr(str({ min: 2, max: 5, pattern: /^\+\d{1,4}$/ }), { min: 1, max: 40 }))
+    countries: opt(arr(str({ min: 2, max: 5, pattern: /^\+\d{1,4}$/ }), { min: 1, max: 40 })),
+    email: opt(bool())
   })
 });

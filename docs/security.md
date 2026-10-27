@@ -68,6 +68,7 @@ The salon's record of processing (RGPD art. 30), kept here and summarised for cl
 |---|---|---|---|---|
 | Rendez-vous | Réserver, confirmer, déplacer, annuler; liste d’attente | Contrat (6.1.b) | Fiche client: 3 ans après la dernière visite | Vercel (hébergement), Neon (base de données, UE) |
 | SMS de service | Confirmation, rappel, place libérée, reçu, lien Mon rendez-vous sur demande | Contrat (6.1.b), désactivable par client | Comme la fiche; journal d’envoi avec elle | Brevo (SMS, France) |
+| E-mails de service | Confirmation avec le fichier agenda (.ics), déplacement, annulation, aux clients qui ont donné leur e-mail | Contrat (6.1.b), désactivable dans Réglages › Messages | Comme la fiche; journal d’envoi avec elle | Brevo (e-mail transactionnel, France) |
 | SMS marketing (bons plans, relances) | Faire revenir un client au bon rythme | Consentement (6.1.a), STOP à tout moment | Jusqu’au retrait du consentement, au plus comme la fiche | Brevo |
 | Caisse et comptabilité | Tickets, avoirs, clôtures Z, exports pour le comptable | Obligation légale (6.1.c) | Tickets 10 ans; journal fiscal 6 ans (sans nom: les données personnelles sont hors chaîne et effaçables) | Vercel, Neon |
 | Acomptes en ligne | Encaisser l’acompte, le rembourser | Contrat (6.1.b) | Avec le ticket (10 ans); la carte reste chez Stripe | Stripe (paiement) |

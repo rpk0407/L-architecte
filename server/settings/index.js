@@ -11,9 +11,11 @@ import payments from './payments.js';
 import messages from './messages.js';
 import team from './team.js';
 import goals from './goals.js';
+import notify from './notify.js';
+import site from './site.js';
 
 // one entry per line, so sections added by different branches merge cleanly
-export const SECTIONS = /** @type {const} */ ([
+const TYPED = /** @type {const} */ ([
   shop,
   hours,
   closures,
@@ -22,8 +24,11 @@ export const SECTIONS = /** @type {const} */ ([
   payments,
   messages,
   team,
-  goals
+  goals,
+  notify,
+  site
 ]);
+export const SECTIONS = TYPED;
 
 /** @typedef {typeof SECTIONS[number]} Section */
 /** @typedef {{ -readonly [S in Section as S['key']]: ReturnType<S['defaults']> }} Settings */
