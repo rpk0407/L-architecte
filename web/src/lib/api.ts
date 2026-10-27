@@ -17,6 +17,10 @@ type Listener = (e: ApiError) => void;
 const signedOut = new Set<Listener>();
 export function onSignedOut(fn: Listener) { signedOut.add(fn); return () => { signedOut.delete(fn); }; }
 
+/** After every answer: is the salon's database down (x-lx-stale: read from the server's memory; 503: nothing saved)? */
+const storeHealth = new Set<(down: boolean) => void>();
+export function onStoreHealth(fn: (down: boolean) => void) { storeHealth.add(fn); return () => { storeHealth.delete(fn); }; }
+
 export function uuid() {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID();
   return 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 12);
@@ -35,6 +39,9 @@ async function request<T>(method: string, path: string, body?: unknown, opts: { 
   }
   const ct = res.headers.get('content-type') || '';
   const data = ct.includes('application/json') ? await res.json().catch(() => null) : await res.text();
+  // a 503 that is not about the database (too many writes at once) says nothing about it
+  const other = res.status === 503 && data && typeof data === 'object' && data.error && data.error.code !== 'store_down';
+  if (!other) { const down = res.headers.get('x-lx-stale') === '1' || res.status === 503; storeHealth.forEach((fn) => fn(down)); }
   if (!res.ok) {
     const err = data && typeof data === 'object' && data.error ? new ApiError(res.status, data.error.code, data.error.message, data.error.extra) : new ApiError(res.status, 'http', 'Erreur ' + res.status);
     if (res.status === 401 && path.startsWith('/api/v1/')) signedOut.forEach((fn) => fn(err));

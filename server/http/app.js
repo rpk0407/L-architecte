@@ -3,7 +3,8 @@
 // route → same-origin check → body → session → capability → handler → cookies.
 import { router, json, errorResponse, readJson, parseCookies, clientIp, sameOrigin, HttpError, cookie } from './kit.js';
 import { runtime } from './runtime.js';
-import { readSession, liveSession, signLink, signSession, SESSION_COOKIE, DEVICE_COOKIE, HOUR } from '../auth/session.js';
+import { readSession, liveSession, signLink, signSession, pinIdle, touchSession, SESSION_COOKIE, DEVICE_COOKIE, HOUR } from '../auth/session.js';
+import { STORE_DOWN, STORE_LOST, STALE_MAX } from '../core/engine.js';
 import { capsOf } from '../domain/permissions.js';
 import { sha256 } from '../lib/util.js';
 import { localParts } from '../../shared/dates.js';
@@ -32,6 +33,36 @@ inquiryRoutes(app);
 giftshopRoutes(app);
 
 const MUTATING = new Set(['POST', 'PATCH', 'PUT', 'DELETE']);
+const READ_DOWN = 'La base de données ne répond pas. Réessaie dans un instant.';
+/** the site and the client pages: a client has no ticket to note on paper */
+const CLIENT_DOWN = 'Le salon ne répond pas. Réessaie dans un instant.';
+
+/**
+ * Catch up with the store. When it does not answer, this instance still holds a valid projection: reads are served
+ * from it for STALE_MAX (the answer says x-lx-stale); writes are refused once the session is known (staleWrite).
+ * @returns {Promise<boolean>} whether the answer comes from memory
+ */
+async function syncOrStale(engine) {
+  try { await engine.sync(); return false; } catch { /* logged once by the engine */ }
+  if (!engine.lastSyncOk || engine.clock() - engine.lastSyncOk > STALE_MAX) throw new HttpError(503, 'store_down', READ_DOWN);
+  return true;
+}
+
+/**
+ * A write while the store is down is refused before anything happens (no SMS, no payment started for a booking that
+ * cannot be saved), except the retry of a write this instance already made: it gets its first answer (core/engine.js),
+ * and one whose append failed midway is not told that nothing was saved. Signing in and out only sets a cookie, so a
+ * salon tablet still locks and opens; a command such a route runs still fails on its own.
+ */
+function staleWrite(engine, method, pathname, me, requestId) {
+  if (!MUTATING.has(method) || pathname.startsWith('/api/auth/')) return;
+  const known = me && requestId ? engine.knows({ t: 'staff', id: me.id }, requestId) : '';
+  if (known === 'answered') return;
+  throw new HttpError(503, 'store_down', known === 'unsure' ? STORE_LOST : STORE_DOWN);
+}
+
+/** A cold start that cannot reach the store: told once per outage, with its stack, not once per request. */
+let bootDown = false;
 
 /**
  * A binary body (a photo), refused past `max` bytes before it is read when the length is announced, and while reading
@@ -66,11 +97,28 @@ export async function handle(req, opt = {}) {
 
   /** @type {string[]} */
   const setCookies = [];
+  let stale = false;
+  /** @param {Response} res */
+  const finish = (res) => {
+    for (const c of setCookies) res.headers.append('set-cookie', c);
+    // read from memory while the store is down: the Comptoir shows it, and no cache keeps it
+    if (stale) { res.headers.set('x-lx-stale', '1'); res.headers.set('cache-control', 'no-store'); }
+    return res;
+  };
   try {
     if (MUTATING.has(req.method) && opt2.csrf !== false && !sameOrigin(req, url)) throw new HttpError(403, 'origin', 'Requête refusée (origine).');
-    const rt = opt.runtime || (await runtime());
+    let rt;
+    try { rt = opt.runtime || (await runtime()); }
+    catch (e) {
+      // a cold start that cannot reach the store has nothing to serve: 503, which the site shows as "ne répond pas"
+      if (e && /** @type {any} */ (e).expose) throw e;
+      if (!bootDown) console.error('[lx] boot', e && /** @type {any} */ (e).stack ? /** @type {any} */ (e).stack : e);
+      bootDown = true;
+      throw new HttpError(503, 'store_down', READ_DOWN);
+    }
+    if (bootDown && !opt.runtime) { bootDown = false; console.warn('[lx] boot ok again'); }
     const engine = rt.engine;
-    await engine.sync();
+    stale = await syncOrStale(engine);
     const s = engine.state;
     if (!rt.origin) rt.origin = url.origin;
     const origin = rt.cfg.publicUrl || url.origin;
@@ -90,15 +138,18 @@ export async function handle(req, opt = {}) {
     const devToken = cookies[DEVICE_COOKIE];
     if (devToken) { const did = s.deviceByHash.get(sha256(devToken)); const d = did ? s.devices.get(did) : null; if (d && !d.revoked) device = d; }
     const p = readSession(rt.secret, cookies[SESSION_COOKIE], now);
-    if (p) {
+    // a PIN session left alone ends on the server too, even if the tablet's own lock never ran (closed tab, crash)
+    const idle = !!p && pinIdle(p, now);
+    if (p && !idle) {
       const live = liveSession(s, p, devToken);
       if (live) { me = live.staff; session = p; if (!device && live.device) device = live.device; }
     }
     if (!me && cookies[SESSION_COOKIE]) setCookies.push(cookie(SESSION_COOKIE, '', { maxAge: 0, secure: rt.cfg.secureCookies }));
     const caps = me ? capsOf(me, s.settings) : new Set();
     const needsAuth = opt2.auth !== false && pathname.startsWith('/api/v1/');
-    if (needsAuth && !me) throw new HttpError(401, 'signed_out', 'Session expirée. Reconnecte-toi.');
+    if (needsAuth && !me) throw idle ? new HttpError(401, 'pin_idle', 'Poste verrouillé après 10 minutes sans activité. Saisis ton code.') : new HttpError(401, 'signed_out', 'Session expirée. Reconnecte-toi.');
     if (opt2.cap && !caps.has(opt2.cap)) throw new HttpError(403, 'forbidden', 'Tu n’as pas accès à cette page.');
+    if (stale) staleWrite(engine, req.method, pathname, me, req.headers.get('x-request-id') || undefined);
     // a photo is read only once the session and the right are checked: nobody else gets 3 MB into memory
     if (opt2.bytes) bytes = await readBytes(req, opt2.bytes);
 
@@ -134,14 +185,15 @@ export async function handle(req, opt = {}) {
       const exp = Math.max(session.exp, now + 12 * HOUR);
       setCookies.push(cookie(SESSION_COOKIE, signSession(rt.secret, { uid: me.id, did: session.did || null, kind: session.kind, iat: now, exp }), { maxAge: (exp - now) / 1000, secure: rt.cfg.secureCookies }));
     }
+    // a PIN session slides with every request (the Comptoir's pulse too: the tablet's own lock handles an untouched
+    // screen), re-signed at most once a minute; its 12-hour expiry stays
+    const touched = session ? touchSession(rt.secret, session, now) : null;
+    if (touched && session) setCookies.push(cookie(SESSION_COOKIE, touched, { maxAge: (session.exp - now) / 1000, secure: rt.cfg.secureCookies }));
 
     const out = await route.fn(r);
-    const res = out instanceof Response ? out : json(out ?? { ok: true });
-    for (const c of setCookies) res.headers.append('set-cookie', c);
-    return res;
+    return finish(out instanceof Response ? out : json(out ?? { ok: true }));
   } catch (e) {
-    const res = errorResponse(e);
-    for (const c of setCookies) res.headers.append('set-cookie', c);
-    return res;
+    const forStaff = pathname.startsWith('/api/v1/') || pathname.startsWith('/api/auth/');
+    return finish(errorResponse(e && e.code === 'store_down' && !forStaff ? new HttpError(503, 'store_down', CLIENT_DOWN) : e));
   }
 }

@@ -76,12 +76,21 @@ export default async ({ h, page }) => {
   if (sitemap.status !== 200 || !sitemap.text.includes('<loc>https://barberlarchitecte.com/</loc>')) throw new Error('sitemap.xml: ' + sitemap.status);
 
   // the demo landing page sends production visitors to the site, and stays hidden while it asks (a slow cold start)
-  await page.route('**/api/public/salon', async (route) => { await new Promise((r) => setTimeout(r, 1000)); await route.continue().catch(() => {}); });
+  // only the demo page's own request is held back, and the handler is awaited before it is removed: a handler still
+  // asleep when the page leaves (its request cancelled, or answered by the unroute) must not continue it afterwards
+  /** @type {Promise<void>|null} */
+  let held = null;
+  await page.route('**/api/public/salon', (route) => {
+    held = (async () => { await new Promise((r) => setTimeout(r, 1000)); try { await route.continue(); } catch { /* the page went on without it */ } })();
+    return held;
+  }, { times: 1 });
   await page.goto(h.base + '/demo', { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(400);
   if (page.url().endsWith('/demo') && await page.getByText('Architecte13').locator('visible=true').count()) throw new Error('/demo shows the demo credentials before leaving');
   await page.waitForURL(h.base + '/', { timeout: 8000 });
-  await page.unroute('**/api/public/salon', { behavior: 'ignoreErrors' });
+  if (!held) throw new Error('/demo never asked /api/public/salon');
+  await held;
+  await page.unroute('**/api/public/salon');
   await page.locator('.lp').first().waitFor({ timeout: 8000 });
 
   // every old address: the right status and destination, query kept

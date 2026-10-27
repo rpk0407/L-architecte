@@ -42,7 +42,18 @@ function rowToEvent(r) {
  * @returns {Store}
  */
 export function postgresStore(o) {
-  const pool = o.pool || new pg.Pool({ connectionString: o.url, max: 4, idleTimeoutMillis: 20000, connectionTimeoutMillis: 8000 });
+  // a database that does not answer is known within 3 s, and a stuck statement within 10: the instance then serves
+  // reads from memory and refuses writes (http/app.js) instead of holding every request for the platform's timeout.
+  // statement_timeout is the database's own: it aborts the statement and its transaction cleanly. query_timeout only
+  // backs it up for a link that went silent (no answer at all); a connection it hits is destroyed, never reused.
+  // keepAlive finds the idle connections a restart or a failover left dead.
+  const pool = o.pool || new pg.Pool({
+    connectionString: o.url, max: 4, idleTimeoutMillis: 20000, connectionTimeoutMillis: 3000,
+    statement_timeout: 10000, query_timeout: 15000, keepAlive: true, keepAliveInitialDelayMillis: 10000
+  });
+  // an idle connection the database dropped (restart, failover, network reset) is an 'error' event on the pool: without
+  // a listener it kills the process, and with it the memory that serves reads during the outage
+  if (!o.pool) pool.on('error', (e) => console.error('[lx] pg idle client:', e && e.message ? e.message : e));
   /** @type {Promise<string>|null} */
   let ready = null;
   const init = () => {
@@ -76,6 +87,8 @@ export function postgresStore(o) {
       if (!list.length) return { ok: true };
       await init();
       const client = await pool.connect();
+      /** @type {any} a connection that failed midway may still hold an open transaction: destroyed, not reused */
+      let broken = null;
       try {
         await client.query('begin');
         const cur = (await client.query(`select v from lx_meta where k = 'epoch'`)).rows[0].v;
@@ -95,11 +108,11 @@ export function postgresStore(o) {
         await client.query('commit');
         return { ok: true };
       } catch (e) {
-        await client.query('rollback').catch(() => {});
-        if (e && /** @type {any} */ (e).code === '23505') return { ok: false }; // someone else took that version
+        if (e && /** @type {any} */ (e).code === '23505') { await client.query('rollback').catch((r) => { broken = r; }); return { ok: false }; } // someone else took that version
+        broken = e;
         throw e;
       } finally {
-        client.release();
+        client.release(broken || undefined);
       }
     },
     async redact(match) {

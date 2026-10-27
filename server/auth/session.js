@@ -7,19 +7,37 @@ import { rand62, sha256 } from '../lib/util.js';
 export const SESSION_COOKIE = 'lx_s';
 export const DEVICE_COOKIE = 'lx_d';
 export const HOUR = 3600000;
+/** a PIN session (a shared salon device) ends after this long without a request, whatever the screen does */
+export const PIN_IDLE = 10 * 60000;
+/** how often a PIN session's lastSeen is re-signed: often enough to slide, rarely enough to stay cheap */
+const PIN_TOUCH = 60000;
 
 /** @param {string} secret @param {string} data */
 function mac(secret, data) { return createHmac('sha256', secret).update(data).digest('base64url'); }
 function eq(a, b) { const x = Buffer.from(a), y = Buffer.from(b); return x.length === y.length && timingSafeEqual(x, y); }
 
 /**
- * @typedef {{ sid: string, uid: string, did?: string|null, kind: 'pwd'|'pin', iat: number, exp: number }} SessionPayload
+ * seen: a PIN session's last request (signed with it, so the server alone decides when it went idle)
+ * @typedef {{ sid: string, uid: string, did?: string|null, kind: 'pwd'|'pin', iat: number, exp: number, seen?: number }} SessionPayload
  */
 
-/** @param {string} secret @param {Omit<SessionPayload, 'sid'>} p */
+/** @param {string} secret @param {Omit<SessionPayload, 'sid'> & { sid?: string }} p */
 export function signSession(secret, p) {
-  const payload = Buffer.from(JSON.stringify({ sid: rand62(16), ...p })).toString('base64url');
+  const full = { sid: rand62(16), ...p };
+  if (full.kind === 'pin' && full.seen == null) full.seen = full.iat;
+  const payload = Buffer.from(JSON.stringify(full)).toString('base64url');
   return payload + '.' + mac(secret, 'session:' + payload);
+}
+
+/** A PIN session nobody used for PIN_IDLE: refused, whatever its expiry says. A password session never idles out. */
+export function pinIdle(p, now) {
+  return p.kind === 'pin' && now - (p.seen ?? p.iat) > PIN_IDLE;
+}
+
+/** The same PIN session seen now, when the last re-issue is a minute old; null when it is fresher. */
+export function touchSession(secret, p, now) {
+  if (p.kind !== 'pin' || now - (p.seen ?? p.iat) < PIN_TOUCH) return null;
+  return signSession(secret, { ...p, seen: now });
 }
 
 /** @returns {SessionPayload|null} */
