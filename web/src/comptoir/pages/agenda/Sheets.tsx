@@ -75,7 +75,7 @@ export function SlotPicker({ serviceIds, staffId, day, value, onPick, ignore, ho
 /* ---------------- an appointment ---------------- */
 
 type ApptDetail = { appt: Appt; client: ClientFull | null; history: { id: string; day: string; services: string[]; staff: string; status: string; price: number }[]; messages: { id: string; template: string; status: string; at: number; sentAt: number | null }[]; payments: { id: string; kind: string; amount: number; status: string }[]; sale: any };
-const TPL: Record<string, string> = { confirmation: 'Confirmation', reminder: 'Rappel la veille', reminder2h: 'Rappel 2 h avant', review: 'Demande d’avis', cancelled: 'Annulation', receipt: 'Reçu' };
+const TPL: Record<string, string> = { confirmation: 'Confirmation', reminder: 'Rappel la veille', reminder2h: 'Rappel 2 h avant', review: 'Demande d’avis', cancelled: 'Annulation', receipt: 'Reçu', lookup: 'Lien Mon rendez-vous' };
 /** A text's fate in a few words. Outside the demo nothing is simulated: without a provider a text waits for one. */
 function smsState(status: string, demo: boolean, provider: string | null): string {
   if (status === 'failed') return 'échec · ';

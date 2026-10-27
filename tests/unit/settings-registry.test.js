@@ -41,7 +41,10 @@ const BEFORE = () => {
         waitlist: "L'Architecte : place libérée {date} à {heure} avec {barbier}, à toi pendant 30 min : {lien}",
         queue: "L'Architecte : c'est presque ton tour, {prenom}. Reviens au salon, on t'installe dans 5 minutes.",
         cancelled: "L'Architecte : ton rendez-vous du {date} à {heure} est annulé. Pour en reprendre un : {lien}",
-        receipt: "L'Architecte : merci {prenom} ! Ton ticket {ticket} de {montant} : {lien}"
+        receipt: "L'Architecte : merci {prenom} ! Ton ticket {ticket} de {montant} : {lien}",
+        // WP-04: the link asked from /mon-rendez-vous, and DO-03's gift card code
+        lookup: "L'Architecte : ton rendez-vous {date} à {heure} : {lien}{suite}",
+        giftcardCode: "L'Architecte : {acheteur} t'offre une carte cadeau de {montant} ! Code {code}, valable jusqu'au {date}. Réserve : {lien}"
       },
       // GL-08: quiet hours, the STOP mention, the countries texted
       quiet: { from: 1200, to: 480, sunday: true, holidays: true }, stopSuffix: ' STOP au 36173', countries: ['+33', '+32', '+41', '+352', '+262', '+590', '+594', '+596', '+508', '+681', '+687', '+689']

@@ -14,6 +14,7 @@ import { staffRoutes } from './routes-staff.js';
 import { adminRoutes } from './routes-admin.js';
 import { importRoutes } from './routes-import.js';
 import { uploadRoutes, readCapped } from './routes-uploads.js';
+import { clientRoutes } from './routes-client.js';
 
 // A REGISTRY: one line per route file
 const app = router();
@@ -23,9 +24,8 @@ staffRoutes(app);
 adminRoutes(app);
 importRoutes(app);
 uploadRoutes(app);
+clientRoutes(app);
 // each path is written out: Vercel's bundler (@vercel/nft) ships only the files an import names literally
-// @ts-ignore WP-04's file, until it lands
-await optionalRoutes(app, () => import('./routes-client.js'), new URL('./routes-client.js', import.meta.url)); // WP-04: Mon rendez-vous without an account (POST /api/public/lookup)
 // @ts-ignore GL-10's file, until it lands
 await optionalRoutes(app, () => import('./routes-health.js'), new URL('./routes-health.js', import.meta.url)); // GL-10: the health card of Mise en route (GET /api/v1/health)
 

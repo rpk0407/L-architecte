@@ -38,6 +38,8 @@ The owner adjusts the barbers' toggles in Réglages › Équipe et accès; the m
 
 "Mon rendez-vous", receipts and waiting-list offers are reached through links signed with HMAC (`code.signature`). They expose no other appointment, cannot be guessed, and show no personal data beyond the client's first name.
 
+`/mon-rendez-vous` has no account behind it: `POST /api/public/lookup {phone}` (server/http/routes-client.js) texts the links of the client's next two appointments, and only to the number on file (an erased client or a merged file's old number gets nothing). Whoever typed the number learns nothing: the answer is the same words and status for a known, unknown or erased number, and it leaves after 450 to 650 ms whatever the store, because the journal write runs after it (`waitUntil`). Limits: 10 asks per IP per hour (then a 429, which says nothing about the number), 3 per number per day in the instance's memory, and 3 texts per client per day kept in the journal across instances; past them the answer stays the same and nothing is sent. The text is a service text asked for by the person holding the phone, so it leaves at once, quiet hours included: at worst a stranger who knows the number makes the salon text it three times in a day, with links only that phone can use.
+
 ## Payments
 
 - **Stripe Checkout**: card data never touches the salon's server. Amounts are computed on the server; the webhook is verified (signature, 5-minute tolerance, constant-time comparison) and idempotent. Refunds go through Stripe with an idempotency key.
@@ -65,7 +67,7 @@ The salon's record of processing (RGPD art. 30), kept here and summarised for cl
 | Traitement | Finalité | Base légale | Durée | Sous-traitants |
 |---|---|---|---|---|
 | Rendez-vous | Réserver, confirmer, déplacer, annuler; liste d’attente | Contrat (6.1.b) | Fiche client: 3 ans après la dernière visite | Vercel (hébergement), Neon (base de données, UE) |
-| SMS de service | Confirmation, rappel, place libérée, reçu | Contrat (6.1.b), désactivable par client | Comme la fiche; journal d’envoi avec elle | Brevo (SMS, France) |
+| SMS de service | Confirmation, rappel, place libérée, reçu, lien Mon rendez-vous sur demande | Contrat (6.1.b), désactivable par client | Comme la fiche; journal d’envoi avec elle | Brevo (SMS, France) |
 | SMS marketing (bons plans, relances) | Faire revenir un client au bon rythme | Consentement (6.1.a), STOP à tout moment | Jusqu’au retrait du consentement, au plus comme la fiche | Brevo |
 | Caisse et comptabilité | Tickets, avoirs, clôtures Z, exports pour le comptable | Obligation légale (6.1.c) | Tickets 10 ans; journal fiscal 6 ans (sans nom: les données personnelles sont hors chaîne et effaçables) | Vercel, Neon |
 | Acomptes en ligne | Encaisser l’acompte, le rembourser | Contrat (6.1.b) | Avec le ticket (10 ans); la carte reste chez Stripe | Stripe (paiement) |

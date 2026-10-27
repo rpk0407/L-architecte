@@ -8,6 +8,7 @@ The salon's own system, replacing the WordPress setup: the public site where cli
 | `/demo` | Demo landing page: how it works, demo access (goes to `/` outside the demo) | the owner, during the demo |
 | `/comptoir` | Le Comptoir, the back office | owner, managers, front desk, barbers |
 | `/r/:token` | "Mon rendez-vous": confirm, pay the deposit, move, cancel | a client, from the SMS link |
+| `/mon-rendez-vous` (also `/mon-compte`) | Find an appointment without an account: a phone number in, the `/r/` links by SMS to that number | a client without the SMS at hand |
 | `/paiement/:id`, `/recu/:token` | Test checkout (until Stripe is connected), receipt | clients |
 
 ## Run it
