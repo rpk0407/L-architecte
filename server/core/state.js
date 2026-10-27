@@ -2,54 +2,30 @@
 // The projection: what the journal means right now. `evolve` folds one event into the state.
 // It is the only code that mutates state, and it runs only for events already stored.
 import { GENESIS } from './journal.js';
+import { TEMPLATES } from './templates.js';
+import { defaultSettings } from '../settings/index.js';
+import { EXTENSIONS } from './extensions.js';
 
 /** @typedef {import('./journal.js').JEvent} JEvent */
 
-// Written in the GSM alphabet (straight apostrophe, no ç, ê or ô) so each text costs one SMS, not three.
-export const TEMPLATES = {
-  confirmation: "L'Architecte : c'est noté {prenom} ! {date} à {heure} avec {barbier}. Gérer : {lien}",
-  reminder: "L'Architecte : rappel, demain {heure} avec {barbier}. Un imprévu ? Déplace ou annule ici : {lien}",
-  reminder2h: "L'Architecte : on t'attend à {heure} avec {barbier}, à tout à l'heure !",
-  review: "Merci {prenom} ! 30 secondes pour un avis ? Ça nous aide énormément : {avis}",
-  rebook: "Salut {prenom}, déjà {jours} jours depuis ta dernière coupe. On s'y remet ? Réserve ici : {lien}",
-  waitlist: "L'Architecte : place libérée {date} à {heure} avec {barbier}, à toi pendant 30 min : {lien}",
-  queue: "L'Architecte : c'est presque ton tour, {prenom}. Reviens au salon, on t'installe dans 5 minutes.",
-  cancelled: "L'Architecte : ton rendez-vous du {date} à {heure} est annulé. Pour en reprendre un : {lien}",
-  receipt: "L'Architecte : merci {prenom} ! Ton ticket {ticket} de {montant} : {lien}"
-};
-
-export function defaultSettings() {
-  const day = [[540, 1110]];
-  return {
-    shop: {
-      name: 'Barber L’Architecte', address: '16, place Pélabon', zip: '13013', city: 'Marseille',
-      phone: '', email: 'larchitectebarber@gmail.com', siret: '', vatNumber: '', legalName: '',
-      mapsUrl: 'https://www.google.com/maps/search/?api=1&query=L%27Architecte%20coiffeur&query_place_id=ChIJJSWkBLy_yRIRbgAQcMwb-JY',
-      reviewUrl: 'https://search.google.com/local/writereview?placeid=ChIJJSWkBLy_yRIRbgAQcMwb-JY',
-      instagram: 'https://www.instagram.com/barbershoplarchitecte/'
-    },
-    /** weekday (0 = Sunday) → open intervals in minutes */
-    hours: { 0: [], 1: [], 2: day, 3: day, 4: day, 5: day, 6: day },
-    /** @type {{ id: string, from: string, to: string, label: string }[]} */
-    closures: [],
-    booking: { enabled: true, stepMin: 30, minNoticeMin: 30, maxDaysAhead: 30, holdMin: 5, pendingPayMin: 15, cancelUntilHours: 12, waitlist: true, walkinWait: true },
-    deposits: { mode: 'threshold', thresholdCents: 5000, percent: 30, noShowFeeCents: 1000 },
-    payments: { card: true, cash: true, qr: true, giftcard: true, tips: true, tipPresets: [200, 500, 1000], vat: 2000, receiptFooter: 'Merci et à bientôt !' },
-    messages: { confirmation: true, reminder: true, reminderHour: 18, reminder2h: false, review: true, reviewDelayMin: 120, rebook: true, waitlist: true, templates: { ...TEMPLATES } },
-    team: { barberCheckout: true, barberAllAgenda: true, barberMaxDiscountPct: 10, barberSeeRevenue: false },
-    goals: { monthCents: 2400000 }
-  };
-}
+// Kept here so existing imports keep working; each is defined once, in its registry.
+export { TEMPLATES, defaultSettings };
 
 export function emptyState() {
-  return {
+  const s = {
     version: 0, head: GENESIS, mode: /** @type {null|'demo'|'production'} */ (null), createdAt: 0,
     settings: defaultSettings(),
     staff: new Map(), creds: new Map(), devices: new Map(), deviceByHash: new Map(),
     services: new Map(), products: new Map(),
     clients: new Map(), clientByPhone: new Map(),
+    /** keyed hashes of erased files' numbers and e-mails → why and when (an import skips their older rows) */
+    erasedTombs: new Map(),
     appts: new Map(), apptsByDay: new Map(), apptByToken: new Map(), apptByCode: new Map(),
+    /** imported from WordPress: post id → appointment id (old e-mail links, re-runs of the import) */
+    apptByWp: new Map(),
     holds: new Map(), blocks: new Map(), blocksByDay: new Map(), timeoff: new Map(),
+    /** absences a barber asked for, waiting for the owner (or refused): they close no slot (DO-05) */
+    timeoffRequests: new Map(),
     queue: new Map(), waitlist: new Map(),
     sales: new Map(), salesByDay: new Map(), saleSeq: 0, refunds: new Map(), refundSeq: 0,
     payments: new Map(), paymentByRef: new Map(),
@@ -60,6 +36,8 @@ export function emptyState() {
     /** small, recent activity feed for the Comptoir (id, type, at, actor) */
     feed: /** @type {any[]} */ ([])
   };
+  for (const x of EXTENSIONS) x.init?.(s);
+  return s;
 }
 /** @typedef {ReturnType<typeof emptyState>} State */
 
@@ -73,11 +51,16 @@ export function mergeDeep(a, b) {
 function index(map, key, id) { let s = map.get(key); if (!s) { s = new Set(); map.set(key, s); } s.add(id); }
 function unindex(map, key, id) { const s = map.get(key); if (s) s.delete(id); }
 
+/** A message's final states: nothing will send it again. */
+const DONE = new Set(['sent', 'simulated', 'expired', 'skipped']);
+
 /** Events that change what the Comptoir loads once at start (settings, team, catalogue). */
 const CFG = /^(shop|settings|staff|timeoff|device|service|product|stock)\./;
 
-/** Events worth showing in the live feed. */
-const FEED = new Set(['appt.booked', 'appt.cancelled', 'appt.moved', 'appt.status', 'sale.completed', 'sale.refunded', 'payment.succeeded', 'waitlist.added', 'queue.added', 'day.closed', 'drawer.closed', 'stock.adjusted']);
+/** Events worth showing in the live feed (plus each extension's `feed`, when it has an `item` to show them).
+ *  inquiry.received is WP-05's (an extension): routes-staff.js renders it, so it is kept whatever its extension says. */
+const FEED = new Set(['appt.booked', 'appt.cancelled', 'appt.moved', 'appt.status', 'sale.completed', 'sale.refunded', 'payment.succeeded', 'waitlist.added', 'queue.added', 'day.closed', 'drawer.closed', 'stock.adjusted',
+  'timeoff.added', 'timeoff.requested', 'timeoff.refused', 'timeoff.withdrawn', 'inquiry.received']);
 
 /**
  * @param {State} s
@@ -93,6 +76,8 @@ export function evolve(s, e) {
       break;
     case 'settings.updated':
       s.settings = mergeDeep(s.settings, d.patch);
+      // the owner's alert address and mobile, out of the chain (commands/shop.js)
+      if (p.notify) s.settings = mergeDeep(s.settings, { notify: p.notify });
       break;
 
     case 'staff.added':
@@ -115,8 +100,12 @@ export function evolve(s, e) {
       break;
     }
     case 'staff.revoked': { const x = s.staff.get(d.id); if (x) x.revokedAt = e.at; break; }
-    case 'timeoff.added': s.timeoff.set(d.id, { ...d, at: e.at }); break;
+    case 'timeoff.added': s.timeoff.set(d.id, { ...d, at: e.at, by: e.actor.id }); s.timeoffRequests.delete(d.id); break;
     case 'timeoff.removed': s.timeoff.delete(d.id); break;
+    // a barber's own absence while the salon asks for approval: kept apart, so availability never sees it
+    case 'timeoff.requested': s.timeoffRequests.set(d.id, { ...d, at: e.at, by: e.actor.id, status: 'pending' }); break;
+    case 'timeoff.refused': { const q = s.timeoffRequests.get(d.id); if (q) Object.assign(q, { status: 'refused', decidedAt: e.at, decidedBy: e.actor.id }); break; }
+    case 'timeoff.withdrawn': s.timeoffRequests.delete(d.id); break;
 
     case 'device.enrolled':
       s.devices.set(d.id, { id: d.id, name: d.name, tokenHash: d.tokenHash, by: e.actor.id, at: e.at, revoked: false });
@@ -133,7 +122,7 @@ export function evolve(s, e) {
     case 'stock.adjusted': { const x = s.products.get(d.productId); if (x) x.stock = (x.stock || 0) + d.delta; break; }
 
     case 'client.added': {
-      const c = { id: d.id, first: p.first || '', last: p.last || '', phone: p.phone || '', email: p.email || '', notes: p.notes || '', tech: p.tech || '', birthday: p.birthday || '', tags: d.tags || [], sms: d.sms !== false, marketing: !!d.marketing, source: d.source || 'salon', createdAt: e.at, erased: false, mergedInto: null, demo: !!d.demo };
+      const c = { id: d.id, first: p.first || '', last: p.last || '', phone: p.phone || '', email: p.email || '', notes: p.notes || '', tech: p.tech || '', birthday: p.birthday || '', tags: d.tags || [], sms: d.sms !== false, marketing: !!d.marketing, source: d.source || 'salon', createdAt: d.createdAt || e.at, erased: false, mergedInto: null, demo: !!d.demo };
       s.clients.set(d.id, c);
       if (c.phone) s.clientByPhone.set(c.phone, d.id);
       break;
@@ -163,10 +152,25 @@ export function evolve(s, e) {
         if (c.phone && ids.has(s.clientByPhone.get(c.phone))) s.clientByPhone.delete(c.phone);
         Object.assign(c, { first: 'Client', last: 'effacé', phone: '', email: '', notes: '', tech: '', birthday: '', erased: true, sms: false, marketing: false });
       }
-      for (const a of s.appts.values()) if (ids.has(a.clientId)) a.note = '';
-      for (const m of s.messages.values()) if (ids.has(m.cid)) { m.to = ''; m.body = ''; }
+      for (const a of s.appts.values()) if (ids.has(a.clientId)) { a.note = ''; if (a.cancel && a.cancel.by === 'client') a.cancel.reason = ''; }
+      for (const m of s.messages.values()) if (ids.has(m.cid)) { m.to = ''; m.body = ''; if (m.mail) m.mail = null; }
+      for (const x of s.sales.values()) if (ids.has(x.clientId)) x.discountNote = '';
       for (const w of s.waitlist.values()) if (ids.has(w.clientId)) { w.first = ''; w.phone = ''; }
       for (const q of s.queue.values()) if (ids.has(q.clientId)) { q.name = 'Client effacé'; q.phone = ''; }
+      for (const g of s.giftcards.values()) if (ids.has(g.cid)) { g.buyer = ''; g.recipient = ''; }
+      // the latest erasure of a number counts: a row the old site recorded after it is someone who came back
+      for (const t of d.tombs || []) s.erasedTombs.set(t, { why: d.retention ? 'retention' : 'request', at: e.at });
+      // the retention purge also drops personal data that belongs to no file, by the ids its events carry
+      for (const k of d.drop || []) {
+        const a = s.appts.get(k); if (a) { a.name = ''; a.note = ''; if (a.cancel && a.cancel.by === 'client') a.cancel.reason = ''; }
+        const x = s.sales.get(k); if (x) x.discountNote = '';
+        const q = s.queue.get(k); if (q) { q.name = 'Passage'; q.phone = ''; }
+        const w = s.waitlist.get(k); if (w) { w.first = ''; w.phone = ''; }
+        const g = s.giftcards.get(k); if (g) { g.buyer = ''; g.recipient = ''; }
+        const m = s.messages.get(k); if (m) { m.to = ''; m.body = ''; }
+      }
+      // the extensions' own copies of personal data (a request from the site linked to the file)
+      for (const x of EXTENSIONS) if (Object.hasOwn(x.on, e.type)) x.on[e.type](s, e, d, p);
       break;
     }
 
@@ -179,12 +183,15 @@ export function evolve(s, e) {
         id: d.id, code: d.code, tokenHash: d.tokenHash || '', clientId: d.clientId || null, name: p.name || '', note: p.note || '',
         staffId: d.staffId, anyStaff: !!d.anyStaff, day: d.day, start: d.start, dur: d.dur, services: d.services, price: d.price,
         source: d.source, status: d.status || 'booked', createdAt: d.createdAt || e.at, createdBy: e.actor.id, sms: d.sms !== false,
-        deposit: d.deposit || null, saleId: null, cancel: null, moves: 0, demo: !!d.demo, statusAt: {}
+        deposit: d.deposit || null, saleId: null, cancel: d.cancel ? { ...d.cancel, actor: e.actor.id } : null, moves: 0, demo: !!d.demo, statusAt: {},
+        // imported from the old site: its post id and link secret (ext), and whether it is only history (legacy)
+        ext: d.ext || null, legacy: !!d.legacy
       };
       s.appts.set(a.id, a);
       index(s.apptsByDay, a.day, a.id);
       if (a.tokenHash) s.apptByToken.set(a.tokenHash, a.id);
       if (a.code) s.apptByCode.set(a.code, a.id);
+      if (d.ext && d.ext.wp) s.apptByWp.set(String(d.ext.wp), a.id);
       if (d.holdId) s.holds.delete(d.holdId);
       break;
     }
@@ -217,7 +224,7 @@ export function evolve(s, e) {
       const a = s.appts.get(d.id);
       if (!a) break;
       a.status = 'cancelled';
-      a.cancel = { by: d.by, reason: d.reason || '', at: e.at, late: !!d.late, actor: e.actor.id };
+      a.cancel = { by: d.by, reason: d.reason || p.reason || '', at: e.at, late: !!d.late, actor: e.actor.id };
       break;
     }
 
@@ -230,7 +237,9 @@ export function evolve(s, e) {
     case 'waitlist.updated': { const w = s.waitlist.get(d.id); if (w) Object.assign(w, d.patch); break; }
 
     case 'sale.completed': {
-      const x = { ...d, at: d.at || e.at, by: e.actor.id, refunded: 0, refundIds: [] };
+      // a typed discount reason travels in pii (chained data says "Autre"), so erasure removes it
+      // refunded: revenue given back; refundedLiability: gift cards cancelled and paid back; lineRefunds: line index → { qty, amount }
+      const x = { ...d, at: d.at || e.at, by: e.actor.id, refunded: 0, refundedLiability: 0, refundIds: [], lineRefunds: {}, discountNote: p.discountReason || '' };
       s.sales.set(d.id, x);
       let list = s.salesByDay.get(d.day);
       if (!list) { list = []; s.salesByDay.set(d.day, list); }
@@ -246,7 +255,11 @@ export function evolve(s, e) {
       s.refunds.set(d.id, { ...d, at: d.at || e.at, by: e.actor.id });
       s.refundSeq = Math.max(s.refundSeq, d.number);
       const x = s.sales.get(d.saleId);
-      if (x) { x.refunded += d.amount; x.refundIds.push(d.id); }
+      if (x) {
+        // a cancelled gift card is a debt paid back, not revenue: it stays out of what was refunded of the revenue
+        x.refunded += d.amount - (d.liability || 0); x.refundedLiability += d.liability || 0; x.refundIds.push(d.id);
+        for (const l of d.lines || []) { const r = x.lineRefunds[l.i] || { qty: 0, amount: 0 }; x.lineRefunds[l.i] = { qty: r.qty + l.qty, amount: r.amount + l.amount }; }
+      }
       break;
     }
 
@@ -287,24 +300,39 @@ export function evolve(s, e) {
       s.giftByHash.set(d.codeHash, d.id);
       break;
     case 'giftcard.redeemed': { const g = s.giftcards.get(d.id); if (g) { g.balance -= d.amount; g.uses.push({ saleId: d.saleId, amount: d.amount, at: e.at }); } break; }
-    case 'giftcard.voided': { const g = s.giftcards.get(d.id); if (g) g.status = 'void'; break; }
+    // the hash stays indexed, so the till can say the card was cancelled (and replaced) rather than unknown
+    case 'giftcard.voided': { const g = s.giftcards.get(d.id); if (g) Object.assign(g, { status: 'void', voidedAt: e.at, voidReason: d.reason || '', replacedBy: d.replacedBy || null }); break; }
     case 'pack.sold': s.packs.set(d.id, { ...d, used: 0, uses: [], soldAt: e.at }); break;
     case 'pack.used': { const k = s.packs.get(d.id); if (k) { k.used += 1; k.uses.push({ saleId: d.saleId, at: e.at }); } break; }
-    case 'pack.returned': { const k = s.packs.get(d.id); if (k) k.used = Math.max(0, k.used - 1); break; }
+    case 'pack.returned': { const k = s.packs.get(d.id); if (k && !k.voided) k.used = Math.max(0, k.used - 1); break; }
+    // cancelled with a refund: no cut left, so everything that counts what is left (the till, the client file) sees none
+    case 'pack.voided': { const k = s.packs.get(d.id); if (k && !k.voided) { k.voided = { at: e.at, left: k.total - k.used, saleId: d.saleId || null, refundId: d.refundId || null }; k.total = k.used; } break; }
 
     case 'demo.seeded': for (const k of d.days || []) s.demoDays.add(k); break;
     case 'message.queued':
-      s.messages.set(d.id, { ...d, to: p.to || '', body: p.body || '', status: 'queued', at: e.at });
+      // an e-mail's subject, button and calendar file (WP-02) travel in pii with its text
+      s.messages.set(d.id, { ...d, to: p.to || '', body: p.body || '', ...(p.mail ? { mail: p.mail } : {}), status: 'queued', at: e.at });
       break;
-    case 'message.updated': { const m = s.messages.get(d.id); if (m) Object.assign(m, d.patch, { updatedAt: e.at }); break; }
+    case 'message.updated': {
+      const m = s.messages.get(d.id);
+      if (!m) break;
+      Object.assign(m, d.patch, { updatedAt: e.at });
+      // a mail's calendar file is needed until it leaves, not in memory for good (a copy: the event's pii stays as hashed)
+      if (m.mail && m.mail.attachments && DONE.has(m.status)) { const { attachments, ...rest } = m.mail; m.mail = rest; }
+      break;
+    }
     default:
+      // own keys only: an event type never reaches an inherited method (constructor, __proto__…)
+      for (const x of EXTENSIONS) if (Object.hasOwn(x.on, e.type)) x.on[e.type](s, e, d, p);
       break;
   }
   s.eventIds.add(e.id);
   if (CFG.test(e.type)) s.cfgVersion = e.v;
   s.version = e.v;
   s.head = e.h;
-  if (FEED.has(e.type) && !(e.actor.t === 'system' && (e.type !== 'appt.cancelled' || e.actor.id === 'seed' || e.actor.id === 'demo'))) {
+  // an import writes hundreds of bookings at once: they are not news, and would push the real ones out of the feed
+  const imported = e.type === 'appt.booked' && d.source === 'import';
+  if (!imported && (FEED.has(e.type) || EXTENSIONS.some((x) => x.item && x.feed?.includes(e.type))) && !(e.actor.t === 'system' && (e.type !== 'appt.cancelled' || e.actor.id === 'seed' || e.actor.id === 'demo'))) {
     s.feed.push({ v: e.v, type: e.type, at: e.at, actor: e.actor, data: e.data });
     if (s.feed.length > 300) s.feed.splice(0, s.feed.length - 300);
   }

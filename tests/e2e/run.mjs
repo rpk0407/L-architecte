@@ -4,67 +4,23 @@
 //   SHOTS=1 npm run test:e2e                  also saves screenshots in .lx-data/e2e/
 //
 // Every page is opened on desktop and on a phone, and any JavaScript error fails the run.
-import { spawn } from 'node:child_process';
-import { createRequire } from 'node:module';
-import { existsSync, mkdirSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+// Then every tests/e2e/demo/*.mjs scenario runs, each on its own demo salon (see harness.mjs for the format).
+// The production salon (setup, the site at /, redirects) is covered by prod.mjs.
+import { playwright, requireBuild, startServer, runner, helpers, runFiles, report, expectText, shot } from './harness.mjs';
+import { DEMO } from '../../server/domain/seed.js';
 
-const ROOT = resolve(new URL('../..', import.meta.url).pathname);
-const PORT = 3000 + Math.floor(Math.random() * 900) + 100;
-const BASE = 'http://localhost:' + PORT;
-const SHOTS = process.env.SHOTS ? join(ROOT, '.lx-data', 'e2e') : null;
-if (SHOTS) mkdirSync(SHOTS, { recursive: true });
+const { chromium } = playwright();
+requireBuild();
 
-let chromium;
-try { ({ chromium } = createRequire(import.meta.url)('playwright')); } catch {
-  console.error('Playwright is missing: npm i -D playwright && npx playwright install chromium');
-  process.exit(2);
-}
-if (!existsSync(join(ROOT, 'dist', 'comptoir', 'index.html'))) { console.error('Build first: npm run build'); process.exit(2); }
-
-const server = spawn(process.execPath, [join(ROOT, 'scripts', 'dev.mjs'), '--dist', '--memory', '--port', String(PORT)], {
-  env: { ...process.env, NODE_ENV: 'test', LX_MODE: 'demo', LX_FAKE_NOW: '2026-10-27T15:10:00+01:00', PUBLIC_URL: BASE },
-  stdio: ['ignore', 'pipe', 'pipe']
-});
-let serverLog = '';
-server.stdout.on('data', (d) => { serverLog += d; });
-server.stderr.on('data', (d) => { serverLog += d; });
-for (let i = 0; i < 120; i++) {
-  try { const r = await fetch(BASE + '/api/public/live'); if (r.ok) break; } catch { /* starting */ }
-  await new Promise((r) => setTimeout(r, 250));
-}
+const DEMO_ENV = { LX_MODE: 'demo', LX_FAKE_NOW: '2026-10-27T15:10:00+01:00' };
+const OWNER = { name: 'Gérant', email: DEMO.email, password: DEMO.password, pin: DEMO.ownerPin };
+const server = await startServer(DEMO_ENV, ['--memory']);
+const BASE = server.base;
 
 const browser = await chromium.launch();
-const results = [];
-async function scenario(name, fn, { viewport = { width: 1440, height: 900 } } = {}) {
-  const ctx = await browser.newContext({ viewport, locale: 'fr-FR', timezoneId: 'Europe/Paris', deviceScaleFactor: 1 });
-  const page = await ctx.newPage();
-  const errors = [];
-  page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
-  page.on('console', (m) => { if (m.type() === 'error' && !/favicon|404 \(Not Found\)/.test(m.text())) errors.push('console: ' + m.text()); });
-  const t0 = Date.now();
-  try {
-    await fn(page, ctx);
-    if (errors.length) throw new Error(errors.slice(0, 3).join('\n'));
-    results.push({ name, ok: true, ms: Date.now() - t0 });
-    console.log('  ✓ ' + name + ' (' + (Date.now() - t0) + ' ms)');
-  } catch (e) {
-    results.push({ name, ok: false, err: e.message });
-    console.log('  ✗ ' + name + '\n    ' + String(e.message).split('\n').join('\n    '));
-    if (SHOTS) await page.screenshot({ path: join(SHOTS, 'FAIL-' + name.replace(/\W+/g, '-') + '.png') }).catch(() => {});
-  }
-  await ctx.close();
-}
-const shot = (page, name) => (SHOTS ? page.screenshot({ path: join(SHOTS, name + '.png') }) : null);
-const expectText = async (page, text, timeout = 8000) => { await page.getByText(text, { exact: false }).locator('visible=true').first().waitFor({ timeout }); };
+const { results, scenario } = runner(browser);
 
-async function ownerLogin(page) {
-  await page.goto(BASE + '/comptoir');
-  await page.fill('#li-e', 'gerant@larchitecte.fr');
-  await page.fill('#li-p', 'Architecte13');
-  await page.getByRole('button', { name: 'Se connecter' }).click();
-  await page.locator('#page-title h1').waitFor({ timeout: 10000 });
-}
+async function ownerLogin(page) { await helpers({ base: BASE, mode: 'demo', owner: OWNER }).loginOwner(page); }
 async function api(page, path, body) {
   return page.evaluate(async ([p, b]) => {
     const r = await fetch(p, b ? { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(b) } : {});
@@ -109,7 +65,7 @@ await scenario('owner: every page opens without error (phone)', async (page) => 
 }, { viewport: { width: 390, height: 844 } });
 
 await scenario('site: a client books online, the salon sees it', async (page) => {
-  await page.goto(BASE + '/site');
+  await page.goto(BASE + '/');
   await page.locator('.cta').first().click();
   await page.locator('.bk button.so', { hasText: 'Coupe + taille de barbe' }).click();
   await page.locator('.bk button.wh').nth(1).click();
@@ -127,7 +83,7 @@ await scenario('site: a client books online, the salon sees it', async (page) =>
 }, { viewport: { width: 390, height: 844 } });
 
 await scenario('site: deposit paid, the appointment is confirmed', async (page) => {
-  await page.goto(BASE + '/site');
+  await page.goto(BASE + '/site'); // the old address stays an alias of /
   await page.locator('.cta').first().click();
   await page.locator('.bk button.so', { hasText: 'Transformation' }).click();
   await page.locator('.bk button.wh').first().click();
@@ -175,9 +131,16 @@ await scenario('barber: own scope only, no owner screens', async (page) => {
   await expectText(page, 'Commission estimée');
 });
 
+await server.stop();
+
+console.log('\n  demo scenarios (tests/e2e/demo)');
+await runFiles(browser, 'demo', {
+  scenario,
+  boot: async (mod) => {
+    const srv = await startServer({ ...DEMO_ENV, ...(mod.env || {}) }, ['--memory']);
+    return { ...srv, h: { ...helpers({ base: srv.base, mode: 'demo', owner: OWNER }), demo: DEMO } };
+  }
+});
+
 await browser.close();
-server.kill();
-const failed = results.filter((r) => !r.ok);
-console.log('\n' + (results.length - failed.length) + ' passed, ' + failed.length + ' failed\n');
-if (failed.length) console.log(serverLog.split('\n').filter((l) => /error|Error/.test(l)).slice(-10).join('\n'));
-process.exit(failed.length ? 1 : 0);
+process.exit(report(results, server.log()));

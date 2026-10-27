@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Page introuvable · Barber L’Architecte</title>
+<meta name="theme-color" content="#0F0E0D">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="preload" href="/fonts/instrument-serif-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/fonts/instrument-sans-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+<style>
+/* the fonts come from the salon's own domain (scripts/postbuild.mjs copies them into /fonts): no visitor's address reaches Google */
+@font-face{font-family:'Instrument Sans';font-style:normal;font-weight:400;font-display:swap;src:url(/fonts/instrument-sans-latin-400-normal.woff2) format('woff2')}
+@font-face{font-family:'Instrument Sans';font-style:normal;font-weight:500;font-display:swap;src:url(/fonts/instrument-sans-latin-500-normal.woff2) format('woff2')}
+@font-face{font-family:'Instrument Sans';font-style:normal;font-weight:600;font-display:swap;src:url(/fonts/instrument-sans-latin-600-normal.woff2) format('woff2')}
+@font-face{font-family:'Instrument Sans';font-style:normal;font-weight:700;font-display:swap;src:url(/fonts/instrument-sans-latin-700-normal.woff2) format('woff2')}
+@font-face{font-family:'Instrument Serif';font-style:normal;font-weight:400;font-display:swap;src:url(/fonts/instrument-serif-latin-400-normal.woff2) format('woff2')}
+@font-face{font-family:'Instrument Serif';font-style:italic;font-weight:400;font-display:swap;src:url(/fonts/instrument-serif-latin-400-italic.woff2) format('woff2')}
+:root{--os:#ECE8E0;--encre:#0F0E0D;--encre3:#221F1C;--cendre:#ABA59C;--ligne:rgba(236,232,224,.14);--rouge:#EB4639;--f-serif:'Instrument Serif','Times New Roman',Times,serif;--f-sans:'Instrument Sans',system-ui,-apple-system,'Segoe UI',sans-serif;--pad:clamp(20px,5.4vw,80px)}
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+body{margin:0;min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;background:var(--encre);color:var(--os);font:400 17px/1.5 var(--f-sans);-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}
+a:focus-visible{outline:2.5px solid currentColor;outline-offset:3px}
+.tb{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:68px;padding:env(safe-area-inset-top,0px) var(--pad) 0}
+.wm{display:flex;flex-direction:column;justify-content:center;min-height:44px;line-height:1}
+.wm-a{font:italic 400 26px/1 var(--f-serif)}
+.wm-b{margin-top:4px;font:500 11px/1 var(--f-sans);letter-spacing:.06em;opacity:.7}
+main{flex:1;display:flex;flex-direction:column;justify-content:center;width:100%;padding:48px var(--pad) 64px}
+.kk{display:flex;align-items:center;gap:12px;margin:0 0 22px;font:600 12.5px/1 var(--f-sans);letter-spacing:.1em;text-transform:uppercase;color:var(--cendre)}
+.kk::after{content:"";width:34px;height:1px;background:currentColor;opacity:.45}
+h1{margin:0;max-width:11ch;font:400 clamp(52px,12vw,128px)/.92 var(--f-serif);letter-spacing:-.015em;text-wrap:balance}
+h1 em{color:var(--rouge)}
+p{margin:26px 0 0;max-width:34em;color:var(--cendre);font-size:clamp(17px,1.6vw,19px)}
+.acts{display:flex;flex-wrap:wrap;gap:12px;margin-top:38px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:12px;min-height:56px;padding:0 30px;border-radius:999px;background:var(--rouge);color:var(--encre);font:600 17px/1 var(--f-sans);white-space:nowrap;transition:background-color .25s,color .25s}
+.btn:hover{background:var(--os)}
+.btn.ghost{background:transparent;color:var(--os);box-shadow:inset 0 0 0 1.5px currentColor}
+.btn.ghost:hover{background:rgba(236,232,224,.12)}
+footer{padding:22px var(--pad) calc(22px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--ligne);color:var(--cendre);font-size:14px}
+@media (max-width:520px){.acts .btn{flex:1 1 100%}}
+</style>
+</head>
+<body>
+<header class="tb"><a class="wm" href="/" aria-label="Barber L’Architecte, accueil"><span class="wm-a">L’Architecte</span><span class="wm-b">Barber · Marseille</span></a></header>
+<main>
+<p class="kk">Erreur 404</p>
+<h1>Cette page a <em>pris</em> la porte.</h1>
+<p>L’adresse a changé ou n’a jamais existé. Les rendez-vous, eux, c’est toujours ici&nbsp;: choisis ta coupe, ton barbier et ton heure en une minute.</p>
+<div class="acts"><a class="btn" href="/?reserver">Réserver</a><a class="btn ghost" href="/">Revenir à l’accueil</a></div>
+</main>
+<footer>Barber L’Architecte · 16, place Pélabon, 13013 Marseille</footer>
+</body>
+</html>

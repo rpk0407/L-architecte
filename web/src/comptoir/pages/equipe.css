@@ -48,3 +48,31 @@
   .eq-day { grid-template-columns: minmax(0, 1fr); gap: 6px; }
   .eq-h { font-size: 32px; }
 }
+/* absences: the requests to decide, the clients an absence lands on and what happens to each (DO-05) */
+.eq-requests { margin-bottom: 16px; box-shadow: inset 0 0 0 1.5px var(--warn); }
+.eq-req-acts { display: flex; gap: 6px; flex: none; }
+.eq-plan { display: flex; flex-direction: column; gap: 12px; }
+.eq-plan-day .section-k { margin: 4px 0 2px; }
+.eq-plan-row { gap: 12px; }
+.eq-plan-t { display: flex; flex-direction: column; align-items: flex-start; width: 52px; flex: none; }
+.eq-plan-t b { font: 600 15px/1.1 var(--sans); }
+.eq-plan-t small { font-size: 11.5px; color: var(--tx3); }
+.eq-plan-pick { width: 250px; flex: none; min-height: 40px; font-size: 13.5px; }
+.eq-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; width: 100%; }
+@media (max-width: 760px) {
+  /* three buttons do not fit a phone's width: the one that matters on its own line, first */
+  .eq-foot > .grow { display: none; }
+  .eq-foot > .btn { flex: 1 1 0; }
+  .eq-foot > .btn-primary { flex: 1 1 100%; order: -1; }
+  .eq-plan-row, .eq-req { flex-wrap: wrap; }
+  .eq-plan-pick { width: 100%; }
+  .eq-req-acts { width: 100%; justify-content: flex-end; }
+}
+/* the row a refused plan names; an absence's state and its 'à replacer' go under its text on a phone */
+.eq-plan-err { box-shadow: inset 3px 0 0 var(--danger); background: var(--danger-bg); padding-left: 10px; border-radius: 10px; }
+.eq-off-act { display: flex; align-items: center; gap: 6px; flex: none; }
+@media (max-width: 760px) {
+  .eq-off { flex-wrap: wrap; }
+  .eq-off .li-main { flex: 1 1 0; min-width: 0; }
+  .eq-off-act { order: 9; flex-basis: 100%; padding-left: 44px; }
+}

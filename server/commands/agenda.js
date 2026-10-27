@@ -5,11 +5,14 @@ import { fail } from '../core/engine.js';
 import { str, int, bool, opt, obj, arr, day, id, oneOf, parse } from '../lib/validate.js';
 import { freeSlots, isFree, staffIntervals, canDo, busyIntervals, intersect, subtract } from '../domain/availability.js';
 import { normPhone, capFirst } from '../lib/util.js';
-import { depositFor, clientMayChange } from '../domain/policy.js';
+import { depositFor, clientMayChange, payWindowMin } from '../domain/policy.js';
+import { riskDeposit } from '../domain/risk.js';
 import { queueMessage, apptVars } from '../domain/messages.js';
+import { mailConfirmation, mailCancellation, mailOwner } from '../domain/mails.js';
 import { getStaff, getAppt, getClient, snapshotServices, totalDur, totalPrice, needChair } from './common.js';
 import { upsertClient } from './clients.js';
 import { diffDays } from '../../shared/dates.js';
+import { cgvVersionOf } from '../settings/shop.js';
 
 const serviceIds = () => arr(id(), { min: 1, max: 4 });
 const minute = () => int({ min: 0, max: 1439 });
@@ -20,14 +23,30 @@ function uniqueCode(s, ctx) {
   return ctx.code('LA') + ctx.id('').slice(-2).toUpperCase();
 }
 
+/** A sealed day (Z done, even early) takes no booking from anyone: nothing more could be paid that day. */
+function notSealed(s, day) {
+  if (s.closures.has(day)) fail(409, 'day_closed', 'Cette journée est clôturée : plus aucun rendez-vous ce jour-là.');
+}
+
 /** Is that exact start offered online right now? Returns the chair that gets it. */
 function onlineSlot(s, ctx, q) {
   const list = freeSlots(s, { ...q, now: ctx.now, local: ctx.local, online: true });
   return list.find((x) => x.m === q.start) || null;
 }
 
-/** @param {string} [first] for a client created in this same batch, not yet in the state */
-function confirmText(s, ctx, a, clientPhone, first) {
+/**
+ * The confirmation: by SMS, and by e-mail with the calendar file when the client gave an address.
+ * @param {string} [first] for a client created in this same batch, not yet in the state
+ * @param {{ to: string, first: string }} [typed] the address typed with an online booking: it gets this booking's mail only
+ */
+function confirmText(s, ctx, a, clientPhone, first, typed) {
+  // its own channel: a client who wants no SMS still gets the file for their agenda;
+  // a booking waiting for its deposit gets it once paid (commands/payments.js), never before
+  if (a.status !== 'pending') {
+    const c = a.clientId ? s.clients.get(a.clientId) : null;
+    const to = typed && typed.to ? typed : { to: (c && !c.erased && c.email) || '', first: (c && c.first) || first || '' };
+    mailConfirmation(s, ctx, a, { ...to, link: ctx.meta.linkFor ? ctx.meta.linkFor(a) : '' });
+  }
   if (!s.settings.messages.confirmation || !a.sms || !clientPhone) return;
   const vars = apptVars(s, a, ctx.meta.linkFor);
   if (first && !vars.prenom) vars.prenom = first;
@@ -63,7 +82,8 @@ export const releaseHold = {
 
 const bookSchema = obj({
   holdId: opt(id()), serviceIds: serviceIds(), staffId: str({ min: 1, max: 64 }), day: day(), start: minute(),
-  first: str({ min: 2, max: 40 }), last: opt(str({ max: 40 })), phone: str({ min: 6, max: 24 }), email: opt(str({ max: 120, lower: true })),
+  // no ':' or '/' in a name: it is written into mails, where a web address would read as the salon's own link
+  first: str({ min: 2, max: 40, pattern: /^[^:/]*$/ }), last: opt(str({ max: 40, pattern: /^[^:/]*$/ })), phone: str({ min: 6, max: 24 }), email: opt(str({ max: 120, lower: true })),
   note: opt(str({ max: 200 })), sms: opt(bool()), marketing: opt(bool()), demo: opt(bool())
 });
 export const bookOnline = {
@@ -72,6 +92,8 @@ export const bookOnline = {
     if (!s.settings.booking.enabled) fail(409, 'closed', 'La réservation en ligne est momentanément fermée. Appelle le salon.');
     const services = snapshotServices(s, b.serviceIds);
     if (services.some((x) => !s.services.get(x.id)?.online)) fail(409, 'not_online', 'Cette prestation se réserve au salon.');
+    // a hold taken before an early Z must not slip through
+    if (s.closures.has(b.day)) fail(409, 'taken', 'Le salon a fermé ses réservations pour ce jour-là. Choisis un autre jour, tes choix sont gardés.');
     const dur = totalDur(services);
     let staffId = null;
     const hold = b.holdId ? s.holds.get(b.holdId) : null;
@@ -83,28 +105,43 @@ export const bookOnline = {
       if (!slot) fail(409, 'taken', 'Ce créneau vient d’être pris. Choisis-en un autre, tes choix sont gardés.');
       staffId = slot.staffId;
     }
-    const client = upsertClient(s, ctx, { first: b.first, last: b.last || '', phone: b.phone, email: b.email || '', sms: b.sms !== false, marketing: !!b.marketing }, 'site');
+    const consent = b.marketing === true;
+    const client = upsertClient(s, ctx, { first: b.first, last: b.last || '', phone: b.phone, email: b.email || '', sms: b.sms !== false, marketing: consent }, 'site');
     const existing = client.created ? null : getClient(s, client.id);
+    // the proof of consent: when and where the client said yes (an unticked box takes nothing back)
+    if (consent && (client.created || !existing.marketing)) ctx.emit('client.updated', { id: client.id, cid: client.id, patch: { marketing: true, marketingAt: ctx.now, marketingSrc: 'site' }, fields: [] });
     if (existing) {
       const upcoming = [...s.appts.values()].filter((a) => a.clientId === existing.id && ACTIVE.has(a.status) && diffDays(ctx.local.day, a.day) >= 0);
       if (upcoming.length >= 3) fail(409, 'too_many', 'Tu as déjà 3 rendez-vous à venir. Appelle le salon pour en ajouter.');
-      if (b.email && !existing.email) ctx.emit('client.updated', { id: existing.id, cid: existing.id, patch: {}, fields: ['email'] }, { email: b.email });
+      // an address typed on the site never lands on an existing file: the phone alone does not prove who typed it, and
+      // the file's address receives every later mail with its links to move or cancel (only the salon sets it there)
     }
     const price = totalPrice(services);
-    const deposit = depositFor(s, services);
+    // ctx.meta.payLive: the API says whether a deposit can really be paid online (false: production without Stripe);
+    // the file found by the phone above brings its history: a client who already missed may owe one below the threshold
+    const payLive = ctx.meta.payLive !== false;
+    const deposit = depositFor(s, services, { payLive, risk: payLive && !!existing && riskDeposit(s, existing.id, ctx.local.day) });
     const aid = ctx.id('ap');
     const code = uniqueCode(s, ctx);
+    const cgv = cgvVersionOf(s.settings.shop);
     const a = {
       id: aid, code, clientId: client.id, staffId, anyStaff: b.staffId === 'any', day: b.day, start: b.start, dur,
       services, price, source: 'site', status: deposit > 0 ? 'pending' : 'booked', sms: b.sms !== false,
-      deposit: deposit > 0 ? { amount: deposit, paid: 0, paymentId: null } : null, holdId: hold ? hold.id : null, cid: client.id,
+      deposit: deposit > 0 ? { amount: deposit, paid: 0, paymentId: null, until: ctx.now + payWindowMin(s, { stripe: ctx.meta.payProvider === 'stripe' }) * 60000 } : null, holdId: hold ? hold.id : null, cid: client.id,
+      // the CGV version in force when the client booked: the later of the owner's last rule change and the text's own date
+      cgv,
       ...(b.demo && ctx.meta.demoSim === true ? { demo: true } : {})
     };
     ctx.emit('appt.booked', a, b.note ? { note: b.note } : undefined);
     // a place offered from the waiting list, taken: the person leaves the list
     if (hold) for (const w of s.waitlist.values()) if (w.status === 'offered' && w.offer && w.offer.holdId === hold.id) ctx.emit('waitlist.updated', { id: w.id, patch: { status: 'booked', apptId: aid } });
     const phone = existing ? existing.phone : normPhone(b.phone);
-    if (a.status === 'booked') confirmText(s, ctx, { ...a, moves: 0 }, phone, capFirst(b.first));
+    if (a.status === 'booked') {
+      // the typed address gets this booking's mail, greeted by the name typed with it (never the file's)
+      confirmText(s, ctx, { ...a, moves: 0 }, phone, capFirst(b.first), b.email ? { to: b.email, first: capFirst(b.first) } : undefined);
+      // a booking waiting for its deposit is told to the owner once paid (commands/payments.js)
+      mailOwner(s, ctx, a, 'booked', { first: existing ? existing.first : capFirst(b.first) });
+    }
     return { id: aid, code, status: a.status, staffId, deposit, price };
   }
 };
@@ -121,6 +158,7 @@ export const createAppointment = {
     const x = parse(createSchema, input);
     if (ctx.actor.t !== 'system') { if (x.source === 'site') x.source = 'salon'; delete x.demo; }
     needChair(ctx, x.staffId);
+    notSealed(s, x.day);
     const st = getStaff(s, x.staffId);
     if (!st.active || !st.chair) fail(409, 'no_chair', st.name + ' ne prend pas de rendez-vous.');
     const services = snapshotServices(s, x.serviceIds);
@@ -147,7 +185,8 @@ export const createAppointment = {
     if (x.note) pii.note = x.note;
     if (!clientId && x.name) pii.name = x.name;
     ctx.emit('appt.booked', a, Object.keys(pii).length ? pii : undefined);
-    if (x.sms !== false && x.day >= ctx.local.day && !x.seat) confirmText(s, ctx, { ...a, moves: 0 }, phone, x.client ? capFirst(x.client.first) : undefined);
+    // 'Confirmer par SMS' off stops the text only (a.sms): the e-mail with the calendar file still goes
+    if (x.day >= ctx.local.day && !x.seat) confirmText(s, ctx, { ...a, moves: 0 }, phone, x.client ? capFirst(x.client.first) : undefined);
     return { id: aid, code: a.code };
   }
 };
@@ -166,6 +205,7 @@ export const moveAppointment = {
     const st = getStaff(s, to);
     if (!st.active || !st.chair) fail(409, 'no_chair', st.name + ' ne prend pas de rendez-vous.');
     if (x.day === a.day && x.start === a.start && to === a.staffId) return { ok: true };
+    notSealed(s, x.day);
     const free = isFree(s, to, x.day, x.start, a.dur, { now: ctx.now, ignoreAppt: a.id });
     if (!free && !x.force) fail(409, 'taken', 'Ce créneau n’est pas libre.', { canForce: ctx.can('agenda.edit') });
     if (!free && !ctx.can('agenda.edit')) fail(403, 'forbidden', 'Seul le gérant peut forcer un créneau.');
@@ -182,7 +222,8 @@ export const moveByClient = {
     const a = getAppt(s, x.id);
     if (!['booked', 'pending'].includes(a.status)) fail(409, 'closed', 'Ce rendez-vous ne peut plus être déplacé en ligne.');
     if (!clientMayChange(s, a, ctx.now)) fail(409, 'too_late', 'Il est trop tard pour déplacer en ligne. Appelle le salon.', { phone: s.settings.shop.phone });
-    if (a.moves >= 3) fail(409, 'too_many', 'Ce rendez-vous a déjà été déplacé plusieurs fois. Appelle le salon.');
+    // moves carried over from the old site (WordPress re-import) are not the client's: only those made since count
+    if (a.moves - ((a.ext && a.ext.moves) || 0) >= 3) fail(409, 'too_many', 'Ce rendez-vous a déjà été déplacé plusieurs fois. Appelle le salon.');
     const hold = x.holdId ? s.holds.get(x.holdId) : null;
     const staff = a.anyStaff ? 'any' : a.staffId;
     const slot = onlineSlot(s, ctx, { day: x.day, start: x.start, dur: a.dur, serviceIds: a.services.map((v) => v.id), staffId: staff, ignoreAppt: a.id, ignoreHold: hold ? hold.id : null });
@@ -251,6 +292,8 @@ export const cancelAppointment = {
     if (x.notify && a.clientId && a.day >= ctx.local.day) {
       const c = getClient(s, a.clientId);
       if (c.phone && c.sms) queueMessage(s, ctx, { key: 'cx_' + a.id, template: 'cancelled', to: c.phone, cid: c.id, apptId: a.id, vars: { ...apptVars(s, a), lien: ctx.meta.siteUrl || '' } });
+      // a booking still waiting for its deposit was never sent its calendar file
+      if (a.status !== 'pending') mailCancellation(s, ctx, a, { to: c.email, first: c.first, by: 'salon' });
     }
     return { ok: true, deposit: a.deposit && a.deposit.paid ? a.deposit : null };
   }
@@ -260,7 +303,16 @@ export const cancelByClient = {
     const a = getAppt(s, input.id);
     if (!['booked', 'pending'].includes(a.status)) fail(409, 'closed', 'Ce rendez-vous est déjà clos.');
     if (a.status === 'booked' && !clientMayChange(s, a, ctx.now)) fail(409, 'too_late', 'Il est trop tard pour annuler en ligne. Appelle le salon.', { phone: s.settings.shop.phone });
-    ctx.emit('appt.cancelled', { id: a.id, by: 'client', reason: input.reason ? String(input.reason).slice(0, 120) : '', cid: a.clientId || undefined });
+    // the client's own words are personal data: next to the event, erased with the client
+    const reason = input.reason ? String(input.reason).slice(0, 120) : '';
+    ctx.emit('appt.cancelled', { id: a.id, by: 'client', cid: a.clientId || undefined }, reason ? { reason } : undefined);
+    const c = a.clientId ? s.clients.get(a.clientId) : null;
+    // the client's copy takes it out of their agenda; the owner hears of it. An unpaid booking was never confirmed
+    // by mail nor told to the owner: nothing to take back
+    if (a.status === 'booked') {
+      if (c && !c.erased) mailCancellation(s, ctx, a, { to: c.email, first: c.first, by: 'client' });
+      mailOwner(s, ctx, a, 'cancelled', { reason });
+    }
     return { ok: true, deposit: a.deposit && a.deposit.paid ? a.deposit : null };
   }
 };
@@ -323,6 +375,8 @@ export const addWalkin = {
     const x = parse(walkSchema, input);
     snapshotServices(s, [x.serviceId]);
     if (x.staffId !== 'any') getStaff(s, x.staffId);
+    // after the Z nobody could be seated: say so at the desk, not when the barber calls them
+    notSealed(s, ctx.local.day);
     const phone = x.phone ? normPhone(x.phone) : '';
     if (x.phone && !phone) fail(400, 'invalid', 'Numéro de téléphone invalide.');
     const qid = ctx.id('wq');
@@ -346,6 +400,7 @@ export const updateWalkin = {
     }
     const staffId = x.staffId || (q.staffId !== 'any' ? q.staffId : ctx.staff?.id);
     if (!staffId) fail(400, 'invalid', 'Choisis le barbier.');
+    notSealed(s, ctx.local.day);
     const st = getStaff(s, staffId);
     const services = snapshotServices(s, [q.serviceId]);
     const start = Math.floor(ctx.local.min / 5) * 5;

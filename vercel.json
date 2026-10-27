@@ -11,31 +11,63 @@
     "api/main.js": { "maxDuration": 30 }
   },
   "redirects": [
-    { "source": "/Main.dc.html", "destination": "/site", "permanent": false },
-    { "source": "/Cockpit.dc.html", "destination": "/comptoir", "permanent": false },
-    { "source": "/Parcours.dc.html", "destination": "/", "permanent": false }
+    { "source": "/Main.dc", "destination": "/", "permanent": false },
+    { "source": "/Cockpit.dc", "destination": "/comptoir", "permanent": false },
+    { "source": "/Parcours.dc", "destination": "/demo", "permanent": false },
+    { "source": "/", "has": [{ "type": "query", "key": "sln-api" }], "destination": "/ancien-lien", "permanent": false },
+    { "source": "/", "has": [{ "type": "query", "key": "sln_customer_login" }], "destination": "/ancien-lien", "permanent": false },
+    { "source": "/", "has": [{ "type": "query", "key": "sln_reschedule_booking" }], "destination": "/ancien-lien", "permanent": false },
+    { "source": "/", "has": [{ "type": "query", "key": "sln_booking_id" }], "destination": "/ancien-lien", "permanent": false },
+    { "source": "/", "has": [{ "type": "query", "key": "sln_step_page" }], "destination": "/ancien-lien", "permanent": false },
+    { "source": "/", "has": [{ "type": "query", "key": "page_id", "value": "2" }], "missing": [{ "type": "query", "key": "reserver" }], "destination": "/?reserver", "permanent": true },
+    { "source": "/rdv-en-ligne", "destination": "/?reserver", "permanent": true },
+    { "source": "/booking", "destination": "/?reserver", "permanent": true },
+    { "source": "/thank-you-for-booking", "destination": "/", "permanent": true },
+    { "source": "/salon-de-coiffure", "destination": "/", "permanent": true },
+    { "source": "/news", "destination": "/", "permanent": true },
+    { "source": "/mon-compte", "destination": "/mon-rendez-vous", "permanent": true },
+    { "source": "/booking-my-account", "destination": "/mon-rendez-vous", "permanent": true },
+    { "source": "/nos-services", "destination": "/#carte", "permanent": true },
+    { "source": "/creations", "destination": "/#coupes", "permanent": true },
+    { "source": "/taille-et-entretien-de-la-coupe-et-de-la-barbe", "destination": "/formations#barbe", "permanent": true },
+    { "source": "/la-coupe-classique-et-ses-subtilites", "destination": "/formations#classique", "permanent": true },
+    { "source": "/la-coupe-homme-complexe-et-ses-techniques", "destination": "/formations#complexe", "permanent": true },
+    { "source": "/a-toutes-occasions-offrez-un-moment-privilegie-a-vos-proches-en-leur-offrant-une-carte-cadeau", "destination": "/carte-cadeau", "permanent": true },
+    { "source": "/(message-exceptionnel|welcome-back-jkut-congrats|jblades-welcome-in-da-team|brews-redken|retrouvez-la-gamme-redken-brews|paiements-par-cb-desormais-acceptes|nous-serons-exceptionnellement-ouverts-les-lundi-21-28-decembre)", "destination": "/", "permanent": true },
+    { "source": "/sln_service/:slug*", "destination": "/#carte", "permanent": true },
+    { "source": "/go_pricing_tables/:slug*", "destination": "/#carte", "permanent": true },
+    { "source": "/sln_attendant/:slug", "destination": "/?reserver&barbier=:slug", "permanent": true },
+    { "source": "/category/:slug*", "destination": "/", "permanent": true },
+    { "source": "/(2019|2020)/:path*", "destination": "/", "permanent": true },
+    { "source": "/(feed|comments/feed)", "destination": "/", "permanent": true },
+    { "source": "/(wp-sitemap.xml|sitemap_index.xml)", "destination": "/sitemap.xml", "permanent": true },
+    { "source": "/wp-login.php", "destination": "/comptoir", "permanent": false },
+    { "source": "/wp-admin/:path*", "destination": "/comptoir", "permanent": false },
+    { "source": "/wp-content/uploads/:path*", "destination": "/", "permanent": true }
   ],
   "rewrites": [
+    { "source": "/", "destination": "/site" },
     { "source": "/api/:path*", "destination": "/api/main?route=:path*" },
-    { "source": "/comptoir", "destination": "/comptoir/index.html" },
-    { "source": "/comptoir/:path*", "destination": "/comptoir/index.html" },
-    { "source": "/r/:token", "destination": "/client/index.html" },
-    { "source": "/recu/:token", "destination": "/client/index.html" },
-    { "source": "/paiement/:id", "destination": "/client/index.html" }
+    { "source": "/comptoir/:path*", "destination": "/comptoir" },
+    { "source": "/r/:token", "destination": "/client" },
+    { "source": "/recu/:token", "destination": "/client" },
+    { "source": "/paiement/:id", "destination": "/client" },
+    { "source": "/cadeau/:token", "destination": "/client" }
   ],
   "headers": [
     {
       "source": "/(.*)",
       "headers": [
-        { "key": "X-Robots-Tag", "value": "noindex, nofollow" },
         { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
         { "key": "X-Content-Type-Options", "value": "nosniff" },
         { "key": "Strict-Transport-Security", "value": "max-age=63072000; includeSubDomains" },
         { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=(), payment=()" }
       ]
     },
+    { "source": "/(comptoir|r|recu|paiement|cadeau|client|api|demo|ancien-lien)", "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }] },
+    { "source": "/(comptoir|r|recu|paiement|cadeau|client|api|demo|ancien-lien)/(.*)", "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }] },
     {
-      "source": "/(comptoir|r|recu|paiement|client)(.*)",
+      "source": "/(comptoir|r|recu|paiement|cadeau|client)(.*)",
       "headers": [
         { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self' https://checkout.stripe.com; object-src 'none'" },
         { "key": "X-Frame-Options", "value": "DENY" },

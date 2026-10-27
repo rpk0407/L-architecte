@@ -14,7 +14,7 @@ export function staffView(st, full = false) {
 }
 
 export function serviceView(sv) {
-  return { id: sv.id, slug: sv.slug || null, name: sv.name, short: sv.short || sv.name, category: sv.category, price: sv.price, from: !!sv.from, dur: sv.dur, buffer: sv.buffer || 0, online: sv.online !== false, deposit: sv.deposit ?? null, vat: sv.vat, order: sv.order ?? 0, description: sv.description || '', includes: sv.includes || [], pack: sv.pack || null, active: sv.active };
+  return { id: sv.id, slug: sv.slug || null, name: sv.name, short: sv.short || sv.name, category: sv.category, price: sv.price, from: !!sv.from, dur: sv.dur, buffer: sv.buffer || 0, online: sv.online !== false, deposit: sv.deposit ?? null, vat: sv.vat, order: sv.order ?? 0, description: sv.description || '', includes: sv.includes || [], tag: sv.tag || '', pack: sv.pack || null, active: sv.active };
 }
 export function productView(p) {
   return { id: p.id, name: p.name, price: p.price, cost: p.cost || 0, stock: p.stock || 0, low: p.low || 0, vat: p.vat, sku: p.sku || '', category: p.category || '', active: p.active };
@@ -57,7 +57,7 @@ export function apptView(s, a, caps, stats) {
     id: a.id, code: a.code, staffId: a.staffId, anyStaff: a.anyStaff, day: a.day, start: a.start, dur: a.dur, services: a.services, price: a.price,
     status: a.status, source: a.source, note: a.note || '', name: c ? (c.first + ' ' + (c.last ? c.last.charAt(0) + '.' : '')).trim() : a.name || 'Client',
     client: c ? clientCard(s, c, caps, stats) : null, deposit: a.deposit, guarantee: a.guarantee || null, saleId: a.saleId, createdAt: a.createdAt,
-    statusAt: a.statusAt || {}, cancel: a.cancel, moves: a.moves || 0, demo: !!a.demo
+    statusAt: a.statusAt || {}, cancel: a.cancel, moves: a.moves || 0, demo: !!a.demo, legacy: !!a.legacy
   };
 }
 
@@ -68,7 +68,7 @@ export function saleView(s, x, caps) {
     id: x.id, number: x.number, ref: ticketNo(x.number), day: x.day, at: x.at, apptId: x.apptId, clientId: x.clientId,
     client: c ? (c.first + ' ' + (c.last ? c.last.charAt(0) + '.' : '')).trim() : null, cashier: cashier ? cashier.name : 'Système',
     lines: x.lines.map((l) => ({ kind: l.kind, ref: l.ref, name: l.name, qty: l.qty, unit: l.unit, discount: l.discount || 0, net: l.net, staffId: l.staffId, vat: l.vat, packId: l.packId || null })),
-    discount: x.discount, tip: x.tip, totals: x.totals, payments: x.payments.map((p) => ({ method: p.method, amount: p.amount, given: p.given, change: p.change, last4: p.last4 })),
+    discount: x.discount && x.discountNote ? { ...x.discount, reason: x.discountNote } : x.discount, tip: x.tip, totals: x.totals, payments: x.payments.map((p) => ({ method: p.method, amount: p.amount, given: p.given, change: p.change, last4: p.last4 })),
     refunded: x.refunded, refunds: x.refundIds.map((id) => { const r = s.refunds.get(id); return r ? { id: r.id, ref: refundNo(r.number), amount: r.amount, method: r.method, reason: r.reason, at: r.at } : null; }).filter(Boolean),
     note: x.note || '', demo: !!x.demo
   };

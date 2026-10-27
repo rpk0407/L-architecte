@@ -47,8 +47,6 @@
 .done h2 { font: 400 48px/1 var(--serif); letter-spacing: -.015em; }
 .rebook { width: 100%; max-width: 560px; padding: 18px; border-radius: 22px; background: var(--panel); text-align: left; display: flex; flex-direction: column; gap: 12px; box-shadow: inset 0 0 0 1px var(--accent-line); }
 .rebook h3 { font: 400 26px/1.1 var(--serif); }
-.gift { padding: 18px; border-radius: 20px; background: linear-gradient(135deg, var(--accent-bg), transparent), var(--panel2); text-align: center; }
-.gift code { display: block; margin: 8px 0; font: 600 26px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .06em; }
 .cash-input { font: 400 54px/1 var(--serif); text-align: center; padding: 14px; border-radius: 20px; background: var(--panel2); }
 .quick { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
 .quick button { min-height: 50px; border-radius: 14px; background: var(--panel2); font: 600 15px/1 var(--sans); }
@@ -75,3 +73,58 @@
   .cs-grid.has-ticket .cs-side { display: none; }
   .cs-back { display: inline-flex; align-items: center; gap: 6px; margin: 0 0 10px; padding: 6px 10px 6px 4px; border-radius: 10px; font: 600 14px/1 var(--sans); color: var(--tx2); }
 }
+/* Caisse & clôture: two cards side by side, one column on a phone */
+.cs-grid.closing { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.cs-grid.closing .cl-history { grid-column: 1 / -1; }
+.cl-big { display: block; font-size: 56px; line-height: 1; }
+.cl-acts { display: flex; flex-wrap: wrap; gap: 10px; }
+.cl-acts .btn-primary { margin-left: auto; }
+.cl-rest { display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px; border-radius: 16px; background: var(--panel2); }
+.cl-rest svg { flex: none; margin-top: 1px; color: var(--tx2); }
+.cl-rest b { display: block; font: 600 15px/1.35 var(--sans); }
+.cl-rest small { display: block; margin-top: 3px; font-size: 12.5px; color: var(--tx2); }
+.cl-z { display: flex; flex-direction: column; }
+.cl-z .kv { padding: 8px 0; }
+.cl-z .kv.total > span:first-child { color: var(--tx); font-weight: 600; }
+.cl-z .kv.total > b { font-size: 15px; }
+.cl-z .kv.sub { padding: 5px 0 5px 14px; font-size: 13px; }
+.cl-z .kv.sub > b { font-weight: 500; color: var(--tx2); }
+.cl-z-h { margin-top: 12px; padding-bottom: 4px; font: 600 11.5px/1.2 var(--sans); letter-spacing: .05em; text-transform: uppercase; color: var(--tx3); border-bottom: 1px solid var(--line); }
+.cl-missed { display: block; margin-top: 8px; }
+.cl-kind { margin-left: 6px; font-size: 11px; }
+.cl-bignotes { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; }
+.cl-left { display: flex; flex-direction: column; gap: 2px; max-height: 220px; overflow: auto; padding: 6px 10px; border-radius: 14px; background: var(--panel2); }
+.cl-left li { display: grid; grid-template-columns: 48px minmax(0, 1fr) auto; gap: 10px; align-items: baseline; padding: 6px 0; font-size: 14px; border-bottom: 1px solid var(--line); }
+.cl-left li:last-child { border-bottom: 0; }
+.cl-left li.more { display: block; font-size: 13px; }
+.cl-history td:nth-child(2) { white-space: nowrap; }
+.cl-left li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cl-left li small { color: var(--tx3); font-size: 12.5px; }
+@media (max-width: 760px) {
+  .cs-grid.closing { grid-template-columns: minmax(0, 1fr); }
+  .cl-big { font-size: 44px; }
+  .cl-acts .btn { flex: 1 1 100%; }
+  .cl-acts .btn-primary { order: -1; margin-left: 0; }
+}
+/* the count on a phone: two tiles per row, each one label over its − count + controls */
+@media (max-width: 560px) {
+  .denoms { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .denom { flex-direction: column; align-items: stretch; gap: 6px; padding: 8px 8px 8px 12px; }
+  .denom > span.row { justify-content: space-between; }
+  .denom input { flex: 1; min-width: 0; }
+}
+
+/* refund by line */
+.rf-lines { display: flex; flex-direction: column; gap: 6px; }
+.rf-line { border-radius: 14px; background: var(--panel2); }
+.rf-line.on { box-shadow: inset 0 0 0 1.5px var(--tx); }
+.rf-check { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 12px; border-radius: 14px; text-align: left; }
+.rf-check:disabled { opacity: .55; cursor: default; }
+.rf-check > .money { flex: none; }
+.rf-box { flex: none; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 7px; box-shadow: inset 0 0 0 1.5px var(--line2); color: transparent; }
+.rf-line.on .rf-box { background: var(--tx); color: var(--bg); box-shadow: none; }
+.rf-act { font: 600 12.5px/1.25 var(--sans); color: var(--warn-tx); }
+.rf-sub { display: flex; align-items: center; gap: 10px; padding: 0 12px 10px 46px; }
+.rf-kv { align-items: center; }
+.rf-kv > span:first-child { flex: 1; }
+.chip.rf-wrap { white-space: normal; text-align: left; padding-block: 7px; border-radius: 18px; line-height: 1.3; max-width: 100%; }

@@ -1,19 +1,20 @@
 // Mon compte: what each person controls about themselves, whatever their role.
 import { useEffect, useState } from 'react';
 import { api } from '../../../lib/api';
-import { refreshAll, useQuery } from '../../../lib/query';
+import { useRoute } from '../../../lib/router';
 import { Icon } from '../../../ui/Icon';
 import { Avatar, Button, Field, Note, confirm, toast, toastError } from '../../../ui/kit';
 import { useApp } from '../../state';
-import { COLORS, TimeOffList, TimeOffSheet } from '../Equipe';
+import { COLORS, MyAbsences } from '../Equipe';
 
 export function Account() {
   const { boot, reloadBoot, signOut } = useApp();
   const me = boot.me;
   const [f, setF] = useState({ bio: me.bio, instagram: me.instagram, color: me.color });
   const [busy, setBusy] = useState(false);
-  const [off, setOff] = useState(false);
-  const mine = useQuery<{ items: any[] }>(me.chair ? '/api/v1/timeoff/mine' : null);
+  const route = useRoute();
+  // ?absences=1, from the phone's "Plus" menu: straight to them
+  useEffect(() => { if (route.query.get('absences') && me.chair) requestAnimationFrame(() => document.getElementById('absences')?.scrollIntoView({ block: 'start', behavior: 'smooth' })); }, [route.key]);
   const dirty = f.bio !== me.bio || f.instagram !== me.instagram || f.color !== me.color;
   const save = async () => {
     setBusy(true);
@@ -44,13 +45,7 @@ export function Account() {
       <PinCard />
       {me.hasPwd || ['owner', 'manager'].includes(me.role) ? <PasswordCard /> : null}
 
-      {me.chair ? (
-        <section className="card">
-          <div className="card-h"><h2><Icon name="calendar" size={16} />Mes absences</h2><Button size="sm" variant="ghost" icon="plus" onClick={() => setOff(true)}>Poser</Button></div>
-          {mine.data?.items.length ? <TimeOffList items={mine.data.items} staff={boot.staff} /> : <p className="muted">Aucune absence prévue. Une absence posée ici retire tes créneaux du site immédiatement.</p>}
-          <TimeOffSheet open={off} onClose={() => { setOff(false); refreshAll(); }} staff={boot.staff.filter((s) => s.id === me.id)} fixed={me.id} />
-        </section>
-      ) : null}
+      {me.chair ? <MyAbsences st={boot.staff.find((s) => s.id === me.id) || me} /> : null}
 
       <section className="card col" style={{ gap: 10 }}>
         <div className="card-h"><h2><Icon name="lock" size={16} />Sessions</h2></div>

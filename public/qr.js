@@ -3,7 +3,7 @@
   function draw() {
     var slot = document.querySelector('.qr-slot');
     if (!slot || slot.querySelector('svg') || typeof qrcode !== 'function') return;
-    var url = new URL('site', location.href.split('#')[0]).href;
+    var url = new URL('/', location.href.split('#')[0]).href;
     var q = qrcode(0, 'M');
     q.addData(url);
     q.make();

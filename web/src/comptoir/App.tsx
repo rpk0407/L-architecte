@@ -1,16 +1,17 @@
 // The Comptoir: sign-in gate, then the shell around each page.
-import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState, type ComponentType, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { api } from '../lib/api';
 import { Link, navigate, useRoute } from '../lib/router';
 import { useHotkeys, useIsPhone, useLocal } from '../lib/hooks';
 import { Icon } from '../ui/Icon';
-import { Avatar, Button, ConfirmHost, Menu, Sheet, Toasts, toast, Skeleton } from '../ui/kit';
+import { Avatar, Button, ConfirmHost, Empty, Menu, Sheet, Toasts, dismiss, toast, Skeleton } from '../ui/kit';
 import { AppProvider, useApp } from './state';
 import { Login, type AuthState } from './Login';
 import { Palette } from './Palette';
 import { FeedSheet } from './Feed';
-import type { Boot } from './types';
+import type { Boot, FeedItem } from './types';
+import { GUARD_OPEN as OWN_SECTIONS, SECTION_CAP } from './pages/reglages/caps';
 
 const Agenda = lazy(() => import('./pages/Agenda'));
 const Caisse = lazy(() => import('./pages/Caisse'));
@@ -20,6 +21,21 @@ const Rapports = lazy(() => import('./pages/Rapports'));
 const Equipe = lazy(() => import('./pages/Equipe'));
 const Catalogue = lazy(() => import('./pages/Catalogue'));
 const Reglages = lazy(() => import('./pages/Reglages'));
+
+// Each page and the capability needed to open it; the server refuses anyway, this only spares an empty or broken screen.
+// A new page is one entry here (an address not listed opens the Agenda). No `cap` opens it for every role:
+// Équipe and Catalogue are read-only without `team` / `catalog` (own card, prices), Relances refuses its own tabs.
+type Route = { C: ComponentType; title: string; cap?: string; sub?: (id: string) => string | undefined };
+const ROUTES: Record<string, Route> = {
+  agenda: { C: Agenda, title: 'Agenda', cap: 'agenda.own' },
+  caisse: { C: Caisse, title: 'Caisse', cap: 'sale.create' },
+  clients: { C: Clients, title: 'Clients', cap: 'client.view' },
+  relances: { C: Relances, title: 'Relances' },
+  rapports: { C: Rapports, title: 'Rapports', cap: 'report.own' },
+  equipe: { C: Equipe, title: 'Équipe' },
+  catalogue: { C: Catalogue, title: 'Catalogue' },
+  reglages: { C: Reglages, title: 'Réglages', sub: (id) => (OWN_SECTIONS.includes(id) ? undefined : (Object.hasOwn(SECTION_CAP, id) ? SECTION_CAP[id] : 'settings')) }
+};
 
 export function Root() {
   const [auth, setAuth] = useState<AuthState | null>(null);
@@ -55,10 +71,10 @@ function useNav(): NavItem[] {
   const items: NavItem[] = [
     { to: '/', page: 'agenda', label: 'Agenda', icon: 'agenda', cap: 'agenda.own' },
     { to: '/caisse', page: 'caisse', label: 'Caisse', icon: 'caisse', cap: 'sale.create', badge: b?.toPay },
-    { to: '/clients', page: 'clients', label: 'Clients', icon: 'clients', cap: 'client.view' },
+    { to: '/clients', page: 'clients', label: 'Clients', icon: 'clients', cap: 'client.view', badge: b?.retention, soft: true },
     { to: '/relances', page: 'relances', label: 'Relances', icon: 'relances', cap: 'marketing', badge: b?.relances, soft: true },
     { to: '/rapports', page: 'rapports', label: can('report.shop') ? 'Rapports' : 'Mes chiffres', icon: 'rapports', cap: 'report.own' },
-    { to: '/equipe', page: 'equipe', label: 'Équipe', icon: 'equipe', cap: 'team' },
+    { to: '/equipe', page: 'equipe', label: 'Équipe', icon: 'equipe', cap: 'team', badge: (b as { requests?: number } | undefined)?.requests },
     { to: '/catalogue', page: 'catalogue', label: 'Catalogue', icon: 'catalogue', cap: 'catalog' },
     { to: '/reglages', page: 'reglages', label: 'Réglages', icon: 'reglages' }
   ];
@@ -95,6 +111,8 @@ function Shell() {
     return () => { clearTimeout(t); evs.forEach((e) => removeEventListener(e, reset)); };
   }, [boot.me.session]);
 
+  useAbsenceToasts();
+
   useHotkeys({
     'mod+k': (e) => { e.preventDefault(); setPalette(true); },
     '/': (e) => { e.preventDefault(); setPalette(true); },
@@ -103,7 +121,11 @@ function Shell() {
   }, []);
 
   const page = route.page;
-  const Page = { agenda: Agenda, caisse: Caisse, clients: Clients, relances: Relances, rapports: Rapports, equipe: Equipe, catalogue: Catalogue, reglages: Reglages }[page] || Agenda;
+  // own keys only: /comptoir/constructor must not pick up Object.prototype
+  const r = Object.hasOwn(ROUTES, page) ? ROUTES[page] : ROUTES.agenda;
+  const need = route.id && r.sub ? r.sub(route.id) : r.cap;
+  const Page = r.C;
+  const allowed = !need || app.can(need);
   const phoneTabs = nav.filter((x) => ['agenda', 'caisse', 'clients', 'rapports'].includes(x.page)).slice(0, 4);
   const rest = nav.filter((x) => !phoneTabs.includes(x));
 
@@ -119,7 +141,7 @@ function Shell() {
           ))}
         </nav>
         <div className="side-foot">
-          <a className="nav-site link" href="/site" target="_blank" rel="noopener" style={{ padding: '0 12px', fontSize: 13 }}>Voir le site client</a>
+          <a className="nav-site link" href="/" target="_blank" rel="noopener" style={{ padding: '0 12px', fontSize: 13 }}>Voir le site client</a>
           <button type="button" className="me-btn" onClick={(e) => setUserMenu(e.currentTarget.getBoundingClientRect())} aria-label="Mon compte">
             <Avatar name={boot.me.name} initials={boot.me.initials} color={boot.me.color} size="sm" />
             <span className="grow"><b className="ellipsis">{boot.me.name}</b><small>{boot.me.roleLabel}{boot.me.device ? ' · ' + boot.me.device.name : ''}</small></span>
@@ -142,7 +164,7 @@ function Shell() {
           </div>
         </header>
         <main className="page" key={page} id="main">
-          <Suspense fallback={<PageSkeleton />}><Page /></Suspense>
+          {allowed ? <Suspense fallback={<PageSkeleton />}><Page /></Suspense> : <Reserved title={r.title} back={page === 'reglages' ? 'compte' : 'agenda'} />}
         </main>
       </div>
 
@@ -156,15 +178,17 @@ function Shell() {
       <Sheet open={more} onClose={() => setMore(false)} title="Plus" kicker={boot.me.name + ' · ' + boot.me.roleLabel}>
         <div className="list">
           {rest.map((x) => <Link key={x.page} to={x.to} className="li" onClick={() => setMore(false)}><Icon name={x.icon} size={22} /><span className="li-main"><b>{x.label}</b></span>{x.badge ? <span className="badge badge-accent">{x.badge}</span> : <Icon name="chevR" size={18} />}</Link>)}
+          {/* a chair's own absences, two taps away on the phone (Mon compte) */}
+          {boot.me.chair ? <Link to="/reglages/compte?absences=1" className="li" onClick={() => setMore(false)}><Icon name="calendar" size={22} /><span className="li-main"><b>Mes absences</b><small>Poser un congé, suivre une demande</small></span><Icon name="chevR" size={18} /></Link> : null}
           <button type="button" className="li" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}><Icon name={theme === 'dark' ? 'sun' : 'moon'} size={22} /><span className="li-main"><b>{theme === 'dark' ? 'Thème clair' : 'Thème sombre'}</b></span></button>
           <button type="button" className="li" onClick={() => { setMore(false); setPalette(true); }}><Icon name="search" size={22} /><span className="li-main"><b>Rechercher</b><small>Un client, une page, une action</small></span></button>
-          <a className="li" href="/site" target="_blank" rel="noopener"><Icon name="globe" size={22} /><span className="li-main"><b>Voir le site client</b></span><Icon name="ext" size={18} /></a>
+          <a className="li" href="/" target="_blank" rel="noopener"><Icon name="globe" size={22} /><span className="li-main"><b>Voir le site client</b></span><Icon name="ext" size={18} /></a>
         </div>
       </Sheet>
 
       <Menu anchor={userMenu} onClose={() => setUserMenu(null)}>
         <p className="k">{boot.me.name} · {boot.me.roleLabel}</p>
-        <button type="button" onClick={() => navigate('/reglages/securite')}><Icon name="key" />Mon mot de passe et mon code</button>
+        <button type="button" onClick={() => navigate('/reglages/compte')}><Icon name="key" />Mon mot de passe et mon code</button>
         <button type="button" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}><Icon name={theme === 'dark' ? 'sun' : 'moon'} />{theme === 'dark' ? 'Thème clair' : 'Thème sombre'}</button>
         <div className="sep" />
         {boot.me.device ? <button type="button" onClick={() => app.lock()}><Icon name="lock" />Verrouiller · changer de personne</button> : null}
@@ -174,6 +198,50 @@ function Shell() {
       {palette ? <Palette onClose={() => setPalette(false)} /> : null}
       <FeedSheet open={feedOpen} onClose={() => setFeedOpen(false)} />
     </div>
+  );
+}
+
+type AbsenceItem = FeedItem & { timeoffId?: string; staffId?: string; request?: boolean; pending?: boolean; mine?: boolean };
+/**
+ * Absences as they happen: a barber's request reaches the owner as a toast he can answer there (Valider opens the
+ * plan when clients are on it), and the barber hears the answer. Only what arrives while the Comptoir is open.
+ */
+function useAbsenceToasts() {
+  const app = useApp();
+  const since = useRef(app.now());
+  const seen = useRef(new Set<number>());
+  // the request toasts still on screen: decided elsewhere (Équipe, another device), they go
+  const open = useRef(new Map<string, number>());
+  useEffect(() => {
+    for (const f of app.feed as AbsenceItem[]) {
+      if (f.kind !== 'timeoff' || f.at < since.current || seen.current.has(f.v) || !f.timeoffId) continue;
+      seen.current.add(f.v);
+      const id = f.timeoffId;
+      const shown = open.current.get(id);
+      if (shown != null && !f.request) { dismiss(shown); open.current.delete(id); }
+      if (f.request && f.pending && app.can('team')) {
+        open.current.set(id, toast({
+          kind: 'info', icon: 'calendar', title: f.title, sub: f.sub, ttl: 20000,
+          // Équipe's own answer (its chunk loads on the tap): a request withdrawn meanwhile is said, not an error
+          actions: [false, true].map((yes) => ({ label: yes ? 'Valider' : 'Refuser', run: () => { void import('./pages/Equipe').then((m) => m.decideRequest(id, yes, (f.staffId && app.staffById.get(f.staffId)?.name) || '')); } }))
+        }));
+      } else if (f.mine) toast({ kind: 'info', icon: 'calendar', title: f.title, sub: f.sub, ttl: 8000 });
+    }
+  }, [app.feed]);
+}
+
+/** An owner page opened by someone without the right: a clear refusal and a way back, not a broken screen.
+ *  Without `title` it is a part of a page that already has its own (a tab). */
+export function Reserved({ title, back = 'agenda' }: { title?: string; back?: 'agenda' | 'compte' }) {
+  return (
+    <>
+      {title ? <PageTitle><h1>{title}</h1></PageTitle> : null}
+      <section className="card">
+        <Empty icon="lock" title="Réservé au gérant" action={<Link to={back === 'compte' ? '/reglages/compte' : '/'} className="btn btn-subtle">{back === 'compte' ? 'Mon compte' : 'Retour à l’agenda'}</Link>}>
+          Demande-lui si tu as besoin de modifier ça.
+        </Empty>
+      </section>
+    </>
   );
 }
 

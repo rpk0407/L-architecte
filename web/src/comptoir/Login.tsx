@@ -1,7 +1,8 @@
 // Signing in: the team taps their face and types their code on the salon tablet;
 // the owner signs in with e-mail and password anywhere.
 import { useEffect, useState } from 'react';
-import { api } from '../lib/api';
+import { api, ApiError } from '../lib/api';
+import { clock } from '../lib/format';
 import { buzz } from '../lib/hooks';
 import { Icon } from '../ui/Icon';
 import { Avatar, Button, Field, Note, toast } from '../ui/kit';
@@ -27,7 +28,7 @@ export function Login({ state, onDone }: { state: AuthState; onDone: () => void 
           <h1>Le Comptoir</h1>
           <p>{state.shop.name}{state.device ? ' · ' + state.device.name : ''}</p>
         </div>
-        {view === 'setup' ? <Setup onDone={onDone} /> : null}
+        {view === 'setup' ? <Setup onDone={onDone} onRestored={() => { setView('owner'); onDone(); }} /> : null}
         {view === 'team' && !who ? <Team state={state} onPick={setWho} onOwner={() => setView('owner')} /> : null}
         {view === 'team' && who ? <Pin who={who} demoPin={state.demo ? (state.demo.pins[who.name] || (who.role === 'owner' ? state.demo.ownerPin : '')) : ''} onBack={() => setWho(null)} onDone={onDone} /> : null}
         {view === 'owner' ? <Owner state={state} onDone={onDone} onTeam={state.device && state.team.length ? () => setView('team') : null} /> : null}
@@ -144,28 +145,167 @@ function Owner({ state, onDone, onTeam }: { state: AuthState; onDone: () => void
   );
 }
 
-function Setup({ onDone }: { onDone: () => void }) {
-  const [f, setF] = useState({ token: '', name: '', email: '', password: '', pin: '' });
+type SetupForm = { token: string; name: string; email: string; password: string; pin: string };
+type SetupErrors = Partial<Record<keyof SetupForm | 'form', string>>;
+const TOKEN_LABEL = 'Code d’installation (donné par ton prestataire)';
+/** the fields in screen order, for the focus to land on the first one that is wrong */
+const SETUP_IDS: [keyof SetupForm, string][] = [['token', 'su-t'], ['name', 'su-n'], ['pin', 'su-c'], ['email', 'su-e'], ['password', 'su-p']];
+const focusFirst = (e: SetupErrors) => { const x = SETUP_IDS.find(([k]) => e[k]); if (x) document.getElementById(x[1])?.focus(); };
+
+/** What the server will refuse (routes-auth.js /api/setup, auth/password.js), said under the field before sending. */
+function setupProblems(f: SetupForm): SetupErrors {
+  const e: SetupErrors = {};
+  if (!f.token.trim()) e.token = 'Demande ce code à ton prestataire.';
+  if (f.name.trim().length < 2) e.name = 'Au moins 2 lettres.';
+  if (!/^[^@\s]{1,64}@[^@\s]{1,190}\.[^@\s]{2,}$/.test(f.email.trim())) e.email = 'E-mail invalide.';
+  if (f.password.length < 10) e.password = 'Au moins 10 caractères.';
+  if (f.pin && !/^\d{4,6}$/.test(f.pin)) e.pin = 'Le code fait 4 à 6 chiffres.';
+  else if (f.pin && (/^(\d)\1+$/.test(f.pin) || '0123456789'.includes(f.pin) || '9876543210'.includes(f.pin))) e.pin = 'Évite 0000 ou 1234 : trop facile.';
+  return e;
+}
+/** A refusal from the server, put under the field it is about; anything else goes under the button. */
+function setupError(x: any): SetupErrors {
+  const m = String(x?.message || 'Une erreur est survenue.');
+  if (x?.code === 'bad_token') return { token: m };
+  if (x?.code === 'weak') return /code|suite/i.test(m) ? { pin: m } : { password: m };
+  if (x?.code === 'invalid') return /mail/i.test(m) ? { email: m } : /^name\b/.test(m) ? { name: m.replace(/^name\s*:\s*/, '') } : { form: m };
+  return { form: m };
+}
+
+function Setup({ onDone, onRestored }: { onDone: () => void; onRestored: () => void }) {
+  const [f, setF] = useState<SetupForm>({ token: '', name: '', email: '', password: '', pin: '' });
+  const [restoring, setRestoring] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState('');
-  const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => setF({ ...f, [k]: e.target.value });
+  const [err, setErr] = useState<SetupErrors>({});
+  const set = (k: keyof SetupForm) => (e: React.ChangeEvent<HTMLInputElement>) => { setF({ ...f, [k]: e.target.value }); if (err[k] || err.form) setErr({ ...err, [k]: undefined, form: undefined }); };
   const go = async (e: React.FormEvent) => {
     e.preventDefault();
-    setBusy(true); setErr('');
-    try { await api.post('/api/setup', f); onDone(); } catch (x: any) { setErr(x.message); } finally { setBusy(false); }
+    const pb = setupProblems(f);
+    setErr(pb);
+    if (Object.keys(pb).length) { focusFirst(pb); return; }
+    setBusy(true);
+    try { await api.post('/api/setup', { ...f, token: f.token.trim(), name: f.name.trim(), email: f.email.trim() }); onDone(); }
+    catch (x: any) { const fe = setupError(x); setErr(fe); focusFirst(fe); }
+    finally { setBusy(false); }
   };
+  if (restoring) return <Restore token={f.token} setToken={(token) => setF({ ...f, token })} onBack={() => setRestoring(false)} onDone={onRestored} />;
+  const bad = (k: keyof SetupForm) => (err[k] ? true : undefined);
   return (
-    <form className="card col" style={{ gap: 14, padding: 22 }} onSubmit={go}>
-      <div><b className="serif" style={{ fontSize: 28 }}>Bienvenue.</b><p className="muted" style={{ marginTop: 6 }}>Crée le compte du gérant. Le code d’installation se trouve dans les réglages d’hébergement (SETUP_TOKEN).</p></div>
-      <Field label="Code d’installation" htmlFor="su-t"><input id="su-t" className="input" value={f.token} onChange={set('token')} autoComplete="off" required /></Field>
+    <form className="card col" style={{ gap: 14, padding: 22 }} onSubmit={go} noValidate>
+      <div><b className="serif" style={{ fontSize: 28 }}>Bienvenue.</b><p className="muted" style={{ marginTop: 6 }}>Crée le compte du gérant : c’est toi qui ouvres le Comptoir, puis tu ajoutes l’équipe.</p></div>
+      <Field label={TOKEN_LABEL} htmlFor="su-t" error={err.token || null}><input id="su-t" className="input" value={f.token} onChange={set('token')} autoComplete="off" required aria-invalid={bad('token')} /></Field>
       <div className="grid2 stack">
-        <Field label="Ton prénom" htmlFor="su-n"><input id="su-n" className="input" value={f.name} onChange={set('name')} required /></Field>
-        <Field label="Code à 4–6 chiffres" htmlFor="su-c" hint="Pour la tablette du salon"><input id="su-c" className="input" inputMode="numeric" value={f.pin} onChange={set('pin')} pattern="\d{4,6}" /></Field>
+        <Field label="Ton prénom" htmlFor="su-n" error={err.name || null}><input id="su-n" className="input" maxLength={40} value={f.name} onChange={set('name')} autoComplete="given-name" required aria-invalid={bad('name')} /></Field>
+        <Field label="Code à 4–6 chiffres" htmlFor="su-c" hint="Pour la tablette du salon" error={err.pin || null}><input id="su-c" className="input" inputMode="numeric" maxLength={6} value={f.pin} onChange={set('pin')} aria-invalid={bad('pin')} /></Field>
       </div>
-      <Field label="E-mail" htmlFor="su-e"><input id="su-e" className="input" type="email" value={f.email} onChange={set('email')} required /></Field>
-      <Field label="Mot de passe" htmlFor="su-p" hint="10 caractères minimum" error={err || null}><input id="su-p" className="input" type="password" autoComplete="new-password" value={f.password} onChange={set('password')} required minLength={10} /></Field>
+      <Field label="E-mail" htmlFor="su-e" error={err.email || null}><input id="su-e" className="input" type="email" autoComplete="username" value={f.email} onChange={set('email')} required aria-invalid={bad('email')} /></Field>
+      <Field label="Mot de passe" htmlFor="su-p" hint="10 caractères minimum" error={err.password || null}><input id="su-p" className="input" type="password" autoComplete="new-password" value={f.password} onChange={set('password')} required minLength={10} aria-invalid={bad('password')} /></Field>
       <Button variant="primary" size="lg" block busy={busy} type="submit" icon="check">Ouvrir le Comptoir</Button>
+      {err.form ? <p role="alert" style={{ color: 'var(--danger)', fontWeight: 600, fontSize: 14 }}>{err.form}</p> : null}
+      <button type="button" className="link" style={{ alignSelf: 'center' }} onClick={() => setRestoring(true)}>Installer depuis une sauvegarde</button>
       <p className="faint" style={{ fontSize: 12.5, display: 'flex', gap: 8, alignItems: 'center' }}><Icon name="shield" size={14} />Mots de passe et codes sont chiffrés (scrypt) et jamais lisibles, même par nous.</p>
     </form>
+  );
+}
+
+/* ---------------- installing from a backup ---------------- */
+
+type SetupBackup = { name: string; day: string; at: number; count: number | null; size: number | null };
+type SetupBackups = { blob: boolean; key: boolean; keyProblem: string; error: string; items: SetupBackup[] };
+/** stays under the server's 3 MB per part, itself under Vercel's 4.5 MB body limit */
+const PART = 2_500_000;
+
+/** The setup routes take the token in a header (never in a URL) and an uploaded part as plain text. */
+async function setupCall<T>(method: 'GET' | 'POST', path: string, token: string, body?: string | object): Promise<T> {
+  const headers: Record<string, string> = { accept: 'application/json', 'x-setup-token': token.trim() };
+  if (body !== undefined) headers['content-type'] = typeof body === 'string' ? 'text/plain' : 'application/json';
+  let res: Response;
+  try { res = await fetch(path, { method, headers, body: body === undefined ? undefined : typeof body === 'string' ? body : JSON.stringify(body), credentials: 'same-origin' }); }
+  catch { throw new ApiError(0, 'network', 'Pas de connexion. Vérifie le Wi-Fi, puis réessaie.'); }
+  const data = await res.json().catch(() => null);
+  if (!res.ok) throw new ApiError(res.status, data?.error?.code || 'http', data?.error?.message || 'Erreur ' + res.status);
+  return data as T;
+}
+
+const size = (n: number) => (n < 1e6 ? Math.max(1, Math.round(n / 1e3)) + ' Ko' : (n / 1e6).toLocaleString('fr-FR', { maximumFractionDigits: 1 }) + ' Mo');
+const dm = (day: string) => day.slice(8) + '/' + day.slice(5, 7);
+const backupLine = (b: SetupBackup) => 'Sauvegarde du ' + dm(b.day) + ' · ' + clock(b.at) + (b.count != null ? ' · ' + b.count.toLocaleString('fr-FR') + ' événements' : '');
+
+function Restore({ token, setToken, onBack, onDone }: { token: string; setToken: (t: string) => void; onBack: () => void; onDone: () => void }) {
+  const [list, setList] = useState<SetupBackups | null>(null);
+  const [pick, setPick] = useState<SetupBackup | null>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const [busy, setBusy] = useState('');
+  const [err, setErr] = useState('');
+  const look = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    setBusy('list'); setErr(''); setPick(null);
+    try { setList(await setupCall<SetupBackups>('GET', '/api/setup/backups', token)); } catch (x: any) { setErr(x.message); setList(null); } finally { setBusy(''); }
+  };
+  const done = () => { toast({ title: 'Salon restauré', sub: 'Connecte-toi avec ton compte habituel.', icon: 'shieldOk' }); onDone(); };
+  const restoreStored = async (b: SetupBackup) => {
+    setBusy('restore'); setErr('');
+    try { await setupCall('POST', '/api/setup/restore', token, { name: b.name }); done(); } catch (x: any) { setErr(x.message); } finally { setBusy(''); }
+  };
+  const restoreFile = async (f: File) => {
+    setErr('');
+    try {
+      const text = await f.text();
+      const n = Math.max(1, Math.ceil(text.length / PART));
+      // one part: a single request, so it works whichever server instance answers
+      if (n === 1) {
+        setBusy('Envoi et vérification…');
+        await setupCall('POST', '/api/setup/restore/file', token, text);
+        done();
+        return;
+      }
+      for (let i = 0; i < n; i++) {
+        setBusy('Envoi ' + (n > 1 ? (i + 1) + '/' + n : '') + '…');
+        await setupCall('POST', `/api/setup/restore/chunk?i=${i}&n=${n}`, token, text.slice(i * PART, (i + 1) * PART));
+      }
+      setBusy('Vérification…');
+      await setupCall('POST', '/api/setup/restore/commit', token, { n });
+      done();
+    } catch (x: any) { setErr(x.message); } finally { setBusy(''); }
+  };
+  const working = !!busy;
+  // without the key nothing can be opened: no point choosing a file
+  const locked = !!list && !list.key;
+  return (
+    <div className="card col" style={{ gap: 14, padding: 22 }}>
+      <div><b className="serif" style={{ fontSize: 28 }}>Installer depuis une sauvegarde</b><p className="muted" style={{ marginTop: 6 }}>Le salon revient tel qu’il était au moment de la sauvegarde : clients, rendez-vous, ventes, équipe et accès. Il faut le code d’installation et la même clé de sauvegarde qu’à l’origine : ton prestataire les a.</p></div>
+      <form className="row" style={{ gap: 8, alignItems: 'flex-end' }} onSubmit={look}>
+        <div style={{ flex: 1, minWidth: 0 }}><Field label={TOKEN_LABEL} htmlFor="rs-t"><input id="rs-t" className="input" value={token} onChange={(e) => setToken(e.target.value)} autoComplete="off" required /></Field></div>
+        <Button variant="subtle" type="submit" busy={busy === 'list'} disabled={working || !token.trim()}>Voir les sauvegardes</Button>
+      </form>
+      {list && !list.key ? <Note tone="err" icon="alert">{list.keyProblem}</Note> : null}
+      {list && list.error ? <Note tone="warn" icon="alert">{list.error}</Note> : null}
+      {list && list.blob && list.items.length ? (
+        <ul className="list">{list.items.map((b) => (
+          <li key={b.name} className="li">
+            <span className="li-main"><b>{backupLine(b)}</b>{b.size ? <small>{size(b.size)}, chiffrée</small> : null}</span>
+            <Button size="sm" variant={pick?.name === b.name ? 'primary' : 'ghost'} disabled={working || !list.key} onClick={() => setPick(b)}>Restaurer</Button>
+          </li>
+        ))}</ul>
+      ) : list ? <Note icon="info">{list.blob ? 'Aucune sauvegarde dans le stockage Blob de cette installation.' : 'Aucun stockage Blob relié à cette installation.'}{locked ? '' : ' Choisis le fichier de sauvegarde sur ton ordinateur.'}</Note> : null}
+      {pick ? (
+        <div className="col" style={{ gap: 10 }}>
+          <Note tone="accent" icon="info">Restaurer la sauvegarde du {dm(pick.day)} à {clock(pick.at)} ? Tout ce qui a été fait après est perdu.</Note>
+          <div className="row" style={{ gap: 8 }}>
+            <Button variant="primary" icon="check" busy={busy === 'restore'} disabled={working} onClick={() => restoreStored(pick)}>Oui, restaurer</Button>
+            <Button variant="ghost" disabled={working} onClick={() => setPick(null)}>Annuler</Button>
+          </div>
+        </div>
+      ) : null}
+      <Field label="Ou un fichier de ton ordinateur" hint="Le fichier .json.gz.enc téléchargé depuis Réglages › Données">
+        <label className="btn btn-ghost" aria-disabled={working || locked} style={{ justifyContent: 'flex-start', maxWidth: '100%', opacity: working || locked ? 0.38 : undefined, pointerEvents: locked ? 'none' : undefined }}>
+          <input className="vh" type="file" accept=".enc,.json,application/octet-stream" disabled={working || locked} onChange={(e) => { setFile(e.target.files?.[0] || null); setPick(null); }} />
+          <Icon name="box" /><span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file ? file.name : 'Choisir le fichier…'}</span>
+        </label>
+      </Field>
+      {file ? <Button variant="primary" icon="check" block busy={working && busy !== 'list' && busy !== 'restore'} disabled={working || locked || !token.trim()} onClick={() => restoreFile(file)}>{busy && busy !== 'list' && busy !== 'restore' ? busy : 'Restaurer ce fichier'}</Button> : null}
+      {err ? <p role="alert" style={{ color: 'var(--danger)', fontWeight: 600, fontSize: 14 }}>{err}</p> : null}
+      <button type="button" className="link" style={{ alignSelf: 'center' }} onClick={onBack} disabled={working}>Créer un salon neuf à la place</button>
+    </div>
   );
 }

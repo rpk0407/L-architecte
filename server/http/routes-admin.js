@@ -5,24 +5,30 @@ import { staffView, serviceView, productView } from './views.js';
 import { verifyChain, publicEvent } from '../core/journal.js';
 import { hashSecret, passwordProblem, pinProblem } from '../auth/password.js';
 import { report } from '../domain/insights.js';
-import { ticketNo, refundNo, closureNo, METHOD_LABEL } from '../domain/cash.js';
-import { isDay, dayRange, monthStart } from '../../shared/dates.js';
+import { ticketNo, refundNo, closureNo, METHOD_LABEL, METHODS, zFigures, refundParts } from '../domain/cash.js';
+import { closingWarnings } from '../commands/tick-steps.js';
+import { isDay, dayRange, monthStart, addDays } from '../../shared/dates.js';
+import { staffIntervals } from '../domain/availability.js';
+import { refundOnline } from './routes-public.js';
 import { fmtEur } from '../../shared/money.js';
 import { fmtPhone, safeEqual } from '../lib/util.js';
 import * as T from '../commands/team.js';
 import * as K from '../commands/catalog.js';
 import * as SH from '../commands/shop.js';
+import { refundPlan, sendGiftcode, reissueGiftcard } from '../commands/sales.js';
 import { buildDemoJournal } from '../domain/seed.js';
 import { TEMPLATES } from '../core/state.js';
 import { CAPS, ROLES, capsOf } from '../domain/permissions.js';
 import { maybeTick } from './scheduler.js';
+import { STALE_MS, backupOff, backupStatus, backupsOf, freshBackup, makeBackup, ownBackups, salonOf } from '../core/backup.js';
 
 /* ---------------- the activity log, in plain French ---------------- */
 
 const LABELS = {
-  'shop.initialized': 'Salon créé', 'settings.updated': 'Réglages modifiés', 'staff.added': 'Membre ajouté', 'staff.updated': 'Fiche équipe modifiée',
+  'shop.initialized': 'Salon créé', 'shop.restored': 'Salon restauré', 'settings.updated': 'Réglages modifiés', 'staff.added': 'Membre ajouté', 'staff.updated': 'Fiche équipe modifiée',
   'staff.archived': 'Membre désactivé', 'staff.restored': 'Membre réactivé', 'staff.credentials': 'Accès modifiés', 'staff.revoked': 'Sessions fermées',
-  'timeoff.added': 'Absence posée', 'timeoff.removed': 'Absence retirée', 'device.enrolled': 'Appareil enregistré', 'device.revoked': 'Appareil retiré',
+  'timeoff.added': 'Absence posée', 'timeoff.removed': 'Absence retirée', 'timeoff.requested': 'Absence demandée', 'timeoff.refused': 'Absence refusée',
+  'timeoff.withdrawn': 'Demande d’absence retirée', 'device.enrolled': 'Appareil enregistré', 'device.revoked': 'Appareil retiré',
   'service.added': 'Prestation créée', 'service.updated': 'Prestation modifiée', 'service.archived': 'Prestation retirée', 'product.added': 'Produit créé',
   'product.updated': 'Produit modifié', 'product.archived': 'Produit retiré', 'stock.adjusted': 'Stock ajusté', 'client.added': 'Client créé',
   'client.updated': 'Fiche client modifiée', 'client.merged': 'Fiches fusionnées', 'client.erased': 'Client effacé (RGPD)', 'appt.held': 'Créneau gardé',
@@ -33,32 +39,47 @@ const LABELS = {
   'payment.succeeded': 'Paiement en ligne reçu', 'payment.failed': 'Paiement en ligne échoué', 'payment.expired': 'Paiement en ligne expiré', 'payment.refunded': 'Paiement en ligne remboursé',
   'drawer.opened': 'Caisse ouverte', 'drawer.moved': 'Mouvement de caisse', 'drawer.closed': 'Caisse comptée', 'day.closed': 'Clôture journalière',
   'giftcard.issued': 'Carte cadeau émise', 'giftcard.redeemed': 'Carte cadeau utilisée', 'giftcard.voided': 'Carte cadeau annulée', 'pack.sold': 'Abonnement vendu',
-  'pack.used': 'Coupe d’abonnement', 'message.queued': 'Message programmé', 'message.updated': 'Message', 'demo.seeded': 'Démo préparée'
+  'pack.used': 'Coupe d’abonnement', 'pack.voided': 'Abonnement annulé', 'pack.returned': 'Coupe rendue à l’abonnement', 'message.queued': 'Message programmé', 'message.updated': 'Message', 'demo.seeded': 'Démo préparée'
 };
 const STATUS = { arrived: 'arrivé', in_chair: 'au fauteuil', booked: 'remis à venir', no_show: 'absent' };
+
+/** Z CSV columns, written out: a gift card used or a deposit settles a ticket without money coming in that day. */
+const Z_CSV_METHOD = { card: 'Encaissé carte (TPE)', cash: 'Encaissé espèces', online: 'Encaissé paiement en ligne', deposit: 'Réglé par acompte en ligne', giftcard: 'Réglé par carte cadeau' };
 
 function summary(s, e) {
   const d = e.data || {};
   switch (e.type) {
     case 'sale.completed': return ticketNo(d.number) + ' · ' + fmtEur(d.totals.due) + ' · ' + d.payments.map((p) => METHOD_LABEL[p.method] || p.method).join(' + ');
-    case 'sale.refunded': return refundNo(d.number) + ' · ' + fmtEur(d.amount) + ' sur ' + ticketNo(d.saleNumber) + ' · ' + d.reason;
-    case 'day.closed': return closureNo(d.number) + ' · ' + d.day + ' · ' + fmtEur(d.net);
+    case 'sale.refunded': return refundNo(d.number) + ' · ' + fmtEur(d.amount) + ' sur ' + ticketNo(d.saleNumber) + ' · ' + refundMethods(d) + (d.liability ? ' · carte cadeau annulée' : '') + ' · ' + d.reason;
+    case 'day.closed': return closureNo(d.number) + ' · ' + d.day + ' · ' + fmtEur(d.net) + (d.auto ? ' · automatique' : d.late ? ' · rattrapage' : d.early ? ' · en avance' : '');
     case 'drawer.opened': return 'Fond de caisse ' + fmtEur(d.float);
     case 'drawer.moved': return fmtEur(d.amount) + ' · ' + d.reason;
     case 'drawer.closed': return 'Compté ' + fmtEur(d.counted) + (d.diff ? ' · écart ' + fmtEur(d.diff) : ' · juste');
     case 'appt.booked': return d.day + ' ' + Math.floor(d.start / 60) + 'h' + String(d.start % 60).padStart(2, '0') + ' · ' + ((s.staff.get(d.staffId) || {}).name || '') + ' · ' + (d.services || []).map((x) => x.name).join(' + ');
     case 'appt.moved': return 'vers ' + d.day + ' ' + Math.floor(d.start / 60) + 'h' + String(d.start % 60).padStart(2, '0');
     case 'appt.status': return STATUS[d.status] || d.status;
-    case 'appt.cancelled': return (d.by === 'client' ? 'par le client' : d.by === 'system' ? 'automatique' : 'par le salon') + (d.reason ? ' · ' + d.reason : '');
+    case 'shop.restored': return 'depuis ' + (d.from === 'fichier' ? 'un fichier' : d.from) + ' · ' + d.count + ' opérations';
+    case 'appt.cancelled': {
+      // a client's own reason is personal data (pii): shown until the client is erased
+      const why = d.reason || (e.pii && e.pii.reason) || '';
+      return (d.by === 'client' ? 'par le client' : d.by === 'system' ? 'automatique' : 'par le salon') + (why ? ' · ' + why : '');
+    }
     case 'stock.adjusted': return (d.name || '') + ' ' + (d.delta > 0 ? '+' : '') + d.delta + ' · ' + d.reason;
     case 'settings.updated': return Object.keys(d.patch || {}).join(', ');
     case 'staff.added': return d.staff ? d.staff.name : '';
     case 'service.updated': case 'product.updated': return Object.keys(d.patch || {}).join(', ');
     case 'payment.succeeded': { const p = s.payments.get(d.id); return p ? fmtEur(p.amount) + ' · ' + p.label : ''; }
-    case 'giftcard.issued': return '•••• ' + d.last4 + ' · ' + fmtEur(d.amount);
+    case 'giftcard.issued': return '•••• ' + d.last4 + ' · ' + fmtEur(d.amount) + (d.reissueOf ? ' · réémise (remplace •••• ' + ((s.giftcards.get(d.reissueOf) || {}).last4 || '') + ')' : d.legacy ? ' · reprise' : '');
+    case 'giftcard.voided': return '•••• ' + ((s.giftcards.get(d.id) || {}).last4 || '') + (d.reason === 'reissued' ? ' · remplacée' : d.reason === 'refunded' ? ' · remboursée' : '');
+    case 'pack.voided': { const k = s.packs.get(d.id); return k ? k.name + (k.voided ? ' · ' + k.voided.left + ' restante' + (k.voided.left > 1 ? 's' : '') + ' annulée' + (k.voided.left > 1 ? 's' : '') : '') : ''; }
     case 'client.updated': return (d.fields || []).join(', ');
+    case 'timeoff.added': case 'timeoff.requested': return ((s.staff.get(d.staffId) || {}).name || '') + ' · ' + T.rangeWords(d) + (d.reason ? ' · ' + d.reason : '') + (d.request ? ' · demande validée' : '');
     default: return '';
   }
+}
+/** "Carte (TPE)", or "Carte (TPE) 15,00 € + Espèces 10,00 €" for a credit note split as the payment was. */
+function refundMethods(rf) {
+  return rf.parts && rf.parts.length > 1 ? refundParts(rf).map((p) => (METHOD_LABEL[p.method] || p.method) + ' ' + fmtEur(p.amount, { decimals: true })).join(' + ') : METHOD_LABEL[rf.method] || rf.method;
 }
 function actorName(s, a) {
   if (a.t === 'staff') return (s.staff.get(a.id) || {}).name || 'Équipe';
@@ -66,6 +87,39 @@ function actorName(s, a) {
   if (a.t === 'provider') return a.id === 'stripe' ? 'Stripe' : 'Paiement';
   return a.n || 'Automatique';
 }
+
+/* ---------------- an absence and the clients it lands on ---------------- */
+
+/** The absence a request names: posted, or still a request. */
+function absenceOf(r, id) {
+  const t = r.s.timeoff.get(id) || r.s.timeoffRequests.get(id);
+  // a barber only ever reads his own
+  if (!t || (!r.caps.has('team') && t.staffId !== r.me.id)) throw new HttpError(404, 'not_found', 'Absence introuvable.');
+  return t;
+}
+function clientWord(s, a) {
+  const c = a.clientId ? s.clients.get(a.clientId) : null;
+  return c && !c.erased ? c.first + (c.last ? ' ' + c.last.charAt(0) + '.' : '') : a.name || 'Client';
+}
+/** What the absence sheet shows: each appointment, what is proposed for it, and whether the client can be texted
+ *  (online: still in time to change it himself, so 'ask' may text him a link; otherwise the salon calls him). */
+function planView(r, t) {
+  const s = r.s;
+  const rows = T.handoverPlan(s, t, { now: r.now, local: r.local }).map(({ a, same, nearest, choice, online }) => ({
+    id: a.id, day: a.day, start: a.start, dur: a.dur, name: clientWord(s, a), services: a.services.map((x) => x.name), serviceIds: a.services.map((x) => x.id),
+    price: a.price, status: a.status, deposit: a.deposit && a.deposit.paid ? a.deposit.paid : 0, textable: T.textable(s, a), asked: T.askedToReschedule(s, a),
+    online, same, nearest, choice
+  }));
+  return { staffId: t.staffId, from: t.from, to: t.to, startMin: t.startMin ?? null, endMin: t.endMin ?? null, count: rows.length, rows, back: backDay(s, t) };
+}
+/** The first day after the absence the barber works again (his week, the salon's hours and closures, his other
+ *  absences): the site's note proposes it ('Frank revient le 3 novembre', not a Sunday). Null beyond two months. */
+function backDay(s, t) {
+  const h = s.timeoff.has(t.id) ? s : { ...s, timeoff: new Map(s.timeoff).set('_preview', { ...t, id: '_preview' }) };
+  for (let d = addDays(t.to, 1), i = 0; i < 62; d = addDays(d, 1), i++) if (staffIntervals(h, t.staffId, d).length) return d;
+  return null;
+}
+const conflictCount = (r, t) => T.timeoffConflicts(r.s, t, { now: r.now, local: r.local }).length;
 
 /* ---------------- CSV for the accountant ---------------- */
 
@@ -77,14 +131,18 @@ const eu = (c) => (c / 100).toFixed(2).replace('.', ',');
 
 export function adminRoutes(app) {
   /* team */
-  app.get('/api/v1/staff', (r) => ({ items: [...r.s.staff.values()].sort((a, b) => (a.order ?? 99) - (b.order ?? 99)).map((x) => staffView(x, true)), timeoff: [...r.s.timeoff.values()] }), { cap: 'team' });
+  app.get('/api/v1/staff', (r) => ({
+    items: [...r.s.staff.values()].sort((a, b) => (a.order ?? 99) - (b.order ?? 99)).map((x) => staffView(x, true)),
+    // each absence to come with the appointments still on it (the 'à replacer' of the list), and the requests waiting
+    timeoff: [...r.s.timeoff.values()].map((t) => (t.to >= r.local.day ? { ...t, conflicts: conflictCount(r, t) } : t)),
+    requests: [...r.s.timeoffRequests.values()].filter((q) => q.to >= r.local.day).sort((a, b) => a.at - b.at).map((q) => ({ ...q, conflicts: conflictCount(r, q) }))
+  }), { cap: 'team' });
   app.post('/api/v1/staff', async (r) => {
+    // refuse a weak PIN before adding anyone, or the member would exist without a PIN
+    const pb = r.body.pin ? pinProblem(r.body.pin) : null;
+    if (pb) throw new HttpError(400, 'weak', pb);
     const res = await r.run(T.addStaff, r.body);
-    if (r.body.pin) {
-      const pb = pinProblem(r.body.pin);
-      if (pb) throw new HttpError(400, 'weak', pb);
-      await r.run(T.setCredentials, { id: res.id, pinHash: await hashSecret(r.body.pin) });
-    }
+    if (r.body.pin) await r.run(T.setCredentials, { id: res.id, pinHash: await hashSecret(r.body.pin) });
     return res;
   }, { cap: 'team' });
   app.patch('/api/v1/staff/:id', (r) => r.run(T.updateStaff, { id: r.params.id, patch: r.body }), { cap: 'agenda.own' });
@@ -100,8 +158,51 @@ export function adminRoutes(app) {
     return r.run(T.setCredentials, { id: r.params.id, pwdHash: await hashSecret(r.body.password) });
   }, { cap: 'team' });
   app.post('/api/v1/staff/:id/revoke', (r) => r.run(T.revokeSessions, { id: r.params.id }), { cap: 'agenda.own' });
-  app.get('/api/v1/timeoff/mine', (r) => ({ items: [...r.s.timeoff.values()].filter((t) => t.staffId === r.me.id && t.to >= r.local.day).sort((a, b) => a.from.localeCompare(b.from)) }), { cap: 'agenda.own' });
-  app.post('/api/v1/timeoff', (r) => r.run(T.addTimeOff, r.body), { cap: 'agenda.own' });
+  app.get('/api/v1/timeoff/mine', (r) => {
+    const mine = (t) => t.staffId === r.me.id && t.to >= r.local.day;
+    const byFrom = (a, b) => a.from.localeCompare(b.from);
+    return {
+      items: [...r.s.timeoff.values()].filter(mine).sort(byFrom).map((t) => ({ ...t, conflicts: conflictCount(r, t) })),
+      // asked for and not yet approved, or refused: the barber sees where his request stands
+      requests: [...r.s.timeoffRequests.values()].filter(mine).sort(byFrom).map((q) => ({ ...q, conflicts: conflictCount(r, q) })),
+      approval: r.s.settings.team.timeoffApproval !== false && !r.caps.has('team')
+    };
+  }, { cap: 'agenda.own' });
+  app.post('/api/v1/timeoff', async (r) => {
+    const res = await r.run(T.addTimeOff, r.body);
+    const t = r.s.timeoff.get(res.id) || r.s.timeoffRequests.get(res.id);
+    return { ...res, conflicts: t ? conflictCount(r, t) : 0 };
+  }, { cap: 'agenda.own' });
+  // the appointments an absence would land on, each with a proposal; {id} for one already posted or asked for
+  app.post('/api/v1/timeoff/preview', (r) => {
+    let t;
+    if (r.body && r.body.id) t = absenceOf(r, String(r.body.id));
+    else t = T.parseTimeOff({ staffId: r.body.staffId, from: r.body.from, to: r.body.to, startMin: r.body.startMin, endMin: r.body.endMin });
+    if (!r.s.staff.has(t.staffId)) throw new HttpError(404, 'not_found', 'Membre de l’équipe introuvable.');
+    if (!r.caps.has('team') && t.staffId !== r.me.id) throw new HttpError(403, 'forbidden', 'Seul le gérant voit les absences de l’équipe.');
+    return planView(r, t);
+  }, { cap: 'agenda.own' });
+  app.post('/api/v1/timeoff/:id/approve', async (r) => {
+    const res = await r.run(T.approveTimeOff, { id: r.params.id });
+    const t = r.s.timeoff.get(res.id);
+    return { ...res, conflicts: t ? conflictCount(r, t) : 0 };
+  }, { cap: 'team' });
+  app.post('/api/v1/timeoff/:id/refuse', (r) => r.run(T.refuseTimeOff, { id: r.params.id }), { cap: 'team' });
+  // the handover plan, applied: moves, texts and cancellations in one batch, then the deposits of the cancelled given back.
+  // team and agenda.edit, as the plan's preview and the agenda's banner: whoever applies a plan could read it first
+  app.post('/api/v1/timeoff/:id/reassign', async (r) => {
+    if (!r.caps.has('team')) throw new HttpError(403, 'forbidden', 'Seul le gérant replace les clients d’une absence.');
+    const t = r.s.timeoff.get(r.params.id);
+    if (!t) throw new HttpError(404, 'not_found', r.s.timeoffRequests.has(r.params.id) ? 'Valide d’abord la demande d’absence.' : 'Absence introuvable.');
+    const base = { actor: { t: /** @type {const} */ ('staff'), id: r.me.id, n: r.me.name, ...(r.device ? { dev: r.device.id } : {}) }, staff: r.me, caps: r.caps, meta: r.meta };
+    const { deposits, ...res } = await T.applyHandover(r.rt.engine, t, r.body, base);
+    let refunded = 0;
+    // the salon cancels, so a paid deposit goes back (only for whoever may refund, as on the appointment sheet)
+    if (r.caps.has('sale.refund')) for (const d of deposits) if (await refundOnline(r, r.s.payments.get(d.paymentId), 'Barbier absent')) refunded++;
+    // what is still paid: refused, failed or not ours to refund; said, so it is done from the appointment's sheet
+    const unrefunded = deposits.filter((d) => { const p = r.s.payments.get(d.paymentId); return p && p.status === 'paid'; }).length;
+    return { ...res, refunded, unrefunded, left: conflictCount(r, t) };
+  }, { cap: 'agenda.edit' });
   app.del('/api/v1/timeoff/:id', (r) => r.run(T.removeTimeOff, { id: r.params.id }), { cap: 'agenda.own' });
 
   /* catalogue */
@@ -116,6 +217,31 @@ export function adminRoutes(app) {
   app.patch('/api/v1/products/:id', (r) => r.run(K.updateProduct, { id: r.params.id, patch: r.body }), { cap: 'catalog' });
   app.post('/api/v1/products/:id/archive', (r) => r.run(K.archiveProduct, { id: r.params.id, restore: !!r.body.restore }), { cap: 'catalog' });
   app.post('/api/v1/products/:id/stock', (r) => r.run(K.adjustStock, { id: r.params.id, delta: r.body.delta, reason: r.body.reason }), { cap: 'catalog' });
+
+  /* credit notes and gift cards after the sale */
+  app.get('/api/v1/sales/:id/refund-plan', (r) => {
+    const x = r.s.sales.get(r.params.id);
+    if (!x) throw new HttpError(404, 'not_found', 'Ticket introuvable.');
+    return refundPlan(r.s, x);
+  }, { cap: 'sale.refund' });
+  // the credit note as printed: its number, the ticket it corrects, the lines given back, the VAT given back
+  app.get('/api/v1/refunds/:id', (r) => {
+    const rf = r.s.refunds.get(r.params.id);
+    // whoever may open the ticket may reprint its credit notes (a barber, his own tickets), as GET /api/v1/sales/:id
+    const x = rf && r.s.sales.get(rf.saleId);
+    if (!rf || !x || (!r.caps.has('sale.all') && x.cashierId !== r.me.id && !x.lines.some((l) => l.staffId === r.me.id))) throw new HttpError(404, 'not_found', 'Avoir introuvable.');
+    const by = (r.s.staff.get(rf.by) || {}).name || 'Système';
+    return {
+      id: rf.id, ref: refundNo(rf.number), saleId: rf.saleId, saleRef: ticketNo(rf.saleNumber), day: rf.day, at: rf.at, amount: rf.amount, liability: rf.liability || 0,
+      method: rf.method, parts: refundParts(rf).map((p) => ({ method: p.method, amount: p.amount })), reason: rf.reason, vat: rf.vat || [], lines: rf.lines || [], by
+    };
+  }, { cap: 'sale.create' });
+  app.post('/api/v1/giftcards/:id/send', (r) => {
+    // a code is checked against its hash here: a few tries per minute, no guessing
+    guard('gcsend|' + r.me.id, 10, 60000);
+    return r.run(sendGiftcode, { ...r.body, id: r.params.id });
+  }, { cap: 'sale.create' });
+  app.post('/api/v1/giftcards/:id/reissue', (r) => r.run(reissueGiftcard, { id: r.params.id }), { cap: 'sale.refund' });
 
   /* settings and devices */
   app.get('/api/v1/settings', (r) => ({
@@ -178,14 +304,22 @@ export function adminRoutes(app) {
         const at = new Date(x.at).toLocaleTimeString('fr-FR', { timeZone: 'Europe/Paris', hour: '2-digit', minute: '2-digit' });
         x.lines.forEach((l, i) => rows.push([ticketNo(x.number), x.day, at, c ? c.first + ' ' + c.last : '', l.name, l.kind, l.qty, eu(l.unit), eu(l.net), l.vat / 100, (s.staff.get(l.staffId) || {}).name || '', i === 0 ? pays : '', i === 0 && x.tip ? eu(x.tip.amount) : '']));
       }
-      for (const rf of [...s.refunds.values()].filter((x) => days.has(x.day))) rows.push([refundNo(rf.number), rf.day, '', '', 'Avoir sur ' + ticketNo(rf.saleNumber) + ' · ' + rf.reason, 'avoir', 1, eu(-rf.amount), eu(-rf.amount), '', '', METHOD_LABEL[rf.method] || rf.method, '']);
+      for (const rf of [...s.refunds.values()].filter((x) => days.has(x.day))) rows.push([refundNo(rf.number), rf.day, '', '', 'Avoir sur ' + ticketNo(rf.saleNumber) + ' · ' + rf.reason, rf.liability ? (rf.liability === rf.amount ? 'avoir carte cadeau' : 'avoir dont carte cadeau ' + eu(rf.liability)) : 'avoir', 1, eu(-rf.amount), eu(-rf.amount), '', '', refundMethods(rf), '']);
       body = csv(rows);
     } else if (kind === 'vat' || kind === 'closures') {
-      const rows = [['Clôture', 'Jour', 'Tickets', 'Premier', 'Dernier', 'CA TTC', 'CA HT', 'TVA', 'Remboursements', 'Net', 'Pourboires', 'Carte', 'Espèces', 'En ligne', 'Carte cadeau', 'Acompte', 'Cartes cadeaux vendues', 'Grand total perpétuel']];
-      for (const z of [...s.closures.values()].filter((z) => days.has(z.day)).sort((a, b) => a.number - b.number)) {
-        const tax = z.vat.reduce((t, v) => t + v.tax, 0);
-        rows.push([closureNo(z.number), z.day, z.tickets, z.first ? ticketNo(z.first) : '', z.last ? ticketNo(z.last) : '', eu(z.revenue), eu(z.revenueHT), eu(tax), eu(z.refunded), eu(z.net), eu(z.tips),
-          eu(z.byMethod.card || 0), eu(z.byMethod.cash || 0), eu(z.byMethod.online || 0), eu(z.byMethod.giftcard || 0), eu(z.byMethod.deposit || 0), eu(z.liability), eu(z.grandTotal)]);
+      // the same layout as the screen and the printed Z: gross, refunds, net = HT + VAT, then money in by method
+      const zs = [...s.closures.values()].filter((z) => days.has(z.day)).sort((a, b) => a.number - b.number).map((z) => ({ z, f: zFigures(z) }));
+      // VAT columns: the shop's rates (default, catalog) and any found, so two exports keep the same columns
+      const rates = [...new Set([s.settings.payments.vat, ...[...s.services.values(), ...s.products.values()].filter((x) => x.active).map((x) => x.vat),
+        ...zs.flatMap(({ f }) => f.vatNet.map((v) => v.rate))].filter((x) => typeof x === 'number'))].sort((a, b) => b - a);
+      const pct = (rate) => String(rate / 100).replace('.', ',') + ' %';
+      const rows = [['Clôture', 'Jour', 'Type', 'Tickets', 'Premier', 'Dernier', 'CA TTC brut', 'Remboursements', 'CA TTC net', 'CA HT net', 'TVA nette',
+        ...rates.map((rt) => 'TVA ' + pct(rt)), ...METHODS.map((m) => Z_CSV_METHOD[m]), 'Total des règlements', 'dont carte, espèces, en ligne', 'dont carte cadeau et acompte', 'Pourboires', 'Cartes cadeaux vendues', 'Grand total perpétuel', 'Sceau']];
+      for (const { z, f } of zs) {
+        const tax = f.vatNet.reduce((t, v) => t + v.tax, 0);
+        rows.push([closureNo(z.number), z.day, z.auto ? 'automatique' : z.late ? 'rattrapage' : z.early ? 'en avance' : 'normale', z.tickets, z.first ? ticketNo(z.first) : '', z.last ? ticketNo(z.last) : '',
+          eu(f.grossTtc), eu(-f.refundsTotal), eu(f.netTtc), eu(f.htNet), eu(tax), ...rates.map((rt) => eu((f.vatNet.find((v) => v.rate === rt) || { tax: 0 }).tax)),
+          ...METHODS.map((m) => eu(f.paymentsNet[m] || 0)), eu(f.paidTotal), eu(f.takings), eu(f.prepaid), eu(f.tips), eu(f.giftcardsSold), eu(z.grandTotal), z.seal || '']);
       }
       body = csv(rows);
     } else if (kind === 'commissions') {
@@ -210,9 +344,33 @@ export function adminRoutes(app) {
   /* system */
   app.get('/api/v1/system', (r) => ({
     mode: r.s.mode, store: r.rt.store.kind, version: r.s.version, events: r.rt.engine.journal.length, head: r.s.head,
-    payments: { provider: r.rt.pay.name, live: !!r.rt.pay.live }, sms: r.rt.sms ? r.rt.sms.name : null, warnings: r.rt.warnings, setupProtected: !!r.rt.cfg.setupToken,
+    payments: { provider: r.rt.pay.name, live: !!r.rt.pay.live }, sms: r.rt.sms ? r.rt.sms.name : null, warnings: [...r.rt.warnings, ...closingWarnings(r.s, r.local.day)], setupProtected: !!r.rt.cfg.setupToken,
     devices: [...r.s.devices.values()].filter((d) => !d.revoked).length
   }), { cap: 'settings' });
+
+  /* encrypted backups (core/backup.js): the nightly ones in Blob, a download to keep elsewhere, one on demand */
+  app.get('/api/v1/backups', (r) => backupStatus(r.rt), { cap: 'settings' });
+  app.get('/api/v1/backups/latest', async (r) => {
+    guard('backup-dl|' + r.me.id, 10, 10 * 60000);
+    const file = (name, body) => new Response(body, { status: 200, headers: { 'content-type': 'application/octet-stream', 'content-disposition': `attachment; filename="larchitecte-sauvegarde-${name}"`, 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' } });
+    // a demo never reads the Blob store (it may hold the real salon's files)
+    const blob = backupOff(r.rt) ? null : backupsOf(r.rt);
+    if (blob) {
+      try {
+        const last = ownBackups(await blob.listBackups(), salonOf(r.rt.engine.journal))[0];
+        // streamed from Blob as is, unless the nightly ones stopped: then the salon as it is now
+        const stored = last && r.rt.engine.clock() - last.at < STALE_MS ? await blob.getBackup(last.name) : null;
+        if (stored && last) return file(last.name, stored.stream);
+      } catch (err) { console.error('[lx] backup download', err && err.message); }
+    }
+    // nothing stored, too old, or Blob down: one sealed now, so the owner can always keep a copy
+    const f = await freshBackup(r.rt);
+    return file(f.day + '.json.gz.enc', f.body);
+  }, { cap: 'settings' });
+  app.post('/api/v1/backups/now', async (r) => {
+    guard('backup-now|' + r.me.id, 4, 10 * 60000);
+    return { item: await makeBackup(r.rt) };
+  }, { cap: 'settings' });
 
   app.post('/api/v1/demo/reset', async (r) => {
     if (r.s.mode !== 'demo' || r.me.role !== 'owner') throw new HttpError(403, 'forbidden', 'Réservé au gérant, en démo.');
@@ -228,6 +386,8 @@ export function adminRoutes(app) {
     const auth = r.req.headers.get('authorization') || '';
     if (!r.rt.cfg.cronSecret || !safeEqual(auth, 'Bearer ' + r.rt.cfg.cronSecret)) throw new HttpError(401, 'unauthorized', 'Non autorisé.');
     await maybeTick(r.rt, r.meta, { force: true });
+    // the external scheduler was seen (Réglages › Mise en route): the Comptoir's own pulse ticks too, so lastTick cannot tell
+    r.rt.lastCron = Date.now();
     return { ok: true, version: r.s.version };
   }, { auth: false, csrf: false });
 }

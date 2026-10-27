@@ -121,10 +121,10 @@ test('refunds are credit notes within what was paid; Z closure seals the day', a
   assert.equal(rf.number, 1);
   const tot = dayTotals(t.engine.state, DAY);
   assert.equal(tot.net, 1500);
-  const z = await t.engine.run(S.closeDay, {}, t.asOwner());
+  const b = await apptFor(t, 'Ben'); // booked before the Z: a sealed day takes no new booking (consent.test.js)
+  const z = await t.engine.run(S.closeDay, { early: true }, t.asOwner()); // 10:00: closing early on purpose
   assert.equal(z.number, 1);
   assert.equal(z.grandTotal, 1500);
-  const b = await apptFor(t, 'Ben');
   await rejects(t.engine.run(S.checkout, { apptId: b.id, lines: [{ kind: 'service', ref: t.ids.cut }], payments: [{ method: 'card', amount: 2000 }] }, t.asOwner()), 'day_closed');
   assert.equal(t.engine.verify().ok, true);
 });

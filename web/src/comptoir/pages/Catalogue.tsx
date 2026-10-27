@@ -4,26 +4,71 @@ import { useEffect, useMemo, useState } from 'react';
 import { api } from '../../lib/api';
 import { refreshAll, useQuery } from '../../lib/query';
 import { Link, navigate, useRoute } from '../../lib/router';
-import { ago, dates, dur, eur, money, pct, plural } from '../../lib/format';
+import { ago, clock, dates, dur, eur, money, pct, plural } from '../../lib/format';
 import { Icon } from '../../ui/Icon';
 import { Button, Chip, Empty, Field, Kpi, Modal, Note, Sheet, Skeleton, Switch, confirm, toast, toastError } from '../../ui/kit';
 import { useApp } from '../state';
-import { PageTitle } from '../App';
+import { PageTitle, Reserved } from '../App';
 import type { Product, Service } from '../types';
+import { GiftCode, Voucher, printNow, type VoucherCard } from './caisse/Receipt';
 import './catalogue.css';
 
 type Catalog = { services: Service[]; products: Product[] };
-type Gift = { id: string; last4: string; amount: number; balance: number; expires: string; status: string; recipient: string; buyer: string; issuedAt: number; uses: number };
+// legacy: a paper card taken over ('reprise'); reissueOf: the card it replaced
+type Gift = { id: string; last4: string; amount: number; balance: number; expires: string; status: string; recipient: string; buyer: string; issuedAt: number; uses: number; legacy?: boolean; reissueOf?: string | null; voidReason?: string; replacedBy?: string | null };
+// a card bought on /carte-cadeau (GET /api/v1/giftshop): how it was to be given, and its text
+// cardIds: the card and those that replaced it (reissued), the live one last
+type Online = {
+  giftcardId: string; cardIds?: string[]; reissued?: boolean; paymentId: string; amount: number; paidAt: number; delivery: 'buyer' | 'recipient'; sendAt: number;
+  sms: { status: string; state?: 'planned' | 'leaving' | 'sent' | 'failed'; dueAt: number; to: string; error: string } | null;
+};
 const VATS = [{ v: 2000, t: '20 %' }, { v: 1000, t: '10 %' }, { v: 550, t: '5,5 %' }, { v: 0, t: '0 %' }];
 const DURS = [10, 15, 20, 30, 45, 60, 90, 120];
 const euros = (c: number) => (c / 100).toFixed(2).replace('.', ',').replace(/,00$/, '');
+const onSite = (s: Service) => s.active && s.online;
+
+/* The menu of the old WordPress site, so the owner starts from it instead of an empty page. The slugs are the
+   site's historical ones (?prestation=cl), the subscription covers the classic cut as in the demo. */
+const OLD_MENU: (Record<string, unknown> & { slug: string; name: string })[] = [
+  { slug: 'cl', name: 'Coupe classique', short: 'Coupe', category: 'Coupes', price: 2000, dur: 30, includes: ['Coupe', 'Shampooing', 'Coiffage'] },
+  { slug: 'cc', name: 'Coupe + contour de barbe', short: 'Coupe + contour', category: 'Coupes', price: 2500, dur: 30, includes: ['Coupe', 'Contour de la barbe'] },
+  { slug: 'ct', name: 'Coupe + taille de barbe', short: 'Coupe + taille', category: 'Coupes', price: 3000, dur: 30, tag: 'La plus complète', includes: ['Coupe', 'Taille de barbe', 'Shampooing', 'Coiffage', 'Soin cheveux', 'Soin barbe'] },
+  { slug: 'tb', name: 'Taille de barbe', category: 'Barbe', price: 1800, dur: 30, includes: ['Taille', 'Mise en forme', 'Huile'] },
+  { slug: 'eb', name: 'Entretien barbe', category: 'Barbe', price: 1500, dur: 30, includes: ['Contour de la barbe', 'Huile'] },
+  { slug: 'cb', name: 'Cover barbe', category: 'Barbe', price: 1500, dur: 30, includes: ['Couleur de la barbe', 'Soin'] },
+  { slug: 'tr', name: 'Transformation', category: 'Changer de tête', price: 5000, dur: 60, tag: 'Changement de look', includes: ['Diagnostic', 'Étude de faisabilité', 'Coupe', 'Coiffage et soin'] },
+  { slug: 'de', name: 'Décoloration', category: 'Changer de tête', price: 6000, from: true, dur: 60, includes: ['Décoloration', 'Sans coupe'], description: 'Sous condition de faisabilité.' },
+  { slug: 'co', name: 'Coloration', category: 'Changer de tête', price: 3000, from: true, dur: 60, includes: ['Coloration', 'Sans coupe'] },
+  { slug: 'si', name: 'Silver', category: 'Changer de tête', price: 10000, dur: 60, tag: 'Blanc ou gris', includes: ['Décoloration jusqu’au blanc', 'Coloration grise', 'Soin', 'Produit d’entretien offert'], description: 'Ne pas laver la tête pendant 4 jours minimum.' },
+  { slug: 'ab', name: 'Abonnement 5 coupes', short: 'Abonnement', category: 'Abonnement', price: 8000, dur: 30, tag: '16 € la coupe', includes: ['5 coupes sur 5 semaines', 'Sans barbe'], description: '16 € la coupe. Tu réserves la première, on fixe les suivantes avec toi.', pack: { credits: 5, days: 70 } }
+];
+
+/** Swap a service with its neighbour in its category: the order is the site's order. */
+async function moveService(items: Service[], s: Service, dir: -1 | 1) {
+  const list = items.filter((x) => x.active && x.category === s.category).sort((a, b) => a.order - b.order);
+  const i = list.findIndex((x) => x.id === s.id), j = i + dir;
+  if (i < 0 || j < 0 || j >= list.length) return;
+  const other = list[j];
+  try {
+    await Promise.all([api.patch('/api/v1/services/' + s.id, { order: other.order }), api.patch('/api/v1/services/' + other.id, { order: s.order === other.order ? s.order + dir : s.order })]);
+    refreshAll();
+  } catch (e) { toastError(e); }
+}
+
+function SiteBadge({ s }: { s: Service }) {
+  if (onSite(s)) return <span className="badge badge-ok"><Icon name="globe" size={12} />visible sur le site</span>;
+  return <span className="badge badge-warn">pas sur le site ({s.active ? 'hors ligne' : 'archivée'})</span>;
+}
 
 export default function Catalogue() {
-  const { can } = useApp();
+  const { can, boot } = useApp();
   const route = useRoute();
   const tab = route.id === 'produits' ? 'produits' : route.id === 'cartes' ? 'cartes' : 'prestations';
-  const { data, loading } = useQuery<Catalog>('/api/v1/catalog');
-  const low = (data?.products || []).filter((p) => p.active && p.stock <= p.low).length;
+  // without `catalog` the page is the price list, from the bootstrap (active items only): nothing to edit, nothing refused
+  const owner = can('catalog');
+  const q = useQuery<Catalog>(owner ? '/api/v1/catalog' : null);
+  const { data, loading } = owner ? q : { data: { services: boot.services, products: boot.products }, loading: false };
+  const low = owner ? (data?.products || []).filter((p) => p.active && p.stock <= p.low).length : 0;
   const tabs = [
     { to: '/catalogue', id: 'prestations', label: 'Prestations', icon: 'scissors' },
     { to: '/catalogue/produits', id: 'produits', label: 'Produits & stock', icon: 'box', count: low },
@@ -35,8 +80,58 @@ export default function Catalogue() {
       <nav className="tabs" aria-label="Catalogue">
         {tabs.map((t) => <Link key={t.id} to={t.to} className="tab" aria-current={tab === t.id ? 'page' : undefined}><Icon name={t.icon} size={16} />{t.label}{(t as any).count ? <span className="count">{(t as any).count}</span> : null}</Link>)}
       </nav>
-      {tab === 'cartes' ? <Gifts /> : loading && !data ? <Skeleton h={360} r={22} /> : data ? (tab === 'produits' ? <Products items={data.products} /> : <Services items={data.services} />) : null}
+      {tab === 'cartes' ? (can('sale.all') ? <Gifts /> : <Reserved />) : loading && !data ? <Skeleton h={360} r={22} /> : !data ? null
+        : !owner ? (tab === 'produits' ? <ProductPrices items={data.products} /> : <PriceList items={data.services} />)
+        : tab === 'produits' ? <Products items={data.products} /> : <Services items={data.services} />}
     </>
+  );
+}
+
+/* ---------------- read-only: the price list for the team ---------------- */
+
+function PriceList({ items }: { items: Service[] }) {
+  const active = items.filter((s) => s.active).sort((a, b) => a.order - b.order);
+  const cats = [...new Set(active.map((s) => s.category))];
+  return (
+    <>
+      <div className="row wrap ct-bar"><p className="muted grow">{plural(active.length, 'prestation')} · les prix et les durées se changent avec le gérant</p></div>
+      <div className="col" style={{ gap: 14 }}>
+        {!active.length ? <section className="card"><Empty icon="scissors" title="Pas encore de prestation">Le gérant prépare la carte du salon.</Empty></section> : null}
+        {cats.map((c) => (
+          <section key={c} className="card">
+            <div className="card-h"><h2>{c}</h2><span className="faint" style={{ fontSize: 13 }}>{active.filter((s) => s.category === c).length}</span></div>
+            <ul className="list">
+              {active.filter((s) => s.category === c).map((s) => (
+                <li key={s.id} className="li">
+                  <span className="li-main">
+                    <b>{s.name}{s.pack ? <span className="badge badge-ok">{s.pack.credits} passages · {s.pack.days} j</span> : null}{!s.online ? <span className="badge">au salon seulement</span> : null}</b>
+                    <small>{dur(s.dur)}{s.buffer ? ' + ' + s.buffer + ' min de battement' : ''}{s.description ? ' · ' + s.description : ''}</small>
+                  </span>
+                  <span className="li-end"><b className="ct-price">{s.from ? <small>dès </small> : null}{eur(s.price)}</b></span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ))}
+      </div>
+    </>
+  );
+}
+
+function ProductPrices({ items }: { items: Product[] }) {
+  const active = items.filter((p) => p.active).sort((a, b) => a.name.localeCompare(b.name, 'fr'));
+  return (
+    <section className="card">
+      {!active.length ? <Empty icon="box" title="Aucun produit">Le salon ne vend pas encore de produits.</Empty> : (
+        <ul className="list">{active.map((p) => (
+          <li key={p.id} className="li">
+            <span className="li-main"><b>{p.name}</b><small>{p.category}</small></span>
+            <span className={'badge ' + (p.stock <= 0 ? 'badge-danger' : p.stock <= p.low ? 'badge-warn' : '')}>{p.stock <= 0 ? 'rupture' : p.stock + ' en rayon'}</span>
+            <span className="li-end"><b className="ct-price">{eur(p.price, { decimals: p.price % 100 !== 0 })}</b></span>
+          </li>
+        ))}</ul>
+      )}
+    </section>
   );
 }
 
@@ -47,23 +142,45 @@ function Services({ items }: { items: Service[] }) {
   const active = items.filter((s) => s.active).sort((a, b) => a.order - b.order);
   const archived = items.filter((s) => !s.active);
   const cats = [...new Set(active.map((s) => s.category))];
-  const move = async (s: Service, dir: -1 | 1) => {
-    const list = active.filter((x) => x.category === s.category);
-    const i = list.findIndex((x) => x.id === s.id), j = i + dir;
-    if (j < 0 || j >= list.length) return;
-    const other = list[j];
+  const { reloadBoot } = useApp();
+  const move = (s: Service, dir: -1 | 1) => moveService(items, s, dir);
+  const [taking, setTaking] = useState(false);
+  // the old menu's slugs not created yet: a takeover cut short (network, rights) can be finished later without duplicates
+  const missing = OLD_MENU.filter((m) => !items.some((x) => x.slug === m.slug));
+  const resume = missing.length > 0 && missing.length < OLD_MENU.length;
+  const takeOver = async () => {
+    setTaking(true);
+    let done = 0;
     try {
-      await Promise.all([api.patch('/api/v1/services/' + s.id, { order: other.order }), api.patch('/api/v1/services/' + other.id, { order: s.order === other.order ? s.order + dir : s.order })]);
-      refreshAll();
-    } catch (e) { toastError(e); }
+      const ids: Record<string, string> = Object.fromEntries(items.filter((x) => x.slug).map((x) => [x.slug as string, x.id]));
+      for (const [order, sv] of OLD_MENU.entries()) {
+        if (ids[sv.slug]) continue;
+        const body = sv.slug === 'ab' && ids.cl ? { ...sv, order, pack: { credits: 5, days: 70, serviceIds: [ids.cl] } } : { ...sv, order };
+        ids[sv.slug] = (await api.post<{ id: string }>('/api/v1/services', body)).id;
+        done++;
+      }
+      toast({ title: 'Ta carte est reprise', sub: plural(done, 'prestation') + ' sur le site. Ajuste les prix si besoin.', icon: 'check' });
+    } catch (e) { toastError(e); } finally { setTaking(false); refreshAll(); reloadBoot().catch(() => {}); }
   };
   return (
     <>
       <div className="row wrap ct-bar">
-        <p className="muted grow">{plural(active.length, 'prestation')} · {active.filter((s) => s.online).length} réservables en ligne · l’ordre est celui du site</p>
+        <p className="muted grow">{plural(active.length, 'prestation')} · {plural(active.filter(onSite).length, 'visible', 'visibles')} sur le site · l’ordre est celui du site</p>
         <Button variant="primary" icon="plus" onClick={() => setEdit('new')}>Nouvelle prestation</Button>
       </div>
       <div className="col" style={{ gap: 14 }}>
+        {!items.length ? (
+          <section className="card">
+            <Empty icon="scissors" title="Pas encore de prestation" action={<Button variant="primary" icon="download" busy={taking} onClick={takeOver}>Reprendre la carte de l’ancien site</Button>}>
+              Ta carte de l’ancien site, prête en un geste&nbsp;: tu ajustes ensuite les prix.
+            </Empty>
+          </section>
+        ) : resume ? (
+          <section className="card card-tight row wrap" style={{ gap: 12 }}>
+            <p className="grow muted" style={{ margin: 0 }}>La reprise de l’ancienne carte s’est arrêtée en route&nbsp;: {plural(missing.length, 'prestation manque', 'prestations manquent')}.</p>
+            <Button icon="download" busy={taking} onClick={takeOver}>Compléter la carte de l’ancien site</Button>
+          </section>
+        ) : null}
         {cats.map((c) => (
           <section key={c} className="card">
             <div className="card-h"><h2>{c}</h2><span className="faint" style={{ fontSize: 13 }}>{active.filter((s) => s.category === c).length}</span></div>
@@ -72,11 +189,10 @@ function Services({ items }: { items: Service[] }) {
                 <li key={s.id} className="ct-row">
                   <button type="button" className="li ct-main" onClick={() => setEdit(s)}>
                     <span className="li-main">
-                      <b>{s.name}{s.pack ? <span className="badge badge-ok">{s.pack.credits} passages · {s.pack.days} j</span> : null}</b>
+                      <b>{s.name}{s.pack ? <span className="badge badge-ok">{s.pack.credits} passages · {s.pack.days} j</span> : null}<SiteBadge s={s} />{s.tag ? <span className="badge badge-accent">{s.tag}</span> : null}</b>
                       <small>{dur(s.dur)}{s.buffer ? ' + ' + s.buffer + ' min de battement' : ''} · TVA {s.vat / 100} %{s.description ? ' · ' + s.description : ''}</small>
                     </span>
                     <span className="ct-flags">
-                      {s.online ? <span className="badge"><Icon name="globe" size={12} />en ligne</span> : <span className="badge badge-warn">au salon</span>}
                       {s.deposit ? <span className="badge badge-info">acompte {eur(s.deposit)}</span> : null}
                     </span>
                     <span className="li-end"><b className="ct-price">{s.from ? <small>dès </small> : null}{eur(s.price)}</b></span>
@@ -93,7 +209,7 @@ function Services({ items }: { items: Service[] }) {
         {archived.length ? (
           <details className="card ct-archived">
             <summary>{plural(archived.length, 'prestation archivée', 'prestations archivées')}</summary>
-            <ul className="list">{archived.map((s) => <li key={s.id} className="li"><span className="li-main"><b>{s.name}</b><small>{s.category} · {eur(s.price)}</small></span><Button size="sm" variant="ghost" onClick={async () => { try { await api.post('/api/v1/services/' + s.id + '/archive', { restore: true }); refreshAll(); toast(s.name + ' est de retour'); } catch (e) { toastError(e); } }}>Remettre en vente</Button></li>)}</ul>
+            <ul className="list">{archived.map((s) => <li key={s.id} className="li"><span className="li-main"><b>{s.name} <SiteBadge s={s} /></b><small>{s.category} · {eur(s.price)}</small></span><Button size="sm" variant="ghost" onClick={async () => { try { await api.post('/api/v1/services/' + s.id + '/archive', { restore: true }); refreshAll(); toast(s.name + ' est de retour'); } catch (e) { toastError(e); } }}>Remettre en vente</Button></li>)}</ul>
           </details>
         ) : null}
       </div>
@@ -106,17 +222,26 @@ function ServiceSheet({ sv, all, onClose }: { sv: Service | 'new' | null; all: S
   const { boot, reloadBoot } = useApp();
   const isNew = sv === 'new';
   const cats = [...new Set(all.filter((s) => s.active).map((s) => s.category))];
-  const blank = { name: '', short: '', category: cats[0] || 'Coupes', price: '', from: false, dur: 30, buffer: 0, online: true, deposit: '' as string, depositMode: 'auto' as 'auto' | 'none' | 'custom', vat: boot.settings.payments.vat ?? 2000, description: '', includes: '', isPack: false, credits: 5, days: 70, covers: [] as string[] };
+  const blank = { name: '', short: '', category: cats[0] || 'Coupes', price: '', from: false, dur: 30, buffer: 0, online: true, deposit: '' as string, depositMode: 'auto' as 'auto' | 'none' | 'custom', vat: boot.settings.payments.vat ?? 2000, description: '', includes: '', tag: '', isPack: false, credits: 5, days: 70, covers: [] as string[] };
   const [f, setF] = useState(blank);
   const [newCat, setNewCat] = useState('');
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     if (!sv) return;
     if (sv === 'new') { setF(blank); setNewCat(''); return; }
-    setF({ name: sv.name, short: sv.short === sv.name ? '' : sv.short, category: sv.category, price: euros(sv.price), from: sv.from, dur: sv.dur, buffer: sv.buffer, online: sv.online, deposit: sv.deposit != null ? euros(sv.deposit) : '', depositMode: sv.deposit == null ? 'auto' : sv.deposit === 0 ? 'none' : 'custom', vat: sv.vat, description: sv.description, includes: sv.includes.join(', '), isPack: !!sv.pack, credits: sv.pack?.credits || 5, days: sv.pack?.days || 70, covers: sv.pack?.serviceIds || [] });
+    setF({ name: sv.name, short: sv.short === sv.name ? '' : sv.short, category: sv.category, price: euros(sv.price), from: sv.from, dur: sv.dur, buffer: sv.buffer, online: sv.online, deposit: sv.deposit != null ? euros(sv.deposit) : '', depositMode: sv.deposit == null ? 'auto' : sv.deposit === 0 ? 'none' : 'custom', vat: sv.vat, description: sv.description, includes: sv.includes.join(', '), tag: sv.tag || '', isPack: !!sv.pack, credits: sv.pack?.credits || 5, days: sv.pack?.days || 70, covers: sv.pack?.serviceIds || [] });
     setNewCat('');
   }, [sv]);
   const price = money.parseEur(f.price);
+  // where it sits on the site, from the live list so the arrows follow each move
+  const place = useMemo(() => {
+    if (!sv || sv === 'new') return null;
+    const list = all.filter((x) => x.active && x.category === sv.category).sort((a, b) => a.order - b.order);
+    const i = list.findIndex((x) => x.id === sv.id);
+    return i < 0 ? null : { i, n: list.length, s: list[i] };
+  }, [sv, all]);
+  // another category picked but not saved yet: the position shown would be the old one's
+  const moved = !!place && (newCat.trim() || f.category) !== place.s.category;
   const dep = boot.settings.deposits;
   const autoDep = !price || dep.mode === 'none' || (dep.mode === 'threshold' && price < dep.thresholdCents) ? 0 : Math.min(price, Math.max(500, Math.round((price * dep.percent) / 100 / 100) * 100));
   const valid = f.name.trim().length >= 2 && price != null && price >= 0 && (f.category || newCat.trim());
@@ -126,13 +251,15 @@ function ServiceSheet({ sv, all, onClose }: { sv: Service | 'new' | null; all: S
     try {
       const body: Record<string, unknown> = {
         name: f.name.trim(), short: f.short.trim() || undefined, category: (newCat.trim() || f.category), price, from: f.from, dur: f.dur, buffer: f.buffer, online: f.online, vat: f.vat,
-        description: f.description.trim(), includes: f.includes.split(',').map((x) => x.trim()).filter(Boolean).slice(0, 10)
+        description: f.description.trim(), includes: f.includes.split(',').map((x) => x.trim()).filter(Boolean).slice(0, 10), tag: f.tag.trim()
       };
       body.deposit = f.depositMode === 'auto' ? null : f.depositMode === 'none' ? 0 : money.parseEur(f.deposit) ?? 0;
       if (f.isPack) body.pack = { credits: f.credits, days: f.days, serviceIds: f.covers };
       if (isNew) await api.post('/api/v1/services', body);
       else await api.patch('/api/v1/services/' + (sv as Service).id, body);
-      toast({ title: isNew ? 'Prestation créée' : 'Prestation enregistrée', sub: f.online ? 'Elle est à jour sur le site.' : 'Réservable au salon uniquement.', icon: 'check' });
+      // say where it shows: an offline or archived service is saved but clients don't see it
+      const shown = f.online && (isNew || (sv as Service).active);
+      toast({ title: shown ? 'Visible sur le site' : 'Enregistrée · pas affichée sur le site', sub: f.name.trim(), icon: 'check' });
       refreshAll(); reloadBoot().catch(() => {}); onClose();
     } catch (e) { toastError(e); } finally { setBusy(false); }
   };
@@ -173,6 +300,18 @@ function ServiceSheet({ sv, all, onClose }: { sv: Service | 'new' | null; all: S
       </Field>
       <Field label="Description sur le site" hint={f.description.length + ' / 300'} htmlFor="sv-d"><textarea id="sv-d" className="input textarea" rows={2} maxLength={300} value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} /></Field>
       <Field label="Inclus (séparés par des virgules)" htmlFor="sv-i"><input id="sv-i" className="input" value={f.includes} onChange={(e) => setF({ ...f, includes: e.target.value })} placeholder="Shampooing, serviette chaude, coiffage" /></Field>
+      <div className="grid2">
+        <Field label="Mise en avant" hint="Un petit badge sur la carte du site. Vide : aucun." htmlFor="sv-t"><input id="sv-t" className="input" value={f.tag} maxLength={30} onChange={(e) => setF({ ...f, tag: e.target.value })} placeholder="La plus complète" /></Field>
+        <Field label="Ordre d’affichage" hint={place && !moved ? 'Chaque flèche déplace tout de suite sur le site.' : undefined}>{place && moved ? (
+          <span className="faint" style={{ fontSize: 13.5 }}>Nouvelle catégorie : tu la places dedans après l’enregistrement.</span>
+        ) : place ? (
+          <div className="row" style={{ gap: 8 }}>
+            <Button size="sm" icon="chevU" aria-label="Monter" disabled={place.i === 0} onClick={() => moveService(all, place.s, -1)} />
+            <Button size="sm" icon="chevD" aria-label="Descendre" disabled={place.i === place.n - 1} onClick={() => moveService(all, place.s, 1)} />
+            <span className="muted" style={{ fontSize: 13.5 }}>{place.i + 1}<sup>{place.i ? 'e' : 're'}</sup> sur {place.n} dans {place.s.category}</span>
+          </div>
+        ) : <span className="faint" style={{ fontSize: 13.5 }}>{isNew ? 'En dernier dans sa catégorie ; tu la déplaces ensuite.' : 'Archivée : pas sur le site.'}</span>}</Field>
+      </div>
       <Switch on={f.isPack} onChange={(v) => setF({ ...f, isPack: v })} title="C’est un abonnement" hint="Vendu une fois, puis chaque passage est décompté à la caisse." />
       {f.isPack ? (
         <div className="card card-tight ct-pack">
@@ -356,10 +495,18 @@ function Inventory({ open, items, onClose }: { open: boolean; items: Product[]; 
 /* ---------------- gift cards ---------------- */
 
 function Gifts() {
-  const { boot, now } = useApp();
+  const { boot, now, can } = useApp();
   const { data, loading } = useQuery<{ items: Gift[]; outstanding: number }>('/api/v1/giftcards');
+  const shop = useQuery<{ items: Online[] }>('/api/v1/giftshop');
+  const online = useMemo(() => new Map((shop.data?.items || []).flatMap((o) => (o.cardIds || [o.giftcardId]).map((id) => [id, o] as const))), [shop.data]);
   const [code, setCode] = useState('');
   const [found, setFound] = useState<any>(null);
+  const [open, setOpen] = useState<Gift | null>(null);
+  const [takeover, setTakeover] = useState(false);
+  // a code shown once (reissued, or printed for a paper card taken over), and what the printer gets
+  const [fresh, setFresh] = useState<{ card: VoucherCard; title: string } | null>(null);
+  const [voucher, setVoucher] = useState<VoucherCard | null>(null);
+  useEffect(() => { const off = () => setVoucher(null); window.addEventListener('afterprint', off); return () => window.removeEventListener('afterprint', off); }, []);
   const check = async () => {
     try { setFound(await api.get('/api/v1/giftcards/check?code=' + encodeURIComponent(code.trim()))); } catch (e) { setFound(null); toastError(e); }
   };
@@ -367,11 +514,17 @@ function Gifts() {
   if (!data) return null;
   const live = data.items.filter((g) => g.status === 'active' && g.balance > 0 && g.expires >= boot.today);
   const soon = live.filter((g) => dates.diffDays(boot.today, g.expires) <= 30);
+  // a reissued card is the same money under a new code, a paper card taken over was sold before: neither is a sale here
+  const sold = data.items.filter((g) => !g.reissueOf && !g.legacy);
+  const taken = data.items.filter((g) => g.legacy && !g.reissueOf).length;
+  const state = (g: Gift) => (g.status !== 'active' ? (g.voidReason === 'reissued' ? 'remplacée' : g.voidReason === 'refunded' ? 'remboursée' : 'annulée') : '');
+  // a void card holds nothing any more (a reissued one's balance moved to its new card)
+  const off = (g: Gift) => g.status !== 'active';
   return (
     <>
       <section className="kpis">
         <Kpi k="En circulation" v={eur(data.outstanding)} s={plural(live.length, 'carte') + ' encore utilisable' + (live.length > 1 ? 's' : '')} icon="gift" />
-        <Kpi k="Vendues" v={data.items.length} s={eur(data.items.reduce((t, g) => t + g.amount, 0)) + ' au total'} icon="ticket" />
+        <Kpi k="Vendues" v={sold.length} s={eur(sold.reduce((t, g) => t + g.amount, 0)) + ' au total' + (taken ? ' · ' + plural(taken, 'reprise') : '')} icon="ticket" />
         <Kpi k="Expirent bientôt" v={soon.length} s="dans les 30 jours" icon="clock" hot={soon.length > 0} />
       </section>
       <Note icon="info">Une carte cadeau n’est pas du chiffre d’affaires à la vente : c’est une dette envers le client, comptée au moment où elle paie une prestation. La TVA suit la même règle.</Note>
@@ -379,22 +532,137 @@ function Gifts() {
         <section className="card col" style={{ gap: 10 }}>
           <div className="card-h"><h2><Icon name="search" size={16} />Vérifier un code</h2></div>
           <div className="row" style={{ gap: 8 }}><input className="input tnum" value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="CADO-XXXX-XXXX" onKeyDown={(e) => e.key === 'Enter' && code.trim() && check()} aria-label="Code de la carte" /><Button variant="primary" disabled={code.trim().length < 6} onClick={check}>Vérifier</Button></div>
-          {found ? <div className={'note ' + (found.expired || found.status !== 'active' ? 'warn' : found.balance ? 'ok' : '')}><Icon name="gift" /><div><b>{found.balance ? eur(found.balance, { decimals: true }) + ' disponibles' : 'Carte épuisée'}</b> sur {eur(found.amount)} · •••• {found.last4} · {found.expired ? 'expirée le ' : 'valable jusqu’au '}{dates.dayShort(found.expires)} {found.expires.slice(0, 4)}</div></div> : null}
+          {found ? <div className={'note ' + (found.expired || found.status !== 'active' ? 'warn' : found.balance ? 'ok' : '')}><Icon name="gift" /><div><b>{found.status !== 'active' ? (found.replacedBy ? 'Carte remplacée par •••• ' + found.replacedBy : 'Carte annulée') : found.balance ? eur(found.balance, { decimals: true }) + ' disponibles' : 'Carte épuisée'}</b>{found.status === 'active' ? ' sur ' + eur(found.amount) : ''} · •••• {found.last4} · {found.expired ? 'expirée le ' : 'valable jusqu’au '}{dates.dayShort(found.expires)} {found.expires.slice(0, 4)}</div></div> : null}
           <Button variant="ghost" icon="plus" onClick={() => navigate('/caisse?vente=1')}>Vendre une carte cadeau</Button>
+          {can('settings') ? <Button variant="ghost" icon="gift" onClick={() => setTakeover(true)}>Reprendre une carte existante</Button> : null}
+          {fresh ? <><p className="section-k">{fresh.title}</p><GiftCode card={fresh.card} onPrint={() => { setVoucher(fresh.card); printNow(); }} /></> : null}
         </section>
         <section className="card">
           <div className="card-h"><h2><Icon name="gift" size={16} />Toutes les cartes</h2></div>
           {!data.items.length ? <Empty icon="gift" title="Aucune carte vendue">Elles se vendent depuis la caisse, en vente libre.</Empty> : (
             <ul className="list">{data.items.slice(0, 80).map((g) => (
-              <li key={g.id} className="li">
+              <li key={g.id}><button type="button" className="li" onClick={() => setOpen(g)} style={{ width: '100%', textAlign: 'left' }}>
                 <span className="ct-card"><Icon name="gift" size={16} /></span>
-                <span className="li-main"><b>•••• {g.last4}{g.recipient ? ' · ' + g.recipient : ''}</b><small>Vendue {ago(g.issuedAt, now())} · {g.uses ? plural(g.uses, 'utilisation') + ' · ' : ''}{g.expires < boot.today ? 'expirée' : 'valable jusqu’au ' + dates.dayShort(g.expires) + (g.expires.slice(0, 4) !== boot.today.slice(0, 4) ? ' ' + g.expires.slice(0, 4) : '')}</small></span>
-                <span className="li-end"><b className="money tnum">{eur(g.balance, { decimals: g.balance % 100 !== 0 })}</b><small className="faint">sur {eur(g.amount)}</small></span>
-              </li>
+                <span className="li-main"><b>•••• {g.last4}{g.recipient ? ' · ' + g.recipient : ''}{online.has(g.id) ? <span className="badge badge-info" style={{ marginLeft: 8 }}><Icon name="globe" size={12} />en ligne</span> : null}{g.legacy && !g.reissueOf ? <span className="badge" style={{ marginLeft: 8 }}>reprise</span> : null}{g.reissueOf ? <span className="badge badge-info" style={{ marginLeft: 8 }}>réémise</span> : null}{state(g) ? <span className="badge badge-warn" style={{ marginLeft: 8 }}>{state(g)}</span> : null}</b><small>{g.legacy && !g.reissueOf ? 'Reprise' : g.reissueOf ? 'Réémise' : online.has(g.id) ? 'Achetée en ligne' + (g.buyer ? ' par ' + g.buyer : '') : 'Vendue'} {ago(g.issuedAt, now())} · {g.uses ? plural(g.uses, 'utilisation') + ' · ' : ''}{g.expires < boot.today ? 'expirée' : 'valable jusqu’au ' + dates.dayShort(g.expires) + (g.expires.slice(0, 4) !== boot.today.slice(0, 4) ? ' ' + g.expires.slice(0, 4) : '')}</small></span>
+                <span className="li-end">{off(g) ? <b className="faint">—</b> : <b className="money tnum">{eur(g.balance, { decimals: g.balance % 100 !== 0 })}</b>}<small className="faint">{off(g) && g.replacedBy ? '→ •••• ' + g.replacedBy : 'sur ' + eur(g.amount)}</small></span>
+              </button></li>
             ))}</ul>
           )}
         </section>
       </div>
+      <GiftSheet gift={open} online={open ? online.get(open.id) || null : null} onClose={() => setOpen(null)} onReissued={(card) => { setOpen(null); setFresh({ card, title: 'Nouvelle carte · l’ancien code ne marche plus' }); }} />
+      <TakeoverModal open={takeover} onClose={() => setTakeover(false)} onDone={(card) => { setTakeover(false); setFresh({ card, title: 'Carte reprise' }); }} />
+      {voucher ? <Voucher card={voucher} /> : null}
     </>
+  );
+}
+
+/** One card: where it stands, and for the owner, a new code when the old one is lost or leaked. */
+function GiftSheet({ gift: g, online: o, onClose, onReissued }: { gift: Gift | null; online: Online | null; onClose: () => void; onReissued: (c: VoucherCard) => void }) {
+  const { boot, can } = useApp();
+  const [busy, setBusy] = useState(false);
+  const usable = !!g && g.status === 'active' && g.balance > 0 && g.expires >= boot.today;
+  const reissue = async () => {
+    if (!g || !await confirm({ title: 'Annuler •••• ' + g.last4 + ' et réémettre ?', body: 'L’ancien code ne marchera plus. Une nouvelle carte de ' + eur(g.balance, { decimals: g.balance % 100 !== 0 }) + ', valable jusqu’au ' + g.expires.split('-').reverse().join('/') + ', reçoit un nouveau code, affiché une seule fois.', ok: 'Annuler et réémettre', danger: true })) return;
+    setBusy(true);
+    try {
+      const r = await api.post<{ id: string; code: string; amount: number; expires: string; recipient: string }>('/api/v1/giftcards/' + g.id + '/reissue', {});
+      refreshAll(); toast({ title: 'Nouvelle carte •••• ' + r.code.slice(-4), icon: 'gift' });
+      onReissued({ id: r.id, code: r.code, amount: r.amount, expires: r.expires, recipient: r.recipient });
+    } catch (e) { toastError(e); } finally { setBusy(false); }
+  };
+  return (
+    <Sheet open={!!g} onClose={onClose} title={g ? 'Carte •••• ' + g.last4 : 'Carte cadeau'} kicker={g ? (g.legacy && !g.reissueOf ? 'Reprise de l’ancien salon' : g.reissueOf ? 'Réémise' : o ? 'Achetée en ligne' : 'Vendue au salon') : ''}
+      footer={g && usable && can('sale.refund') ? <><span className="grow" /><Button variant="danger" icon="gift" busy={busy} onClick={reissue}>Annuler et réémettre</Button></> : null}>
+      {g ? (
+        <div className="card card-tight">
+          <div className="kv"><span>Solde</span>{g.status !== 'active' ? <b className="faint">— (carte de {eur(g.amount)})</b> : <b className="money">{eur(g.balance, { decimals: true })} sur {eur(g.amount)}</b>}</div>
+          <div className="kv"><span>Valable jusqu’au</span><b>{g.expires.split('-').reverse().join('/')}</b></div>
+          {g.recipient ? <div className="kv"><span>Pour</span><b>{g.recipient}</b></div> : null}
+          {g.buyer ? <div className="kv"><span>Offerte par</span><b>{g.buyer}</b></div> : null}
+          <div className="kv"><span>Utilisations</span><b>{g.uses}</b></div>
+          <div className="kv"><span>État</span><b>{g.status !== 'active' ? (g.voidReason === 'reissued' ? 'Remplacée par ' + (g.replacedBy ? '•••• ' + g.replacedBy : 'une nouvelle carte') : g.voidReason === 'refunded' ? 'Annulée et remboursée' : 'Annulée') : g.expires < boot.today ? 'Expirée' : g.balance ? 'Utilisable' : 'Épuisée'}</b></div>
+        </div>
+      ) : null}
+      {g && o ? <OnlineGift gift={g} online={o} usable={usable && o.giftcardId === g.id} /> : null}
+      {g && usable ? <p className="faint" style={{ fontSize: 12.5 }}>Carte perdue ou code divulgué ? « Annuler et réémettre » bloque l’ancien code et en donne un nouveau, avec le même solde et la même date.</p> : null}
+    </Sheet>
+  );
+}
+
+/**
+ * A card bought on /carte-cadeau: the text the buyer planned, and DO-03's resend. Nobody at the salon holds its code,
+ * so the server sends it (POST /api/v1/giftshop/:id/resend): to the order's number, or, for whoever may reissue a card
+ * (sale.refund), to another one. A reissued card has a code nobody keeps: it goes out from the reissue screen.
+ */
+function OnlineGift({ gift: g, online: o, usable }: { gift: Gift; online: Online; usable: boolean }) {
+  const { now, can } = useApp();
+  const [phone, setPhone] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [sent, setSent] = useState<string[]>([]);
+  const when = (ms: number) => dates.dayShort(dates.localParts(ms).day) + ' à ' + clock(ms);
+  const m = o.sms;
+  const st = !m ? '' : m.state || (m.status === 'sent' || m.status === 'simulated' ? 'sent' : m.status === 'queued' || m.status === 'claimed' ? 'leaving' : 'failed');
+  const smsLine = !m ? 'Aucun' : st === 'planned' || (st === 'leaving' && m.dueAt > now()) ? 'Prévu ' + when(m.dueAt)
+    : st === 'failed' ? 'Pas parti' + (m.error ? ' (' + m.error + ')' : m.status === 'expired' ? ' (trop tard)' : '')
+      : st === 'leaving' ? 'En cours d’envoi' : 'Envoyé' + (m.status === 'simulated' ? ' (simulé)' : '');
+  const other = can('sale.refund');
+  const resend = async () => {
+    setBusy(true);
+    try {
+      const r = await api.post<{ id: string; to: string }>('/api/v1/giftshop/' + g.id + '/resend', phone.trim() ? { phone } : {});
+      setSent((x) => [...x, r.to]); setPhone(''); toast({ title: 'Code renvoyé par SMS', icon: 'sms' });
+    } catch (e) { toastError(e); } finally { setBusy(false); }
+  };
+  return (
+    <div className="card card-tight">
+      <div className="kv"><span>Payée en ligne</span><b>{o.paidAt ? when(o.paidAt) : '—'}</b></div>
+      <div className="kv"><span>{o.delivery === 'recipient' ? 'SMS à la personne' : 'SMS à l’acheteur'}</span><b>{smsLine}</b></div>
+      {m ? <div className="kv"><span>Numéro</span><b className="tnum" style={{ whiteSpace: 'nowrap' }}>{m.to}</b></div> : null}
+      {usable && o.reissued ? <small className="muted">Code réémis : il ne se renvoie que depuis l’écran de la réémission.</small> : usable && can('sale.create') ? (
+        <>
+          <div className="gift-send">
+            {other ? <input className="input" inputMode="tel" autoComplete="off" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Même numéro" aria-label="Renvoyer à un autre numéro" /> : null}
+            <Button size="sm" variant="ghost" icon="sms" busy={busy} onClick={resend}>{other ? 'Renvoyer le code par SMS' : 'Renvoyer le code au même numéro'}</Button>
+          </div>
+          {sent.length ? <small className="muted">Renvoyé au {sent.join(', ')}.</small> : null}
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+/** A paper card sold before the switch: its code (or a new one printed for it), its balance, its date. Not a sale: no Z counts it. */
+function TakeoverModal({ open, onClose, onDone }: { open: boolean; onClose: () => void; onDone: (c: VoucherCard) => void }) {
+  const { boot } = useApp();
+  const [code, setCode] = useState('');
+  const [bal, setBal] = useState('');
+  const [exp, setExp] = useState('');
+  const [buyer, setBuyer] = useState('');
+  const [to, setTo] = useState('');
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { if (open) { setCode(''); setBal(''); setExp(dates.addDays(boot.today, 365)); setBuyer(''); setTo(''); } }, [open]);
+  const amount = money.parseEur(bal) || 0;
+  const go = async () => {
+    setBusy(true);
+    try {
+      const r = await api.post<{ id: string; last4: string; code?: string }>('/api/v1/import/giftcard', { code: code.trim() || undefined, amount, expires: exp, buyer: buyer.trim() || undefined, recipient: to.trim() || undefined });
+      refreshAll(); toast({ title: 'Carte •••• ' + r.last4 + ' reprise', icon: 'gift' });
+      onDone({ id: r.id, code: r.code || code.trim().toUpperCase(), amount, expires: exp, recipient: to.trim() });
+    } catch (e) { toastError(e); } finally { setBusy(false); }
+  };
+  return (
+    <Modal open={open} onClose={onClose} label="Reprendre une carte existante">
+      <h2>Reprendre une carte</h2>
+      <p>Une carte vendue avant le passage au Comptoir (papier, ancien site) : elle entre avec son solde, sans compter une deuxième fois dans le chiffre.</p>
+      <Field label="Code de la carte" htmlFor="tk-c" hint="Laisse vide pour imprimer un nouveau code à la place."><input id="tk-c" className="input tnum" value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="KDO-2025-0042" autoComplete="off" maxLength={40} /></Field>
+      <div className="row wrap" style={{ gap: 10 }}>
+        <Field label="Solde restant" htmlFor="tk-b"><input id="tk-b" className="input input-money" inputMode="decimal" value={bal} onChange={(e) => setBal(e.target.value)} placeholder="50,00" /></Field>
+        <Field label="Valable jusqu’au" htmlFor="tk-e"><input id="tk-e" className="input" type="date" value={exp} min={boot.today} onChange={(e) => setExp(e.target.value)} /></Field>
+      </div>
+      <Field label="Offerte par" htmlFor="tk-f"><input id="tk-f" className="input" value={buyer} onChange={(e) => setBuyer(e.target.value)} maxLength={60} placeholder="Facultatif" /></Field>
+      <Field label="Pour" htmlFor="tk-t"><input id="tk-t" className="input" value={to} onChange={(e) => setTo(e.target.value)} maxLength={60} placeholder="Facultatif" /></Field>
+      <div className="acts"><Button variant="ghost" onClick={onClose}>Annuler</Button><Button variant="primary" busy={busy} disabled={amount < 100 || !exp || exp < boot.today} onClick={go}>Reprendre {amount ? eur(amount, { decimals: amount % 100 !== 0 }) : 'la carte'}</Button></div>
+    </Modal>
   );
 }

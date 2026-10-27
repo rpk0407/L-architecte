@@ -5,6 +5,7 @@ import { refreshAll, useQuery } from '../../../lib/query';
 import { navigate } from '../../../lib/router';
 import { cap, dates, dayShortWord, dayWord, dur, eur, hhmm, rhythmWords, sinceWords, STATUS, SOURCE, time, ago } from '../../../lib/format';
 import { useDebounced } from '../../../lib/hooks';
+import { shopOpenOn } from '../../../lib/hours';
 import { Icon } from '../../../ui/Icon';
 import { Avatar, Button, Chip, Field, Money, Note, Sheet, Switch, confirm, toast, toastError, Skeleton } from '../../../ui/kit';
 import { useApp } from '../../state';
@@ -56,7 +57,7 @@ export function SlotPicker({ serviceIds, staffId, day, value, onPick, ignore, ho
   return (
     <div className="col" style={{ gap: 12 }}>
       <div className="days" role="group" aria-label="Jour">
-        {days.map((k) => { const p = dates.dayParts(k); const open = (boot.settings.hours[p.wd] || []).length > 0; return <button key={k} type="button" className="dayc" aria-pressed={k === d} disabled={!open} onClick={() => setD(k)}><small>{k === boot.today ? 'auj.' : dates.DAYS_SH[p.wd]}</small><b>{p.d}</b></button>; })}
+        {days.map((k) => { const p = dates.dayParts(k); const open = shopOpenOn(boot.settings, k); return <button key={k} type="button" className="dayc" aria-pressed={k === d} disabled={!open} onClick={() => setD(k)}><small>{k === boot.today ? 'auj.' : dates.DAYS_SH[p.wd]}</small><b>{p.d}</b></button>; })}
       </div>
       {loading ? <Skeleton h={100} /> : !slots.length ? <Note icon="clock">Plus rien de libre ce jour-là{staffId !== 'any' ? ' pour ' + (staffById.get(staffId)?.name || '') : ''}. Essaie un autre jour ou « le premier libre ».</Note> : parts.map((pt) => {
         const list = slots.filter((x) => x.m >= pt.a && x.m < pt.b);
@@ -74,8 +75,15 @@ export function SlotPicker({ serviceIds, staffId, day, value, onPick, ignore, ho
 
 /* ---------------- an appointment ---------------- */
 
-type ApptDetail = { appt: Appt; client: ClientFull | null; history: { id: string; day: string; services: string[]; staff: string; status: string; price: number }[]; messages: { id: string; template: string; status: string; at: number; sentAt: number | null }[]; payments: { id: string; kind: string; amount: number; status: string }[]; sale: any };
-const TPL: Record<string, string> = { confirmation: 'Confirmation', reminder: 'Rappel la veille', reminder2h: 'Rappel 2 h avant', review: 'Demande d’avis', cancelled: 'Annulation', receipt: 'Reçu' };
+type ApptDetail = { appt: Appt; client: ClientFull | null; history: { id: string; day: string; services: string[]; staff: string; status: string; price: number }[]; messages: { id: string; channel?: 'sms' | 'email'; template: string; status: string; at: number; sentAt: number | null }[]; payments: { id: string; kind: string; amount: number; status: string }[]; sale: any };
+const TPL: Record<string, string> = { confirmation: 'Confirmation', reminder: 'Rappel la veille', reminder2h: 'Rappel 2 h avant', review: 'Demande d’avis', cancelled: 'Annulation', receipt: 'Reçu', lookup: 'Lien Mon rendez-vous' };
+/** A text's fate in a few words. Outside the demo nothing is simulated: without a provider a text waits for one. */
+function smsState(status: string, demo: boolean, provider: string | null, mail = false): string {
+  if (status === 'failed') return 'échec · ';
+  if (demo) return status === 'simulated' ? 'simulé (démo) · ' : '';
+  if (status === 'queued' && !provider) return 'en attente d’un fournisseur ' + (mail ? 'e-mail' : 'SMS') + ' · ';
+  return status === 'expired' ? 'trop tard · ' : status === 'simulated' ? 'jamais parti · ' : '';
+}
 
 export function ApptSheet({ id, onClose }: { id: string | null; onClose: () => void }) {
   const app = useApp();
@@ -174,7 +182,7 @@ export function ApptSheet({ id, onClose }: { id: string | null; onClose: () => v
           {data && data.messages.length ? (
             <div className="card card-tight">
               <div className="card-h"><h3>Messages automatiques</h3></div>
-              <ul className="msgs">{data.messages.map((m) => <li key={m.id}><i className={m.status === 'sent' || m.status === 'simulated' ? 'ok' : ''}>{m.status === 'sent' || m.status === 'simulated' ? <Icon name="check" /> : null}</i><span className="grow">{TPL[m.template] || m.template}</span><small className="faint">{m.status === 'simulated' ? 'simulé (démo) · ' : m.status === 'failed' ? 'échec · ' : ''}{ago(m.sentAt || m.at)}</small></li>)}</ul>
+              <ul className="msgs">{data.messages.map((m) => { const ok = m.status === 'sent' || (m.status === 'simulated' && boot.mode === 'demo'); return <li key={m.id}><i className={ok ? 'ok' : ''}>{ok ? <Icon name="check" /> : null}</i><span className="grow" style={{ flex: '1 0 auto' }}>{TPL[m.template] || m.template}{m.channel === 'email' ? ' par e-mail' : ''}</span><small className="faint" style={{ textAlign: 'right' }}>{m.channel === 'email' ? smsState(m.status, boot.mode === 'demo', (boot.providers as { email?: string | null }).email || null, true) : smsState(m.status, boot.mode === 'demo', boot.providers.sms)}<span style={{ whiteSpace: 'nowrap' }}>{ago(m.status === 'expired' ? m.at : m.sentAt || m.at)}</span></small></li>; })}</ul>
             </div>
           ) : null}
           {['booked', 'pending', 'arrived', 'in_chair'].includes(a.status) ? (

@@ -14,8 +14,19 @@ test('default texts stay in one plain SMS with realistic values', () => {
     lien: 'https://l-architecte.vercel.app/r/LA-7K2P.Ab3dEf9hIj2kLm4nOp6q', avis: 'https://search.google.com/local/writereview?placeid=ChIJJSWkBLy_yRIRbgAQcMwb-JY',
     jours: '134', ticket: 'T001042', montant: '1 230,00 €'
   };
+  // what a text really carries when it differs from the appointment texts: a gift card's amount, code, expiry and the
+  // site's address; one appointment found from /mon-rendez-vous (a second one adds its link: two SMS, on purpose)
+  const own = {
+    giftcardCode: { acheteur: 'Maximilien', montant: '150 €', code: 'K7PM-2XQR-9HTW', date: '12 nov. 2027', lien: 'https://barberlarchitecte.com/' },
+    lookup: { suite: '' },
+    // DO-05: the barber away and the day in words; IN-01: a gift card bought online
+    reassign: { absent: 'Esteban', date: 'mercredi 30' },
+    reassignAt: { absent: 'Esteban', date: 'mercredi 30', avant: '10 h 30' },
+    reschedule: { date: 'mercredi 30' },
+    giftcard: { acheteur: 'Maximilien', montant: '150 €', code: 'K7PM-2XQR-9HTW', lien: 'https://barberlarchitecte.com/cadeau/Ab3dEf9hIj2kLm4nOp6qRs' }
+  };
   for (const [k, tpl] of Object.entries(TEMPLATES)) {
-    const sms = renderTemplate(tpl, vars);
+    const sms = renderTemplate(tpl, { ...vars, ...own[k] });
     const odd = [...sms].filter((c) => !GSM.has(c) && !EXT.has(c));
     assert.deepEqual(odd, [], k + ' uses characters outside the SMS alphabet');
     assert.ok(length(sms) <= 160, k + ' is ' + length(sms) + ' characters');

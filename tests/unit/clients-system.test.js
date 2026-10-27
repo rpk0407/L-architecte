@@ -13,7 +13,10 @@ test('erasing a client removes personal data everywhere, the books still verify'
   await t.engine.run(A.bookOnline, { serviceIds: [t.ids.cut], staffId: 'any', day: DAY, start: 660, first: 'Karim', phone: '0611223344', note: 'Allergique au henné' }, t.asClient);
   const cid = t.engine.state.clientByPhone.get('+33611223344');
   await rejects(t.engine.run(C.eraseClient, { id: cid }, t.asStaff('Ali')), 'forbidden');
-  await t.engine.run(C.eraseClient, { id: cid }, t.asOwner());
+  // still booked at 11:00: refused until the booking is closed; cancelled and texted first, erased on the next run
+  await rejects(t.engine.run(C.eraseClient, { id: cid }, t.asOwner()), 'open');
+  assert.equal((await t.engine.run(C.eraseClient, { id: cid, cancelUpcoming: true }, t.asOwner())).erased, false);
+  await t.engine.run(C.eraseClient, { id: cid, cancelUpcoming: true }, t.asOwner());
   const c = t.engine.state.clients.get(cid);
   assert.equal(c.erased, true);
   assert.equal(c.phone, '');

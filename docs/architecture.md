@@ -24,8 +24,8 @@ Personal data (names, phone numbers, notes) travel next to the event in a `pii` 
 ## Concurrency and idempotency
 
 - **Optimistic concurrency**: the engine appends at the version it read. If another server wrote first (two phones booking the same chair at the same second), the store refuses, the engine re-reads, re-runs the command against the new state, and only one booking wins. Tested in `tests/unit/agenda.test.js`.
-- **Idempotency**: every write from the Comptoir carries an `x-request-id`. A request retried after a network drop returns the first result instead of charging twice. The till keeps one id per ticket.
-- **Holds**: a slot being filled in on the site is held for 5 minutes (`appt.held`), so the client doesn't lose it while typing. A pending deposit holds its slot for 15 minutes; after that the slot is free again even before the scheduler runs (`occupies`).
+- **Idempotency**: every write from the Comptoir carries an `x-request-id`. A request retried after a network drop returns the first result instead of charging twice. The till keeps one id per ticket. Retried on another instance (or after a restart), the answer is rebuilt from the events the first request wrote (`server/core/replay.js`); a gift card's full code is the one thing it cannot show again.
+- **Holds**: a slot being filled in on the site is held for 5 minutes (`appt.held`), so the client doesn't lose it while typing. A pending deposit holds its slot until `deposit.until`, set at booking from the salon's setting (raised to at least 31 minutes with Stripe, whose checkout page lives that long); after that the slot is free again even before the scheduler runs (`occupies`), and a payment that arrives later is only kept if the slot is still free (otherwise it is refunded).
 
 ## Stores
 
@@ -44,7 +44,7 @@ One Vercel Function (`api/main.js`) serves every `/api/*` route through `server/
 
 1. route match, then same-origin check for writes (Sec-Fetch-Site / Origin), JSON bodies only, 64 KB max;
 2. the runtime (store, engine, providers) is built once per instance and reused;
-3. the engine syncs with the store (at most every 1.5 s on shared stores), so several instances stay consistent;
+3. the engine syncs with the store (at most every 1.5 s on shared stores), so several instances stay consistent; when the store does not answer, reads are served from the instance's memory for up to 10 minutes (header `x-lx-stale: 1`, a red strip in the Comptoir) and writes are refused with a 503 before anything happens;
 4. session and device cookies are verified against the live state (a revoked person or device is out at once);
 5. the route's capability is checked, then the handler runs.
 
@@ -60,11 +60,11 @@ React 19 + TypeScript (strict), built by Vite into `dist/`. No UI library: a sma
 
 - `state.tsx` loads the bootstrap (who is signed in, settings, team, catalogue) and polls `/api/v1/pulse` every 4 s: when the journal version moves, cached queries refresh and new bookings show up in the feed with a toast.
 - Pages are lazy-loaded; the agenda and the till load first. React vendor ≈ 70 KB gzip, each page 5 to 25 KB.
-- Barbers on a salon device sign in with a PIN; the session locks itself after 4 minutes without activity.
+- Barbers on a salon device sign in with a PIN; the screen locks itself after 4 minutes without a touch, and the server refuses a PIN session after 10 minutes without a request (`pin_idle`), even if the tablet's own lock never ran.
 
 ## The site (public/site.html)
 
-The existing site is kept as designed. Its booking engine (`LXE` inside the page) now reads the salon's catalogue, barbers, hours, closures and free slots from `/api/public`, holds the slot on the server, books, takes the deposit, moves and cancels through signed links, and puts people on the waiting list. Prices on the page follow the catalogue: a price changed in the Comptoir is the price on the site.
+The existing site is kept as designed. Its booking engine (`LXE` inside the page) now reads the salon's catalogue, barbers, hours, closures and free slots from `/api/public`, holds the slot on the server, books, takes the deposit, moves and cancels through signed links, and puts people on the waiting list. Prices on the page follow the catalogue: a price changed in the Comptoir is the price on the site. So do the team section (the real barbers, their bio and Instagram from Équipe), the salon's Instagram (Réglages › Salon), the hours in words, the FAQ's prices (`menu`: every active service), the closure and opening banners, and the JSON-LD and meta description. The rest (hero and house texts, the FAQ's questions and words, reviews, photos, the Facebook and YouTube links) is fixed in `site.html`: the owner does not edit the site, a change there goes through the provider.
 
 ## Performance and scale
 

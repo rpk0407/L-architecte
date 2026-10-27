@@ -2,10 +2,12 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../../lib/api';
 import { refreshAll, useQuery } from '../../../lib/query';
+import { Link } from '../../../lib/router';
 import { ago, cap, clock, dates, eur, plural } from '../../../lib/format';
 import { Icon } from '../../../ui/Icon';
 import { Button, Chip, Empty, Field, Note, Skeleton, confirm, toast, toastError } from '../../../ui/kit';
 import { useApp } from '../../state';
+import { cronStep, useHealth } from './sections/MiseEnRoute';
 
 export default function System({ section }: { section: string }) {
   if (section === 'appareils') return <Devices />;
@@ -101,6 +103,10 @@ function Data() {
         </section>
       ) : null}
 
+      {can('settings') ? <Health /> : null}
+
+      {can('settings') ? <Backups /> : null}
+
       <section className="card col" style={{ gap: 10 }}>
         <div className="card-h"><h2><Icon name="download" size={16} />Exports</h2></div>
         <div className="rp-exports">
@@ -141,6 +147,106 @@ function Data() {
         </section>
       ) : null}
     </div>
+  );
+}
+
+/* ---------------- health: the same answer as Réglages › Mise en route ---------------- */
+
+function Health() {
+  const { now } = useApp();
+  const { data, loading, refresh, refreshing } = useHealth();
+  if (loading && !data) return <section className="card"><Skeleton h={180} /></section>;
+  if (!data) return null;
+  const h = data;
+  const demo = h.mode === 'demo';
+  const since = (at: number) => ago(at, now());
+  const t = h.tick;
+  // the same verdict as Mise en route ⑪: a call from the cron and texts that left on time, not merely a tick
+  const cron = cronStep(h, since);
+  const tickBad = cron.tone === 'err' || cron.tone === 'todo';
+  const backupBad = !h.backup.off && (!!h.backup.problem || h.backup.at == null || h.now - h.backup.at > h.backup.staleAfterMs);
+  const waiting = h.sms.queuedNoProvider + h.email.queuedNoProvider;
+  /** [label, value, problem] */
+  const rows: [string, string, boolean][] = [
+    ['Planificateur', demo ? 'simulé à chaque visite'
+      : [!t.cron ? 'cron non réglé' : t.cronAt != null ? 'dernier appel du cron ' + since(t.cronAt) : 'aucun appel du cron vu par ce serveur',
+        t.overdue ? plural(t.overdue, 'message en attente', 'messages en attente') : '', t.late24h ? plural(t.late24h, 'parti en retard', 'partis en retard') + ' (24 h)' : ''].filter(Boolean).join(' · '), tickBad],
+    ['Stripe', h.stripe.provider !== 'stripe' ? 'simulé' : (h.stripe.live ? 'réel' : 'test') + (h.stripe.lastWebhook ? ' · dernier webhook ' + since(h.stripe.lastWebhook) : ' · aucun webhook reçu'), !demo && (h.stripe.provider !== 'stripe' || !h.stripe.live)],
+    ['SMS échoués (24 h)', String(h.sms.failed24h), h.sms.failed24h > 0],
+    ['E-mails échoués (24 h)', String(h.email.failed24h), h.email.failed24h > 0],
+    ['En attente d’un fournisseur', waiting ? [h.sms.queuedNoProvider ? plural(h.sms.queuedNoProvider, 'SMS') : '', h.email.queuedNoProvider ? plural(h.email.queuedNoProvider, 'e-mail') : ''].filter(Boolean).join(', ') : 'rien', waiting > 0],
+    ['Dernière sauvegarde', h.backup.off ? 'aucune en démo' : h.backup.at ? since(h.backup.at) : 'aucune', backupBad],
+    // the chain is checked again every 10 minutes at most: the count is today's journal, the check says when it ran
+    ['Journal', h.integrity.ok ? plural(h.integrity.events ?? h.integrity.count, 'opération') + ' · intact, vérifié ' + since(h.integrity.at) : 'anomalie à l’opération n° ' + h.integrity.brokenAt, !h.integrity.ok],
+    ['Adresse publique', h.publicUrl ? h.publicUrl.replace(/^https?:\/\//, '') : 'non réglée', !demo && !h.publicUrlCustom],
+    ['Indexation Google', h.indexable ? 'ouverte' : 'coupée (LX_INDEX)', false]
+  ];
+  return (
+    <section className="card col" style={{ gap: 4 }}>
+      <div className="card-h"><h2><Icon name="bolt" size={16} />Santé</h2><Button size="sm" variant="ghost" icon="undo" busy={refreshing} onClick={() => void refresh()}>Actualiser</Button></div>
+      {rows.map(([k, v, bad]) => <div key={k} className="kv"><span>{k}</span><b style={bad ? { color: 'var(--danger)' } : undefined}>{v}</b></div>)}
+      <p className="faint" style={{ fontSize: 12.5, marginTop: 6 }}>Le détail et ce qu’il reste à faire : <Link to="/reglages/mise-en-route" className="link">Réglages › Mise en route</Link>.</p>
+    </section>
+  );
+}
+
+/* ---------------- encrypted backups ---------------- */
+
+type BackupItem = { name: string; day: string; at: number; count: number | null; size: number | null };
+type BackupStatus = { blob: boolean; key: boolean; keyProblem: string; off: string; items: BackupItem[]; last: BackupItem | null; unreadable: boolean; error: string; staleAfterMs: number; keep: { daily: number; monthly: number } };
+
+/** "cette nuit 03:02", "aujourd’hui 14:10", "hier 03:02", "le 24/10 à 03:02" */
+function backupWhen(at: number, today: string) {
+  const p = dates.localParts(at);
+  const t = clock(at);
+  if (p.day === today) return (p.min < 6 * 60 ? 'cette nuit ' : 'aujourd’hui ') + t;
+  if (p.day === dates.addDays(today, -1)) return 'hier ' + t;
+  return 'le ' + p.day.slice(8) + '/' + p.day.slice(5, 7) + ' à ' + t;
+}
+
+function Backups() {
+  const { boot, now } = useApp();
+  const { data, loading, refresh } = useQuery<BackupStatus>('/api/v1/backups');
+  const [busy, setBusy] = useState(false);
+  // once more a little later: the visit that wakes the scheduler after 03:00 may be the one writing tonight’s backup
+  useEffect(() => { const t = setTimeout(() => { refresh(); }, 8000); return () => clearTimeout(t); }, []);
+  const saveNow = async () => {
+    setBusy(true);
+    try { await api.post('/api/v1/backups/now'); toast({ title: 'Sauvegarde faite', sub: 'Chiffrée et rangée avec les autres.', icon: 'shieldOk' }); await refresh(); }
+    catch (e) { toastError(e); await refresh(); } finally { setBusy(false); }
+  };
+  if (loading && !data) return <section className="card"><Skeleton h={120} /></section>;
+  if (!data) return null;
+  const last = data.last;
+  const stale = !last || now() - last.at > data.staleAfterMs;
+  // a demo (or a preview) writes nothing, on purpose: say how it works in production, without alarming
+  const quietDemo = boot.mode === 'demo' || !!data.off;
+  const problem = !data.key ? data.keyProblem
+    : !data.blob ? 'Aucun stockage Blob relié (BLOB_READ_WRITE_TOKEN) : pas de sauvegarde automatique, et un gros salon ne se télécharge plus d’un bloc. Relie un stockage Blob (accès privé) ; en attendant, télécharge la sauvegarde chiffrée et range-la en lieu sûr.'
+      : data.error || (stale ? (last ? 'La dernière sauvegarde date de plus de 36 h : celle de la nuit n’a pas eu lieu.' : 'Aucune sauvegarde pour l’instant : la première se fera cette nuit, ou maintenant.') : '');
+  const title = last ? 'Dernière sauvegarde : ' + backupWhen(last.at, boot.today) + (problem ? '' : ' ✓') : data.unreadable ? 'Sauvegardes illisibles pour l’instant' : 'Aucune sauvegarde';
+  return (
+    <section className="card col" style={{ gap: 12 }}>
+      <div className="card-h"><h2><Icon name="lock" size={16} />Sauvegardes</h2>{data.items.length ? <span className="faint" style={{ fontSize: 13 }}>{plural(data.items.length, 'copie')}</span> : null}</div>
+      {quietDemo ? (
+        <Note icon="info">{boot.mode === 'demo' ? 'En démo, rien n’est sauvegardé.' : data.off} En production, le salon entier (clients compris) est chiffré chaque nuit vers 3 h avec ta clé BACKUP_KEY : {data.keep.daily} jours et {data.keep.monthly} mois gardés.</Note>
+      ) : (
+        <div className={'rg-proof ' + (problem ? 'err' : 'ok')}>
+          <Icon name={problem ? 'alert' : 'shieldOk'} />
+          <div>
+            <b style={{ fontSize: 22 }}>{title}</b>
+            <p>{problem || (last && last.count != null ? plural(last.count, 'opération') + ', clients et accès compris, ' : 'Le salon entier, ') + 'chiffré avec ta clé BACKUP_KEY. On garde ' + data.keep.daily + ' jours et ' + data.keep.monthly + ' mois.'}</p>
+          </div>
+        </div>
+      )}
+      {quietDemo && !data.key ? null : <>
+      <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+        {data.key ? <a className="btn btn-ghost" href="/api/v1/backups/latest" download><Icon name="download" />Télécharger la sauvegarde chiffrée</a> : <Button variant="ghost" icon="download" disabled>Télécharger la sauvegarde chiffrée</Button>}
+        <Button variant="subtle" icon="shieldOk" busy={busy} disabled={!data.key || !data.blob || !!data.off} onClick={saveNow}>Sauvegarder maintenant</Button>
+      </div>
+      <p className="faint" style={{ fontSize: 12.5 }}>Garde une copie de la clé BACKUP_KEY hors de l’hébergement (gestionnaire de mots de passe) : sans elle, une sauvegarde ne s’ouvre pas, même par nous. Pour réinstaller le salon : un déploiement neuf avec la même clé, puis « Installer depuis une sauvegarde » sur l’écran d’installation.</p>
+      </>}
+    </section>
   );
 }
 

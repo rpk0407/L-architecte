@@ -1,0 +1,32 @@
+/* The gift card bought on /carte-cadeau (/cadeau/:token): the site's ink and red on screen, black on white on paper. */
+.g-card { position: relative; overflow: hidden; gap: 0; padding: 26px 24px 22px; background: var(--ink); color: var(--paper); }
+/* the ring stays in the top corner, clear of the "Carte cadeau" label */
+.g-card::after { content: ''; position: absolute; right: -128px; top: -128px; width: 200px; height: 200px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px rgba(235, 70, 57, .55), 0 0 0 22px rgba(235, 70, 57, .07); pointer-events: none; }
+.g-top { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.g-brand { font: italic 400 26px/1 var(--serif); }
+.g-kind { font: 600 11.5px/1 var(--sans); letter-spacing: .14em; text-transform: uppercase; color: rgba(236, 232, 224, .6); }
+.g-for { margin-top: 30px; font: 500 16px/1.3 var(--sans); color: rgba(236, 232, 224, .75); }
+.g-amount { margin-top: 4px; font: 400 clamp(64px, 19vw, 88px)/.95 var(--serif); letter-spacing: -.02em; }
+.g-amount small { margin-left: 10px; font: 500 15px/1 var(--sans); letter-spacing: 0; color: rgba(236, 232, 224, .7); }
+.g-msg { margin: 18px 0 0; font: italic 400 22px/1.25 var(--serif); overflow-wrap: anywhere; }
+.g-from { margin-top: 8px; font: 500 14.5px/1.3 var(--sans); color: rgba(236, 232, 224, .7); }
+.g-code { display: flex; flex-direction: column; gap: 6px; margin-top: 24px; padding-top: 18px; border-top: 1px dashed rgba(236, 232, 224, .28); }
+.g-code small { font: 600 11.5px/1 var(--sans); letter-spacing: .14em; text-transform: uppercase; color: rgba(236, 232, 224, .6); }
+.g-code b { font: 600 clamp(24px, 7vw, 30px)/1.1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; letter-spacing: .08em; color: #fff; user-select: all; overflow-wrap: anywhere; }
+.g-exp { margin-top: 10px; font-size: 14px; color: rgba(236, 232, 224, .8); }
+.g-shop { margin-top: 16px; font-size: 12.5px; color: rgba(236, 232, 224, .55); }
+.g-off .g-amount { opacity: .45; text-decoration: line-through; text-decoration-thickness: 2px; }
+.g-sms { display: flex; gap: 10px; align-items: baseline; }
+.g-sms::before { content: ''; flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--ok); transform: translateY(-1px); }
+.g-sms.wait::before { background: var(--warn); }
+.g-sms.no::before { background: var(--red); }
+@media print {
+  @page { margin: 14mm; }
+  .c-top, .c-foot, .c-noprint, .c-note, .g-sms { display: none !important; }
+  .c-page { max-width: 120mm; padding: 0; }
+  .g-card { background: #fff; color: #000; box-shadow: inset 0 0 0 1.5px #000; border-radius: 18px; }
+  .g-card::after { display: none; }
+  .g-kind, .g-for, .g-from, .g-exp, .g-shop, .g-code small, .g-amount small { color: #333; }
+  .g-code { border-top-color: #000; }
+  .g-code b { color: #000; }
+}

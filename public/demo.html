@@ -6,12 +6,33 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Barber L’Architecte · Comment ça marche</title>
 <meta name="description" content="Démo privée : le site de réservation de Barber L’Architecte, le Comptoir du salon, et comment une réservation circule de bout en bout.">
+<script>
+/* this page only makes sense on a demo salon: anywhere else (production, or not set up yet) it goes to the site */
+(function () {
+  // hidden until the mode is known, so a production visitor never sees the demo credentials flash by
+  var de = document.documentElement, t = setTimeout(show, 1500);
+  function show() { clearTimeout(t); de.style.visibility = ''; }
+  de.style.visibility = 'hidden';
+  fetch('/api/public/salon', { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (s) { if (s && s.mode !== 'demo') location.replace('/'); else show(); }).catch(show);
+})();
+</script>
 <script src="/support.js"></script>
+<link rel="preload" href="/fonts/instrument-serif-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/fonts/instrument-sans-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+<style>
+/* the fonts come from the salon's own domain (scripts/postbuild.mjs copies them into /fonts): no visitor's address reaches Google.
+   Here in <head>, not in the helmet, which the template engine renders again (the fonts would load twice) */
+@font-face{font-family:'Instrument Sans';font-style:normal;font-weight:400;font-display:swap;src:url(/fonts/instrument-sans-latin-400-normal.woff2) format('woff2')}
+@font-face{font-family:'Instrument Sans';font-style:normal;font-weight:500;font-display:swap;src:url(/fonts/instrument-sans-latin-500-normal.woff2) format('woff2')}
+@font-face{font-family:'Instrument Sans';font-style:normal;font-weight:600;font-display:swap;src:url(/fonts/instrument-sans-latin-600-normal.woff2) format('woff2')}
+@font-face{font-family:'Instrument Sans';font-style:normal;font-weight:700;font-display:swap;src:url(/fonts/instrument-sans-latin-700-normal.woff2) format('woff2')}
+@font-face{font-family:'Instrument Serif';font-style:normal;font-weight:400;font-display:swap;src:url(/fonts/instrument-serif-latin-400-normal.woff2) format('woff2')}
+@font-face{font-family:'Instrument Serif';font-style:italic;font-weight:400;font-display:swap;src:url(/fonts/instrument-serif-latin-400-italic.woff2) format('woff2')}
+</style>
 </head>
 <body>
 <x-dc>
 <helmet>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400..700&family=Instrument+Serif:ital@0;1&display=swap">
 <style>
 html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 body{margin:0;background:#0F0E0D}
@@ -398,7 +419,7 @@ transition:opacity .45s var(--ease),transform .6s var(--ease)}
 <div class="pc" style="--rouge: {{accent}}">
 <header class="pc-top">
 <a class="pc-wm" href="#top"><span>L’Architecte</span><small>Démo privée</small></a>
-<nav class="pc-nav" aria-label="Accès"><a href="/site">Le site</a><a class="dk" href="/comptoir">Le Comptoir</a></nav>
+<nav class="pc-nav" aria-label="Accès"><a href="/">Le site</a><a class="dk" href="/comptoir">Le Comptoir</a></nav>
 </header>
 
 <main>
@@ -408,7 +429,7 @@ transition:opacity .45s var(--ease),transform .6s var(--ease)}
 <h1 class="pc-h1">Du téléphone<br>au <em>fauteuil.</em></h1>
 <p class="pc-lead">Le site où tes clients réservent, et le Comptoir où tu vois tout arriver. Voici comment une réservation circule, de bout en bout.</p>
 <div class="doors">
-<a class="door d-site" href="/site">
+<a class="door d-site" href="/">
 <span class="door-k">01 · Le site</span>
 <span class="door-t">Ce que voient tes clients.</span>
 <span class="door-ill" aria-hidden="true"><span class="mph"><span class="mph-b"></span><span class="mph-t">Frais.</span><span class="mph-l"></span><span class="mph-l s"></span><span class="mph-c">Réserver</span></span></span>
@@ -434,10 +455,10 @@ transition:opacity .45s var(--ease),transform .6s var(--ease)}
 <li><b>2</b><span><strong>Sur l’ordinateur ou la tablette, ouvre le Comptoir</strong> et connecte-toi avec les accès de démo affichés. C’est l’écran du salon, avec dix semaines d’activité.</span></li>
 <li><b>3</b><span><strong>Ta réservation arrive en direct</strong> dans l’agenda. Encaisse-la à la caisse, puis annule ou déplace une autre depuis ton téléphone&nbsp;: le créneau se libère aussitôt.</span></li>
 </ol>
-<p class="note">Aucun SMS n’est envoyé et aucune carte n’est débitée pendant la démo. Gérant&nbsp;: gerant@larchitecte.fr · Architecte13. Codes des barbiers&nbsp;: JKut 2468, Frank 1357, Le Soldat 8642, Esteban 9753. La démo se remet à zéro depuis Réglages › Données.</p>
+<p class="note">Aucun SMS n’est envoyé et aucune carte n’est débitée pendant la démo. {{demoAccess}}La démo se remet à zéro depuis Réglages › Données.</p>
 </div>
 <div class="tg-r">
-<div class="qr-card qr-live"><div class="qr-img qr-slot" aria-hidden="true"></div><div class="qr-txt"><p class="qr-url">/site</p><p>Scanne avec ton téléphone pour réserver comme un client. Garde le Comptoir ouvert sur cet écran&nbsp;: la réservation y arrive en direct.</p></div></div>
+<div class="qr-card qr-live"><div class="qr-img qr-slot" aria-hidden="true"></div><div class="qr-txt"><p class="qr-url">/</p><p>Scanne avec ton téléphone pour réserver comme un client. Garde le Comptoir ouvert sur cet écran&nbsp;: la réservation y arrive en direct.</p></div></div>
 </div>
 </div>
 </section>
@@ -605,7 +626,7 @@ transition:opacity .45s var(--ease),transform .6s var(--ease)}
 <footer class="pc-ft">
 <div class="w">
 <h2 class="pc-ft-h">À toi de jouer.</h2>
-<div class="ft-b"><a class="btn" href="/site">Ouvrir le site</a><a class="btn ghost" href="/comptoir">Ouvrir le Comptoir</a></div>
+<div class="ft-b"><a class="btn" href="/">Ouvrir le site</a><a class="btn ghost" href="/comptoir">Ouvrir le Comptoir</a></div>
 <p class="ft-s">Barber L’Architecte · 16, place Pélabon · 13013 Marseille</p>
 <p class="ft-s">Démo conçue par NEXUS. Données fictives, aucun SMS envoyé.</p>
 </div>
@@ -986,7 +1007,7 @@ function pcChip(key) { const p = LXE.parts(key); return LXE.DAYS_SH[p.wd] + ' ' 
 class Component extends DCLogic {
   constructor(props) {
     super(props);
-    this.state = { step: 1, hold: 300 };
+    this.state = { step: 1, hold: 300, access: '' };
     const self = this;
     this.r = { sim: function (el) { self._sim = el; if (el) self.measure(); } };
     this.onScroll = this.onScroll.bind(this);
@@ -1002,6 +1023,17 @@ class Component extends DCLogic {
     window.addEventListener('scroll', this.onScroll, { passive: true });
     window.addEventListener('resize', this.onScroll);
     this.measure();
+    this.loadAccess();
+  }
+
+  /* the demo access never ships in this file: the server hands it out only while the salon is a demo */
+  loadAccess() {
+    fetch('/api/auth/state', { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then((st) => {
+      const d = st && st.mode === 'demo' ? st.demo : null;
+      if (!d || !this._m) return;
+      const pins = Object.keys(d.pins || {}).map(function (n) { return n + ' ' + d.pins[n]; }).join(', ');
+      this.setState({ access: 'Gérant\u00a0: ' + d.email + ' · ' + d.password + '. ' + (pins ? 'Codes des barbiers\u00a0: ' + pins + '. ' : '') });
+    }).catch(function () { /* no access shown: the Comptoir's sign-in screen gives it too */ });
   }
 
   componentWillUnmount() {
@@ -1087,7 +1119,8 @@ class Component extends DCLogic {
       simDayShort: pcCap(LXE.DAYS_SH[p.wd]) + ' ' + p.d + ' ' + LXE.MONTHS_SH[p.m - 1],
       holdT: hm,
       pktTitle: PC_TITLE[n - 1],
-      pktStatus: PC_STATUS[n - 1]
+      pktStatus: PC_STATUS[n - 1],
+      demoAccess: s.access
     };
   }
 }

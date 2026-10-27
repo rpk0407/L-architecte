@@ -78,6 +78,9 @@ export function normPhone(v) {
   return '';
 }
 
+// the old WordPress site's numbers: shared with the import wizard's preview
+export { PHONE_PREFIXES, normPhoneImport } from '../../shared/phone.js';
+
 /** "+33612345678" → "06 12 34 56 78" */
 export function fmtPhone(e164) {
   if (!e164) return '';
@@ -92,9 +95,13 @@ export function maskPhone(e164) {
   return f.slice(0, 2) + ' •• •• •• ' + f.slice(-2);
 }
 
-export function maskEmail(e) {
+/** With domain, "karim.b@exemple.fr" → "k•••@e•••.fr": what a chained event may keep (a personal domain names someone too). */
+export function maskEmail(e, { domain = false } = {}) {
   const m = String(e || '').match(/^(.)(.*)(@.*)$/);
-  return m ? m[1] + '•••' + m[3] : '';
+  if (!m) return '';
+  if (!domain) return m[1] + '•••' + m[3];
+  const d = /^@(.)[^@]*?(\.[^.@]+)?$/.exec(m[3]);
+  return m[1] + '•••@' + (d ? d[1] + '•••' + (d[2] || '') : '•••');
 }
 
 export function isEmail(e) { return /^[^@\s]{1,64}@[^@\s]{1,190}\.[^@\s]{2,}$/.test(String(e || '')); }

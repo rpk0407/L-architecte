@@ -180,7 +180,8 @@ export function Menu({ anchor, onClose, children }: { anchor: DOMRect | { x: num
 
 /* ---------------- toasts ---------------- */
 
-type Toast = { id: number; title: ReactNode; sub?: ReactNode; kind?: 'ok' | 'err' | 'info'; action?: { label: string; run: () => void }; icon?: string; ttl?: number };
+// actions: a choice to make right there (Refuser / Valider), after or instead of the one `action`
+type Toast = { id: number; title: ReactNode; sub?: ReactNode; kind?: 'ok' | 'err' | 'info'; action?: { label: string; run: () => void }; actions?: { label: string; run: () => void }[]; icon?: string; ttl?: number };
 let toasts: Toast[] = [];
 const tsubs = new Set<() => void>();
 let tid = 0;
@@ -188,7 +189,7 @@ export function toast(t: Omit<Toast, 'id'> | string) {
   const item: Toast = typeof t === 'string' ? { id: ++tid, title: t } : { id: ++tid, ...t };
   toasts = [...toasts.slice(-2), item];
   tsubs.forEach((f) => f());
-  setTimeout(() => dismiss(item.id), item.ttl || (item.action ? 7000 : item.kind === 'err' ? 6000 : 3800));
+  setTimeout(() => dismiss(item.id), item.ttl || (item.action || item.actions ? 7000 : item.kind === 'err' ? 6000 : 3800));
   return item.id;
 }
 export function dismiss(id: number) { toasts = toasts.filter((x) => x.id !== id); tsubs.forEach((f) => f()); }
@@ -203,6 +204,7 @@ export function Toasts() {
           {t.icon ? <span className="ic"><Icon name={t.icon} /></span> : null}
           <span className="t">{t.title}{t.sub ? <small>{t.sub}</small> : null}</span>
           {t.action ? <button type="button" onClick={() => { t.action!.run(); dismiss(t.id); }}>{t.action.label}</button> : null}
+          {(t.actions || []).map((a) => <button key={a.label} type="button" onClick={() => { a.run(); dismiss(t.id); }}>{a.label}</button>)}
         </div>
       ))}
     </div>,

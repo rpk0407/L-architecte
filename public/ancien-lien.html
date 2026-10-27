@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ton rendez-vous · Barber L’Architecte</title>
+<meta name="theme-color" content="#0F0E0D">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="preload" href="/fonts/instrument-serif-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/fonts/instrument-sans-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+<style>
+/* the fonts come from the salon's own domain (scripts/postbuild.mjs copies them into /fonts): no visitor's address reaches Google */
+@font-face{font-family:'Instrument Sans';font-style:normal;font-weight:400;font-display:swap;src:url(/fonts/instrument-sans-latin-400-normal.woff2) format('woff2')}
+@font-face{font-family:'Instrument Sans';font-style:normal;font-weight:500;font-display:swap;src:url(/fonts/instrument-sans-latin-500-normal.woff2) format('woff2')}
+@font-face{font-family:'Instrument Sans';font-style:normal;font-weight:600;font-display:swap;src:url(/fonts/instrument-sans-latin-600-normal.woff2) format('woff2')}
+@font-face{font-family:'Instrument Sans';font-style:normal;font-weight:700;font-display:swap;src:url(/fonts/instrument-sans-latin-700-normal.woff2) format('woff2')}
+@font-face{font-family:'Instrument Serif';font-style:normal;font-weight:400;font-display:swap;src:url(/fonts/instrument-serif-latin-400-normal.woff2) format('woff2')}
+@font-face{font-family:'Instrument Serif';font-style:italic;font-weight:400;font-display:swap;src:url(/fonts/instrument-serif-latin-400-italic.woff2) format('woff2')}
+:root{--os:#ECE8E0;--encre:#0F0E0D;--cendre:#ABA59C;--ligne:rgba(236,232,224,.14);--rouge:#EB4639;--f-serif:'Instrument Serif','Times New Roman',Times,serif;--f-sans:'Instrument Sans',system-ui,-apple-system,'Segoe UI',sans-serif;--pad:clamp(20px,5.4vw,80px)}
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+body{margin:0;min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;background:var(--encre);color:var(--os);font:400 17px/1.5 var(--f-sans);-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}
+a:focus-visible{outline:2.5px solid currentColor;outline-offset:3px}
+[hidden]{display:none!important}
+.tb{display:flex;align-items:center;min-height:68px;padding:env(safe-area-inset-top,0px) var(--pad) 0}
+.wm{display:flex;flex-direction:column;justify-content:center;min-height:44px;line-height:1}
+.wm-a{font:italic 400 26px/1 var(--f-serif)}
+.wm-b{margin-top:4px;font:500 11px/1 var(--f-sans);letter-spacing:.06em;opacity:.7}
+main{flex:1;display:flex;flex-direction:column;justify-content:center;width:100%;padding:48px var(--pad) 64px}
+.kk{display:flex;align-items:center;gap:12px;margin:0 0 22px;font:600 12.5px/1 var(--f-sans);letter-spacing:.1em;text-transform:uppercase;color:var(--cendre)}
+.kk::after{content:"";width:34px;height:1px;background:currentColor;opacity:.45}
+h1{margin:0;max-width:12ch;font:400 clamp(48px,10vw,112px)/.94 var(--f-serif);letter-spacing:-.015em;text-wrap:balance}
+p{margin:26px 0 0;max-width:32em;color:var(--cendre);font-size:clamp(17px,1.6vw,19px)}
+.acts{display:flex;flex-wrap:wrap;gap:12px;margin-top:38px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:12px;min-height:56px;padding:0 30px;border-radius:999px;background:var(--rouge);color:var(--encre);font:600 17px/1 var(--f-sans);white-space:nowrap;transition:background-color .25s,color .25s}
+.btn:hover{background:var(--os)}
+.btn.ghost{background:transparent;color:var(--os);box-shadow:inset 0 0 0 1.5px currentColor}
+.btn.ghost:hover{background:rgba(236,232,224,.12)}
+.wait{display:flex;align-items:center;gap:14px;color:var(--cendre)}
+.wait i{width:18px;height:18px;border-radius:50%;border:2px solid var(--ligne);border-top-color:var(--os);animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(1turn)}}
+@media (prefers-reduced-motion:reduce){.wait i{animation:none}}
+footer{padding:22px var(--pad) calc(22px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--ligne);color:var(--cendre);font-size:14px}
+@media (max-width:520px){.acts .btn{flex:1 1 100%}}
+</style>
+</head>
+<body>
+<header class="tb"><a class="wm" href="/" aria-label="Barber L’Architecte, accueil"><span class="wm-a">L’Architecte</span><span class="wm-b">Barber · Marseille</span></a></header>
+<main aria-live="polite">
+<div id="wait" class="wait"><i aria-hidden="true"></i><span>On cherche ton rendez-vous…</span></div>
+<section id="old" hidden>
+<p class="kk">Ancien lien</p>
+<h1>Ton rendez-vous a déménagé avec nous.</h1>
+<p>Ce lien vient de notre ancien site. Donne ton numéro, on t’envoie le lien de ton rendez-vous par SMS.</p>
+<div class="acts"><a class="btn" href="/mon-rendez-vous">Retrouver mon rendez-vous</a><a class="btn ghost" href="/?reserver">Réserver</a></div>
+</section>
+</main>
+<footer>Barber L’Architecte · 16, place Pélabon, 13013 Marseille</footer>
+<noscript><style>#wait{display:none}#old{display:block!important}</style></noscript>
+<script>
+/* Links from the old WordPress e-mails (cancel, pay, reschedule, account) all land here.
+   Nothing is ever cancelled or paid from them: with the booking's secret (the md5 after the id)
+   we open the appointment's own page, where the client decides; without it, the client asks for the link by SMS.
+   Post ids are sequential, so an id alone never finds anything. */
+(function () {
+  var q = new URLSearchParams(location.search);
+  // a reschedule link can carry a bare booking_id next to sln_booking_id=<id>-<md5>: keep the first one with the secret
+  var re = /^(\d{1,12})-([A-Za-z0-9]{1,64})$/, m = re.exec(q.get('booking_id') || '') || re.exec(q.get('sln_booking_id') || '');
+  function old() { document.getElementById('wait').hidden = true; document.getElementById('old').hidden = false; }
+  // the query holds the secret: keep it out of the history and of any later referrer
+  try { history.replaceState(null, '', location.pathname); } catch (e) { /* ignore */ }
+  if (!m) return old();
+  fetch('/api/public/legacy/' + m[1] + '?u=' + encodeURIComponent(m[2]), { cache: 'no-store' })
+    .then(function (r) { return r.ok ? r.json() : r.text().then(function () { return null; }); })
+    .then(function (d) { if (d && typeof d.url === 'string' && /^\/r\/[^\/?#\s\\]+$/.test(d.url)) location.replace(d.url); else old(); })
+    .catch(old);
+})();
+</script>
+</body>
+</html>

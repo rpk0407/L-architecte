@@ -8,12 +8,31 @@ const partial = (shape) => obj(Object.fromEntries(Object.entries(shape).map(([k,
 const svcAdd = obj(serviceShape), svcPatch = partial(serviceShape);
 const prdAdd = obj(productShape), prdPatch = partial(productShape);
 
+/** At most n characters, cut at a dash rather than mid-word when one is not too far back (clients see it in links). */
+const wordCut = (x, n) => {
+  if (x.length <= n) return x;
+  const cut = x.slice(0, n), at = cut.lastIndexOf('-');
+  return (x[n] === '-' || at < n / 2 ? cut : cut.slice(0, at)).replace(/-+$/, '');
+};
+
+/** The site's key for a service (?prestation=…): from the name unless given, unique among every service, archived ones too. */
+export function slugFor(s, name, given = '', selfId = '') {
+  const base = given || wordCut(String(name).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''), 24) || 'prestation';
+  const taken = new Set([...s.services.values()].filter((x) => x.id !== selfId && x.slug).map((x) => x.slug));
+  if (!taken.has(base)) return base;
+  if (given) fail(409, 'slug_taken', `Le lien « ${given} » est déjà pris par une autre prestation.`);
+  for (let n = 2; ; n++) {
+    const tail = '-' + n, out = base.slice(0, 24 - tail.length).replace(/-+$/, '') + tail;
+    if (!taken.has(out)) return out;
+  }
+}
+
 export const addService = {
   run(s, input, ctx) {
     ctx.need('catalog');
     const sv = parse(svcAdd, input);
     const sid = ctx.id('sv');
-    ctx.emit('service.added', { id: sid, service: { online: true, buffer: 0, vat: s.settings.payments.vat, order: s.services.size, from: false, includes: [], ...sv } });
+    ctx.emit('service.added', { id: sid, service: { online: true, buffer: 0, vat: s.settings.payments.vat, order: s.services.size, from: false, includes: [], ...sv, slug: slugFor(s, sv.name, sv.slug) } });
     return { id: sid };
   }
 };
@@ -22,6 +41,8 @@ export const updateService = {
     ctx.need('catalog');
     const sv = getService(s, input.id);
     const patch = parse(svcPatch, input.patch || {});
+    // the slug is the service's address on the site: a rename keeps it, so links already shared still work
+    if (patch.slug !== undefined) { if (patch.slug === sv.slug) delete patch.slug; else patch.slug = slugFor(s, sv.name, patch.slug, sv.id); }
     if (!Object.keys(patch).length) return { ok: true };
     ctx.emit('service.updated', { id: sv.id, patch });
     return { ok: true };

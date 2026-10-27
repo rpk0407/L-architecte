@@ -50,4 +50,4 @@ Access: owner `gerant@larchitecte.fr` / `Architecte13` · barbers' PINs JKut 246
 - *SMS cost?* Around 4 to 5 cents each with Brevo in France (check their current price list); every default text fits in one SMS.
 - *Card fees?* Stripe's public rate for European cards is about 1.5 % + 0.25 € (check the current rate), only on online deposits and QR payments; the terminal stays for in-salon cards.
 - *If the internet drops?* Nothing is lost: each action is retried safely, never doubled. The agenda reloads as soon as the connection is back.
-- *Is it a certified till?* The mechanisms are there (sealed journal, numbered tickets, Z, archive); the formal attestation is a separate step before replacing the current till.
+- *Is it a certified till?* The mechanisms are there (sealed journal, numbered tickets, Z, archive); it is a « caisse de gestion » until an accredited body certifies it (NF525 or LNE), so the current certified till keeps printing the legal ticket.

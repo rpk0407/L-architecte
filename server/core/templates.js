@@ -1,0 +1,37 @@
+// @ts-check
+// The default SMS texts, one per automatic message. A REGISTRY: a package that adds a message adds its text here
+// (one owner per wave), and the owner's edits live in settings.messages.templates, keyed the same way.
+// Written in the GSM alphabet (straight apostrophe, no ç, ê or ô) so each text costs one SMS, not three.
+export const TEMPLATES = {
+  confirmation: "L'Architecte : c'est noté {prenom} ! {date} à {heure} avec {barbier}. Gérer : {lien}",
+  reminder: "L'Architecte : rappel, demain {heure} avec {barbier}. Un imprévu ? Déplace ou annule ici : {lien}",
+  reminder2h: "L'Architecte : on t'attend à {heure} avec {barbier}, à tout à l'heure !",
+  review: "Merci {prenom} ! 30 secondes pour un avis ? Ça nous aide énormément : {avis}",
+  rebook: "Salut {prenom}, déjà {jours} jours depuis ta dernière coupe. On s'y remet ? Réserve ici : {lien}",
+  waitlist: "L'Architecte : place libérée {date} à {heure} avec {barbier}, à toi pendant 30 min : {lien}",
+  queue: "L'Architecte : c'est presque ton tour, {prenom}. Reviens au salon, on t'installe dans 5 minutes.",
+  cancelled: "L'Architecte : ton rendez-vous du {date} à {heure} est annulé. Pour en reprendre un : {lien}",
+  receipt: "L'Architecte : merci {prenom} ! Ton ticket {ticket} de {montant} : {lien}",
+  // asked from /mon-rendez-vous: the next appointment's link, {suite} the one after it (or nothing)
+  lookup: "L'Architecte : ton rendez-vous {date} à {heure} : {lien}{suite}",
+  // DO-03: the code of a gift card, sent from the till's voucher to the person it is for
+  giftcardCode: "L'Architecte : {acheteur} t'offre une carte cadeau de {montant} ! Code {code}, valable jusqu'au {date}. Réserve : {lien}",
+  // DO-05: a barber is away, the owner's handover plan. {absent} the barber away, {date} "jeudi 29", {barbier} the one who
+  // takes the client; "prix inchangé", not "même prix": an ê would make it a Unicode SMS, and the link must still fit
+  reassign: "{absent} est absent {date}, {barbier} te prend à {heure}, prix inchangé. Pas d'accord ? {lien}",
+  // the same, at another time than the one booked: {avant} that time, so he does not turn up at it (the price gives way)
+  reassignAt: "{absent} est absent {date}, {barbier} te prend à {heure} au lieu de {avant}. Pas d'accord ? {lien}",
+  reschedule: "{prenom}, on doit décaler ton rendez-vous du {date}. Choisis un nouveau créneau : {lien}",
+  // IN-01: a gift card bought online, sent to the person it is for
+  giftcard: "{acheteur} t'offre {montant} chez L'Architecte ! Ton code : {code}. Réserve ici : {lien}"
+};
+
+// What a text is, beyond its words, keyed like TEMPLATES (the same owner adds both). marketing: sent only to
+// clients who agreed, with the STOP mention (settings.messages.stopSuffix). quiet: never at night nor on Sunday,
+// it waits for settings.messages.quiet to end. A text with no entry is a service message and leaves at once.
+/** @type {Record<string, { marketing?: boolean, quiet?: boolean }>} */
+export const TEMPLATE_FLAGS = {
+  review: { quiet: true },
+  rebook: { marketing: true, quiet: true },
+  waitlist: { quiet: true }
+};

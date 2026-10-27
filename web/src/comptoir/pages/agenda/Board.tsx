@@ -176,8 +176,10 @@ function ApptCard({ a, px, top, laneColor, selected, dragging, ghost, bad, fresh
   const short = h < 40;
   const badges = a.client?.badges || [];
   const cls = ['ap', 'st-' + a.status, short ? 'short' : '', selected ? 'sel' : '', dragging ? 'dragging' : '', ghost ? 'ghost' : '', bad ? 'bad' : '', fresh ? 'fresh' : ''].filter(Boolean).join(' ');
+  // a client who already missed: the count in words on the card, not one more icon to decode
+  const missed = badges.includes('absences') && a.client && a.client.noShows ? a.client.noShows + (a.client.noShows > 1 ? ' absences' : ' absence') : '';
   const svc = a.services.map((s) => s.name.replace('Coupe + ', '+ ').replace(' de barbe', '')).join(' · ');
-  const label = `${time(a.start)}, ${a.name}, ${a.services.map((s) => s.name).join(' et ')}, ${a.status === 'in_chair' ? 'au fauteuil' : a.status === 'done' ? 'terminé' : a.status === 'no_show' ? 'absent' : a.status === 'arrived' ? 'arrivé' : a.status === 'pending' ? 'acompte en attente' : 'à venir'}`;
+  const label = `${time(a.start)}, ${a.name}, ${a.services.map((s) => s.name).join(' et ')}, ${a.status === 'in_chair' ? 'au fauteuil' : a.status === 'done' ? 'terminé' : a.status === 'no_show' ? 'absent' : a.status === 'arrived' ? 'arrivé' : a.status === 'pending' ? 'acompte en attente' : 'à venir'}${missed ? ', ' + missed : ''}`;
   return (
     <button type="button" className={cls} style={{ top: top + 1, height: h, ['--lc' as any]: laneColor }} aria-label={label}
       onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onClick={onClick} tabIndex={ghost ? -1 : undefined}>
@@ -187,7 +189,7 @@ function ApptCard({ a, px, top, laneColor, selected, dragging, ghost, bad, fresh
         {!short ? <span className="ap-ic">
           {a.source === 'site' ? <Icon name="globe" /> : a.source === 'phone' ? <Icon name="phone" /> : a.source === 'walkin' ? <Icon name="walk" /> : null}
           {badges.includes('nouveau') ? <Icon name="sparkle" /> : null}
-          {badges.includes('absences') ? <Icon name="alert" /> : null}
+          {missed ? <span className="badge badge-warn" style={{ height: 17, padding: '0 6px', fontSize: 10.5 }}>{missed}</span> : null}
           {a.deposit && a.deposit.paid ? <Icon name="card" /> : null}
         </span> : null}
       </span>

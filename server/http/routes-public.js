@@ -2,21 +2,49 @@
 // The public API: what the client site and the "mon rendez-vous" page use. No account, no personal data out.
 import { HttpError, guard, json } from './kit.js';
 import { serviceView, staffView } from './views.js';
-import { freeSlots, walkinEstimate, shopIntervals } from '../domain/availability.js';
-import { clientMayChange } from '../domain/policy.js';
+import { freeSlots, walkinEstimate, shopIntervals, staffIntervals, UNDECIDED } from '../domain/availability.js';
+import { clientMayChange, payWindowMin, payDeadline } from '../domain/policy.js';
 import { signLink, checkLink } from '../auth/session.js';
-import { addDays, isDay, diffDays } from '../../shared/dates.js';
-import { newId } from '../lib/util.js';
+import { addDays, isDay, diffDays, dayLong } from '../../shared/dates.js';
+import { newId, safeEqual } from '../lib/util.js';
 import * as A from '../commands/agenda.js';
 import { createPayment, paymentSucceeded, paymentEnded } from '../commands/payments.js';
 import { ticketNo } from '../domain/cash.js';
+import { smsOptOut } from '../commands/messages.js';
+import { webhookKey, parseSmsWebhook } from '../messaging/sms.js';
 import { maybeTick } from './scheduler.js';
+import { hoursText, closedText } from '../settings/hours.js';
 import { waitUntil } from '@vercel/functions';
+import { fulfilGiftcard } from './routes-giftshop.js';
 
-const CLIENT = (r, n) => ({ actor: /** @type {const} */ ({ t: 'client', id: 'web', n: n || '' }), caps: new Set(), meta: r.meta });
+/** The demo, for real: both the configuration and the journal say so (a demo journal opened in production is not one). */
+export const isDemo = (r) => r.rt.cfg.mode === 'demo' && r.s.mode === 'demo';
+/** Can a client really pay online? The simulated provider only takes demo money. */
+export const payLive = (r) => r.rt.pay.name !== 'simulated' || isDemo(r);
+// the actor is chained and can never be erased: no name in it, ever (the client's details travel as pii)
+const CLIENT = (r) => ({ actor: /** @type {const} */ ({ t: 'client', id: 'web', n: '' }), caps: new Set(), meta: { ...r.meta, payLive: payLive(r), payProvider: r.rt.pay.name } });
 const PROVIDER = (r, id) => ({ actor: /** @type {const} */ ({ t: 'provider', id }), caps: new Set(), meta: r.meta });
 
-function isOpenNow(s, L) { return shopIntervals(s, L.day).some(([a, b]) => L.min >= a && L.min < b); }
+// once today's Z is done (an early close), the shop takes nobody else: the site stops saying "Ouvert"
+function isOpenNow(s, L) { return !s.closures.has(L.day) && shopIntervals(s, L.day).some(([a, b]) => L.min >= a && L.min < b); }
+
+/**
+ * What the site may say of a barber who is away today: only when the absence carries a public note (DO-05's
+ * publicNote, its text or true for the plain 'JKut revient le …'). Back-to-back absences read as one.
+ * @returns {{ until: string, back: string|null, note: string }|null}
+ */
+export function awayOf(s, st, today) {
+  const off = [...s.timeoff.values()].filter((t) => t.staffId === st.id && (t.startMin == null || t.from !== t.to) && !UNDECIDED.has(t.status));
+  const cur = off.find((t) => t.from <= today && t.to >= today && t.publicNote);
+  if (!cur) return null;
+  let until = cur.to;
+  for (let more = true; more;) { more = false; for (const t of off) if (t.from <= addDays(until, 1) && t.to > until) { until = t.to; more = true; } }
+  let back = null;
+  for (let i = 1; i <= 60 && !back; i++) { const d = addDays(until, i); if (staffIntervals(s, st.id, d).length) back = d; }
+  const own = typeof cur.publicNote === 'string' ? cur.publicNote.trim().slice(0, 120) : '';
+  const note = own || (back ? st.name + ' revient le ' + dayLong(back) : '');
+  return note ? { until, back, note } : null;
+}
 
 function bookingView(r, a) {
   const s = r.s;
@@ -47,9 +75,11 @@ function apptFromToken(r) {
  * @param {{ kind: string, amount: number, label: string, apptId: string|null, returnPath: string, email?: string }} o
  */
 export async function startPayment(r, { kind, amount, label, apptId, returnPath, email }) {
+  if (!payLive(r)) throw new HttpError(409, 'no_provider', 'Le paiement en ligne n’est pas branché (Stripe).');
   const id = newId('py');
   const origin = r.origin;
-  const co = await r.rt.pay.createCheckout({ id, amount, label, email, successUrl: origin + returnPath + (returnPath.includes('?') ? '&' : '?') + 'paiement=ok', cancelUrl: origin + returnPath + (returnPath.includes('?') ? '&' : '?') + 'paiement=annule' });
+  const payMin = kind === 'deposit' ? payWindowMin(r.s, { stripe: r.rt.pay.name === 'stripe' }) : undefined;
+  const co = await r.rt.pay.createCheckout({ id, amount, label, email, payMin, successUrl: origin + returnPath + (returnPath.includes('?') ? '&' : '?') + 'paiement=ok', cancelUrl: origin + returnPath + (returnPath.includes('?') ? '&' : '?') + 'paiement=annule' });
   await r.rt.engine.run(createPayment, { id, kind, amount, provider: r.rt.pay.name, providerRef: co.ref, url: co.url, apptId, exp: co.exp, label }, { actor: { t: 'system', id: 'payments' }, caps: new Set(['sale.create']), meta: r.meta });
   return { id, url: co.url };
 }
@@ -71,13 +101,25 @@ export function publicRoutes(app) {
   app.get('/api/public/salon', (r) => {
     const s = r.s;
     const L = r.local;
-    const services = [...s.services.values()].filter((x) => x.active && x.online !== false).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)).map(serviceView);
-    const barbers = [...s.staff.values()].filter((x) => x.active && x.chair && x.bookable).sort((a, b) => (a.order ?? 99) - (b.order ?? 99)).map((x) => staffView(x));
+    const live = payLive(r);
+    // no online payment: no deposit is asked, so the site must not announce one either
+    const active = [...s.services.values()].filter((x) => x.active).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    const services = active.filter((x) => x.online !== false).map((x) => (live ? serviceView(x) : { ...serviceView(x), deposit: 0 }));
+    // the whole price list (the CGV show it, the site's FAQ quotes it): booked at the salon only when online is false
+    const menu = active.map((x) => ({ slug: x.slug || null, name: x.name, category: x.category, price: x.price, from: !!x.from, dur: x.dur, online: x.online !== false }));
+    const chairs = [...s.staff.values()].filter((x) => x.active && x.chair && x.bookable).sort((a, b) => (a.order ?? 99) - (b.order ?? 99));
+    const barbers = chairs.map((x) => ({ ...staffView(x), away: awayOf(s, x, L.day) }));
+    // the days it opens when it usually doesn't, or with other hours; one a closure covers is closed (it wins, as in
+    // availability.js), and one for named barbers nobody can be booked on (archived, all away) is not announced
+    const closures = s.settings.closures.filter((c) => c.to >= L.day);
+    const openings = (s.settings.openings || []).filter((o) => o.day >= L.day && !closures.some((c) => o.day >= c.from && o.day <= c.to) && (!Array.isArray(o.staff) || chairs.some((x) => staffIntervals(s, x.id, o.day).length))).map((o) => ({ day: o.day, intervals: o.intervals, label: o.label }));
     const b = s.settings.booking;
     return json({
-      shop: { ...s.settings.shop }, hours: s.settings.hours, closures: s.settings.closures.filter((c) => c.to >= L.day),
-      booking: { enabled: b.enabled, stepMin: b.stepMin, minNoticeMin: b.minNoticeMin, maxDaysAhead: b.maxDaysAhead, holdMin: b.holdMin, cancelUntilHours: b.cancelUntilHours, waitlist: b.waitlist, walkinWait: b.walkinWait },
-      deposits: s.settings.deposits, services, barbers, payments: { provider: r.rt.pay.name }, mode: s.mode, today: L.day, now: r.now
+      // the hours in words too, for every place the site writes them (footer, FAQ, description)
+      shop: { ...s.settings.shop }, hours: s.settings.hours, hoursText: hoursText(s.settings.hours), closedText: closedText(s.settings.hours), closures, openings,
+      booking: { enabled: b.enabled, stepMin: b.stepMin, minNoticeMin: b.minNoticeMin, maxDaysAhead: b.maxDaysAhead, holdMin: b.holdMin, pendingPayMin: payWindowMin(s, { stripe: r.rt.pay.name === 'stripe' }), cancelUntilHours: b.cancelUntilHours, waitlist: b.waitlist, walkinWait: b.walkinWait },
+      // sms: does a text really leave? payments.live: is a deposit really taken online? (false: the site books without one)
+      deposits: live ? s.settings.deposits : { ...s.settings.deposits, mode: 'none' }, services, menu, barbers, sms: !!r.rt.sms || isDemo(r), payments: { provider: r.rt.pay.name, live }, mode: s.mode, today: L.day, now: r.now
     }, 200, { 'cache-control': 'public, max-age=0, s-maxage=20, stale-while-revalidate=60' });
   });
 
@@ -86,7 +128,7 @@ export function publicRoutes(app) {
     background(r);
     const open = isOpenNow(s, L);
     const est = open && s.settings.booking.walkinWait ? walkinEstimate(s, r.now, L) : { minutes: null, queued: 0 };
-    return json({ open, waitMin: est.minutes, queued: est.queued, today: L.day, min: L.min }, 200, { 'cache-control': 'public, max-age=0, s-maxage=15, stale-while-revalidate=30' });
+    return json({ open, closedToday: s.closures.has(L.day), waitMin: est.minutes, queued: est.queued, today: L.day, min: L.min }, 200, { 'cache-control': 'public, max-age=0, s-maxage=15' });
   });
 
   app.get('/api/public/availability', (r) => {
@@ -108,7 +150,8 @@ export function publicRoutes(app) {
       const day = addDays(from, i);
       if (diffDays(L.day, day) > s.settings.booking.maxDaysAhead) break;
       const slots = freeSlots(s, { day, dur, serviceIds: ids, staffId, now: r.now, local: L, online: true, ignoreAppt, ignoreHold: q.get('hold') || null });
-      out.push({ day, open: shopIntervals(s, day).length > 0, slots: slots.map((x) => ({ m: x.m, s: x.staffId })) });
+      // a day sealed early (Z done) is closed, not "complet"
+      out.push({ day, open: !s.closures.has(day) && shopIntervals(s, day).length > 0, slots: slots.map((x) => ({ m: x.m, s: x.staffId })) });
     }
     const cacheable = !ignoreAppt && !q.get('hold');
     return json({ dur, days: out, now: r.now }, 200, { 'cache-control': cacheable ? 'public, max-age=0, s-maxage=5, stale-while-revalidate=10' : 'no-store' });
@@ -123,7 +166,7 @@ export function publicRoutes(app) {
   app.post('/api/public/bookings', async (r) => {
     guard('book|' + r.ip, 6, 60000, 'Trop de réservations d’un coup. Patiente une minute.');
     guard('bookh|' + r.ip, 30, 3600000, 'Trop de réservations depuis cet appareil. Appelle le salon.');
-    const res = await r.rt.engine.run(A.bookOnline, { ...r.body, demo: undefined }, CLIENT(r, r.body && r.body.first));
+    const res = await r.rt.engine.run(A.bookOnline, { ...r.body, demo: undefined }, CLIENT(r));
     const token = signLink(r.rt.secret, 'appt', res.code);
     let payment = null;
     if (res.status === 'pending' && res.deposit > 0) {
@@ -156,6 +199,8 @@ export function publicRoutes(app) {
     if (a.status !== 'pending' || !a.deposit) throw new HttpError(409, 'nothing', 'Rien à régler pour ce rendez-vous.');
     const open = [...r.s.payments.values()].find((p) => p.apptId === a.id && p.kind === 'deposit' && p.status === 'pending' && p.exp > r.now + 120000);
     if (open) return { url: open.url };
+    // a new checkout page would outlive the booking's hold: the client would pay for a slot already given back
+    if (payDeadline(r.s, a) - r.now < 120000) throw new HttpError(409, 'late', 'Le délai pour régler l’acompte est dépassé. Réserve un autre créneau.');
     const p = await startPayment(r, { kind: 'deposit', amount: a.deposit.amount, label: 'Acompte · ' + a.services.map((x) => x.name).join(' + '), apptId: a.id, returnPath: '/r/' + r.params.token });
     return { url: p.url };
   });
@@ -181,7 +226,8 @@ export function publicRoutes(app) {
 
   app.post('/api/public/payments/:id/simulate', async (r) => {
     guard('sim|' + r.ip, 20, 60000);
-    if (r.rt.pay.name !== 'simulated') throw new HttpError(404, 'not_found', 'Indisponible.');
+    // the test checkout only exists in the demo: in production it would confirm deposits nobody paid
+    if (r.rt.pay.name !== 'simulated' || !isDemo(r)) throw new HttpError(404, 'not_found', 'Indisponible.');
     const p = r.s.payments.get(r.params.id);
     if (!p || p.status !== 'pending') throw new HttpError(409, 'closed', 'Ce paiement n’est plus en attente.');
     if (r.body && r.body.outcome === 'cancel') { await r.rt.engine.run(paymentEnded, { id: p.id, status: 'failed', reason: 'Annulé par le client' }, PROVIDER(r, 'simulated')); }
@@ -212,14 +258,32 @@ export function publicRoutes(app) {
     else await r.rt.engine.run(paymentEnded, { id: pid, status: ev.kind === 'expired' ? 'expired' : 'failed' }, PROVIDER(r, 'stripe'));
     return { received: true };
   }, { raw: true, csrf: false });
+
+  /** Brevo (unsubscribe event, reply STOP) or Twilio (inbound STOP): that client gets no more offers. */
+  app.post('/api/sms/webhook', async (r) => {
+    guard('smswh|' + r.ip, 120, 60000);
+    const key = webhookKey(r.rt.cfg.cronSecret);
+    if (!key) throw new HttpError(404, 'not_found', 'Indisponible.');
+    if (!safeEqual(r.query.get('k') || '', key)) throw new HttpError(401, 'unauthorized', 'Non autorisé.');
+    const stops = parseSmsWebhook(r.raw, r.req.headers.get('content-type')).filter((ev) => ev.stop);
+    if (!stops.length) return { received: true };
+    let optedOut = 0;
+    for (const ev of stops) {
+      for (const phone of ev.phones) {
+        const res = await r.rt.engine.run(smsOptOut, { phone }, PROVIDER(r, r.rt.sms ? r.rt.sms.name : 'sms'));
+        if (res.found) { optedOut++; break; }
+      }
+    }
+    return optedOut ? { received: true, optedOut: true } : { received: true, unknown: true };
+  }, { raw: true, csrf: false });
 }
 
 /** A payment went through: record it; if its booking expired meanwhile, give the money back. */
 async function afterProviderPaid(r, ev, provider) {
   const res = await r.rt.engine.run(paymentSucceeded, { providerRef: ev.ref, amount: ev.amount, chargeRef: ev.chargeRef, pm: ev.pm, customer: ev.customer }, PROVIDER(r, provider));
-  if (res && res.late) {
-    const p = r.s.payments.get(r.s.paymentByRef.get(ev.ref));
-    await refundOnline(r, p, 'Réservation expirée avant le paiement');
-  }
+  const p = r.s.payments.get(r.s.paymentByRef.get(ev.ref));
+  if (res && res.late) await refundOnline(r, p, 'Réservation expirée avant le paiement');
+  // a gift card bought online (IN-01): the sale and the code's SMS, on every paid notice (fulfilGiftcard is idempotent)
+  if (p && p.kind === 'giftcard' && p.status === 'paid') await fulfilGiftcard(r, p);
   return res;
 }

@@ -12,3 +12,9 @@
 .dot.on { background: var(--ok); }
 .rl-body { max-width: 380px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--tx2); }
 @media (max-width: 760px) { .hide-phone { display: none; } }
+.rl-meta { display: none; }
+.rl-why { display: block; margin-top: 4px; max-width: 260px; color: var(--tx3); font-size: 12px; line-height: 1.35; }
+@media (max-width: 760px) {
+  .rl-meta { display: block; margin-top: 3px; color: var(--tx3); font-size: 12px; white-space: nowrap; }
+  .rl-table .badge { white-space: normal; height: auto; min-height: 22px; padding: 4px 8px; line-height: 1.25; }
+}

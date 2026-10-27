@@ -25,6 +25,7 @@ const P: Record<string, string> = {
   user: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM5 20c.9-3.5 3.6-5 7-5s6.1 1.5 7 5',
   phone: 'M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a1 1 0 0 1-1 1A16 16 0 0 1 4 5a1 1 0 0 1 1-1z',
   sms: 'M4 5h16v11H9l-5 4zM8 10h.01M12 10h.01M16 10h.01',
+  mail: 'M3 6h18v12H3zM3.5 6.5l8.5 6.5 8.5-6.5',
   card: 'M3 6h18v12H3zM3 10h18M7 15h4',
   cash: 'M3 7h18v10H3zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM6 10v.01M18 14v.01',
   qr: 'M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h2v2h-2zM18 14h2M14 18h2v2M18 18h2v2',

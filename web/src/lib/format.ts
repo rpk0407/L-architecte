@@ -71,5 +71,5 @@ export function rhythmWords(days: number | null) {
   return 'toutes les ' + Math.round(days / 7) + ' semaines';
 }
 export const METHOD: Record<string, string> = { card: 'Carte', cash: 'Espèces', online: 'En ligne', giftcard: 'Carte cadeau', deposit: 'Acompte' };
-export const SOURCE: Record<string, string> = { site: 'Site', phone: 'Tél.', walkin: 'Passage', salon: 'Salon' };
+export const SOURCE: Record<string, string> = { site: 'Site', phone: 'Tél.', walkin: 'Passage', salon: 'Salon', import: 'Ancien site' };
 export const STATUS: Record<string, string> = { pending: 'Acompte en attente', booked: 'À venir', arrived: 'Arrivé', in_chair: 'Au fauteuil', done: 'Terminé', no_show: 'Absent', cancelled: 'Annulé' };

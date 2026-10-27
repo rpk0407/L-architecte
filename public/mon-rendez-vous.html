@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="referrer" content="no-referrer">
+<title>Mon rendez-vous · Barber L’Architecte</title>
+<meta name="description" content="Retrouve ton rendez-vous chez Barber L’Architecte sans mot de passe : donne ton numéro, on t’envoie le lien par SMS pour le déplacer ou l’annuler.">
+<meta name="theme-color" content="#ECE8E0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0F0E0D" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="preload" href="/fonts/instrument-serif-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/fonts/instrument-sans-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/pages.css">
+<script src="/pages.js" defer></script>
+<style>
+/* the form, on top of pages.css: one field, one answer */
+.lk{margin-top:clamp(28px,5vw,44px);padding:clamp(20px,3.4vw,30px);border-radius:24px;background:var(--sf);box-shadow:inset 0 0 0 1px var(--ln)}
+.lk label{display:block;margin:0 0 10px;font:600 16px/1.3 var(--f-sans)}
+.inp{display:block;width:100%;min-height:58px;margin:0;padding:0 18px;border:0;border-radius:16px;background:var(--bg);color:var(--tx);box-shadow:inset 0 0 0 1.5px var(--ln2);font:500 21px/1 var(--f-sans);letter-spacing:.03em;-webkit-appearance:none;appearance:none;transition:box-shadow .2s}
+.inp::placeholder{color:var(--tx2);opacity:.55}
+.inp:focus{outline:none;box-shadow:inset 0 0 0 2px var(--tx)}
+.inp[aria-invalid="true"]{box-shadow:inset 0 0 0 2px var(--ac)}
+.hint{margin:10px 0 0;color:var(--tx2);font-size:15px}
+.hint b{color:var(--tx);font-weight:600;white-space:nowrap;font-variant-numeric:tabular-nums}
+.hint.warn{margin-top:14px;color:var(--tx);font-weight:500}
+.err{display:flex;align-items:baseline;gap:10px;margin:12px 0 0;font-weight:600;font-size:15.5px}
+.err::before{content:"";flex:none;width:9px;height:9px;border-radius:50%;background:var(--ac);transform:translateY(-1px)}
+.acts{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-top:22px}
+.btn[disabled]{opacity:.65;cursor:progress}
+.btn[disabled]:hover{background:var(--ac);color:var(--on-ac)}
+.sent:focus{outline:none}
+.sent h2{margin:0}
+.sent .big{margin:12px 0 0;font:500 clamp(19px,2.2vw,22px)/1.45 var(--f-sans);color:var(--tx)}
+.saved .rows>li{padding:0}
+.saved a>div{min-width:0;overflow-wrap:anywhere}
+.saved a{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:16px 18px;border-radius:18px;text-decoration:none}
+.saved a::after{content:"→";flex:none;font-size:20px;color:var(--tx2);transition:transform .2s var(--ease)}
+.saved a:hover::after{transform:translateX(3px);color:var(--tx)}
+@media (max-width:520px){.acts .btn{flex:1 1 100%}}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Aller au contenu</a>
+<header class="tb"><a class="wm" href="/" aria-label="Barber L’Architecte, accueil"><span class="wm-a">L’Architecte</span><span class="wm-b">Barber · Marseille</span></a><a class="btn" href="/?reserver">Réserver</a></header>
+<main id="main">
+<p class="kk">Mon rendez-vous</p>
+<h1>Retrouve ton <em>rendez-vous</em></h1>
+<p class="lead">Plus besoin de mot de passe&nbsp;: on t’envoie le lien par SMS.</p>
+
+<form id="lk" class="lk" novalidate>
+<label for="lk-p">Ton numéro</label>
+<input id="lk-p" class="inp" name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="06 12 34 56 78" maxlength="24" aria-describedby="lk-h lk-e" required>
+<p id="lk-h" class="hint">Celui que tu as donné en réservant. Le lien ouvre ton rendez-vous&nbsp;: tu peux le déplacer, l’annuler ou régler l’acompte.</p>
+<p id="lk-e" class="err" role="alert" hidden></p>
+<p class="hint warn" data-unless="sms" hidden>En ce moment, les SMS du salon ne partent pas&nbsp;: appelle-nous<span data-opt hidden> au <a data-f="phone" data-link="tel"></a></span> pour retrouver ton rendez-vous.</p>
+<div class="acts"><button id="lk-b" class="btn" type="submit">Recevoir le lien</button><a class="btn ghost" href="/?reserver">Réserver</a></div>
+<noscript><p class="hint">Sans JavaScript, le formulaire ne peut pas partir&nbsp;: appelle le salon, on te redonne ton rendez-vous.</p></noscript>
+</form>
+
+<section id="lk-done" class="lk sent" tabindex="-1" aria-labelledby="lk-t" hidden>
+<h2 id="lk-t">C’est noté</h2>
+<p id="lk-m" class="big" role="status"></p>
+<p class="hint">Rien reçu d’ici quelques minutes sur le <b id="lk-n"></b>&nbsp;? Vérifie le numéro<span data-opt hidden>, ou appelle le salon au <a data-f="phone" data-link="tel"></a></span>.</p>
+<p class="hint warn" data-unless="sms" hidden>Les SMS du salon ne partent pas en ce moment&nbsp;: le plus sûr, c’est d’appeler<span data-opt hidden> le <a data-f="phone" data-link="tel"></a></span>.</p>
+<div class="acts"><button id="lk-r" class="btn ghost" type="button">Changer de numéro</button><a class="btn" href="/?reserver">Réserver</a></div>
+</section>
+
+<section id="lk-saved" class="saved" aria-labelledby="lk-st" hidden>
+<h2 id="lk-st">Gardé sur cet appareil</h2>
+<p>Les rendez-vous que tu as pris d’ici&nbsp;:</p>
+<ul id="lk-list" class="rows"></ul>
+</section>
+</main>
+<footer data-footer></footer>
+<script>
+/* One number in, the links by SMS out (POST /api/public/lookup, server/http/routes-client.js). The answer is the same
+   whether the number is known or not, so the page never says more than the server does. On a phone that booked here,
+   the links kept in lx-me (the site's own memory, see /confidentialite) are listed too. */
+(function () {
+  'use strict';
+  var form = document.getElementById('lk'), input = document.getElementById('lk-p'), err = document.getElementById('lk-e'), btn = document.getElementById('lk-b');
+  var done = document.getElementById('lk-done'), msg = document.getElementById('lk-m'), used = document.getElementById('lk-n');
+  var DAYS = ['dim.', 'lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.'];
+  var MONTHS = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
+  var NB = '\u00a0';
+
+  // as server/lib/util.js normPhone reads it: 06…, +33 6…, 0033 6…, or another country's +…
+  function digits(v) { var d = String(v || '').replace(/[^\d+]/g, ''); if (d.indexOf('00') === 0) d = '+' + d.slice(2); if (d.indexOf('+33') === 0) d = '0' + d.slice(3); return d; }
+  function valid(v) { var d = digits(v); return /^0[1-9]\d{8}$/.test(d) || /^\+\d{8,15}$/.test(d); }
+  function pretty(v) { var d = digits(v); return /^0\d{9}$/.test(d) ? d.replace(/(\d{2})(?=\d)/g, '$1 ') : String(v || '').trim(); }
+  function me() { try { return JSON.parse(localStorage.getItem('lx-me') || 'null') || {}; } catch (e) { return {}; } }
+  // bad = the number itself is wrong; a busy server or no network says so without marking a good number red
+  function say(t, bad) { err.textContent = t || ''; err.hidden = !t; input.setAttribute('aria-invalid', t && bad ? 'true' : 'false'); }
+  function busy(on) { btn.disabled = on; btn.textContent = on ? 'Envoi…' : 'Recevoir le lien'; }
+
+  var mine = me();
+  if (mine.phone && !input.value) input.value = pretty(mine.phone);
+  input.addEventListener('input', function () { if (!err.hidden) say(''); });
+  input.addEventListener('blur', function () { if (valid(input.value)) input.value = pretty(input.value); });
+
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    if (btn.disabled) return;
+    if (!valid(input.value)) { say(input.value.trim() ? 'Vérifie ton numéro : 10 chiffres, comme 06 12 34 56 78.' : 'Donne ton numéro de téléphone.', true); input.focus(); return; }
+    say('');
+    busy(true);
+    fetch('/api/public/lookup', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ phone: input.value }), cache: 'no-store' })
+      .then(function (r) { return r.json().catch(function () { return null; }).then(function (d) { return { ok: r.ok, status: r.status, d: d }; }); })
+      .then(function (x) {
+        if (x.ok && x.d && x.d.ok) {
+          msg.textContent = x.d.message;
+          used.textContent = pretty(input.value);
+          form.hidden = true;
+          done.hidden = false;
+          done.focus();
+        } else {
+          var e = x.d && x.d.error;
+          say((e && e.message) || 'Ça n’a pas marché. Réessaie dans un instant.', x.status === 400 && !!e && e.code === 'invalid');
+        }
+      })
+      .catch(function () { say('Pas de connexion. Réessaie dans un instant.'); })
+      .then(function () { busy(false); });
+  });
+  document.getElementById('lk-r').addEventListener('click', function () {
+    done.hidden = true;
+    form.hidden = false;
+    input.focus();
+    input.select();
+  });
+
+  /* the appointments booked from this phone, still to come (the /r/ page says if one has moved or been cancelled since) */
+  function when(day, min) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(day || '');
+    if (!m) return '';
+    var wd = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3])).getUTCDay();
+    var t = Number(min) || 0, h = Math.floor(t / 60), mm = t % 60;
+    return DAYS[wd].charAt(0).toUpperCase() + DAYS[wd].slice(1) + ' ' + Number(m[3]) + ' ' + MONTHS[+m[2] - 1] + ' · ' + h + NB + 'h' + (mm ? NB + (mm < 10 ? '0' : '') + mm : '');
+  }
+  // bookings are Paris wall-clock times: compare them with Paris's day and minute, whatever this device's time zone
+  var today, nowMin;
+  try {
+    var pp = {};
+    new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Paris', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+      .formatToParts(new Date()).forEach(function (x) { pp[x.type] = x.value; });
+    today = pp.year + '-' + pp.month + '-' + pp.day;
+    nowMin = (Number(pp.hour) % 24) * 60 + Number(pp.minute);
+  } catch (e) {
+    var now = new Date();
+    today = now.getFullYear() + '-' + ('0' + (now.getMonth() + 1)).slice(-2) + '-' + ('0' + now.getDate()).slice(-2);
+    nowMin = now.getHours() * 60 + now.getMinutes();
+  }
+  // a long name ends on a whole word with an ellipsis
+  function short(t, n) { t = String(t); if (t.length <= n) return t; var c = t.slice(0, n), sp = c.lastIndexOf(' '); return (sp > n / 2 ? c.slice(0, sp) : c).replace(/[\s,;:.\-–]+$/, '') + '…'; }
+  var list = (Array.isArray(mine.bookings) ? mine.bookings : []).filter(function (b) {
+    return b && !b.cancelled && typeof b.token === 'string' && /^[A-Za-z0-9-]{1,32}\.[A-Za-z0-9_-]{8,128}$/.test(b.token) && typeof b.day === 'string' && (b.day > today || (b.day === today && (Number(b.time) || 0) + (Number(b.dur) || 0) > nowMin));
+  }).sort(function (a, b) { return a.day < b.day ? -1 : a.day > b.day ? 1 : (a.time || 0) - (b.time || 0); }).slice(0, 4);
+  if (list.length) {
+    var ul = document.getElementById('lk-list');
+    list.forEach(function (b) {
+      var a = document.createElement('a'), box = document.createElement('div'), t = document.createElement('b'), s = document.createElement('span');
+      a.href = '/r/' + b.token;
+      t.textContent = when(b.day, b.time);
+      s.textContent = short(b.n || 'Ton rendez-vous', 80);
+      if (b.n) s.title = String(b.n).slice(0, 200);
+      box.appendChild(t); box.appendChild(s); a.appendChild(box);
+      var li = document.createElement('li');
+      li.appendChild(a);
+      ul.appendChild(li);
+    });
+    document.getElementById('lk-saved').hidden = false;
+  }
+})();
+</script>
+</body>
+</html>
