@@ -140,11 +140,20 @@ export function blobStore(o = {}) {
     async redact(match) {
       let n = 0;
       for (let attempt = 0; attempt < 5; attempt++) {
+        // read past this instance's cache: the engine hands its events on and drops their pii in memory first, so the
+        // cached copies would read as already clean and the blob itself would keep the personal data
+        const fresh = await readJson(HEAD);
+        if (fresh.status === 200) { if (head && fresh.body.epoch !== head.epoch) segments.clear(); head = fresh.body; etag = fresh.etag || ''; }
         const h = await loadHead();
         const sealed = [];
         let changed = 0;
         for (const sg of h.sealed) {
-          const evs = await segment(sg.key);
+          // the cache still says which segments hold a matching event (match reads ids and types, never pii): only
+          // those are downloaded again, so a redaction costs a few segments, not the whole journal
+          if (segments.has(sg.key) && !segments.get(sg.key).some((e) => match(e))) { sealed.push(sg); continue; }
+          const raw = await readJson(sg.key);
+          const evs = raw.status === 200 ? raw.body : await segment(sg.key);
+          if (!segments.has(sg.key) && raw.status === 200) segments.set(sg.key, raw.body);
           if (!evs.some((e) => e.pii != null && match(e))) { sealed.push(sg); continue; }
           const clean = evs.map((e) => { if (e.pii != null && match(e)) { changed++; const { pii, ...rest } = e; return rest; } return e; });
           sealed.push(await writeSegment(clean));

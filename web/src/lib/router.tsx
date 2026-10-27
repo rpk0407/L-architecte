@@ -8,7 +8,8 @@ let current = parse();
 function parse() {
   const p = location.pathname.startsWith(BASE) ? location.pathname.slice(BASE.length) : location.pathname;
   const parts = p.split('/').filter(Boolean).map(decodeURIComponent);
-  return { page: parts[0] || 'agenda', id: parts[1] || null, sub: parts[2] || null, query: new URLSearchParams(location.search), key: p + location.search };
+  // bare: /comptoir itself, which opens each person's home (comptoir/home.ts)
+  return { page: parts[0] || 'agenda', id: parts[1] || null, sub: parts[2] || null, bare: !parts[0], query: new URLSearchParams(location.search), key: p + location.search };
 }
 function emit() { current = parse(); subs.forEach((fn) => fn()); }
 window.addEventListener('popstate', emit);

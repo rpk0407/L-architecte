@@ -21,6 +21,7 @@ const NO_FILE = {
   'staff.added': ['a team member’s own e-mail (staff data, not a client’s; removed with the person by the owner)', () => true],
   'staff.updated': ['a team member’s own e-mail', () => true],
   'staff.credentials': ['password and PIN hashes of a team member', () => true],
+  'staff.photo': ['a team member’s own photo (TEAM-02); a newer photo, its removal or his archiving redacts it (core/engine.js staffRedact)', () => true],
   'settings.updated': ['the owner’s own alert address and mobile (notify), addressed to the salon', () => true],
   'message.queued': ['a text or mail to someone with no file (a walk-in, a stranger on the waiting list, a gift card’s recipient, the owner about a name-only booking); retention drops it by its id',
     (d, s) => !(appt(s, d.apptId) || {}).clientId],

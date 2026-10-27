@@ -40,13 +40,12 @@ export function fold(line) {
   return out.join(CRLF + ' ');
 }
 
-/**
- * One event in its own calendar. method PUBLISH adds or updates it; CANCEL (with a higher sequence) removes it.
- * @param {{ uid: string, day: string, start: number, dur: number, summary: string, location?: string, description?: string,
- *   url?: string, stamp: number, sequence?: number, cancel?: boolean, organizer?: string }} o
- */
-export function buildIcs(o) {
-  const ev = [
+/** @typedef {{ uid: string, day: string, start: number, dur: number, summary: string, location?: string, description?: string,
+ *   url?: string, stamp: number, sequence?: number, cancel?: boolean, organizer?: string }} IcsEvent */
+
+/** @param {IcsEvent} o */
+function vevent(o) {
+  return [
     'BEGIN:VEVENT', 'UID:' + o.uid, 'DTSTAMP:' + icsUtc(o.stamp), 'SEQUENCE:' + (o.sequence || 0),
     'DTSTART;TZID=' + TZ + ':' + icsLocal(o.day, o.start), 'DTEND;TZID=' + TZ + ':' + icsLocal(o.day, o.start + o.dur),
     'SUMMARY:' + icsText(o.summary),
@@ -57,7 +56,31 @@ export function buildIcs(o) {
     'STATUS:' + (o.cancel ? 'CANCELLED' : 'CONFIRMED'), 'TRANSP:OPAQUE',
     'END:VEVENT'
   ];
-  const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Barber L\'Architecte//Le Comptoir//FR', 'CALSCALE:GREGORIAN', 'METHOD:' + (o.cancel ? 'CANCEL' : 'PUBLISH'), ...PARIS, ...ev, 'END:VCALENDAR'];
+}
+const HEAD = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Barber L\'Architecte//Le Comptoir//FR', 'CALSCALE:GREGORIAN'];
+
+/**
+ * One event in its own calendar. method PUBLISH adds or updates it; CANCEL (with a higher sequence) removes it.
+ * @param {IcsEvent} o
+ */
+export function buildIcs(o) {
+  const lines = [...HEAD, 'METHOD:' + (o.cancel ? 'CANCEL' : 'PUBLISH'), ...PARIS, ...vevent(o), 'END:VCALENDAR'];
+  return lines.map(fold).join(CRLF) + CRLF;
+}
+
+/**
+ * A subscribed calendar (webcal: the phone fetches it again by itself): several events, the same folding and Paris
+ * zone as buildIcs. A cancelled one stays in the feed as STATUS:CANCELLED, so a calendar that saw it drops it.
+ * now stamps the events that carry none (the moment the feed was read).
+ * @param {(Omit<IcsEvent, 'stamp'> & { stamp?: number })[]} events @param {{ name: string, now: number }} o
+ */
+export function buildCalendar(events, o) {
+  const lines = [
+    ...HEAD, 'METHOD:PUBLISH', 'X-WR-CALNAME:' + icsText(o.name), 'X-WR-TIMEZONE:' + TZ,
+    // a hint only: Apple and Google fetch at their own pace (Google every few hours)
+    'REFRESH-INTERVAL;VALUE=DURATION:PT1H', 'X-PUBLISHED-TTL:PT1H',
+    ...PARIS, ...events.flatMap((e) => vevent({ ...e, stamp: e.stamp ?? o.now })), 'END:VCALENDAR'
+  ];
   return lines.map(fold).join(CRLF) + CRLF;
 }
 

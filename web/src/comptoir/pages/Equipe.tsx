@@ -6,9 +6,10 @@ import { Link, navigate, setQuery, useRoute } from '../../lib/router';
 import { cap, dates, eur, hhmm, plural, time } from '../../lib/format';
 import { Icon } from '../../ui/Icon';
 import { Avatar, Button, Chip, Field, Modal, Note, Sheet, Skeleton, Switch, confirm, toast, toastError } from '../../ui/kit';
-import { useApp } from '../state';
+import { photoOf, useApp } from '../state';
 import { PageTitle } from '../App';
 import type { Agenda, Staff } from '../types';
+import { PhoneList, PhoneQR, usePhones } from './reglages/Phone';
 import './equipe.css';
 
 // conflicts: appointments still on it; status: a request (pending, refused); publicNote: what the site may say meanwhile
@@ -102,7 +103,7 @@ function MyCard() {
         <div className="col" style={{ gap: 16 }}>
           <section className="card col" style={{ gap: 14 }}>
             <div className="row" style={{ gap: 16 }}>
-              <Avatar name={st.name} initials={st.initials} color={st.color} size="xl" />
+              <Avatar name={st.name} initials={st.initials} color={st.color} photo={photoOf(st)} size="xl" />
               <div className="grow">
                 <p className="section-k">{ROLE_LABEL[st.role]}{st.chair ? ' · fauteuil' : ''}</p>
                 <h2 className="eq-h">{st.name}</h2>
@@ -179,7 +180,7 @@ function Team({ data }: { data: TeamData }) {
           return (
             <Link key={s.id} to={'/equipe/' + s.id} className="card eq-card">
               <div className="row" style={{ gap: 14 }}>
-                <Avatar name={s.name} initials={s.initials} color={s.color} size="lg" />
+                <Avatar name={s.name} initials={s.initials} color={s.color} photo={photoOf(s)} size="lg" />
                 <div className="grow" style={{ minWidth: 0 }}>
                   <b className="eq-name">{s.name}</b>
                   <small className="muted">{s.roleLabel}{s.chair ? ' · fauteuil' : ''}{!s.bookable && s.chair ? ' · pas en ligne' : ''}</small>
@@ -579,7 +580,7 @@ function Profile({ st }: { st: Staff }) {
   return (
     <section className="card col" style={{ gap: 14 }}>
       <div className="row" style={{ gap: 16 }}>
-        <Avatar name={f.name} initials={f.initials} color={f.color} size="xl" />
+        <Avatar name={f.name} initials={f.initials} color={f.color} photo={photoOf(st)} size="xl" />
         <div className="grow">
           <p className="section-k">{ROLE_LABEL[f.role]}</p>
           <h2 className="eq-h">{f.name || '—'}</h2>
@@ -754,9 +755,10 @@ function Access({ st }: { st: Staff }) {
   return (
     <section className="card col" style={{ gap: 10 }}>
       <div className="card-h"><h2><Icon name="key" size={16} />Accès</h2></div>
-      <div className="kv"><span>Code PIN (appareils du salon)</span><span className="row" style={{ gap: 8 }}><span className={'badge ' + (st.hasPin ? 'badge-ok' : 'badge-warn')}>{st.hasPin ? 'défini' : 'aucun'}</span><Button size="sm" variant="ghost" onClick={() => setPin(true)}>{st.hasPin ? 'Changer' : 'Définir'}</Button></span></div>
+      <div className="kv"><span>Code PIN (postes du salon et téléphone lié)</span><span className="row" style={{ gap: 8 }}><span className={'badge ' + (st.hasPin ? 'badge-ok' : 'badge-warn')}>{st.hasPin ? 'défini' : 'aucun'}</span><Button size="sm" variant="ghost" onClick={() => setPin(true)}>{st.hasPin ? 'Changer' : 'Définir'}</Button></span></div>
       {['owner', 'manager'].includes(st.role) ? <div className="kv"><span>Mot de passe (connexion de partout)</span><span className="row" style={{ gap: 8 }}><span className={'badge ' + (st.hasPwd ? 'badge-ok' : '')}>{st.hasPwd ? 'défini' : 'aucun'}</span><Button size="sm" variant="ghost" onClick={() => setPwd(true)}>{st.hasPwd ? 'Changer' : 'Définir'}</Button></span></div> : null}
-      <p className="faint" style={{ fontSize: 12.5 }}>Les barbiers et l’accueil se connectent seulement depuis les appareils enregistrés du salon, avec leur code.</p>
+      {boot.settings.team?.personalPhones !== false ? <LinkedPhones st={st} me={me} /> : null}
+      <p className="faint" style={{ fontSize: 12.5 }}>Chacun entre avec son code sur les postes du salon et sur son téléphone lié.</p>
       <div className="row wrap" style={{ gap: 8, marginTop: 4 }}>
         <Button size="sm" variant="ghost" icon="logout" onClick={revoke}>Déconnecter partout</Button>
         {!me ? <Button size="sm" variant="danger" icon="trash" onClick={archive}>Désactiver</Button> : null}
@@ -764,6 +766,19 @@ function Access({ st }: { st: Staff }) {
       <SecretModal open={pin} onClose={() => setPin(false)} st={st} kind="pin" />
       <SecretModal open={pwd} onClose={() => setPwd(false)} st={st} kind="password" />
     </section>
+  );
+}
+
+/** TEAM-02: the member's linked phones (count, Retirer) and the QR that links one more. */
+function LinkedPhones({ st, me }: { st: Staff; me: boolean }) {
+  const phones = usePhones(st.id);
+  const n = phones.data?.items.length ?? 0;
+  return (
+    <>
+      <div className="kv"><span>Téléphones liés</span><span className={'badge ' + (n ? 'badge-ok' : '')}>{n ? plural(n, 'téléphone') : 'aucun'}</span></div>
+      {n ? <PhoneList st={st} self={me} /> : null}
+      <PhoneQR st={st} self={me} compact />
+    </>
   );
 }
 

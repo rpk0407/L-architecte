@@ -20,7 +20,7 @@ export default function System({ section }: { section: string }) {
 
 function Devices() {
   const { boot, reloadBoot, now } = useApp();
-  const { data, loading } = useQuery<{ items: { id: string; name: string; at: number; by: string; current: boolean }[] }>('/api/v1/devices');
+  const { data, loading } = useQuery<{ items: { id: string; name: string; at: number; by: string; current: boolean; personal?: string | null }[] }>('/api/v1/devices');
   const [name, setName] = useState('Comptoir');
   const [busy, setBusy] = useState(false);
   const here = data?.items.find((d) => d.current) || (boot.me.device ? { name: boot.me.device.name } : null);
@@ -52,7 +52,7 @@ function Devices() {
           <ul className="list">{data.items.map((d) => (
             <li key={d.id} className="li">
               <span className="rg-dev"><Icon name="device" size={18} /></span>
-              <span className="li-main"><b>{d.name}{d.current ? <span className="badge badge-info" style={{ marginLeft: 8 }}>cet appareil</span> : null}</b><small>Ajouté {ago(d.at, now())} par {d.by}</small></span>
+              <span className="li-main"><b>{d.name}{d.current ? <span className="badge badge-info" style={{ marginLeft: 8 }}>cet appareil</span> : null}{d.personal != null ? <span className="badge" style={{ marginLeft: 8 }}>téléphone personnel · {d.personal}</span> : null}</b><small>Ajouté {ago(d.at, now())} par {d.by}</small></span>
               <Button size="sm" variant="ghost" icon="trash" onClick={() => revoke(d)}>Retirer</Button>
             </li>
           ))}</ul>

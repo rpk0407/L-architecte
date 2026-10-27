@@ -60,7 +60,7 @@ React 19 + TypeScript (strict), built by Vite into `dist/`. No UI library: a sma
 
 - `state.tsx` loads the bootstrap (who is signed in, settings, team, catalogue) and polls `/api/v1/pulse` every 4 s: when the journal version moves, cached queries refresh and new bookings show up in the feed with a toast.
 - Pages are lazy-loaded; the agenda and the till load first. React vendor ≈ 70 KB gzip, each page 5 to 25 KB.
-- Barbers on a salon device sign in with a PIN; the screen locks itself after 4 minutes without a touch, and the server refuses a PIN session after 10 minutes without a request (`pin_idle`), even if the tablet's own lock never ran.
+- Barbers on a salon device sign in with a PIN; the screen locks itself after 4 minutes without a touch, and the server refuses a PIN session after 10 minutes without a request (`pin_idle`), even if the tablet's own lock never ran. On a barber's own linked phone (TEAM-02) the code is typed about once a day: no screen lock, 12 hours of server idle, only that person's code. `/comptoir` opens each person's home (`home.ts`: his choice, else Pilotage for the owner, Mon espace for a chair, the Agenda), and his toasts follow his `prefs.notify` (his own chair by default for a barber).
 
 ## The site (public/site.html)
 

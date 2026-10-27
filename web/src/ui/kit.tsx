@@ -2,7 +2,7 @@
 import { createPortal } from 'react-dom';
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode, type ButtonHTMLAttributes, type CSSProperties } from 'react';
 import { Icon } from './Icon';
-import { eur } from '../lib/format';
+import { dates, eur, time } from '../lib/format';
 
 type BtnProps = ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'primary' | 'solid' | 'ghost' | 'subtle' | 'danger' | 'ok'; size?: 'sm' | 'md' | 'lg' | 'xl'; icon?: string; block?: boolean; busy?: boolean; kbd?: string };
 export function Button({ variant = 'subtle', size = 'md', icon, block, busy, kbd, className = '', children, disabled, ...rest }: BtnProps) {
@@ -20,10 +20,25 @@ export function Money({ cents, decimals, className = '' }: { cents: number | nul
   return <span className={'money tnum ' + className}>{eur(cents, { decimals })}</span>;
 }
 
-export function Avatar({ name, initials, color, size = '' }: { name?: string; initials?: string; color?: string; size?: '' | 'sm' | 'lg' | 'xl' }) {
+/** photo: the photo's URL (TEAM-02, /api/v1/staff/<id>/photo?v=<v>); the initials stay underneath and show if it fails */
+export function Avatar({ name, initials, color, size = '', photo }: { name?: string; initials?: string; color?: string; size?: '' | 'sm' | 'lg' | 'xl'; photo?: string | null }) {
   const ini = initials || (name || '?').split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase();
-  return <span className={'av' + (size ? ' av-' + size : '')} style={{ ['--c' as any]: color || undefined } as CSSProperties} aria-hidden>{ini}</span>;
+  const [broken, setBroken] = useState('');
+  const pic = photo && broken !== photo ? photo : null;
+  return (
+    <span className={'av' + (size ? ' av-' + size : '') + (pic ? ' av-pic' : '')} style={{ ['--c' as any]: color || undefined } as CSSProperties} aria-hidden>
+      {ini}{pic ? <img src={pic} alt="" decoding="async" onError={() => setBroken(pic)} /> : null}
+    </span>
+  );
 }
+
+/** « à jour de 10 h 32 »: what a phone shows once its last pulse is more than 2 minutes old (offline, asleep). at: the
+ *  device clock of the last answer; nothing while it is fresh. One-tap actions check `offline` (comptoir/state.tsx). */
+export function Stale({ at, now }: { at: number; now: number }) {
+  if (now - at <= STALE_MS) return null;
+  return <span className="badge badge-warn stale" role="status"><Icon name="alert" size={13} />à jour de {time(dates.localParts(at).min)}</span>;
+}
+export const STALE_MS = 2 * 60000;
 
 export function Chip({ on, onClick, children, dot, small, className = '', disabled, title }: { on?: boolean; onClick?: () => void; children: ReactNode; dot?: string; small?: boolean; className?: string; disabled?: boolean; title?: string }) {
   return (

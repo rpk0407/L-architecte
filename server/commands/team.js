@@ -9,6 +9,8 @@ import { isFree, eligibleStaff, staffIntervals, bookedMinutes, occupies } from '
 import { queueMessage, apptVars } from '../domain/messages.js';
 import { clientMayChange } from '../domain/policy.js';
 import { moveAppointment, cancelAppointment } from './agenda.js';
+import { HOMES, NOTIFY, BLUR, LINK_MS, PHONE_MISSES, calTopOf, linkUsed, prefsOf } from '../projections/staffprefs.js';
+import { capsOf } from '../domain/permissions.js';
 
 const roles = /** @type {const} */ (['owner', 'manager', 'desk', 'barber']);
 const staffShape = {
@@ -97,6 +99,13 @@ export const archiveStaff = {
     const st = getStaff(s, input.id);
     if (ctx.staff && ctx.staff.id === st.id) fail(409, 'self', 'Tu ne peux pas désactiver ton propre compte.');
     if (st.role === 'owner' && owners(s).length <= 1) fail(409, 'last_owner', 'Il faut au moins un gérant.');
+    // his photo leaves with him (the removal redacts every copy from the store), and so do his linked phones and his
+    // calendar feed: a later staff.restored brings back neither an old phone nor an old webcal address (TEAM-02)
+    if (!input.restore) {
+      if (s.staffPhotos && s.staffPhotos.has(st.id)) ctx.emit('staff.photo', { id: st.id, v: 0 });
+      for (const d of s.devices.values()) if (d.personal && d.staffId === st.id && !d.revoked) ctx.emit('device.revoked', { id: d.id });
+      if (s.prefs && prefsOf(s, st).cal) ctx.emit('prefs.set', { staffId: st.id, prefs: { cal: 0 } });
+    }
     ctx.emit(input.restore ? 'staff.restored' : 'staff.archived', { id: st.id });
     return { ok: true };
   }
@@ -431,20 +440,155 @@ export async function applyHandover(engine, t, input, base) {
 
 export const enrollDevice = {
   run(s, input, ctx) {
-    if (!input.demo) ctx.need('devices');
     const name = parse(str({ min: 1, max: 40 }), input.name || 'Poste du salon');
     if (!/^[a-f0-9]{64}$/.test(input.tokenHash)) fail(400, 'invalid', 'Jeton invalide.');
     const did = ctx.id('dv');
+    // a barber's own phone (TEAM-02): no `devices` right, the link he was given vouches for it, once, for 10 minutes
+    if (input.personal) {
+      const l = s.phoneLinks && s.phoneLinks.get(String(input.link || ''));
+      if (!l || l.staffId !== input.staffId) fail(404, 'bad_link', 'Ce lien n’est pas valide. Demande-en un nouveau.');
+      if (linkUsed(s, l.id)) fail(409, 'used', 'Ce lien a déjà servi. Demande-en un nouveau.');
+      if (ctx.now > l.exp) fail(410, 'expired', 'Ce lien a expiré.');
+      if (s.settings.team.personalPhones === false) fail(403, 'phones_off', 'Le salon n’autorise pas les téléphones personnels.');
+      const st = getStaff(s, l.staffId);
+      if (!st.active) fail(404, 'bad_link', 'Ce lien n’est pas valide. Demande-en un nouveau.');
+      // the browser's previous linked phone (scanned again, or handed to a colleague): its cookie is about to be
+      // replaced, so it could never be used again; it leaves the lists instead of staying as a ghost
+      const old = input.replaces ? s.devices.get(String(input.replaces)) : null;
+      if (old && old.personal && !old.revoked) ctx.emit('device.revoked', { id: old.id });
+      ctx.emit('device.enrolled', { id: did, name, tokenHash: input.tokenHash, staffId: st.id, personal: true, link: l.id });
+      return { id: did, staffId: st.id };
+    }
+    if (!input.demo) ctx.need('devices');
     ctx.emit('device.enrolled', { id: did, name, tokenHash: input.tokenHash });
     return { id: did };
   }
 };
 export const revokeDevice = {
   run(s, input, ctx) {
-    ctx.need('devices');
     const d = s.devices.get(input.id);
+    // a linked phone is also its owner's to remove (lost, replaced), and the team manager's
+    const mine = !!d && !!d.personal && !!ctx.staff && (d.staffId === ctx.staff.id || ctx.can('team'));
+    if (!mine) ctx.need('devices');
     if (!d || d.revoked) fail(404, 'not_found', 'Appareil introuvable.');
     ctx.emit('device.revoked', { id: d.id });
     return { ok: true };
+  }
+};
+
+/* ---------------- TEAM-02: my phone, my prefs, my photo ---------------- */
+
+/**
+ * A link that enrolls the person's own phone: 10 minutes, single use, for himself or by `team`, when the salon allows
+ * linked phones. The route signs the token; the nonce here is what makes it single use (enrollDevice).
+ */
+export const issuePhoneLink = {
+  run(s, input, ctx) {
+    const st = getStaff(s, input.staffId);
+    if (!(ctx.staff && ctx.staff.id === st.id)) {
+      if (!ctx.can('team')) fail(403, 'forbidden', 'Seul le gérant lie le téléphone d’un collègue.');
+      // a phone bound to someone who manages the team or the devices carries those rights out of the salon: only a
+      // holder of `devices` links it (a manager never links the owner's phone, nor another manager's)
+      const theirs = capsOf(st, s.settings);
+      if ((theirs.has('team') || theirs.has('devices')) && !ctx.can('devices')) fail(403, 'forbidden', 'Seul le gérant lie le téléphone d’un responsable : chacun peut lier le sien depuis Mon compte.');
+    }
+    if (s.settings.team.personalPhones === false) fail(403, 'phones_off', 'Le salon n’autorise pas les téléphones personnels (Réglages › Équipe et accès).');
+    if (!st.active) fail(404, 'not_found', 'Membre introuvable.');
+    if (!st.hasPin) fail(409, 'no_pin', st.id === ctx.staff?.id ? 'Choisis d’abord ton code (Mon compte › Code PIN).' : st.name + ' n’a pas encore de code : définis-le d’abord.');
+    const nonce = ctx.id('pl');
+    const exp = ctx.now + LINK_MS;
+    ctx.emit('phone.linkIssued', { id: nonce, staffId: st.id, exp });
+    return { id: nonce, staffId: st.id, exp };
+  },
+  replay(events) {
+    const e = events.find((x) => x.type === 'phone.linkIssued');
+    return e ? { id: e.data.id, staffId: e.data.staffId, exp: e.data.exp } : {};
+  }
+};
+
+/** Unknown keys are dropped (an older or newer screen); a list longer than 20 is refused. cal is set by the calendar route:
+ *  'next' takes a generation above any given before, chosen here so a retry or a concurrent write never guesses it. */
+const prefsSchema = obj({
+  home: opt(oneOf(HOMES)), notify: opt(oneOf(NOTIFY)), buzz: opt(bool()), blur: opt(oneOf(BLUR)), calName: opt(bool()),
+  cards: opt(arr(str({ min: 1, max: 40, pattern: /^[A-Za-z0-9_-]+$/ }), { max: 20 })), hidden: opt(arr(str({ min: 1, max: 40, pattern: /^[A-Za-z0-9_-]+$/ }), { max: 20 })),
+  cal: opt(either([int({ min: 0 }), oneOf(['next'])]))
+});
+/** One's own Comptoir, nobody else's: home page, toasts, card order, amounts on the salon post, calendar feed. */
+export const setPrefs = {
+  run(s, input, ctx) {
+    const st = getStaff(s, input.staffId);
+    if (!ctx.staff || ctx.staff.id !== st.id) fail(403, 'forbidden', 'Chacun règle son propre Comptoir.');
+    const x = parse(prefsSchema, input.prefs || {});
+    const cur = prefsOf(s, st);
+    if (x.cal === 'next') x.cal = calTopOf(s, st.id) + 1;
+    // a calendar link that was cut never comes back: off (0), the current one, or a generation never given before
+    if (x.cal !== undefined && x.cal !== 0 && x.cal !== cur.cal && x.cal <= calTopOf(s, st.id)) fail(409, 'stale', 'Ce lien d’agenda a été remplacé.');
+    const changed = Object.fromEntries(Object.entries(x).filter(([k, v]) => v !== undefined && JSON.stringify(v) !== JSON.stringify(/** @type {any} */ (cur)[k])));
+    if (Object.keys(changed).length) ctx.emit('prefs.set', { staffId: st.id, prefs: changed });
+    return { prefs: { ...cur, ...changed } };
+  },
+  // a retried request: what was written (the calendar route builds its address from the stored generation)
+  replay(events) {
+    const e = events.find((x) => x.type === 'prefs.set');
+    return { prefs: e ? e.data.prefs : {} };
+  }
+};
+
+/**
+ * A wrong code on a linked phone (TEAM-02). Counted in the journal, so a cold start or another instance never resets
+ * it: PHONE_MISSES in a row and the phone is removed (it must be linked again with a fresh QR), the owner and the
+ * person told in the feed. The in-memory limits of the PIN route slow the guessing; this ends it.
+ */
+export const missPhonePin = {
+  run(s, input, ctx) {
+    const d = s.devices.get(String(input.id || ''));
+    if (!d || !d.personal || d.revoked) return { locked: false };
+    const n = (s.phoneMisses.get(d.id) || 0) + 1;
+    ctx.emit('phone.pinMissed', { id: d.id });
+    if (n < PHONE_MISSES) return { locked: false, left: PHONE_MISSES - n };
+    ctx.emit('phone.locked', { id: d.id, staffId: d.staffId, name: d.name });
+    ctx.emit('device.revoked', { id: d.id });
+    return { locked: true };
+  }
+};
+/** The right code: the count starts again (written only when there was one). */
+export const clearPhonePin = {
+  run(s, input, ctx) {
+    if (s.phoneMisses.get(String(input.id || ''))) ctx.emit('phone.pinCleared', { id: input.id });
+    return { ok: true };
+  }
+};
+
+/** at most 24 KB of image once decoded: the browser sends a 192 px JPEG, a few KB */
+export const PHOTO_MAX = 24 * 1024;
+const PHOTO_RE = /^data:image\/(jpeg|webp);base64,([A-Za-z0-9+/]+={0,2})$/;
+/** Is it really what it says? JPEG starts FF D8 FF; WebP is a RIFF file of type WEBP. */
+function photoKind(b) {
+  if (b.length > 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return 'jpeg';
+  if (b.length > 12 && b.toString('latin1', 0, 4) === 'RIFF' && b.toString('latin1', 8, 12) === 'WEBP') return 'webp';
+  return '';
+}
+/** His own photo, or a colleague's by `team`. Empty data removes it. The bytes go in pii, never in the chain. */
+export const setPhoto = {
+  run(s, input, ctx) {
+    const st = getStaff(s, input.staffId);
+    if (!(ctx.staff && ctx.staff.id === st.id) && !ctx.can('team')) fail(403, 'forbidden', 'Seul le gérant change la photo d’un collègue.');
+    if (!st.active) fail(404, 'not_found', 'Membre introuvable.');
+    const data = typeof input.data === 'string' ? input.data.trim() : '';
+    const cur = s.staffPhotos.get(st.id);
+    if (!data) {
+      if (cur) ctx.emit('staff.photo', { id: st.id, v: 0 });
+      return { photo: null };
+    }
+    const m = PHOTO_RE.exec(data);
+    if (!m) fail(400, 'invalid', 'Photo JPEG ou WebP attendue.');
+    const bytes = Buffer.from(m[2], 'base64');
+    if (bytes.length > PHOTO_MAX) fail(400, 'too_large', 'Photo trop lourde (24 Ko au plus).');
+    if (photoKind(bytes) !== m[1]) fail(400, 'invalid', 'Ce fichier n’est pas une photo JPEG ou WebP.');
+    // a retried upload of the same picture changes nothing
+    if (cur && cur.data === data) return { photo: cur.v };
+    const v = Math.max(ctx.now, (cur ? cur.v : 0) + 1);
+    ctx.emit('staff.photo', { id: st.id, v }, { photo: data });
+    return { photo: v };
   }
 };
