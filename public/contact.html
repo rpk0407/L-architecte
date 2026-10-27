@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Contact · Barber L’Architecte</title>
+<meta name="description" content="Écrire à Barber L’Architecte, barbier place Pélabon à Marseille : une question, un événement, un partenariat. Réponse sous 48 h.">
+<meta name="theme-color" content="#ECE8E0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0F0E0D" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/pages.css">
+<link rel="stylesheet" href="/demande.css">
+<script src="/pages.js" defer></script>
+<script src="/demande.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">Aller au contenu</a>
+<header class="tb"><a class="wm" href="/" aria-label="Barber L’Architecte, accueil"><span class="wm-a">L’Architecte</span><span class="wm-b">Barber · Marseille</span></a><a class="btn" href="/?reserver">Réserver</a></header>
+<main id="main">
+<p class="kk">Contact</p>
+<h1>Écris-nous, <em>on répond</em></h1>
+<p class="lead">Une question, un événement, un partenariat&nbsp;: laisse ton message, on te répond sous 48&nbsp;h. Pour une coupe, le plus simple reste de <a class="lk" href="/?reserver">réserver en ligne</a>.</p>
+
+<section aria-labelledby="t-dm" style="border-top:0;padding-top:0">
+<h2 id="t-dm" class="vh">Ton message</h2>
+<form class="fm" data-inquiry="contact" novalidate>
+<div class="fm-g">
+<div><label for="dm-f">Prénom</label><input id="dm-f" class="inp" name="first" autocomplete="given-name" maxlength="60" required></div>
+<div class="fm-g fm-2">
+<div><label for="dm-p">Téléphone</label><input id="dm-p" class="inp" name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="06 12 34 56 78" maxlength="24" aria-describedby="dm-ph"></div>
+<div><label for="dm-e">E-mail <small>(facultatif)</small></label><input id="dm-e" class="inp" name="email" type="email" inputmode="email" autocomplete="email" maxlength="120" placeholder="prenom@exemple.fr"></div>
+</div>
+<p id="dm-ph" class="hint" style="margin-top:-6px">On te répond à ce numéro. Sans numéro, laisse ton e-mail.</p>
+<div><label for="dm-t">Ton message <span class="cnt" data-count aria-live="polite"></span></label><textarea id="dm-t" class="inp" name="message" maxlength="1000" rows="6" required></textarea></div>
+<div class="hp" aria-hidden="true"><label for="dm-w">Ne pas remplir</label><input id="dm-w" name="website" tabindex="-1" autocomplete="off"></div>
+</div>
+<p class="err" data-err role="alert" hidden></p>
+<div class="acts"><button class="btn" type="submit">Envoyer</button></div>
+<p class="hint">Ton numéro et ton e-mail servent seulement à te répondre (<a href="/confidentialite">confidentialité</a>).</p>
+<noscript><p class="hint">Sans JavaScript, le formulaire ne peut pas partir&nbsp;: écris-nous à <a href="mailto:larchitectebarber@gmail.com">larchitectebarber@gmail.com</a>.</p></noscript>
+</form>
+<div class="fm sent" data-inquiry-done tabindex="-1" hidden>
+<p class="big" role="status">C’est envoyé. On te répond sous 48&nbsp;h.</p>
+<p class="hint">Merci <span data-done-first></span>. Pour une coupe, pas besoin d’attendre&nbsp;: les créneaux libres sont en ligne.</p>
+<div class="acts"><a class="btn" href="/?reserver">Réserver une coupe</a><button class="btn ghost" type="button" data-inquiry-again>Écrire autre chose</button></div>
+</div>
+</section>
+
+<section aria-labelledby="t-salon">
+<h2 id="t-salon">Le salon</h2>
+<dl>
+<div><dt>Adresse</dt><dd data-f="address">16, place Pélabon, 13013 Marseille</dd></div>
+<div data-opt hidden><dt>Téléphone</dt><dd><a data-f="phone" data-link="tel"></a></dd></div>
+<div data-opt><dt>E-mail</dt><dd><a data-f="shop.email" data-link="mail" href="mailto:larchitectebarber@gmail.com">larchitectebarber@gmail.com</a></dd></div>
+<div><dt>Former des barbiers</dt><dd><a href="/formations">Les formations de L’Archi</a></dd></div>
+</dl>
+</section>
+</main>
+<footer data-footer></footer>
+</body>
+</html>

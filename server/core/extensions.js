@@ -2,6 +2,8 @@
 // New event types without touching state.js. A REGISTRY: a package that adds events imports its module here and
 // lists it in EXTENSIONS. The projection calls init when it builds an empty state and folds each event type an
 // extension handles through `on`. Handlers follow evolve's rules: only for stored events, no clock, no randomness, no I/O.
+// Core types reach `on` only where state.js hands them on: client.erased does, after its own case, so an extension's
+// copy of personal data leaves memory with the file.
 // The types in `feed` show in the Comptoir's live feed through `item`, which turns a feed entry into a line for that
 // request, or null to hide it (routes-staff.js feedItem). Without `item` they are not kept in the feed at all, so
 // unseen entries never push real bookings and sales out of its window.
@@ -18,5 +20,10 @@
  * }} Extension
  */
 
+import { inquiriesExtension } from '../projections/inquiries.js';
+
+// one entry per line, so extensions added by different branches merge cleanly
 /** @type {Extension[]} */
-export const EXTENSIONS = [];
+export const EXTENSIONS = [
+  inquiriesExtension
+];

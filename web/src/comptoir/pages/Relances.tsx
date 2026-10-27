@@ -1,4 +1,4 @@
-// Relances: the clients drifting away, the people waiting for a place, and every SMS that left the salon.
+// Relances: the clients drifting away, the people waiting for a place, the requests from the site, and every SMS that left the salon.
 // A regular who skips one cut is a regular at risk; one short message at the right time brings most of them back.
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../../lib/api';
@@ -8,7 +8,7 @@ import { ago, cap, clock, dates, dayShortWord, eur, pct, plural, rhythmWords, ti
 // @ts-ignore — plain JS module with JSDoc types: the server's own quiet hours and STOP rule
 import * as SmsRules from '../../../../shared/sms.js';
 import { Icon } from '../../ui/Icon';
-import { Avatar, Button, Empty, Kpi, Note, Skeleton, confirm, toast, toastError } from '../../ui/kit';
+import { Avatar, Button, Empty, Kpi, Note, Seg, Skeleton, confirm, toast, toastError } from '../../ui/kit';
 import { useApp } from '../state';
 import { PageTitle } from '../App';
 import type { ClientCard } from '../types';
@@ -20,6 +20,11 @@ type Msg = { id: string; channel?: 'sms' | 'email'; template: string; status: st
 type Back = { sent: number; clientsBack: number; revenueBack: number; rate: number };
 type Quiet = { from: number; to: number; sunday: boolean; holidays?: boolean } | undefined;
 type RebookData = { items: Overdue[]; excludedNoConsent: number; stats: Back; template: string; stop: string; quiet?: Quiet };
+type Inquiry = {
+  id: string; kind: 'contact' | 'formation'; kindLabel: string; module: string; moduleTitle: string; at: number; status: 'new' | 'handled'; handledAt: number | null; handledBy: string;
+  erased: boolean; cid: string | null; first: string; message: string; hasPhone: boolean; phone: string; email: string; replies: { at: number; by: string; text: string; status: string }[];
+};
+type InquiryData = { items: Inquiry[]; unread: number; total: number; canErase: boolean; sms: boolean; mode: string };
 
 const sms = SmsRules as { afterQuiet(q: Quiet, t: number): number; withStop(body: string, stop: string): string };
 /** When a quiet text sent at `t` really leaves (the server's own rule): `t` itself outside the quiet hours. */
@@ -32,7 +37,7 @@ function leavesWords(t: number, now: number) {
   return (p.day === today ? 'à ' : dayShortWord(p.day, today) + ' à ') + time(p.min);
 }
 
-const LABEL: Record<string, string> = { confirmation: 'Confirmation', reminder: 'Rappel la veille', reminder2h: 'Rappel 2 h avant', review: 'Demande d’avis', rebook: 'Relance', waitlist: 'Place libérée', queue: 'File d’attente', cancelled: 'Annulation', receipt: 'Reçu', moved: 'Déplacement', deposit: 'Lien d’acompte', lookup: 'Lien Mon rendez-vous', giftcardCode: 'Code carte cadeau', owner_booking: 'Alerte : réservation', owner_cancel: 'Alerte : annulation', digest: 'Résumé du soir', weekly: 'Bilan de la semaine' };
+const LABEL: Record<string, string> = { inquiry_reply: 'Réponse à une demande', owner_inquiry: 'Alerte : demande du site', confirmation: 'Confirmation', reminder: 'Rappel la veille', reminder2h: 'Rappel 2 h avant', review: 'Demande d’avis', rebook: 'Relance', waitlist: 'Place libérée', queue: 'File d’attente', cancelled: 'Annulation', receipt: 'Reçu', moved: 'Déplacement', deposit: 'Lien d’acompte', lookup: 'Lien Mon rendez-vous', giftcardCode: 'Code carte cadeau', owner_booking: 'Alerte : réservation', owner_cancel: 'Alerte : annulation', digest: 'Résumé du soir', weekly: 'Bilan de la semaine' };
 const STATUS: Record<string, [string, string]> = { sent: ['envoyé', 'badge-ok'], simulated: ['simulé (démo)', 'badge-info'], failed: ['échec', 'badge-danger'], skipped: ['non envoyé', 'badge-warn'], expired: ['trop tard', 'badge-warn'], claimed: ['en cours', ''], queued: ['en file', ''] };
 /** Outside the demo nothing is simulated: without a provider a message waits for one (and an old 'simulé' never left). */
 function msgStatus(m: Msg, demo: boolean, provider: string | null, now: number): [string, string] {
@@ -56,19 +61,24 @@ export function quietWords(q: Quiet) {
 export default function Relances() {
   const { pulse, can } = useApp();
   const route = useRoute();
-  const tab = route.id === 'attente' ? 'attente' : route.id === 'envoyes' ? 'envoyes' : 'relancer';
+  const tab = route.id === 'attente' ? 'attente' : route.id === 'demandes' ? 'demandes' : route.id === 'envoyes' ? 'envoyes' : 'relancer';
+  // the requests from the site's forms: the tab says how many wait for an answer
+  const inbox = useQuery<InquiryData>(can('marketing') ? '/api/v1/inquiries' : null);
   const tabs = [
     { to: '/relances', id: 'relancer', label: 'À relancer', icon: 'relances', count: pulse?.badges.relances },
     { to: '/relances/attente', id: 'attente', label: 'Liste d’attente', icon: 'wait', count: pulse?.badges.waitlist },
+    { to: '/relances/demandes', id: 'demandes', label: 'Demandes', icon: 'mail', count: inbox.data?.unread },
     { to: '/relances/envoyes', id: 'envoyes', label: 'Messages envoyés', icon: 'sms' }
   ];
+  // on a phone the four tabs scroll: keep the open one in sight (the owner's alert e-mail opens Demandes)
+  useEffect(() => { document.querySelector('nav.tabs[aria-label="Relances"] [aria-current="page"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' }); }, [tab]);
   return (
     <>
       <PageTitle><h1>Relances</h1></PageTitle>
       <nav className="tabs" aria-label="Relances">
         {tabs.map((t) => <Link key={t.id} to={t.to} className="tab" aria-current={tab === t.id ? 'page' : undefined}><Icon name={t.icon} size={16} />{t.label}{t.count ? <span className="count">{t.count}</span> : null}</Link>)}
       </nav>
-      {tab === 'relancer' ? (can('marketing') ? <Rebook /> : <Empty icon="lock" title="Réservé à l’accueil et au gérant" />) : tab === 'attente' ? <Waiting /> : <Sent />}
+      {tab === 'relancer' ? (can('marketing') ? <Rebook /> : <Empty icon="lock" title="Réservé à l’accueil et au gérant" />) : tab === 'attente' ? <Waiting /> : tab === 'demandes' ? (can('marketing') ? <Inquiries /> : <Empty icon="lock" title="Réservé à l’accueil et au gérant" />) : <Sent />}
     </>
   );
 }
@@ -261,6 +271,103 @@ function Waiting() {
         </div>
       )}
     </>
+  );
+}
+
+/* ---------------- the requests from the site ---------------- */
+
+/** What the WordPress forms used to e-mail: /contact and /formations land here (and in the owner's inbox, Réglages › Messages). */
+function Inquiries() {
+  const { data, loading, error } = useQuery<InquiryData>('/api/v1/inquiries');
+  const [show, setShow] = useState<'new' | 'all'>('new');
+  if (loading && !data) return <Skeleton h={320} r={22} />;
+  if (!data) return error ? <Note tone="err" icon="alert">{error.message}</Note> : null;
+  const list = show === 'new' ? data.items.filter((q) => q.status === 'new') : data.items;
+  return (
+    <>
+      <div className="row wrap" style={{ gap: 10, marginBottom: 14 }}>
+        <Seg value={show} onChange={setShow} label="Quelles demandes" options={[{ v: 'new', t: 'À traiter', count: data.unread }, { v: 'all', t: 'Toutes' }]} />
+        <span className="grow" />
+        <span className="faint" style={{ fontSize: 13 }}>Depuis les pages <a className="link" href="/contact" target="_blank" rel="noopener">Contact</a> et <a className="link" href="/formations" target="_blank" rel="noopener">Formations</a> du site</span>
+      </div>
+      {!list.length ? (
+        <section className="card"><Empty icon="mail" title={data.total ? 'Tout est traité' : 'Aucune demande pour l’instant'}>{data.total ? 'Les nouvelles demandes du site arrivent ici, avec un badge sur l’onglet.' : 'Les messages envoyés depuis les pages Contact et Formations du site arrivent ici, et par e-mail au gérant.'}</Empty>{data.total && show === 'new' ? <div className="row" style={{ justifyContent: 'center' }}><Button variant="ghost" onClick={() => setShow('all')}>Voir les {plural(data.total, 'demande')}</Button></div> : null}</section>
+      ) : <div className="col" style={{ gap: 14 }}>{list.map((q) => <InquiryCard key={q.id} q={q} data={data} />)}</div>}
+    </>
+  );
+}
+
+const INLINE = { display: 'inline-flex', alignItems: 'center', gap: 6 } as const;
+function InquiryCard({ q, data }: { q: Inquiry; data: InquiryData }) {
+  const { now, boot } = useApp();
+  // signed like the salon's other texts, with its name from Réglages › Salon (a plain apostrophe: one SMS, not two)
+  const sign = String(boot.settings?.shop?.name || 'Le salon').replace(/’/g, "'");
+  // in production without a provider the text would wait and expire while the request reads as answered (the server refuses too)
+  const noSms = data.mode === 'production' && !data.sms;
+  const [text, setText] = useState<string | null>(null);
+  const [busy, setBusy] = useState('');
+  const seg = smsSegments(text || '');
+  const act = async (what: string, path: string, body: unknown, done: string) => {
+    setBusy(what);
+    try { await api.post('/api/v1/inquiries/' + q.id + path, body); toast({ title: done, icon: 'check' }); refreshAll(); return true; } catch (e) { toastError(e); return false; } finally { setBusy(''); }
+  };
+  const reply = async () => {
+    if (!text || text.trim().length < 2) return;
+    if (await act('reply', '/reply', { text: text.replace(/\{prenom\}/g, q.first) }, data.mode === 'demo' ? 'Réponse mise en file (démo : le SMS est simulé, rien ne part)' : 'SMS envoyé à ' + q.first)) setText(null);
+  };
+  const erase = async () => {
+    if (!await confirm({ title: 'Effacer cette demande ?', body: 'Le prénom, le numéro, l’e-mail et le message de ' + (q.first || 'cette personne') + ' sont retirés pour de bon, avec l’e-mail d’alerte et les réponses. Il reste seulement la trace qu’une demande a existé.', ok: 'Effacer', danger: true })) return;
+    await act('erase', '/erase', {}, 'Demande effacée');
+  };
+  const fresh = q.status === 'new';
+  return (
+    <section className="card col" style={{ gap: 12 }} aria-label={'Demande de ' + (q.first || 'quelqu’un')}>
+      <div className="card-h" style={{ marginBottom: 0 }}>
+        <h2><Icon name={q.kind === 'formation' ? 'scissors' : 'mail'} size={16} />{q.erased ? 'Demande effacée' : q.first}{q.moduleTitle ? <span className="faint" style={{ fontWeight: 500 }}>· {q.moduleTitle}</span> : null}</h2>
+        <span className="row" style={{ gap: 6 }}>
+          <span className="badge">{cap(q.kindLabel)}</span>
+          <span className={'badge ' + (fresh ? 'badge-accent' : 'badge-ok')}>{fresh ? 'à traiter' : q.replies.length ? 'répondu' : 'traité'}</span>
+          <small className="faint tnum" title={dates.dayShort(dates.localParts(q.at).day) + ' · ' + clock(q.at)}>{ago(q.at, now())}</small>
+        </span>
+      </div>
+      {q.erased ? <p className="faint" style={{ fontSize: 13.5 }}>Les données de cette personne ont été effacées (RGPD).</p> : (
+        <>
+          {q.message ? <div className="bubble" style={{ alignSelf: 'stretch' }}><p>{q.message}</p></div> : <p className="faint" style={{ fontSize: 13.5 }}>Pas de message : {q.kind === 'formation' ? 'rappelle pour parler du module.' : 'rappelle pour en savoir plus.'}</p>}
+          <div className="row wrap" style={{ gap: '6px 16px', fontSize: 14 }}>
+            {q.phone ? <a className="link tnum" style={INLINE} href={'tel:' + q.phone.replace(/[^\d+]/g, '')}><Icon name="phone" size={14} />{q.phone}</a> : null}
+            {q.email ? <a className="link" style={INLINE} href={'mailto:' + q.email}><Icon name="mail" size={14} />{q.email}</a> : null}
+            {q.cid ? <Link to={'/clients/' + q.cid} className="link">Voir sa fiche client</Link> : null}
+          </div>
+        </>
+      )}
+      {q.replies.map((r, i) => (
+        <div key={i} className="bubble" style={{ alignSelf: 'flex-end', borderRadius: '18px 18px 6px 18px', maxWidth: 520 }}>
+          <small>{r.by || 'Le salon'} · {ago(r.at, now())} · SMS {STATUS[r.status]?.[0] || r.status}</small>
+          <p>{r.text || '—'}</p>
+        </div>
+      ))}
+      {text != null ? (
+        <div className="col" style={{ gap: 8 }}>
+          <textarea className="input textarea" rows={3} maxLength={480} value={text} autoFocus onChange={(e) => setText(e.target.value)} aria-label={'Réponse à ' + q.first} />
+          <div className="row wrap" style={{ gap: 8 }}>
+            <small className={seg.count > 1 ? 'warn-t' : 'faint'}>{seg.chars} car. · {plural(seg.count, 'SMS')}{seg.unicode ? ' (caractères spéciaux : ' + seg.offenders.join(' ') + ')' : ''}</small>
+            <span className="grow" />
+            <Button variant="ghost" onClick={() => setText(null)}>Annuler</Button>
+            <Button variant="primary" icon="sms" busy={busy === 'reply'} disabled={text.trim().length < 2} onClick={reply}>Envoyer à {q.phone}</Button>
+          </div>
+        </div>
+      ) : !q.erased ? (
+        <div className="row wrap" style={{ gap: 8 }}>
+          {!q.hasPhone ? <span className="faint" style={{ fontSize: 13 }}>Pas de numéro : réponds par e-mail.</span>
+            : noSms ? <span className="faint" style={{ fontSize: 13 }}>Aucun fournisseur SMS branché : appelle ou écris, puis marque traité.</span>
+            : <Button variant={fresh ? 'primary' : 'subtle'} icon="sms" onClick={() => setText(sign + ' : Bonjour ' + q.first + ', ')}>Répondre par SMS</Button>}
+          {fresh ? <Button variant="subtle" icon="check" busy={busy === 'handled'} onClick={() => act('handled', '/handled', {}, 'Demande traitée')}>Marquer traité</Button> : <Button variant="ghost" icon="undo" busy={busy === 'handled'} onClick={() => act('handled', '/handled', { undo: true }, 'Remise à traiter')}>Remettre à traiter</Button>}
+          <span className="grow" />
+          {data.canErase ? <Button variant="ghost" size="sm" icon="trash" busy={busy === 'erase'} onClick={erase}>Effacer</Button> : null}
+        </div>
+      ) : null}
+      {!fresh && q.handledBy && !q.erased ? <small className="faint" style={{ fontSize: 12 }}>Traité par {q.handledBy}{q.handledAt ? ' ' + ago(q.handledAt, now()) : ''}</small> : null}
+    </section>
   );
 }
 

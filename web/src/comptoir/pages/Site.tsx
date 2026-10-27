@@ -1,12 +1,13 @@
 // Le site: what the public site says besides the catalogue, the team and the hours: the banner, the texts, the questions,
 // the Google reviews, the photos and the links. Owner and managers (like the catalogue); saved with PATCH /api/v1/site,
 // visible on the site at once. The texts in the FAQ take tokens ({prix:cl}) so a price changed in the Catalogue is the
-// price the answer gives (server/settings/site.js).
+// price the answer gives (server/settings/site.js). Formations edits /formations (server/settings/trainings.js), saved apart
+// with PATCH /api/v1/trainings.
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { api } from '../../lib/api';
 import { load, peek, refreshAll, useQuery } from '../../lib/query';
 import { Link, useRoute } from '../../lib/router';
-import { cap, dates, dur, eur } from '../../lib/format';
+import { cap, dates, dur, eur, money, plural } from '../../lib/format';
 import { Icon } from '../../ui/Icon';
 import { Button, Field, Note, Skeleton, confirm, toast, toastError } from '../../ui/kit';
 import { useApp } from '../state';
@@ -40,7 +41,8 @@ const TABS = [
   { id: 'faq', label: 'FAQ', icon: 'info', keys: ['faq'] },
   { id: 'avis', label: 'Avis Google', icon: 'star', keys: ['reviews'] },
   { id: 'photos', label: 'Photos', icon: 'sparkle', keys: ['photos'] },
-  { id: 'liens', label: 'Liens', icon: 'link', keys: ['links'] }
+  { id: 'liens', label: 'Liens', icon: 'link', keys: ['links'] },
+  { id: 'formations', label: 'Formations', icon: 'scissors', keys: [] }
 ] as const;
 const HTTPS = /^(https:\/\/[^\s"'<>]+)?$/;
 // as server/settings/site.js: never '//host' nor '/\host', which browsers read as another site
@@ -68,6 +70,9 @@ export default function Site() {
   const route = useRoute();
   const q = useQuery<SiteData>('/api/v1/site');
   const tab = TABS.find((t) => t.id === route.id) || TABS[0];
+  // the training page loads once opened, then stays mounted so its unsaved changes survive a tab switch
+  const [trainings, setTrainings] = useState(false);
+  useEffect(() => { if (tab.id === 'formations') setTrainings(true); }, [tab.id]);
   // on a phone the tabs scroll: keep the open one in sight
   useEffect(() => { document.querySelector('.si-top .tabs [aria-current="page"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' }); }, [tab.id]);
   return (
@@ -77,9 +82,10 @@ export default function Site() {
         <nav className="tabs grow" aria-label="Le site">
           {TABS.map((t) => <Link key={t.id} to={'/site' + (t.id === 'annonce' ? '' : '/' + t.id)} className="tab" aria-current={tab.id === t.id ? 'page' : undefined}><Icon name={t.icon} size={16} />{t.label}</Link>)}
         </nav>
-        <a className="btn btn-subtle si-see" href="/" target="_blank" rel="noopener"><Icon name="globe" />Voir le site</a>
+        <a className="btn btn-subtle si-see" href={tab.id === 'formations' ? '/formations' : '/'} target="_blank" rel="noopener"><Icon name="globe" />{tab.id === 'formations' ? 'Voir la page' : 'Voir le site'}</a>
       </div>
-      {q.data ? <Editor key="ed" data={q.data} tab={tab.id} /> : q.error ? <Note tone="err" icon="alert">{q.error.message}</Note> : <Skeleton h={420} r={22} />}
+      {q.data ? <Editor key="ed" data={q.data} tab={tab.id} /> : tab.id === 'formations' ? null : q.error ? <Note tone="err" icon="alert">{q.error.message}</Note> : <Skeleton h={420} r={22} />}
+      {trainings ? <div hidden={tab.id !== 'formations'}><TrainingsEditor /></div> : null}
     </>
   );
 }
@@ -408,3 +414,178 @@ function Links({ v, onChange }: { v: SiteContent['links']; onChange: (v: SiteCon
   );
 }
 
+
+/* ---------------- Formations ---------------- */
+
+type Module = { id: string; title: string; points: string[]; duration: string; price: number | null };
+type Session = { moduleId: string; date: string; seats: number };
+type Trainings = { intro: string; modules: Module[]; sessions: Session[]; nda: string; qualiopi: string };
+type TrainingsData = { trainings: Trainings; defaults: Trainings; limits: { intro: number; modules: number; points: number; sessions: number } };
+const MODULE_ID = /^[a-z0-9][a-z0-9-]{0,29}$/;
+// as server/settings/trainings.js: ids the page already uses (#demande, #main, t-…, tm-…, dm-…)
+const RESERVED_ID = /^(main|demande|(t|tm|dm)-.*)$/;
+
+/** The first thing the server would refuse, in words, or null. */
+function checkTrainings(t: Trainings): string | null {
+  const seen = new Set<string>();
+  for (const [i, m] of t.modules.entries()) {
+    if (m.title.trim().length < 2) return 'Module ' + (i + 1) + ' : il manque le titre.';
+    if (!MODULE_ID.test(m.id)) return 'Module ' + (i + 1) + ' : le code ne prend que des minuscules, des chiffres et des tirets.';
+    if (RESERVED_ID.test(m.id)) return 'Module ' + (i + 1) + ' : le code « ' + m.id + ' » est déjà pris par la page, choisis-en un autre.';
+    if (seen.has(m.id)) return 'Deux modules ont le code « ' + m.id + ' ».';
+    seen.add(m.id);
+  }
+  for (const [i, x] of t.sessions.entries()) {
+    if (!x.date) return 'Session ' + (i + 1) + ' : choisis la date.';
+    if (!seen.has(x.moduleId)) return 'Session ' + (i + 1) + ' : choisis le module.';
+  }
+  return null;
+}
+/** 'Taille de la barbe' → 'taille-de-la-barbe', for a new module's anchor (/formations#…). */
+const slug = (t: string) => t.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 30).replace(/-+$/, '');
+
+/** A price typed as text ('45,50', '1 200'): the cents follow what reads as a price, the text is rewritten only on blur. */
+function PriceField({ id, value, onChange }: { id: string; value: number | null; onChange: (c: number | null) => void }) {
+  const show = (c: number | null) => (c == null ? '' : (c % 100 ? (c / 100).toFixed(2) : String(c / 100)).replace('.', ','));
+  const read = (t: string) => (t.trim() ? money.parseEur(t) : null);
+  const [raw, setRaw] = useState(() => show(value));
+  // a value set from outside (Annuler, saved, the defaults): the text follows
+  useEffect(() => { if (read(raw) !== value) setRaw(show(value)); }, [value]);
+  const c = read(raw);
+  const bad = !!raw.trim() && (c == null || c < 0);
+  return (
+    <Field label="Tarif (€)" htmlFor={id} error={bad ? 'Un prix comme 450 ou 45,50.' : null} hint={value == null ? 'Vide : « Sur devis ».' : 'Affiché : ' + eur(value) + '.'}>
+      <input id={id} className="input tnum" inputMode="decimal" value={raw} placeholder="Sur devis" aria-invalid={bad || undefined}
+        onChange={(e) => { const t = e.target.value; setRaw(t); const n = read(t); if (!t.trim()) onChange(null); else if (n != null && n >= 0) onChange(Math.min(1000000, n)); }}
+        onBlur={() => setRaw(show(value))} />
+    </Field>
+  );
+}
+
+function TrainingsEditor() {
+  const q = useQuery<TrainingsData>('/api/v1/trainings');
+  if (!q.data) return q.error ? <Note tone="err" icon="alert">{q.error.message}</Note> : <Skeleton h={420} r={22} />;
+  return <TrainingsForm data={q.data} />;
+}
+
+function TrainingsForm({ data }: { data: TrainingsData }) {
+  const { boot } = useApp();
+  const [f, setF] = useState<Trainings>(data.trainings);
+  const [busy, setBusy] = useState(false);
+  const saved = useRef(JSON.stringify(data.trainings));
+  useEffect(() => { const k = JSON.stringify(data.trainings); if (k !== saved.current) { if (same(f, JSON.parse(saved.current))) setF(data.trainings); saved.current = k; } }, [JSON.stringify(data.trainings)]);
+  const changed = !same(f, data.trainings);
+  const problem = checkTrainings(f);
+  // a module's code renamed: its sessions follow it
+  const setM = (i: number, m: Module) => setF((x) => {
+    const was = x.modules[i]?.id;
+    return { ...x, modules: x.modules.map((y, j) => (j === i ? m : y)), sessions: was && was !== m.id ? x.sessions.map((s) => (s.moduleId === was ? { ...s, moduleId: m.id } : s)) : x.sessions };
+  });
+  // a new module's code follows its title until it is typed by hand (the placeholder, or what the title gave); once saved,
+  // it is a public anchor (/formations#rasage, links already shared) and changes only when the code itself is edited
+  const savedIds = new Set(data.trainings.modules.map((m) => m.id));
+  const autoId = (m: Module) => !savedIds.has(m.id) && (/^module-\d+$/.test(m.id) || (!!m.title && m.id === slug(m.title)));
+  const setS = (i: number, v: Session) => setF((x) => ({ ...x, sessions: x.sessions.map((y, j) => (j === i ? v : y)) }));
+  const move = (i: number, d: -1 | 1) => { const j = i + d; if (j < 0 || j >= f.modules.length) return; const n = [...f.modules]; [n[i], n[j]] = [n[j], n[i]]; setF({ ...f, modules: n }); };
+  const removeModule = async (i: number) => {
+    const m = f.modules[i];
+    const n = f.sessions.filter((x) => x.moduleId === m.id).length;
+    if (!await confirm({ title: 'Retirer « ' + m.title + ' » ?', body: n ? 'Ses ' + plural(n, 'session') + ' partent avec lui.' : 'Il n’apparaîtra plus sur la page Formations.', ok: 'Retirer', danger: true })) return;
+    setF({ ...f, modules: f.modules.filter((_, j) => j !== i), sessions: f.sessions.filter((x) => x.moduleId !== m.id) });
+  };
+  const save = async () => {
+    if (problem) { toast({ kind: 'err', title: problem, icon: 'alert' }); return; }
+    setBusy(true);
+    const clean = { ...f, modules: f.modules.map((m) => ({ ...m, title: m.title.trim(), points: m.points.map((p) => p.trim()).filter(Boolean) })) };
+    try {
+      await api.patch('/api/v1/trainings', clean);
+      toast({ title: 'Page Formations mise à jour', sub: 'Les visiteurs la voient tout de suite.', icon: 'check' });
+      await load('/api/v1/trainings').catch(() => {});
+      const fresh = peek<TrainingsData>('/api/v1/trainings');
+      if (fresh) { saved.current = JSON.stringify(fresh.trainings); setF(fresh.trainings); }
+    } catch (e) { toastError(e); } finally { setBusy(false); }
+  };
+  const past = (d: string) => !!d && d < boot.today;
+  return (
+    <div className="si-body">
+      <div className="si-cols">
+        <section className="card col" style={{ gap: 14 }}>
+          <div className="card-h"><h2><Icon name="edit" size={16} />En haut de la page</h2>{f.intro !== data.defaults.intro ? <button type="button" className="link" onClick={() => setF({ ...f, intro: data.defaults.intro })}>Texte d’origine</button> : null}</div>
+          <Field label="Présentation" htmlFor="tr-in" hint={f.intro.length + ' / ' + data.limits.intro + ' · sous « On forme aussi les barbiers ».'}>
+            <textarea id="tr-in" className="input textarea" rows={6} maxLength={data.limits.intro} value={f.intro} onChange={(e) => setF({ ...f, intro: e.target.value })} />
+          </Field>
+        </section>
+        <section className="card col" style={{ gap: 14 }}>
+          <div className="card-h"><h2><Icon name="shield" size={16} />Agrément et financement</h2></div>
+          <Field label="Numéro de déclaration d’activité" htmlFor="tr-nda" hint="Donné par la préfecture (DREETS). La page ajoute la mention obligatoire « ne vaut pas agrément de l’État ».">
+            <input id="tr-nda" className="input tnum" maxLength={40} value={f.nda} placeholder="93 13 00000 13" onChange={(e) => setF({ ...f, nda: e.target.value })} />
+          </Field>
+          <Field label="Certification Qualiopi" htmlFor="tr-qu" hint="Le numéro du certificat ou l’organisme qui l’a délivré.">
+            <input id="tr-qu" className="input" maxLength={120} value={f.qualiopi} placeholder="Certificat n° … (organisme)" onChange={(e) => setF({ ...f, qualiopi: e.target.value })} />
+          </Field>
+          <Note tone={f.qualiopi.trim() ? 'ok' : ''} icon={f.qualiopi.trim() ? 'check' : 'info'}>{f.qualiopi.trim() ? 'La page dit que, selon le module, le stage peut être éligible au CPF (Compte Personnel de Formation) ou pris en charge par un OPCO. Pour le CPF, le module doit aussi mener à une certification RNCP ou RS inscrite sur Mon Compte Formation.' : 'Sans certificat Qualiopi, la page ne parle pas du CPF : il ne finance que les organismes certifiés.'}</Note>
+        </section>
+      </div>
+      <div className="col" style={{ gap: 14, marginTop: 14 }}>
+        {f.modules.map((m, i) => (
+          <section key={i} className="card col" style={{ gap: 12 }} aria-label={'Module ' + (i + 1)}>
+            <div className="card-h">
+              <h2><span className="si-num">{String(i + 1).padStart(2, '0')}</span>Module</h2>
+              <span className="row" style={{ gap: 2 }}>
+                <Button size="sm" variant="ghost" icon="chevL" className="si-up" aria-label="Monter" disabled={!i} onClick={() => move(i, -1)} />
+                <Button size="sm" variant="ghost" icon="chevL" className="si-down" aria-label="Descendre" disabled={i === f.modules.length - 1} onClick={() => move(i, 1)} />
+                <Button size="sm" variant="ghost" icon="trash" aria-label={'Retirer le module ' + (i + 1)} onClick={() => removeModule(i)} />
+              </span>
+            </div>
+            <Field label="Titre" htmlFor={'tr-t' + i}><input id={'tr-t' + i} className="input" maxLength={100} value={m.title} onChange={(e) => setM(i, { ...m, title: e.target.value, ...(autoId(m) ? { id: slug(e.target.value) || m.id } : {}) })} /></Field>
+            <Field label="Ce qu’on y apprend" htmlFor={'tr-p' + i} hint={'Une ligne par point, ' + data.limits.points + ' au plus.'}>
+              <textarea id={'tr-p' + i} className="input textarea" rows={Math.max(3, m.points.length)} value={m.points.join('\n')} onChange={(e) => setM(i, { ...m, points: e.target.value.split('\n').slice(0, data.limits.points) })} />
+            </Field>
+            <div className="grid2 stack">
+              <Field label="Durée" htmlFor={'tr-d' + i} hint="Vide : non affichée."><input id={'tr-d' + i} className="input" maxLength={60} value={m.duration} placeholder="2 jours · 14 h" onChange={(e) => setM(i, { ...m, duration: e.target.value })} /></Field>
+              <PriceField id={'tr-pr' + i} value={m.price} onChange={(price) => setM(i, { ...m, price })} />
+            </div>
+            <Field label="Code (l’ancre de la page)" htmlFor={'tr-id' + i} hint={'/formations#' + (m.id || '…') + (['barbe', 'classique', 'complexe'].includes(m.id) ? ' · les anciennes adresses du site mènent ici : garde ce code.' : '')} error={!MODULE_ID.test(m.id) ? 'Minuscules, chiffres et tirets.' : RESERVED_ID.test(m.id) ? 'Déjà pris par la page : choisis un autre code.' : null}>
+              <input id={'tr-id' + i} className="input" maxLength={30} value={m.id} onChange={(e) => setM(i, { ...m, id: e.target.value.toLowerCase() })} />
+            </Field>
+          </section>
+        ))}
+        <div className="row wrap" style={{ gap: 8 }}>
+          <Button variant="subtle" icon="plus" disabled={f.modules.length >= data.limits.modules} onClick={() => { let n = f.modules.length + 1; while (f.modules.some((m) => m.id === 'module-' + n)) n++; setF({ ...f, modules: [...f.modules, { id: 'module-' + n, title: '', points: [], duration: '', price: null }] }); }}>Ajouter un module</Button>
+          <span className="faint">{f.modules.length} / {data.limits.modules}</span>
+          {!same(f.modules, data.defaults.modules) ? <button type="button" className="link" onClick={async () => { if (await confirm({ title: 'Reprendre les modules d’origine ?', body: 'Les quatre modules de l’ancien site remplacent ceux de cette page.', ok: 'Reprendre' })) setF({ ...f, modules: data.defaults.modules, sessions: f.sessions.filter((x) => data.defaults.modules.some((m) => m.id === x.moduleId)) }); }}>Modules d’origine</button> : null}
+        </div>
+        <section className="card col" style={{ gap: 12 }}>
+          <div className="card-h"><h2><Icon name="calendar" size={16} />Prochaines sessions</h2><span className="faint">{f.sessions.length} / {data.limits.sessions}</span></div>
+          <p className="muted si-lead">Une date sous un module, avec les places qui restent. Une date passée disparaît de la page d’elle-même ; sans session, la page dit « sur demande ».</p>
+          {f.sessions.map((x, i) => (
+            <div key={i} className="col" style={{ gap: 4 }}>
+              <div className="row wrap" style={{ gap: 8, alignItems: 'flex-end' }}>
+                <Field label="Module" htmlFor={'tr-sm' + i}>
+                  <select id={'tr-sm' + i} className="input select" value={x.moduleId} onChange={(e) => setS(i, { ...x, moduleId: e.target.value })}>
+                    <option value="">Choisir…</option>
+                    {f.modules.map((m) => <option key={m.id} value={m.id}>{m.title || m.id}</option>)}
+                  </select>
+                </Field>
+                <Field label="Date" htmlFor={'tr-sd' + i}><input id={'tr-sd' + i} className="input" type="date" value={x.date} onChange={(e) => setS(i, { ...x, date: e.target.value })} /></Field>
+                <Field label="Places" htmlFor={'tr-ss' + i}><input id={'tr-ss' + i} className="input tnum" inputMode="numeric" style={{ width: 90 }} value={String(x.seats)} onChange={(e) => setS(i, { ...x, seats: Math.min(50, Number(e.target.value.replace(/\D/g, '')) || 0) })} /></Field>
+                <Button size="sm" variant="ghost" icon="trash" aria-label={'Retirer la session ' + (i + 1)} onClick={() => setF({ ...f, sessions: f.sessions.filter((_, j) => j !== i) })} />
+              </div>
+              {/* under the row, not under the date: a hint there would lift that one input above the others */}
+              {past(x.date) ? <small className="faint" style={{ fontSize: 12.5 }}>Date passée : cette session n’est plus affichée sur la page.</small> : null}
+            </div>
+          ))}
+          <div><Button variant="subtle" icon="plus" disabled={f.sessions.length >= data.limits.sessions || !f.modules.length} onClick={() => setF({ ...f, sessions: [...f.sessions, { moduleId: f.modules[0]?.id || '', date: '', seats: 4 }] })}>Ajouter une session</Button></div>
+        </section>
+        <Note icon="mail">Les demandes envoyées depuis la page arrivent dans <Link to="/relances/demandes" className="link">Relances › Demandes</Link> et par e-mail au gérant.</Note>
+      </div>
+      {changed ? (
+        <div className="si-save" role="region" aria-label="Enregistrer les formations">
+          <span className="grow">{problem || 'Formations : modifications non enregistrées'}</span>
+          <Button variant="ghost" onClick={() => setF(data.trainings)}>Annuler</Button>
+          <Button variant="primary" busy={busy} disabled={!!problem} onClick={save}>Enregistrer</Button>
+        </div>
+      ) : null}
+    </div>
+  );
+}

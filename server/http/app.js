@@ -15,6 +15,7 @@ import { importRoutes } from './routes-import.js';
 import { uploadRoutes, readCapped } from './routes-uploads.js';
 import { clientRoutes } from './routes-client.js';
 import { healthRoutes } from './routes-health.js';
+import { inquiryRoutes } from './routes-inquiries.js';
 
 // A REGISTRY: one line per route file
 const app = router();
@@ -26,6 +27,7 @@ importRoutes(app);
 uploadRoutes(app);
 clientRoutes(app);
 healthRoutes(app);
+inquiryRoutes(app);
 
 const MUTATING = new Set(['POST', 'PATCH', 'PUT', 'DELETE']);
 

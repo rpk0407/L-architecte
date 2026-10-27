@@ -13,6 +13,7 @@ import team from './team.js';
 import goals from './goals.js';
 import notify from './notify.js';
 import site from './site.js';
+import trainings from './trainings.js';
 
 // one entry per line, so sections added by different branches merge cleanly
 const TYPED = /** @type {const} */ ([
@@ -26,7 +27,8 @@ const TYPED = /** @type {const} */ ([
   team,
   goals,
   notify,
-  site
+  site,
+  trainings
 ]);
 export const SECTIONS = TYPED;
 

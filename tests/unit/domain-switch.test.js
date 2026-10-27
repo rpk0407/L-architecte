@@ -118,7 +118,7 @@ test('the postbuild helpers are idempotent', async () => {
 test('the sitemap lists the public pages', () => {
   const xml = readFileSync(join(ROOT, 'public', 'sitemap.xml'), 'utf8');
   const locs = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1].replace('https://barberlarchitecte.com', ''));
-  assert.deepEqual(locs, ['/', '/formations', '/carte-cadeau', '/mentions-legales', '/confidentialite', '/cgv']);
+  assert.deepEqual(locs, ['/', '/formations', '/contact', '/carte-cadeau', '/mentions-legales', '/confidentialite', '/cgv']);
 });
 
 test('the built sitemap only lists pages the build has', () => {

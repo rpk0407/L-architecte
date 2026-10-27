@@ -161,6 +161,8 @@ export function evolve(s, e) {
         const g = s.giftcards.get(k); if (g) { g.buyer = ''; g.recipient = ''; }
         const m = s.messages.get(k); if (m) { m.to = ''; m.body = ''; }
       }
+      // the extensions' own copies of personal data (a request from the site linked to the file)
+      for (const x of EXTENSIONS) if (Object.hasOwn(x.on, e.type)) x.on[e.type](s, e, d, p);
       break;
     }
 
