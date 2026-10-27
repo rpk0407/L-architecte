@@ -343,6 +343,8 @@ export function staffRoutes(app) {
       shop: s.settings.shop, hours: s.settings.hours, closures: s.settings.closures, booking: s.settings.booking, deposits: s.settings.deposits,
       // the month's goal is the owner's and the managers' (Objectifs): a barber gets none
       payments: s.settings.payments, team: s.settings.team, goals: r.caps.has('report.shop') ? s.settings.goals : {},
+      // FID-03: whether the till tells a ticket without a client that it earns no stamp (the rules are the owner's to read)
+      loyalty: { enabled: !!(s.settings.loyalty && s.settings.loyalty.enabled) },
       messages: { ...s.settings.messages, templates: r.caps.has('marketing') ? s.settings.messages.templates : {} }
     };
     return {

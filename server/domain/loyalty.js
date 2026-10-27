@@ -10,7 +10,7 @@
 // last one); a negative balance (a refund after the reward) is kept, and paid back by the next visits.
 import { fail } from '../core/engine.js';
 import { rootOf } from './membership.js';
-import { diffDays, dayParts, pad2, localParts } from '../../shared/dates.js';
+import { addDays, diffDays, dayParts, pad2, localParts } from '../../shared/dates.js';
 import { rewardValue, rewardWords, cardWords } from '../../shared/loyalty.js';
 import { fmtEur } from '../../shared/money.js';
 import loyaltySection from '../settings/loyalty.js';
@@ -339,6 +339,55 @@ export function receiptLoyalty(s, sale, day) {
   return { words: cardWords({ ...card, units: Math.max(0, card.units) }), next: rewardWords(cfgOf(s).reward, nameOf(s)) };
 }
 
+/* ---------------- the launch ---------------- */
+
+/**
+ * What launching gives with a head start, before anything is written: the stamps of each client with paid visits in the
+ * last 365 days (visits brought over from WordPress included, a visit that already earned a stamp not counted twice),
+ * capped by the head start. The command writes exactly this; the owner's confirmation shows its figures.
+ * @param {any} s @param {'none'|'half'|'full'} head @param {string} day @returns {{ cap: number, rows: { root: string, units: number }[] }}
+ */
+export function launchPlan(s, head, day) {
+  const cfg = cfgOf(s);
+  const cap = head === 'full' ? cfg.goal - 1 : head === 'half' ? Math.floor(cfg.goal / 2) : 0;
+  if (cap <= 0) return { cap: 0, rows: [] };
+  const since = addDays(day, -365);
+  /** @type {Map<string, Set<string>>} */
+  const visits = new Map();
+  const add = (cid, d) => { const k = rootOf(s, cid); if (!k) return; const v = visits.get(k); if (v) v.add(d); else visits.set(k, new Set([d])); };
+  for (const t of s.sales.values()) {
+    // a ticket refunded in full was no visit
+    if (!t.clientId || t.day < since || t.day > day || (t.loyalty && t.loyalty.units) || t.totals.revenue - (t.refunded || 0) <= 0) continue;
+    if (unitsFor(cfg, qualifyingNet(t.lines))) add(t.clientId, t.day);
+  }
+  for (const a of s.appts.values()) if (a.legacy && a.status === 'done' && !a.saleId && a.clientId && a.day >= since && a.day <= day) add(a.clientId, a.day);
+  const rows = [];
+  for (const [root, days] of visits) {
+    const c = s.clients.get(root);
+    if (!c || c.erased || c.loyaltyOff) continue;
+    // the stamps already on the card count: the head start never completes a card by itself
+    const units = Math.min(cap, days.size, Math.max(0, cfg.goal - 1 - cardOf(s, root, day).units));
+    if (units) rows.push({ root, units });
+  }
+  return { cap, rows };
+}
+
+/**
+ * Réglages › Fidélité's launch line: what a launch on this day would give with that head start, or what the launch gave
+ * (the day, the cards it opened).
+ * @param {any} s @param {'none'|'half'|'full'} head @param {string} day
+ */
+export function launchView(s, head, day) {
+  const done = L(s).launched;
+  if (done) {
+    let clients = 0, stamps = 0;
+    for (const list of L(s).entries.values()) for (const e of list) if (e.kind === 'earned' && e.reason === 'start') { clients++; stamps += e.units; }
+    return { launched: { day: done.day, headStart: done.headStart, clients, stamps }, plan: null };
+  }
+  const p = launchPlan(s, head, day);
+  return { launched: null, plan: { headStart: head, cap: p.cap, clients: p.rows.length, stamps: p.rows.reduce((t, x) => t + x.units, 0) } };
+}
+
 /* ---------------- what the programme costs and owes ---------------- */
 
 /**
@@ -377,8 +426,8 @@ export function liability(s, day) {
 
 /**
  * The period's tickets replayed under another programme (the owner's simulator), with the stamps carried over at launch
- * or from the old site: { clients (who earned), rewards, value (at today's prices), share (of the period's service
- * revenue), perClientYear (value a year per client who earned) }.
+ * or from the old site: { clients (who earned), winners (who won a reward), rewards, value (at today's prices), share (of
+ * the period's service revenue), perClientYear (value a year per client who earned) }.
  * @param {any} s @param {any} over a programme's settings over the salon's own @param {{ from: string, to: string }} q
  */
 export function simulate(s, over, q) {
@@ -433,7 +482,7 @@ export function simulate(s, over, q) {
     }
     const days = Math.max(1, diffDays(q.from, q.to) + 1);
     return {
-      clients: earners.size, rewards, value, share: serviceRevenue ? value / serviceRevenue : 0,
+      clients: earners.size, winners: new Set(won.map((w) => w.root)).size, rewards, value, share: serviceRevenue ? value / serviceRevenue : 0,
       perClientYear: earners.size ? Math.round(((value / earners.size) * 365) / days) : 0
     };
   });

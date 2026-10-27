@@ -25,6 +25,7 @@ import { teamMeRoutes } from './routes-team-me.js';
 import { membershipRoutes } from './routes-membership.js';
 import { loyaltyRoutes } from './routes-loyalty.js';
 import { meRoutes } from './routes-me.js';
+import { meLoyaltyRoutes } from './routes-me-loyalty.js';
 import { basculeRoutes } from './routes-bascule.js';
 
 // A REGISTRY: one line per route file
@@ -47,6 +48,7 @@ teamMeRoutes(app);
 membershipRoutes(app);
 loyaltyRoutes(app);
 meRoutes(app);
+meLoyaltyRoutes(app);
 basculeRoutes(app);
 
 const MUTATING = new Set(['POST', 'PATCH', 'PUT', 'DELETE']);

@@ -101,7 +101,8 @@ export function saleView(s, x, caps) {
     lines: x.lines.map((l) => ({ kind: l.kind, ref: l.ref, name: l.name, qty: l.qty, unit: l.unit, discount: l.discount || 0, net: l.net, staffId: l.staffId, vat: l.vat, packId: l.packId || null, memberId: l.memberId || null, reward: l.reward || null })),
     discount: x.discount && x.discountNote ? { ...x.discount, reason: x.discountNote } : x.discount, tip: x.tip, totals: x.totals, payments: x.payments.map((p) => ({ method: p.method, amount: p.amount, given: p.given, change: p.change, last4: p.last4 })),
     refunded: x.refunded, refunds: x.refundIds.map((id) => { const r = s.refunds.get(id); return r ? { id: r.id, ref: refundNo(r.number), amount: r.amount, method: r.method, reason: r.reason, at: r.at } : null; }).filter(Boolean),
-    note: x.note || '', demo: !!x.demo
+    // FID-03: the stamp this ticket earned (the till's done screen)
+    note: x.note || '', demo: !!x.demo, loyalty: x.loyalty ? { units: x.loyalty.units } : null
   };
 }
 
