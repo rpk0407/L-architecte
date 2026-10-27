@@ -1,13 +1,13 @@
 // @ts-check
 // AC-01 · The demo is public: what a visitor types there (a booking with his name and number, a space opened on it) is
 // erased two hours after his file was created through the site, so the next visitor never reads it and the showcase stays
-// as seeded. His bookings to come are cancelled first (their slots free again), a membership he took ends, then the file
-// is erased like any other (its account goes with it, projections/accounts.js). Demo salon only, at most PER_TICK files
-// a tick; the seeded files (created at the salon) are never touched.
+// as seeded. His bookings to come are cancelled first (their slots free again), a membership he took ends (running or still
+// to start), then the file is erased like any other (its account goes with it, projections/accounts.js). Demo salon only,
+// at most PER_TICK files a tick; the seeded files (created at the salon) are never touched.
 import { DEMO_PURGE_MS } from '../accounts.js';
 import { fileIds } from '../clients.js';
 import { endMember } from '../memberships.js';
-import { isLive, graceOf } from '../../domain/membership.js';
+import { statusOf, graceOf } from '../../domain/membership.js';
 
 export const PER_TICK = 20;
 const OPEN = new Set(['pending', 'booked', 'arrived', 'in_chair']);
@@ -50,7 +50,8 @@ export default {
           if (!set.has(a.clientId) || !OPEN.has(a.status) || done.has(a.id)) continue;
           ctx.emit('appt.cancelled', { id: a.id, by: 'salon', reason: 'Démo : réservation d’un visiteur effacée', cid: a.clientId });
         }
-        if (s.members) for (const m of s.members.values()) if (set.has(m.cid) && isLive(m, ctx.local.day, grace)) endMember.run(s, { id: m.id, reason: 'cancelled' }, ctx);
+        // running or still to start (a start in 14 days): none outlives the file it was taken on
+        if (s.members) for (const m of s.members.values()) if (set.has(m.cid) && statusOf(m, ctx.local.day, grace) !== 'ended') endMember.run(s, { id: m.id, reason: 'cancelled' }, ctx);
         for (const w of s.waitlist.values()) {
           if (!set.has(w.clientId) || (w.status !== 'waiting' && w.status !== 'offered')) continue;
           ctx.emit('waitlist.updated', { id: w.id, patch: { status: 'removed' } });

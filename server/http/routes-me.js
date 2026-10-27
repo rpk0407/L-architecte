@@ -155,6 +155,8 @@ export function meRoutes(app) {
     const fileGuard = failureGuard(key, 5, 10 * 60000, TOO_MANY);
     const res = await signingIn(r)(verifyCode, { ...input, code: b.code, ...(b.first != null ? { first: String(b.first).slice(0, 40) } : {}) });
     await answer;
+    // an attempt counts while it is checked (kit.js failureGuard): a right code or a question frees its place
+    if (res.ok || res.ask) { ipGuard.done(); fileGuard.done(); }
     if (res.ok) {
       // the demo's persona, however it signed in: its cookie stays the showcase's even if the persona changes since
       setClientCookie(r, { cid: res.cid, phone: rootFile(r.s, res.cid).phone, ...(res.persona && isDemo(r) ? { demo: true } : {}) });
@@ -165,7 +167,7 @@ export function meRoutes(app) {
     ipGuard.fail(); fileGuard.fail();
     // the 5th wrong code in this instance kills every live code of that file, everywhere
     let burst = false;
-    try { failureGuard(key, 5, 10 * 60000); } catch { burst = true; }
+    try { failureGuard(key, 5, 10 * 60000).done(); } catch { burst = true; }
     if (burst && root) later(signingIn(r)(burnCodes, { cid: root.id }));
     throw new HttpError(400, 'bad_code', BAD_CODE);
   });

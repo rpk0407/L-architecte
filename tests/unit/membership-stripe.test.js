@@ -849,7 +849,10 @@ test('the demo: a start in 14 days is confirmed on the test page, mailed, and it
   const clock = { now: instantOf('2026-11-24', 15 * 60) };
   const rt = await testRuntime({ clock: () => clock.now });
   const site = browser(rt);
-  const res = await site.post('/api/public/memberships', { planId: 'essentiel', first: 'Démo', phone: '06 00 00 12 36', email: 'demo+14@exemple.fr', startNow: false, cgv: '2026-10-27' });
+  // a client of the salon (a visitor's own file would be erased two hours later by the demo's purge, membership included)
+  const s0 = rt.engine.state;
+  const regular = [...s0.clients.values()].find((c) => !c.erased && !c.mergedInto && c.source !== 'site' && c.phone && ![...s0.members.values()].some((m) => m.cid === c.id));
+  const res = await site.post('/api/public/memberships', { planId: 'essentiel', first: regular.first, phone: regular.phone, email: 'demo+14@exemple.fr', startNow: false, cgv: '2026-10-27' });
   assert.equal(res.status, 201, JSON.stringify(res.json));
   const id = res.json.url.split('/paiement/')[1];
   const page = (await site.get('/api/public/payments/' + id)).json;
@@ -871,4 +874,20 @@ test('the demo: a start in 14 days is confirmed on the test page, mailed, and it
   assert.equal(statusIn(rt.engine.state, m, '2026-12-08'), 'active');
   assert.deepEqual(m.periods.map((p) => [p.start, p.end, p.invoice]), [['2026-12-08', '2027-01-08', 'sim_' + id + '_0']]);
   assert.equal(m.card, 'Visa •• 4242');
+});
+
+test('the demo: a visitor’s start in 14 days ends with his file, two hours later', async () => {
+  const clock = { now: instantOf('2026-11-24', 15 * 60) };
+  const rt = await testRuntime({ clock: () => clock.now });
+  const site = browser(rt);
+  const res = await site.post('/api/public/memberships', { planId: 'essentiel', first: 'Visiteur', phone: '06 00 00 12 37', email: 'demo+15@exemple.fr', startNow: false, cgv: '2026-10-27' });
+  assert.equal(res.status, 201, JSON.stringify(res.json));
+  const id = res.json.url.split('/paiement/')[1];
+  assert.equal((await site.post('/api/public/payments/' + id + '/simulate', { outcome: 'ok' })).json.status, 'scheduled');
+  const SYS = { actor: { t: 'system', id: 'scheduler' }, caps: new Set(), meta: { siteUrl: 'https://salon.test/' } };
+  clock.now = instantOf('2026-11-24', 17 * 60 + 30);
+  for (let i = 0; i < 5; i++) await rt.engine.run(tick, {}, SYS);
+  const m = rt.engine.state.members.get(id);
+  assert.equal(statusIn(rt.engine.state, m, '2026-12-08'), 'ended', 'nothing starts for an erased file');
+  assert.ok(rt.engine.state.clients.get(m.cid).erased);
 });

@@ -74,7 +74,6 @@ export const TEMPLATE_FLAGS = {
   memberLink: { requested: true },
   memberLinkMail: { requested: true },
   lookup: { requested: true },
-  lookup: { requested: true },
   // AC-01: the sign-in code (its fixed words live in domain/otp.js, not here) and the salon's invite to the space
   otp: { requested: true },
   accesInvite: { requested: true }
