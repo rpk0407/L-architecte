@@ -2,6 +2,7 @@
 // When can someone sit in a chair. Everything here is pure: state in, intervals out.
 // Intervals are [start, end) in minutes after local midnight.
 import { weekday, diffDays } from '../../shared/dates.js';
+import { payDeadline } from './policy.js';
 
 /** @typedef {import('../core/state.js').State} State */
 /** @typedef {[number, number]} Iv */
@@ -58,7 +59,7 @@ export function canDo(st, serviceIds) {
 /** Appointment that still occupies its time. */
 export function occupies(a, now, s) {
   if (a.status === 'cancelled' || a.status === 'no_show') return false;
-  if (a.status === 'pending') return a.createdAt + s.settings.booking.pendingPayMin * 60000 > now;
+  if (a.status === 'pending') return payDeadline(s, a) > now;
   return true;
 }
 

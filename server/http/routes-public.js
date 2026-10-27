@@ -3,7 +3,7 @@
 import { HttpError, guard, json } from './kit.js';
 import { serviceView, staffView } from './views.js';
 import { freeSlots, walkinEstimate, shopIntervals } from '../domain/availability.js';
-import { clientMayChange } from '../domain/policy.js';
+import { clientMayChange, payWindowMin, payDeadline } from '../domain/policy.js';
 import { signLink, checkLink } from '../auth/session.js';
 import { addDays, isDay, diffDays } from '../../shared/dates.js';
 import { newId } from '../lib/util.js';
@@ -13,7 +13,12 @@ import { ticketNo } from '../domain/cash.js';
 import { maybeTick } from './scheduler.js';
 import { waitUntil } from '@vercel/functions';
 
-const CLIENT = (r, n) => ({ actor: /** @type {const} */ ({ t: 'client', id: 'web', n: n || '' }), caps: new Set(), meta: r.meta });
+/** The demo, for real: both the configuration and the journal say so (a demo journal opened in production is not one). */
+export const isDemo = (r) => r.rt.cfg.mode === 'demo' && r.s.mode === 'demo';
+/** Can a client really pay online? The simulated provider only takes demo money. */
+export const payLive = (r) => r.rt.pay.name !== 'simulated' || isDemo(r);
+// the actor is chained and can never be erased: no name in it, ever (the client's details travel as pii)
+const CLIENT = (r) => ({ actor: /** @type {const} */ ({ t: 'client', id: 'web', n: '' }), caps: new Set(), meta: { ...r.meta, payLive: payLive(r), payProvider: r.rt.pay.name } });
 const PROVIDER = (r, id) => ({ actor: /** @type {const} */ ({ t: 'provider', id }), caps: new Set(), meta: r.meta });
 
 function isOpenNow(s, L) { return shopIntervals(s, L.day).some(([a, b]) => L.min >= a && L.min < b); }
@@ -47,9 +52,11 @@ function apptFromToken(r) {
  * @param {{ kind: string, amount: number, label: string, apptId: string|null, returnPath: string, email?: string }} o
  */
 export async function startPayment(r, { kind, amount, label, apptId, returnPath, email }) {
+  if (!payLive(r)) throw new HttpError(409, 'no_provider', 'Le paiement en ligne n’est pas branché (Stripe).');
   const id = newId('py');
   const origin = r.origin;
-  const co = await r.rt.pay.createCheckout({ id, amount, label, email, successUrl: origin + returnPath + (returnPath.includes('?') ? '&' : '?') + 'paiement=ok', cancelUrl: origin + returnPath + (returnPath.includes('?') ? '&' : '?') + 'paiement=annule' });
+  const payMin = kind === 'deposit' ? payWindowMin(r.s, { stripe: r.rt.pay.name === 'stripe' }) : undefined;
+  const co = await r.rt.pay.createCheckout({ id, amount, label, email, payMin, successUrl: origin + returnPath + (returnPath.includes('?') ? '&' : '?') + 'paiement=ok', cancelUrl: origin + returnPath + (returnPath.includes('?') ? '&' : '?') + 'paiement=annule' });
   await r.rt.engine.run(createPayment, { id, kind, amount, provider: r.rt.pay.name, providerRef: co.ref, url: co.url, apptId, exp: co.exp, label }, { actor: { t: 'system', id: 'payments' }, caps: new Set(['sale.create']), meta: r.meta });
   return { id, url: co.url };
 }
@@ -71,13 +78,16 @@ export function publicRoutes(app) {
   app.get('/api/public/salon', (r) => {
     const s = r.s;
     const L = r.local;
-    const services = [...s.services.values()].filter((x) => x.active && x.online !== false).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)).map(serviceView);
+    const live = payLive(r);
+    // no online payment: no deposit is asked, so the site must not announce one either
+    const services = [...s.services.values()].filter((x) => x.active && x.online !== false).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)).map((x) => (live ? serviceView(x) : { ...serviceView(x), deposit: 0 }));
     const barbers = [...s.staff.values()].filter((x) => x.active && x.chair && x.bookable).sort((a, b) => (a.order ?? 99) - (b.order ?? 99)).map((x) => staffView(x));
     const b = s.settings.booking;
     return json({
       shop: { ...s.settings.shop }, hours: s.settings.hours, closures: s.settings.closures.filter((c) => c.to >= L.day),
-      booking: { enabled: b.enabled, stepMin: b.stepMin, minNoticeMin: b.minNoticeMin, maxDaysAhead: b.maxDaysAhead, holdMin: b.holdMin, cancelUntilHours: b.cancelUntilHours, waitlist: b.waitlist, walkinWait: b.walkinWait },
-      deposits: s.settings.deposits, services, barbers, payments: { provider: r.rt.pay.name }, mode: s.mode, today: L.day, now: r.now
+      booking: { enabled: b.enabled, stepMin: b.stepMin, minNoticeMin: b.minNoticeMin, maxDaysAhead: b.maxDaysAhead, holdMin: b.holdMin, pendingPayMin: payWindowMin(s, { stripe: r.rt.pay.name === 'stripe' }), cancelUntilHours: b.cancelUntilHours, waitlist: b.waitlist, walkinWait: b.walkinWait },
+      // sms: does a text really leave? payments.live: is a deposit really taken online? (false: the site books without one)
+      deposits: live ? s.settings.deposits : { ...s.settings.deposits, mode: 'none' }, services, barbers, sms: !!r.rt.sms || isDemo(r), payments: { provider: r.rt.pay.name, live }, mode: s.mode, today: L.day, now: r.now
     }, 200, { 'cache-control': 'public, max-age=0, s-maxage=20, stale-while-revalidate=60' });
   });
 
@@ -123,7 +133,7 @@ export function publicRoutes(app) {
   app.post('/api/public/bookings', async (r) => {
     guard('book|' + r.ip, 6, 60000, 'Trop de réservations d’un coup. Patiente une minute.');
     guard('bookh|' + r.ip, 30, 3600000, 'Trop de réservations depuis cet appareil. Appelle le salon.');
-    const res = await r.rt.engine.run(A.bookOnline, { ...r.body, demo: undefined }, CLIENT(r, r.body && r.body.first));
+    const res = await r.rt.engine.run(A.bookOnline, { ...r.body, demo: undefined }, CLIENT(r));
     const token = signLink(r.rt.secret, 'appt', res.code);
     let payment = null;
     if (res.status === 'pending' && res.deposit > 0) {
@@ -156,6 +166,8 @@ export function publicRoutes(app) {
     if (a.status !== 'pending' || !a.deposit) throw new HttpError(409, 'nothing', 'Rien à régler pour ce rendez-vous.');
     const open = [...r.s.payments.values()].find((p) => p.apptId === a.id && p.kind === 'deposit' && p.status === 'pending' && p.exp > r.now + 120000);
     if (open) return { url: open.url };
+    // a new checkout page would outlive the booking's hold: the client would pay for a slot already given back
+    if (payDeadline(r.s, a) - r.now < 120000) throw new HttpError(409, 'late', 'Le délai pour régler l’acompte est dépassé. Réserve un autre créneau.');
     const p = await startPayment(r, { kind: 'deposit', amount: a.deposit.amount, label: 'Acompte · ' + a.services.map((x) => x.name).join(' + '), apptId: a.id, returnPath: '/r/' + r.params.token });
     return { url: p.url };
   });
@@ -181,7 +193,8 @@ export function publicRoutes(app) {
 
   app.post('/api/public/payments/:id/simulate', async (r) => {
     guard('sim|' + r.ip, 20, 60000);
-    if (r.rt.pay.name !== 'simulated') throw new HttpError(404, 'not_found', 'Indisponible.');
+    // the test checkout only exists in the demo: in production it would confirm deposits nobody paid
+    if (r.rt.pay.name !== 'simulated' || !isDemo(r)) throw new HttpError(404, 'not_found', 'Indisponible.');
     const p = r.s.payments.get(r.params.id);
     if (!p || p.status !== 'pending') throw new HttpError(409, 'closed', 'Ce paiement n’est plus en attente.');
     if (r.body && r.body.outcome === 'cancel') { await r.rt.engine.run(paymentEnded, { id: p.id, status: 'failed', reason: 'Annulé par le client' }, PROVIDER(r, 'simulated')); }

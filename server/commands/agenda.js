@@ -5,7 +5,7 @@ import { fail } from '../core/engine.js';
 import { str, int, bool, opt, obj, arr, day, id, oneOf, parse } from '../lib/validate.js';
 import { freeSlots, isFree, staffIntervals, canDo, busyIntervals, intersect, subtract } from '../domain/availability.js';
 import { normPhone, capFirst } from '../lib/util.js';
-import { depositFor, clientMayChange } from '../domain/policy.js';
+import { depositFor, clientMayChange, payWindowMin } from '../domain/policy.js';
 import { queueMessage, apptVars } from '../domain/messages.js';
 import { getStaff, getAppt, getClient, snapshotServices, totalDur, totalPrice, needChair } from './common.js';
 import { upsertClient } from './clients.js';
@@ -91,13 +91,14 @@ export const bookOnline = {
       if (b.email && !existing.email) ctx.emit('client.updated', { id: existing.id, cid: existing.id, patch: {}, fields: ['email'] }, { email: b.email });
     }
     const price = totalPrice(services);
-    const deposit = depositFor(s, services);
+    // ctx.meta.payLive: the API says whether a deposit can really be paid online (false: production without Stripe)
+    const deposit = depositFor(s, services, { payLive: ctx.meta.payLive !== false });
     const aid = ctx.id('ap');
     const code = uniqueCode(s, ctx);
     const a = {
       id: aid, code, clientId: client.id, staffId, anyStaff: b.staffId === 'any', day: b.day, start: b.start, dur,
       services, price, source: 'site', status: deposit > 0 ? 'pending' : 'booked', sms: b.sms !== false,
-      deposit: deposit > 0 ? { amount: deposit, paid: 0, paymentId: null } : null, holdId: hold ? hold.id : null, cid: client.id,
+      deposit: deposit > 0 ? { amount: deposit, paid: 0, paymentId: null, until: ctx.now + payWindowMin(s, { stripe: ctx.meta.payProvider === 'stripe' }) * 60000 } : null, holdId: hold ? hold.id : null, cid: client.id,
       ...(b.demo && ctx.meta.demoSim === true ? { demo: true } : {})
     };
     ctx.emit('appt.booked', a, b.note ? { note: b.note } : undefined);
@@ -260,7 +261,9 @@ export const cancelByClient = {
     const a = getAppt(s, input.id);
     if (!['booked', 'pending'].includes(a.status)) fail(409, 'closed', 'Ce rendez-vous est déjà clos.');
     if (a.status === 'booked' && !clientMayChange(s, a, ctx.now)) fail(409, 'too_late', 'Il est trop tard pour annuler en ligne. Appelle le salon.', { phone: s.settings.shop.phone });
-    ctx.emit('appt.cancelled', { id: a.id, by: 'client', reason: input.reason ? String(input.reason).slice(0, 120) : '', cid: a.clientId || undefined });
+    // the client's own words are personal data: next to the event, erased with the client
+    const reason = input.reason ? String(input.reason).slice(0, 120) : '';
+    ctx.emit('appt.cancelled', { id: a.id, by: 'client', cid: a.clientId || undefined }, reason ? { reason } : undefined);
     return { ok: true, deposit: a.deposit && a.deposit.paid ? a.deposit : null };
   }
 };

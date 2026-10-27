@@ -76,6 +76,13 @@ export function SlotPicker({ serviceIds, staffId, day, value, onPick, ignore, ho
 
 type ApptDetail = { appt: Appt; client: ClientFull | null; history: { id: string; day: string; services: string[]; staff: string; status: string; price: number }[]; messages: { id: string; template: string; status: string; at: number; sentAt: number | null }[]; payments: { id: string; kind: string; amount: number; status: string }[]; sale: any };
 const TPL: Record<string, string> = { confirmation: 'Confirmation', reminder: 'Rappel la veille', reminder2h: 'Rappel 2 h avant', review: 'Demande d’avis', cancelled: 'Annulation', receipt: 'Reçu' };
+/** A text's fate in a few words. Outside the demo nothing is simulated: without a provider a text waits for one. */
+function smsState(status: string, demo: boolean, provider: string | null): string {
+  if (status === 'failed') return 'échec · ';
+  if (demo) return status === 'simulated' ? 'simulé (démo) · ' : '';
+  if (status === 'queued' && !provider) return 'en attente d’un fournisseur SMS · ';
+  return status === 'expired' ? 'trop tard · ' : status === 'simulated' ? 'jamais parti · ' : '';
+}
 
 export function ApptSheet({ id, onClose }: { id: string | null; onClose: () => void }) {
   const app = useApp();
@@ -174,7 +181,7 @@ export function ApptSheet({ id, onClose }: { id: string | null; onClose: () => v
           {data && data.messages.length ? (
             <div className="card card-tight">
               <div className="card-h"><h3>Messages automatiques</h3></div>
-              <ul className="msgs">{data.messages.map((m) => <li key={m.id}><i className={m.status === 'sent' || m.status === 'simulated' ? 'ok' : ''}>{m.status === 'sent' || m.status === 'simulated' ? <Icon name="check" /> : null}</i><span className="grow">{TPL[m.template] || m.template}</span><small className="faint">{m.status === 'simulated' ? 'simulé (démo) · ' : m.status === 'failed' ? 'échec · ' : ''}{ago(m.sentAt || m.at)}</small></li>)}</ul>
+              <ul className="msgs">{data.messages.map((m) => { const ok = m.status === 'sent' || (m.status === 'simulated' && boot.mode === 'demo'); return <li key={m.id}><i className={ok ? 'ok' : ''}>{ok ? <Icon name="check" /> : null}</i><span className="grow" style={{ flex: '1 0 auto' }}>{TPL[m.template] || m.template}</span><small className="faint" style={{ textAlign: 'right' }}>{smsState(m.status, boot.mode === 'demo', boot.providers.sms)}<span style={{ whiteSpace: 'nowrap' }}>{ago(m.status === 'expired' ? m.at : m.sentAt || m.at)}</span></small></li>; })}</ul>
             </div>
           ) : null}
           {['booked', 'pending', 'arrived', 'in_chair'].includes(a.status) ? (

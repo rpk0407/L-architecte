@@ -135,7 +135,7 @@ export function evolve(s, e) {
         if (c.phone && ids.has(s.clientByPhone.get(c.phone))) s.clientByPhone.delete(c.phone);
         Object.assign(c, { first: 'Client', last: 'effacé', phone: '', email: '', notes: '', tech: '', birthday: '', erased: true, sms: false, marketing: false });
       }
-      for (const a of s.appts.values()) if (ids.has(a.clientId)) a.note = '';
+      for (const a of s.appts.values()) if (ids.has(a.clientId)) { a.note = ''; if (a.cancel && a.cancel.by === 'client') a.cancel.reason = ''; }
       for (const m of s.messages.values()) if (ids.has(m.cid)) { m.to = ''; m.body = ''; }
       for (const w of s.waitlist.values()) if (ids.has(w.clientId)) { w.first = ''; w.phone = ''; }
       for (const q of s.queue.values()) if (ids.has(q.clientId)) { q.name = 'Client effacé'; q.phone = ''; }
@@ -189,7 +189,7 @@ export function evolve(s, e) {
       const a = s.appts.get(d.id);
       if (!a) break;
       a.status = 'cancelled';
-      a.cancel = { by: d.by, reason: d.reason || '', at: e.at, late: !!d.late, actor: e.actor.id };
+      a.cancel = { by: d.by, reason: d.reason || p.reason || '', at: e.at, late: !!d.late, actor: e.actor.id };
       break;
     }
 

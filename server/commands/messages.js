@@ -18,7 +18,7 @@ export const messageResult = {
   run(s, input, ctx) {
     const m = s.messages.get(input.id);
     if (!m) return { ok: false };
-    const status = ['sent', 'failed', 'simulated', 'skipped', 'queued'].includes(input.status) ? input.status : 'failed';
+    const status = ['sent', 'failed', 'simulated', 'skipped', 'queued', 'expired'].includes(input.status) ? input.status : 'failed';
     ctx.emit('message.updated', { id: m.id, patch: { status, sentAt: ctx.now, providerRef: input.providerRef || null, error: String(input.error || '').slice(0, 160), tries: (m.tries || 0) + 1 } });
     return { ok: true };
   }

@@ -5,6 +5,7 @@
 import { addDays, instantOf } from '../../shared/dates.js';
 import { freeSlots } from '../domain/availability.js';
 import { queueMessage, apptVars, whenWords } from '../domain/messages.js';
+import { payDeadline } from '../domain/policy.js';
 
 const OFFER_MIN = 30;
 
@@ -19,7 +20,7 @@ export const tick = {
     for (const a of s.appts.values()) {
       if (n >= cap) break;
       // 1. a booking waiting for its deposit frees the slot when the time is up
-      if (a.status === 'pending' && a.createdAt + s.settings.booking.pendingPayMin * 60000 < ctx.now) {
+      if (a.status === 'pending' && payDeadline(s, a) < ctx.now) {
         ctx.emit('appt.cancelled', { id: a.id, by: 'system', reason: 'Acompte non réglé', cid: a.clientId || undefined }); n++; continue;
       }
       if (a.demo && !input.demoMessages) continue;

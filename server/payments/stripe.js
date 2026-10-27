@@ -3,6 +3,7 @@
 // Card data never touches this server: clients pay on Stripe Checkout (Apple Pay, Google Pay, cards),
 // which keeps the salon in the lightest PCI scope (SAQ A).
 import { createHmac, timingSafeEqual } from 'node:crypto';
+import { STRIPE_PAY_MIN } from '../domain/policy.js';
 
 const API = 'https://api.stripe.com/v1';
 
@@ -58,12 +59,14 @@ export function stripeProvider({ secretKey, webhookSecret, fetchImpl = fetch }) 
   }
   return {
     name: 'stripe',
-    live: String(secretKey).startsWith('sk_live_'),
+    live: /^(sk|rk)_live_/.test(String(secretKey)),
     /**
-     * @param {{ id: string, amount: number, label: string, successUrl: string, cancelUrl: string, email?: string, mode?: 'payment'|'setup', metadata?: Record<string,string> }} o
+     * @param {{ id: string, amount: number, label: string, successUrl: string, cancelUrl: string, email?: string, mode?: 'payment'|'setup', metadata?: Record<string,string>, payMin?: number }} o
+     * payMin: how long the booking waits for this payment. The page outlives it by a minute, so a client
+     * still on it is never cut off; Stripe takes 30 minutes to 24 hours.
      */
     async createCheckout(o) {
-      const expires = Math.floor(Date.now() / 1000) + 31 * 60;
+      const expires = Math.floor(Date.now() / 1000) + Math.min(24 * 60 - 1, Math.max(STRIPE_PAY_MIN, (o.payMin || 0) + 1)) * 60;
       const common = { success_url: o.successUrl, cancel_url: o.cancelUrl, client_reference_id: o.id, metadata: { lx: o.id, ...(o.metadata || {}) }, expires_at: expires, locale: 'fr', customer_email: o.email || undefined };
       const params = o.mode === 'setup'
         ? { ...common, mode: 'setup', currency: 'eur', customer_creation: 'always', setup_intent_data: { metadata: { lx: o.id } } }

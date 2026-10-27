@@ -27,7 +27,8 @@ export function readConfig(env = process.env) {
     sms: env.SMS_PROVIDER === 'brevo' && env.BREVO_API_KEY ? { kind: 'brevo', apiKey: env.BREVO_API_KEY, sender: env.SMS_SENDER || 'LArchitecte' }
       : env.SMS_PROVIDER === 'twilio' && env.TWILIO_ACCOUNT_SID ? { kind: 'twilio', sid: env.TWILIO_ACCOUNT_SID, token: env.TWILIO_AUTH_TOKEN || '', from: env.TWILIO_FROM || '' }
         : null,
-    secureCookies: env.LX_INSECURE_COOKIES !== '1',
+    // plain-http cookies are for local tests only: a production deployment on Vercel ignores the switch
+    secureCookies: env.LX_INSECURE_COOKIES !== '1' || (!!env.VERCEL && mode === 'production'),
     isVercel: !!env.VERCEL
   };
 }
@@ -57,8 +58,15 @@ export function resetRuntime() { current = null; booting = null; }
 /** A fresh, independent runtime (tests). */
 export function createRuntime(opt = {}) { return boot(opt); }
 
+/** A configuration the salon must not run with: every /api route answers with it, until it is fixed. */
+function configError(what) {
+  return Object.assign(new Error('Configuration incomplète : ' + what), { status: 503, code: 'config', expose: true });
+}
+
 async function boot(opt) {
   const cfg = readConfig(opt.env || process.env);
+  // a generated key would be stored next to the data and sign every session and client link: refuse instead
+  if (cfg.mode === 'production' && !cfg.sessionSecret) { console.error('[lx] SESSION_SECRET is not set: refusing to start'); throw configError('SESSION_SECRET'); }
   // local testing only: pretend it is another moment (e.g. a Tuesday afternoon). Never in production.
   const fake = (opt.env || process.env).LX_FAKE_NOW;
   if (fake && cfg.mode !== 'production' && !opt.clock) { const offset = Date.parse(fake) - Date.now(); if (Number.isFinite(offset)) opt = { ...opt, clock: () => Date.now() + offset }; }
@@ -73,12 +81,16 @@ async function boot(opt) {
   const warnings = [];
   if (!cfg.sessionSecret) warnings.push('SESSION_SECRET n’est pas défini : une clé a été générée et stockée avec les données.');
   if (!cfg.db && !cfg.blob && !cfg.dataFile && cfg.isVercel) warnings.push('Aucun stockage durable : les données disparaissent au redémarrage du serveur.');
-  if (cfg.mode === 'production' && !cfg.stripe) warnings.push('Stripe n’est pas connecté : les paiements en ligne sont simulés.');
+  if (cfg.mode === 'production' && !cfg.stripe) warnings.push('Stripe n’est pas connecté : aucun acompte n’est demandé en ligne et le QR code est coupé.');
+  if (cfg.stripe && !cfg.stripe.webhookSecret) warnings.push('Clé Stripe présente mais STRIPE_WEBHOOK_SECRET manquant : paiements simulés');
+  if (cfg.mode === 'production' && cfg.stripe && /^(sk|rk)_test_/.test(cfg.stripe.secretKey)) warnings.push('Stripe en mode test : aucun vrai paiement');
   if (cfg.mode === 'production' && !cfg.sms) warnings.push('Aucun fournisseur SMS : les messages restent dans la boîte d’envoi.');
   // in demo, refuse live Stripe keys: a demo must never charge anyone
-  const stripeOk = cfg.stripe && cfg.stripe.webhookSecret && !(cfg.mode === 'demo' && cfg.stripe.secretKey.startsWith('sk_live_'));
+  const stripeOk = cfg.stripe && cfg.stripe.webhookSecret && !(cfg.mode === 'demo' && /^(sk|rk)_live_/.test(cfg.stripe.secretKey));
   const rt = {
-    cfg, store, engine, secret, warnings,
+    cfg, store, engine, secret,
+    // read on every request: the setup token outlives the setup until someone removes it
+    get warnings() { return engine.state.version > 0 && cfg.setupToken ? [...warnings, 'SETUP_TOKEN est toujours défini : supprime-le puis redéploie'] : warnings; },
     origin: cfg.publicUrl,
     pay: null,
     sms: cfg.mode === 'demo' || !cfg.sms ? null : cfg.sms.kind === 'brevo' ? brevoSms(/** @type {any} */ (cfg.sms)) : twilioSms(/** @type {any} */ (cfg.sms)),

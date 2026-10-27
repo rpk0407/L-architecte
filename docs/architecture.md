@@ -25,7 +25,7 @@ Personal data (names, phone numbers, notes) travel next to the event in a `pii` 
 
 - **Optimistic concurrency**: the engine appends at the version it read. If another server wrote first (two phones booking the same chair at the same second), the store refuses, the engine re-reads, re-runs the command against the new state, and only one booking wins. Tested in `tests/unit/agenda.test.js`.
 - **Idempotency**: every write from the Comptoir carries an `x-request-id`. A request retried after a network drop returns the first result instead of charging twice. The till keeps one id per ticket.
-- **Holds**: a slot being filled in on the site is held for 5 minutes (`appt.held`), so the client doesn't lose it while typing. A pending deposit holds its slot for 15 minutes; after that the slot is free again even before the scheduler runs (`occupies`).
+- **Holds**: a slot being filled in on the site is held for 5 minutes (`appt.held`), so the client doesn't lose it while typing. A pending deposit holds its slot until `deposit.until`, set at booking from the salon's setting (raised to at least 31 minutes with Stripe, whose checkout page lives that long); after that the slot is free again even before the scheduler runs (`occupies`), and a payment that arrives later is only kept if the slot is still free (otherwise it is refunded).
 
 ## Stores
 

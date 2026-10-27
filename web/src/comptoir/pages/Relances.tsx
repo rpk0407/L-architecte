@@ -17,7 +17,13 @@ type WaitItem = { id: string; first: string; phone: string; day: string; staffId
 type Msg = { id: string; template: string; status: string; at: number; sentAt: number | null; to: string; body: string; error: string };
 
 const LABEL: Record<string, string> = { confirmation: 'Confirmation', reminder: 'Rappel la veille', reminder2h: 'Rappel 2 h avant', review: 'Demande d’avis', rebook: 'Relance', waitlist: 'Place libérée', queue: 'File d’attente', cancelled: 'Annulation', receipt: 'Reçu', moved: 'Déplacement', deposit: 'Lien d’acompte' };
-const STATUS: Record<string, [string, string]> = { sent: ['envoyé', 'badge-ok'], simulated: ['simulé', 'badge-info'], failed: ['échec', 'badge-danger'], skipped: ['non envoyé', 'badge-warn'], claimed: ['en cours', ''], queued: ['en file', ''] };
+const STATUS: Record<string, [string, string]> = { sent: ['envoyé', 'badge-ok'], simulated: ['simulé (démo)', 'badge-info'], failed: ['échec', 'badge-danger'], skipped: ['non envoyé', 'badge-warn'], expired: ['trop tard', 'badge-warn'], claimed: ['en cours', ''], queued: ['en file', ''] };
+/** Outside the demo nothing is simulated: without a provider a text waits for one (and an old 'simulé' never left). */
+function msgStatus(status: string, demo: boolean, provider: string | null): [string, string] {
+  if (!demo && status === 'queued' && !provider) return ['en attente d’un fournisseur SMS', 'badge-warn'];
+  if (!demo && status === 'simulated') return ['jamais parti', 'badge-warn'];
+  return STATUS[status] || [status, ''];
+}
 
 export default function Relances() {
   const { pulse, can } = useApp();
@@ -155,7 +161,7 @@ function Automations() {
     <section className="card">
       <div className="card-h"><h2><Icon name="bolt" size={16} />Messages automatiques</h2>{can('settings') ? <Link to="/reglages/messages" className="link">Régler</Link> : null}</div>
       <ul className="list">{rows.map(([on, t, s]) => <li key={t} className="li" style={{ minHeight: 0, padding: '10px 2px' }}><span className={'dot ' + (on ? 'on' : '')} aria-hidden /><span className="li-main"><b>{t}</b><small>{s}</small></span><span className={'badge ' + (on ? 'badge-ok' : '')}>{on ? 'actif' : 'coupé'}</span></li>)}</ul>
-      {boot.mode === 'demo' ? <p className="faint" style={{ fontSize: 12.5, marginTop: 8 }}>Démo : les SMS sont simulés, rien ne part vraiment.</p> : !boot.providers.sms ? <Note tone="warn" icon="alert">Aucun fournisseur SMS n’est branché : les messages restent en file. Voir Réglages › Messages.</Note> : null}
+      {boot.mode === 'demo' ? <p className="faint" style={{ fontSize: 12.5, marginTop: 8 }}>Démo : les SMS sont simulés, rien ne part vraiment.</p> : !boot.providers.sms ? <Note tone="warn" icon="alert">Aucun fournisseur SMS n’est branché : les messages attendent dans la boîte d’envoi. Une fois branché, ceux de plus de 6 h ou dont le rendez-vous est passé ne partiront pas.</Note> : null}
     </section>
   );
 }
@@ -226,17 +232,19 @@ function Sent() {
       {!data.items.length ? <Empty icon="sms" title="Aucun message pour l’instant" /> : (
         <div className="table-wrap">
           <table className="table rl-table">
-            <thead><tr><th>Quand</th><th>Message</th><th>À</th>{can('settings') ? <th className="hide-phone">Texte</th> : null}<th>État</th></tr></thead>
+            <thead><tr><th className="hide-phone">Quand</th><th>Message</th><th className="hide-phone">À</th>{can('settings') ? <th className="hide-phone">Texte</th> : null}<th>État</th></tr></thead>
             <tbody>{data.items.map((m) => {
-              const [label, tone] = STATUS[m.status] || [m.status, ''];
+              const [label, tone] = msgStatus(m.status, data.mode === 'demo', data.provider);
               const day = dates.localParts(m.at).day;
               return (
                 <tr key={m.id}>
-                  <td className="tnum" style={{ whiteSpace: 'nowrap' }}>{dates.dayShort(day)} · {clock(m.at)}</td>
-                  <td>{LABEL[m.template] || m.template}</td>
-                  <td className="tnum" style={{ whiteSpace: 'nowrap' }}>{m.to}</td>
+                  <td className="tnum hide-phone" style={{ whiteSpace: 'nowrap' }}>{dates.dayShort(day)} · {clock(m.at)}</td>
+                  {/* on a phone, when and to whom fold under the message so the state stays in view */}
+                  <td>{LABEL[m.template] || m.template}<small className="rl-meta tnum">{dates.dayShort(day)} · {clock(m.at)} · {m.to}</small></td>
+                  <td className="tnum hide-phone" style={{ whiteSpace: 'nowrap' }}>{m.to}</td>
                   {can('settings') ? <td className="hide-phone rl-body" title={m.body}>{m.body}</td> : null}
-                  <td><span className={'badge ' + tone} title={m.error || undefined}>{label}</span></td>
+                  {/* why it did not leave, in words: a tooltip never shows on a phone */}
+                  <td><span className={'badge ' + tone}>{label}</span>{m.error && ['expired', 'failed', 'skipped'].includes(m.status) ? <small className="rl-why">{m.status === 'expired' ? cap(m.error.replace(/^Trop tard : /, '')) : m.error}</small> : null}</td>
                 </tr>
               );
             })}</tbody>

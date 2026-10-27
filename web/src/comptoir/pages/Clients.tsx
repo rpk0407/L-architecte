@@ -243,7 +243,7 @@ function ClientFile({ id }: { id: string }) {
             ))}</ul>
           ) : data.messages.length ? (
             <ul className="list">{data.messages.map((m) => (
-              <li key={m.id} className="li"><Icon name="sms" size={18} /><span className="li-main"><b>{MSG[m.template] || m.template}</b><small>{cap(dates.dayShort(dates.localParts(m.at).day))} · {time(dates.localParts(m.at).min)}</small></span><span className={'badge ' + (m.status === 'sent' ? 'badge-ok' : m.status === 'failed' ? 'badge-danger' : '')}>{({ sent: 'envoyé', failed: 'échec', simulated: 'simulé (démo)', skipped: 'non envoyé', claimed: 'en cours' } as Record<string, string>)[m.status] || 'en file'}</span></li>
+              <li key={m.id} className="li"><Icon name="sms" size={18} /><span className="li-main"><b>{MSG[m.template] || m.template}</b><small>{cap(dates.dayShort(dates.localParts(m.at).day))} · {time(dates.localParts(m.at).min)}</small></span><span className={'badge ' + (m.status === 'sent' ? 'badge-ok' : m.status === 'failed' ? 'badge-danger' : '')}>{({ sent: 'envoyé', failed: 'échec', simulated: boot.mode === 'demo' ? 'simulé (démo)' : 'jamais parti', skipped: 'non envoyé', expired: 'trop tard', claimed: 'en cours' } as Record<string, string>)[m.status] || 'en file'}</span></li>
             ))}</ul>
           ) : <Empty icon="sms" title="Aucun SMS">{c.sms ? 'Confirmations, rappels et relances apparaîtront ici.' : 'Il a refusé les SMS.'}</Empty>}
         </div>

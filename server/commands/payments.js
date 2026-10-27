@@ -4,6 +4,8 @@
 import { fail } from '../core/engine.js';
 import { getAppt, getClient } from './common.js';
 import { queueMessage, apptVars } from '../domain/messages.js';
+import { payDeadline } from '../domain/policy.js';
+import { busyIntervals } from '../domain/availability.js';
 
 const KINDS = new Set(['deposit', 'qr', 'guarantee']);
 
@@ -32,6 +34,11 @@ export const paymentSucceeded = {
     ctx.emit('payment.succeeded', { id: py.id, pm: input.pm || null, customer: input.customer || null, chargeRef: input.chargeRef || null });
     if (py.apptId && (py.kind === 'deposit' || py.kind === 'guarantee')) {
       const a = getAppt(s, py.apptId);
+      // paid after its deadline (the tick has not run yet): the slot may already belong to someone else
+      if (a.status === 'pending' && payDeadline(s, a) < ctx.now && busyIntervals(s, a.staffId, a.day, { now: ctx.now, ignoreAppt: a.id }).some(([x, y]) => x < a.start + a.dur && a.start < y)) {
+        ctx.emit('appt.cancelled', { id: a.id, by: 'system', reason: 'Acompte réglé trop tard', cid: a.clientId || undefined });
+        return { ok: true, late: true };
+      }
       if (a.status === 'pending') {
         ctx.emit('appt.confirmed', { id: a.id, cid: a.clientId || undefined });
         const c = a.clientId ? getClient(s, a.clientId) : null;

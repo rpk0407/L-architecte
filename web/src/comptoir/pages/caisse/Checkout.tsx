@@ -21,6 +21,8 @@ const METHOD_ICON: Record<string, string> = { card: 'card', cash: 'cash', online
 export function Checkout({ apptId, drawerOpen, onClose }: { apptId: string | null; drawerOpen: boolean; onClose: () => void }) {
   const { boot, staffById, serviceById, can } = useApp();
   const S = boot.settings.payments;
+  // the test checkout takes no real money: outside the demo, a QR needs Stripe (the server refuses it too)
+  const qrOff = boot.mode !== 'demo' && boot.providers.payments === 'simulated';
   const isBoss = ['owner', 'manager'].includes(boot.me.role);
   const detail = useQuery<{ appt: Appt; client: ClientFull | null; payments: { id: string; kind: string; amount: number; status: string }[] }>(apptId ? '/api/v1/appointments/' + apptId : null);
   const [client, setClient] = useState<ClientCard | null>(null);
@@ -170,7 +172,7 @@ export function Checkout({ apptId, drawerOpen, onClose }: { apptId: string | nul
           <div className="methods">
             <button type="button" className="method" disabled={!S.card} onClick={() => addPay({ method: 'card', amount: left, label: 'Carte · terminal' })}><Icon name="card" /><span><b>Carte</b><small>Terminal de paiement</small></span></button>
             <button type="button" className="method" disabled={!S.cash} onClick={() => setModal('cash')}><Icon name="cash" /><span><b>Espèces</b><small>{drawerOpen ? 'Calcule la monnaie' : 'Caisse fermée'}</small></span></button>
-            <button type="button" className="method" disabled={!S.qr} onClick={() => setModal('qr')}><Icon name="qr" /><span><b>QR code</b><small>Apple Pay, carte</small></span></button>
+            <button type="button" className="method" disabled={!S.qr || qrOff} onClick={() => setModal('qr')}><Icon name="qr" /><span><b>QR code</b><small>{qrOff ? 'Branche Stripe pour le QR' : 'Apple Pay, carte'}</small></span></button>
             <button type="button" className="method" disabled={!S.giftcard || lines.some((l) => l.kind === 'giftcard')} onClick={() => setModal('gift')}><Icon name="gift" /><span><b>Carte cadeau</b><small>Saisir le code</small></span></button>
           </div>
         </>
@@ -182,7 +184,8 @@ export function Checkout({ apptId, drawerOpen, onClose }: { apptId: string | nul
       <DiscountModal open={modal === 'discount'} onClose={() => setModal('')} gross={lines.filter((l) => l.kind !== 'giftcard' && !l.packId).reduce((t, l) => t + l.unit * l.qty, 0)} maxPct={maxPct} value={disc} onSet={(d) => { setDisc(d); setModal(''); }} />
       <TipModal open={modal === 'tip'} onClose={() => setModal('')} presets={S.tipPresets} staffId={tip?.staffId || performer} value={tip} onSet={(t) => { setTip(t); setModal(''); }} />
       <CashModal open={modal === 'cash'} onClose={() => setModal('')} due={left} drawerOpen={drawerOpen} onPay={(amount, given) => { addPay({ method: 'cash', amount, given, label: 'Espèces' }); setModal(''); }} />
-      <QrModal open={modal === 'qr'} onClose={() => setModal('')} amount={left} label={(client ? client.first + ' · ' : '') + boot.settings.shop.name} onPaid={(id, amount) => { addPay({ method: 'online', amount, ref: id, label: 'Payé par QR code' }); setModal(''); }} />
+      {/* the label lands in the chained journal: the salon's name, never the client's */}
+      <QrModal open={modal === 'qr'} onClose={() => setModal('')} amount={left} label={boot.settings.shop.name} onPaid={(id, amount) => { addPay({ method: 'online', amount, ref: id, label: 'Payé par QR code' }); setModal(''); }} />
       <GiftModal open={modal === 'gift'} onClose={() => setModal('')} due={left} onPay={(amount, code, last4) => { addPay({ method: 'giftcard', amount, ref: code, label: 'Carte cadeau •••• ' + last4 }); setModal(''); }} />
       <ClientSheet open={modal === 'client'} onClose={() => setModal('')} onPick={(c) => { setClient(c); setModal(''); }} />
     </div>
