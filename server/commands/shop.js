@@ -4,6 +4,7 @@ import { fail } from '../core/engine.js';
 import { str, obj, day, parse } from '../lib/validate.js';
 import { checkIntervals } from './common.js';
 import { settingsSchema } from '../settings/index.js';
+import { cgvPatch } from '../settings/shop.js';
 
 // Composed from server/settings, one file per section; still exported from here as before.
 export { settingsSchema };
@@ -11,8 +12,11 @@ export { settingsSchema };
 export const updateSettings = {
   run(s, input, ctx) {
     ctx.need('settings');
-    const patch = parse(settingsSchema, input);
+    let patch = parse(settingsSchema, input);
     if (patch.hours) for (const k of Object.keys(patch.hours)) checkIntervals(patch.hours[k], 'horaires');
+    if (!Object.keys(patch).length) return { settings: s.settings };
+    // the CGV version follows the deposit and cancellation rules, dated here rather than by the screen that saved them
+    patch = cgvPatch(s.settings, patch, ctx.local.day);
     if (!Object.keys(patch).length) return { settings: s.settings };
     ctx.emit('settings.updated', { patch });
     return { ok: true };

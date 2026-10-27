@@ -50,6 +50,29 @@ The owner adjusts the barbers' toggles in Réglages › Équipe et accès; the m
 - Barbers see masked numbers (`06 •• •• •• 42`). Exports of the client file are owner-only.
 - Erasure: client file › ⋯ › Effacer (RGPD). Personal data is removed from the state and from every event; tickets stay in the accounts without the name; the journal still verifies.
 - Hosting: Vercel (EU region `cdg1`, Paris) and the chosen database (pick an EU region). Data belongs to the salon and can be exported at any time (Réglages › Données).
+- The site's legal pages are filled from the settings, so they say what the salon actually does: `/mentions-legales` (publisher, SIRET, APE, RM/RNE, publication director, host, database, mediator: Réglages › Le salon › Site et mentions légales), `/confidentialite` (the register below, the browser storage `lx-me` and a button to clear it, the CNIL) and `/cgv` (deposit, cancellation delay and no-show fee from Réglages › Réservation). The CGV carry a version date. `updateSettings` dates `shop.cgvVersion` itself (`cgvPatch` in `server/settings/shop.js`, on the server's clock) whenever a patch changes the deposit rules or the cancellation delay, whatever screen sent it; the version never goes back (a stale screen resending an older one is ignored) and is never after today. When the text of `public/cgv.html` changes, bump `CGV_TEXT` in `server/settings/shop.js` and the page's `data-cgv-text` together (a unit test keeps them equal): the CGV in force are the newer of the two, `cgvVersionOf(settings.shop)`, which is what a booking should record. A bump by hand is a `PATCH /api/v1/settings {shop:{cgvVersion:'YYYY-MM-DD'}}` (forward only). The no-show fee clause stays off the CGV until a card can really be kept for it (`payments.live` and `payments.cardOnFile` in `/api/public/salon`); the SMS confirmation is mentioned only when texts really leave.
+
+Before go-live, for the CGV and the privacy page:
+- Connecting Stripe makes the deposit rule appear in the CGV: bump the version that day (a `PATCH` of `shop.cgvVersion`, or any deposit change).
+- Have a lawyer read the CGV once: deposit as « acompte » rather than « arrhes », and the **right of withdrawal** for online bookings (L221-5 and L221-18: the page has no clause yet, and leaving it out extends the withdrawal period by 12 months, L221-20). Add the clause the lawyer settles on (it applies, with the express request to be served within the 14 days, L221-25, or the exemption that applies).
+- `/confidentialite` promises the client file is erased 3 years after the last visit: the automatic purge (DO-04) must run before go-live.
+- Check the « base de données » line against the real store (Réglages › Le salon shows it) and the database region (EU).
+
+### Registre des traitements
+
+The salon's record of processing (RGPD art. 30), kept here and summarised for clients on `/confidentialite`. Each processor needs its data processing agreement accepted (Vercel, Neon, Brevo and Stripe offer theirs online).
+
+| Traitement | Finalité | Base légale | Durée | Sous-traitants |
+|---|---|---|---|---|
+| Rendez-vous | Réserver, confirmer, déplacer, annuler; liste d’attente | Contrat (6.1.b) | Fiche client: 3 ans après la dernière visite | Vercel (hébergement), Neon (base de données, UE) |
+| SMS de service | Confirmation, rappel, place libérée, reçu | Contrat (6.1.b), désactivable par client | Comme la fiche; journal d’envoi avec elle | Brevo (SMS, France) |
+| SMS marketing (bons plans, relances) | Faire revenir un client au bon rythme | Consentement (6.1.a), STOP à tout moment | Jusqu’au retrait du consentement, au plus comme la fiche | Brevo |
+| Caisse et comptabilité | Tickets, avoirs, clôtures Z, exports pour le comptable | Obligation légale (6.1.c) | Tickets 10 ans; journal fiscal 6 ans (sans nom: les données personnelles sont hors chaîne et effaçables) | Vercel, Neon |
+| Acomptes en ligne | Encaisser l’acompte, le rembourser | Contrat (6.1.b) | Avec le ticket (10 ans); la carte reste chez Stripe | Stripe (paiement) |
+| Comptes de l’équipe | Connexion, droits, appareils autorisés | Intérêt légitime (6.1.f) / contrat de travail | Durée de l’activité dans le salon | Vercel, Neon |
+| Journal d’activité et sécurité | Savoir qui a fait quoi, limiter les tentatives de connexion | Intérêt légitime (6.1.f) | Avec le journal (6 ans); compteurs de tentatives en mémoire seulement | Vercel, Neon |
+
+On the client's phone, the site keeps `lx-me` (what they typed and links to their last bookings) and `lx-focus` (the booking just made) in local storage: not a cookie, never sent anywhere, cleared from `/confidentialite`. The public site sets no cookie and runs no analytics; the Comptoir's session cookies are strictly necessary. The site's fonts still come from Google Fonts (the visitor's IP reaches Google), which `/confidentialite` says.
 
 ## Fiscal note (France)
 

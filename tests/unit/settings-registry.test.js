@@ -20,11 +20,14 @@ const BEFORE = () => {
       phone: '', email: 'larchitectebarber@gmail.com', siret: '', vatNumber: '', legalName: '',
       mapsUrl: 'https://www.google.com/maps/search/?api=1&query=L%27Architecte%20coiffeur&query_place_id=ChIJJSWkBLy_yRIRbgAQcMwb-JY',
       reviewUrl: 'https://search.google.com/local/writereview?placeid=ChIJJSWkBLy_yRIRbgAQcMwb-JY',
-      instagram: 'https://www.instagram.com/barbershoplarchitecte/'
+      instagram: 'https://www.instagram.com/barbershoplarchitecte/',
+      // added since the split: the legal pages' fields
+      legalForm: 'Entrepreneur individuel', registration: '', ape: '', publicationDirector: '', mediator: { name: '', url: '' },
+      host: { name: 'Vercel Inc.', address: '440 N Barranca Ave #4133, Covina, CA 91723, USA', phone: '+1 559 288 7060' }, dataHost: 'Neon (Union européenne)', cgvVersion: '2026-10-27'
     },
     hours: { 0: [], 1: [], 2: day, 3: day, 4: day, 5: day, 6: day },
     closures: [],
-    booking: { enabled: true, stepMin: 30, minNoticeMin: 30, maxDaysAhead: 30, holdMin: 5, pendingPayMin: 15, cancelUntilHours: 12, waitlist: true, walkinWait: true },
+    booking: { enabled: true, stepMin: 30, minNoticeMin: 30, maxDaysAhead: 90, holdMin: 5, pendingPayMin: 15, cancelUntilHours: 12, waitlist: true, walkinWait: true },
     deposits: { mode: 'threshold', thresholdCents: 5000, percent: 30, noShowFeeCents: 1000 },
     payments: { card: true, cash: true, qr: true, giftcard: true, tips: true, tipPresets: [200, 500, 1000], vat: 2000, receiptFooter: 'Merci et à bientôt !' },
     messages: {
@@ -115,7 +118,7 @@ test('updating the settings still goes through the composed schema', async () =>
   const t = await salon();
   await t.engine.run(updateSettings, { booking: { stepMin: 15 }, goals: { monthCents: 3000000 } }, t.asOwner());
   assert.equal(t.engine.state.settings.booking.stepMin, 15);
-  assert.equal(t.engine.state.settings.booking.maxDaysAhead, 30, 'the rest of the section is kept');
+  assert.equal(t.engine.state.settings.booking.maxDaysAhead, 90, 'the rest of the section is kept');
   assert.equal(t.engine.state.settings.goals.monthCents, 3000000);
   await rejects(t.engine.run(updateSettings, { booking: { stepMin: 25 } }, t.asOwner()), 'invalid');
   await rejects(t.engine.run(updateSettings, { hours: { 2: [[540, 780], [700, 1110]] } }, t.asOwner()), 'invalid');

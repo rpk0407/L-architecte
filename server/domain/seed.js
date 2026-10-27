@@ -166,7 +166,7 @@ export async function buildDemoJournal(nowReal, opt = {}) {
   at(start, 7 * 60);
   const init = await eng.run(initialize, { mode: 'demo', owner: { name: 'Le gérant', email: DEMO.email }, pwdHash: hashSecretSync(DEMO.password), pinHash: hashSecretSync(DEMO.ownerPin) }, SYS);
   const base = { ...SYS, staff: eng.state.staff.get(init.ownerId), meta: { siteUrl: opt.siteUrl || 'https://larchitecte.fr/site' } };
-  await eng.run(updateSettings, { shop: { phone: '04 91 00 00 00', legalName: 'L’Architecte SAS', siret: '000 000 000 00000' } }, base);
+  await eng.run(updateSettings, { shop: { phone: '04 91 00 00 00', legalName: 'L’Architecte SAS', legalForm: 'SAS', siret: '000 000 000 00000' } }, base);
   for (const [i, b] of BARBERS.entries()) {
     const res = await eng.run(addStaff, { name: b.name, role: 'barber', color: b.color, initials: b.initials, bookable: true, chair: true, schedule: b.week, commission: { service: 4000, product: 1000 }, bio: b.bio, instagram: b.instagram, order: i + 1 }, base);
     await eng.run(setCredentials, { id: res.id, pinHash: hashSecretSync(DEMO.pins[b.name]) }, base);
