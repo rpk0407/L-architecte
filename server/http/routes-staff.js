@@ -7,9 +7,9 @@ import { freeSlots, staffIntervals, walkinEstimate } from '../domain/availabilit
 import { clientStats, report, previousPeriod } from '../domain/insights.js';
 import { drawerExpected, dayTotals, zFigures, METHOD_LABEL, ticketNo, closureNo } from '../domain/cash.js';
 import { missedZ, closingWarnings, dayWords, dayAndDate } from '../commands/tick-steps.js';
-import { addDays, isDay, weekStart, monthStart, monthEnd, diffDays, dayShort, fmtTime, localParts } from '../../shared/dates.js';
+import { addDays, isDay, weekStart, monthStart, monthEnd, diffDays, dayShort, fmtTime, hhmm, localParts } from '../../shared/dates.js';
 import { fmtEur } from '../../shared/money.js';
-import { maskPhone, normGiftCode, sha256 } from '../lib/util.js';
+import { maskPhone, fmtPhone, normGiftCode, sha256 } from '../lib/util.js';
 import { EXTENSIONS } from '../core/extensions.js';
 import { startPayment, refundOnline } from './routes-public.js';
 import { meView } from './routes-auth.js';
@@ -20,7 +20,7 @@ import { sendRebook } from '../commands/messages.js';
 import { attribution } from '../domain/attribution.js';
 import { webhookUrl } from '../messaging/sms.js';
 import { TEMPLATE_FLAGS } from '../core/templates.js';
-import { maybeTick } from './scheduler.js';
+import { maybeTick, dispatch } from './scheduler.js';
 import { waitUntil } from '@vercel/functions';
 
 const dayParam = (r, name = 'day') => { const d = r.query.get(name); return d && isDay(d) ? d : r.local.day; };
@@ -122,7 +122,55 @@ function badges(r) {
   let relances = 0;
   if (r.caps.has('marketing')) for (const [id, st] of clientStats(s, L.day, r.now)) { const c = st.overdue && s.clients.get(id); if (c && rebookable(c, st)) relances++; }
   const waitlist = [...s.waitlist.values()].filter((w) => w.status === 'waiting' && w.day >= L.day).length;
-  return { toPay, queue, relances, waitlist };
+  // files past the 3 years /confidentialite promises: on the Clients tab, so the purge does not wait on a memory
+  const retention = r.caps.has('client.erase') ? C.inactiveClients(s, L.day).length : 0;
+  return { toPay, queue, relances, waitlist, retention };
+}
+
+/** The file a client route names, followed through merges; an erased file is still found (it says so). */
+function fileOf(r) {
+  let c = r.s.clients.get(r.params.id);
+  while (c && c.mergedInto) c = r.s.clients.get(c.mergedInto);
+  if (!c) throw new HttpError(404, 'not_found', 'Client introuvable.');
+  return c;
+}
+
+const STATUS_FR = { pending: 'acompte en attente', booked: 'à venir', arrived: 'arrivé', in_chair: 'au fauteuil', done: 'venu', no_show: 'absent', cancelled: 'annulé' };
+// the export is read by the client: words, not the codes the server keeps
+const SOURCE_FR = { site: 'en ligne', salon: 'au salon', phone: 'par téléphone', walkin: 'sans rendez-vous', wordpress: 'ancien site', import: 'ancien site' };
+const WAIT_FR = { waiting: 'en attente', offered: 'place proposée', booked: 'réservé', removed: 'retiré', expired: 'expiré' };
+const SMS_FR = { confirmation: 'confirmation', reminder: 'rappel la veille', reminder2h: 'rappel 2 h avant', moved: 'déplacement', cancelled: 'annulation', review: 'demande d’avis', rebook: 'relance', receipt: 'reçu', waitlist: 'place libérée', queue: 'file d’attente', deposit: 'lien d’acompte' };
+const SMS_STATUS_FR = { queued: 'en attente', claimed: 'en cours d’envoi', sent: 'envoyé', simulated: 'non envoyé (simulé)', failed: 'échec', skipped: 'non envoyé', expired: 'trop tard, non envoyé' };
+const fr = (map, v) => map[v] || v || '';
+const iso = (ms) => (ms ? new Date(ms).toISOString() : null);
+/** The client's own data, in words a person can read: the file, bookings, tickets, subscriptions, cards, texts. */
+function clientExport(s, c, now) {
+  const ids = new Set(C.fileIds(s, c));
+  const who = (id) => (s.staff.get(id) || {}).name || '';
+  const byDay = (a, b) => (a.day + String(a.start ?? 0).padStart(4, '0')).localeCompare(b.day + String(b.start ?? 0).padStart(4, '0'));
+  return {
+    salon: s.settings.shop.name, exporteLe: iso(now),
+    fiche: {
+      prenom: c.first, nom: c.last, telephone: fmtPhone(c.phone), email: c.email, anniversaire: c.birthday ? c.birthday.replace('-', '/') : '',
+      notes: c.notes, ficheTechnique: c.tech, etiquettes: c.tags || [], smsDeService: !!c.sms,
+      smsBonsPlans: { accord: !!c.marketing, origine: c.marketingSrc === 'stop' ? 'STOP par SMS' : fr(SOURCE_FR, c.marketingSrc), depuis: iso(c.marketingAt) }, origine: fr(SOURCE_FR, c.source), creeLe: iso(c.createdAt), effacee: !!c.erased
+    },
+    rendezVous: [...s.appts.values()].filter((a) => ids.has(a.clientId)).sort(byDay).map((a) => ({
+      jour: a.day, heure: hhmm(a.start), dureeMinutes: a.dur, prestations: a.services.map((x) => x.name), barbier: who(a.staffId), prix: fmtEur(a.price),
+      statut: STATUS_FR[a.status] || a.status, origine: fr(SOURCE_FR, a.source), note: a.note || '', prisLe: iso(a.createdAt),
+      ...(a.cancel ? { annulation: { par: a.cancel.by === 'client' ? 'client' : a.cancel.by === 'system' ? 'automatique' : 'salon', motif: a.cancel.reason || '' } } : {}),
+      ...(a.deposit && a.deposit.paid ? { acompte: fmtEur(a.deposit.paid) } : {})
+    })),
+    tickets: [...s.sales.values()].filter((x) => ids.has(x.clientId)).sort((a, b) => a.at - b.at).map((x) => ({
+      numero: ticketNo(x.number), jour: x.day, lignes: x.lines.map((l) => ({ libelle: l.name, quantite: l.qty, montant: fmtEur(l.net) })),
+      total: fmtEur(x.totals.due), reglements: (x.payments || []).map((p) => ({ moyen: METHOD_LABEL[p.method] || p.method, montant: fmtEur(p.amount) })),
+      ...(x.refunded ? { rembourse: fmtEur(x.refunded) } : {}), ...(x.discountNote ? { motifRemise: x.discountNote } : {})
+    })),
+    abonnements: [...s.packs.values()].filter((k) => ids.has(k.clientId)).map((k) => ({ nom: k.name, coupesUtilisees: k.used, coupesTotal: k.total, valableJusquAu: k.expires })),
+    cartesCadeaux: [...s.giftcards.values()].filter((g) => ids.has(g.cid)).map((g) => ({ carte: '•••• ' + g.last4, montant: fmtEur(g.amount), solde: fmtEur(g.balance), valableJusquAu: g.expires, pour: g.recipient || '' })),
+    listeAttente: [...s.waitlist.values()].filter((w) => ids.has(w.clientId)).map((w) => ({ jour: w.day, statut: fr(WAIT_FR, w.status), inscritLe: iso(w.at) })),
+    sms: [...s.messages.values()].filter((m) => ids.has(m.cid)).sort((a, b) => a.at - b.at).map((m) => ({ le: iso(m.at), type: fr(SMS_FR, m.template), statut: fr(SMS_STATUS_FR, m.status), numero: fmtPhone(m.to), texte: m.body }))
+  };
 }
 
 /** Can this client get a follow-up text? Agreed to the offers, takes SMS, and not seen in the last week. */
@@ -297,12 +345,22 @@ export function staffRoutes(app) {
       return name.includes(q) || (digits.length >= 2 && c.phone.replace(/\D/g, '').replace(/^33/, '0').includes(digits));
     });
     const st = (c) => stats.get(c.id) || {};
+    const pairs = C.findDuplicates(s), dups = new Set(pairs.flatMap((p) => [p.a, p.b]));
+    const inactive = new Set(C.inactiveClients(s, L.day).map((c) => c.id));
     const segs = {
       all: () => true, nouveaux: (c) => st(c).firstDay && diffDays(st(c).firstDay, L.day) <= 30 || !st(c).visits, fideles: (c) => st(c).loyal,
-      relancer: (c) => st(c).overdue && c.sms, absents: (c) => st(c).noShows > 0, abonnes: (c) => [...s.packs.values()].some((k) => k.clientId === c.id && k.used < k.total),
-      vip: (c) => (c.tags || []).includes('VIP'), anniversaires: (c) => c.birthday && c.birthday.slice(3, 5) === month
+      // the same people as Relances: late on their rhythm and agreed to the offers
+      relancer: (c) => st(c).overdue && rebookable(c, st(c)), absents: (c) => st(c).noShows > 0, abonnes: (c) => [...s.packs.values()].some((k) => k.clientId === c.id && k.used < k.total),
+      vip: (c) => (c.tags || []).includes('VIP'), anniversaires: (c) => c.birthday && c.birthday.slice(3, 5) === month,
+      doublons: (c) => dups.has(c.id), inactifs: (c) => inactive.has(c.id)
     };
     const counts = Object.fromEntries(Object.entries(segs).map(([k, f]) => [k, list.filter(f).length]));
+    // the duplicates segment lists pairs: its count says pairs too (of the files the search keeps)
+    if (q) { const inList = new Set(list.map((c) => c.id)); counts.doublons = pairs.filter((p) => inList.has(p.a) || inList.has(p.b)).length; } else counts.doublons = pairs.length;
+    // late but without consent: counted, not listed (as in Relances)
+    const excludedNoConsent = list.filter((c) => st(c).overdue && c.sms && c.phone && !c.marketing).length;
+    // the purge also clears old tickets and bookings that belong to no file: the owner sees it has work even without files
+    const retention = r.caps.has('client.erase') ? { before: C.retentionCutoff(L.day), other: C.staleAnonymous(s, L.day).length } : null;
     list = list.filter(segs[seg] || segs.all);
     const sorters = {
       recent: (a, b) => (st(b).lastDay || '').localeCompare(st(a).lastDay || '') || b.createdAt - a.createdAt,
@@ -312,14 +370,26 @@ export function staffRoutes(app) {
       overdue: (a, b) => (st(a).dueIn ?? 999) - (st(b).dueIn ?? 999)
     };
     list.sort(sorters[sort] || sorters.recent);
-    return { total: list.length, counts, items: list.slice(offset, offset + limit).map((c) => clientCard(s, c, r.caps, stats)) };
+    return { total: list.length, counts, excludedNoConsent, retention, items: list.slice(offset, offset + limit).map((c) => clientCard(s, c, r.caps, stats)) };
+  }, { cap: 'client.view' });
+
+  /** Probably the same person twice: the file to keep first (more visits, then the older one). Before /:id. */
+  app.get('/api/v1/clients/duplicates', (r) => {
+    const s = r.s;
+    const stats = clientStats(s, r.local.day, r.now);
+    const all = C.findDuplicates(s);
+    const visits = (c) => stats.get(c.id)?.visits || 0;
+    const pairs = all.slice(0, 200).map((p) => {
+      const a = s.clients.get(p.a), b = s.clients.get(p.b);
+      const [keep, drop] = visits(a) > visits(b) || (visits(a) === visits(b) && a.createdAt <= b.createdAt) ? [a, b] : [b, a];
+      return { keep: clientCard(s, keep, r.caps, stats), drop: clientCard(s, drop, r.caps, stats), why: p.why };
+    });
+    return { total: all.length, pairs };
   }, { cap: 'client.view' });
 
   app.get('/api/v1/clients/:id', (r) => {
     const s = r.s;
-    let c = s.clients.get(r.params.id);
-    if (c && c.mergedInto) c = s.clients.get(c.mergedInto);
-    if (!c) throw new HttpError(404, 'not_found', 'Client introuvable.');
+    const c = fileOf(r);
     const stats = clientStats(s, r.local.day, r.now);
     const appts = [...s.appts.values()].filter((a) => a.clientId === c.id).sort((a, b) => (b.day + String(b.start).padStart(4, '0')).localeCompare(a.day + String(a.start).padStart(4, '0')))
       .map((a) => ({ id: a.id, day: a.day, start: a.start, dur: a.dur, status: a.status, services: a.services.map((x) => x.name), staffId: a.staffId, price: a.price, source: a.source, saleId: a.saleId, note: a.note || '' }));
@@ -327,13 +397,70 @@ export function staffRoutes(app) {
     const packs = [...s.packs.values()].filter((k) => k.clientId === c.id).map((k) => ({ id: k.id, name: k.name, used: k.used, total: k.total, expires: k.expires, soldAt: k.soldAt }));
     // the owner's alerts carry the client's id so erasure blanks them, but the client never received them
     const messages = [...s.messages.values()].filter((m) => m.cid === c.id && !m.template.startsWith('owner_')).sort((a, b) => b.at - a.at).slice(0, 20).map((m) => ({ id: m.id, channel: m.channel || 'sms', template: m.template, status: m.status, at: m.at }));
-    return { client: clientFull(s, c, r.caps, stats), appts, sales: r.caps.has('sale.all') || r.caps.has('report.shop') ? sales : [], packs, messages };
+    // where the consent to the offers comes from, and since when: "SMS bons plans : oui (site, 12/10/2026)"
+    const consent = { marketingSrc: c.marketingSrc || '', marketingAt: c.marketingAt || null };
+    return { client: { ...clientFull(s, c, r.caps, stats), ...consent }, appts, sales: r.caps.has('sale.all') || r.caps.has('report.shop') ? sales : [], packs, messages };
   }, { cap: 'client.view' });
 
   app.post('/api/v1/clients', (r) => r.run(C.addClient, r.body), { cap: 'client.edit' });
   app.patch('/api/v1/clients/:id', (r) => r.run(C.updateClient, { id: r.params.id, patch: r.body }), { cap: 'client.edit' });
   app.post('/api/v1/clients/merge', (r) => r.run(C.mergeClients, r.body), { cap: 'client.edit' });
-  app.post('/api/v1/clients/:id/erase', (r) => r.run(C.eraseClient, { id: r.params.id }), { cap: 'client.erase' });
+  app.post('/api/v1/clients/distinct', (r) => r.run(C.markDistinct, r.body), { cap: 'client.edit' });
+
+  // what erasing this file would close, shown before anything happens; smsLive: does a text really leave (a provider,
+  // or the demo)? Otherwise the owner tells the client himself
+  app.get('/api/v1/clients/:id/open', (r) => ({ ...C.openItems(r.s, fileOf(r), r.local), smsLive: !!r.rt.sms || r.s.mode === 'demo' }), { cap: 'client.erase' });
+  app.post('/api/v1/clients/:id/erase', async (r) => {
+    const input = { id: r.params.id, cancelUpcoming: r.body.cancelUpcoming === true };
+    const out = { cancelled: 0, texted: 0, unsent: 0, refunded: 0 };
+    r.meta.tombKey = C.tombKeyOf(r.rt.secret);
+    // bookings first: cancelled, the texts sent now while the number still exists, deposits paid back; then the erasure
+    for (let i = 0; i < 3; i++) {
+      const res = await r.run(C.eraseClient, input);
+      // a retried request replays the steps the first one already wrote: done once the file is erased
+      if (res.duplicate) { if (fileOf(r).erased) return { ok: true, ...out }; continue; }
+      out.cancelled += (res.cancelled || []).length;
+      if (res.texts && res.texts.length) {
+        // the outbox leaves oldest first: send as far as these texts go, so a backlog never leaves them behind
+        const mine = new Set(res.texts), due = [...r.s.messages.values()].filter((m) => m.status === 'queued' && m.dueAt <= r.now);
+        let last = -1;
+        due.forEach((m, k) => { if (mine.has(m.id)) last = k; });
+        await dispatch(r.rt, Math.min(500, Math.max(last + 1, res.texts.length)));
+        for (const id of res.texts) { const m = r.s.messages.get(id); if (m && ['sent', 'simulated', 'claimed'].includes(m.status)) out.texted++; else out.unsent++; }
+      }
+      if (r.caps.has('sale.refund')) for (const pid of res.deposits || []) if (await refundOnline(r, r.s.payments.get(pid), 'Fiche client effacée')) out.refunded++;
+      if (res.erased) return { ok: true, ...out };
+    }
+    throw new HttpError(409, 'busy', 'De nouveaux rendez-vous arrivent sur cette fiche. Réessaie dans un instant.');
+  }, { cap: 'client.erase' });
+
+  /** Anonymise the files past the retention period; expect is the count the owner confirmed. */
+  app.post('/api/v1/clients/retention', async (r) => {
+    const total = { erased: 0, other: 0 };
+    r.meta.tombKey = C.tombKeyOf(r.rt.secret);
+    let expect = r.body.expect;
+    for (let i = 0; i < 40; i++) {
+      const res = await r.run(C.purgeRetention, { expect });
+      // a retried request: what the first one wrote, read back from its event; the rest waits for another tap
+      if (res.duplicate) {
+        const e = (res.events || []).find((x) => x.type === 'client.erased');
+        if (e) { total.erased += e.data.files || 0; total.other += (e.data.drop || []).length; }
+        break;
+      }
+      total.erased += res.erased || 0; total.other += res.other || 0;
+      if (!res.more) break;
+      expect = res.left;
+    }
+    return total;
+  }, { cap: 'client.erase' });
+
+  /** Everything the salon holds about one client (GDPR access and portability), as a JSON file. */
+  app.get('/api/v1/clients/:id/export', (r) => {
+    const s = r.s, c = fileOf(r);
+    const body = JSON.stringify(clientExport(s, c, r.now), null, 2);
+    const slug = (c.first + '-' + c.last).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'client';
+    return new Response(body, { status: 200, headers: { 'content-type': 'application/json; charset=utf-8', 'content-disposition': `attachment; filename="larchitecte-donnees-${slug}-${r.local.day}.json"`, 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' } });
+  }, { cap: 'client.export' });
 
   /* ---------------- the till ---------------- */
 

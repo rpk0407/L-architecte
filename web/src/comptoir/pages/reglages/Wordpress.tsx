@@ -13,7 +13,7 @@ import { useApp } from '../../state';
 import { Card } from './shared';
 import './wordpress.css';
 
-type Known = { known: Set<number>; again: Set<number>; imported: Map<number, W.Prior> };
+type Known = { known: Set<number>; again: Set<number>; erased: Map<number, number>; imported: Map<number, W.Prior> };
 type Result = { clients: { added: number; merged: Set<string> }; appts: Record<string, number>; giftcards: Record<string, number>; packs: Record<string, number>; review: W.ReviewRow[]; next?: string };
 type Dropped = { name: string; text: string; key: string };
 type ServerRow = { kind: string; text: string; wp?: number; day?: string; start?: number; name?: string };
@@ -77,17 +77,18 @@ export default function Wordpress() {
     try {
       const ids = W.preview(p, { services: {}, staff: {} }, now()).identities;
       const keys = ids.flatMap((list, g) => list.map((k) => ({ ...k, g })));
-      const known = new Set<number>(), again = new Set<number>(), imported = new Map<number, W.Prior>();
+      const known = new Set<number>(), again = new Set<number>(), erased = new Map<number, number>(), imported = new Map<number, W.Prior>();
       for (const part of W.chunks(keys, 400, 40000)) {
-        const r = await api.post<{ known: number[]; again?: number[] }>('/api/v1/import/preview', { keys: part.map(({ g, ...k }) => k) });
+        const r = await api.post<{ known: number[]; again?: number[]; erased?: { i: number; at: number }[] }>('/api/v1/import/preview', { keys: part.map(({ g, ...k }) => k) });
         for (const i of r.known) known.add(part[i].g);
         for (const i of r.again || []) again.add(part[i].g);
+        for (const x of r.erased || []) erased.set(part[x.i].g, Math.max(x.at, erased.get(part[x.i].g) || 0));
       }
       for (const part of W.chunks(p.bookings.map((b) => b.wp), 4000, 40000)) {
         const r = await api.post<{ appts?: W.Prior[] }>('/api/v1/import/preview', { wp: part });
         for (const a of r.appts || []) imported.set(a.wp, a);
       }
-      setServer({ known, again, imported });
+      setServer({ known, again, erased, imported });
       // a barber left unmatched whose bookings an earlier run put on a chair: that chair again
       const prior = W.priorStaff(p, imported);
       setStaffMap((m) => Object.fromEntries(Object.entries(m).map(([name, v]) => [name, !v && prior[name] && chairIds.has(prior[name]) ? prior[name] : v])));
@@ -183,6 +184,7 @@ export default function Wordpress() {
               {[
                 c.already ? plural(c.already, 'rendez-vous déjà repris', 'rendez-vous déjà repris') : '', c.toMove ? plural(c.toMove, 'déplacé', 'déplacés') + ' sur l’ancien site' : '',
                 c.toClose ? plural(c.toClose, 'passé', 'passés') + ' depuis sur l’ancien site' : '', c.skipped ? plural(c.skipped, 'réservation ignorée', 'réservations ignorées') + ' (erreur ou paiement non abouti)' : '',
+                c.erased ? plural(c.erased, 'ligne ignorée', 'lignes ignorées') + ' (client effacé)' : '',
                 c.giftcards ? plural(c.giftcards, 'carte cadeau', 'cartes cadeaux') : '', c.packs ? plural(c.packs, 'abonnement') : ''
               ].filter(Boolean).join(' · ') || 'Aucun rendez-vous déjà repris.'}
             </p>

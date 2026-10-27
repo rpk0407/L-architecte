@@ -76,7 +76,7 @@ function useNav(): NavItem[] {
   const items: NavItem[] = [
     { to: '/', page: 'agenda', label: 'Agenda', icon: 'agenda', cap: 'agenda.own' },
     { to: '/caisse', page: 'caisse', label: 'Caisse', icon: 'caisse', cap: 'sale.create', badge: b?.toPay },
-    { to: '/clients', page: 'clients', label: 'Clients', icon: 'clients', cap: 'client.view' },
+    { to: '/clients', page: 'clients', label: 'Clients', icon: 'clients', cap: 'client.view', badge: b?.retention, soft: true },
     { to: '/relances', page: 'relances', label: 'Relances', icon: 'relances', cap: 'marketing', badge: b?.relances, soft: true },
     { to: '/rapports', page: 'rapports', label: can('report.shop') ? 'Rapports' : 'Mes chiffres', icon: 'rapports', cap: 'report.own' },
     { to: '/equipe', page: 'equipe', label: 'Équipe', icon: 'equipe', cap: 'team' },

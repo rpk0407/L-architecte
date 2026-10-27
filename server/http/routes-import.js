@@ -5,7 +5,8 @@ import { HttpError, guard } from './kit.js';
 import { signLink } from '../auth/session.js';
 import { str, int, opt, obj, arr, parse } from '../lib/validate.js';
 import { safeEqual, sha256 } from '../lib/util.js';
-import { importBatch, importGiftcard, importPack, knownClient, priorView } from '../commands/import.js';
+import { importBatch, importGiftcard, importPack, knownClient, priorView, rowTomb } from '../commands/import.js';
+import { tombKeyOf } from '../commands/clients.js';
 
 const previewSchema = obj({
   keys: opt(arr(obj({ phone: opt(str({ max: 32 })), prefix: opt(str({ max: 6 })), email: opt(str({ max: 160 })) }), { max: 500 })),
@@ -13,16 +14,19 @@ const previewSchema = obj({
 });
 
 export function importRoutes(app) {
-  // read only: which of these people already have a file (known: the salon's, again: an earlier run's), and where the
-  // bookings an earlier run brought in stand now, so the preview can tell what a delta run will change
+  // read only: which of these people already have a file (known: the salon's, again: an earlier run's; erased: their
+  // file was erased at, rows from before are skipped), and where the bookings an earlier run brought in stand now,
+  // so the preview can tell what a delta run will change
   app.post('/api/v1/import/preview', (r) => {
     const x = parse(previewSchema, r.body);
-    const known = [], again = [];
-    (x.keys || []).forEach((k, i) => { const w = knownClient(r.s, k); if (w === 'salon') known.push(i); else if (w === 'wordpress') again.push(i); });
+    const key = tombKeyOf(r.rt.secret);
+    const known = [], again = [], erased = [];
+    (x.keys || []).forEach((k, i) => { const w = knownClient(r.s, k, key); if (w === 'salon') known.push(i); else if (w === 'wordpress') again.push(i); else if (w === 'erased') erased.push({ i, at: rowTomb(r.s, k, key).at }); });
     const appts = priorView(r.s, x.wp || []);
-    return { known, again, imported: appts.map((a) => a.wp), appts };
+    return { known, again, erased, imported: appts.map((a) => a.wp), appts };
   }, { cap: 'settings' });
-  app.post('/api/v1/import/batch', (r) => r.run(importBatch, r.body), { cap: 'settings' });
+  // the key of the erased files' tombstones (commands/clients.js): an erased client stays out
+  app.post('/api/v1/import/batch', (r) => { r.meta.tombKey = tombKeyOf(r.rt.secret); return r.run(importBatch, r.body); }, { cap: 'settings' });
   app.post('/api/v1/import/giftcard', (r) => r.run(importGiftcard, r.body), { cap: 'settings' });
   app.post('/api/v1/import/pack', (r) => r.run(importPack, r.body), { cap: 'settings' });
 

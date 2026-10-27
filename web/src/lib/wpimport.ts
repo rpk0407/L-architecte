@@ -484,19 +484,28 @@ export function priorStaff(p: Parsed, prior: Map<number, Prior>): Record<string,
 /**
  * What the import would do, before anything is sent: only the rows that will be sent are counted. `known` holds the
  * groups that already have a file of the salon, `again` those an earlier run created (POST /api/v1/import/preview),
- * `imported` the bookings an earlier run brought in and where they stand now, `chairs` the active chairs.
+ * `erased` those whose file was erased, and when (the server skips their rows from before), `imported` the bookings
+ * an earlier run brought in and where they stand now, `chairs` the active chairs.
  */
-export function preview(p: Parsed, map: Mapping, now: number, o: { known?: Set<number>; again?: Set<number>; imported?: Map<number, Prior>; chairs?: Set<string>; today?: string } = {}) {
+export function preview(p: Parsed, map: Mapping, now: number, o: { known?: Set<number>; again?: Set<number>; erased?: Map<number, number>; imported?: Map<number, Prior>; chairs?: Set<string>; today?: string } = {}) {
   const known = o.known || new Set<number>(), again = o.again || new Set<number>(), imported = o.imported || new Map<number, Prior>();
+  const erased = o.erased || new Map<number, number>(), told = new Set<number>();
   const today = o.today || dates.localParts(now).day;
   const P = people(p);
   const groups = new Set<number>();
-  const counts = { newClients: 0, merged: 0, past: 0, noShow: 0, upcoming: 0, cancelled: 0, skipped: 0, unmapped: 0, already: 0, toCancel: 0, toMove: 0, toClose: 0, giftcards: p.giftcards.length, packs: p.packs.length };
+  const counts = { newClients: 0, merged: 0, past: 0, noShow: 0, upcoming: 0, cancelled: 0, skipped: 0, unmapped: 0, already: 0, toCancel: 0, toMove: 0, toClose: 0, erased: 0, giftcards: p.giftcards.length, packs: p.packs.length };
   const review: ReviewRow[] = [];
   const lanes = new Map<string, { start: number; dur: number }[]>();
   for (const b of p.bookings) {
     const g = P.add(b);
     const row = { wp: b.wp, day: b.day, start: b.start, name: nameOf(b) };
+    // erased at their request or after 3 years: left out, as the server does, unless booked on the old site since
+    const gone = g >= 0 ? erased.get(g) : undefined;
+    if (gone !== undefined && !(b.createdAt && b.createdAt > gone)) {
+      counts.erased++;
+      if (!told.has(g)) { told.add(g); review.push({ wp: b.wp, day: b.day, start: b.start, name: '', kind: 'erased', text: 'Client effacé : ses lignes sont ignorées' }); }
+      continue;
+    }
     const k = imported.get(b.wp);
     if (k) {
       const ch = b.status === 'error' ? null : change(b, k, map.staff[b.staff] || '', now, today, o.chairs);
@@ -529,7 +538,7 @@ export function preview(p: Parsed, map: Mapping, now: number, o: { known?: Set<n
       lanes.set(lane, [...list, { start: b.start, dur }]);
     }
   }
-  for (const c of p.clients) { const g = P.add(c); if (g >= 0) groups.add(g); }
+  for (const c of p.clients) { const g = P.add(c); if (g >= 0 && !erased.has(g)) groups.add(g); }
   // a file an earlier run created is neither new nor merged (the server counts it as neither)
   for (const g of groups) if (!again.has(g)) counts[known.has(g) ? 'merged' : 'newClients']++;
   return { counts, review, identities: P.ids };

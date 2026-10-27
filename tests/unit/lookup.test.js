@@ -14,6 +14,12 @@ import { signLink, checkLink } from '../../server/auth/session.js';
 import { verifyChain } from '../../server/core/journal.js';
 import { TEMPLATES } from '../../server/core/templates.js';
 
+/** Erase a file the way the route does: its bookings to come are cancelled (and texted) first, then the file goes. */
+async function eraseFully(engine, id, ctx) {
+  for (let i = 0; i < 3; i++) if ((await engine.run(eraseClient, { id, cancelUpcoming: true }, ctx)).erased) return;
+  throw new Error('not erased');
+}
+
 const ORIGIN = 'https://salon.test';
 const SAME = { ok: true, message: LOOKUP_MESSAGE };
 let clients = 0;
@@ -117,7 +123,7 @@ test('an unknown number, a client with nothing to come, and an erased client: th
   // an erased client's number finds nothing, even with an appointment still in the agenda
   const lea = (await rt.engine.run(addClient, { first: 'Léa', phone: '06 99 88 77 66' }, t.asOwner())).id;
   await book(lea, addDays(DAY, 2), 600);
-  await rt.engine.run(eraseClient, { id: lea }, t.asOwner());
+  await eraseFully(rt.engine, lea, t.asOwner());
   await silent('06 99 88 77 66');
   assert.equal(lookups().length, 0);
 });
@@ -202,7 +208,7 @@ test('erasing the client blanks the text that was sent, and the journal still ve
   await book(me, addDays(DAY, 2), 600);
   await post({ phone });
   assert.equal(lookups().length, 1);
-  await rt.engine.run(eraseClient, { id: me }, t.asOwner());
+  await eraseFully(rt.engine, me, t.asOwner());
   const [m] = lookups();
   assert.equal(m.to, '');
   assert.equal(m.body, '');

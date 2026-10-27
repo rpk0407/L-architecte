@@ -43,12 +43,15 @@ export function fail(status, code, message, extra) { throw new DomainError(statu
  */
 
 /**
- * The events whose personal data a client.erased event removes: the client's own events and those about them.
+ * The events whose personal data a client.erased event removes: the client's own events and those about them,
+ * plus the ones its drop list names.
  * @param {JEvent} erased @returns {(e: JEvent) => boolean}
  */
 export function erasedMatch(erased) {
   const ids = new Set(erased.data.ids || [erased.data.id]);
-  return (x) => !!x.data && (ids.has(x.data.cid) || (x.type.startsWith('client.') && ids.has(x.data.id)));
+  // drop: what the retention purge removes outside any file (a ticket's typed reason, a walk-in's name), by id
+  const drop = new Set(erased.data.drop || []);
+  return (x) => !!x.data && (ids.has(x.data.cid) || (x.type.startsWith('client.') && ids.has(x.data.id)) || (drop.size > 0 && drop.has(x.data.id)));
 }
 
 /**

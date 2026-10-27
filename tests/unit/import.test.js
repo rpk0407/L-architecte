@@ -104,7 +104,7 @@ test('importing the export: client files, past visits, upcoming bookings, nothin
   const pv0 = W.preview(p, map, t.clock.now);
   const known = new Set(pv0.identities.map((ids, g) => (ids.some((k) => k.phone && normPhoneImport(k.phone, k.prefix) === '+33612345678') ? g : -1)).filter((g) => g >= 0));
   const pv = W.preview(p, map, t.clock.now, { known });
-  assert.deepEqual(pv.counts, { newClients: 5, merged: 1, past: 7, noShow: 0, upcoming: 4, cancelled: 2, skipped: 1, unmapped: 0, already: 0, toCancel: 0, toMove: 0, toClose: 0, giftcards: 0, packs: 0 });
+  assert.deepEqual(pv.counts, { newClients: 5, merged: 1, past: 7, noShow: 0, upcoming: 4, cancelled: 2, skipped: 1, unmapped: 0, already: 0, toCancel: 0, toMove: 0, toClose: 0, erased: 0, giftcards: 0, packs: 0 });
   assert.ok(pv.review.some((r) => r.wp === 1315 && /Numéro illisible/.test(r.text)));
   assert.ok(pv.review.some((r) => r.wp === 1361 && /Chevauche/.test(r.text)));
 
@@ -339,7 +339,7 @@ test('the API: preview, batch, paper gift cards in the liabilities and in no Z, 
 
   const pre = await owner.post('/api/v1/import/preview', { keys: [{ phone: '0698765432' }], wp: [1350] });
   assert.equal(pre.status, 200, JSON.stringify(pre.json));
-  assert.deepEqual(pre.json, { known: [], again: [], imported: [], appts: [] });
+  assert.deepEqual(pre.json, { known: [], again: [], erased: [], imported: [], appts: [] });
 
   const rows = W.toRows(p, map);
   for (const part of ['appts', 'giftcards', 'packs']) {

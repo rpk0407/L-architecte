@@ -11,6 +11,7 @@ import { normPhoneImport, isEmail, capFirst, sha256, normGiftCode, giftCode } fr
 import { addDays, instantOf, dayShort, fmtTime } from '../../shared/dates.js';
 import { fmtEur } from '../../shared/money.js';
 import { getClient, totalDur } from './common.js';
+import { erasedTomb } from './clients.js';
 
 /** Salon Booking System's statuses (sln-b-…), as the browser normalises them from the French or English labels. */
 export const WP_STATUS = /** @type {const} */ (['confirmed', 'pending', 'pendingpayment', 'paid', 'paylater', 'canceled', 'error']);
@@ -48,15 +49,22 @@ function known(s) {
 
 /**
  * Is there already a client file for this person? 'salon' is the preview's 'fusionnés' (as the batch counts them),
- * 'wordpress' a file an earlier run created.
- * @returns {'salon'|'wordpress'|null}
+ * 'wordpress' a file an earlier run created, 'erased' someone whose file was erased (the batch skips their older rows).
+ * @returns {'salon'|'wordpress'|'erased'|null}
  */
-export function knownClient(s, x) {
+export function knownClient(s, x, tombKey = '') {
   const phone = x.phone ? normPhoneImport(x.phone, x.prefix) : null;
   const email = x.email && isEmail(String(x.email).toLowerCase()) ? String(x.email).toLowerCase() : '';
   const cid = (phone && s.clientByPhone.get(phone)) || (email && known(s).email.get(email)) || null;
-  if (!cid) return null;
+  if (!cid) return rowTomb(s, x, tombKey) ? 'erased' : null;
   return getClient(s, cid).source === 'wordpress' ? 'wordpress' : 'salon';
+}
+
+/** The tombstone of an erased file this row's number or e-mail matches (clients.js erasedTomb), or null. */
+export function rowTomb(s, x, tombKey) {
+  const phone = x.phone ? normPhoneImport(x.phone, x.prefix) : null;
+  const email = x.email && isEmail(String(x.email).toLowerCase()) ? String(x.email).toLowerCase() : '';
+  return erasedTomb(s, tombKey, phone, email);
 }
 
 /**
@@ -83,10 +91,30 @@ const pastInstant = (t, now) => (t && t > 1262304000000 && t <= now ? t : undefi
  * @param {any} s @param {import('../core/engine.js').Ctx} ctx @param {any} out
  */
 function people(s, ctx, out) {
-  const byPhone = new Map(), byEmail = new Map(), created = new Set(), touched = new Set();
+  const byPhone = new Map(), byEmail = new Map(), created = new Set(), touched = new Set(), told = new Set();
   const K = known(s);
-  /** @returns {string|null} the client id, null when the row has neither a usable number nor an e-mail */
+  /**
+   * Was this person's file erased (at their request, or after 3 years without a visit)? Then none of their rows from
+   * before comes back: not the file, not a booking under their name. Said once per person, without the name.
+   * A row the old site created after the erasure is someone who came back (booked again there): it comes in.
+   */
+  function gone(x, row) {
+    const phone = x.phone ? normPhoneImport(x.phone, x.prefix) : null;
+    const email = x.email && isEmail(String(x.email).toLowerCase()) ? String(x.email).toLowerCase() : '';
+    const tomb = rowTomb(s, x, ctx.meta.tombKey);
+    if (!tomb || (x.createdAt && x.createdAt > tomb.at)) return false;
+    const why = tomb.why;
+    // a row with both the number and the e-mail ties them: the rows that carry only one are the same person
+    if (!(phone && told.has(phone)) && !(email && told.has(email))) {
+      for (const k of [phone, email]) if (k) told.add(k);
+      const { name, ...where } = row;
+      out.review.push({ ...where, kind: 'erased', text: why === 'retention' ? 'Fiche anonymisée après 3 ans sans visite : ses lignes sont ignorées' : 'Client effacé à sa demande : ses lignes sont ignorées' });
+    }
+    return true;
+  }
+  /** @returns {string|null} the client id, null when the row has neither a usable number nor an e-mail (or the person was erased) */
   function find(x, row) {
+    if (gone(x, row)) return null;
     const phone = x.phone ? normPhoneImport(x.phone, x.prefix) : null;
     if (x.phone && !phone) out.review.push({ ...row, kind: 'phone', text: 'Numéro illisible : « ' + x.phone + ' »' });
     const email = x.email && isEmail(x.email) ? x.email : '';
@@ -119,7 +147,7 @@ function people(s, ctx, out) {
     if (email) byEmail.set(email, cid);
     return cid;
   }
-  return { find, created };
+  return { find, gone, created };
 }
 
 /** The old barbers who left (John, JBlades…): one archived profile without a chair (out of the team's figures), created when first needed. */
@@ -269,6 +297,8 @@ export const importBatch = {
       seen.add(key);
       const name = [r.first, r.last].filter(Boolean).join(' ');
       const row = { wp: r.wp, day: r.day, start: r.start, name };
+      // before the delta too: a re-run must not put an erased client's note back on an old booking
+      if (P.gone(r, row)) { out.appts.skipped++; continue; }
       const prev = s.apptByWp.get(key) ? s.appts.get(s.apptByWp.get(key)) : null;
       if (prev) { out.appts[delta(s, ctx, r, prev, row, pass)]++; continue; }
       const missing = r.serviceIds.filter((sid) => !s.services.has(sid));
@@ -318,6 +348,7 @@ export const importBatch = {
     const packed = new Set();
     for (const k of x.packs || []) {
       const label = [k.first, k.last].filter(Boolean).join(' ') || k.phone || '';
+      if (!k.clientId && P.gone(k, {})) { out.packs.skipped++; continue; }
       if (k.expires < today) { out.packs.skipped++; out.review.push({ kind: 'pack', name: label, text: 'Abonnement expiré le ' + fmtDay(k.expires) }); continue; }
       const cid = k.clientId ? getClient(s, k.clientId).id : k.phone || k.email ? (k.first ? P.find(k, { name: label }) : findOnly(s, k, P)) : null;
       if (!cid) { out.packs.skipped++; out.review.push({ kind: 'pack', name: label, text: 'Aucun client avec ce numéro : ajoute son prénom' }); continue; }

@@ -18,6 +18,8 @@ export function emptyState() {
     staff: new Map(), creds: new Map(), devices: new Map(), deviceByHash: new Map(),
     services: new Map(), products: new Map(),
     clients: new Map(), clientByPhone: new Map(),
+    /** keyed hashes of erased files' numbers and e-mails → why and when (an import skips their older rows) */
+    erasedTombs: new Map(),
     appts: new Map(), apptsByDay: new Map(), apptByToken: new Map(), apptByCode: new Map(),
     /** imported from WordPress: post id → appointment id (old e-mail links, re-runs of the import) */
     apptByWp: new Map(),
@@ -147,6 +149,18 @@ export function evolve(s, e) {
       for (const x of s.sales.values()) if (ids.has(x.clientId)) x.discountNote = '';
       for (const w of s.waitlist.values()) if (ids.has(w.clientId)) { w.first = ''; w.phone = ''; }
       for (const q of s.queue.values()) if (ids.has(q.clientId)) { q.name = 'Client effacé'; q.phone = ''; }
+      for (const g of s.giftcards.values()) if (ids.has(g.cid)) { g.buyer = ''; g.recipient = ''; }
+      // the latest erasure of a number counts: a row the old site recorded after it is someone who came back
+      for (const t of d.tombs || []) s.erasedTombs.set(t, { why: d.retention ? 'retention' : 'request', at: e.at });
+      // the retention purge also drops personal data that belongs to no file, by the ids its events carry
+      for (const k of d.drop || []) {
+        const a = s.appts.get(k); if (a) { a.name = ''; a.note = ''; if (a.cancel && a.cancel.by === 'client') a.cancel.reason = ''; }
+        const x = s.sales.get(k); if (x) x.discountNote = '';
+        const q = s.queue.get(k); if (q) { q.name = 'Passage'; q.phone = ''; }
+        const w = s.waitlist.get(k); if (w) { w.first = ''; w.phone = ''; }
+        const g = s.giftcards.get(k); if (g) { g.buyer = ''; g.recipient = ''; }
+        const m = s.messages.get(k); if (m) { m.to = ''; m.body = ''; }
+      }
       break;
     }
 

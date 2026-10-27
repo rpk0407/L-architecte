@@ -20,6 +20,12 @@ import { buildIcs, fold } from '../../server/lib/ics.js';
 import { memoryStore } from '../../server/store/memory.js';
 import { browser } from '../api/client.js';
 
+/** Erase a file the way the route does: its bookings to come are cancelled (and texted) first, then the file goes. */
+async function eraseFully(engine, id, ctx) {
+  for (let i = 0; i < 3; i++) if ((await engine.run(eraseClient, { id, cancelUpcoming: true }, ctx)).erased) return;
+  throw new Error('not erased');
+}
+
 const SYSTEM = { actor: { t: 'system', id: 'scheduler', n: 'Automatique' }, caps: new Set() };
 const LATER = addDays(DAY, 2); // a Thursday
 const MON = '2026-11-09';
@@ -157,7 +163,7 @@ test('erasing the client blanks their e-mails, the owner’s alert about them in
   const t = await salon();
   const r = await bookKarim(t);
   const cid = t.engine.state.appts.get(r.id).clientId;
-  await t.engine.run(eraseClient, { id: cid }, t.asOwner());
+  await eraseFully(t.engine, cid, t.asOwner());
   for (const id of ['msg_mconf_' + r.id + '_0', 'msg_obk_' + r.id]) {
     const m = t.engine.state.messages.get(id);
     assert.equal(m.to, '');
