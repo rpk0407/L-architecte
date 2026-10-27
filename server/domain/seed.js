@@ -39,16 +39,16 @@ const BARBERS = [
 const SERVICES = [
   { slug: 'cl', name: 'Coupe classique', short: 'Coupe', category: 'Coupes', price: 2000, dur: 30, includes: ['Coupe', 'Shampooing', 'Coiffage'], w: 30 },
   { slug: 'cc', name: 'Coupe + contour de barbe', short: 'Coupe + contour', category: 'Coupes', price: 2500, dur: 30, includes: ['Coupe', 'Contour de la barbe'], w: 20 },
-  { slug: 'ct', name: 'Coupe + taille de barbe', short: 'Coupe + taille', category: 'Coupes', price: 3000, dur: 30, includes: ['Coupe', 'Taille de barbe', 'Shampooing', 'Coiffage', 'Soin cheveux', 'Soin barbe'], w: 24 },
-  { slug: 'tr', name: 'Transformation', category: 'Changer de tête', price: 5000, dur: 60, includes: ['Diagnostic', 'Étude de faisabilité', 'Coupe', 'Coiffage et soin'], w: 6 },
+  { slug: 'ct', name: 'Coupe + taille de barbe', short: 'Coupe + taille', category: 'Coupes', price: 3000, dur: 30, includes: ['Coupe', 'Taille de barbe', 'Shampooing', 'Coiffage', 'Soin cheveux', 'Soin barbe'], tag: 'La plus complète', w: 24 },
+  { slug: 'tr', name: 'Transformation', category: 'Changer de tête', price: 5000, dur: 60, includes: ['Diagnostic', 'Étude de faisabilité', 'Coupe', 'Coiffage et soin'], tag: 'Changement de look', w: 6 },
   { slug: 'cd', name: 'Coupe + décoloration', short: 'Coupe + déco', category: 'Changer de tête', price: 8000, from: true, dur: 90, includes: ['Coupe', 'Décoloration'], w: 2 },
   { slug: 'de', name: 'Décoloration', category: 'Changer de tête', price: 6000, from: true, dur: 60, includes: ['Décoloration', 'Sans coupe'], description: 'Sous condition de faisabilité.', w: 2 },
   { slug: 'co', name: 'Coloration', category: 'Changer de tête', price: 3000, from: true, dur: 60, includes: ['Coloration', 'Sans coupe'], w: 2 },
-  { slug: 'si', name: 'Silver', category: 'Changer de tête', price: 10000, dur: 60, includes: ['Décoloration jusqu’au blanc', 'Coloration grise', 'Soin', 'Produit d’entretien offert'], description: 'Ne pas laver la tête pendant 4 jours minimum.', w: 1 },
+  { slug: 'si', name: 'Silver', category: 'Changer de tête', price: 10000, dur: 60, includes: ['Décoloration jusqu’au blanc', 'Coloration grise', 'Soin', 'Produit d’entretien offert'], description: 'Ne pas laver la tête pendant 4 jours minimum.', tag: 'Blanc ou gris', w: 1 },
   { slug: 'eb', name: 'Entretien barbe', category: 'Barbe', price: 1500, dur: 30, includes: ['Contour de la barbe', 'Huile'], w: 5 },
   { slug: 'tb', name: 'Taille de barbe', category: 'Barbe', price: 1800, dur: 30, includes: ['Taille', 'Mise en forme', 'Huile'], w: 5 },
   { slug: 'cb', name: 'Cover barbe', category: 'Barbe', price: 1500, dur: 30, includes: ['Couleur de la barbe', 'Soin'], w: 2 },
-  { slug: 'ab', name: 'Abonnement 5 coupes', short: 'Abonnement', category: 'Abonnement', price: 8000, dur: 30, includes: ['5 coupes sur 5 semaines', 'Sans barbe'], description: '16 € la coupe. Tu réserves la première, on fixe les suivantes avec toi.', w: 0, pack: { credits: 5, days: 70 } }
+  { slug: 'ab', name: 'Abonnement 5 coupes', short: 'Abonnement', category: 'Abonnement', price: 8000, dur: 30, includes: ['5 coupes sur 5 semaines', 'Sans barbe'], description: '16 € la coupe. Tu réserves la première, on fixe les suivantes avec toi.', tag: '16 € la coupe', w: 0, pack: { credits: 5, days: 70 } }
 ];
 
 const PRODUCTS = [

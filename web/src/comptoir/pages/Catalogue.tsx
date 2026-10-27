@@ -17,6 +17,40 @@ type Gift = { id: string; last4: string; amount: number; balance: number; expire
 const VATS = [{ v: 2000, t: '20 %' }, { v: 1000, t: '10 %' }, { v: 550, t: '5,5 %' }, { v: 0, t: '0 %' }];
 const DURS = [10, 15, 20, 30, 45, 60, 90, 120];
 const euros = (c: number) => (c / 100).toFixed(2).replace('.', ',').replace(/,00$/, '');
+const onSite = (s: Service) => s.active && s.online;
+
+/* The menu of the old WordPress site, so the owner starts from it instead of an empty page. The slugs are the
+   site's historical ones (?prestation=cl), the subscription covers the classic cut as in the demo. */
+const OLD_MENU: (Record<string, unknown> & { slug: string; name: string })[] = [
+  { slug: 'cl', name: 'Coupe classique', short: 'Coupe', category: 'Coupes', price: 2000, dur: 30, includes: ['Coupe', 'Shampooing', 'Coiffage'] },
+  { slug: 'cc', name: 'Coupe + contour de barbe', short: 'Coupe + contour', category: 'Coupes', price: 2500, dur: 30, includes: ['Coupe', 'Contour de la barbe'] },
+  { slug: 'ct', name: 'Coupe + taille de barbe', short: 'Coupe + taille', category: 'Coupes', price: 3000, dur: 30, tag: 'La plus complète', includes: ['Coupe', 'Taille de barbe', 'Shampooing', 'Coiffage', 'Soin cheveux', 'Soin barbe'] },
+  { slug: 'tb', name: 'Taille de barbe', category: 'Barbe', price: 1800, dur: 30, includes: ['Taille', 'Mise en forme', 'Huile'] },
+  { slug: 'eb', name: 'Entretien barbe', category: 'Barbe', price: 1500, dur: 30, includes: ['Contour de la barbe', 'Huile'] },
+  { slug: 'cb', name: 'Cover barbe', category: 'Barbe', price: 1500, dur: 30, includes: ['Couleur de la barbe', 'Soin'] },
+  { slug: 'tr', name: 'Transformation', category: 'Changer de tête', price: 5000, dur: 60, tag: 'Changement de look', includes: ['Diagnostic', 'Étude de faisabilité', 'Coupe', 'Coiffage et soin'] },
+  { slug: 'de', name: 'Décoloration', category: 'Changer de tête', price: 6000, from: true, dur: 60, includes: ['Décoloration', 'Sans coupe'], description: 'Sous condition de faisabilité.' },
+  { slug: 'co', name: 'Coloration', category: 'Changer de tête', price: 3000, from: true, dur: 60, includes: ['Coloration', 'Sans coupe'] },
+  { slug: 'si', name: 'Silver', category: 'Changer de tête', price: 10000, dur: 60, tag: 'Blanc ou gris', includes: ['Décoloration jusqu’au blanc', 'Coloration grise', 'Soin', 'Produit d’entretien offert'], description: 'Ne pas laver la tête pendant 4 jours minimum.' },
+  { slug: 'ab', name: 'Abonnement 5 coupes', short: 'Abonnement', category: 'Abonnement', price: 8000, dur: 30, tag: '16 € la coupe', includes: ['5 coupes sur 5 semaines', 'Sans barbe'], description: '16 € la coupe. Tu réserves la première, on fixe les suivantes avec toi.', pack: { credits: 5, days: 70 } }
+];
+
+/** Swap a service with its neighbour in its category: the order is the site's order. */
+async function moveService(items: Service[], s: Service, dir: -1 | 1) {
+  const list = items.filter((x) => x.active && x.category === s.category).sort((a, b) => a.order - b.order);
+  const i = list.findIndex((x) => x.id === s.id), j = i + dir;
+  if (i < 0 || j < 0 || j >= list.length) return;
+  const other = list[j];
+  try {
+    await Promise.all([api.patch('/api/v1/services/' + s.id, { order: other.order }), api.patch('/api/v1/services/' + other.id, { order: s.order === other.order ? s.order + dir : s.order })]);
+    refreshAll();
+  } catch (e) { toastError(e); }
+}
+
+function SiteBadge({ s }: { s: Service }) {
+  if (onSite(s)) return <span className="badge badge-ok"><Icon name="globe" size={12} />visible sur le site</span>;
+  return <span className="badge badge-warn">pas sur le site ({s.active ? 'hors ligne' : 'archivée'})</span>;
+}
 
 export default function Catalogue() {
   const { can } = useApp();
@@ -47,23 +81,45 @@ function Services({ items }: { items: Service[] }) {
   const active = items.filter((s) => s.active).sort((a, b) => a.order - b.order);
   const archived = items.filter((s) => !s.active);
   const cats = [...new Set(active.map((s) => s.category))];
-  const move = async (s: Service, dir: -1 | 1) => {
-    const list = active.filter((x) => x.category === s.category);
-    const i = list.findIndex((x) => x.id === s.id), j = i + dir;
-    if (j < 0 || j >= list.length) return;
-    const other = list[j];
+  const { reloadBoot } = useApp();
+  const move = (s: Service, dir: -1 | 1) => moveService(items, s, dir);
+  const [taking, setTaking] = useState(false);
+  // the old menu's slugs not created yet: a takeover cut short (network, rights) can be finished later without duplicates
+  const missing = OLD_MENU.filter((m) => !items.some((x) => x.slug === m.slug));
+  const resume = missing.length > 0 && missing.length < OLD_MENU.length;
+  const takeOver = async () => {
+    setTaking(true);
+    let done = 0;
     try {
-      await Promise.all([api.patch('/api/v1/services/' + s.id, { order: other.order }), api.patch('/api/v1/services/' + other.id, { order: s.order === other.order ? s.order + dir : s.order })]);
-      refreshAll();
-    } catch (e) { toastError(e); }
+      const ids: Record<string, string> = Object.fromEntries(items.filter((x) => x.slug).map((x) => [x.slug as string, x.id]));
+      for (const [order, sv] of OLD_MENU.entries()) {
+        if (ids[sv.slug]) continue;
+        const body = sv.slug === 'ab' && ids.cl ? { ...sv, order, pack: { credits: 5, days: 70, serviceIds: [ids.cl] } } : { ...sv, order };
+        ids[sv.slug] = (await api.post<{ id: string }>('/api/v1/services', body)).id;
+        done++;
+      }
+      toast({ title: 'Ta carte est reprise', sub: plural(done, 'prestation') + ' sur le site. Ajuste les prix si besoin.', icon: 'check' });
+    } catch (e) { toastError(e); } finally { setTaking(false); refreshAll(); reloadBoot().catch(() => {}); }
   };
   return (
     <>
       <div className="row wrap ct-bar">
-        <p className="muted grow">{plural(active.length, 'prestation')} · {active.filter((s) => s.online).length} réservables en ligne · l’ordre est celui du site</p>
+        <p className="muted grow">{plural(active.length, 'prestation')} · {plural(active.filter(onSite).length, 'visible', 'visibles')} sur le site · l’ordre est celui du site</p>
         <Button variant="primary" icon="plus" onClick={() => setEdit('new')}>Nouvelle prestation</Button>
       </div>
       <div className="col" style={{ gap: 14 }}>
+        {!items.length ? (
+          <section className="card">
+            <Empty icon="scissors" title="Pas encore de prestation" action={<Button variant="primary" icon="download" busy={taking} onClick={takeOver}>Reprendre la carte de l’ancien site</Button>}>
+              Ta carte de l’ancien site, prête en un geste&nbsp;: tu ajustes ensuite les prix.
+            </Empty>
+          </section>
+        ) : resume ? (
+          <section className="card card-tight row wrap" style={{ gap: 12 }}>
+            <p className="grow muted" style={{ margin: 0 }}>La reprise de l’ancienne carte s’est arrêtée en route&nbsp;: {plural(missing.length, 'prestation manque', 'prestations manquent')}.</p>
+            <Button icon="download" busy={taking} onClick={takeOver}>Compléter la carte de l’ancien site</Button>
+          </section>
+        ) : null}
         {cats.map((c) => (
           <section key={c} className="card">
             <div className="card-h"><h2>{c}</h2><span className="faint" style={{ fontSize: 13 }}>{active.filter((s) => s.category === c).length}</span></div>
@@ -72,11 +128,10 @@ function Services({ items }: { items: Service[] }) {
                 <li key={s.id} className="ct-row">
                   <button type="button" className="li ct-main" onClick={() => setEdit(s)}>
                     <span className="li-main">
-                      <b>{s.name}{s.pack ? <span className="badge badge-ok">{s.pack.credits} passages · {s.pack.days} j</span> : null}</b>
+                      <b>{s.name}{s.pack ? <span className="badge badge-ok">{s.pack.credits} passages · {s.pack.days} j</span> : null}<SiteBadge s={s} />{s.tag ? <span className="badge badge-accent">{s.tag}</span> : null}</b>
                       <small>{dur(s.dur)}{s.buffer ? ' + ' + s.buffer + ' min de battement' : ''} · TVA {s.vat / 100} %{s.description ? ' · ' + s.description : ''}</small>
                     </span>
                     <span className="ct-flags">
-                      {s.online ? <span className="badge"><Icon name="globe" size={12} />en ligne</span> : <span className="badge badge-warn">au salon</span>}
                       {s.deposit ? <span className="badge badge-info">acompte {eur(s.deposit)}</span> : null}
                     </span>
                     <span className="li-end"><b className="ct-price">{s.from ? <small>dès </small> : null}{eur(s.price)}</b></span>
@@ -93,7 +148,7 @@ function Services({ items }: { items: Service[] }) {
         {archived.length ? (
           <details className="card ct-archived">
             <summary>{plural(archived.length, 'prestation archivée', 'prestations archivées')}</summary>
-            <ul className="list">{archived.map((s) => <li key={s.id} className="li"><span className="li-main"><b>{s.name}</b><small>{s.category} · {eur(s.price)}</small></span><Button size="sm" variant="ghost" onClick={async () => { try { await api.post('/api/v1/services/' + s.id + '/archive', { restore: true }); refreshAll(); toast(s.name + ' est de retour'); } catch (e) { toastError(e); } }}>Remettre en vente</Button></li>)}</ul>
+            <ul className="list">{archived.map((s) => <li key={s.id} className="li"><span className="li-main"><b>{s.name} <SiteBadge s={s} /></b><small>{s.category} · {eur(s.price)}</small></span><Button size="sm" variant="ghost" onClick={async () => { try { await api.post('/api/v1/services/' + s.id + '/archive', { restore: true }); refreshAll(); toast(s.name + ' est de retour'); } catch (e) { toastError(e); } }}>Remettre en vente</Button></li>)}</ul>
           </details>
         ) : null}
       </div>
@@ -106,17 +161,26 @@ function ServiceSheet({ sv, all, onClose }: { sv: Service | 'new' | null; all: S
   const { boot, reloadBoot } = useApp();
   const isNew = sv === 'new';
   const cats = [...new Set(all.filter((s) => s.active).map((s) => s.category))];
-  const blank = { name: '', short: '', category: cats[0] || 'Coupes', price: '', from: false, dur: 30, buffer: 0, online: true, deposit: '' as string, depositMode: 'auto' as 'auto' | 'none' | 'custom', vat: boot.settings.payments.vat ?? 2000, description: '', includes: '', isPack: false, credits: 5, days: 70, covers: [] as string[] };
+  const blank = { name: '', short: '', category: cats[0] || 'Coupes', price: '', from: false, dur: 30, buffer: 0, online: true, deposit: '' as string, depositMode: 'auto' as 'auto' | 'none' | 'custom', vat: boot.settings.payments.vat ?? 2000, description: '', includes: '', tag: '', isPack: false, credits: 5, days: 70, covers: [] as string[] };
   const [f, setF] = useState(blank);
   const [newCat, setNewCat] = useState('');
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     if (!sv) return;
     if (sv === 'new') { setF(blank); setNewCat(''); return; }
-    setF({ name: sv.name, short: sv.short === sv.name ? '' : sv.short, category: sv.category, price: euros(sv.price), from: sv.from, dur: sv.dur, buffer: sv.buffer, online: sv.online, deposit: sv.deposit != null ? euros(sv.deposit) : '', depositMode: sv.deposit == null ? 'auto' : sv.deposit === 0 ? 'none' : 'custom', vat: sv.vat, description: sv.description, includes: sv.includes.join(', '), isPack: !!sv.pack, credits: sv.pack?.credits || 5, days: sv.pack?.days || 70, covers: sv.pack?.serviceIds || [] });
+    setF({ name: sv.name, short: sv.short === sv.name ? '' : sv.short, category: sv.category, price: euros(sv.price), from: sv.from, dur: sv.dur, buffer: sv.buffer, online: sv.online, deposit: sv.deposit != null ? euros(sv.deposit) : '', depositMode: sv.deposit == null ? 'auto' : sv.deposit === 0 ? 'none' : 'custom', vat: sv.vat, description: sv.description, includes: sv.includes.join(', '), tag: sv.tag || '', isPack: !!sv.pack, credits: sv.pack?.credits || 5, days: sv.pack?.days || 70, covers: sv.pack?.serviceIds || [] });
     setNewCat('');
   }, [sv]);
   const price = money.parseEur(f.price);
+  // where it sits on the site, from the live list so the arrows follow each move
+  const place = useMemo(() => {
+    if (!sv || sv === 'new') return null;
+    const list = all.filter((x) => x.active && x.category === sv.category).sort((a, b) => a.order - b.order);
+    const i = list.findIndex((x) => x.id === sv.id);
+    return i < 0 ? null : { i, n: list.length, s: list[i] };
+  }, [sv, all]);
+  // another category picked but not saved yet: the position shown would be the old one's
+  const moved = !!place && (newCat.trim() || f.category) !== place.s.category;
   const dep = boot.settings.deposits;
   const autoDep = !price || dep.mode === 'none' || (dep.mode === 'threshold' && price < dep.thresholdCents) ? 0 : Math.min(price, Math.max(500, Math.round((price * dep.percent) / 100 / 100) * 100));
   const valid = f.name.trim().length >= 2 && price != null && price >= 0 && (f.category || newCat.trim());
@@ -126,13 +190,15 @@ function ServiceSheet({ sv, all, onClose }: { sv: Service | 'new' | null; all: S
     try {
       const body: Record<string, unknown> = {
         name: f.name.trim(), short: f.short.trim() || undefined, category: (newCat.trim() || f.category), price, from: f.from, dur: f.dur, buffer: f.buffer, online: f.online, vat: f.vat,
-        description: f.description.trim(), includes: f.includes.split(',').map((x) => x.trim()).filter(Boolean).slice(0, 10)
+        description: f.description.trim(), includes: f.includes.split(',').map((x) => x.trim()).filter(Boolean).slice(0, 10), tag: f.tag.trim()
       };
       body.deposit = f.depositMode === 'auto' ? null : f.depositMode === 'none' ? 0 : money.parseEur(f.deposit) ?? 0;
       if (f.isPack) body.pack = { credits: f.credits, days: f.days, serviceIds: f.covers };
       if (isNew) await api.post('/api/v1/services', body);
       else await api.patch('/api/v1/services/' + (sv as Service).id, body);
-      toast({ title: isNew ? 'Prestation créée' : 'Prestation enregistrée', sub: f.online ? 'Elle est à jour sur le site.' : 'Réservable au salon uniquement.', icon: 'check' });
+      // say where it shows: an offline or archived service is saved but clients don't see it
+      const shown = f.online && (isNew || (sv as Service).active);
+      toast({ title: shown ? 'Visible sur le site' : 'Enregistrée · pas affichée sur le site', sub: f.name.trim(), icon: 'check' });
       refreshAll(); reloadBoot().catch(() => {}); onClose();
     } catch (e) { toastError(e); } finally { setBusy(false); }
   };
@@ -173,6 +239,18 @@ function ServiceSheet({ sv, all, onClose }: { sv: Service | 'new' | null; all: S
       </Field>
       <Field label="Description sur le site" hint={f.description.length + ' / 300'} htmlFor="sv-d"><textarea id="sv-d" className="input textarea" rows={2} maxLength={300} value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} /></Field>
       <Field label="Inclus (séparés par des virgules)" htmlFor="sv-i"><input id="sv-i" className="input" value={f.includes} onChange={(e) => setF({ ...f, includes: e.target.value })} placeholder="Shampooing, serviette chaude, coiffage" /></Field>
+      <div className="grid2">
+        <Field label="Mise en avant" hint="Un petit badge sur la carte du site. Vide : aucun." htmlFor="sv-t"><input id="sv-t" className="input" value={f.tag} maxLength={30} onChange={(e) => setF({ ...f, tag: e.target.value })} placeholder="La plus complète" /></Field>
+        <Field label="Ordre d’affichage" hint={place && !moved ? 'Chaque flèche déplace tout de suite sur le site.' : undefined}>{place && moved ? (
+          <span className="faint" style={{ fontSize: 13.5 }}>Nouvelle catégorie : tu la places dedans après l’enregistrement.</span>
+        ) : place ? (
+          <div className="row" style={{ gap: 8 }}>
+            <Button size="sm" icon="chevU" aria-label="Monter" disabled={place.i === 0} onClick={() => moveService(all, place.s, -1)} />
+            <Button size="sm" icon="chevD" aria-label="Descendre" disabled={place.i === place.n - 1} onClick={() => moveService(all, place.s, 1)} />
+            <span className="muted" style={{ fontSize: 13.5 }}>{place.i + 1}<sup>{place.i ? 'e' : 're'}</sup> sur {place.n} dans {place.s.category}</span>
+          </div>
+        ) : <span className="faint" style={{ fontSize: 13.5 }}>{isNew ? 'En dernier dans sa catégorie ; tu la déplaces ensuite.' : 'Archivée : pas sur le site.'}</span>}</Field>
+      </div>
       <Switch on={f.isPack} onChange={(v) => setF({ ...f, isPack: v })} title="C’est un abonnement" hint="Vendu une fois, puis chaque passage est décompté à la caisse." />
       {f.isPack ? (
         <div className="card card-tight ct-pack">

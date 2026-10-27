@@ -14,7 +14,7 @@ export function staffView(st, full = false) {
 }
 
 export function serviceView(sv) {
-  return { id: sv.id, slug: sv.slug || null, name: sv.name, short: sv.short || sv.name, category: sv.category, price: sv.price, from: !!sv.from, dur: sv.dur, buffer: sv.buffer || 0, online: sv.online !== false, deposit: sv.deposit ?? null, vat: sv.vat, order: sv.order ?? 0, description: sv.description || '', includes: sv.includes || [], pack: sv.pack || null, active: sv.active };
+  return { id: sv.id, slug: sv.slug || null, name: sv.name, short: sv.short || sv.name, category: sv.category, price: sv.price, from: !!sv.from, dur: sv.dur, buffer: sv.buffer || 0, online: sv.online !== false, deposit: sv.deposit ?? null, vat: sv.vat, order: sv.order ?? 0, description: sv.description || '', includes: sv.includes || [], tag: sv.tag || '', pack: sv.pack || null, active: sv.active };
 }
 export function productView(p) {
   return { id: p.id, name: p.name, price: p.price, cost: p.cost || 0, stock: p.stock || 0, low: p.low || 0, vat: p.vat, sku: p.sku || '', category: p.category || '', active: p.active };

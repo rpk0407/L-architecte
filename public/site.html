@@ -656,6 +656,8 @@ position:relative;font:400 17px/1.5 var(--f-sans);color:var(--os);background:var
 .cr-note{margin-top:12px;font-size:14px;color:var(--cendre2)}
 .cr-xi .btn{margin-top:18px}
 .cr-foot{margin-top:28px;font-size:15px;color:var(--cendre2)}
+.cr-none{margin-top:clamp(28px,6vw,48px);max-width:34em;font-size:17px;line-height:1.5;color:var(--cendre2)}
+.cr-none a,.st-none a{color:inherit;text-decoration:underline;text-underline-offset:3px}
 .cr-foot a{color:var(--encre);text-decoration:underline;text-underline-offset:4px}
 
 /* on recoupe ? */
@@ -905,11 +907,14 @@ position:relative;font:400 17px/1.5 var(--f-sans);color:var(--os);background:var
 .cx{margin-top:8px;font:400 28px/1.15 var(--f-serif)}
 .cx-s{margin-top:12px;font:500 15px/1.45 var(--f-sans);color:var(--cendre2)}
 
-.bk-foot{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 14px calc(14px + env(safe-area-inset-bottom,0px)) 22px;border-top:1px solid var(--iligne);background:var(--os)}
-.bk-sum{min-width:0}
+.bk-foot{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px 14px;padding:12px 14px calc(14px + env(safe-area-inset-bottom,0px)) 22px;border-top:1px solid var(--iligne);background:var(--os)}
+.bk-sum{flex:1 1 0;min-width:0}
 .bk-sum b{display:block;font:400 30px/1 var(--f-serif)}
 .bk-sum>span{display:block;margin-top:4px;font-size:13px;line-height:1.3;color:var(--cendre2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .bk-foot .btn{flex:none;margin-left:auto}
+.bk-terms{flex:1 0 100%;font-size:12.5px;line-height:1.4;color:var(--cendre2)}
+.bk-terms a{color:var(--encre);text-decoration:underline;text-underline-offset:3px}
+.st-none{padding:8px 2px;font:500 16px/1.5 var(--f-sans);color:var(--cendre2)}
 @media (max-width:360px){.slots{grid-template-columns:repeat(3,minmax(0,1fr))}.fld2{grid-template-columns:1fr}}
 
 @media (min-width:700px){
@@ -994,7 +999,7 @@ html{scroll-behavior:auto}
 </div>
 </nav>
 </sc-if>
-<div class="{{ctaCls}}"><button type="button" class="btn" onClick="{{openMain}}"><span>{{ctaLabel}}</span><small>{{ctaSub}}</small></button></div>
+<div class="{{ctaCls}}"><button type="button" class="btn" onClick="{{openMain}}"><span>{{ctaLabel}}</span><sc-if value="{{hasCtaSub}}" hint-placeholder-val="{{ true }}"><small>{{ctaSub}}</small></sc-if></button></div>
 <main id="main">
 <div class="dk">
 <section class="hero" id="frais" data-tone="light" data-cov ref="{{r.hero}}" aria-labelledby="t-hero">
@@ -1045,8 +1050,8 @@ html{scroll-behavior:auto}
 <p class="ct-tag" aria-hidden="true">Dégradé bas, raie tracée</p>
 <button type="button" class="ct-zoom" aria-pressed="{{z1}}" onClick="{{zoom1}}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/></svg><span>{{zl1}}</span></button>
 </div>
-<div class="ct-body"><div><h3 class="ct-n">La raie marquée</h3><p class="ct-p">Coupe classique · 30&nbsp;min</p></div><p class="ct-price">20&#8239;€</p></div>
-<button type="button" class="btn ghost ct-go" onClick="{{pickCut1}}">Je veux cette coupe</button>
+<div class="ct-body"><div><h3 class="ct-n">La raie marquée</h3><p class="ct-p">{{cut1.line}}</p></div><sc-if value="{{cut1.on}}" hint-placeholder-val="{{ true }}"><p class="ct-price"><small>{{cut1.pre}}</small>{{cut1.p}}</p></sc-if></div>
+<sc-if value="{{cut1.on}}" hint-placeholder-val="{{ true }}"><button type="button" class="btn ghost ct-go" onClick="{{cut1.go}}">Je veux cette coupe</button></sc-if>
 </article>
 
 <article class="{{cz2}}">
@@ -1056,8 +1061,8 @@ html{scroll-behavior:auto}
 <p class="ct-tag" aria-hidden="true">Contour net, barbe taillée</p>
 <button type="button" class="ct-zoom" aria-pressed="{{z2}}" onClick="{{zoom2}}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/></svg><span>{{zl2}}</span></button>
 </div>
-<div class="ct-body"><div><h3 class="ct-n">Boucles et barbe</h3><p class="ct-p">Coupe + taille de barbe · 30&nbsp;min</p></div><p class="ct-price">30&#8239;€</p></div>
-<button type="button" class="btn ghost ct-go" onClick="{{pickCut2}}">Je veux cette coupe</button>
+<div class="ct-body"><div><h3 class="ct-n">Boucles et barbe</h3><p class="ct-p">{{cut2.line}}</p></div><sc-if value="{{cut2.on}}" hint-placeholder-val="{{ true }}"><p class="ct-price"><small>{{cut2.pre}}</small>{{cut2.p}}</p></sc-if></div>
+<sc-if value="{{cut2.on}}" hint-placeholder-val="{{ true }}"><button type="button" class="btn ghost ct-go" onClick="{{cut2.go}}">Je veux cette coupe</button></sc-if>
 </article>
 
 <article class="{{cz3}}">
@@ -1067,8 +1072,8 @@ html{scroll-behavior:auto}
 <p class="ct-tag" aria-hidden="true">Dégradé à blanc, décoloré</p>
 <button type="button" class="ct-zoom" aria-pressed="{{z3}}" onClick="{{zoom3}}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/></svg><span>{{zl3}}</span></button>
 </div>
-<div class="ct-body"><div><h3 class="ct-n">Décoloré, à blanc</h3><p class="ct-p">Coupe + décoloration · 1&nbsp;h&nbsp;30</p></div><p class="ct-price"><small>dès</small>80&#8239;€</p></div>
-<button type="button" class="btn ghost ct-go" onClick="{{pickCut3}}">Je veux cette coupe</button>
+<div class="ct-body"><div><h3 class="ct-n">Décoloré, à blanc</h3><p class="ct-p">{{cut3.line}}</p></div><sc-if value="{{cut3.on}}" hint-placeholder-val="{{ true }}"><p class="ct-price"><small>{{cut3.pre}}</small>{{cut3.p}}</p></sc-if></div>
+<sc-if value="{{cut3.on}}" hint-placeholder-val="{{ true }}"><button type="button" class="btn ghost ct-go" onClick="{{cut3.go}}">Je veux cette coupe</button></sc-if>
 </article>
 
 <a class="ct ct-ig" href="https://www.instagram.com/barbershoplarchitecte/" target="_blank" rel="noopener">
@@ -1108,7 +1113,7 @@ html{scroll-behavior:auto}
 <ul><li>L’accueil</li><li>Le professionnalisme</li><li>L’hygiène</li><li>Les produits</li><li>L’ambiance</li><li>Le suivi</li></ul>
 </div>
 <div class="pv-cards">
-<a class="pv-c pv-c1" data-rv href="https://barberlarchitecte.com/formations/" target="_blank" rel="noopener"><span class="pv-ck">Salon formateur agréé</span><span class="pv-ct">On forme aussi les barbiers.</span><span class="pv-cl">Les formations de L’Archi<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17L17 7M8 7h9v9"/></svg></span></a>
+<a class="pv-c pv-c1" data-rv href="/formations"><span class="pv-ck">Salon formateur agréé</span><span class="pv-ct">On forme aussi les barbiers.</span><span class="pv-cl">Les formations de L’Archi<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h15M13 6l6 6-6 6"/></svg></span></a>
 <a class="pv-c pv-c2" data-rv href="https://www.youtube.com/watch?v=IP4PTgpZg-8" target="_blank" rel="noopener"><span class="pv-ck">En vidéo</span><span class="pv-ct">«&nbsp;Da JKut’z Therapy&nbsp;»</span><span class="pv-cl">La vidéo de JKut sur YouTube<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17L17 7M8 7h9v9"/></svg></span></a>
 <a class="pv-c pv-c3" data-rv href="https://www.instagram.com/barbershoplarchitecte/" target="_blank" rel="noopener"><span class="pv-ck">Sur Instagram</span><span class="pv-ct">Les coupes de la semaine.</span><span class="pv-cl">@barbershoplarchitecte<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17L17 7M8 7h9v9"/></svg></span></a>
 </div>
@@ -1144,7 +1149,7 @@ html{scroll-behavior:auto}
 </ul>
 <div class="bb-foot">
 <button type="button" class="btn ghost" onClick="{{bAny}}">Le premier libre</button>
-<p class="bb-demo">Disponibilités de démonstration.</p>
+<sc-if value="{{isDemo}}" hint-placeholder-val="{{ false }}"><p class="bb-demo">Disponibilités de démonstration.</p></sc-if>
 </div>
 </div>
 </section>
@@ -1152,9 +1157,10 @@ html{scroll-behavior:auto}
 <div class="wrap">
 <p class="kk" data-rv><span>05</span>La carte</p>
 <h2 class="h2" id="t-carte" data-rv="lines"><span class="ln"><span>Les prix,</span></span><span class="ln"><span>sans surprise.</span></span></h2>
-<div class="cr-tabs" role="tablist" aria-label="Catégories de la carte">
+<sc-if value="{{hasMenu}}" hint-placeholder-val="{{ true }}"><div class="cr-tabs" role="tablist" aria-label="Catégories de la carte">
 <sc-for list="{{tabs}}" as="t" hint-placeholder-count="4"><button type="button" role="tab" class="{{t.cls}}" aria-selected="{{t.on}}" onClick="{{t.go}}">{{t.t}}</button></sc-for>
-</div>
+</div></sc-if>
+<sc-if value="{{noMenu}}" hint-placeholder-val="{{ false }}"><p class="cr-none">La carte arrive. En attendant, <a href="{{contactHref}}">{{contactText}}</a>.</p></sc-if>
 <ul class="cr" role="tabpanel" aria-label="{{tabName}}">
 <sc-for list="{{carteItems}}" as="f" hint-placeholder-count="3">
 <li class="{{f.cls}}">
@@ -1167,7 +1173,7 @@ html{scroll-behavior:auto}
 </li>
 </sc-for>
 </ul>
-<p class="cr-foot">Carte bancaire acceptée au salon · <a href="https://barberlarchitecte.com/a-toutes-occasions-offrez-un-moment-privilegie-a-vos-proches-en-leur-offrant-une-carte-cadeau/" target="_blank" rel="noopener">Offrir une carte cadeau</a></p>
+<p class="cr-foot">Carte bancaire acceptée au salon · <a href="/carte-cadeau">Offrir une carte cadeau</a></p>
 </div>
 </section>
 <section class="tm" id="temps" data-ch="6" data-tone="light" ref="{{r.time}}" aria-labelledby="t-tm">
@@ -1218,7 +1224,7 @@ html{scroll-behavior:auto}
 <details class="fq-i" name="faq"><summary><span class="fq-n" aria-hidden="true">04</span><span class="fq-q">Comment réserver ?</span><span class="fq-ic" aria-hidden="true"><i></i><i></i></span></summary><div class="fq-a"><p>En ligne, en moins d’une minute et sans créer de compte : tu choisis ta prestation, ton barbier et ton créneau.</p></div></details>
 <details class="fq-i" name="faq"><summary><span class="fq-n" aria-hidden="true">05</span><span class="fq-q">Faites-vous les décolorations et le silver ?</span><span class="fq-ic" aria-hidden="true"><i></i><i></i></span></summary><div class="fq-a"><p>Oui. Décoloration dès 60 €, coloration dès 30 €, silver (blanc ou gris) à 100 €, toujours après un avis sur la faisabilité.</p></div></details>
 <details class="fq-i" name="faq"><summary><span class="fq-n" aria-hidden="true">06</span><span class="fq-q">Existe-t-il un abonnement ?</span><span class="fq-ic" aria-hidden="true"><i></i><i></i></span></summary><div class="fq-a"><p>Oui : 5 coupes sur 5 semaines pour 80 €, soit 16 € la coupe, hors barbe. Tu réserves la première, le salon fixe les suivantes avec toi.</p></div></details>
-<details class="fq-i" name="faq"><summary><span class="fq-n" aria-hidden="true">07</span><span class="fq-q">Le salon forme-t-il des barbiers ?</span><span class="fq-ic" aria-hidden="true"><i></i><i></i></span></summary><div class="fq-a"><p>Oui. L’Architecte est titulaire d’un agrément de formateur en coiffure et propose des stages, de l’entretien de la barbe à la coupe homme complexe.</p><a class="tl fq-a-l" href="https://barberlarchitecte.com/formations/" target="_blank" rel="noopener">Les formations de L’Archi</a></div></details>
+<details class="fq-i" name="faq"><summary><span class="fq-n" aria-hidden="true">07</span><span class="fq-q">Le salon forme-t-il des barbiers ?</span><span class="fq-ic" aria-hidden="true"><i></i><i></i></span></summary><div class="fq-a"><p>Oui. L’Architecte est titulaire d’un agrément de formateur en coiffure et propose des stages, de l’entretien de la barbe à la coupe homme complexe.</p><a class="tl fq-a-l" href="/formations">Les formations de L’Archi</a></div></details>
 <details class="fq-i" name="faq"><summary><span class="fq-n" aria-hidden="true">08</span><span class="fq-q">Peut-on payer par carte ?</span><span class="fq-ic" aria-hidden="true"><i></i><i></i></span></summary><div class="fq-a"><p>Oui, la carte bancaire est acceptée au salon.</p></div></details>
 </div>
 </div>
@@ -1242,10 +1248,12 @@ html{scroll-behavior:auto}
 <li><a href="https://www.facebook.com/pg/barbershop.larchitecte/" target="_blank" rel="noopener">Facebook</a></li>
 <li><a href="https://www.youtube.com/channel/UCi2oLstkv0IIucLyd211G8A" target="_blank" rel="noopener">YouTube</a></li>
 <li><a href="mailto:larchitectebarber@gmail.com">Écrire au salon</a></li>
-<li><a href="https://barberlarchitecte.com/formations/" target="_blank" rel="noopener">Formations</a></li>
-<li><a href="https://barberlarchitecte.com/a-toutes-occasions-offrez-un-moment-privilegie-a-vos-proches-en-leur-offrant-une-carte-cadeau/" target="_blank" rel="noopener">Carte cadeau</a></li>
-<li><a href="https://barberlarchitecte.com/mon-compte" target="_blank" rel="noopener">Mon compte</a></li>
-<li><a href="https://barberlarchitecte.com/mentions-legales" target="_blank" rel="noopener">Mentions légales</a></li>
+<li><a href="/formations">Formations</a></li>
+<li><a href="/carte-cadeau">Carte cadeau</a></li>
+<li><a href="/mon-rendez-vous">Mon rendez-vous</a></li>
+<li><a href="/mentions-legales">Mentions légales</a></li>
+<li><a href="/confidentialite">Confidentialité</a></li>
+<li><a href="/cgv">CGV</a></li>
 <li><a class="ft-pro" href="/comptoir">Espace barbier</a></li>
 </ul>
 <p class="ft-legal">© Barber L’Architecte · Marseille</p>
@@ -1264,6 +1272,8 @@ html{scroll-behavior:auto}
 
 <sc-if value="{{isSvc}}" hint-placeholder-val="{{ true }}">
 <div class="st">
+<sc-if value="{{hasErr}}" hint-placeholder-val="{{ false }}"><p class="bk-err" role="alert">{{bkErr}}</p></sc-if>
+<sc-if value="{{noMenu}}" hint-placeholder-val="{{ false }}"><p class="st-none">La réservation en ligne ouvre bientôt. En attendant, <a href="{{contactHref}}">{{contactText}}</a>.</p></sc-if>
 <sc-if value="{{hasRebook}}" hint-placeholder-val="{{ false }}">
 <button type="button" class="rb" onClick="{{rebook}}"><span class="rb-k">Bon retour, {{meFirst}}</span><span class="rb-t">Comme la dernière fois&nbsp;?</span><span class="rb-s">{{rebookLine}}</span><span class="rb-go">Reprendre<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h15M13 6l6 6-6 6"/></svg></span></button>
 </sc-if>
@@ -1333,7 +1343,7 @@ html{scroll-behavior:auto}
 <div class="fld"><label for="f-email">E-mail <span class="opt-l">facultatif</span></label><input id="f-email" type="email" inputmode="email" autocomplete="email" value="{{fEmail}}" onChange="{{setEmail}}"><span class="hint">Pour recevoir le rendez-vous dans ton agenda.</span></div>
 <div class="fld"><label for="f-note">Un mot pour ton barbier <span class="opt-l">facultatif</span></label><input id="f-note" type="text" placeholder="Ex. : dégradé bas, garder la longueur" value="{{fNote}}" onChange="{{setNote}}"></div>
 <button type="button" class="{{smsCls}}" role="switch" aria-checked="{{smsOn}}" onClick="{{toggleSms}}"><span class="sw-t"><b>Rappel par SMS la veille</b><small>Avec un lien pour déplacer ou annuler.</small></span><span class="sw-k" aria-hidden="true"><i></i></span></button>
-<p class="priv">Tes coordonnées servent uniquement à ce rendez-vous. <a href="{{dataHref}}">Comment elles sont traitées</a></p>
+<p class="priv">Tes coordonnées servent uniquement à ce rendez-vous. <a href="{{dataHref}}" target="_blank" rel="noopener">Comment elles sont traitées</a></p>
 <sc-if value="{{hasDeposit}}" hint-placeholder-val="{{ false }}"><p class="dep">{{depLine}}</p></sc-if>
 <sc-if value="{{isDemo}}" hint-placeholder-val="{{ true }}"><p class="demo">Démo&nbsp;: aucun SMS n’est envoyé, aucun paiement n’est débité. La réservation apparaît tout de suite dans le Comptoir.</p></sc-if>
 </div>
@@ -1350,7 +1360,7 @@ html{scroll-behavior:auto}
 <p class="tk-a">16, place Pélabon · 13013 Marseille</p>
 </div>
 <sc-if value="{{needPay}}" hint-placeholder-val="{{ false }}"><div class="pay-b"><p>{{payLine}}</p><a class="btn" href="{{payUrl}}">Régler l’acompte</a></div></sc-if>
-<sc-if value="{{notPay}}" hint-placeholder-val="{{ true }}"><p class="sms-k">Le SMS que tu reçois</p>
+<sc-if value="{{showSms}}" hint-placeholder-val="{{ true }}"><p class="sms-k">Le SMS que tu reçois</p>
 <div class="sms"><p>{{smsText}}</p><small>À l’instant</small></div></sc-if>
 <div class="done-act">
 <sc-if value="{{hasIcs}}" hint-placeholder-val="{{ false }}"><a class="btn ghost" href="{{icsUrl}}" download="rdv-larchitecte.ics">Ajouter à mon agenda</a></sc-if>
@@ -1394,6 +1404,7 @@ html{scroll-behavior:auto}
 <div class="bk-foot">
 <sc-if value="{{showSum}}" hint-placeholder-val="{{ true }}"><p class="bk-sum"><b>{{bkPrice}}</b><span>{{bkLine}}</span></p></sc-if>
 <button type="button" class="btn" disabled="{{ctaOff}}" onClick="{{ctaGo}}">{{ctaText}}</button>
+<sc-if value="{{hasTerms}}" hint-placeholder-val="{{ false }}"><p class="bk-terms">En réservant, tu acceptes les conditions d’annulation&nbsp;: gratuite jusqu’à {{termsHours}}&nbsp;h avant, ensuite l’acompte reste au salon. <a href="/cgv" target="_blank" rel="noopener">Voir les CGV</a></p></sc-if>
 </div>
 </div>
 </div>
@@ -1414,7 +1425,7 @@ const LXE = (function () {
   const DAYS_SH = ['dim.', 'lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.'];
   const MONTHS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
   const MONTHS_SH = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
-  /* what the page shows before the salon answers: the same names, prices and lengths as the catalogue */
+  /* what the page shows before the salon answers (the demo catalogue); the salon's own catalogue replaces it */
   const SV = {
     cl: { n: 'Coupe classique', sh: 'Coupe', p: 20, d: 30 },
     cc: { n: 'Coupe + contour de barbe', sh: 'Coupe + contour', p: 25, d: 30 },
@@ -1438,7 +1449,9 @@ const LXE = (function () {
   const BMAP = {};
   BARBERS.forEach(function (b) { BMAP[b.id] = b; });
   const staffOf = {}, siteOf = {};
-  let salon = null, salonAt = 0, salonP = null, moving = null, skew = 0;
+  /* the old site's names for the team, still in links people kept (?barbier=larchi) */
+  const ALIAS = { larchi: 'frank' };
+  let salon = null, salonAt = 0, salonP = null, moving = null, skew = 0, catalog = null;
 
   function pad(n) { return n < 10 ? '0' + n : '' + n; }
   function clamp(v, a, b) { return v < a ? a : (v > b ? b : v); }
@@ -1488,7 +1501,8 @@ const LXE = (function () {
     const s = dayLong(key);
     return s.charAt(0).toUpperCase() + s.slice(1);
   }
-  function eur(p, from) { return (from ? 'dès ' : '') + String(Math.round(p * 100) / 100).replace('.', ',') + NBSP + '€'; }
+  /* 20 €, 15,50 €: two decimals only when there are cents, like the Comptoir */
+  function eur(p, from) { const c = Math.round(p * 100); return (from ? 'dès ' : '') + (c % 100 ? (c / 100).toFixed(2) : String(c / 100)).replace('.', ',') + NBSP + '€'; }
 
   /* ---------- talking to the salon ---------- */
   const listeners = [];
@@ -1511,11 +1525,12 @@ const LXE = (function () {
   function applySalon(j) {
     salon = j; salonAt = Date.now();
     if (typeof j.now === 'number') skew = j.now - Date.now();
-    (j.services || []).forEach(function (x) {
-      const slug = x.slug || x.id;
-      SV[slug] = Object.assign(SV[slug] || {}, { id: x.id, n: x.name, sh: x.short || x.name, p: x.price / 100, d: x.dur, from: !!x.from, off: false, deposit: x.deposit });
+    /* whatever the owner puts online, in the Comptoir's order: the placeholder is gone */
+    Object.keys(SV).forEach(function (k) { delete SV[k]; });
+    catalog = (j.services || []).slice().sort(function (a, b) { return (a.order || 0) - (b.order || 0); }).map(function (x) {
+      const k = x.slug || x.id;
+      return (SV[k] = { id: x.id, key: k, n: x.name, sh: x.short || x.name, p: x.price / 100, d: x.dur, from: !!x.from, deposit: x.deposit, cat: x.category || 'Prestations', tag: x.tag || '', inc: x.includes || [], note: x.description || '' });
     });
-    Object.keys(SV).forEach(function (k) { if (!(j.services || []).some(function (x) { return (x.slug || x.id) === k; })) SV[k].off = true; });
     BARBERS.length = 0;
     Object.keys(BMAP).forEach(function (k) { delete BMAP[k]; });
     (j.barbers || []).forEach(function (b) {
@@ -1534,7 +1549,16 @@ const LXE = (function () {
 
   /* ---------- free slots, fetched per (prestation, barbier) and kept a few seconds ---------- */
   const av = {}, used = {};
-  function norm(f) { return typeof f === 'string' && SV[f] ? f : 'cl'; }
+  /* the service the page uses when none is chosen yet (hero, barbers' next slots): the first one of the catalogue */
+  function first() { return catalog ? (catalog[0] ? catalog[0].key : null) : 'cl'; }
+  function norm(f) { return typeof f === 'string' && SV[f] ? f : first(); }
+  function barberOf(x) {
+    x = String(x || '').toLowerCase();
+    if (x === 'any') return x;
+    return [x, ALIAS[x], slugName(x)].filter(function (k) { return k && Object.prototype.hasOwnProperty.call(BMAP, k); })[0] || null;
+  }
+  /* a service key typed in a link (?prestation=…), only if the catalogue really has it */
+  function serviceOf(x) { x = String(x || '').toLowerCase(); return x && Object.prototype.hasOwnProperty.call(SV, x) ? x : null; }
   function avKey(f, who) { return f + '|' + (who || 'any') + '|' + (moving || ''); }
   function fetchAv(f, who) {
     const k = avKey(f, who);
@@ -1594,22 +1618,29 @@ const LXE = (function () {
   }
 
   /* ---------- what a visitor can do ---------- */
+  /* the service the visitor chose, never another one in its place: it may leave the catalogue while the sheet is open */
+  function sid(f) {
+    const x = typeof f === 'string' && Object.prototype.hasOwnProperty.call(SV, f) ? SV[f] : null;
+    const e = new Error(x ? 'Le salon ne répond pas. Réessaie dans un instant.' : 'Cette prestation n’est plus proposée en ligne. Choisis-en une autre.');
+    e.code = x ? 'http' : 'service_gone';
+    return x && x.id ? Promise.resolve(x.id) : Promise.reject(e);
+  }
   function hold(f, who, day, start) {
-    return call('POST', '/api/public/holds', { serviceIds: [SV[norm(f)].id], staffId: !who || who === 'any' ? 'any' : staffOf[who], day: day, start: start })
+    return sid(f).then(function (id) { return call('POST', '/api/public/holds', { serviceIds: [id], staffId: !who || who === 'any' ? 'any' : staffOf[who], day: day, start: start }); })
       .then(function (h) { invalidate(); return { id: h.holdId, barber: siteOf[h.staffId] || who, exp: h.exp }; });
   }
   function release(id) { if (id) call('DELETE', '/api/public/holds/' + encodeURIComponent(id)).then(invalidate, function () {}); }
   function book(o) {
-    return call('POST', '/api/public/bookings', {
-      serviceIds: [SV[norm(o.f)].id], staffId: !o.barber || o.barber === 'any' ? 'any' : staffOf[o.barber], day: o.day, start: o.time, holdId: o.holdId || undefined,
+    return sid(o.f).then(function (id) { return call('POST', '/api/public/bookings', {
+      serviceIds: [id], staffId: !o.barber || o.barber === 'any' ? 'any' : staffOf[o.barber], day: o.day, start: o.time, holdId: o.holdId || undefined,
       first: o.first, last: o.last || undefined, phone: o.phone, email: o.email || undefined, note: o.note || undefined, sms: o.sms !== false
-    }).then(function (r) { invalidate(); emit(); r.barber = siteOf[r.staffId] || o.barber; return r; });
+    }); }).then(function (r) { invalidate(); emit(); r.barber = siteOf[r.staffId] || o.barber; return r; });
   }
   function booking(token) { return call('GET', '/api/public/bookings/' + encodeURIComponent(token)); }
   function cancel(token) { return call('POST', '/api/public/bookings/' + encodeURIComponent(token) + '/cancel', {}).then(function (r) { invalidate(); emit(); return r; }); }
   function move(token, day, start) { return call('POST', '/api/public/bookings/' + encodeURIComponent(token) + '/move', { day: day, start: start }).then(function (r) { invalidate(); emit(); return r; }); }
   function wait(o) {
-    return call('POST', '/api/public/waitlist', { day: o.day, staffId: !o.barber || o.barber === 'any' ? 'any' : staffOf[o.barber], serviceId: SV[norm(o.f)].id, first: o.first, phone: o.phone });
+    return sid(o.f).then(function (id) { return call('POST', '/api/public/waitlist', { day: o.day, staffId: !o.barber || o.barber === 'any' ? 'any' : staffOf[o.barber], serviceId: id, first: o.first, phone: o.phone }); });
   }
   function offer(token) { return call('GET', '/api/public/offers/' + encodeURIComponent(token)).then(function (w) { return { f: Object.keys(SV).filter(function (k) { return SV[k].id === w.serviceId; })[0] || null, barber: siteOf[w.staffId] || null, day: w.day, time: w.start, holdId: w.holdId, exp: w.exp, first: w.first }; }); }
   let liveV = null, liveAt = 0;
@@ -1625,7 +1656,7 @@ const LXE = (function () {
     pad: pad, clamp: clamp, parisParts: parisParts, keyOf: keyOf, parts: parts, addDays: addDays, diffDays: diffDays,
     isOpenDay: isOpenDay, hoursOf: hoursOf, now: now, nextOpen: nextOpen, fmtH: fmtH, hm: hm, dayLong: dayLong, dayShort: dayShort, dayWord: dayWord, eur: eur,
     slots: slots, ready: ready, openDays: openDays, earliest: earliest, stillFree: stillFree, pull: pull, on: on, init: function () { return loadSalon(); },
-    salon: function () { return salon; }, clock: function () { return Date.now() + skew; }, hold: hold, release: release, book: book, booking: booking, cancel: cancel, move: move, wait: wait, offer: offer, live: live,
+    salon: function () { return salon; }, services: function () { return catalog; }, first: first, barberOf: barberOf, serviceOf: serviceOf, clock: function () { return Date.now() + skew; }, hold: hold, release: release, book: book, booking: booking, cancel: cancel, move: move, wait: wait, offer: offer, live: live,
     setMoving: setMoving, uid: uid
   };
 })();
@@ -1694,11 +1725,24 @@ const TM_LINES = [
   'Ça se voit.'
 ];
 
+/* the menu by category, in the catalogue's order once the salon answers; FORMULAS, TABS and SVC_GROUPS until then */
+function menuGroups(placeholder) {
+  const live = LXE.services();
+  if (!live) return placeholder.map(function (g) { return { t: g.t, items: g.ids.map(function (id) { return Object.assign({ key: id }, FMAP[id]); }) }; });
+  const out = [], at = new Map();
+  live.forEach(function (f) {
+    if (!at.has(f.cat)) { at.set(f.cat, { t: f.cat, items: [] }); out.push(at.get(f.cat)); }
+    at.get(f.cat).items.push(f);
+  });
+  return out;
+}
+
 function pad(n) { return n < 10 ? '0' + n : '' + n; }
 function clamp(v, a, b) { return v < a ? a : (v > b ? b : v); }
 function easeOut(k) { return 1 - Math.pow(1 - k, 3); }
 function easeInOut(k) { return k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2; }
-function eur(f) { return (f.from ? 'dès ' : '') + f.p + NB + '€'; }
+function num(p) { const c = Math.round(p * 100); return (c % 100 ? (c / 100).toFixed(2) : String(c / 100)).replace('.', ','); }
+function eur(f) { return (f.from ? 'dès ' : '') + num(f.p) + NB + '€'; }
 function fmtDur(d) {
   if (d < 60) return d + NB + 'min';
   const h = Math.floor(d / 60), m = d % 60;
@@ -2368,7 +2412,8 @@ class Component extends DCLogic {
 
     /* hero: your appointment, or the next free slot */
     const days10 = LXE.openDays(10);
-    const nf = mine ? null : LXE.earliest('any', 'cl', days10);
+    const f0 = LXE.first();
+    const nf = mine ? null : LXE.earliest('any', f0, days10);
     const nextK = mine ? 'Ton rendez-vous' : 'Prochain créneau';
     const nextV = mine ? LXE.dayWord(mine.day).replace(/^(\S+) (\d+) \S+$/, '$1 $2') + ' · ' + LXE.fmtH(mine.time) : (nf ? LXE.dayWord(nf.day) + ' · ' + LXE.fmtH(nf.m) : 'Voir les créneaux');
 
@@ -2376,7 +2421,7 @@ class Component extends DCLogic {
     const barbers = BARBERS.filter((x) => x.id !== 'any').map((x) => {
       let f = null;
       for (let i = 0; i < days10.length && !f; i++) {
-        const fr = LXE.slots(days10[i], x.id, 'cl');
+        const fr = LXE.slots(days10[i], x.id, f0);
         if (fr.length) f = { day: days10[i], slots: fr.slice(0, 4) };
       }
       const op = s.bOpen === x.id;
@@ -2392,14 +2437,24 @@ class Component extends DCLogic {
       };
     });
 
+    /* the 'Le travail' cards book the service they show, when the catalogue sells it */
+    const cut = (k) => {
+      const f = LXE.serviceOf(k) ? LXE.SV[k] : null;
+      return { on: !!f, line: f ? f.n + ' · ' + fmtDur(f.d) : 'Sur demande au salon', pre: f && f.from ? 'dès' : '', p: f ? num(f.p) + NB + '€' : '', go: () => this.openWith(f ? { formula: k } : null) };
+    };
+    /* the lowest price online, for 'Réserver · dès …' */
+    const live = LXE.services();
+    const low = (live || FORMULAS).reduce((m, f) => Math.min(m, f.p), Infinity);
+
     /* la carte */
-    const tab = TABS[s.tab] || TABS[0];
-    const tabs = TABS.map((t, i) => ({ t: t.t, on: i === s.tab, cls: 'cr-tab' + (i === s.tab ? ' on' : ''), go: () => this.setState({ tab: i, crOpen: null }) }));
-    const carteItems = tab.ids.map((id) => {
-      const f = FMAP[id];
+    const groups = menuGroups(TABS);
+    const tab = groups[s.tab] || groups[0] || { t: '', items: [] };
+    const tabs = groups.map((t, i) => ({ t: t.t, on: t === tab, cls: 'cr-tab' + (t === tab ? ' on' : ''), go: () => this.setState({ tab: i, crOpen: null }) }));
+    const carteItems = tab.items.map((f) => {
+      const id = f.key;
       const op = s.crOpen === id;
       return {
-        n: f.n, meta: fmtDur(f.d) + (f.tag ? ' · ' + f.tag : ''), pre: f.from ? 'dès' : '', p: f.p + NB + '€', price: eur(f),
+        n: f.n, meta: fmtDur(f.d) + (f.tag ? ' · ' + f.tag : ''), pre: f.from ? 'dès' : '', p: num(f.p) + NB + '€', price: eur(f),
         open: op, cls: 'cr-i' + (op ? ' open' : ''),
         inc: (f.inc || []).map((t) => ({ t: t })), hasNote: !!f.note, note: f.note || '',
         toggle: () => this.setState({ crOpen: op ? null : id }),
@@ -2435,7 +2490,8 @@ class Component extends DCLogic {
       mnSt: 'mn-st ' + st.cls,
       ctaCls: 'cta' + ((s.sheet || s.menu || s.ctaHide) ? ' off' : ''),
       ctaLabel: inFlow ? 'Continuer' : 'Réserver',
-      ctaSub: inFlow ? LXE.eur(F.p, F.from) : 'dès 20' + NB + '€',
+      ctaSub: inFlow ? LXE.eur(F.p, F.from) : low < Infinity ? 'dès ' + num(low) + NB + '€' : '',
+      hasCtaSub: inFlow || low < Infinity,
       openMain: () => this.openWith(null),
 
       nextK: nextK,
@@ -2450,15 +2506,14 @@ class Component extends DCLogic {
       zoom1: zt(0), zoom2: zt(1), zoom3: zt(2),
       cutPrev: () => this.cutStep(-1),
       cutNext: () => this.cutStep(1),
-      pickCut1: () => this.openWith({ formula: 'cl' }),
-      pickCut2: () => this.openWith({ formula: 'ct' }),
-      pickCut3: () => this.openWith({ formula: 'cd' }),
+      cut1: cut('cl'), cut2: cut('ct'), cut3: cut('cd'),
 
 
       barbers: barbers,
       bAny: () => this.openWith({ barber: 'any' }),
 
       tabs: tabs,
+      hasMenu: groups.length > 0,
       tabName: tab.t,
       carteItems: carteItems,
 
@@ -2519,7 +2574,13 @@ const BookingMixin = {
   bkInit() {
     const me = readMe() || {};
     this.setState({ fFirst: me.first || '', fLast: me.last || '', fPhone: me.phone || '', fEmail: me.email || '', fNote: '', fSms: true });
-    this._bkOff = LXE.on(() => { syncFormulas(); if (this._mounted) this.setState({ storeV: Date.now() }); });
+    this._bkOff = LXE.on(() => {
+      if (!this._mounted) return;
+      // the owner took the chosen service off the site while the sheet was open: back to step 1, never another service
+      const bk = this.state.bk;
+      if (LXE.services() && bk.f && !LXE.SV[bk.f] && ['who', 'when', 'info'].indexOf(bk.step) >= 0 && !bk.busy) this.bkGone();
+      this.setState({ storeV: Date.now() });
+    });
     LXE.init().then(() => this.bkFromUrl());
     this._bkPoll = setInterval(() => {
       if (document.visibilityState === 'hidden') return;
@@ -2550,7 +2611,16 @@ const BookingMixin = {
         this.setState({ sheet: true, bk: Object.assign(this.bkEmpty(), { step: 'when', err: e.message }) });
       });
       try { history.replaceState(null, '', window.location.pathname + window.location.hash); } catch (e) { /* ignore */ }
-    } else if (q.has('reserver')) this.openWith(null);
+    } else if (q.has('reserver')) this.openWith(this.bkPreset(q));
+  },
+  /* ?reserver&barbier=jkut&prestation=coupe-classique: a link from Instagram, the old site or a barber's card lands on the right step */
+  bkPreset(q) {
+    const pre = {};
+    const f = LXE.serviceOf(q.get('prestation'));
+    if (f) pre.formula = f;
+    const b = LXE.barberOf(q.get('barbier'));
+    if (b) pre.barber = b;
+    return pre.formula || pre.barber ? pre : null;
   },
 
   /* ---------- who is this visitor ---------- */
@@ -2599,7 +2669,7 @@ const BookingMixin = {
 
   /* the next step that still needs an answer; a preselected slot must still be free */
   bkNext(bk) {
-    if (!bk.f || !LXE.SV[bk.f] || LXE.SV[bk.f].off) return 'svc';
+    if (!bk.f || !LXE.SV[bk.f]) return 'svc';
     if (!bk.barber) return 'who';
     if (!bk.day || bk.time == null) return 'when';
     const s = LXE.slots(bk.day, bk.barber, bk.f).find((x) => x.m === bk.time);
@@ -2638,7 +2708,7 @@ const BookingMixin = {
       this.setState({ bk: Object.assign({}, cur, { holdId: h.id, assigned: h.barber }) });
     }).catch((e) => {
       const cur = this.state.bk;
-      if (this._mounted && cur.holdTok === tok && cur.step === 'info') this.bkConflict(e.code === 'taken' ? null : e.message);
+      if (this._mounted && cur.holdTok === tok && cur.step === 'info') { if (e.code === 'service_gone') this.bkGone(); else this.bkConflict(e.code === 'taken' ? null : e.message); }
     });
     this.bkTick();
   },
@@ -2664,6 +2734,9 @@ const BookingMixin = {
     const s0 = this.state;
     const b = s0.bk;
     if (!this.bkValid() || b.busy) return;
+    // what the ticket shows is read now: the catalogue may reload while the booking is on its way
+    const F = LXE.SV[b.f];
+    if (!F) { this.bkGone(); return; }
     this.setState({ bk: Object.assign({}, b, { busy: true, err: '' }) });
     const first = capFirst(String(s0.fFirst).trim().split(/\s+/)[0]).slice(0, 40);
     try {
@@ -2671,16 +2744,23 @@ const BookingMixin = {
         f: b.f, barber: b.barber, day: b.day, time: b.time, holdId: b.holdId, first: first, last: String(s0.fLast || '').trim().slice(0, 40),
         phone: String(s0.fPhone), email: String(s0.fEmail || '').trim(), note: String(s0.fNote || '').trim().slice(0, 200), sms: !!s0.fSms
       });
-      const F = LXE.SV[b.f];
-      const result = { token: r.token, code: r.code, manage: r.manage, day: b.day, time: b.time, dur: F.d, f: b.f, barber: r.barber, any: b.barber === 'any', first: first, status: r.status, deposit: r.deposit, payUrl: r.payment ? r.payment.url : null };
+      // the ticket keeps what was booked, even if the service leaves the catalogue later
+      const result = { token: r.token, code: r.code, manage: r.manage, day: b.day, time: b.time, dur: F.d, f: b.f, n: F.n, p: F.p, from: !!F.from, barber: r.barber, any: b.barber === 'any', first: first, status: r.status, deposit: r.deposit, payUrl: r.payment ? r.payment.url : null };
       this.remember({ first: String(s0.fFirst).trim(), last: String(s0.fLast || '').trim(), phone: s0.fPhone, email: String(s0.fEmail || '').trim(), lastF: b.f, lastBarber: r.barber }, result);
       clearInterval(this._holdT);
       this.setState({ bk: Object.assign(this.bkEmpty(), { step: 'done', result: result, f: b.f }), icsUrl: this.bkIcs(result), fNote: '' });
       buzz([16, 40, 16]);
     } catch (e) {
       if (e.code === 'taken') this.bkConflict();
+      else if (e.code === 'service_gone') this.bkGone();
       else this.setState({ bk: Object.assign({}, this.state.bk, { busy: false, err: e.message }) });
     }
+  },
+
+  bkGone() {
+    const b = this.state.bk;
+    this.bkRelease(b);
+    this.setState({ bk: Object.assign({}, b, { busy: false, step: 'svc', f: null, time: null, assigned: null, holdId: null, holdTok: null, err: 'Cette prestation n’est plus proposée en ligne. Choisis-en une autre, ton barbier et ton jour sont gardés.' }) });
   },
 
   bkConflict(msg) {
@@ -2731,7 +2811,7 @@ const BookingMixin = {
       await LXE.wait({ day: day, barber: s.bk.barber || 'any', f: s.bk.f, first: capFirst(String(s.fFirst).trim().split(/\s+/)[0]), phone: s.fPhone });
       this.remember({ first: String(s.fFirst).trim(), phone: s.fPhone });
       this.setState({ bk: Object.assign({}, this.state.bk, { waited: day, waitAsk: false, err: '' }) });
-    } catch (e) { this.setState({ bk: Object.assign({}, this.state.bk, { err: e.message }) }); }
+    } catch (e) { if (e.code === 'service_gone') this.bkGone(); else this.setState({ bk: Object.assign({}, this.state.bk, { err: e.message }) }); }
   },
 
   toCockpit(r) {
@@ -2747,7 +2827,7 @@ const BookingMixin = {
       const b = LXE.BMAP[e.barber];
       const ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Barber LArchitecte//Reservation//FR', 'BEGIN:VEVENT',
         'UID:' + e.code + '@larchitecte', 'DTSTAMP:' + st, 'DTSTART;TZID=Europe/Paris:' + d + 'T' + t1, 'DTEND;TZID=Europe/Paris:' + d + 'T' + t2,
-        'SUMMARY:Barber L’Architecte · ' + LXE.SV[e.f].n, 'LOCATION:16 place Pélabon\\, 13013 Marseille',
+        'SUMMARY:Barber L’Architecte · ' + (LXE.SV[e.f] ? LXE.SV[e.f].n : e.n || 'Rendez-vous'), 'LOCATION:16 place Pélabon\\, 13013 Marseille',
         'DESCRIPTION:' + (b ? 'Avec ' + b.n + '. ' : '') + 'Code ' + e.code + '. Gérer : ' + (e.manage || ''), 'URL:' + (e.manage || ''), 'END:VEVENT', 'END:VCALENDAR'].join('\r\n');
       return URL.createObjectURL(new Blob([ics], { type: 'text/calendar' }));
     } catch (x) { return ''; }
@@ -2797,23 +2877,29 @@ const BookingMixin = {
     v.isDone = step === 'done'; v.isManage = step === 'manage'; v.isCancelled = step === 'cancelled';
     v.mapsUrl = MAPS_URL;
     v.isDemo = !!(sal && sal.mode === 'demo');
+    // nothing online yet (a new salon before the owner fills the Catalogue): say how to reach the salon instead
+    const live = LXE.services();
+    v.noMenu = !!(live && !live.length);
+    const tel = sal && sal.shop && sal.shop.phone ? String(sal.shop.phone) : '';
+    const mail = sal && sal.shop && sal.shop.email ? String(sal.shop.email) : 'larchitectebarber@gmail.com';
+    v.contactHref = tel ? 'tel:' + tel.replace(/[^\d+]/g, '') : 'mailto:' + mail;
+    v.contactText = tel ? 'appelle le salon au ' + tel : 'écris au salon';
 
     /* 1 · prestation */
-    const lastF = me && me.lastF && LXE.SV[me.lastF] && !LXE.SV[me.lastF].off ? me.lastF : null;
+    const lastF = me && me.lastF && LXE.SV[me.lastF] ? me.lastF : null;
     const lastB = me && me.lastBarber && LXE.BMAP[me.lastBarber] ? me.lastBarber : null;
     v.hasRebook = !!(step === 'svc' && lastF && lastB && me.first);
     v.meFirst = me && me.first ? capFirst(me.first.split(/\s+/)[0]) : '';
     v.rebookLine = lastF ? LXE.SV[lastF].n + ' · avec ' + (lastB ? LXE.BMAP[lastB].n : '') : '';
     v.rebook = () => this.bkPick({ f: lastF, barber: lastB });
-    v.svcGroups = SVC_GROUPS.map((g) => ({
+    v.svcGroups = menuGroups(SVC_GROUPS).map((g) => ({
       t: g.t,
-      items: g.ids.filter((id) => FMAP[id] && !(LXE.SV[id] && LXE.SV[id].off)).map((id) => {
-        const f = FMAP[id];
-        const on = b.f === id;
+      items: g.items.filter((f) => f && f.n).map((f) => {
+        const on = b.f === f.key;
         return {
           cls: 'so' + (on ? ' on' : ''), on: on, n: f.n, hasTag: !!f.tag, tag: f.tag || '',
-          inc: (f.inc || []).slice(0, 3).join(' · '), price: eur(f), dur: fmtDur(f.d),
-          go: () => this.bkPick({ f: id })
+          inc: (f.inc || []).length ? f.inc.slice(0, 3).join(' · ') : (f.note || ''), price: eur(f), dur: fmtDur(f.d),
+          go: () => this.bkPick({ f: f.key })
         };
       })
     })).filter((g) => g.items.length);
@@ -2892,7 +2978,8 @@ const BookingMixin = {
     v.recapWhen = b.day && b.time != null ? capFirst(LXE.dayLong(b.day)) + ' · ' + LXE.fmtH(b.time) : '';
     v.recapWhat = F ? F.n + ' · ' + fmtDur(F.d) : '';
     v.recapWho = bar && LXE.BMAP[bar] ? 'avec ' + LXE.BMAP[bar].n : '';
-    const dep = F && sal ? depositOf(F, sal.deposits) : 0;
+    // no online payment in production yet (payments.live false): the salon takes no deposit, so none is announced
+    const dep = F && sal && !(sal.payments && sal.payments.live === false) ? depositOf(F, sal.deposits) : 0;
     v.hasDeposit = dep > 0 && step === 'info';
     v.depLine = dep > 0 ? 'Un acompte de ' + LXE.eur(dep / 100) + ' est demandé pour cette prestation, déduit au salon. Annulé plus de ' + (sal ? sal.booking.cancelUntilHours : 12) + ' h avant, il est remboursé.' : '';
     v.fFirst = s.fFirst; v.fLast = s.fLast; v.fPhone = s.fPhone; v.fEmail = s.fEmail; v.fNote = s.fNote;
@@ -2907,12 +2994,14 @@ const BookingMixin = {
     const phd = String(s.fPhone || '').replace(/\D/g, '');
     v.phoneHint = phd.length > 0 && (phd.length < 10 || phd.charAt(0) !== '0') ? 'Un numéro français à 10 chiffres, comme 06 12 34 56 78.' : 'Pour la confirmation et le rappel, rien d’autre.';
     v.phoneCls = 'hint' + (phd.length > 0 && (phd.length < 10 || phd.charAt(0) !== '0') ? ' warn' : '');
-    v.dataHref = '/#donnees';
+    v.dataHref = '/confidentialite';
+    v.hasTerms = step === 'info' && dep > 0;
+    v.termsHours = sal ? sal.booking.cancelUntilHours : 12;
 
     /* confirmé, annulé */
     const r = b.result;
     if (r) {
-      const f = LXE.SV[r.f];
+      const f = LXE.SV[r.f] || { n: r.n || '', p: r.p || 0, from: !!r.from, d: r.dur || 30 };
       const rb = LXE.BMAP[r.barber];
       v.doneCode = r.code;
       v.tkWhen = capFirst(LXE.dayLong(r.day)) + ' · ' + LXE.fmtH(r.time);
@@ -2934,6 +3023,8 @@ const BookingMixin = {
       v.goMove = () => {}; v.askCancel = () => {}; v.keep = () => {}; v.doCancel = () => {}; v.toCockpit = () => {};
     }
     v.notPay = !v.needPay;
+    // the SMS preview only when the salon really sends SMS (sms is false in production without a provider)
+    v.showSms = v.notPay && !(sal && sal.sms === false);
     v.asking = !!b.ask; v.notAsking = !b.ask;
     v.hasIcs = !!s.icsUrl && step === 'done' && !v.needPay;
     v.icsUrl = s.icsUrl || '';
@@ -2941,7 +3032,8 @@ const BookingMixin = {
 
     /* the footer: a running summary and one clear action */
     let cta = 'Continuer', off = true, go = () => {};
-    if (step === 'svc') { off = !b.f; go = () => this.bkPick({}); }
+    if (step === 'svc' && v.noMenu) { cta = 'Fermer'; off = false; go = () => this.setState({ sheet: false }); }
+    else if (step === 'svc') { off = !b.f; go = () => this.bkPick({}); }
     else if (step === 'who') { off = !b.barber; go = () => this.bkPick({}); }
     else if (step === 'when') { cta = b.busy ? 'Un instant…' : (b.moving ? 'Déplacer ici' : 'Continuer'); off = b.busy || !(b.day && b.time != null); go = () => this.bkPick({}); }
     else if (step === 'info') { cta = b.busy ? 'Vérification…' : (dep > 0 ? 'Réserver et régler l’acompte' : 'Confirmer'); off = b.busy || !this.bkValid(); go = () => this.bkConfirm(); }
@@ -2955,8 +3047,9 @@ const BookingMixin = {
     else if (b.barber === 'any') parts.push('Sans préférence');
     if (b.day && b.time != null) parts.push(LXE.dayShort(b.day) + ' · ' + LXE.fmtH(b.time));
     v.bkPrice = F ? LXE.eur(F.p, F.from) : '—';
-    v.bkLine = parts.length ? parts.join(' · ') : 'Coupe dès ' + LXE.eur(LXE.SV.cl.p) + ' · 30 min';
-    v.showSum = step !== 'done' && step !== 'manage' && step !== 'cancelled';
+    const F0 = LXE.SV[LXE.first()];
+    v.bkLine = parts.length ? parts.join(' · ') : F0 ? (F0.sh || F0.n) + ' dès ' + LXE.eur(F0.p) + ' · ' + fmtDur(F0.d) : 'Choisis ta prestation';
+    v.showSum = step !== 'done' && step !== 'manage' && step !== 'cancelled' && !v.noMenu;
     return v;
   }
 };
@@ -2968,13 +3061,6 @@ function depositOf(F, d) {
   if (typeof F.deposit === 'number') return Math.min(price, F.deposit);
   if (!d || d.mode === 'none' || (d.mode === 'threshold' && price < d.thresholdCents)) return 0;
   return Math.min(price, Math.max(500, Math.round((price * d.percent) / 100 / 100) * 100));
-}
-/* prices and lengths on the page follow the salon's catalogue */
-function syncFormulas() {
-  FORMULAS.forEach(function (f) {
-    const s = LXE.SV[f.id];
-    if (s && s.id) { f.p = s.p; f.d = s.d; f.from = !!s.from; f.n = s.n; }
-  });
 }
 </script>
 </body>
