@@ -4,7 +4,7 @@ What exists is listed in the [README](../README.md). These are the next steps, o
 
 ## Before go-live
 
-1. **Import from WordPress**: clients (with consent flags) and upcoming appointments, deduplicated by phone number. A one-off script against the existing API.
+1. **Import from WordPress**: done, in the Comptoir (Réglages › Reprendre WordPress): clients, past and upcoming bookings, paper gift cards and carnets, a run report that adds up, and the cut-over day guided in a « Jour J » card (freeze, final sync after it, texts held until the switch, the old addresses checked, a return plan). What is left is the day itself, with the provider (see [operations](operations.md#mise-en-ligne--la-liste-du-gérant)).
 2. **Stripe and Brevo accounts**, the external cron, the domain, indexing (see [operations](operations.md#going-live-checklist)).
 3. **Till certification**: until then Le Comptoir is a « caisse de gestion » (the Caisse page says so in production) and the salon's certified till prints the legal ticket. The publisher's self-certification appears to be gone since the 2025 finance law (to be confirmed by the salon's accountant), so replacing the certified till means certification by an accredited body (NF525 by Infocert, or LNE) after building what it requires: signed tickets, monthly and annual closures, a duplicata counter, the technical event log (JET) and signed archives. Using the Comptoir as the till without it risks a 7 500 € fine per system. Details in [security](security.md#fiscal-note-france).
 4. **Legal pages** on the site (mentions légales, CGV for deposits and cancellation, privacy policy) from the settings already entered.

@@ -52,7 +52,7 @@ Route families: `/api/public/*` (site and client pages, no account), `/api/auth/
 
 ## Background work
 
-The scheduler (`server/http/scheduler.js`) sends reminders, expires holds and unpaid deposits, offers freed slots to the waiting list, asks for reviews, and delivers queued SMS. It runs at most once a minute, carried by traffic: the Comptoir's pulse (every 4 s while open) and the public site. For quiet hours, point an external cron at `/api/cron/tick` (see [operations](operations.md)). Message ids are deterministic (kind + target), so two instances ticking at once never send the same reminder twice.
+The scheduler (`server/http/scheduler.js`) sends reminders, expires holds and unpaid deposits, offers freed slots to the waiting list, asks for reviews, and delivers queued SMS. It runs at most once a minute, carried by traffic: the Comptoir's pulse (every 4 s while open) and the public site. For quiet hours, point an external cron at `/api/cron/tick` (see [operations](operations.md)). Message ids are deterministic (kind + target), so two instances ticking at once never send the same reminder twice. On a production salon that took over a WordPress run, `dispatch()` also keeps every text to a client queued until the owner opens the sends (Reprendre WordPress › Jour J, `projections/bascule.js` `cutoverHold`): WordPress still sends its own reminders until then. What a client asked for himself, a contract's acknowledgement and the owner's own texts are never held.
 
 ## The Comptoir (web/)
 

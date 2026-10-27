@@ -12,6 +12,8 @@ import { frHoliday } from '../../shared/sms.js';
 import { lastSmsTrouble } from './routes-channels.js';
 import { TEMPLATE_FLAGS } from '../core/templates.js';
 import { addDays, weekday } from '../../shared/dates.js';
+import { cutoverHold, cutoverHeld, finalSync } from '../projections/bascule.js';
+import { heldQueued } from './routes-bascule.js';
 
 const HOUR = 3600000;
 /** the external scheduler is fine when it called under 15 minutes ago; past 30 during opening hours, held texts are not leaving */
@@ -45,16 +47,13 @@ const memo = new WeakMap();
 export function journalFacts(rt) {
   const j = rt.engine.journal;
   let m = memo.get(rt);
-  if (!m || m.n > j.length || (m.n && j[m.n - 1].h !== m.last)) m = { n: 0, last: '', stripe: 0, site: 0, wp: 0, integrity: null, checked: 0, checkedHead: '' };
+  if (!m || m.n > j.length || (m.n && j[m.n - 1].h !== m.last)) m = { n: 0, last: '', stripe: 0, site: 0, integrity: null, checked: 0, checkedHead: '' };
   for (; m.n < j.length; m.n++) {
     const x = j[m.n];
     const d = x.data || {};
     // what a provider's webhook records (routes-payments.js; not the test page); a refund is written as the provider too, but by our own server (refundOnline)
     if (x.actor.t === 'provider' && x.actor.id !== 'simulated' && WEBHOOK_TYPES.has(x.type)) m.stripe = x.at;
     else if (x.type === 'appt.booked' && d.source === 'site' && !d.demo) m.site = x.at;
-    // the WordPress import: what a run brought or carried over (a delta run that changed nothing leaves no trace)
-    if ((x.type === 'client.added' && d.source === 'wordpress') || (x.type === 'appt.booked' && d.source === 'import') || (x.type === 'appt.moved' && d.by === 'import')
-      || ((x.type === 'giftcard.issued' || x.type === 'pack.sold') && d.legacy) || (x.type === 'appt.cancelled' && d.reason === 'Annulé sur l’ancien site')) m.wp = x.at;
   }
   m.last = j.length ? j[j.length - 1].h : '';
   const now = Date.now();
@@ -71,6 +70,28 @@ export function journalFacts(rt) {
 function emailProvider(rt) {
   if (rt.email) return rt.email.name || 'brevo';
   return rt.cfg.email ? rt.cfg.email.kind || 'brevo' : null;
+}
+
+/**
+ * WP-10 · Where the takeover of WordPress stands, from the runs and the Jour J record (no guess from the journal): the
+ * last finished run, whether a run came after the freeze, the switch, and the texts waiting for it.
+ * @param {any} s @param {number} now
+ */
+function jourJ(s, now) {
+  const runs = s.imports.order.map((id) => s.imports.runs.get(id)).filter((r) => r && r.finishedAt && !r.undoneAt);
+  const last = runs[runs.length - 1];
+  const sync = finalSync(s);
+  // what the runs brought (the report's own counts, not a guess from the journal): files created, bookings made
+  let clients = 0, appts = 0;
+  for (const r of runs) {
+    const c = r.counts || {}, a = c.appts || {};
+    clients += (c.clients && c.clients.added) || 0;
+    appts += (a.done || 0) + (a.noShow || 0) + (a.cancelled || 0) + (a.booked || 0);
+  }
+  return {
+    clients, appts, runs: runs.length, lastRun: last ? last.finishedAt : null, frozenAt: s.bascule.frozenAt || null, finalSyncAt: sync ? sync.finishedAt : null,
+    switchedAt: s.bascule.switchedAt || null, hold: { on: cutoverHold(s), queued: heldQueued(s, now) }
+  };
 }
 
 /** The public holidays of the next 12 months on a day the salon opens: those left open, and those closed. Once the
@@ -90,16 +111,19 @@ function holidaysOf(s, today) {
  * owner's own visits, which tick too): a text due at D whose first dispatch of anything after D came more than LATE_MS
  * later had nobody sending it, typically the 08:00 texts held by quiet hours when no cron calls. A long relance
  * draining 10 texts a tick is not late: dispatches run all along. Texts due before the provider's first attempt
- * (the backlog of the go-live day) do not count.
+ * (the backlog of the go-live day) do not count, nor do the texts the Jour J hold keeps back until the switch.
  */
-function lateness(msgs, now, hasProvider) {
+function lateness(s, msgs, now, hasProvider) {
   const claims = msgs.map((m) => m.claimedAt).filter((t) => t > 0).sort((a, b) => a - b);
   const firstAfter = (t) => { let lo = 0, hi = claims.length; while (lo < hi) { const mid = (lo + hi) >> 1; if (claims[mid] < t) lo = mid + 1; else hi = mid; } return lo < claims.length ? claims[lo] : null; };
   let from = Infinity;
   for (const m of msgs) if ((m.status === 'sent' || m.status === 'failed') && m.sentAt < from) from = m.sentAt;
   let late = 0, overdue = 0, last = null;
+  const switched = (s.bascule && s.bascule.switchedAt) || 0;
   for (const m of msgs) {
     // dispatchable (claimed once, or waiting), on a channel with a provider, due in the last 24 h after the first attempt
+    // held for the switch is not a failure to send (docs/security.md, Jour J); nor is a text that waited for it, claimed once it opened
+    if (cutoverHeld(s, m) || (switched && m.dueAt < switched && (!m.claimedAt || m.claimedAt >= switched))) continue;
     if (!(m.claimedAt || m.status === 'queued') || !hasProvider(m.channel || 'sms') || !(m.dueAt >= from) || m.dueAt < now - 24 * HOUR) continue;
     const next = firstAfter(m.dueAt);
     if (next != null ? next - m.dueAt <= LATE_MS : now - m.dueAt <= LATE_MS) continue;
@@ -156,7 +180,7 @@ export async function healthOf(rt, L) {
   const open = shopIntervals(s, L.day).some(([a, b]) => L.min >= a && L.min < b);
   const msgs = [...s.messages.values()];
   const sms = !!rt.sms, mail = emailProvider(rt);
-  const late = lateness(msgs, now, (ch) => (ch === 'email' ? !!mail : sms));
+  const late = lateness(s, msgs, now, (ch) => (ch === 'email' ? !!mail : sms));
   const channel = (ch, provider) => {
     const of = msgs.filter((m) => (m.channel || 'sms') === ch);
     return {
@@ -214,7 +238,7 @@ export async function healthOf(rt, L) {
       services: { active: services.length, online: services.filter((x) => x.online !== false).length },
       team: { chairs: chairs.map((x) => ({ id: x.id, name: x.name, pin: !!x.hasPin })) },
       devices: [...s.devices.values()].filter((d) => !d.revoked).length,
-      import: { clients: [...s.clients.values()].filter((c) => c.source === 'wordpress' && !c.mergedInto).length, appts: s.apptByWp.size, last: j.wp || null },
+      import: jourJ(s, now),
       siteBooking: j.site || null
     }
   };

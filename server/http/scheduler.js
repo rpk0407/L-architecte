@@ -13,6 +13,7 @@ import { TEMPLATE_FLAGS, classOf } from '../core/templates.js';
 import { digestDue } from '../commands/steps/digest.js';
 import { localParts } from '../../shared/dates.js';
 import { SOFTWARE } from '../version.js';
+import { cutoverHold, heldByCutover } from '../projections/bascule.js';
 
 const SYSTEM = { actor: /** @type {const} */ ({ t: 'system', id: 'scheduler', n: 'Automatique' }), caps: new Set() };
 
@@ -183,8 +184,11 @@ export async function dispatch(rt, limit = 10, o = {}) {
   const e = rt.engine;
   const demo = e.state.mode === 'demo';
   const wa = rt.whatsapp || null;
-  // production without a provider for a channel: its messages are not claimed, they wait in the outbox for one
-  const live = (m) => demo || (m.channel === 'email' ? !!rt.email : !!rt.sms || (!!wa && !!waRoute(e.state, m)));
+  // production without a provider for a channel: its messages are not claimed, they wait in the outbox for one.
+  // Before the switch (WP-10) a text to a client waits too, whatever provider an early variable plugged in: WordPress
+  // still sends its own reminders, and the links would open a site that is not live. Every channel goes through here
+  const hold = cutoverHold(e.state);
+  const live = (m) => demo || ((m.channel === 'email' ? !!rt.email : !!rt.sms || (!!wa && !!waRoute(e.state, m))) && !(hold && heldByCutover(m)));
   if (!demo && !rt.sms && !rt.email && !wa) return 0;
   const now = e.clock();
   const only = o.only || null;

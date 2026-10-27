@@ -175,6 +175,7 @@ function Health() {
     ['Stripe', h.stripe.provider !== 'stripe' ? 'simulé' : (h.stripe.live ? 'réel' : 'test') + (h.stripe.lastWebhook ? ' · dernier webhook ' + since(h.stripe.lastWebhook) : ' · aucun webhook reçu'), !demo && (h.stripe.provider !== 'stripe' || !h.stripe.live)],
     // MSG-02: the route the texts take now, and the last one that failed
     ['Envoi des SMS', demo ? 'simulé' : !h.sms.provider && !h.sms.whatsapp ? 'aucun fournisseur' : (h.sms.whatsapp ? 'WhatsApp + SMS en secours' + (h.sms.provider ? ' (' + smsVia(h.sms.provider) + ')' : '') : cap(smsVia(h.sms.provider)))
+      + (h.setup.import.hold.on && (h.sms.provider || h.sms.whatsapp) ? ' · les SMS aux clients attendent la bascule' : '')
       + (h.sms.lastFailure ? ' · dernier échec ' + since(h.sms.lastFailure.at) + (h.sms.lastFailure.error ? ' : ' + h.sms.lastFailure.error : '') : ''), !demo && (!h.sms.provider || (!!h.sms.lastFailure && h.now - h.sms.lastFailure.at < 86400000))],
     // FID-01: the salon's phone, its last text and its pace; a code or a link a client asked for and still waits for
     ...(!demo && h.sms.provider === 'gateway' ? [['Téléphone du salon', (h.sms.lastSentAt ? 'dernier SMS parti ' + since(h.sms.lastSentAt) : 'aucun SMS parti') + (h.sms.fallback ? ' · Brevo en secours' : '')

@@ -93,4 +93,31 @@ export default async ({ h, page }) => {
   await drop();
   await seen(page, 'Tout est déjà repris');
   await page.getByRole('button', { name: 'Enregistrer la vérification (rien de nouveau)' }).waitFor();
+
+  // Jour J on a production salon: the sends are held until the switch, the old addresses are tried on this server's own
+  // address, and the DNS and the parked site wait for a domain (the card asks for it)
+  await page.goto(base + '/comptoir/reglages/wordpress');
+  await page.getByRole('heading', { name: 'Jour J' }).waitFor({ timeout: 10000 });
+  await seen(page, 'Avant la bascule, le salon n’envoie aucun SMS ni e-mail à un client');
+  const step = (id) => page.locator('.jj-step[data-step="' + id + '"]');
+  const waitState = async (id, want) => { for (const t0 = Date.now(); Date.now() - t0 < 20000; await page.waitForTimeout(200)) if ((await step(id).getAttribute('data-state')) === want) return; throw new Error(id + ' is ' + (await step(id).getAttribute('data-state')) + ', expected ' + want); };
+  await waitState('first-run', 'ok');
+  await waitState('redirects', 'ok');
+  await waitState('dns', 'todo');
+  if (await page.getByLabel('Ton domaine').count() !== 1) throw new Error('the card does not ask for the domain');
+  // a typed domain is checked as a name, not as an address
+  const bad = await h.api('/api/v1/bascule?domain=127.0.0.1');
+  if (bad.status !== 400) throw new Error('an IP address was accepted as a domain: ' + bad.status);
+  const card = must(await call(page, '/api/v1/bascule'), 'bascule');
+  if (!card.hold.on || card.demo) throw new Error('the hold is not on in production: ' + JSON.stringify(card.hold));
+  // the switch is refused before the freeze and a sync after it
+  const early = await h.api('/api/v1/bascule/switch', { body: {} });
+  if (early.status !== 409 || early.json.error.code !== 'not_ready') throw new Error('the switch before the freeze: ' + early.status + ' ' + JSON.stringify(early.json));
+  if (!(await page.getByRole('button', { name: 'Ouvrir les envois' }).isDisabled())) throw new Error('« Ouvrir les envois » is open before the freeze');
+  await page.locator('.jj').evaluate((el) => el.scrollIntoView());
+  await h.shot(page, 'wp-bascule-prod-desktop');
+  await page.setViewportSize({ width: 390, height: 844 });
+  await step('dns').scrollIntoViewIfNeeded();
+  if (await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)) throw new Error('Jour J scrolls sideways on a phone');
+  await h.shot(page, 'wp-bascule-prod-phone');
 };

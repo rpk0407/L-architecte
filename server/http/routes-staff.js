@@ -26,6 +26,7 @@ import { teamViewOf } from '../settings/team.js';
 import { attribution } from '../domain/attribution.js';
 import { webhookUrl } from '../messaging/sms.js';
 import { TEMPLATE_FLAGS } from '../core/templates.js';
+import { cutoverHeld } from '../projections/bascule.js';
 import { maybeTick, dispatchNow } from './scheduler.js';
 import { waitUntil } from '@vercel/functions';
 
@@ -760,7 +761,7 @@ export function staffRoutes(app) {
 
   app.get('/api/v1/messages', (r) => {
     const items = [...r.s.messages.values()].sort((a, b) => b.at - a.at).slice(0, Math.min(300, Number(r.query.get('limit')) || 100))
-      .map((m) => ({ id: m.id, channel: m.channel || 'sms', template: m.template, status: m.status, at: m.at, dueAt: m.dueAt || m.at, sentAt: m.sentAt || null, to: m.toMasked || maskPhone(m.to), body: r.caps.has('settings') ? m.body : '', subject: r.caps.has('settings') && m.mail ? m.mail.subject || '' : '', error: m.error || '', via: m.via || null, fallback: m.fallback || '' }));
+      .map((m) => ({ id: m.id, channel: m.channel || 'sms', template: m.template, status: m.status, at: m.at, dueAt: m.dueAt || m.at, sentAt: m.sentAt || null, to: m.toMasked || maskPhone(m.to), body: r.caps.has('settings') ? m.body : '', subject: r.caps.has('settings') && m.mail ? m.mail.subject || '' : '', error: m.error || '', via: m.via || null, fallback: m.fallback || '', held: m.status === 'queued' && cutoverHeld(r.s, m) }));
     return { items, provider: r.rt.sms ? r.rt.sms.name : null, emailProvider: r.rt.email ? r.rt.email.name : null, mode: r.s.mode };
   }, { cap: 'marketing' });
   /** The address that brings STOP replies back (sent with every text; also for the provider's own settings). */

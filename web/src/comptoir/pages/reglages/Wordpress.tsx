@@ -11,6 +11,7 @@ import { Button, Kpi, Note, toast, toastError } from '../../../ui/kit';
 import { useApp } from '../../state';
 import { Card } from './shared';
 import { Report } from './wordpress/Report';
+import { Bascule } from './wordpress/Bascule';
 import './wordpress.css';
 
 type Known = { known: Set<number>; again: Set<number>; erased: Map<number, number>; imported: Map<number, W.Prior>; inWindow: W.InWindow[]; busy: W.Busy[] };
@@ -169,6 +170,7 @@ export default function Wordpress() {
 
   return (
     <div className="col wp" style={{ gap: 16 }}>
+      {reports.length > 0 ? <Bascule /> : null}
       <Card title="1 · Exporte depuis WordPress" icon="globe">
         <ol className="wp-steps">
           <li><b>Salon › Calendrier</b>, tout en bas : remplis l’encadré <b>de / à</b> une année à la fois, puis <b>Exporter dans un fichier CSV</b>. Un fichier par année : l’hébergement coupe les gros exports. Exporte depuis le <b>{cutoffWords}</b>. Plus ancien ne sert à rien : la loi demande d’effacer les clients sans visite depuis 3 ans.</li>

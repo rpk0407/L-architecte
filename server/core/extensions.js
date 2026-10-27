@@ -32,6 +32,7 @@ import { importsExtension } from '../projections/imports.js';
 import { staffprefsExtension } from '../projections/staffprefs.js';
 import { loyaltyExtension } from '../projections/loyalty.js';
 import { accountsExtension } from '../projections/accounts.js';
+import { basculeExtension } from '../projections/bascule.js';
 
 // one entry per line, so extensions added by different branches merge cleanly
 /** @type {Extension[]} */
@@ -46,5 +47,6 @@ export const EXTENSIONS = [
   importsExtension,
   staffprefsExtension,
   loyaltyExtension,
-  accountsExtension
+  accountsExtension,
+  basculeExtension
 ];
