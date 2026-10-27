@@ -8,7 +8,7 @@ import { ago, dates, dur, eur, money, pct, plural } from '../../lib/format';
 import { Icon } from '../../ui/Icon';
 import { Button, Chip, Empty, Field, Kpi, Modal, Note, Sheet, Skeleton, Switch, confirm, toast, toastError } from '../../ui/kit';
 import { useApp } from '../state';
-import { PageTitle } from '../App';
+import { PageTitle, Reserved } from '../App';
 import type { Product, Service } from '../types';
 import './catalogue.css';
 
@@ -53,11 +53,14 @@ function SiteBadge({ s }: { s: Service }) {
 }
 
 export default function Catalogue() {
-  const { can } = useApp();
+  const { can, boot } = useApp();
   const route = useRoute();
   const tab = route.id === 'produits' ? 'produits' : route.id === 'cartes' ? 'cartes' : 'prestations';
-  const { data, loading } = useQuery<Catalog>('/api/v1/catalog');
-  const low = (data?.products || []).filter((p) => p.active && p.stock <= p.low).length;
+  // without `catalog` the page is the price list, from the bootstrap (active items only): nothing to edit, nothing refused
+  const owner = can('catalog');
+  const q = useQuery<Catalog>(owner ? '/api/v1/catalog' : null);
+  const { data, loading } = owner ? q : { data: { services: boot.services, products: boot.products }, loading: false };
+  const low = owner ? (data?.products || []).filter((p) => p.active && p.stock <= p.low).length : 0;
   const tabs = [
     { to: '/catalogue', id: 'prestations', label: 'Prestations', icon: 'scissors' },
     { to: '/catalogue/produits', id: 'produits', label: 'Produits & stock', icon: 'box', count: low },
@@ -69,8 +72,58 @@ export default function Catalogue() {
       <nav className="tabs" aria-label="Catalogue">
         {tabs.map((t) => <Link key={t.id} to={t.to} className="tab" aria-current={tab === t.id ? 'page' : undefined}><Icon name={t.icon} size={16} />{t.label}{(t as any).count ? <span className="count">{(t as any).count}</span> : null}</Link>)}
       </nav>
-      {tab === 'cartes' ? <Gifts /> : loading && !data ? <Skeleton h={360} r={22} /> : data ? (tab === 'produits' ? <Products items={data.products} /> : <Services items={data.services} />) : null}
+      {tab === 'cartes' ? (can('sale.all') ? <Gifts /> : <Reserved />) : loading && !data ? <Skeleton h={360} r={22} /> : !data ? null
+        : !owner ? (tab === 'produits' ? <ProductPrices items={data.products} /> : <PriceList items={data.services} />)
+        : tab === 'produits' ? <Products items={data.products} /> : <Services items={data.services} />}
     </>
+  );
+}
+
+/* ---------------- read-only: the price list for the team ---------------- */
+
+function PriceList({ items }: { items: Service[] }) {
+  const active = items.filter((s) => s.active).sort((a, b) => a.order - b.order);
+  const cats = [...new Set(active.map((s) => s.category))];
+  return (
+    <>
+      <div className="row wrap ct-bar"><p className="muted grow">{plural(active.length, 'prestation')} · les prix et les durées se changent avec le gérant</p></div>
+      <div className="col" style={{ gap: 14 }}>
+        {!active.length ? <section className="card"><Empty icon="scissors" title="Pas encore de prestation">Le gérant prépare la carte du salon.</Empty></section> : null}
+        {cats.map((c) => (
+          <section key={c} className="card">
+            <div className="card-h"><h2>{c}</h2><span className="faint" style={{ fontSize: 13 }}>{active.filter((s) => s.category === c).length}</span></div>
+            <ul className="list">
+              {active.filter((s) => s.category === c).map((s) => (
+                <li key={s.id} className="li">
+                  <span className="li-main">
+                    <b>{s.name}{s.pack ? <span className="badge badge-ok">{s.pack.credits} passages · {s.pack.days} j</span> : null}{!s.online ? <span className="badge">au salon seulement</span> : null}</b>
+                    <small>{dur(s.dur)}{s.buffer ? ' + ' + s.buffer + ' min de battement' : ''}{s.description ? ' · ' + s.description : ''}</small>
+                  </span>
+                  <span className="li-end"><b className="ct-price">{s.from ? <small>dès </small> : null}{eur(s.price)}</b></span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ))}
+      </div>
+    </>
+  );
+}
+
+function ProductPrices({ items }: { items: Product[] }) {
+  const active = items.filter((p) => p.active).sort((a, b) => a.name.localeCompare(b.name, 'fr'));
+  return (
+    <section className="card">
+      {!active.length ? <Empty icon="box" title="Aucun produit">Le salon ne vend pas encore de produits.</Empty> : (
+        <ul className="list">{active.map((p) => (
+          <li key={p.id} className="li">
+            <span className="li-main"><b>{p.name}</b><small>{p.category}</small></span>
+            <span className={'badge ' + (p.stock <= 0 ? 'badge-danger' : p.stock <= p.low ? 'badge-warn' : '')}>{p.stock <= 0 ? 'rupture' : p.stock + ' en rayon'}</span>
+            <span className="li-end"><b className="ct-price">{eur(p.price, { decimals: p.price % 100 !== 0 })}</b></span>
+          </li>
+        ))}</ul>
+      )}
+    </section>
   );
 }
 

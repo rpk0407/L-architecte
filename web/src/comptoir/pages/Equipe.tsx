@@ -22,6 +22,12 @@ const ROLE_HINT: Record<string, string> = {
 };
 
 export default function Equipe() {
+  const { can } = useApp();
+  // without `team` the list of staff is refused by the server: each one sees their own card instead
+  return can('team') ? <TeamPage /> : <MyCard />;
+}
+
+function TeamPage() {
   const route = useRoute();
   const { data, loading } = useQuery<TeamData>('/api/v1/staff');
   if (loading && !data) return <><PageTitle><h1>Équipe</h1></PageTitle><div className="eq-grid">{[0, 1, 2, 3].map((i) => <Skeleton key={i} h={190} r={22} />)}</div></>;
@@ -29,6 +35,56 @@ export default function Equipe() {
   const st = route.id ? data.items.find((x) => x.id === route.id) : null;
   if (route.id && st) return <Member key={st.id} st={st} timeoff={data.timeoff.filter((t) => t.staffId === st.id)} />;
   return <Team data={data} />;
+}
+
+/* ---------------- my own card (no `team`) ---------------- */
+
+function MyCard() {
+  const { boot } = useApp();
+  const st = boot.staff.find((x) => x.id === boot.me.id) || boot.me;
+  const mine = useQuery<{ items: TimeOff[] }>(st.chair ? '/api/v1/timeoff/mine' : null);
+  const [off, setOff] = useState(false);
+  const w = weekOf(st.schedule);
+  const shop = boot.settings.hours as Record<string, [number, number][]>;
+  const total = weekMinutes(w);
+  return (
+    <>
+      <PageTitle><h1>Ma fiche</h1></PageTitle>
+      <div className="eq-member">
+        <div className="col" style={{ gap: 16 }}>
+          <section className="card col" style={{ gap: 14 }}>
+            <div className="row" style={{ gap: 16 }}>
+              <Avatar name={st.name} initials={st.initials} color={st.color} size="xl" />
+              <div className="grow">
+                <p className="section-k">{ROLE_LABEL[st.role]}{st.chair ? ' · fauteuil' : ''}</p>
+                <h2 className="eq-h">{st.name}</h2>
+              </div>
+            </div>
+            {/* only a chair has a schedule, services and a profile on the site */}
+            <p className="muted" style={{ fontSize: 13.5 }}>{st.chair ? <>Tes horaires et tes prestations se changent avec le gérant. Ta couleur et ta présentation sur le site, dans <Link to="/reglages/compte" className="link">Mon compte</Link>.</> : <>Ton accès se règle avec le gérant. Ton code et ton mot de passe, dans <Link to="/reglages/compte" className="link">Mon compte</Link>.</>}</p>
+          </section>
+          {st.chair ? (
+            <section className="card">
+              <div className="card-h"><h2><Icon name="clock" size={16} />Mes horaires</h2><span className="faint" style={{ fontSize: 13 }}>{Math.floor(total / 60)} h{total % 60 ? String(total % 60).padStart(2, '0') : ''} par semaine</span></div>
+              {[1, 2, 3, 4, 5, 6, 0].map((d) => (
+                <div key={d} className="kv">
+                  <span>{cap(dates.DAYS_FR[d])}</span>
+                  {w[d].length ? <span className="tnum">{w[d].map(([a, b]) => hhmm(a) + ' – ' + hhmm(b)).join(' · ')}</span> : <span className="faint">{(shop[d] || []).length ? 'Repos' : 'Salon fermé'}</span>}
+                </div>
+              ))}
+            </section>
+          ) : null}
+        </div>
+        {st.chair ? (
+          <section className="card">
+            <div className="card-h"><h2><Icon name="calendar" size={16} />Mes absences</h2><Button size="sm" variant="ghost" icon="plus" onClick={() => setOff(true)}>Poser</Button></div>
+            {mine.data?.items.length ? <TimeOffList items={mine.data.items} staff={[st]} /> : <p className="muted">Aucune absence prévue. Une absence posée ici retire tes créneaux du site immédiatement.</p>}
+            <TimeOffSheet open={off} onClose={() => setOff(false)} staff={[st]} fixed={st.id} />
+          </section>
+        ) : null}
+      </div>
+    </>
+  );
 }
 
 /* ---------------- the team at a glance ---------------- */

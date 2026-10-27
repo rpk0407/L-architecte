@@ -1,11 +1,11 @@
 // The Comptoir: sign-in gate, then the shell around each page.
-import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react';
+import { lazy, Suspense, useEffect, useState, type ComponentType, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { api } from '../lib/api';
 import { Link, navigate, useRoute } from '../lib/router';
 import { useHotkeys, useIsPhone, useLocal } from '../lib/hooks';
 import { Icon } from '../ui/Icon';
-import { Avatar, Button, ConfirmHost, Menu, Sheet, Toasts, toast, Skeleton } from '../ui/kit';
+import { Avatar, Button, ConfirmHost, Empty, Menu, Sheet, Toasts, toast, Skeleton } from '../ui/kit';
 import { AppProvider, useApp } from './state';
 import { Login, type AuthState } from './Login';
 import { Palette } from './Palette';
@@ -20,6 +20,24 @@ const Rapports = lazy(() => import('./pages/Rapports'));
 const Equipe = lazy(() => import('./pages/Equipe'));
 const Catalogue = lazy(() => import('./pages/Catalogue'));
 const Reglages = lazy(() => import('./pages/Reglages'));
+
+// Each page and the capability needed to open it; the server refuses anyway, this only spares an empty or broken screen.
+// A new page is one entry here (an address not listed opens the Agenda). No `cap` opens it for every role:
+// Équipe and Catalogue are read-only without `team` / `catalog` (own card, prices), Relances refuses its own tabs.
+type Route = { C: ComponentType; title: string; cap?: string; sub?: (id: string) => string | undefined };
+// Réglages sections are the owner's unless listed: a new section open to every role is added here.
+const OWN_SECTIONS = ['compte'];
+const SECTION_CAP: Record<string, string> = { appareils: 'devices', donnees: 'data', journal: 'audit' };
+const ROUTES: Record<string, Route> = {
+  agenda: { C: Agenda, title: 'Agenda', cap: 'agenda.own' },
+  caisse: { C: Caisse, title: 'Caisse', cap: 'sale.create' },
+  clients: { C: Clients, title: 'Clients', cap: 'client.view' },
+  relances: { C: Relances, title: 'Relances' },
+  rapports: { C: Rapports, title: 'Rapports', cap: 'report.own' },
+  equipe: { C: Equipe, title: 'Équipe' },
+  catalogue: { C: Catalogue, title: 'Catalogue' },
+  reglages: { C: Reglages, title: 'Réglages', sub: (id) => (OWN_SECTIONS.includes(id) ? undefined : (Object.hasOwn(SECTION_CAP, id) ? SECTION_CAP[id] : 'settings')) }
+};
 
 export function Root() {
   const [auth, setAuth] = useState<AuthState | null>(null);
@@ -103,7 +121,11 @@ function Shell() {
   }, []);
 
   const page = route.page;
-  const Page = { agenda: Agenda, caisse: Caisse, clients: Clients, relances: Relances, rapports: Rapports, equipe: Equipe, catalogue: Catalogue, reglages: Reglages }[page] || Agenda;
+  // own keys only: /comptoir/constructor must not pick up Object.prototype
+  const r = Object.hasOwn(ROUTES, page) ? ROUTES[page] : ROUTES.agenda;
+  const need = route.id && r.sub ? r.sub(route.id) : r.cap;
+  const Page = r.C;
+  const allowed = !need || app.can(need);
   const phoneTabs = nav.filter((x) => ['agenda', 'caisse', 'clients', 'rapports'].includes(x.page)).slice(0, 4);
   const rest = nav.filter((x) => !phoneTabs.includes(x));
 
@@ -142,7 +164,7 @@ function Shell() {
           </div>
         </header>
         <main className="page" key={page} id="main">
-          <Suspense fallback={<PageSkeleton />}><Page /></Suspense>
+          {allowed ? <Suspense fallback={<PageSkeleton />}><Page /></Suspense> : <Reserved title={r.title} back={page === 'reglages' ? 'compte' : 'agenda'} />}
         </main>
       </div>
 
@@ -164,7 +186,7 @@ function Shell() {
 
       <Menu anchor={userMenu} onClose={() => setUserMenu(null)}>
         <p className="k">{boot.me.name} · {boot.me.roleLabel}</p>
-        <button type="button" onClick={() => navigate('/reglages/securite')}><Icon name="key" />Mon mot de passe et mon code</button>
+        <button type="button" onClick={() => navigate('/reglages/compte')}><Icon name="key" />Mon mot de passe et mon code</button>
         <button type="button" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}><Icon name={theme === 'dark' ? 'sun' : 'moon'} />{theme === 'dark' ? 'Thème clair' : 'Thème sombre'}</button>
         <div className="sep" />
         {boot.me.device ? <button type="button" onClick={() => app.lock()}><Icon name="lock" />Verrouiller · changer de personne</button> : null}
@@ -174,6 +196,21 @@ function Shell() {
       {palette ? <Palette onClose={() => setPalette(false)} /> : null}
       <FeedSheet open={feedOpen} onClose={() => setFeedOpen(false)} />
     </div>
+  );
+}
+
+/** An owner page opened by someone without the right: a clear refusal and a way back, not a broken screen.
+ *  Without `title` it is a part of a page that already has its own (a tab). */
+export function Reserved({ title, back = 'agenda' }: { title?: string; back?: 'agenda' | 'compte' }) {
+  return (
+    <>
+      {title ? <PageTitle><h1>{title}</h1></PageTitle> : null}
+      <section className="card">
+        <Empty icon="lock" title="Réservé au gérant" action={<Link to={back === 'compte' ? '/reglages/compte' : '/'} className="btn btn-subtle">{back === 'compte' ? 'Mon compte' : 'Retour à l’agenda'}</Link>}>
+          Demande-lui si tu as besoin de modifier ça.
+        </Empty>
+      </section>
+    </>
   );
 }
 
