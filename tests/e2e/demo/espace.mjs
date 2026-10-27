@@ -76,7 +76,9 @@ export default async ({ h, page }) => {
   await page.getByRole('button', { name: 'Mois' }).click();
   await page.getByRole('img', { name: /de ton objectif du mois/ }).waitFor();
 
-  // a cut note, written in the chair (JKut has Sofiane in the chair at 15:10), then on his client file
+  // a cut note, written in the chair (JKut has Sofiane in the chair at 15:10: if the next one is only booked, he sits first)
+  const seat = next.getByRole('button', { name: 'Au fauteuil' });
+  if (await seat.count()) await seat.click();
   await page.getByRole('button', { name: /Note de coupe|Corriger la note/ }).click();
   const dialog = page.getByRole('dialog');
   await dialog.waitFor();
