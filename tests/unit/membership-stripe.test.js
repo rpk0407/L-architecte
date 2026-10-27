@@ -13,7 +13,8 @@ import { addStaff, setCredentials } from '../../server/commands/team.js';
 import { hashSecret } from '../../server/auth/password.js';
 import { addService } from '../../server/commands/catalog.js';
 import { updateSettings } from '../../server/commands/shop.js';
-import { checkout } from '../../server/commands/sales.js';
+import { checkout, closeDay } from '../../server/commands/sales.js';
+import { tick } from '../../server/commands/system.js';
 import { statusIn, addMonths, cover } from '../../server/domain/membership.js';
 import { readMemberToken, memberToken, MEMBER_TEXT_TTL } from '../../server/auth/member-token.js';
 import { membershipRoutes, LOOKUP_PHONE, LOOKUP_EMAIL, EXPIRED, SOON, ALREADY, START_DAYS } from '../../server/http/routes-membership.js';
@@ -32,12 +33,13 @@ const ORIGIN = 'https://salon.test';
 /**
  * Stripe over a fake network: every call logged (method, path, query, body, idempotency key), and a small Stripe behind
  * it: prices by lookup key, checkout sessions, subscriptions (updated, deleted), invoices (voided), refunds replayed by
- * their key, portal sessions. The tests put subscriptions and invoices in `state` as Stripe would have them.
+ * their key (and refused, as Stripe does, for a key sent again with other parameters), portal sessions. The tests put
+ * subscriptions and invoices in `state` as Stripe would have them.
  */
 function fakeStripe(now) {
   const log = [];
   let n = 0;
-  const state = { prices: [], sessions: new Map(), subs: new Map(), invoices: new Map(), refunds: [], byKey: new Map() };
+  const state = { prices: [], sessions: new Map(), subs: new Map(), invoices: new Map(), refunds: [], byKey: new Map(), sent: new Map() };
   const ok = (x) => new Response(JSON.stringify(x), { status: 200 });
   const no = (msg, status = 404) => new Response(JSON.stringify({ error: { type: 'invalid_request_error', message: msg } }), { status });
   const fetchImpl = async (url, init) => {
@@ -47,6 +49,8 @@ function fakeStripe(now) {
     const idem = init.headers['idempotency-key'] || null;
     log.push({ method: init.method, path, query: Object.fromEntries(u.searchParams), body, idem });
     const seg = path.split('/').filter(Boolean);
+    if (idem && state.sent.has(idem) && state.sent.get(idem) !== String(init.body || '')) return new Response(JSON.stringify({ error: { type: 'idempotency_error', message: 'Keys for idempotent requests can only be used with the same parameters they were first used with.' } }), { status: 400 });
+    if (idem) state.sent.set(idem, String(init.body || ''));
     if (idem && state.byKey.has(idem)) return ok(state.byKey.get(idem));
     const keep = (x) => { if (idem) state.byKey.set(idem, x); return ok(x); };
     if (init.method === 'GET' && path === '/prices') return ok({ data: state.prices.filter((p) => p.lookup_key === u.searchParams.get('lookup_keys[]') && p.active) });
@@ -70,7 +74,7 @@ function fakeStripe(now) {
       if (init.method === 'POST' && seg[2] === 'void') { x.status = 'void'; return ok(x); }
       return ok(x);
     }
-    if (init.method === 'POST' && path === '/refunds') { const rf = { id: 're_' + ++n, status: 'succeeded', amount: Number(body.amount), payment_intent: body.payment_intent, metadata: body['metadata[lx]'] ? { lx: body['metadata[lx]'] } : {}, created: sec(now()) }; state.refunds.push(rf); return keep(rf); }
+    if (init.method === 'POST' && path === '/refunds') { const rf = { id: 're_' + ++n, status: 'succeeded', amount: Number(body.amount), payment_intent: body.payment_intent, charge: body.charge, metadata: body['metadata[lx]'] ? { lx: body['metadata[lx]'] } : {}, created: sec(now()) }; state.refunds.push(rf); return keep(rf); }
     if (init.method === 'GET' && path === '/refunds') return ok({ data: state.refunds.filter((x) => x.payment_intent === u.searchParams.get('payment_intent')), has_more: false });
     if (init.method === 'POST' && path === '/billing_portal/sessions') return ok({ id: 'bps_' + ++n, url: 'https://billing.stripe.com/p/session/bps_' + n });
     return no('No such route');
@@ -162,7 +166,9 @@ test('the Price is found by its lookup key or created once; a start not asked fo
   assert.equal(created.length, 1);
   assert.deepEqual([created[0].body.lookup_key, created[0].body.unit_amount, created[0].body['recurring[interval]'], created[0].body.currency, created[0].idem], ['lx_essentiel_3400', '3400', 'month', 'eur', 'lx-price-essentiel-3400']);
   const co = t.fake.calls('POST', '/checkout/sessions')[0];
-  assert.equal(co.idem, 'lx-sub-' + a.id);
+  // the key names the member and the parameters: the same request again is the same page, never Stripe's 400
+  assert.match(co.idem, new RegExp('^lx-sub-' + a.id + '-[0-9a-f]{16}$'));
+  assert.equal(co.body['custom_text[submit][message]'], 'Ton abonnement commence le 17 novembre : rien n’est prélevé avant.', 'Stripe’s page would say « essai »');
   assert.deepEqual([co.body.mode, co.body['line_items[0][price]'], co.body.client_reference_id, co.body['subscription_data[metadata][lx]'], co.body.customer_email, co.body.locale], ['subscription', created[0].body.lookup_key && t.fake.state.prices[0].id, a.id, a.id, 'karim@exemple.fr', 'fr']);
   // the day after the 14 days of withdrawal, before the salon opens; never Stripe's « trial » days
   assert.equal(Number(co.body['subscription_data[trial_end]']), sec(instantOf(addDays(DAY, START_DAYS), 6 * 60)));
@@ -181,6 +187,7 @@ test('the Price is found by its lookup key or created once; a start not asked fo
   assert.equal(t.fake.calls('POST', '/prices').length, 1);
   const co2 = t.fake.calls('POST', '/checkout/sessions')[1];
   assert.equal(co2.body['subscription_data[trial_end]'], undefined, 'started now: charged now');
+  assert.equal(co2.body['custom_text[submit][message]'], undefined);
   assert.equal(co2.body['line_items[0][price]'], co.body['line_items[0][price]']);
   assert.ok(b.id !== a.id);
 
@@ -295,6 +302,14 @@ test('a refused renewal: grace and one text; paid later, active again; Stripe gi
   assert.deepEqual([m.ended && m.ended.reason, statusIn(t.s(), m, addDays(third, 14))], ['unpaid', 'ended']);
   assert.equal(texts(t.s(), 'memberEnded', cid).length, 1);
   assert.equal(mails(t.s(), (x) => x.to === 'gerant@salon.test' && /faute de paiement/.test(x.mail.subject)).length, 1, 'the owner is told');
+  // the owner reads why it ended; a barber only that it ended (never a payment in trouble)
+  assert.equal((await t.owner.post('/api/auth/login', { email: 'gerant@salon.test', password: 'Architecte13!' })).status, 200, 'signed in again, months later');
+  assert.equal((await t.owner.get('/api/v1/memberships')).json.members.find((x) => x.id === a.id).endReason, 'unpaid');
+  assert.equal((await t.owner.post('/api/auth/device', { name: 'Poste 1' })).status, 200);
+  const ali = browser(t.rt);
+  ali.jar.set('lx_d', t.owner.jar.get('lx_d'));
+  assert.equal((await ali.post('/api/auth/pin', { staffId: t.ids.ali, pin: '2468' })).status, 200);
+  assert.equal((await ali.get('/api/v1/memberships')).json.members.find((x) => x.id === a.id).endReason, 'ended');
 });
 
 test('a cancellation made in Stripe’s portal: recorded by the provider, acknowledged by SMS and e-mail', async () => {
@@ -382,6 +397,11 @@ test('withdrawal on day 5 with one cut taken: 17 € back on the first payment, 
   assert.match(refundNo(note.number), /^A\d+$/);
   assert.deepEqual([note.amount, note.method, note.providerRef], [1700, 'online', rf[0] && t.fake.state.refunds[0].id]);
   assert.equal(texts(s, 'memberWithdrawn', m.cid).length, 1);
+  // the owner reads that the money went back by itself, never « à rembourser » (a second refund at the till)
+  const told = mails(s, (x) => x.to === 'gerant@salon.test' && /^Rétractation d’abonnement/.test(x.mail.subject));
+  assert.equal(told.length, 1);
+  assert.match(told[0].body, new RegExp('Remboursé automatiquement : 17\\s€ sur la carte du client, avoir ' + refundNo(note.number)));
+  assert.ok(!/À rembourser/.test(told[0].body));
   // a second tap gives the same answer and moves no money again
   const again = await c.post('/api/public/memberships/' + a.token + '/withdraw', {});
   assert.equal(again.status, 200);
@@ -468,6 +488,9 @@ test('no phone, no mailbox: a matching first name and e-mail records an unverifi
   // no match: the owner gets what was typed, nothing names a file
   const odd = owner.find((x) => /sans abonnement trouvé/.test(x.mail.subject));
   assert.ok(odd && /bob@exemple\.fr/.test(odd.body) && !odd.cid);
+  // made-up requests from many devices and addresses: the owner gets five a day, then nothing more (the same answer)
+  for (let i = 0; i < 7; i++) assert.equal((await post('/api/public/memberships/cancel-request', { first: 'X' + i, email: 'x' + i + '@exemple.fr' })).json.message, miss.json.message);
+  assert.equal(mails(t.s(), (x) => x.to === 'gerant@salon.test' && /sans abonnement trouvé/.test(x.mail.subject)).length, 5);
   // Stripe was not told yet: the salon confirms it from the Comptoir, then Stripe stops at the period end
   assert.equal(t.fake.calls('POST', '/subscriptions/' + a.subId).length, 0);
   const conf = await t.owner.post('/api/v1/memberships/' + a.id + '/cancel', {});
@@ -522,6 +545,10 @@ test('a disputed month: Stripe holds the billing, no cut covered, the owner aske
   assert.match(lost[0].body, /\/comptoir\/caisse\/ventes\?jour=2026-11-03&ticket=/);
   assert.equal(statusIn(t.s(), a.member(), addDays(DAY, 5)), 'unpaid');
   assert.equal(t.fake.calls('POST', '/subscriptions/' + a.subId).filter((x) => x.body.pause_collection === '').length, 0);
+  assert.match(lost[0].body, /reste suspendu .* tant que tu ne le résilies pas/);
+  // held by the dispute: its own count, not a payment in trouble
+  const held = (await t.owner.get('/api/v1/memberships/summary')).json;
+  assert.deepEqual([held.disputed, held.unpaid, held.troubled, held.live], [1, 0, 0, 1]);
 
   // another member's dispute won: billing goes on and the cuts are covered again
   const b = await member(t, { first: 'Adam' });
@@ -569,8 +596,13 @@ test('the Comptoir: the list (a barber sees no payment in trouble), the owner’
   assert.deepEqual([seen.status, seen.pastDueSince, seen.card, seen.disputed], ['active', null, '', false]);
   assert.equal((await ali.get('/api/v1/memberships/summary')).status, 403);
   assert.equal((await ali.post('/api/v1/memberships/' + a.id + '/cancel', {})).status, 403);
-  // an offer from the counter: a checkout for the file (channel salon), texted as our short link, 24 hours
-  const cl = (await t.owner.post('/api/v1/clients', { first: 'Omar', phone: nextPhone() })).json;
+  // an offer from the counter needs the file's e-mail (the contract's confirmation goes there)
+  const bare = (await t.owner.post('/api/v1/clients', { first: 'Sans', phone: nextPhone() })).json;
+  const noMail = await t.owner.post('/api/v1/memberships/offer', { clientId: bare.id, planId: 'essentiel', send: 'sms' });
+  assert.deepEqual([noMail.status, noMail.json.error.code], [409, 'no_email']);
+  // a barber shows the QR code; texting the offer is the owner's (a service text that ignores the client's STOP)
+  const cl = (await t.owner.post('/api/v1/clients', { first: 'Omar', phone: nextPhone(), email: 'omar@exemple.fr' })).json;
+  assert.equal((await ali.post('/api/v1/memberships/offer', { clientId: cl.id, planId: 'essentiel', send: 'sms' })).status, 403);
   const offer = await t.owner.post('/api/v1/memberships/offer', { clientId: cl.id, planId: 'essentiel', send: 'sms' }, { 'x-request-id': 'offer-req-0001' });
   assert.equal(offer.status, 200, JSON.stringify(offer.json));
   assert.match(offer.json.link, /\/api\/public\/memberships\/mb_.+\/pay$/);
@@ -585,8 +617,20 @@ test('the Comptoir: the list (a barber sees no payment in trouble), the owner’
   assert.deepEqual([go.status, go.headers.get('location')], [302, offer.json.url]);
   // the same request again: the same checkout, the same text
   const again = await t.owner.post('/api/v1/memberships/offer', { clientId: cl.id, planId: 'essentiel', send: 'sms' }, { 'x-request-id': 'offer-req-0001' });
-  assert.equal(again.json.id, offer.json.id);
+  assert.deepEqual([again.status, again.json.id, again.json.url, again.json.sent], [200, offer.json.id, offer.json.url, true]);
   assert.equal(texts(t.s(), 'memberOffer', cl.id).length, 1);
+  assert.equal(t.fake.calls('POST', '/checkout/sessions').length, 3, 'given back as recorded: Stripe is not asked again');
+  // Stripe asked again with the same parameters (an answer lost before we recorded it): the same page, no 400
+  const same = { id: 'mb_same', price: 'price_1', planId: 'essentiel', name: 'Essentiel', email: 'x@exemple.fr', startNow: true, sepa: false, successUrl: ORIGIN + '/abo/x', cancelUrl: ORIGIN + '/' };
+  assert.equal((await t.rt.pay.createSubscription(same)).ref, (await t.rt.pay.createSubscription({ ...same })).ref);
+  // another tap (a new request) while that offer waits: refused, one checkout at a time per file
+  const twice = await t.owner.post('/api/v1/memberships/offer', { clientId: cl.id, planId: 'essentiel', send: 'sms' }, { 'x-request-id': 'offer-req-0002' });
+  assert.deepEqual([twice.status, twice.json.error.code], [409, 'pending']);
+  // a barber's QR code: allowed, nothing texted
+  const other = (await t.owner.post('/api/v1/clients', { first: 'Rayan', phone: nextPhone(), email: 'rayan@exemple.fr' })).json;
+  const qr = await ali.post('/api/v1/memberships/offer', { clientId: other.id, planId: 'essentiel', send: 'qr' });
+  assert.deepEqual([qr.status, qr.json.sent], [200, false]);
+  assert.equal(texts(t.s(), 'memberOffer', other.id).length, 0);
   // the card link: his own page, which opens Stripe's
   const card = await t.owner.post('/api/v1/memberships/' + a.id + '/card-link', {});
   assert.equal(card.status, 200);
@@ -613,6 +657,20 @@ test('the owner cancels today with the unused days paid back on the month’s ti
   const sale = t.s().sales.get(a.member().periods[0].saleId);
   assert.equal(t.s().refunds.get(sale.refundIds[0]).amount, 1700);
   assert.equal(t.fake.calls('POST', '/refunds')[0].body.payment_intent, a.pi);
+
+  // cancelled at the month's end by the client, then stopped today by the salon: the client is told the new end
+  const b = await member(t, { first: 'Nour' });
+  t.go(addDays(DAY, 20), 10);
+  await browser(t.rt).post('/api/public/memberships/' + memberToken(SECRET, b.id, t.clock.now + 3600000) + '/cancel', {});
+  assert.equal(texts(t.s(), 'memberCancelled', b.member().cid).length, 1);
+  const stop = await t.owner.post('/api/v1/memberships/' + b.id + '/cancel', { now: true });
+  assert.equal(stop.status, 200, JSON.stringify(stop.json));
+  assert.deepEqual([stop.json.ended, stop.json.effective], [true, addDays(DAY, 20)]);
+  const ack = texts(t.s(), 'memberStopped', b.member().cid);
+  assert.equal(ack.length, 1);
+  assert.match(ack[0].body, /prend fin aujourd'hui\..*\/abo\//, 'with his page: the Comptoir’s commands carry the member link');
+  assert.equal(mails(t.s(), (x) => x.id === 'msg_mstopm_' + b.id).length, 1);
+  assert.equal((await t.owner.get('/api/v1/memberships')).json.members.find((x) => x.id === b.id).cancelAt, addDays(DAY, 20));
 });
 
 test('a production salon with a Stripe test key: no membership is sold (moneyMode test)', async () => {
@@ -677,4 +735,140 @@ test('the adapter reads a card or a mandate in four digits, and maps the billing
   assert.equal(parse('invoice.created', { id: 'in_2' }), null, 'answered at once: Stripe holds the invoice while invoice.created fails');
   assert.equal(parse('checkout.session.completed', { id: 'cs_2', mode: 'payment', payment_status: 'paid', amount_total: 100, payment_intent: 'pi_2' }).kind, 'paid', 'a deposit stays a payment');
   assert.deepEqual([p.caps.billing, p.caps.portal], [true, true]);
+});
+
+test('a refund names the PaymentIntent, or the charge of an invoice paid without one', async () => {
+  const sent = [];
+  const p = stripeProvider({ secretKey: 'sk_test_x', webhookSecret: WH, fetchImpl: async (url, init) => { sent.push(Object.fromEntries(new URLSearchParams(init.body))); return new Response(JSON.stringify({ id: 're_1', status: 'succeeded' })); } });
+  await p.refund('pi_1', 500, 'a');
+  await p.refund('ch_1', 500, 'b');
+  assert.deepEqual([sent[0].payment_intent, sent[0].charge, sent[1].charge, sent[1].payment_intent], ['pi_1', undefined, 'ch_1', undefined]);
+});
+
+test('a withdrawal after the day’s Z: refunded at Stripe once, recorded « hors caisse » once (17 €), a second tap writes nothing', async () => {
+  const t = await salon();
+  const a = await member(t);
+  t.go(addDays(DAY, 2), 11);
+  await t.rt.engine.run(checkout, { clientId: a.member().cid, lines: [{ kind: 'service', ref: t.ids.cut, staffId: t.ids.ali, memberId: a.id }], payments: [{ method: 'card', amount: 0 }] }, t.asOwner());
+  t.go(addDays(DAY, 4), 19);
+  // the days with a ticket sealed in order, then today's Z
+  for (const d of [DAY, addDays(DAY, 2)]) await t.rt.engine.run(closeDay, { day: d }, t.asOwner());
+  await t.rt.engine.run(closeDay, { early: true }, t.asOwner());
+  const c = browser(t.rt);
+  const res = await c.post('/api/public/memberships/' + a.token + '/withdraw', {});
+  assert.equal(res.status, 200, JSON.stringify(res.json));
+  assert.deepEqual([res.json.withdrawn.refund, res.json.withdrawn.refunded], [1700, true]);
+  const pid = a.member().periods[0].paymentId;
+  const outside = () => t.rt.engine.journal.filter((e) => e.type === 'payment.refundedOutside' && e.data.id === pid);
+  assert.deepEqual(outside().map((e) => [e.data.amount, e.data.total]), [[1700, 1700]]);
+  // the second tap: no refund asked again, nothing recorded again (Caisse asks for one 17 € credit note, not 34 €)
+  const again = await c.post('/api/public/memberships/' + a.token + '/withdraw', {});
+  assert.equal(again.status, 200);
+  assert.equal(t.fake.calls('POST', '/refunds').length, 1);
+  assert.equal(outside().length, 1);
+  assert.equal(t.s().payments.get(pid).providerRefunded, 1700);
+  const told = mails(t.s(), (x) => x.to === 'gerant@salon.test' && /^Rétractation d’abonnement/.test(x.mail.subject));
+  assert.equal(told.length, 1);
+  assert.match(told[0].body, /Remboursé automatiquement : 17\s€ sur la carte du client\. L’avoir n’a pas pu être fait/);
+  // the next day the credit note is written on the outside refund, and Stripe is still not asked again
+  t.go(addDays(DAY, 5), 10);
+  assert.equal((await c.post('/api/public/memberships/' + a.token + '/withdraw', {})).status, 200);
+  const sale = t.s().sales.get(a.member().periods[0].saleId);
+  assert.equal(sale.refundIds.length, 1);
+  assert.equal(t.s().refunds.get(sale.refundIds[0]).amount, 1700);
+  assert.equal(t.fake.calls('POST', '/refunds').length, 1);
+});
+
+test('a refund Stripe refuses: the owner is told to refund from Caisse, within 14 days', async () => {
+  const t = await salon();
+  const a = await member(t);
+  t.go(addDays(DAY, 3), 10);
+  // Stripe answers 500 to the refund
+  const base = t.fake.fetchImpl;
+  t.rt.pay = stripeProvider({ secretKey: 'sk_live_x', webhookSecret: WH, fetchImpl: async (url, init) => (new URL(url).pathname === '/v1/refunds' ? new Response(JSON.stringify({ error: { type: 'api_error', message: 'boom' } }), { status: 500 }) : base(url, init)) });
+  const res = await browser(t.rt).post('/api/public/memberships/' + a.token + '/withdraw', {});
+  assert.deepEqual([res.status, res.json.withdrawn.refunded], [200, false]);
+  const told = mails(t.s(), (x) => x.to === 'gerant@salon.test' && /^Rétractation d’abonnement/.test(x.mail.subject));
+  assert.equal(told.length, 1);
+  assert.match(told[0].body, /Remboursement automatique en échec \(boom\) : rembourse 34\s€ depuis Caisse.*sous 14 jours/);
+});
+
+test('/resilier without link nor mailbox for a start in 14 days: called off now, acknowledged to both addresses; « Résilier » confirms it at Stripe', async () => {
+  const t = await salon();
+  const a = await subscribe(t, { startNow: false, first: 'Wil', email: 'wil@exemple.fr' });
+  const startAt = instantOf(addDays(DAY, START_DAYS), 6 * 60);
+  t.fake.sub('sub_wil', a.id, { raw: { status: 'trialing', trial_end: sec(startAt) } });
+  t.fake.state.sessions.get(a.cs.id).subscription = 'sub_wil';
+  await hook(t, 'checkout.session.completed', { id: a.cs.id, mode: 'subscription', subscription: 'sub_wil', customer: 'cus_wil', payment_status: 'no_payment_required' });
+  const conf = mails(t.s(), (x) => x.id === 'msg_msched_' + a.id)[0];
+  assert.match(conf.body, /Droit de rétractation de 14 jours : jusqu’au 16 novembre au soir/);
+  assert.match(conf.body, /version du 2026-10-27/);
+  t.go(addDays(DAY, 2), 10);
+  const post = await asks(t);
+  const res = await post('/api/public/memberships/cancel-request', { first: 'wil', email: 'wil@exemple.fr', replyTo: 'autre@exemple.fr' });
+  assert.equal(res.status, 200);
+  const m = t.s().members.get(a.id);
+  assert.deepEqual([m.cancel.verified, m.ended && m.ended.reason], [false, 'abandoned']);
+  // the legal acknowledgement, to the address on file and to the one typed to answer
+  assert.equal(mails(t.s(), (x) => x.template === 'memberStopped' && x.to === 'wil@exemple.fr').length, 1);
+  assert.equal(mails(t.s(), (x) => x.template === 'memberStopped' && x.to === 'autre@exemple.fr').length, 1);
+  const owner = mails(t.s(), (x) => x.to === 'gerant@salon.test' && /^Résiliation à confirmer · Wil/.test(x.mail.subject));
+  assert.equal(owner.length, 1);
+  assert.match(owner[0].body, /devait commencer le 17 novembre/);
+  assert.equal(t.fake.calls('DELETE', '/subscriptions/sub_wil').length, 0, 'Stripe is told when the salon confirms');
+  // the owner's « Résilier »: confirmed, and the subscription deleted before its first charge
+  const done = await t.owner.post('/api/v1/memberships/' + a.id + '/cancel', {});
+  assert.equal(done.status, 200, JSON.stringify(done.json));
+  assert.deepEqual([done.json.confirmed, done.json.provider.ok], [true, true]);
+  assert.equal(t.fake.calls('DELETE', '/subscriptions/sub_wil').length, 1);
+  assert.equal(t.s().members.get(a.id).cancel.verified, undefined);
+  assert.equal(mails(t.s(), (x) => x.template === 'memberStopped' && x.to === 'wil@exemple.fr').length, 1, 'acknowledged once');
+  chainClean(t.rt.engine.journal);
+});
+
+test('the list’s catch-up asks Stripe about 5 late members a visit, and the next visit takes the rest', async () => {
+  const t = await salon();
+  const list = [];
+  for (let i = 0; i < 8; i++) list.push(await member(t, { first: 'Late' + i }));
+  // their renewals' notices never came
+  t.go(addDays(addMonths(DAY, 1), 3), 10);
+  assert.equal((await t.owner.post('/api/auth/login', { email: 'gerant@salon.test', password: 'Architecte13!' })).status, 200);
+  const before = t.fake.log.length;
+  const asked = () => new Set(t.fake.log.slice(before).filter((x) => x.method === 'GET' && /^\/subscriptions\//.test(x.path)).map((x) => x.path)).size;
+  assert.equal((await t.owner.get('/api/v1/memberships')).status, 200);
+  assert.equal(asked(), 5);
+  // a member whose subscription we know: two calls (the subscription, its latest invoice), not four
+  assert.equal(t.fake.log.length - before, 10);
+  await t.owner.get('/api/v1/memberships');
+  assert.equal(asked(), 8);
+  await t.owner.get('/api/v1/memberships');
+  assert.equal(asked(), 8, 'each at most once an hour');
+});
+
+test('the demo: a start in 14 days is confirmed on the test page, mailed, and its first month paid on its start day', async () => {
+  const clock = { now: instantOf('2026-11-24', 15 * 60) };
+  const rt = await testRuntime({ clock: () => clock.now });
+  const site = browser(rt);
+  const res = await site.post('/api/public/memberships', { planId: 'essentiel', first: 'Démo', phone: '06 00 00 12 36', email: 'demo+14@exemple.fr', startNow: false, cgv: '2026-10-27' });
+  assert.equal(res.status, 201, JSON.stringify(res.json));
+  const id = res.json.url.split('/paiement/')[1];
+  const page = (await site.get('/api/public/payments/' + id)).json;
+  assert.deepEqual([page.status, page.start], ['pending', '2026-12-08']);
+  assert.match(page.label, /^Abonnement Essentiel · 34\s€\/mois$/, 'the start day is said under it, by the page');
+  assert.deepEqual((await site.post('/api/public/payments/' + id + '/simulate', { outcome: 'ok' })).json, { status: 'scheduled', start: '2026-12-08' });
+  // the contract's confirmation by e-mail, and the page says it is recorded
+  assert.equal([...rt.engine.state.messages.values()].filter((x) => x.id === 'msg_msched_' + id && x.to === 'demo+14@exemple.fr').length, 1);
+  assert.equal((await site.get('/api/public/payments/' + id)).json.status, 'scheduled');
+  assert.equal((await site.post('/api/public/payments/' + id + '/simulate', { outcome: 'cancel' })).status, 409, 'cancelled from its own page now');
+  const SYS = { actor: { t: 'system', id: 'scheduler' }, caps: new Set(), meta: { siteUrl: 'https://salon.test/' } };
+  const ticks = async (n) => { for (let i = 0; i < n; i++) await rt.engine.run(tick, {}, SYS); };
+  clock.now = instantOf('2026-12-07', 10 * 60);
+  await ticks(30);
+  assert.equal(statusIn(rt.engine.state, rt.engine.state.members.get(id), '2026-12-07'), 'pending');
+  clock.now = instantOf('2026-12-08', 10 * 60);
+  await ticks(30);
+  const m = rt.engine.state.members.get(id);
+  assert.equal(statusIn(rt.engine.state, m, '2026-12-08'), 'active');
+  assert.deepEqual(m.periods.map((p) => [p.start, p.end, p.invoice]), [['2026-12-08', '2027-01-08', 'sim_' + id + '_0']]);
+  assert.equal(m.card, 'Visa •• 4242');
 });

@@ -9,9 +9,11 @@
 //   confirmCancel       the salon's confirmation of it (member.cancelConfirmed)
 //   memberScheduled     a start in 14 days: the contract's confirmation by e-mail when the checkout is done
 //   ackScheduledCancel  that start called off before it began: its acknowledgement
-//   billingAlert        the owner's e-mails: a dispute, a refund made at Stripe without a credit note, money sent back
+//   ackStoppedNow       a cancellation at the end of the month the salon then makes « tout de suite »: the new end
+//   billingAlert        the owner's e-mails: a dispute, a refund made at Stripe without a credit note, money sent back,
+//                       a withdrawal and what became of its refund
 import { fail } from '../core/engine.js';
-import { str, opt, obj, oneOf, id, int, parse } from '../lib/validate.js';
+import { str, opt, obj, oneOf, id, int, bool, parse } from '../lib/validate.js';
 import { normPhone, isEmail } from '../lib/util.js';
 import { fmtEur } from '../../shared/money.js';
 import { localParts, fmtTime, pad2, dayParts, addDays } from '../../shared/dates.js';
@@ -20,9 +22,12 @@ import { noticeMail, ownerAlert, originOf } from '../domain/notices.js';
 import { TEMPLATES } from '../core/templates.js';
 import { LINK_PER_DAY, linkAllowed } from '../domain/linkcap.js';
 import { rootOf, membersOf, statusIn, dateWords } from '../domain/membership.js';
+import { refundNo } from '../domain/cash.js';
 import { requestCancel } from './memberships.js';
 
 const machine = (ctx) => ctx.actor.t === 'system' || ctx.actor.t === 'provider';
+/** the owner's e-mails about /resilier requests that match no membership, a day */
+export const UNMATCHED_PER_DAY = 5;
 /** 27/10 */
 const ddmm = (d) => { const p = dayParts(d); return pad2(p.d) + '/' + pad2(p.m); };
 /** the default words of a text when the owner has not written his own (an older salon's settings may lack them) */
@@ -134,7 +139,9 @@ const unverifiedSchema = obj({ first: str({ min: 1, max: 40 }), email: str({ min
  * first name and the subscription's e-mail must match a running membership: then the cancellation is recorded now
  * (received now, effective at the end of the paid period) but unverified (verified: false), the acknowledgement leaves
  * by e-mail to the address on file and to replyTo, and the owner gets « Résiliation à confirmer » (one tap Confirmer,
- * which cancels at Stripe). No match: the owner gets what was typed. The route answers the same either way.
+ * which cancels at Stripe). A start in 14 days not begun yet is called off now, acknowledged the same way. No match:
+ * the owner gets what was typed, at most UNMATCHED_PER_DAY a day (counted in the journal, whatever the instance: a
+ * flood of made-up requests never floods his mailbox). The route answers the same either way.
  */
 export const requestCancelUnverified = {
   run(s, input, ctx) {
@@ -149,22 +156,37 @@ export const requestCancelUnverified = {
     }
     const when = dateWords(day) + ' à ' + fmtTime(ctx.local.min);
     if (!m) {
+      let n = 0;
+      while (n < UNMATCHED_PER_DAY && s.messages.has('msg_omcxu_' + day + '_' + n)) n++;
+      if (n >= UNMATCHED_PER_DAY) return { found: false };
       // nothing chained says who typed it: the words travel in the mail's pii, to the owner only
-      ownerAlert(s, ctx, { key: ctx.id('omcxu'), subject: 'Demande de résiliation sans abonnement trouvé', lines: ['Reçue sur le site le ' + when + ', sans le lien ni l’espace du client.', 'Prénom saisi : ' + x.first, 'E-mail saisi : ' + x.email, ...(replyTo ? ['Répondre à : ' + replyTo] : []), '', 'Aucun abonnement en cours ne correspond : réponds-lui si tu le connais.'] });
+      ownerAlert(s, ctx, { key: 'omcxu_' + day + '_' + n, subject: 'Demande de résiliation sans abonnement trouvé', lines: ['Reçue sur le site le ' + when + ', sans le lien ni l’espace du client.', 'Prénom saisi : ' + x.first, 'E-mail saisi : ' + x.email, ...(replyTo ? ['Répondre à : ' + replyTo] : []), '', 'Aucun abonnement en cours ne correspond : réponds-lui si tu le connais.'] });
       return { found: false };
     }
     if (m.cancel) return { found: true, already: true, id: m.id };
     const k = contactOf(s, m);
     const cid = k.cid || undefined;
+    // not begun yet (a start in 14 days): called off now, and Stripe's first charge is stopped when the salon confirms
+    const before = !m.activatedAt;
+    const start = before ? startDayOf(m) : '';
     // this alert takes the key of requestCancel's own (« Résiliation d'abonnement »): one mail to the owner, this one
     const confirm = originOf(ctx) ? originOf(ctx) + '/comptoir/clients/' + encodeURIComponent(cid || '') : '';
     ownerAlert(s, ctx, { key: 'omcx_' + m.id, cid, subject: 'Résiliation à confirmer · ' + (k.first || 'un client'), lines: [
       'Demande reçue sur le site le ' + when + ' sans le lien du client ni son espace (prénom et e-mail de l’abonnement concordent).',
-      'Abonnement ' + m.name + ' (' + fmtEur(m.price) + '/mois) : enregistré comme résilié à la fin du mois payé ; l’accusé de réception est parti par e-mail.',
-      'Confirme-la depuis sa fiche (« Résilier ») pour l’arrêter chez Stripe.', ...(confirm ? ['Sa fiche : ' + confirm] : [])
+      before ? 'Abonnement ' + m.name + ' (' + fmtEur(m.price) + '/mois), qui devait commencer le ' + dateWords(start) + ' : enregistré comme annulé ; l’accusé de réception est parti par e-mail.'
+        : 'Abonnement ' + m.name + ' (' + fmtEur(m.price) + '/mois) : enregistré comme résilié à la fin du mois payé ; l’accusé de réception est parti par e-mail.',
+      before ? 'Confirme-la depuis sa fiche (« Résilier ») pour l’arrêter chez Stripe : sans ça, Stripe prélève le premier mois le ' + dateWords(start) + ' et il est aussitôt remboursé.'
+        : 'Confirme-la depuis sa fiche (« Résilier ») pour l’arrêter chez Stripe.', ...(confirm ? ['Sa fiche : ' + confirm] : [])
     ] });
     const res = requestCancel.run(s, { id: m.id, by: 'client', channel: 'site', verified: false }, { ...ctx, meta: { ...ctx.meta, memberId: m.id } });
-    if (replyTo && !sameEmail(replyTo, k.email)) {
+    // PAY-02's cancel() acknowledges only a contract that ran: one not begun gets the call-off's own, here
+    // (only a start the client had confirmed, memberScheduled: a checkout never finished made no contract)
+    if (before) {
+      if (s.messages.has('msg_msched_' + m.id)) {
+        scheduledAck(s, ctx, m, k.email, 'mschx_' + m.id);
+        if (replyTo && !sameEmail(replyTo, k.email)) scheduledAck(s, ctx, m, replyTo, 'mcxr_' + m.id);
+      }
+    } else if (replyTo && !sameEmail(replyTo, k.email)) {
       noticeMail(s, ctx, {
         key: 'mcxr_' + m.id, template: 'memberCancelled', legal: true, to: replyTo, cid: cid || null,
         subject: 'Résiliation de ton abonnement ' + m.name + ' · ' + s.settings.shop.name,
@@ -189,8 +211,8 @@ export const confirmCancel = {
   }
 };
 
-/** The day a start not asked for now begins: Stripe's trial_end, else 14 days after the checkout. */
-const startDayOf = (m, startAt) => startAt ? localParts(startAt).day : addDays(localParts(m.createdAt).day, 14);
+/** The day a start not asked for now begins: Stripe's trial_end, else 14 days after the checkout. @param {any} m @param {number} [startAt] */
+export const startDayOf = (m, startAt) => startAt ? localParts(startAt).day : addDays(localParts(m.createdAt).day, 14);
 /**
  * A start in 14 days (the client did not ask to start now): the checkout is done but nothing is paid, so PAY-02's
  * welcome waits for the first payment. The contract's confirmation on a durable medium leaves now, by e-mail.
@@ -210,7 +232,9 @@ export const memberScheduled = {
       lines: ['Bonjour' + (k.first ? ' ' + k.first : '') + ',', '',
         'Ton abonnement ' + m.name + ' (' + fmtEur(m.price) + ' par mois) est enregistré. Il commence le ' + dateWords(start) + ' : rien n’est prélevé avant, et d’ici là tes coupes sont au prix habituel.',
         'Premier prélèvement : ' + fmtEur(m.price) + ' le ' + dateWords(start) + ', puis chaque mois à la même date.',
-        'Sans engagement : tu peux l’annuler d’ici là sans frais, puis le résilier quand tu veux.',
+        'Droit de rétractation de 14 jours : jusqu’au ' + dateWords(addDays(start, -1)) + ' au soir, tu renonces au contrat sans frais et sans motif, rien n’étant prélevé avant.',
+        'Sans engagement : ensuite, tu le résilies quand tu veux, il s’arrête à la fin du mois payé.',
+        ...(m.cgv ? ['Conditions générales de vente acceptées : version du ' + m.cgv + '.'] : []),
         ...(link ? ['', 'Gérer ou annuler mon abonnement : ' + link] : []), '', 'Ce message confirme ton abonnement.', '', s.settings.shop.name],
       button: link ? { label: 'Mon abonnement', url: link } : null
     });
@@ -225,14 +249,41 @@ export const ackScheduledCancel = {
     if (!m || m.activatedAt || !m.ended || !s.messages.has('msg_msched_' + m.id)) return { sent: false };
     if (ctx.actor.t === 'client' && !(ctx.meta && ctx.meta.memberId === m.id)) fail(403, 'forbidden', 'Cet abonnement n’est pas le tien.');
     if (ctx.actor.t === 'staff') ctx.need('member.manage');
+    return { sent: !!scheduledAck(s, ctx, m, contactOf(s, m).email, 'mschx_' + m.id) };
+  }
+};
+/** The call-off's acknowledgement of a start not begun, to one address (the one on file, or the one typed to answer). */
+function scheduledAck(s, ctx, m, to, key) {
+  const k = contactOf(s, m);
+  return noticeMail(s, ctx, {
+    key, template: 'memberStopped', legal: true, to, cid: k.cid || null,
+    subject: 'Annulation de ton abonnement ' + m.name + ' · ' + s.settings.shop.name,
+    lines: ['Bonjour' + (k.first ? ' ' + k.first : '') + ',', '', 'Nous avons bien reçu l’annulation de ton abonnement ' + m.name + ' le ' + dateWords(ctx.local.day) + ' à ' + fmtTime(ctx.local.min) + '.',
+      'Il ne commencera pas : rien ne sera prélevé.', '', 'Ce message vaut accusé de réception.', '', s.settings.shop.name]
+  });
+}
+
+/**
+ * Cancelled at the end of the month, then stopped today by the salon (« Résilier tout de suite »): the client was told
+ * « incluses jusqu'au … », so the new end is acknowledged too (SMS and e-mail, legal), once.
+ */
+export const ackStoppedNow = {
+  run(s, input, ctx) {
+    if (!machine(ctx)) ctx.need('member.manage');
+    const m = s.members.get(parse(obj({ id: id() }), input).id);
+    if (!m || !m.activatedAt || !m.ended || !m.cancel) return { sent: false };
     const k = contactOf(s, m);
-    const id_ = noticeMail(s, ctx, {
-      key: 'mschx_' + m.id, template: 'memberStopped', legal: true, to: k.email, cid: k.cid || null,
-      subject: 'Annulation de ton abonnement ' + m.name + ' · ' + s.settings.shop.name,
-      lines: ['Bonjour' + (k.first ? ' ' + k.first : '') + ',', '', 'Nous avons bien reçu l’annulation de ton abonnement ' + m.name + ' le ' + dateWords(ctx.local.day) + ' à ' + fmtTime(ctx.local.min) + '.',
-        'Il ne commencera pas : rien ne sera prélevé.', '', 'Ce message vaut accusé de réception.', '', s.settings.shop.name]
+    const day = ctx.local.day;
+    const link = ctx.meta && typeof ctx.meta.memberLink === 'function' ? String(ctx.meta.memberLink(m)) : '';
+    const sms = k.phone ? queueMessage(s, ctx, { key: 'mstop_' + m.id, template: 'memberStopped', text: textOf(s, 'memberStopped'), to: k.phone, cid: k.cid, vars: { prenom: k.first, formule: m.name, date: ddmm(day), lien: link } }) : null;
+    const mail = noticeMail(s, ctx, {
+      key: 'mstopm_' + m.id, template: 'memberStopped', legal: true, to: k.email, cid: k.cid || null,
+      subject: 'Fin de ton abonnement ' + m.name + ' · ' + s.settings.shop.name,
+      lines: ['Bonjour' + (k.first ? ' ' + k.first : '') + ',', '', 'Le salon a arrêté ton abonnement ' + m.name + ' aujourd’hui, ' + dateWords(day) + ' à ' + fmtTime(ctx.local.min) + ', avant la fin du mois payé : il prend fin aujourd’hui et plus rien ne sera prélevé.',
+        '', 'Ce message vaut accusé de réception.', '', s.settings.shop.name + (s.settings.shop.phone ? ' · ' + s.settings.shop.phone : '')],
+      button: link ? { label: 'Mon abonnement', url: link } : null
     });
-    return { sent: !!id_ };
+    return { sent: !!(sms || mail) };
   }
 };
 
@@ -242,8 +293,10 @@ const ticketLink = (s, ctx, saleId) => {
   return o && x ? o + '/comptoir/caisse/ventes?jour=' + x.day + '&ticket=' + x.id : '';
 };
 const alertSchema = obj({
-  kind: oneOf(/** @type {const} */ (['dispute', 'memberDispute', 'memberDisputeLost', 'outside', 'orphan'])),
-  paymentId: opt(id()), disputeId: opt(str({ max: 80 })), memberId: opt(id()), amount: opt(int({ min: 0, max: 10000000 })), total: opt(int({ min: 0, max: 10000000 })), invoice: opt(str({ max: 80 }))
+  kind: oneOf(/** @type {const} */ (['dispute', 'memberDispute', 'memberDisputeLost', 'outside', 'orphan', 'withdrawn'])),
+  paymentId: opt(id()), disputeId: opt(str({ max: 80 })), memberId: opt(id()), amount: opt(int({ min: 0, max: 10000000 })), total: opt(int({ min: 0, max: 10000000 })), invoice: opt(str({ max: 80 })),
+  // withdrawn: what became of the refund the route made (ok: given back at the provider; refundId: its credit note)
+  ok: opt(bool()), refundId: opt(id()), error: opt(str({ max: 200 }))
 });
 /**
  * The owner's e-mail about money that needs him, once per object (its key): a dispute opened (with its answer date), a
@@ -272,13 +325,28 @@ export const billingAlert = {
         return { id: ownerAlert(s, ctx, { key: 'omdisp_' + d.id, cid, subject: 'Litige sur l’abonnement de ' + who + ' : résilier ?', lines: ['La banque de ' + who + ' conteste un mois de son abonnement ' + m.name + ' (' + eu(d.amount) + ')' + (due ? ', réponse attendue avant le ' + due : '') + '.', 'Les prélèvements sont suspendus et ses coupes ne sont plus incluses tant que le litige dure.', 'Résilie-le depuis sa fiche si tu ne veux pas le garder ; réponds au litige dans Stripe › Litiges.', ...(sale ? ['Le ticket du mois contesté : ' + sale] : [])] }) };
       case 'memberDisputeLost':
         if (!m || !d) return { sent: false };
-        return { id: ownerAlert(s, ctx, { key: 'omdlost_' + d.id, cid, subject: 'Litige perdu sur l’abonnement de ' + who + ' : fais l’avoir du mois contesté', lines: ['La banque a rendu ' + eu(d.amount) + ' à ' + who + ' : fais l’avoir du mois contesté en « remboursé hors caisse », sur son ticket.', ...(sale ? ['Le ticket : ' + sale] : []), 'L’abonnement reste suspendu : résilie-le depuis sa fiche.'] }) };
+        return { id: ownerAlert(s, ctx, { key: 'omdlost_' + d.id, cid, subject: 'Litige perdu sur l’abonnement de ' + who + ' : fais l’avoir du mois contesté', lines: ['La banque a rendu ' + eu(d.amount) + ' à ' + who + ' : fais l’avoir du mois contesté en « remboursé hors caisse », sur son ticket.', ...(sale ? ['Le ticket : ' + sale] : []), 'L’abonnement reste suspendu (plus de prélèvement, plus de coupe incluse) tant que tu ne le résilies pas : « Résilier tout de suite » sur sa fiche, puis tu peux effacer la fiche ou lui reproposer un abonnement.'] }) };
       case 'outside':
         if (!py) return { sent: false };
         return { id: ownerAlert(s, ctx, { key: 'oout_' + py.id + '_' + (x.total || 0), cid, subject: 'Remboursé chez Stripe sans avoir : fais l’avoir', lines: [eu(x.amount || 0) + ' rendus depuis le tableau de bord de Stripe sur « ' + py.label + ' ».', sale ? 'Fais l’avoir en « remboursé hors caisse » sur le ticket : ' + sale : 'Caisse › En ligne le montre.'] }) };
       case 'orphan':
         if (!m) return { sent: false };
         return { id: ownerAlert(s, ctx, { key: 'oorph_' + (x.invoice || m.id), cid, subject: 'Paiement d’abonnement rendu · ' + who, lines: ['Stripe a prélevé ' + eu(x.amount || 0) + ' pour l’abonnement ' + m.name + ' de ' + who + ', qui ne couvrait plus rien (résilié, terminé ou en double).', 'Le paiement a été remboursé et l’abonnement arrêté chez Stripe.'] }) };
+      case 'withdrawn': {
+        // the route already gave the money back (or tried): the owner reads what is left for him to do, never « à rembourser » for money gone
+        if (!m || !m.withdrawn) return { sent: false };
+        const first = m.periods[0];
+        const t = first ? ticketLink(s, ctx, first.saleId) : '';
+        const note = x.refundId ? s.refunds.get(x.refundId) : null;
+        const amount = m.withdrawn.refund;
+        const subject = 'Rétractation d’abonnement : ' + who + ' · ' + m.name;
+        const lines = !amount ? ['Rien à rembourser : les coupes déjà faites valent le mois payé.']
+          : !x.ok ? ['Remboursement automatique en échec' + (x.error ? ' (' + x.error + ')' : '') + ' : rembourse ' + eu(amount) + ' depuis Caisse, sur le ticket de l’abonnement, sous 14 jours (la loi le demande).', ...(t ? ['Le ticket : ' + t] : [])]
+            : note ? ['Remboursé automatiquement : ' + eu(amount) + ' sur la carte du client, avoir ' + refundNo(note.number) + ' sur le ticket de l’abonnement. Rien à faire.', ...(t ? ['Le ticket : ' + t] : [])]
+              : ['Remboursé automatiquement : ' + eu(amount) + ' sur la carte du client. L’avoir n’a pas pu être fait (journée déjà clôturée) : fais-le en « remboursé hors caisse » sur le ticket, sans rembourser une seconde fois.', ...(t ? ['Le ticket : ' + t] : [])];
+        // a refund that failed, then went through on a second tap: a second mail says so
+        return { id: ownerAlert(s, ctx, { key: 'omwd_' + m.id + (amount && !x.ok ? '_x' : ''), cid, subject, lines }) };
+      }
       default: return { sent: false };
     }
   }

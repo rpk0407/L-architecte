@@ -15,6 +15,8 @@ const WEBHOOK_EVENTS = [
   // PAY-03: the monthly memberships, billed by Stripe Billing
   'invoice.paid', 'invoice.payment_failed', 'invoice.payment_action_required', 'customer.subscription.updated', 'customer.subscription.deleted'
 ];
+/** the events box as tall as its lines, wrapped ones too (a phone): no inner scroll where the browser can (rows otherwise) */
+const FIT = { fieldSizing: 'content' } as CSSProperties;
 /** a 44 px target for the icon buttons */
 const TAP = { '--h': '44px' } as CSSProperties;
 const copy = (text: string, what: string) => copyText(text).then(() => toast({ title: what + ' copiée', icon: 'copy' }), toastError);
@@ -26,7 +28,8 @@ export default function Paiements({ s }: SectionProps) {
   const P = p.v;
   const prov = boot.providers;
   const webhook = location.origin + '/api/pay/stripe/webhook';
-  const events = WEBHOOK_EVENTS.join(', ');
+  // one a line: the owner ticks them one by one in Stripe's list, and the box shows them all without an inner scroll, even on a phone
+  const events = WEBHOOK_EVENTS.join('\n');
   // production without Stripe: nothing is simulated there, online payment is simply off
   const off = boot.mode !== 'demo' && prov.payments === 'simulated';
   return (
@@ -57,7 +60,7 @@ export default function Paiements({ s }: SectionProps) {
             <div className="row" style={{ gap: 8 }}><input id="pay-wh" className="input grow" readOnly value={webhook} onFocus={(e) => e.target.select()} /><Button icon="copy" style={TAP} aria-label="Copier l’adresse" onClick={() => copy(webhook, 'Adresse')} /></div>
           </Field>
           <Field label="Événements à cocher" htmlFor="pay-ev" hint="Les paiements, les remboursements faits chez Stripe, les litiges, les virements (avec leurs frais) et les mois d’abonnement arrivent alors d’eux-mêmes dans la Caisse. Garde les virements automatiques quotidiens.">
-            <div className="row" style={{ gap: 8, alignItems: 'flex-start' }}><textarea id="pay-ev" className="input textarea grow" rows={6} readOnly value={events} onFocus={(e) => e.target.select()} /><Button icon="copy" style={TAP} aria-label="Copier les événements" onClick={() => copy(events, 'Liste')} /></div>
+            <div className="row" style={{ gap: 8, alignItems: 'flex-start' }}><textarea id="pay-ev" className="input textarea grow" rows={WEBHOOK_EVENTS.length} style={FIT} readOnly value={events} onFocus={(e) => e.target.select()} /><Button icon="copy" style={TAP} aria-label="Copier les événements" onClick={() => copy(events, 'Liste')} /></div>
           </Field>
           <div><Button variant="ghost" icon="card" onClick={() => navigate('/caisse?enligne=1')}>Voir les paiements et virements</Button></div>
         </div>

@@ -50,14 +50,14 @@ export async function subscriptionOf(r, m) {
  * An invoice as it is now. Paid (and not the 0 € one of a start in 14 days): memberPaid, the ticket of the month; one no
  * contract covers any more is sent back and its subscription stopped. Refused while retries go on (or the bank asks to
  * confirm): memberFailed, one text per invoice. Anything else (draft, void) writes nothing.
- * @param {any} r @param {string} invoiceId @param {{ action?: boolean }} [o]
+ * @param {any} r @param {string} invoiceId @param {{ action?: boolean, sub?: any }} [o] sub: its subscription, already read
  */
 export async function syncInvoice(r, invoiceId, o = {}) {
   const p = r.rt.pay;
   if (!p.getInvoice || !p.getSubscription || !invoiceId) return UNKNOWN;
   const inv = await p.getInvoice(invoiceId);
   if (!inv.subscription) return { ignored: 'not_membership' };
-  const sub = await p.getSubscription(inv.subscription);
+  const sub = o.sub && o.sub.id === inv.subscription ? o.sub : await p.getSubscription(inv.subscription);
   const m = memberBySub(r.s, inv.subscription, sub.lx);
   if (!m) return UNKNOWN;
   if (inv.status === 'paid') {
@@ -65,7 +65,8 @@ export async function syncInvoice(r, invoiceId, o = {}) {
     try {
       return await run(r, memberPaid, {
         id: m.id, invoice: inv.id, amount: inv.amount, periodStart: inv.periodStart, periodEnd: inv.periodEnd,
-        // no PaymentIntent (paid another way): the invoice still names the money, a refund is then made at Stripe
+        // no PaymentIntent nor charge (paid another way): the invoice names the money; nothing here can refund it, so a
+        // refund of it says « fais-le depuis Stripe » (routes-membership.js refundMonth)
         chargeRef: inv.chargeRef || inv.id, customer: sub.customer || undefined, subscription: sub.id, card: sub.card || undefined
       });
     } catch (e) {
@@ -97,12 +98,12 @@ async function sendBack(r, m, inv, sub) {
  * A subscription as it is now, into memberSync: a cancellation set in Stripe's portal gets the acknowledgement, an end
  * ends the member. Stripe ends a subscription « canceled » whatever the cause: after its retries (cancellation_details
  * payment_failed, or our record of a refused renewal without the client's own request) it is an end for want of payment.
- * @param {any} r @param {string} subId
+ * @param {any} r @param {string} subId @param {any} [pre] the subscription, already read
  */
-export async function syncSubscription(r, subId) {
+export async function syncSubscription(r, subId, pre) {
   const p = r.rt.pay;
   if (!p.getSubscription || !subId) return UNKNOWN;
-  const sub = await p.getSubscription(subId);
+  const sub = pre && pre.id === subId ? pre : await p.getSubscription(subId);
   const m = memberBySub(r.s, subId, sub.lx);
   if (!m) return UNKNOWN;
   let status = sub.status;
@@ -112,15 +113,19 @@ export async function syncSubscription(r, subId) {
   return run(r, memberSync, { id: m.id, snapshot: { status, ...(sub.cancelAt ? { cancelAt: sub.cancelAt } : {}) } });
 }
 
-/** The Comptoir's « re-read Stripe now » and the list's catch-up: the subscription, then its latest invoice. @param {any} r @param {any} m */
+/**
+ * The Comptoir's « re-read Stripe now » and the list's catch-up: the subscription, then its latest invoice, read once
+ * each (two calls to Stripe for a member whose subscription we know).
+ * @param {any} r @param {any} m
+ */
 export async function syncMember(r, m) {
   const p = billingOf(r, m);
   if (!p) return { ignored: 'no_billing' };
-  const sub = await subscriptionOf(r, m);
-  if (!sub) return { ignored: 'no_subscription' };
-  const res = await syncSubscription(r, sub);
-  const latest = (await p.getSubscription(sub)).latestInvoice;
-  if (latest) await syncInvoice(r, latest);
+  const subId = await subscriptionOf(r, m);
+  if (!subId) return { ignored: 'no_subscription' };
+  const sub = await p.getSubscription(subId);
+  const res = await syncSubscription(r, subId, sub);
+  if (sub.latestInvoice) await syncInvoice(r, sub.latestInvoice, { sub });
   return res;
 }
 

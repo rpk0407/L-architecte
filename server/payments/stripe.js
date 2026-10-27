@@ -2,7 +2,7 @@
 // Stripe through its REST API (no SDK: fewer dependencies, faster cold starts).
 // Card data never touches this server: clients pay on Stripe Checkout (Apple Pay, Google Pay, cards),
 // which keeps the salon in the lightest PCI scope (SAQ A).
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { createHmac, createHash, timingSafeEqual } from 'node:crypto';
 import { STRIPE_PAY_MIN } from '../domain/policy.js';
 
 const API = 'https://api.stripe.com/v1';
@@ -127,7 +127,9 @@ export function stripeProvider({ secretKey, webhookSecret, fetchImpl = fetch }) 
     },
     /** metadata.lx marks it ours, so its charge.refunded notice is never taken for a refund made in the dashboard */
     async refund(chargeRef, amount, idem) {
-      const r = await call('POST', '/refunds', { payment_intent: chargeRef, amount, metadata: { lx: idem } }, 'lx-rf-' + idem);
+      // a membership's invoice paid without a PaymentIntent names its charge (ch_…): Stripe refunds that one by charge
+      const target = String(chargeRef).startsWith('ch_') ? { charge: chargeRef } : { payment_intent: chargeRef };
+      const r = await call('POST', '/refunds', { ...target, amount, metadata: { lx: idem } }, 'lx-rf-' + idem);
       return { ref: r.id, status: r.status };
     },
     /** A charge's refunds (the last 100), each told ours (refund() above) or not; failed and cancelled ones left out. */
@@ -178,16 +180,23 @@ export function stripeProvider({ secretKey, webhookSecret, fetchImpl = fetch }) 
      * The membership's Checkout page (mode subscription). Not starting now (the client did not tick « commencer tout de
      * suite »): nothing is charged before startAt (trial_end, the day after the 14 days of withdrawal); our words never
      * say « essai ». metadata.lx on the session and the subscription: every later notice finds its member. The page
-     * lives 31 minutes like a deposit's, or expiresMin (an offer texted by the salon: up to Stripe's 24 hours).
+     * lives 31 minutes like a deposit's, or expiresMin (an offer texted by the salon: up to Stripe's 24 hours). note:
+     * the line above Stripe's button (a deferred start: « rien n'est prélevé avant », against Stripe's own trial words).
+     * A retry must send Stripe the same parameters under the same key (else Stripe answers 400): the page's end counts
+     * from the next 10-minute mark, and the key names the parameters, so a request sent again gets the same page and
+     * one whose parameters moved gets a new page, never an error.
      */
     async createSubscription(o) {
-      const expires = Math.floor(Date.now() / 1000) + Math.min(24 * 60 - 1, Math.max(STRIPE_PAY_MIN, o.expiresMin || 0)) * 60;
+      const mark = Math.ceil(Date.now() / 600000) * 600;
+      const expires = mark + Math.min(24 * 60 - 11, Math.max(STRIPE_PAY_MIN, o.expiresMin || 0)) * 60;
       const params = {
         mode: 'subscription', line_items: [{ price: o.price, quantity: 1 }], customer_email: o.email || undefined, client_reference_id: o.id,
         metadata: { lx: o.id }, subscription_data: { metadata: { lx: o.id }, ...(o.startNow || !o.startAt ? {} : { trial_end: Math.floor(o.startAt / 1000) }) },
-        payment_method_types: o.sepa ? ['card', 'sepa_debit'] : ['card'], locale: 'fr', expires_at: expires, success_url: o.successUrl, cancel_url: o.cancelUrl
+        payment_method_types: o.sepa ? ['card', 'sepa_debit'] : ['card'], locale: 'fr', expires_at: expires, success_url: o.successUrl, cancel_url: o.cancelUrl,
+        ...(o.note ? { custom_text: { submit: { message: String(o.note).slice(0, 1200) } } } : {})
       };
-      const s = await call('POST', '/checkout/sessions', params, 'lx-sub-' + o.id);
+      const key = 'lx-sub-' + o.id + '-' + createHash('sha256').update(formEncode(params).toString()).digest('hex').slice(0, 16);
+      const s = await call('POST', '/checkout/sessions', params, key);
       return { ref: s.id, url: s.url, exp: expires * 1000 };
     },
     /** A subscription as it is now: every billing notice re-reads it, so one seen twice or out of order says the same. */

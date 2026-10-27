@@ -411,7 +411,8 @@ export const withdrawMember = {
     });
     ctx.emit('member.withdrawn', { id: m.id, at: ctx.now, refund, used, msgIds: ids(sms, mail), cid });
     ctx.emit('member.ended', { id: m.id, reason: 'withdrawn', cid });
-    if (self || (machine(ctx) && x.by !== 'salon')) ownerAlert(s, ctx, { key: 'omwd_' + m.id, cid, subject: 'Rétractation d’abonnement : ' + (k.first || 'un client') + ' · ' + m.name, lines: ['À rembourser : ' + amount + (first ? ' sur le ticket de l’abonnement' : '') + '.'] });
+    // meta.refundsAfter: the route refunds right after and tells the owner how it went (PAY-03), never « à rembourser » twice
+    if ((self || (machine(ctx) && x.by !== 'salon')) && !(ctx.meta && ctx.meta.refundsAfter)) ownerAlert(s, ctx, { key: 'omwd_' + m.id, cid, subject: 'Rétractation d’abonnement : ' + (k.first || 'un client') + ' · ' + m.name, lines: ['À rembourser : ' + amount + (first ? ' sur le ticket de l’abonnement' : '') + '.'] });
     return { id: m.id, refund, used, saleId: first ? first.saleId : null, paymentId: first ? first.paymentId : null };
   }
 };

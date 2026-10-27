@@ -38,7 +38,7 @@ export { providerLabel };
  *   listRefunds?: (chargeRef: string) => Promise<{ ref: string, amount: number, ours: boolean, at: number }[]>,
  *   listPayout: (id: string) => Promise<{ amount: number, arrival: number, items: PayoutItem[], truncated?: boolean }>,
  *   ensurePrice?: (plan: { id: string, name: string }, price: number) => Promise<string>,
- *   createSubscription?: (o: { id: string, price: string, planId: string, name: string, email?: string, startNow: boolean, startAt?: number, sepa?: boolean, successUrl: string, cancelUrl: string, expiresMin?: number }) => Promise<{ ref: string, url: string, exp: number }>,
+ *   createSubscription?: (o: { id: string, price: string, planId: string, name: string, email?: string, startNow: boolean, startAt?: number, sepa?: boolean, successUrl: string, cancelUrl: string, expiresMin?: number, note?: string }) => Promise<{ ref: string, url: string, exp: number }>,
  *   getSubscription?: (sub: string) => Promise<Subscription>,
  *   getInvoice?: (inv: string) => Promise<Invoice>,
  *   cancelSubscription?: (sub: string, o?: { now?: boolean }) => Promise<{ ok: boolean }>,

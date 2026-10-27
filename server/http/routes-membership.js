@@ -19,11 +19,11 @@ import { readMemberToken, memberToken, MEMBER_TEXT_TTL, MEMBER_ASK_TTL } from '.
 import { planOf } from '../settings/membership.js';
 import { cgvVersionOf } from '../settings/shop.js';
 import { startMembership, requestCancel, withdrawMember, endMember } from '../commands/memberships.js';
-import { sendMemberLink, offerMember, sendCardLink, requestCancelUnverified, confirmCancel, ackScheduledCancel, contactOf } from '../commands/member-billing.js';
+import { sendMemberLink, offerMember, sendCardLink, requestCancelUnverified, confirmCancel, ackScheduledCancel, ackStoppedNow, billingAlert, contactOf } from '../commands/member-billing.js';
 import { paymentRefundedOutside } from '../commands/payments.js';
 import { refund as refundSale } from '../commands/sales.js';
-import { providerKnown } from '../projections/payments.js';
-import { statusIn, periodIn, membersOf, liveIn, canWithdraw, withdrawRefund, abandoned, mrr, graceOf } from '../domain/membership.js';
+import { providerKnown, outsideOpen } from '../projections/payments.js';
+import { statusIn, periodIn, membersOf, liveIn, canWithdraw, withdrawRefund, abandoned, mrr, graceOf, disputeHeld, dateWords } from '../domain/membership.js';
 import { LINK_IP_PER_HOUR, LINK_PER_DAY, linkIpKey, linkPhoneKey } from '../domain/linkcap.js';
 
 const HOUR = 3600000, DAY = 86400000;
@@ -45,6 +45,20 @@ const SYSTEM = (r) => ({ actor: /** @type {const} */ ({ t: 'system', id: 'member
 const SELF = (r, m, ttl = MEMBER_TEXT_TTL) => ({ actor: /** @type {const} */ ({ t: 'client', id: 'web', n: '' }), caps: new Set(), meta: { ...memberMeta(r, ttl), ...(m ? { memberId: m.id } : {}) } });
 /** the system's credit note on a membership ticket (the withdrawal), keyed so a retry writes it once */
 const REFUNDER = (r, key) => ({ actor: /** @type {const} */ ({ t: 'system', id: 'memberships' }), caps: new Set(['sale.refund']), meta: memberMeta(r), requestId: key });
+/**
+ * r.run with the member's link in meta, so the texts and mails of a member command run from the Comptoir link his page:
+ * the same actor (device included) and the same keys per request as app.js's r.run (a retried request replays its
+ * answers: one SMS). A route uses this one only, never both.
+ */
+function staffRun(r) {
+  let n = 0;
+  const rq = (r.req && r.req.headers.get('x-request-id')) || undefined;
+  const meta = memberMeta(r);
+  return (cmd, input) => {
+    const i = n++;
+    return r.rt.engine.run(cmd, input, { actor: { t: 'staff', id: r.me.id, n: r.me.name, ...(r.device ? { dev: r.device.id } : {}) }, staff: r.me, caps: r.caps, meta, requestId: rq && i ? rq + ':' + i : rq });
+  };
+}
 
 /** New membership money runs only where it is real or plainly the demo's (PAY-01: never a test key in production). */
 const open = (r) => { const m = moneyMode(r); return (m === 'demo' || m === 'live') && !!r.rt.pay.caps.billing && !!r.rt.pay.createSubscription; };
@@ -55,8 +69,10 @@ function coverWordsOf(s, plan) {
   const names = (plan.serviceIds || []).map((x) => (s.services.get(x) || {}).name).filter(Boolean);
   return n + (names.length ? ' · ' + names.join(', ') : '');
 }
-/** the member's page, signed for ttl */
-const pageOf = (r, id, ttl = MEMBER_TEXT_TTL) => r.origin + '/abo/' + memberToken(r.rt.secret, id, r.now + ttl);
+/** the member's page, signed for ttl (up to the next 10-minute mark: a retry gives Stripe the same success address) */
+const pageOf = (r, id, ttl = MEMBER_TEXT_TTL) => r.origin + '/abo/' + memberToken(r.rt.secret, id, Math.ceil((r.now + ttl) / 600000) * 600000);
+/** the line above Stripe's button for a start in 14 days: its page would otherwise speak of a « trial » */
+const startNote = (day) => 'Ton abonnement commence le ' + dateWords(addDays(day, START_DAYS)) + ' : rien n’est prélevé avant.';
 /** the instant a start not asked for now takes effect */
 const startAtOf = (day) => instantOf(addDays(day, START_DAYS), START_MIN);
 
@@ -118,13 +134,16 @@ function rowOf(s, m, now, full) {
   const p = periodIn(s, m, day);
   const k = contactOf(s, m);
   const hide = !full && (status === 'grace' || status === 'unpaid');
+  // stopped before the end it had been given (« Résilier tout de suite » after a cancellation at the month's end): its last day is that day
+  const endDay = m.ended ? localParts(m.ended.at).day : '';
   return {
     id: m.id, clientId: k.cid, first: k.first, plan: m.name, planId: m.planId, price: m.price, status: hide ? 'active' : status, channel: m.channel,
     used: p ? m.uses.filter((u) => u.periodStart === p.start).length : 0, of: m.cuts, until: p ? addDays(p.grace && p.until ? p.until : p.end, -1) : null,
-    cancelAt: m.cancel ? addDays(m.cancel.effective, -1) : null, cancelVerified: m.cancel ? m.cancel.verified !== false : null,
+    cancelAt: m.cancel ? (endDay && endDay < m.cancel.effective ? endDay : addDays(m.cancel.effective, -1)) : null, cancelVerified: m.cancel ? m.cancel.verified !== false : null,
     pastDueSince: full && m.pastDue && status !== 'ended' ? m.pastDue.at : null, card: full ? m.card || '' : '',
     disputed: full ? (m.disputes || []).some((x) => x.status === 'open' || x.status === 'lost') : false,
-    since: m.activatedAt || null, endedAt: m.ended ? m.ended.at : null, endReason: m.withdrawn ? 'withdrawn' : m.ended ? m.ended.reason : ''
+    // a barber never reads a payment in trouble: an end for want of payment is an end to him
+    since: m.activatedAt || null, endedAt: m.ended ? m.ended.at : null, endReason: m.withdrawn ? 'withdrawn' : m.ended ? (!full && m.ended.reason === 'unpaid' ? 'ended' : m.ended.reason) : ''
   };
 }
 
@@ -141,10 +160,12 @@ export function membershipSummary(s, now) {
   const memo = sums.get(s);
   if (memo && memo.v === s.version && memo.day === day) return memo.out;
   const from = addDays(day, -30), month = day.slice(0, 7);
-  const count = { pending: 0, active: 0, grace: 0, unpaid: 0, ending: 0, paused: 0 };
+  // disputed: held by a chargeback (open or lost), apart from the payments in trouble: billing waits for the owner's call
+  const count = { pending: 0, active: 0, grace: 0, unpaid: 0, ending: 0, paused: 0, disputed: 0 };
   let joined = 0, left = 0, base = 0, cuts = 0, value = 0, collected = 0;
   for (const m of s.members.values()) {
-    const st = abandoned(m, now) ? 'ended' : statusIn(s, m, day);
+    const st0 = abandoned(m, now) ? 'ended' : statusIn(s, m, day);
+    const st = st0 === 'unpaid' && disputeHeld(m) ? 'disputed' : st0;
     if (st !== 'ended') count[st] = (count[st] || 0) + 1;
     if (m.activatedAt && localParts(m.activatedAt).day >= from) joined++;
     // a contract that ran and was cancelled, withdrawn or ended in the window (a checkout never paid is no departure)
@@ -160,7 +181,7 @@ export function membershipSummary(s, now) {
     for (const pr of m.periods) if (localParts(pr.at).day.startsWith(month)) collected += pr.amount;
   }
   const out = {
-    day, ...count, live: count.active + count.grace + count.unpaid + count.ending, mrr: mrr(s, day), graceDays: graceOf(s),
+    day, ...count, live: count.active + count.grace + count.unpaid + count.ending + count.disputed, mrr: mrr(s, day), graceDays: graceOf(s),
     days30: { joined, left, churn: base ? Math.round((left * 1000) / base) / 10 : 0 },
     troubled: count.grace + count.unpaid, month: { month, cuts, value, collected }
   };
@@ -173,35 +194,46 @@ export function membershipSummary(s, now) {
 /**
  * Give back `amount` of a month on its own ticket: at the provider first (keyed, so a retry refunds nothing more), then
  * the credit note (keyed too). A credit note refused after the money moved (the day's Z already done) is recorded as
- * a refund made at the provider, so Caisse shows « fais l'avoir » and nothing is invisible.
+ * a refund made at the provider, so Caisse shows « fais l'avoir » and nothing is invisible. As at the till (PAY-01
+ * tillRefund): what the provider gave back that no credit note records yet (that very refund, on a first try whose
+ * credit note was refused) is not refunded again, nor recorded again, on a second try.
  * @param {any} r @param {{ paymentId: string, saleId: string, amount: number, key: string, reason: string, as?: (cmd: any, input: any) => Promise<any> }} o
- * @returns {Promise<{ ok: boolean, error?: string }>}
+ * @returns {Promise<{ ok: boolean, error?: string, refundId?: string }>} refundId: the credit note, when it is written
  */
 async function refundMonth(r, o) {
   const py = r.s.payments.get(o.paymentId);
   const sale = r.s.sales.get(o.saleId);
   if (!py || !sale || !(o.amount > 0)) return { ok: false, error: 'rien à rembourser' };
   // already given back on this ticket for this reason (a retry): the provider's key and the credit note's say the same
-  if (sale.refundIds.some((id) => { const x = r.s.refunds.get(id); return !!x && x.reason === o.reason; })) return { ok: true };
-  let ref = '';
-  try {
-    const prov = providerFor(r.rt, py.provider);
-    const charge = py.chargeRef || (prov.name === 'simulated' ? py.providerRef : (await prov.retrieveCharge(py.providerRef)).chargeRef) || '';
-    if (!charge) throw new Error('paiement introuvable chez ' + providerLabel(prov.name));
-    ref = (await prov.refund(charge, o.amount, o.key)).ref;
-  } catch (e) {
-    const why = (e && (/** @type {any} */ (e).detail || /** @type {any} */ (e).message)) || 'erreur';
-    console.error('[lx] membership refund failed', py.id, why);
-    return { ok: false, error: why };
+  const noteOf = () => (r.s.sales.get(o.saleId).refundIds || []).find((id) => { const x = r.s.refunds.get(id); return !!x && x.reason === o.reason; });
+  if (noteOf()) return { ok: true, refundId: noteOf() };
+  const part = o.amount - Math.min(o.amount, outsideOpen(r.s, py));
+  let ref = 'outside';
+  if (part > 0) {
+    try {
+      const prov = providerFor(r.rt, py.provider);
+      const charge = py.chargeRef || (prov.name === 'simulated' ? py.providerRef : (await prov.retrieveCharge(py.providerRef)).chargeRef) || '';
+      // an invoice paid without a PaymentIntent nor a charge names only itself: Stripe cannot refund that reference
+      if (!charge || (prov.name !== 'simulated' && !/^(pi|ch)_/.test(charge))) throw new Error('paiement sans référence remboursable ici : rembourse-le depuis le tableau de bord de ' + providerLabel(prov.name));
+      ref = (await prov.refund(charge, part, o.key)).ref;
+    } catch (e) {
+      const why = (e && (/** @type {any} */ (e).detail || /** @type {any} */ (e).message)) || 'erreur';
+      console.error('[lx] membership refund failed', py.id, why);
+      return { ok: false, error: String(why).slice(0, 200) };
+    }
   }
+  const known = providerKnown(r.s, py);
   const input = { saleId: sale.id, amount: o.amount, method: 'online', reason: o.reason, providerRef: ref };
   try { await (o.as ? o.as(refundSale, input) : r.rt.engine.run(refundSale, input, REFUNDER(r, o.key))); }
   catch (e) {
     console.error('[lx] membership credit note not written', sale.id, e && /** @type {any} */ (e).message);
-    try { await r.rt.engine.run(paymentRefundedOutside, { id: py.id, total: providerKnown(r.s, py) + o.amount, providerRefund: ref }, { actor: { t: 'provider', id: py.provider }, caps: new Set(), meta: r.meta }); }
-    catch (e2) { console.error('[lx] membership refund not recorded', py.id, e2 && /** @type {any} */ (e2).message); }
+    if (part > 0) {
+      try { await r.rt.engine.run(paymentRefundedOutside, { id: py.id, total: known + part, providerRefund: ref }, { actor: { t: 'provider', id: py.provider }, caps: new Set(), meta: r.meta }); }
+      catch (e2) { console.error('[lx] membership refund not recorded', py.id, e2 && /** @type {any} */ (e2).message); }
+    }
+    return { ok: true };
   }
-  return { ok: true };
+  return { ok: true, refundId: noteOf() };
 }
 
 /** The live member a file already has, through its merges. */
@@ -265,7 +297,7 @@ export function membershipRoutes(app, o = {}) {
     const startAt = startNow ? 0 : startAtOf(day);
     const page = pageOf(r, id);
     const price = await prov.ensurePrice(plan, plan.price);
-    const co = await prov.createSubscription({ id, price, planId: plan.id, name: plan.name, email, startNow, startAt, sepa: false, successUrl: page + '?paiement=ok', cancelUrl: r.origin + '/?abonnement=annule' });
+    const co = await prov.createSubscription({ id, price, planId: plan.id, name: plan.name, email, startNow, startAt, sepa: false, ...(startNow ? {} : { note: startNote(day) }), successUrl: page + '?paiement=ok', cancelUrl: r.origin + '/?abonnement=annule' });
     await r.rt.engine.run(startMembership, {
       id, planId: plan.id, first, phone, email, provider: prov.name, providerRef: co.ref, ...(/^https:\/\//.test(co.url) ? { url: co.url } : {}),
       // a start in 14 days waits that long for its first payment: it is not abandoned when the checkout page closes
@@ -355,12 +387,18 @@ export function membershipRoutes(app, o = {}) {
   app.post('/api/public/memberships/:token/withdraw', async (r) => {
     guard('mbx|' + r.ip, 10, 60000);
     const m = memberFromToken(r);
-    await r.rt.engine.run(withdrawMember, { id: m.id, by: 'client' }, SELF(r, m));
+    // refundsAfter: PAY-02's « à rembourser » to the owner is replaced by the outcome of the refund made below
+    const self = SELF(r, m);
+    await r.rt.engine.run(withdrawMember, { id: m.id, by: 'client' }, { ...self, meta: { ...self.meta, refundsAfter: true } });
     const cur = r.s.members.get(m.id);
     await cancelAtProvider(r, cur, { now: true });
     const first = cur.periods[0];
     const refund = cur.withdrawn ? cur.withdrawn.refund : 0;
     const money = refund > 0 && first ? await refundMonth(r, { paymentId: first.paymentId, saleId: first.saleId, amount: refund, key: 'mbwd-' + cur.id, reason: 'Rétractation de l’abonnement' }) : { ok: true };
+    if (cur.withdrawn) {
+      try { await r.rt.engine.run(billingAlert, { kind: 'withdrawn', memberId: cur.id, ok: money.ok, ...(money.refundId ? { refundId: money.refundId } : {}), ...(money.error ? { error: money.error } : {}) }, SYSTEM(r)); }
+      catch (e) { console.error('[lx] withdrawal alert', cur.id, e && /** @type {any} */ (e).message); }
+    }
     return { withdrawn: { at: cur.withdrawn ? cur.withdrawn.at : r.now, refund, refunded: money.ok }, member: memberView(r, cur) };
   });
 
@@ -380,13 +418,19 @@ export function membershipRoutes(app, o = {}) {
 
   /**
    * Clients › Abonnés. Opening it also catches up, at most 5 a request and once an hour each, the members whose month
-   * ended more than a day ago without a renewal recorded (a notice Stripe never delivered).
+   * ended more than a day ago without a renewal recorded (a notice Stripe never delivered); within CATCH_UP_MS, so a
+   * slow Stripe never holds the list: the rest waits for the next visit.
    */
   app.get('/api/v1/memberships', async (r) => {
     const s = r.s, day = r.local.day, full = r.caps.has('member.manage');
     if (full) {
       const late = [...s.members.values()].filter((m) => m.activatedAt && !m.ended && !m.withdrawn && billingOf(r, m) && m.periods.length && m.periods[m.periods.length - 1].end < addDays(day, -1) && !(m.cancel && m.cancel.effective <= day) && !recently(m.id, r.now)).slice(0, 5);
-      for (const m of late) { try { await syncMember(r, m); } catch (e) { console.error('[lx] membership catch-up', m.id, e && /** @type {any} */ (e).message); } }
+      const until = Date.now() + CATCH_UP_MS;
+      for (const m of late) {
+        if (Date.now() > until) break;
+        mark(m.id, r.now);
+        try { await syncMember(r, m); } catch (e) { console.error('[lx] membership catch-up', m.id, e && /** @type {any} */ (e).message); }
+      }
     }
     const rows = [...r.s.members.values()].filter((m) => m.activatedAt || !abandoned(m, r.now)).sort((a, b) => b.createdAt - a.createdAt).map((m) => rowOf(r.s, m, r.now, full));
     return { members: rows, mrr: full ? mrr(r.s, day) : null };
@@ -396,72 +440,90 @@ export function membershipRoutes(app, o = {}) {
 
   /**
    * The counter offers a membership to a client's file: the same checkout (channel 'salon'), then { send: 'sms' } texts
-   * him the short link, or { send: 'qr' } gives it to show as a QR code. startNow only when the client asks for it.
+   * him the short link (member.manage: a barber's text to a client is off by default, decision 10), or { send: 'qr' }
+   * gives it to show as a QR code (client.edit). startNow only when the client asks for it. The file needs its number
+   * and its e-mail: the contract's confirmation and every acknowledgement go there.
    */
   app.post('/api/v1/memberships/offer', async (r) => {
     guard('mbo|' + r.me.id, 10, 60000);
     const s = r.s, b = r.body || {};
+    const run = staffRun(r);
     if (!open(r) || !(s.settings.membership && s.settings.membership.enabled)) throw new HttpError(409, 'soon', SOON);
     const c = s.clients.get(String(b.clientId || ''));
     if (!c || c.erased || c.mergedInto) throw new HttpError(404, 'not_found', 'Fiche introuvable.');
     const plan = planOf(s.settings, String(b.planId || ''));
     if (!plan || plan.active === false) throw new HttpError(404, 'not_found', 'Formule introuvable.');
     const send = b.send === 'qr' ? 'qr' : 'sms';
-    if (send === 'sms' && !c.phone) throw new HttpError(409, 'no_phone', 'Pas de numéro sur cette fiche : montre le QR code.');
-    if (!c.phone) throw new HttpError(409, 'no_phone', 'Ajoute le numéro du client d’abord : l’abonnement le demande.');
-    if (liveOf(s, c.id, r.local.day)) throw new HttpError(409, 'already', 'Ce client a déjà un abonnement en cours.');
-    const startNow = b.startNow === true;
-    // a retried request makes the same checkout (Stripe's key is the member's id)
+    if (send === 'sms' && !r.caps.has('member.manage')) throw new HttpError(403, 'forbidden', 'L’envoi par SMS est réservé au gérant : montre le QR code au client.');
+    // a retried request makes the same checkout: the member's id comes from the request's, and one already recorded is given back as it is
     const rq = r.req && r.req.headers.get('x-request-id');
     const id = rq ? 'mb_o' + sha256('offer:' + r.me.id + ':' + rq).slice(0, 20) : newId('mb');
+    const done = s.members.get(id);
+    if (done) {
+      const url = done.url || (done.provider === 'simulated' ? r.origin + '/paiement/' + encodeURIComponent(done.id) : '');
+      return { id, link: r.origin + '/api/public/memberships/' + memberToken(r.rt.secret, id, Math.max(done.exp || 0, r.now + DAY)) + '/pay', url, sent: s.messages.has('msg_moffer_' + id) };
+    }
+    if (send === 'sms' && !c.phone) throw new HttpError(409, 'no_phone', 'Pas de numéro sur cette fiche : montre le QR code.');
+    if (!c.phone) throw new HttpError(409, 'no_phone', 'Ajoute le numéro du client d’abord : l’abonnement le demande.');
+    if (!c.email || !isEmail(c.email)) throw new HttpError(409, 'no_email', 'Ajoute l’e-mail du client d’abord : il reçoit la confirmation de son abonnement.');
+    if (liveOf(s, c.id, r.local.day)) throw new HttpError(409, 'already', 'Ce client a déjà un abonnement en cours.');
+    // one offer at a time: a second checkout of the same file would only be refunded if both were paid
+    if (membersOf(s, c.id).some((m) => !m.activatedAt && !m.ended && !abandoned(m, r.now))) throw new HttpError(409, 'pending', 'Une offre d’abonnement attend déjà ce client (son lien vaut 24 heures).');
+    const startNow = b.startNow === true;
     const startAt = startNow ? 0 : startAtOf(r.local.day);
     const prov = r.rt.pay;
     const price = await prov.ensurePrice(plan, plan.price);
-    const co = await prov.createSubscription({ id, price, planId: plan.id, name: plan.name, email: c.email || undefined, startNow, startAt, sepa: false, expiresMin: 24 * 60 - 1, successUrl: pageOf(r, id) + '?paiement=ok', cancelUrl: r.origin + '/' });
-    await r.run(startMembership, {
-      id, planId: plan.id, first: c.first || 'Client', phone: c.phone, ...(c.email ? { email: c.email } : {}), clientId: c.id, provider: prov.name, providerRef: co.ref,
+    const co = await prov.createSubscription({ id, price, planId: plan.id, name: plan.name, email: c.email, startNow, startAt, sepa: false, expiresMin: 24 * 60 - 1, ...(startNow ? {} : { note: startNote(r.local.day) }), successUrl: pageOf(r, id) + '?paiement=ok', cancelUrl: r.origin + '/' });
+    await run(startMembership, {
+      id, planId: plan.id, first: c.first || 'Client', phone: c.phone, email: c.email, clientId: c.id, provider: prov.name, providerRef: co.ref,
       ...(/^https:\/\//.test(co.url) ? { url: co.url } : {}), exp: startNow ? lapse(r, co) : startAt + 2 * DAY, channel: 'salon', startNow
     });
     const link = r.origin + '/api/public/memberships/' + memberToken(r.rt.secret, id, Math.max(lapse(r, co), r.now + DAY)) + '/pay';
     let sent = null;
-    if (send === 'sms') { sent = (await r.run(offerMember, { memberId: id, link })).id; await dispatchNow(r.rt, [sent]); }
+    if (send === 'sms') { sent = (await run(offerMember, { memberId: id, link })).id; await dispatchNow(r.rt, [sent]); }
     return { id, link, url: co.url, sent: !!sent };
   }, { cap: 'client.edit' });
 
   /**
    * The salon cancels. { now }: today (« Résilier tout de suite »), with { refund }: the unused days of the month paid
    * back on its ticket, the owner's goodwill. On a request made from /resilier without the link, this is the
-   * confirmation: Stripe stops at the end of the paid period.
+   * confirmation: Stripe stops at the end of the paid period (at once for a start not begun, already called off).
    */
   app.post('/api/v1/memberships/:id/cancel', async (r) => {
     const m = r.s.members.get(r.params.id);
     if (!m) throw new HttpError(404, 'not_found', 'Abonnement introuvable.');
     const b = r.body || {}, day = r.local.day;
+    const run = staffRun(r);
     const now = b.now === true;
     if (now && b.refund === true && !r.caps.has('sale.refund')) throw new HttpError(403, 'forbidden', 'Le remboursement demande le droit de rembourser.');
-    const unverified = !!(m.cancel && !m.ended && m.cancel.verified === false);
+    // unverified even once ended: a start not begun is called off at once, and only this confirmation tells Stripe
+    const unverified = !!(m.cancel && m.cancel.verified === false);
     // the paid month as it stands before the end, for the goodwill refund
     const p = periodIn(r.s, m, day);
     const period = p && p.paid ? m.periods.find((x) => x.start === p.start) || null : null;
+    // cancelled at the month's end, now stopped today: the client is told the new end
+    const sooner = !!(m.cancel && !m.ended && now && m.activatedAt);
     let res;
-    if (m.cancel && !m.ended && now) res = await r.run(endMember, { id: m.id, reason: 'cancelled' });
-    else if (unverified) res = await r.run(confirmCancel, { id: m.id });
-    else res = await r.run(requestCancel, { id: m.id, by: 'salon', channel: 'comptoir', now });
+    if (unverified) res = await run(confirmCancel, { id: m.id });
+    if (m.cancel && !m.ended && now) res = await run(endMember, { id: m.id, reason: 'cancelled' });
+    else if (!unverified) res = await run(requestCancel, { id: m.id, by: 'salon', channel: 'comptoir', now });
     const cur = r.s.members.get(m.id);
     const provider = await cancelAtProvider(r, cur, { now: !!(cur.ended || (cur.cancel && cur.cancel.effective <= day)) });
-    if (!cur.activatedAt) await r.run(ackScheduledCancel, { id: cur.id });
+    if (!cur.activatedAt) await run(ackScheduledCancel, { id: cur.id });
+    if (sooner && cur.ended) await run(ackStoppedNow, { id: cur.id });
     let refunded = null;
     if (now && b.refund === true && period && cur.ended) {
       const total = Math.max(1, diffDays(period.start, period.end));
       const unused = Math.max(0, diffDays(day, period.end) - 1);
       const amount = Math.min(period.amount, Math.round((period.amount * unused) / total));
       if (amount > 0) {
-        const done = await refundMonth(r, { paymentId: period.paymentId, saleId: period.saleId, amount, key: 'mbcx-' + m.id + '-' + period.invoice, reason: 'Résiliation : jours non utilisés', as: (cmd, input) => r.run(cmd, input) });
+        const done = await refundMonth(r, { paymentId: period.paymentId, saleId: period.saleId, amount, key: 'mbcx-' + m.id + '-' + period.invoice, reason: 'Résiliation : jours non utilisés', as: run });
         refunded = { amount, ok: done.ok, ...(done.error ? { error: done.error } : {}) };
       }
     }
     return {
-      id: m.id, effective: cur.cancel ? cur.cancel.effective : day, ended: !!cur.ended, confirmed: unverified,
+      // stopped before the end it had been given: today
+      id: m.id, effective: cur.cancel ? (cur.ended && cur.cancel.effective > day ? day : cur.cancel.effective) : day, ended: !!cur.ended, confirmed: unverified,
       provider: provider.ok ? { ok: true } : { ok: false, error: 'Stripe n’a pas pris la résiliation (' + provider.error + ') : « Relire Stripe » réessaie.' }, refunded, already: !!(res && res.already)
     };
   }, { cap: 'member.manage' });
@@ -469,8 +531,8 @@ export function membershipRoutes(app, o = {}) {
   /** The member's card page by SMS (his own page, which opens Stripe's): a failed card is fixed without coming in. */
   app.post('/api/v1/memberships/:id/card-link', async (r) => {
     guard('mbc|' + r.me.id, 10, 60000);
-    const res = await r.rt.engine.run(sendCardLink, { id: r.params.id }, { actor: { t: 'staff', id: r.me.id, n: r.me.name }, staff: r.me, caps: r.caps, meta: memberMeta(r) });
-    await dispatchNow(r.rt, [res.id]);
+    const res = await staffRun(r)(sendCardLink, { id: r.params.id });
+    if (res.id) await dispatchNow(r.rt, [res.id]);
     return { sent: true };
   }, { cap: 'member.manage' });
 
@@ -479,19 +541,19 @@ export function membershipRoutes(app, o = {}) {
     guard('mbs|' + r.me.id, 20, 60000);
     const m = r.s.members.get(r.params.id);
     if (!m) throw new HttpError(404, 'not_found', 'Abonnement introuvable.');
-    seen.set(m.id, r.now);
+    mark(m.id, r.now);
     const out = await syncMember(r, m);
     return { ...(out && out.ignored ? { ignored: out.ignored } : { ok: true }), member: rowOf(r.s, r.s.members.get(m.id), r.now, true) };
   }, { cap: 'member.manage' });
 }
 
-/** the list's catch-up asks Stripe about a member at most once an hour per instance */
+/** the list's catch-up asks Stripe about a member at most once an hour per instance, and stops after this long */
 const seen = new Map();
-function recently(id, now) {
-  const t = seen.get(id);
-  if (t && now - t < HOUR) return true;
-  seen.set(id, now);
+const CATCH_UP_MS = 3000;
+const recently = (id, now) => { const t = seen.get(id); return !!t && now - t < HOUR; };
+/** only the members actually asked about are marked: the ones left for the next visit are not skipped for an hour */
+function mark(id, now) {
   if (seen.size > 2000) seen.clear();
-  return false;
+  seen.set(id, now);
 }
 

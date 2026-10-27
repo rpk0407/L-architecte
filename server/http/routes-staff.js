@@ -227,6 +227,8 @@ const WAIT_FR = { waiting: 'en attente', offered: 'place proposée', booked: 'r�
 const SMS_FR = { confirmation: 'confirmation', reminder: 'rappel la veille', reminder2h: 'rappel 2 h avant', moved: 'déplacement', cancelled: 'annulation', review: 'demande d’avis', rebook: 'relance', receipt: 'reçu', waitlist: 'place libérée', queue: 'file d’attente', deposit: 'lien d’acompte',
   reassign: 'changement de barbier', reassignAt: 'changement de barbier et d’heure', reschedule: 'rendez-vous à décaler', giftcard: 'carte cadeau',
   memberWelcome: 'abonnement : bienvenue', memberFailed: 'abonnement : paiement refusé', memberAction: 'abonnement : paiement à valider', memberCancelled: 'abonnement : résiliation', memberStopped: 'abonnement : résiliation', memberWithdrawn: 'abonnement : rétractation', memberWithdrawnNone: 'abonnement : rétractation', memberEnded: 'abonnement : fin faute de paiement', memberOffer: 'abonnement proposé', memberLink: 'lien de l’abonnement', owner_member: 'alerte abonnement' };
+// PAY-03's member texts and mails
+Object.assign(SMS_FR, { memberCard: 'abonnement : changer la carte', memberLinkMail: 'lien de l’abonnement (e-mail)' });
 const MEMBER_FR = { pending: 'paiement attendu', active: 'en cours', grace: 'paiement en retard', unpaid: 'impayé', ending: 'résilié, en cours jusqu’à la fin du mois payé', ended: 'terminé' };
 const SMS_STATUS_FR = { queued: 'en attente', claimed: 'en cours d’envoi', sent: 'envoyé', simulated: 'non envoyé (simulé)', failed: 'échec', skipped: 'non envoyé', expired: 'trop tard, non envoyé' };
 const fr = (map, v) => map[v] || v || '';

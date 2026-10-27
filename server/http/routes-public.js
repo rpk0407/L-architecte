@@ -22,6 +22,7 @@ import { providerKnown } from '../projections/payments.js';
 import { memberPaid, endMember } from '../commands/memberships.js';
 import { addMonths, abandoned } from '../domain/membership.js';
 import { BILLING } from '../payments/billing.js';
+import { memberScheduled, startDayOf } from '../commands/member-billing.js';
 import { fmtEur } from '../../shared/money.js';
 
 /** The demo, for real: both the configuration and the journal say so (a demo journal opened in production is not one). */
@@ -315,22 +316,35 @@ export function publicRoutes(app) {
   }, { raw: true, csrf: false });
 }
 
-/** What the test checkout page shows of a membership: « Abonnement Essentiel · 34 €/mois », and when it starts. */
+/**
+ * What the test checkout page shows of a membership: « Abonnement Essentiel · 34 €/mois », and when it starts (start:
+ * the day of a start not asked for now; scheduled: that start confirmed, nothing paid yet).
+ */
 function memberCheckout(r, m) {
-  const status = m.activatedAt ? 'paid' : m.ended || abandoned(m, r.now) ? 'expired' : 'pending';
-  const label = 'Abonnement ' + m.name + ' · ' + fmtEur(m.price) + '/mois' + (m.startNow ? '' : ' · rien n’est prélevé avant 14 jours');
-  return { id: m.id, status, amount: m.price, label, kind: 'membership', provider: m.provider, exp: m.exp, shop: r.s.settings.shop.name, back: null };
+  const scheduled = !m.activatedAt && !m.ended && !m.startNow && r.s.messages.has('msg_msched_' + m.id);
+  const status = m.activatedAt ? 'paid' : scheduled ? 'scheduled' : m.ended || abandoned(m, r.now) ? 'expired' : 'pending';
+  // the page says the start day under it (start), so the label stays the plan's
+  const label = 'Abonnement ' + m.name + ' · ' + fmtEur(m.price) + '/mois';
+  return { id: m.id, status, amount: m.price, label, kind: 'membership', provider: m.provider, exp: m.exp, shop: r.s.settings.shop.name, back: null, start: m.startNow ? null : startDayOf(m) };
 }
 
 /**
  * The demo's test checkout of a membership: confirmed, its first month is paid as Stripe's first invoice would be
  * (invoice sim_<id>_0, the numbering the demo's billing goes on with, steps/sim-billing.js); cancelled, the member
- * ends unpaid (abandoned). A start in 14 days pays nothing now: the member waits for it, as with Stripe.
+ * ends unpaid (abandoned). A start in 14 days pays nothing now, as with Stripe: the contract's confirmation leaves by
+ * e-mail (memberScheduled), and the demo's billing pays the first month on the start day.
  */
 async function simulateMember(r, m) {
   if (m.activatedAt || m.ended) throw new HttpError(409, 'closed', 'Ce paiement n’est plus en attente.');
-  if (r.body && r.body.outcome === 'cancel') { await r.rt.engine.run(endMember, { id: m.id, reason: 'abandoned' }, BILLING(r)); return { status: 'failed' }; }
-  if (!m.startNow) return { status: 'scheduled' };
+  if (r.body && r.body.outcome === 'cancel') {
+    if (r.s.messages.has('msg_msched_' + m.id)) throw new HttpError(409, 'closed', 'Cet abonnement est déjà enregistré : il s’annule depuis sa page.');
+    await r.rt.engine.run(endMember, { id: m.id, reason: 'abandoned' }, BILLING(r));
+    return { status: 'failed' };
+  }
+  if (!m.startNow) {
+    await r.rt.engine.run(memberScheduled, { id: m.id }, BILLING(r));
+    return { status: 'scheduled', start: startDayOf(m) };
+  }
   const day = r.local.day;
   await r.rt.engine.run(memberPaid, {
     id: m.id, invoice: 'sim_' + m.id + '_0', amount: m.price, periodStart: day, periodEnd: addMonths(day, 1), chargeRef: 'sim_ch_' + m.id + '_0',
