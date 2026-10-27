@@ -1,0 +1,16 @@
+/* The loyalty chip at the till and the card on the done screen (FID-03) */
+.rw { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+.rw .chip { min-height: var(--tap); }
+.rw-chip { background: var(--accent-bg); color: var(--accent2); box-shadow: inset 0 0 0 1.5px var(--accent-line); max-width: 100%; }
+.rw-chip:hover { background: var(--accent-bg); filter: brightness(1.1); }
+.rw-chip b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
+.rw-chip svg { width: 16px; height: 16px; flex: none; }
+.rw-chip.on { background: var(--accent); color: var(--ink); box-shadow: none; }
+.rw-chip:disabled { opacity: .5; }
+.rw-note { font-size: 13px; color: var(--tx3); }
+.rw-link { min-height: var(--tap); padding: 0 6px; font: 600 13px/1 var(--sans); color: var(--tx2); text-decoration: underline; text-underline-offset: 3px; }
+.rw-link:hover { color: var(--tx); }
+.rw-who { display: flex; flex-direction: column; gap: 10px; }
+.rw-done { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-top: 4px; }
+.rw-done p { font-weight: 600; }
+.rw-done.faint p { font-weight: 400; }

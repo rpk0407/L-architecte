@@ -12,6 +12,7 @@ import { useApp } from '../state';
 import { PageTitle } from '../App';
 import type { ClientCard, ClientFull } from '../types';
 import ClientReview from './avis/ClientReview';
+import { LoyaltyCard } from './clients/LoyaltyCard';
 import './clients.css';
 
 type ListData = { total: number; counts: Record<string, number>; excludedNoConsent?: number; retention?: { before: string; other: number } | null; items: ClientCard[] };
@@ -345,6 +346,7 @@ function ClientFile({ id }: { id: string }) {
             </div>
           ) : null}
           <Prefs c={c} />
+          <LoyaltyCard c={c} />
         </div>
         <div className="card">
           <div className="tabs" role="tablist" style={{ marginTop: -6 }}>
