@@ -217,7 +217,7 @@ function Retention({ files, other, before }: { files: number; other: number; bef
 }
 
 export function badgeTone(b: string) {
-  return b === 'fidèle' || b === 'abonné' ? 'badge-ok' : b === 'nouveau' ? 'badge-info' : b === 'absences' ? 'badge-warn' : b === 'VIP' ? 'badge-accent' : '';
+  return b === 'fidèle' || b === 'abonné' ? 'badge-ok' : b === 'nouveau' ? 'badge-info' : b === 'absences' ? 'badge-warn' : b === 'VIP' || b === 'récompense' ? 'badge-accent' : '';
 }
 
 /** Names compared the way the server finds duplicates: no case, no accents, no punctuation. */

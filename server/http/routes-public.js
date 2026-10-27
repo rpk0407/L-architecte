@@ -203,8 +203,8 @@ export function publicRoutes(app) {
       payment = await startPayment(r, { kind: 'deposit', amount: res.deposit, label: 'Acompte · ' + sv.services.map((x) => x.name).join(' + '), apptId: res.id, returnPath: '/r/' + token, email: r.body.email });
     }
     // FID-02: a booking that came through a referrer's link (?parrain=); a refusal never touches the booking
-    if (r.body && r.body.parrain) await claimFromLink(r, res.id, r.body.parrain);
-    return json({ code: res.code, token, manage: r.origin + '/r/' + token, status: res.status, deposit: res.deposit, staffId: res.staffId, payment }, 201);
+    const ref = r.body && r.body.parrain ? await claimFromLink(r, res.id, r.body.parrain) : null;
+    return json({ code: res.code, token, manage: r.origin + '/r/' + token, status: res.status, deposit: res.deposit, staffId: res.staffId, payment, ...(ref ? { referral: { ok: !!ref.ok, why: ref.ok ? null : ref.why } } : {}) }, 201);
   });
 
   app.get('/api/public/bookings/:token', (r) => bookingView(r, apptFromToken(r)));

@@ -13,6 +13,7 @@ import { TRUSTED } from '../domain/policy.js';
 import { getClient } from './common.js';
 import { isLive, graceOf, statusOf, periodAt } from '../domain/membership.js';
 import { referralEventIds } from '../domain/loyalty.js';
+import { loyaltyAfterMerge } from './loyalty.js';
 
 const fields = {
   first: opt(str({ min: 1, max: 40 })), last: opt(str({ max: 40 })), phone: opt(str({ max: 24 })), email: opt(str({ max: 120, lower: true })),
@@ -93,8 +94,11 @@ export const mergeClients = {
     if (from.id === into.id) fail(400, 'invalid', 'Ce sont déjà les mêmes fiches.');
     if (from.erased || into.erased) fail(409, 'erased', 'Une fiche effacée ne se fusionne pas.');
     const fill = mergedFill(from, into);
+    // FID-02: the cards both files' stamps complete become rewards now; a file that opted out keeps the person out
+    loyaltyAfterMerge(s, ctx, from, into);
+    const off = from.loyaltyOff && !into.loyaltyOff ? { loyaltyOff: true } : {};
     ctx.emit('client.merged', { from: from.id, into: into.id });
-    if (Object.keys(fill).length) ctx.emit('client.updated', { id: into.id, cid: into.id, patch: {}, fields: Object.keys(fill) }, fill);
+    if (Object.keys(fill).length || off.loyaltyOff) ctx.emit('client.updated', { id: into.id, cid: into.id, patch: off, fields: Object.keys(fill) }, Object.keys(fill).length ? fill : undefined);
     return { id: into.id };
   }
 };

@@ -20,7 +20,7 @@ const TPL: { k: string; t: string; when: string; vars: string[] }[] = [
   { k: 'waitlist', t: 'Place libérée', when: 'à une annulation', vars: ['date', 'heure', 'barbier', 'lien'] },
   { k: 'queue', t: 'Bientôt ton tour', when: 'file sans rendez-vous', vars: ['prenom'] },
   { k: 'cancelled', t: 'Annulation', when: 'quand le salon annule', vars: ['date', 'heure', 'lien'] },
-  { k: 'receipt', t: 'Reçu', when: 'à la demande, après encaissement', vars: ['prenom', 'ticket', 'montant', 'lien'] }
+  { k: 'receipt', t: 'Reçu', when: 'à la demande, après encaissement', vars: ['prenom', 'ticket', 'montant', 'lien', 'fidelite'] }
 ];
 type Notify = { to: string; phone: string; newBooking: boolean; cancel: boolean; evening: string; weekly: boolean };
 const NOTIFY: Notify = { to: '', phone: '', newBooking: true, cancel: true, evening: '20:00', weekly: true };
@@ -34,7 +34,7 @@ function phoneOk(v: string) {
   if (d.startsWith('+33')) d = '0' + d.slice(3);
   return d.startsWith('+') ? /^\+\d{8,15}$/.test(d) : /^0[1-9]\d{8}$/.test(d);
 }
-const SAMPLE: Record<string, string> = { prenom: 'Karim', date: 'jeudi 12 novembre', heure: '14 h 30', barbier: 'JKut', prestation: 'Coupe + taille de barbe', lien: 'https://larchitecte.fr/r/LA-7K2P', avis: 'https://larchitecte.fr/avis/msg_rev_cl_mvqgbw0v1jm5vI6W_2026-4.Ab3dEf9hIj2kLm4nOp6qRs', jours: '34', ticket: 'T001042', montant: '30,00 €' };
+const SAMPLE: Record<string, string> = { prenom: 'Karim', date: 'jeudi 12 novembre', heure: '14 h 30', barbier: 'JKut', prestation: 'Coupe + taille de barbe', lien: 'https://larchitecte.fr/r/LA-7K2P', avis: 'https://larchitecte.fr/avis/msg_rev_cl_mvqgbw0v1jm5vI6W_2026-4.Ab3dEf9hIj2kLm4nOp6qRs', jours: '34', ticket: 'T001042', montant: '30,00 €', fidelite: ' Carte 6/9.' };
 
 export default function Messages({ s, data }: SectionProps) {
   const { boot } = useApp();

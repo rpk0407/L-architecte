@@ -116,6 +116,7 @@ export const checkout = {
     const rewarded = new Set();
     for (const [i, l] of x.lines.entries()) {
       const qty = l.qty || 1;
+      if (l.rewardId && l.kind !== 'service' && l.kind !== 'product') fail(409, 'reward_line', 'Une récompense s’applique à une prestation ou un produit.');
       if (l.kind === 'service') {
         const sv = getService(s, l.ref || '');
         const at = bookedAt.get(i);
@@ -195,7 +196,7 @@ export const checkout = {
     const granted = totals.discount - lines.reduce((t, l) => t + (l.reward ? l.reward.amount : 0), 0);
     if (granted > 0) {
       if (!ctx.can('sale.discount')) fail(403, 'discount', 'Tu ne peux pas faire de remise.');
-      const base = lines.filter((l) => l.kind !== 'giftcard').reduce((t, l) => t + l.unit * l.qty, 0);
+      const base = lines.filter((l) => l.kind !== 'giftcard').reduce((t, l) => t + l.unit * l.qty - (l.reward ? l.reward.amount : 0), 0);
       const pct = base ? (granted * 100) / base : 100;
       if (pct > maxDiscountPct(ctx.staff, s.settings) + 0.001) fail(403, 'discount', `Remise maximale : ${maxDiscountPct(ctx.staff, s.settings)} %.`);
       if (x.discount && x.discount.amount > 0 && !x.discount.reason) fail(400, 'invalid', 'Indique la raison de la remise.');

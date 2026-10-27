@@ -6,8 +6,8 @@
 import { fail } from '../core/engine.js';
 import { str, int, bool, opt, obj, arr, id, oneOf, parse } from '../lib/validate.js';
 import { getClient } from './common.js';
-import { addDays, dayParts, pad2 } from '../../shared/dates.js';
-import { cfgOf, rootOf, filesOf, unlocks, qualifyingNet, unitsFor, takeReward } from '../domain/loyalty.js';
+import { addDays, dayParts, pad2, diffDays } from '../../shared/dates.js';
+import { cfgOf, rootOf, filesOf, unlocks, qualifyingNet, unitsFor, takeReward, stampStands, cardOf, mergedUnits } from '../domain/loyalty.js';
 import { rewardSchema, HEAD_STARTS } from '../settings/loyalty.js';
 
 const DAY_MS = 86400000;
@@ -69,12 +69,16 @@ export function loyaltyAfterSale(s, ctx, sale) {
   const root = rootOf(s, sale.clientId);
   grantCards(s, ctx, root, unlocks(s, root, units, sale.day, [sale.number, 0, 0]), sale.day, sale.id);
   const ref = referralOf(s, root);
-  if (!ref || ref.rewardedBy || ref.rewardId || !ref.by) return;
-  // first earning ticket: none of his tickets earned before this one
-  for (const x of s.sales.values()) if (x.loyalty && x.loyalty.units > 0 && x.clientId && rootOf(s, x.clientId) === root) return;
+  if (!ref || !ref.by) return;
+  // once, unless the referee's first ticket was refunded before the referrer used his reward (voided): the next one counts
+  const prev = ref.rewardId ? L(s).rewards.get(ref.rewardId) : null;
+  if (ref.rewardId && !(prev && prev.voided && prev.voided.why === 'refund')) return;
+  // first earning ticket: none of his tickets earned before this one (a stamp refunded away does not count)
+  for (const x of s.sales.values()) if (stampStands(s, x) && x.clientId && rootOf(s, x.clientId) === root) return;
   const by = rootOf(s, ref.by);
   const c = by ? s.clients.get(by) : null;
-  if (!c || c.erased) return;
+  // a referrer who opted out earns nothing, his referral's reward included
+  if (!c || c.erased || c.loyaltyOff) return;
   const cfg = cfgOf(s);
   ctx.emit('loyalty.rewarded', {
     id: ctx.id('lrw'), cid: by, clientId: by, source: 'referrer', reward: rewardOf(cfg.referral.referrer), units: 0, expires: addDays(sale.day, cfg.rewardDays),
@@ -121,7 +125,8 @@ export function loyaltyAfterRefund(s, ctx, sale, refund) {
       else referral = 'kept';
     }
   }
-  if (diff < 0) ctx.emit('loyalty.reversed', { id: ctx.id('lrv'), cid: root, clientId: root, units: diff, saleId: sale.id, refundId: refund.id, day, ...(referral ? { referral } : {}) });
+  // units 0: a partial refund already took the stamp back, the marker still tells the feed the referral was lost
+  if (diff < 0 || referral) ctx.emit('loyalty.reversed', { id: ctx.id('lrv'), cid: root, clientId: root, units: Math.min(0, diff), saleId: sale.id, refundId: refund.id, day, ...(referral ? { referral } : {}) });
   if (left > 0 || !b) return;
   for (const rid of b.redeemed) {
     const rw = L(s).rewards.get(rid);
@@ -145,6 +150,8 @@ export const launchLoyalty = {
     const x = parse(launchSchema, input || {});
     if (L(s).launched) fail(409, 'launched', 'Le programme de fidélité est déjà lancé (depuis le ' + ddmm(L(s).launched.day) + ').');
     const cfg = cfgOf(s);
+    // once only: launched while off, the head start would be spent before the final WordPress sync
+    if (!cfg.enabled) fail(409, 'off', 'Active d’abord le programme de fidélité, puis lance la reprise des cartes.');
     const head = x.headStart || cfg.headStart;
     const cap = head === 'full' ? cfg.goal - 1 : head === 'half' ? Math.floor(cfg.goal / 2) : 0;
     const day = ctx.local.day, since = addDays(day, -365);
@@ -154,7 +161,8 @@ export const launchLoyalty = {
     const visits = new Map();
     const add = (cid, d) => { const k = rootOf(s, cid); if (!k) return; const v = visits.get(k); if (v) v.add(d); else visits.set(k, new Set([d])); };
     for (const t of s.sales.values()) {
-      if (!t.clientId || t.day < since || t.day > day || (t.loyalty && t.loyalty.units)) continue;
+      // a ticket refunded in full was no visit
+      if (!t.clientId || t.day < since || t.day > day || (t.loyalty && t.loyalty.units) || t.totals.revenue - (t.refunded || 0) <= 0) continue;
       if (unitsFor(cfg, qualifyingNet(t.lines))) add(t.clientId, t.day);
     }
     for (const a of s.appts.values()) if (a.legacy && a.status === 'done' && !a.saleId && a.clientId && a.day >= since && a.day <= day) add(a.clientId, a.day);
@@ -162,7 +170,9 @@ export const launchLoyalty = {
     for (const [root, days] of visits) {
       const c = s.clients.get(root);
       if (!c || c.erased || c.loyaltyOff) continue;
-      const units = Math.min(cap, days.size);
+      // the stamps already on the card count: the head start never completes a card by itself
+      const units = Math.min(cap, days.size, Math.max(0, cfg.goal - 1 - cardOf(s, root, day).units));
+      if (!units) continue;
       ctx.emit('loyalty.earned', { id: ctx.id('lea'), cid: root, clientId: root, units, reason: 'start', day });
       clients++; stamps += units;
     }
@@ -194,7 +204,7 @@ export const adjustLoyalty = {
       if (!ADJUST_REASONS.includes(x.reason)) fail(400, 'invalid', 'Raison : « ' + ADJUST_REASONS.join(' » ou « ') + ' ».');
       const files = new Set(filesOf(s, root));
       const today = [...files].some((f) => (L(s).entries.get(f) || []).some((e) => e.reason === 'adjust' && e.units > 0 && e.day === day));
-      const ticket = (s.salesByDay.get(day) || []).some((sid) => { const t = s.sales.get(sid); return t && t.loyalty && t.loyalty.units > 0 && t.clientId && files.has(t.clientId); });
+      const ticket = (s.salesByDay.get(day) || []).some((sid) => { const t = s.sales.get(sid); return stampStands(s, t) && t.clientId && files.has(t.clientId); });
       if (today || ticket) fail(409, 'adjusted', 'Ce client a déjà son tampon aujourd’hui.');
     }
     const eid = ctx.id('lea');
@@ -226,9 +236,31 @@ export const voidReward = {
     const r = L(s).rewards.get(parse(id(), input && input.id));
     if (!r) fail(404, 'not_found', 'Récompense introuvable.');
     if (r.voided) return { ok: true };
-    if (r.usedBy) fail(409, 'reward_used', 'Cette récompense a déjà servi : rembourse son ticket pour la rendre.');
+    if (r.usedBy) fail(409, 'reward_used', 'Cette récompense a déjà servi : rembourse son ticket, ou rends-la si le ticket est à 0 €.');
     ctx.emit('loyalty.voided', { id: r.id, cid: r.clientId, why: 'staff' });
     return { ok: true };
+  }
+};
+
+/**
+ * A used reward given back when its ticket took no money (a free cut rung on the wrong client or service): a 0 € ticket
+ * has nothing to refund, so loyaltyAfterRefund never sees it. Only while the ticket's day is open (its Z then counts the
+ * reward once) and nothing is left of its revenue; valid 30 more days at least, as after a refund.
+ */
+export const restoreReward = {
+  run(s, input, ctx) {
+    ctx.need('loyalty.manage');
+    const r = L(s).rewards.get(parse(id(), input && input.id));
+    if (!r) fail(404, 'not_found', 'Récompense introuvable.');
+    if (!r.usedBy) return { ok: true, expires: r.expires };
+    const sale = s.sales.get(r.usedBy);
+    if (!sale) fail(404, 'not_found', 'Ticket introuvable.');
+    if (s.closures.has(sale.day)) fail(409, 'day_closed', 'La journée de ce ticket est clôturée : offre plutôt une nouvelle récompense.');
+    if (sale.totals.revenue - (sale.refunded || 0) > 0) fail(409, 'reward_paid', 'Ce ticket a encaissé de l’argent : rembourse-le, la récompense revient avec.');
+    const back = addDays(ctx.local.day, 30);
+    const expires = r.expires > back ? r.expires : back;
+    ctx.emit('loyalty.restored', { id: r.id, cid: r.clientId, saleId: sale.id, refundId: null, expires });
+    return { ok: true, expires };
   }
 };
 
@@ -262,6 +294,7 @@ export const claimReferral = {
     if (!ee || !er) return no('not_found', 'Fiche introuvable.');
     if (ee.erased || er.erased) return no('erased', 'Cette fiche a été effacée.');
     if (ee.id === er.id) return no('self', 'Un client ne se parraine pas lui-même.');
+    if (ee.loyaltyOff || er.loyaltyOff) return no('off', 'Ce client ne participe pas au programme de fidélité.');
     const eeFiles = new Set(filesOf(s, ee.id)), erFiles = new Set(filesOf(s, er.id));
     if ([...eeFiles].some((f) => L(s).referrals.has(f))) return no('twice', 'Ce client a déjà un parrain.');
     if (paidVisit(s, eeFiles)) return no('known', 'Ce client est déjà venu : le parrainage est pour un nouveau client.');
@@ -271,7 +304,14 @@ export const claimReferral = {
     if (eeAll.some((c) => phones.has(digits(c.phone)) || mails.has(String(c.email || '').trim().toLowerCase()))) return no('same', 'Le parrain et le filleul ont le même numéro ou la même adresse.');
     if (!paidVisit(s, erFiles)) return no('referrer', 'Le parrain doit être déjà venu au salon.');
     const day = ctx.local.day, year = Number(day.slice(0, 4));
-    const made = [...L(s).referrals.values()].filter((ref) => ref.by && erFiles.has(ref.by) && ref.year === year).length;
+    // the referrals of the year that were rewarded, or still may be (the referee's 60 days): junk claims cannot burn the
+    // quota for good, and an erased referee still counts
+    const counts = (x) => x.year === year && (x.rewarded || (x.pending && diffDays(x.day, day) <= 60));
+    const mine = [...L(s).referrals.values()].filter((ref) => ref.by && erFiles.has(ref.by)).map((ref) => {
+      const w = ref.rewardId ? L(s).rewards.get(ref.rewardId) : null;
+      return { year: ref.year, day: ref.day, rewarded: !!(w && !w.voided), pending: !ref.rewardId };
+    });
+    const made = [...mine, ...[...erFiles].flatMap((f) => L(s).gone.get(f) || [])].filter(counts).length;
     if (R.perYear && made >= R.perYear) return no('limit', 'Ce parrain a déjà fait ses ' + R.perYear + ' parrainages de l’année.');
     if (x.via === 'link' && !(ee.source === 'site' && ctx.now - (ee.createdAt || 0) <= DAY_MS)) return no('late', 'Le lien de parrainage vaut pour une première réservation.');
     const rid = ctx.id('lrf');
@@ -281,6 +321,18 @@ export const claimReferral = {
     return { ok: true, id: rid, rewardId: wid };
   }
 };
+
+/**
+ * Two files merged (commands/clients.js mergeClients): the cards their stamps now complete become rewards at once,
+ * rather than a card reading 10/9 until the next visit. Before client.merged is applied: both files are still apart.
+ * @param {any} s @param {any} ctx @param {any} from @param {any} into
+ */
+export function loyaltyAfterMerge(s, ctx, from, into) {
+  const cfg = cfgOf(s);
+  if (!cfg.enabled || !cfg.goal || from.loyaltyOff || into.loyaltyOff) return 0;
+  const units = mergedUnits(s, rootOf(s, from.id), rootOf(s, into.id), ctx.local.day);
+  return units >= cfg.goal ? grantCards(s, ctx, into.id, Math.min(3, Math.floor(units / cfg.goal)), ctx.local.day) : 0;
+}
 
 /* ---------------- the old site, the right not to take part ---------------- */
 

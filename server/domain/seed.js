@@ -278,9 +278,9 @@ export async function buildDemoJournal(nowReal, opt = {}) {
     const join = i >= 320 ? addDays(start, Math.floor(((i - 320) / 200) * weeks * 7)) : null;
     pool.push({ id: res.id, pref: barberIds[Math.floor(r() * barberIds.length)], cadence, fav: slugId[favSlug], last: null, packId: null, abo: i % 19 === 3, booked: null, stop, join });
   }
-  // the clientele came before these ten weeks: its paper cards are taken over (1 to 8 stamps, from its place in the
-  // list, not from r), so full cards and rewards show from the first weeks
-  await eng.run(importLoyalty, { rows: pool.slice(0, 320).map((c, i) => ({ clientId: c.id, units: 1 + (hashStr('card|' + i) % 8) })) }, base);
+  // the clientele came before these ten weeks: half of it kept its paper card, taken over (1 to 8 stamps, from its place
+  // in the list, not from r), so full cards and rewards show from the first weeks (half: the journal budget)
+  await eng.run(importLoyalty, { rows: pool.slice(0, 320).map((c, i) => ({ clientId: c.id, units: 1 + (hashStr('card|' + i) % 8) })).filter((x, i) => i % 2 === 0) }, base);
   // regulars who come every four weeks at most for a cut a formule covers: Illimité for the contour or the frequent ones
   // (from the end of the list: the first files stay plain clients, as the tests and the demo script know them)
   const regulars = pool.filter((c) => !c.abo && !c.stop && !c.join && c.cadence <= 28 && (c.fav === slugId.cl || c.fav === slugId.cc)).reverse();

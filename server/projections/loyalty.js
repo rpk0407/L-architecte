@@ -10,8 +10,9 @@
 //   loyalty.rewarded { id, cid, clientId, source: 'card'|'gift'|'referrer'|'referee', reward, units, expires, day,
 //                      saleId?, year?, peer? }                           pii { for? }  ('birthday' is a reserved source)
 //   loyalty.redeemed { id: rewardId, cid, saleId, amount }
-//   loyalty.reversed { id, cid, clientId, units (< 0), saleId, refundId, day, referral?: 'kept' }
-//   loyalty.restored { id: rewardId, cid, saleId, refundId, expires }   loyalty.voided { id: rewardId, cid, why: 'refund'|'staff' }
+//   loyalty.reversed { id, cid, clientId, units (≤ 0: 0 only to carry referral 'kept'), saleId, refundId, day, referral?: 'kept' }
+//   loyalty.restored { id: rewardId, cid, saleId, refundId (null: given back by hand from a 0 € ticket, restoreReward), expires }
+//   loyalty.voided   { id: rewardId, cid, why: 'refund'|'staff' }
 //   loyalty.referred { id, cid: refereeId, peer: referrerId, via: 'link'|'till', day, year }   pii { by: referrerId }
 // A referral names two persons: its events carry the other file in data.peer, so erasing either one finds them
 // (commands/clients.js adds their ids to client.erased.drop) and this projection forgets the link on both sides.
@@ -25,7 +26,8 @@
 //   bySale: saleId → { reversed (units taken back, ≤ 0), redeemed [rewardId] },
 //   referrals: refereeId → { id, refereeId, by (referrer) | null, via, day, year, at, rewardedBy (saleId) | null,
 //            rewardId (the referrer's) | null, refereeRewardId | null },
-//   gone: referrerId → referrals whose referee was erased (counted, nobody named) }
+//   gone: referrerId → [{ year, day, rewarded, pending }] the referrals whose referee was erased (counted, nobody named) }
+// An erased file's rewards not used yet are voided ({ why: 'erased' }): nobody can use them any more, nothing is owed.
 // client.merged is not handed on: the reads resolve each file to the one kept (domain/loyalty.js rootOf).
 import { fmtEur } from '../../shared/money.js';
 import { localParts } from '../../shared/dates.js';
@@ -49,7 +51,7 @@ function shortOf(s, reward) {
   const sv = refs.length === 1 ? s.services.get(refs[0]) : null;
   return sv ? sv.name : 'Une prestation';
 }
-const SOURCE_FR = { card: 'Carte complète', gift: 'Offerte par le salon', referrer: 'Parrainage', referee: 'Bienvenue d’un filleul', birthday: 'Anniversaire' };
+const SOURCE_FR = { card: 'Carte complète', gift: 'Offerte par le salon', referrer: 'Parrainage', referee: 'Bienvenue (parrainé)', birthday: 'Anniversaire' };
 
 /** @type {import('../core/extensions.js').Extension} */
 export const loyaltyExtension = {
@@ -76,6 +78,7 @@ export const loyaltyExtension = {
       bySale(s, d.saleId).redeemed.push(d.id);
     },
     'loyalty.reversed': (s, e, d) => {
+      if (!d.units) return;
       push(s, d.clientId, { id: d.id, kind: 'reversed', clientId: d.clientId, units: d.units, reason: 'refund', saleId: d.saleId, refundId: d.refundId, day: d.day || dayOf(e.at), at: e.at, by: e.actor.id, note: '', referral: d.referral || null, n: s.saleSeq, v: e.v });
       bySale(s, d.saleId).reversed += d.units;
     },
@@ -95,11 +98,19 @@ export const loyaltyExtension = {
     'client.erased': (s, e, d) => {
       const ids = new Set(d.ids || [d.id]);
       for (const cid of ids) for (const x of L(s).entries.get(cid) || []) x.note = '';
-      for (const r of L(s).rewards.values()) if (ids.has(r.clientId) || ids.has(r.peer)) { r.for = ''; r.peer = null; }
+      for (const r of L(s).rewards.values()) {
+        if (ids.has(r.clientId) || ids.has(r.peer)) { r.for = ''; r.peer = null; }
+        if (ids.has(r.clientId) && !r.usedBy && !r.voided) r.voided = { why: 'erased', at: e.at };
+      }
       for (const [referee, ref] of L(s).referrals) {
         if (ids.has(referee)) {
           // the referrer keeps his count, not whom it was
-          if (ref.by && !ids.has(ref.by)) L(s).gone.set(ref.by, (L(s).gone.get(ref.by) || 0) + 1);
+          if (ref.by && !ids.has(ref.by)) {
+            const w = ref.rewardId ? L(s).rewards.get(ref.rewardId) : null;
+            const list = L(s).gone.get(ref.by) || [];
+            list.push({ year: ref.year, day: ref.day, rewarded: !!(w && !w.voided), pending: !ref.rewardId });
+            L(s).gone.set(ref.by, list);
+          }
           L(s).referrals.delete(referee);
         } else if (ref.by && ids.has(ref.by)) ref.by = null;
       }

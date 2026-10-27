@@ -58,6 +58,8 @@ export function qualifyingNet(lines) {
 }
 /** Stamps one ticket earns from what it paid on services: 1 from minNet (and more than nothing). @param {any} cfg */
 export const unitsFor = (cfg, net) => (net > 0 && net >= (cfg.minNet || 0) ? 1 : 0);
+/** The ticket's stamp still stands: it earned one and no refund took it back (a mistake refunded leaves the day free). @param {any} s @param {any} x */
+export const stampStands = (s, x) => !!(x && x.loyalty && x.loyalty.units > 0 && x.loyalty.units + ((L(s).bySale.get(x.id) || { reversed: 0 }).reversed || 0) > 0);
 
 /**
  * The stamp this ticket earns, before it is written: a client file that takes part, the programme on, enough paid on
@@ -74,7 +76,7 @@ export function earnOf(s, client, lines, day) {
   if (!units) return 0;
   for (const id of s.salesByDay.get(day) || []) {
     const x = s.sales.get(id);
-    if (x && x.loyalty && x.loyalty.units > 0 && rootOf(s, x.clientId) === root) return 0;
+    if (stampStands(s, x) && rootOf(s, x.clientId) === root) return 0;
   }
   return units;
 }
@@ -167,6 +169,14 @@ export function unlocks(s, root, units, day, k = [Infinity, 0, 0]) {
   return after >= cfg.goal ? Math.min(3, Math.floor(after / cfg.goal)) : 0;
 }
 
+/**
+ * The balance two files come to once merged (the stamps of both, in order): what a merge must turn into rewards at once.
+ * @param {any} s @param {string} a @param {string} b the two files kept so far @param {string} day
+ */
+export function mergedUnits(s, a, b, day) {
+  return fold([...groupOf(s, a).items, ...groupOf(s, b).items].sort(cmp), cfgOf(s), day).units;
+}
+
 /** A reward still to use on that day. @param {any} r @param {string} day */
 const usable = (r, day) => !r.usedBy && !r.voided && r.expires >= day;
 
@@ -184,7 +194,7 @@ export function referralOf(s, root) {
     if (files.has(ref.refereeId) && ref.by) by = rootOf(s, ref.by);
     if (ref.by && files.has(ref.by)) count++;
   }
-  for (const f of files) count += L(s).gone.get(f) || 0;
+  for (const f of files) count += (L(s).gone.get(f) || []).length;
   return { by, count };
 }
 
@@ -204,6 +214,16 @@ export function referralEventIds(s, ids) {
   return out;
 }
 
+/** Every movement of a card, newest first: { day, what, units }, the rewards used included. @param {any} s @param {{ items: Item[], rewards: any[] }} g */
+function historyOf(s, g) {
+  const words = nameOf(s);
+  const used = g.rewards.filter((r) => r.usedBy).map((r) => {
+    const sale = s.sales.get(r.usedBy);
+    return { day: sale ? sale.day : r.day, k: sale ? [sale.number, 2, r.v] : [r.n + 0.5, 2, r.v], units: 0, what: 'Récompense utilisée · ' + rewardWords(r.reward, words) };
+  });
+  return [...g.items, ...used].sort((a, b) => -cmp(/** @type {any} */ (a), /** @type {any} */ (b))).map((x) => ({ day: x.day, what: x.what, units: x.units }));
+}
+
 /**
  * A client's card on a day: { root, model, enabled, off, units, goal, rewards [{ id, source, reward, label, expires }],
  * last (10 movements, newest first: { day, what, units }), lastEarn, referredBy }.
@@ -220,16 +240,34 @@ export function cardOf(s, cid, day) {
     const words = nameOf(s);
     const rewards = g.rewards.filter((r) => usable(r, day)).sort((a, b) => (a.expires < b.expires ? -1 : 1))
       .map((r) => ({ id: r.id, source: r.source, reward: r.reward, label: rewardWords(r.reward, words), expires: r.expires }));
-    const used = g.rewards.filter((r) => r.usedBy).map((r) => {
-      const sale = s.sales.get(r.usedBy);
-      return { day: sale ? sale.day : r.day, k: sale ? [sale.number, 2, r.v] : [r.n + 0.5, 2, r.v], units: 0, what: 'Récompense utilisée · ' + rewardWords(r.reward, words) };
-    });
-    const last = [...g.items, ...used].sort((a, b) => -cmp(/** @type {any} */ (a), /** @type {any} */ (b))).slice(0, 10).map((x) => ({ day: x.day, what: x.what, units: x.units }));
+    const last = historyOf(s, g).slice(0, 10);
     return {
       root, model: 'stamps', enabled: !!cfg.enabled, off: !!(c && c.loyaltyOff), units: f.units, goal: cfg.goal, rewards, last, lastEarn: f.lastEarn,
       referredBy: referralOf(s, root).by
     };
   });
+}
+
+const STATE_FR = { used: 'utilisée', voided: 'annulée', expired: 'expirée', open: 'à utiliser' };
+const SRC_FR = { card: 'carte complète', gift: 'offerte par le salon', referrer: 'parrainage', referee: 'bienvenue (parrainé)', birthday: 'anniversaire' };
+/**
+ * The card in the client's own data export (right of access): balance, every movement, every reward, the referral (a
+ * yes and a count: the other person stays out of it) and the reasons of the adjustments made by hand.
+ * @param {any} s @param {string} cid @param {string} day
+ */
+export function loyaltyExport(s, cid, day) {
+  const root = rootOf(s, cid) || cid;
+  const card = cardOf(s, root, day);
+  const g = index(s).get(root) || { items: [], rewards: [] };
+  const words = nameOf(s);
+  const ref = referralOf(s, root);
+  const notes = filesOf(s, root).flatMap((f) => (L(s).entries.get(f) || []).filter((e) => e.reason === 'adjust' && e.note).map((e) => ({ jour: e.day, tampons: e.units, raison: e.note })));
+  return {
+    participe: !card.off, tampons: card.units, objectif: card.goal,
+    historique: historyOf(s, g).map((x) => ({ jour: x.day, mouvement: x.what, tampons: x.units })),
+    recompenses: g.rewards.map((r) => ({ recompense: rewardWords(r.reward, words), origine: SRC_FR[r.source] || r.source, obtenueLe: r.day, valableJusquAu: r.expires, etat: STATE_FR[r.usedBy ? 'used' : r.voided ? 'voided' : r.expires < day ? 'expired' : 'open'] })),
+    parraine: !!ref.by, filleuls: ref.count, ajustements: notes
+  };
 }
 
 /** The card in one line for lists and appointment cards: null when the programme is off. @param {any} s @param {any} c @param {string} day */
@@ -245,7 +283,8 @@ export function cardLine(s, c, day) {
 function lineWords(s, reward) {
   if (reward.kind === 'amount') return 'Elle s’applique à une prestation ou un produit.';
   const names = (reward.refs || []).map(nameOf(s)).filter(Boolean);
-  return names.length ? 'Elle s’applique à ' + names.map((n) => '« ' + n + ' »').join(' ou ') + '.' : 'Elle s’applique à une prestation.';
+  if (names.length) return 'Elle s’applique à ' + names.map((n) => '« ' + n + ' »').join(' ou ') + '.';
+  return (reward.refs || []).length ? 'Elle s’applique à une prestation qui n’est plus à la carte : offre-en une autre au client.' : 'Elle s’applique à une prestation.';
 }
 
 /**
@@ -277,13 +316,21 @@ function receiptCard(s, sale, day) {
   if (!c || c.erased || c.loyaltyOff || !cfgOf(s).enabled) return null;
   return cardOf(s, c.id, day);
 }
-/** The receipt text's {fidelite}: « Carte : 6/9. », « Ta prochaine coupe est offerte ! » or ''. @param {any} s @param {any} sale @param {string} day */
+/**
+ * The receipt text's {fidelite}, short so the text stays one SMS: « Carte 6/9. », « Ta prochaine coupe est offerte ! »,
+ * « Barbe offerte au prochain passage ! », « 5 € offerts au prochain passage ! » or ''.
+ * @param {any} s @param {any} sale @param {string} day
+ */
 export function receiptWords(s, sale, day) {
   const card = receiptCard(s, sale, day);
   if (!card) return '';
   const r = card.rewards[0];
-  if (r) return r.reward.kind === 'amount' ? ' Tu as ' + fmtEur(r.reward.amount) + ' offerts sur ta prochaine visite !' : ' Ta prochaine coupe est offerte !';
-  return ' Carte : ' + Math.max(0, card.units) + '/' + card.goal + '.';
+  if (!r) return ' Carte ' + Math.max(0, card.units) + '/' + card.goal + '.';
+  if (r.reward.kind === 'amount') return ' ' + fmtEur(r.reward.amount) + ' offerts au prochain passage !';
+  const refs = r.reward.refs || [];
+  const one = refs.length === 1 ? nameOf(s)(refs[0]) : '';
+  if (one && one.length <= 24) return ' ' + one + ' offerte au prochain passage !';
+  return refs.length ? ' Prestation offerte au prochain passage !' : ' Ta prochaine coupe est offerte !';
 }
 /** The receipt page's card: { words: « 6/9 tampons », next: what the full card gives } or null. @param {any} s @param {any} sale @param {string} day */
 export function receiptLoyalty(s, sale, day) {

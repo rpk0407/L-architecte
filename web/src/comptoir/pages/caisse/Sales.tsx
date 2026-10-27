@@ -82,7 +82,7 @@ function TicketSheet({ id, onClose, canRefund }: { id: string | null; onClose: (
           {x.client ? <Note icon="user"><b>{x.client}</b></Note> : null}
           <div className="card card-tight">
             {x.lines.map((l, i) => <div key={i} className="kv"><span>{l.qty > 1 ? l.qty + ' × ' : ''}{l.name}{l.staffId ? ' · ' + staffById.get(l.staffId)?.name : ''}</span><b className="money">{eur(l.net, { decimals: true })}</b></div>)}
-            {x.totals.discount ? <div className="kv"><span>Remise · {x.discount?.reason}</span><b className="money">−{eur(x.totals.discount, { decimals: true })}</b></div> : null}
+            {x.totals.discount ? <div className="kv"><span>Remise · {[x.discount?.reason, x.lines.some((l) => (l as { reward?: unknown }).reward) ? 'Fidélité' : ''].filter(Boolean).join(' · ')}</span><b className="money">−{eur(x.totals.discount, { decimals: true })}</b></div> : null}
             {x.totals.vat.map((v) => <div key={v.rate} className="kv"><span>TVA {v.rate / 100} % sur {eur(v.base, { decimals: true })}</span><span className="money">{eur(v.tax, { decimals: true })}</span></div>)}
             {x.tip ? <div className="kv"><span>Pourboire · {staffById.get(x.tip.staffId)?.name}</span><b className="money">{eur(x.tip.amount, { decimals: true })}</b></div> : null}
           </div>

@@ -5,7 +5,8 @@
 //   goal        paid visits per reward: 9, the 10th cut offered
 //   minNet      what a visit must pay on services to earn a stamp (cents)
 //   reward      what the full card gives: { kind: 'service', refs (the services it may pay, [] = any), cap (cents, the
-//               most it takes off one cut; absent = the whole price) } or { kind: 'amount', amount (cents off a line) }
+//               most it takes off one cut; 0 = the whole price: settings merge, so a cap once set is cleared with 0) }
+//               or { kind: 'amount', amount (cents off a line) }
 //   rewardDays  how long a reward stays usable; resetDays: a card without a visit for that long starts again (0: never)
 //   headStart   at launch, the stamps given for the last 12 months: 'none', 'half' (≤ goal/2), 'full' (≤ goal − 1)
 //   referral    { enabled, referrer, referee (rewards like `reward`), perYear (referrals a client may make in a
@@ -15,9 +16,19 @@ import { int, bool, opt, obj, arr, id, oneOf, InvalidInput } from '../lib/valida
 
 export const HEAD_STARTS = /** @type {const} */ (['none', 'half', 'full']);
 
+/** The most a service reward takes off: 0 (the whole price) or 1 € to 200 €. */
+const capField = () => ({
+  optional: false,
+  parse(/** @type {any} */ x, /** @type {string} */ p) {
+    const n = int({ min: 0, max: 20000 }).parse(x, p);
+    if (n !== 0 && n < 100) throw new InvalidInput(p, '0 (le prix entier) ou entre 100 et 20000');
+    return n;
+  }
+});
+
 /** A reward as the settings (or a gift) hold it: a service offered, up to a cap, or an amount off. */
 export const rewardSchema = () => {
-  const service = obj({ kind: oneOf(/** @type {const} */ (['service'])), refs: opt(arr(id(), { max: 10 })), cap: opt(int({ min: 100, max: 20000 })) });
+  const service = obj({ kind: oneOf(/** @type {const} */ (['service'])), refs: opt(arr(id(), { max: 10 })), cap: opt(capField()) });
   const amount = obj({ kind: oneOf(/** @type {const} */ (['amount'])), amount: int({ min: 100, max: 20000 }) });
   return {
     parse(/** @type {any} */ x, /** @type {string} */ p) {
@@ -71,13 +82,22 @@ function defaults() {
 }
 /** @typedef {ReturnType<typeof defaults>} Loyalty */
 
-/** Mise en route › Nouveautés (WP-10): launched once the old site's clients and visits are all in. */
+/**
+ * Mise en route › Nouveautés (WP-10): switched on, then launched (the head start) once the old site's clients and visits
+ * are all in; a receipt text the owner saved before FID-02 has no {fidelite}, so the card would not show on it.
+ */
 const golive = {
   label: 'Fidélité',
   /** @param {any} s */
   state(s) {
-    const on = !!(s.settings.loyalty && s.settings.loyalty.enabled);
-    return { on, blocker: on ? '' : 'À lancer après la synchro finale WordPress' };
+    const enabled = !!(s.settings.loyalty && s.settings.loyalty.enabled);
+    const launched = !!(s.loyalty && s.loyalty.launched);
+    const M = s.settings.messages;
+    const receipt = !M || !M.templates || typeof M.templates.receipt !== 'string' || M.templates.receipt.includes('{fidelite}');
+    const blocker = !enabled ? 'À lancer après la synchro finale WordPress'
+      : !launched ? 'Programme activé : lance la reprise des cartes'
+      : !receipt ? 'Le reçu SMS n’affiche pas la carte : Réglages › Messages › Reçu › Texte d’origine' : '';
+    return { on: enabled && launched, enabled, launched, blocker };
   }
 };
 

@@ -13,12 +13,13 @@ import { updateSettings } from '../../server/commands/shop.js';
 import { addService } from '../../server/commands/catalog.js';
 import { addStaff } from '../../server/commands/team.js';
 import { addClient, mergeClients, eraseClient } from '../../server/commands/clients.js';
-import { checkout, refund, sendReceipt } from '../../server/commands/sales.js';
-import { launchLoyalty, adjustLoyalty, giftReward, voidReward, claimReferral, importLoyalty, setLoyaltyOff, loyaltyAfterRefund } from '../../server/commands/loyalty.js';
-import { cardOf, rewardsOf, simulate, liability, programStats, referralOf, cfgOf, rootOf } from '../../server/domain/loyalty.js';
+import { checkout, refund, sendReceipt, closeDay } from '../../server/commands/sales.js';
+import { launchLoyalty, adjustLoyalty, giftReward, voidReward, restoreReward, claimReferral, importLoyalty, setLoyaltyOff, loyaltyAfterRefund } from '../../server/commands/loyalty.js';
+import { cardOf, rewardsOf, simulate, liability, programStats, referralOf, cfgOf, rootOf, loyaltyExport } from '../../server/domain/loyalty.js';
+import { cover } from '../../server/domain/membership.js';
 import { loyaltyExtension } from '../../server/projections/loyalty.js';
 import { rewardValue, rewardWords, cardWords } from '../../shared/loyalty.js';
-import { clientCard } from '../../server/http/views.js';
+import { clientCard, saleView } from '../../server/http/views.js';
 import loyaltySection from '../../server/settings/loyalty.js';
 import { refLink } from '../../server/http/routes-loyalty.js';
 import { memoryStore } from '../../server/store/memory.js';
@@ -77,15 +78,27 @@ test('the settings section: off by default, its schema, its go-live line', async
   const ok = loyaltySection.schema.parse({ goal: '5', reward: { kind: 'amount', amount: 800, refs: ['x'] }, resetDays: 0, referral: { enabled: true, referee: { kind: 'service', refs: ['sv_1'] } } }, 'loyalty');
   assert.deepEqual(ok, { goal: 5, reward: { kind: 'amount', amount: 800 }, resetDays: 0, referral: { enabled: true, referee: { refs: ['sv_1'], kind: 'service' } } });
   for (const [x, msg] of [[{ goal: 1 }, 'loyalty.goal : entre 2 et 5000'], [{ resetDays: 30 }, 'loyalty.resetDays : 0 (jamais) ou entre 90 et 1095'], [{ reward: { kind: 'points' } }, 'loyalty.reward.kind : valeur non permise'],
-    [{ reward: { kind: 'service', cap: 50 } }, 'loyalty.reward.cap : entre 100 et 20000'], [{ minNet: 10001 }, 'loyalty.minNet : entre 0 et 10000'], [{ referral: { perYear: 21 } }, 'loyalty.referral.perYear : entre 0 et 20'],
+    [{ reward: { kind: 'service', cap: 50 } }, 'loyalty.reward.cap : 0 (le prix entier) ou entre 100 et 20000'], [{ minNet: 10001 }, 'loyalty.minNet : entre 0 et 10000'], [{ referral: { perYear: 21 } }, 'loyalty.referral.perYear : entre 0 et 20'],
     [{ headStart: 'all' }, 'loyalty.headStart : valeur non permise'], [{ reward: { kind: 'service', refs: ['a', 'a'] } }, 'loyalty.reward.refs : prestation en double']]) {
     assert.throws(() => loyaltySection.schema.parse(x, 'loyalty'), { message: msg }, JSON.stringify(x));
   }
+  // a cap once set is cleared with 0 (settings merge): the whole price again
+  assert.deepEqual(loyaltySection.schema.parse({ reward: { kind: 'service', cap: 0 } }, 'loyalty'), { reward: { kind: 'service', refs: [], cap: 0 } });
+  assert.equal(rewardValue({ kind: 'service', refs: [], cap: 0 }, { kind: 'service', ref: 'a', unit: 4500 }), 4500);
+  assert.equal(sp(rewardWords({ kind: 'service', refs: [], cap: 0 })), 'Une prestation offerte');
   const t = await salon();
-  assert.deepEqual(loyaltySection.golive.state(t.engine.state), { on: false, blocker: 'À lancer après la synchro finale WordPress' });
+  const golive = () => loyaltySection.golive.state(t.engine.state);
+  assert.deepEqual(golive(), { on: false, enabled: false, launched: false, blocker: 'À lancer après la synchro finale WordPress' });
   await rejects(t.engine.run(updateSettings, { loyalty: { enabled: true } }, t.asStaff('Ali')), 'forbidden');
+  await rejects(t.engine.run(launchLoyalty, {}, t.asOwner()), 'off');
+  assert.equal(t.engine.state.loyalty.launched, null, 'pressed while off: nothing spent');
   await t.engine.run(updateSettings, { loyalty: { enabled: true } }, t.asOwner());
-  assert.deepEqual(loyaltySection.golive.state(t.engine.state), { on: true, blocker: '' });
+  assert.deepEqual(golive(), { on: false, enabled: true, launched: false, blocker: 'Programme activé : lance la reprise des cartes' });
+  await t.engine.run(launchLoyalty, {}, t.asOwner());
+  assert.deepEqual(golive(), { on: true, enabled: true, launched: true, blocker: '' });
+  // a receipt text saved before the card existed: Mise en route says how to get it back
+  await t.engine.run(updateSettings, { messages: { templates: { receipt: "L'Architecte : merci {prenom} ! Ton ticket {ticket} de {montant} : {lien}" } } }, t.asOwner());
+  assert.equal(golive().blocker, 'Le reçu SMS n’affiche pas la carte : Réglages › Messages › Reçu › Texte d’origine');
 });
 
 test('stamps, goal 3: a paid visit a day from 10 € earns one; the third completes the card; a small ticket, a carnet cut or no client earn nothing', async () => {
@@ -423,6 +436,174 @@ test('referral: two persons, a new client, a referrer who came, perYear a year; 
   assert.equal((await till(await t.client('Tard', '06 90 00 02 01'))).why, 'off');
 });
 
+test('a free cut rung by mistake: a 0 € ticket has nothing to refund, the owner gives its reward back while the day is open', async () => {
+  const t = await club();
+  const karim = await t.client('Karim', '06 11 11 11 11');
+  await t.fill(karim);
+  const rid = rewardsOf(t.s(), karim, d(2))[0].id;
+  t.go(d(3));
+  const free = await t.pay(karim, [t.cut({ rewardId: rid })], { as: t.asStaff('Ali'), due: 0 });
+  assert.equal(free.totals.revenue, 0);
+  // the ticket says why it is free: the line keeps its reward, the detail reads « Fidélité »
+  assert.deepEqual(saleView(t.s(), t.s().sales.get(free.id), new Set()).lines[0].reward, { id: rid, amount: 2500 });
+  await rejects(t.e.run(refund, { saleId: free.id, amount: 1, method: 'card', reason: 'Erreur' }, t.asOwner()), 'invalid');
+  await rejects(t.e.run(restoreReward, { id: rid }, t.asStaff('Ali')), 'forbidden');
+  const back = await t.e.run(restoreReward, { id: rid }, t.asOwner());
+  const ev = t.ev('loyalty.restored');
+  assert.equal(ev.length, 1);
+  assert.deepEqual(ev[0].data, { id: rid, cid: karim, saleId: free.id, refundId: null, expires: back.expires });
+  assert.ok(back.expires >= addDays(d(3), 30));
+  assert.deepEqual(rewardsOf(t.s(), karim, d(3)).map((r) => r.id), [rid], 'usable again');
+  // again: nothing to give back
+  const n = t.e.journal.length;
+  await t.e.run(restoreReward, { id: rid }, t.asOwner());
+  assert.equal(t.e.journal.length, n);
+  // counted once in the figures: a restore, not a second reward unlocked
+  const st = programStats(t.s(), { from: DAY, to: d(3) });
+  assert.deepEqual([st.rewards.unlocked, st.rewards.restored], [1, 1]);
+  // a ticket that took money goes through its refund instead
+  const mixed = await t.pay(karim, [t.cut({ rewardId: rid }), { kind: 'service', ref: t.ids.barbe }], { due: 1500 });
+  await rejects(t.e.run(restoreReward, { id: rid }, t.asOwner()), 'reward_paid');
+  await t.e.run(refund, { saleId: mixed.id, amount: 1500, method: 'card', reason: 'Erreur' }, t.asOwner());
+  assert.equal(t.ev('loyalty.restored').length, 2);
+  // once the day is closed, its Z counted the reward: no giving back
+  const z = await club();
+  const sam = await z.client('Sam', '06 22 22 22 22');
+  const gift = await z.e.run(giftReward, { clientId: sam, reward: { kind: 'service', refs: [] } }, z.asOwner());
+  const used = await z.pay(sam, [z.cut({ rewardId: gift.id })], { due: 0 });
+  await z.e.run(closeDay, { early: true }, z.asOwner());
+  await rejects(z.e.run(restoreReward, { id: gift.id }, z.asOwner()), 'day_closed');
+  assert.equal(z.s().loyalty.rewards.get(gift.id).usedBy, used.id);
+});
+
+test('a ticket refunded in full frees the day: the right one rung after it earns its stamp, a stamp by hand too', async () => {
+  const t = await club({ goal: 9 });
+  const karim = await t.client('Karim', '06 11 11 11 11');
+  const wrong = await t.pay(karim, [t.cut()], { due: 2500 });
+  await t.e.run(refund, { saleId: wrong.id, amount: 2500, method: 'card', reason: 'Erreur de prestation' }, t.asOwner());
+  assert.equal(cardOf(t.s(), karim, DAY).units, 0);
+  const right = await t.pay(karim, [{ kind: 'service', ref: t.ids.barbe }], { due: 1500 });
+  assert.deepEqual(t.s().sales.get(right.id).loyalty, { units: 1 });
+  assert.equal(cardOf(t.s(), karim, DAY).units, 1);
+  // the same for a stamp by hand at the till
+  const sam = await t.client('Sam', '06 22 22 22 22');
+  const oops = await t.pay(sam, [t.cut()], { due: 2500 });
+  await t.e.run(refund, { saleId: oops.id, amount: 2500, method: 'card', reason: 'Erreur de client' }, t.asOwner());
+  await t.e.run(adjustLoyalty, { clientId: sam, units: 1, reason: 'Passage sans ticket' }, t.asStaff('Ali'));
+  assert.equal(cardOf(t.s(), sam, DAY).units, 1);
+});
+
+test('the till: the cashier’s cap is on what is charged, a reward on a line it cannot pay is refused', async () => {
+  const t = await club();
+  const karim = await t.client('Karim', '06 11 11 11 11');
+  await t.fill(karim);
+  const rid = rewardsOf(t.s(), karim, d(2))[0].id;
+  t.go(d(3));
+  const ali = t.asStaff('Ali');
+  // 25 € cut offered + 30 € charged: 10 % of what is charged is 3 €, not 10 % of 55 €
+  const lines = [t.cut({ rewardId: rid }), { kind: 'service', ref: t.ids.beard }];
+  await rejects(t.pay(karim, lines, { as: ali, due: 2600, discount: { amount: 400, reason: 'Geste commercial' } }), 'discount');
+  const ok = await t.pay(karim, lines, { as: ali, due: 2700, discount: { amount: 300, reason: 'Geste commercial' } });
+  assert.equal(ok.totals.revenue, 2700);
+  // a fee, a gift card or a carnet sold: no reward on them, and the cashier is told
+  const gift = await t.e.run(giftReward, { clientId: karim, reward: { kind: 'amount', amount: 500 } }, t.asOwner());
+  const e = await rejects(t.pay(karim, [{ kind: 'fee', name: 'Frais', unit: 1000, rewardId: gift.id }], { due: 1000 }), 'reward_line');
+  assert.equal(e.message, 'Une récompense s’applique à une prestation ou un produit.');
+  await rejects(t.pay(karim, [{ kind: 'pack', ref: t.ids.pack, rewardId: gift.id }], { due: 8000 }), 'reward_line');
+  assert.equal(t.s().loyalty.rewards.get(gift.id).usedBy, null);
+  // a service the salon no longer has: the refusal says so
+  const gone = await t.e.run(giftReward, { clientId: karim, reward: { kind: 'service', refs: ['sv_gone'] } }, t.asOwner());
+  const e2 = await rejects(t.pay(karim, [t.cut({ rewardId: gone.id })], { due: 2500 }), 'reward_line');
+  assert.equal(e2.message, 'Elle s’applique à une prestation qui n’est plus à la carte : offre-en une autre au client.');
+});
+
+test('opting out holds everywhere: a merge keeps it, a referral is refused, a referrer who left earns nothing; a merge completes the cards', async () => {
+  const t = await club({ goal: 9, referral: { enabled: true } });
+  // A opted out with 4 stamps, B has 6: merged, the person stays out
+  const a = await t.client('Karim', '06 11 11 11 11');
+  const b = await t.client('Karim', '06 44 44 44 44');
+  await t.e.run(adjustLoyalty, { clientId: a, units: 4, reason: 'Ancienne carte' }, t.asOwner());
+  await t.e.run(adjustLoyalty, { clientId: b, units: 6, reason: 'Ancienne carte' }, t.asOwner());
+  await t.e.run(setLoyaltyOff, { clientId: a, off: true }, t.asOwner());
+  await t.e.run(mergeClients, { from: a, into: b }, t.asOwner());
+  assert.equal(t.s().clients.get(b).loyaltyOff, true);
+  assert.equal(cardOf(t.s(), b, DAY).off, true);
+  t.go(d(1));
+  await t.pay(b, [t.cut()], { due: 2500 });
+  assert.equal(cardOf(t.s(), b, d(1)).units, 10, 'nothing earned');
+  // both taking part: the full card is a reward at the merge, not at the next visit
+  const c = await t.client('Lou', '06 55 55 55 55');
+  const e = await t.client('Lou', '06 66 66 66 66');
+  await t.e.run(adjustLoyalty, { clientId: c, units: 4, reason: 'Ancienne carte' }, t.asOwner());
+  await t.e.run(adjustLoyalty, { clientId: e, units: 6, reason: 'Ancienne carte' }, t.asOwner());
+  await t.e.run(mergeClients, { from: c, into: e }, t.asOwner());
+  const card = cardOf(t.s(), e, d(1));
+  assert.deepEqual([card.units, card.rewards.length, card.off], [1, 1, false]);
+
+  // referral: an opted-out referee or referrer is refused
+  const sam = await t.client('Sam', '06 77 77 77 77');
+  await t.pay(sam, [t.cut()], { due: 2500 });
+  const till = (refereeId, referrerId) => t.e.run(claimReferral, { refereeId, referrerId, via: 'till' }, t.asOwner());
+  const newOff = await t.client('Nouveau', '06 90 00 00 01');
+  await t.e.run(setLoyaltyOff, { clientId: newOff, off: true }, t.asOwner());
+  assert.equal((await till(newOff, sam)).why, 'off');
+  assert.equal((await till(await t.client('Autre', '06 90 00 00 02'), b)).why, 'off');
+  // the referrer opts out after the claim: the referee keeps his welcome, the referrer gets nothing
+  const nael = await t.client('Naël', '06 90 00 00 03');
+  assert.equal((await till(nael, sam)).ok, true);
+  await t.e.run(setLoyaltyOff, { clientId: sam, off: true }, t.asOwner());
+  t.go(d(2));
+  await t.pay(nael, [t.cut()], { due: 2500 });
+  assert.equal(t.ev('loyalty.rewarded').filter((x) => x.data.source === 'referrer').length, 0);
+  assert.equal(rewardsOf(t.s(), nael, d(2)).length, 1);
+});
+
+test('referral: the yearly quota counts the rewarded and the recent claims, not junk bookings for good; a referral lost after use says so', async () => {
+  // DAY + 60 is in 2027: a calendar year of its own
+  const t = await club({ goal: 9, referral: { enabled: true, perYear: 2 } });
+  const karim = await t.client('Karim', '06 12 34 99 78');
+  t.go(d(60));
+  await t.pay(karim, [t.cut()], { due: 2500 });
+  const till = async (phone) => t.e.run(claimReferral, { refereeId: await t.client('Filleul', phone), referrerId: karim, via: 'till' }, t.asOwner());
+  assert.equal((await till('06 90 00 01 01')).ok, true);
+  assert.equal((await till('06 90 00 01 02')).ok, true);
+  assert.equal((await till('06 90 00 01 03')).why, 'limit');
+  // 61 days on, neither came: the year is open again
+  t.go(d(60 + 61));
+  assert.equal((await till('06 90 00 01 04')).ok, true);
+
+  // the referee's first ticket half refunded (its stamp taken back), the referrer uses his reward, then the rest is
+  // refunded: no stamp left to take back, the feed still says the referral was lost
+  const nael = [...t.s().loyalty.referrals.values()].find((x) => x.day === d(121)).refereeId;
+  const first = await t.pay(nael, [t.cut()], { due: 2500 });
+  await t.e.run(refund, { saleId: first.id, amount: 2000, method: 'card', reason: 'Geste' }, t.asOwner());
+  const kRw = rewardsOf(t.s(), karim, d(121)).find((x) => x.source === 'referrer');
+  t.go(d(122));
+  await t.pay(karim, [t.cut({ rewardId: kRw.id })], { due: 2000 });
+  await t.e.run(refund, { saleId: first.id, amount: 500, method: 'card', reason: 'Annulé' }, t.asOwner());
+  const kept = t.ev('loyalty.reversed').at(-1);
+  assert.deepEqual([kept.data.units, kept.data.referral], [0, 'kept']);
+  const f = t.s().feed.filter((x) => x.type === 'loyalty.reversed').at(-1);
+  assert.equal(loyaltyExtension.item({ s: t.s(), caps: t.asOwner().caps }, f).title, 'Parrainage remboursé après usage · Karim');
+  assert.ok(!cardOf(t.s(), nael, d(122)).last.some((x) => x.units === 0 && x.what === 'Remboursement du ticket'), 'no empty line on the card');
+  // the referee's next ticket: the referrer's reward was used, it is not given twice
+  t.go(d(123));
+  await t.pay(nael, [t.cut()], { due: 2500 });
+  assert.equal(t.ev('loyalty.rewarded').filter((x) => x.data.source === 'referrer').length, 1);
+});
+
+test('the client’s own data: his card, its movements and rewards, the reasons typed by hand', async () => {
+  const t = await club();
+  const karim = await t.client('Karim', '06 11 11 11 11');
+  await t.fill(karim);
+  await t.e.run(adjustLoyalty, { clientId: karim, units: 1, reason: 'Venu sans ticket' }, t.asOwner());
+  const x = loyaltyExport(t.s(), karim, d(2));
+  assert.deepEqual([x.participe, x.tampons, x.objectif, x.parraine, x.filleuls], [true, 1, 3, false, 0]);
+  assert.equal(x.historique.length, 5);
+  assert.deepEqual(x.recompenses.map((r) => [r.origine, r.etat]), [['carte complète', 'à utiliser']]);
+  assert.deepEqual(x.ajustements, [{ jour: d(2), tampons: 1, raison: 'Venu sans ticket' }]);
+});
+
 // the store as it is kept on disk (re-read by a new instance) as well as in memory
 const STORES = { memory: () => [memoryStore(), null], file: () => { const p = join(mkdtempSync(join(tmpdir(), 'lx-fid-')), 'j.jsonl'); return [fileStore(p), () => fileStore(p)]; } };
 for (const [kind, make] of Object.entries(STORES)) for (const side of ['referee', 'referrer']) {
@@ -450,6 +631,9 @@ for (const [kind, make] of Object.entries(STORES)) for (const side of ['referee'
     if (side === 'referee') {
       assert.equal(L.referrals.size, 0);
       assert.equal(referralOf(t.s(), karim).count, 1, 'the referrer keeps his count, not whom');
+      // his welcome reward can never be used now: voided, out of what the salon owes
+      assert.equal(rewardsOf(t.s(), nael, d(1)).length, 0);
+      assert.ok([...L.rewards.values()].filter((r) => r.clientId === nael).every((r) => r.voided && r.voided.why === 'erased'));
       for (const r of L.rewards.values()) { assert.equal(r.for, ''); assert.equal(r.peer, null); }
     } else {
       assert.equal([...L.referrals.values()][0].by, null);
@@ -465,10 +649,11 @@ for (const [kind, make] of Object.entries(STORES)) for (const side of ['referee'
   });
 }
 
-test('the launch: half a card from the last 12 months (visits that earned not counted twice), once', async () => {
+test('the launch: half a card from the last 12 months (visits that earned not counted twice, the card never completed by it), once, programme on', async () => {
   const t = await club({ goal: 9, enabled: false });
   const karim = await t.client('Karim', '06 11 11 11 11');
   const sam = await t.client('Sam', '06 22 22 22 22');
+  const lou = await t.client('Lou', '06 33 33 33 33');
   // 7 visits of Karim in the last 12 months, one more before; 2 of Sam
   t.go(d(0));
   await t.pay(karim, [t.cut()], { due: 2500 });
@@ -477,15 +662,23 @@ test('the launch: half a card from the last 12 months (visits that earned not co
   t.go(d(400 + 8 * 14 + 1));
   await t.pay(sam, [t.cut()], { due: 2500 });
   await t.pay(sam, [{ kind: 'service', ref: t.ids.barbe }], { due: 1500 });
+  // a ticket refunded in full was no visit
+  const wrong = await t.pay(lou, [t.cut()], { due: 2500 });
+  await t.e.run(refund, { saleId: wrong.id, amount: 2500, method: 'card', reason: 'Erreur de client' }, t.asOwner());
   await rejects(t.e.run(launchLoyalty, {}, t.asStaff('Ali')), 'forbidden');
+  await rejects(t.e.run(launchLoyalty, {}, t.asOwner()), 'off');
+  await t.e.run(updateSettings, { loyalty: { enabled: true } }, t.asOwner());
+  // switched on before the launch, Sam already has 7 stamps by hand: his head start stops at 8/9, never a card by itself
+  await t.e.run(adjustLoyalty, { clientId: sam, units: 7, reason: 'Ancienne carte' }, t.asOwner());
   const res = await t.e.run(launchLoyalty, { headStart: 'half' }, t.asOwner());
-  assert.deepEqual([res.clients, res.stamps, res.headStart], [2, 6, 'half']);
+  assert.deepEqual([res.clients, res.stamps, res.headStart], [2, 5, 'half']);
   const start = t.ev('loyalty.earned').filter((x) => x.data.reason === 'start');
-  assert.deepEqual(start.map((x) => [x.data.clientId, x.data.units]).sort(), [[karim, 4], [sam, 2]].sort());
+  assert.deepEqual(start.map((x) => [x.data.clientId, x.data.units]).sort(), [[karim, 4], [sam, 1]].sort());
   assert.equal(t.ev('loyalty.launched')[0].data.headStart, 'half');
   await rejects(t.e.run(launchLoyalty, {}, t.asOwner()), 'launched');
-  await t.e.run(updateSettings, { loyalty: { enabled: true } }, t.asOwner());
   const today = d(400 + 8 * 14 + 1);
+  assert.equal(cardOf(t.s(), sam, today).units, 8);
+  assert.equal(cardOf(t.s(), lou, today).units, 0);
   assert.equal(cardOf(t.s(), karim, today).units, 4);
   assert.equal(cardOf(t.s(), karim, today).last[0].what, 'Reprise de la carte au lancement');
 });
@@ -511,7 +704,7 @@ test('the receipt text says where the card stands; the figures and what is owed 
   const meta = { receiptLink: () => 'https://salon.test/recu/x' };
   const first = await t.pay(karim, [t.cut()], { due: 2500 });
   const m1 = await t.e.run(sendReceipt, { saleId: first.id }, { ...t.asOwner(), meta });
-  assert.match(t.s().messages.get(m1.id).body, /: https:\/\/salon\.test\/recu\/x Carte : 1\/3\.$/);
+  assert.match(t.s().messages.get(m1.id).body, /: https:\/\/salon\.test\/recu\/x Carte 1\/3\.$/);
   t.go(d(1)); await t.pay(karim, [t.cut()], { due: 2500 });
   t.go(d(2));
   const third = await t.pay(karim, [t.cut()], { due: 2500 });
@@ -599,6 +792,29 @@ test('the demo: cards and rewards from its history, the routes for each role, th
   assert.equal((await tab.get('/api/v1/loyalty/stats')).status, 403);
   assert.equal((await tab.get('/api/v1/loyalty/simulate')).status, 403);
   assert.equal((await tab.post('/api/v1/loyalty/gift', { clientId: regular.id, reward: { kind: 'amount', amount: 500 } })).status, 403);
+  // PAY-02: a cut the membership pays earns nothing, and takes no reward
+  const S1 = rt.engine.state;
+  let member = null, covered = null;
+  for (const m of S1.members.values()) {
+    const sv = [...S1.services.values()].find((x) => x.active && !x.pack && cover(S1, m, x.id, { day: today }).ok);
+    if (sv) { member = m; covered = sv; break; }
+  }
+  assert.ok(member, 'a demo member with a cut covered today');
+  const mcid = rootOf(S1, member.cid);
+  const g = await o.post('/api/v1/loyalty/gift', { clientId: mcid, reward: { kind: 'service', refs: [] } });
+  assert.equal(g.status, 200, g.text);
+  const line = { kind: 'service', ref: covered.id, staffId: [...S1.staff.values()].find((x) => x.chair).id, memberId: member.id };
+  const refused = await o.post('/api/v1/sales', { clientId: mcid, lines: [{ ...line, rewardId: g.json.id }], payments: [{ method: 'card', amount: 0 }] });
+  assert.equal(refused.status, 409, refused.text);
+  assert.equal(refused.json.error.code, 'reward_cover');
+  const paid = await o.post('/api/v1/sales', { clientId: mcid, lines: [line], payments: [{ method: 'card', amount: 0 }] });
+  assert.equal(paid.status, 200, paid.text);
+  assert.equal(rt.engine.state.sales.get(paid.json.id).loyalty, undefined, 'the membership is already the loyal price');
+  // the client's own export carries his card
+  const ex = await o.get('/api/v1/clients/' + regular.id + '/export');
+  assert.equal(ex.status, 200);
+  assert.ok(JSON.parse(ex.text).fidelite.historique.length > 1);
+
   const quiet = [...s.clients.values()].find((c) => !c.erased && !c.loyaltyOff && ![...s.sales.values()].some((x) => x.day === today && x.clientId === c.id));
   const adj = await tab.post('/api/v1/loyalty/adjust', { clientId: quiet.id, units: 1, reason: 'Tampon oublié' });
   assert.equal(adj.status, 200, adj.text);
@@ -617,6 +833,7 @@ test('the demo: cards and rewards from its history, the routes for each role, th
   const day = av.days.find((x) => x.slots.length && x.day > today);
   const b = await site.post('/api/public/bookings', { serviceIds: [svc.id], staffId: day.slots[0].s, day: day.day, start: day.slots[0].m, first: 'Parrainé', phone: '0611002299', parrain: token });
   assert.equal(b.status, 201, b.text);
+  assert.deepEqual(b.json.referral, { ok: true, why: null }, 'the site can say the offer is applied');
   // the state as it is now (a request may have rebuilt it from the store)
   const S = rt.engine.state;
   const ref = [...S.loyalty.referrals.values()].find((x) => x.via === 'link');
@@ -626,6 +843,8 @@ test('the demo: cards and rewards from its history, the routes for each role, th
   const day2 = av.days.find((x) => x.slots.length > 1 && x.day > today && x.day !== day.day) || day;
   const b2 = await site.post('/api/public/bookings', { serviceIds: [svc.id], staffId: day2.slots[1].s, day: day2.day, start: day2.slots[1].m, first: 'Autre', phone: '0611002298', parrain: 'cl_x.forged' });
   assert.equal(b2.status, 201, b2.text);
+  assert.deepEqual(b2.json.referral, { ok: false, why: 'link' });
+  assert.equal((await site.post('/api/public/bookings', { serviceIds: [svc.id], staffId: day2.slots[0].s, day: day2.day, start: day2.slots[0].m, first: 'Sans', phone: '0611002297' })).json.referral, undefined);
   assert.equal([...rt.engine.state.loyalty.referrals.values()].filter((x) => x.via === 'link').length, 1);
 });
 

@@ -7,7 +7,7 @@ import { signLink, checkLink } from '../auth/session.js';
 import { addDays, isDay, diffDays } from '../../shared/dates.js';
 import { rewardWords } from '../../shared/loyalty.js';
 import { cardOf, cfgOf, rootOf, referralOf, simulate, programStats, liability } from '../domain/loyalty.js';
-import { adjustLoyalty, giftReward, voidReward, claimReferral, launchLoyalty, setLoyaltyOff } from '../commands/loyalty.js';
+import { adjustLoyalty, giftReward, voidReward, restoreReward, claimReferral, launchLoyalty, setLoyaltyOff } from '../commands/loyalty.js';
 
 /** A file as the routes name it: the one kept after a merge. */
 function fileOf(r, id) {
@@ -35,7 +35,9 @@ function referrerOf(r, token) {
 
 /**
  * After a booking on the site that came through a referrer's link (?parrain=): the referral, recorded by the system.
- * A refusal or an error never touches the booking: it is already made, the client just gets no welcome reward.
+ * A refusal or an error never touches the booking: it is already made, the client just gets no welcome reward. The answer
+ * ({ ok, why }) goes back in the booking's, so the site can say whether the offer was applied; awaited, but only for a
+ * booking that carries a link.
  * @param {any} r @param {string} apptId @param {any} token
  */
 export async function claimFromLink(r, apptId, token) {
@@ -64,7 +66,7 @@ function overOf(q) {
   const model = q.get('model');
   // v1 counts stamps; points are a later idea
   if (model && model !== 'stamps') throw new HttpError(400, 'invalid', 'Seule la carte à tampons est disponible.');
-  const goal = num('goal', 2, 5000), minNet = num('minNet', 0, 10000), cap = num('cap', 100, 20000), amount = num('amount', 100, 20000);
+  const goal = num('goal', 2, 5000), minNet = num('minNet', 0, 10000), cap = num('cap', 0, 20000), amount = num('amount', 100, 20000);
   if (goal !== undefined) o.goal = goal;
   if (minNet !== undefined) o.minNet = minNet;
   const kind = q.get('kind');
@@ -89,6 +91,8 @@ export function loyaltyRoutes(app) {
   app.post('/api/v1/loyalty/adjust', (r) => r.run(adjustLoyalty, r.body), { cap: 'sale.create' });
   app.post('/api/v1/loyalty/gift', (r) => r.run(giftReward, r.body), { cap: 'loyalty.manage' });
   app.post('/api/v1/loyalty/void', (r) => r.run(voidReward, r.body), { cap: 'loyalty.manage' });
+  // a reward used on a ticket that took no money (nothing to refund), given back while that day is open
+  app.post('/api/v1/loyalty/restore', (r) => r.run(restoreReward, r.body), { cap: 'loyalty.manage' });
   // the right not to take part, set at the counter (the client's own switch is FID-03's)
   app.post('/api/v1/loyalty/off', (r) => r.run(setLoyaltyOff, r.body), { cap: 'client.edit' });
 

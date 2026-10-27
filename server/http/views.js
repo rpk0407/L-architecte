@@ -61,9 +61,9 @@ export function clientCard(s, c, caps, stats, now = Date.now()) {
   if (memberships.some((x) => x.status !== 'pending')) badges.push('abonné');
   if (packs.length) badges.push('carnet');
   if (c.tags && c.tags.includes('VIP')) badges.push('VIP');
-  // FID-02: the stamp card when the programme runs, « récompense » while one waits to be used
+  // FID-02: the stamp card when the programme runs, « récompense » first while one waits (the lists show two badges)
   const loyalty = cardLine(s, c, localParts(now).day);
-  if (loyalty && loyalty.rewards) badges.push('récompense');
+  if (loyalty && loyalty.rewards) badges.unshift('récompense');
   return {
     id: c.id, first: c.first, last: c.last, name: (c.first + ' ' + (c.last ? c.last.charAt(0) + '.' : '')).trim(),
     phone: caps.has('client.contact') ? fmtPhone(c.phone) : maskPhone(c.phone), hasPhone: !!c.phone,
@@ -97,7 +97,7 @@ export function saleView(s, x, caps) {
   return {
     id: x.id, number: x.number, ref: ticketNo(x.number), day: x.day, at: x.at, apptId: x.apptId, clientId: x.clientId,
     client: c ? (c.first + ' ' + (c.last ? c.last.charAt(0) + '.' : '')).trim() : null, cashier: cashier ? cashier.name : 'Système',
-    lines: x.lines.map((l) => ({ kind: l.kind, ref: l.ref, name: l.name, qty: l.qty, unit: l.unit, discount: l.discount || 0, net: l.net, staffId: l.staffId, vat: l.vat, packId: l.packId || null, memberId: l.memberId || null })),
+    lines: x.lines.map((l) => ({ kind: l.kind, ref: l.ref, name: l.name, qty: l.qty, unit: l.unit, discount: l.discount || 0, net: l.net, staffId: l.staffId, vat: l.vat, packId: l.packId || null, memberId: l.memberId || null, reward: l.reward || null })),
     discount: x.discount && x.discountNote ? { ...x.discount, reason: x.discountNote } : x.discount, tip: x.tip, totals: x.totals, payments: x.payments.map((p) => ({ method: p.method, amount: p.amount, given: p.given, change: p.change, last4: p.last4 })),
     refunded: x.refunded, refunds: x.refundIds.map((id) => { const r = s.refunds.get(id); return r ? { id: r.id, ref: refundNo(r.number), amount: r.amount, method: r.method, reason: r.reason, at: r.at } : null; }).filter(Boolean),
     note: x.note || '', demo: !!x.demo
