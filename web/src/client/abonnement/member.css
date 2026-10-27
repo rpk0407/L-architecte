@@ -1,0 +1,56 @@
+/* PAY-04 · The member page, on the client pages' paper, ink and red (client.css): the ticket for the month, the
+   recap cards of the two legal functions, the final buttons at full width. Also used by the /moi row's sheet. */
+.mb-card { gap: 12px; }
+.mb-plan { font: 400 34px/1.05 var(--serif); letter-spacing: -.01em; }
+.mb-count { display: flex; flex-direction: column; gap: 6px; padding-top: 14px; border-top: 1px dashed rgba(236, 232, 224, .25); }
+.mb-big { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 12px; font: 400 64px/1 var(--serif); letter-spacing: -.02em; }
+.mb-big small { font: 500 17px/1.2 var(--sans); letter-spacing: 0; color: rgba(236, 232, 224, .75); }
+.mb-sub { font: 500 15px/1.4 var(--sans); color: rgba(236, 232, 224, .75); }
+.mb-book { margin-top: 6px; width: 100%; }
+.mb-pay { gap: 6px; padding-top: 18px; padding-bottom: 14px; }
+.mb-line { font: 500 15.5px/1.4 var(--sans); }
+.mb-nw { white-space: nowrap; }
+.mb-link, .mb-back { align-self: flex-start; min-height: 44px; display: inline-flex; align-items: center; }
+.mb-due { background: var(--warn-bg); box-shadow: none; }
+.mb-due .c-h2 { font-size: 26px; }
+.mb-ack { display: flex; flex-direction: column; align-items: stretch; gap: 10px; padding: 16px 18px; border-radius: 20px; background: rgba(15, 14, 13, .05); }
+.c-center .mb-ack { align-self: stretch; text-align: left; }
+.mb-ack-s { display: flex; align-items: center; gap: 10px; font: 600 14.5px/1.35 var(--sans); color: var(--ink2); }
+.mb-ack-s::before { content: ''; flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--warn); }
+.mb-ack-s.ok { color: var(--ok); }
+.mb-ack-s.ok::before { background: var(--ok); }
+.mb-dl { min-height: 48px; font-size: 15.5px; }
+.mb-acts { display: flex; flex-direction: column; gap: 10px; }
+.mb-act { width: 100%; min-height: 52px; }
+.mb-wd { display: flex; flex-direction: column; gap: 6px; }
+.mb-wd .c-small { padding: 0 6px; text-align: center; }
+.mb-help { padding: 4px 6px; text-align: center; }
+.mb-help a { text-decoration: underline; text-underline-offset: 3px; }
+.mb-recap { gap: 16px; }
+.mb-recap .c-h2:focus, .mb-done .c-h2:focus { outline: none; }
+.mb-dl-list { display: flex; flex-direction: column; margin: 0; border-radius: 18px; background: var(--paper); }
+.mb-dl-list > div { display: flex; flex-direction: column; gap: 3px; padding: 12px 16px; border-top: 1px solid var(--line); }
+.mb-dl-list > div:first-child { border-top: 0; }
+.mb-dl-list dt { font: 600 12px/1.2 var(--sans); letter-spacing: .08em; text-transform: uppercase; color: var(--ink2); }
+.mb-dl-list dd { margin: 0; font: 500 16px/1.4 var(--sans); }
+.mb-field { display: flex; flex-direction: column; gap: 8px; }
+.mb-field label { font: 600 14.5px/1.2 var(--sans); }
+.mb-field select { min-height: 52px; padding: 0 14px; border: 0; border-radius: 16px; background: #fff; box-shadow: inset 0 0 0 1.5px var(--line2); font: 500 16px/1 var(--sans); color: var(--ink); }
+.mb-field select:focus { outline: 2.5px solid var(--ink); outline-offset: 2px; }
+.mb-final { width: 100%; min-height: 56px; }
+.mb-done .c-h2 { font-size: 30px; }
+.c-btn:focus-visible, .c-link:focus-visible, .mb-row:focus-visible { outline: 2.5px solid var(--ink); outline-offset: 3px; }
+.c-ticket .c-btn:focus-visible { outline-color: var(--paper); }
+
+/* /moi « Mes avantages »: the row, and the sheet that opens the same page */
+.mb-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 64px; padding: 12px 16px; border-radius: 18px; background: var(--card, #F6F3EE); box-shadow: inset 0 0 0 1.5px var(--line, rgba(15, 14, 13, .1)); text-align: left; }
+.mb-row > span { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.mb-row b { font: 600 16px/1.25 var(--sans); }
+.mb-row small { font: 500 14px/1.3 var(--sans); color: var(--ink2); }
+.mb-row::after { content: '→'; flex: none; font-size: 20px; color: var(--ink2); }
+.mb-veil { position: fixed; inset: 0; z-index: 60; background: rgba(15, 14, 13, .52); }
+.mb-sheet { position: fixed; z-index: 61; left: 0; right: 0; bottom: 0; max-height: 94dvh; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 14px; padding: 16px 16px calc(24px + env(safe-area-inset-bottom)); border-radius: 28px 28px 0 0; background: var(--paper, #ECE8E0); color: var(--ink, #0F0E0D); }
+.mb-sheet-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.mb-x { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; background: rgba(15, 14, 13, .07); font-size: 22px; line-height: 1; }
+@media (min-width: 700px) { .mb-sheet { left: auto; top: 0; width: min(520px, 100%); max-height: none; border-radius: 28px 0 0 28px; } }
+@media (prefers-reduced-motion: reduce) { .c-spin { animation-duration: 2s; } }

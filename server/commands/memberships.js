@@ -208,6 +208,8 @@ export const memberPaid = {
           'Sans engagement : tu résilies quand tu veux, l’abonnement s’arrête à la fin du mois payé.',
           'Tu peux aussi te rétracter pendant 14 jours : on te rembourse ce mois, moins les coupes déjà faites.',
           ...(link ? ['', 'Gérer ou résilier mon abonnement : ' + link] : []),
+          // PAY-04: the withdrawal function, shown while it is open (until the 14th day after this one)
+          ...(link && link.includes('/abo/') ? ['Renoncer au contrat ici (jusqu’au ' + dateWords(addDays(start, 14)) + ') : ' + link + '?renoncer'] : []),
           '', shopLine(s)
         ],
         button: link ? { label: 'Mon abonnement', url: link } : null

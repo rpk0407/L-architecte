@@ -247,7 +247,7 @@ test('webhooks in the wrong order or twice: one activation, one ticket, the memb
   assert.ok(t.fake.calls('GET', '/invoices/in_x1').length >= 2 && t.fake.calls('GET', '/subscriptions/' + subId).length >= 3);
   // the welcome links the member's page, signed for 7 days
   const welcome = texts(s, 'memberWelcome', m.cid)[0];
-  const token = welcome.body.match(/\/abo\/(\S+)/)[1];
+  const token = welcome.body.match(/\/abo\/([^\s?]+)/)[1];
   const read = readMemberToken(SECRET, token, t.clock.now);
   assert.equal(read.id, a.id);
   assert.ok(read.exp - t.clock.now > 6.9 * 86400000 && read.exp - t.clock.now <= 7 * 86400000);
@@ -446,7 +446,7 @@ test('« send me my link »: the same answer for a known and an unknown number; 
   assert.deepEqual(known.json, { ok: true, message: LOOKUP_PHONE });
   const sms = texts(t.s(), 'memberLink', cid);
   assert.equal(sms.length, 1);
-  const link = sms[0].body.match(/\/abo\/(\S+)/)[1];
+  const link = sms[0].body.match(/\/abo\/([^\s?]+)/)[1];
   const read = readMemberToken(SECRET, link, t.clock.now);
   assert.ok(read.exp - t.clock.now <= 3600000, 'valid one hour');
   assert.equal(mails(t.s(), (x) => x.template === 'memberLinkMail' && x.to === 'sami@exemple.fr').length, 1, 'and by e-mail to the address on file');

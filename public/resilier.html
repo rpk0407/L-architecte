@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="referrer" content="no-referrer">
+<title>Résilier mon abonnement · Barber L’Architecte</title>
+<meta name="description" content="Résilier ou gérer ton abonnement Barber L’Architecte, sans compte et sans frais : ton numéro ou ton e-mail, et le lien arrive tout de suite.">
+<meta name="theme-color" content="#ECE8E0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0F0E0D" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="preload" href="/fonts/instrument-serif-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/fonts/instrument-sans-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/pages.css">
+<script src="/pages.js" defer></script>
+<!-- its script is a file of its own: /resilier sits under the client pages' strict CSP (vercel.json, no inline script) -->
+<style>
+/* the forms, on top of pages.css: the same card and field as /mon-rendez-vous */
+.lk{margin-top:clamp(28px,5vw,44px);padding:clamp(20px,3.4vw,30px);border-radius:24px;background:var(--sf);box-shadow:inset 0 0 0 1px var(--ln)}
+.lk label{display:block;margin:0 0 10px;font:600 16px/1.3 var(--f-sans)}
+.lk label+.inp+label,.lk .inp+.hint+label{margin-top:18px}
+.inp{display:block;width:100%;min-height:58px;margin:0;padding:0 18px;border:0;border-radius:16px;background:var(--bg);color:var(--tx);box-shadow:inset 0 0 0 1.5px var(--ln2);font:500 19px/1 var(--f-sans);-webkit-appearance:none;appearance:none;transition:box-shadow .2s}
+.inp::placeholder{color:var(--tx2);opacity:.55}
+.inp:focus{outline:none;box-shadow:inset 0 0 0 2px var(--tx)}
+.inp[aria-invalid="true"]{box-shadow:inset 0 0 0 2px var(--ac)}
+.fld+.fld{margin-top:18px}
+.opt{font-weight:500;color:var(--tx2)}
+.hint{margin:10px 0 0;color:var(--tx2);font-size:15px}
+.hint b{color:var(--tx);font-weight:600}
+.err{display:flex;align-items:baseline;gap:10px;margin:12px 0 0;font-weight:600;font-size:15.5px}
+.err::before{content:"";flex:none;width:9px;height:9px;border-radius:50%;background:var(--ac);transform:translateY(-1px)}
+.acts{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-top:22px}
+.btn{min-height:52px}
+.btn[disabled]{opacity:.65;cursor:progress}
+.btn[disabled]:hover{background:var(--ac);color:var(--on-ac)}
+.tl{display:inline-flex;align-items:center;min-height:44px;margin-top:16px;padding:0;border:0;background:none;color:var(--tx);font:600 15.5px/1.3 var(--f-sans);text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:4px;cursor:pointer;text-align:left}
+.sent:focus{outline:none}
+.sent h2{margin:0}
+.sent .big{margin:12px 0 0;font:500 clamp(19px,2.2vw,22px)/1.45 var(--f-sans);color:var(--tx)}
+.space{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:14px}
+.space p{margin:0}
+.demo.first{margin:0 0 18px}
+.demo{margin:14px 0 0;padding:12px 16px;border-radius:14px;background:var(--bg);box-shadow:inset 0 0 0 1px var(--ln2);font-size:15px;color:var(--tx2)}
+@media (max-width:520px){.acts .btn{flex:1 1 100%}}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Aller au contenu</a>
+<header class="tb"><a class="wm" href="/" aria-label="Barber L’Architecte, accueil"><span class="wm-a">L’Architecte</span><span class="wm-b">Barber · Marseille</span></a><a class="btn" href="/?reserver">Réserver</a></header>
+<main id="main">
+<p class="kk">Abonnement</p>
+<h1>Résilier ou gérer mon <em>abonnement</em></h1>
+<p class="lead">Sans compte et sans frais&nbsp;: on t’envoie le lien de ton abonnement. Il ouvre directement la résiliation, en un tap.</p>
+
+<section id="rs-space" class="lk space" aria-label="Ton espace" data-guide="resilier-space" hidden>
+<p><b>Tu es connecté à ton espace.</b><br><span class="mut">Ton abonnement y est, avec «&nbsp;Résilier mon abonnement&nbsp;».</span></p>
+<a class="btn" href="/moi">Ouvrir mon espace</a>
+</section>
+
+<form id="rs" class="lk" novalidate data-guide="resilier-lookup">
+<p class="demo first" data-demo hidden>Démo&nbsp;: n’entre pas tes vraies coordonnées, tout est visible.</p>
+<label for="rs-v">Ton numéro ou ton e-mail</label>
+<input id="rs-v" class="inp" name="contact" type="text" inputmode="email" autocomplete="email" autocapitalize="none" spellcheck="false" placeholder="06 12 34 56 78 ou toi@exemple.fr" maxlength="120" aria-describedby="rs-h rs-e" required>
+<p id="rs-h" class="hint">Ceux de ton abonnement. Le lien part au numéro <b>et</b> à l’adresse que le salon a pour toi, et vaut une heure. Abonné depuis moins de 14&nbsp;jours&nbsp;? Il ouvre aussi «&nbsp;Renoncer au contrat ici&nbsp;».</p>
+<p id="rs-e" class="err" role="alert" hidden></p>
+<div class="acts"><button id="rs-b" class="btn" type="submit">Recevoir mon lien</button></div>
+<button id="rs-lost" class="tl" type="button" aria-expanded="false" aria-controls="rs2">Je n’ai plus accès à ce numéro ni à cet e-mail</button>
+<noscript><p class="hint">Sans JavaScript, le formulaire ne peut pas partir&nbsp;: écris au salon ou appelle-le, ta résiliation est prise à la date de ta demande.</p></noscript>
+</form>
+
+<form id="rs2" class="lk" novalidate hidden data-guide="resilier-fallback">
+<h2>Sans ton numéro ni ton e-mail</h2>
+<p class="hint">Donne ton prénom et l’e-mail de ton abonnement. La résiliation est enregistrée à l’instant&nbsp;; le salon la confirme sans rien changer à sa date.</p>
+<div class="fld" style="margin-top:18px"><label for="rs2-f">Prénom</label><input id="rs2-f" class="inp" type="text" autocomplete="given-name" maxlength="40" required></div>
+<div class="fld"><label for="rs2-m">E-mail de ton abonnement</label><input id="rs2-m" class="inp" type="email" inputmode="email" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="120" required></div>
+<div class="fld"><label for="rs2-r">Un e-mail où te répondre <span class="opt">facultatif</span></label><input id="rs2-r" class="inp" type="email" inputmode="email" autocomplete="email" autocapitalize="none" spellcheck="false" maxlength="120" aria-describedby="rs2-rh"><p id="rs2-rh" class="hint">L’accusé de réception y part aussi.</p></div>
+<p id="rs2-e" class="err" role="alert" hidden></p>
+<div class="acts"><button id="rs2-b" class="btn" type="submit">Envoyer ma demande de résiliation</button></div>
+<button id="rs2-x" class="tl" type="button">Retour</button>
+</form>
+
+<section id="rs-done" class="lk sent" tabindex="-1" aria-labelledby="rs-t" hidden>
+<h2 id="rs-t">C’est noté</h2>
+<p id="rs-m" class="big" role="status"></p>
+<p id="rs-n" class="hint">Rien reçu d’ici quelques minutes&nbsp;? Vérifie ce que tu as tapé<span data-opt hidden>, ou appelle le salon au <a data-f="phone" data-link="tel"></a></span>.</p>
+<div class="acts"><button id="rs-again" class="btn ghost" type="button">Recommencer</button><a class="btn" href="/">Le site</a></div>
+</section>
+
+<section aria-labelledby="t-how">
+<h2 id="t-how">Comment ça se passe</h2>
+<ul>
+<li>La résiliation est gratuite et se fait à tout moment, sans motif.</li>
+<li>Elle prend effet à la fin du mois déjà payé&nbsp;: d’ici là, tes coupes restent incluses, et plus rien n’est prélevé ensuite.</li>
+<li>Tu reçois un accusé de réception par e-mail et par SMS, avec la date de ta demande et celle de la fin.</li>
+<li>Les détails sont dans les <a href="/cgv#abonnement">conditions de l’abonnement</a>.</li>
+</ul>
+</section>
+</main>
+<footer data-footer></footer>
+<script src="/resilier.js"></script>
+</body>
+</html>

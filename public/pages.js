@@ -3,7 +3,9 @@
      data-f="path"        text of that value (shop.siret, cgvDate, cancelH, …); data-link="tel|mail|url" also sets href
      data-opt             a line hidden while every data-f inside it is empty
      data-if / data-unless="path"   shown when the value is set (not '', 0, false, 'none'), or when it is not
-     data-list="services" the price list (data-list-note: shown with it);  data-footer  the shared footer;  data-forget  clears what the site keeps on this phone
+     data-list="services" the price list (data-list-note: shown with it);  data-list="plans" the membership's formules
+     (/api/public/memberships, read only by a page that has such a list or a data-if on membership.*)
+     data-footer  the shared footer;  data-forget  clears what the site keeps on this phone
    Without the API (offline, blocked), the text written in the page stays: the defaults.
    Everything goes in through textContent, never as HTML. */
 (function () {
@@ -22,11 +24,13 @@
   function https(u) { return /^https:\/\/[^\s"'<>]+$/.test(String(u || '')) ? String(u) : ''; }
   function plain(u) { return String(u || '').replace(/^https:\/\/(www\.)?/, '').replace(/\/$/, ''); }
 
-  /** What the pages show, from the salon's public answer. */
-  function view(s) {
+  /** What the pages show, from the salon's public answer (and its memberships' when the page asked for them). */
+  function view(s, mb) {
     var sh = s.shop || {}, b = s.booking || {}, d = s.deposits || {};
     var editor = sh.legalName || sh.name || '';
-    var pack = (s.services || []).filter(function (x) { return x.pack && x.pack.credits; })[0];
+    // the carnet is sold at the salon (not booked online): the memberships' answer names it
+    var hasPack = function (x) { return x.pack && x.pack.credits; };
+    var pack = (s.services || []).filter(hasPack)[0] || (mb && mb.carnet ? { name: mb.carnet.name, price: mb.carnet.price, pack: mb.carnet } : null);
     var live = !!(s.payments && s.payments.live);
     // as domain/policy.js depositFor counts it: on the booking's total, rounded to the euro, never more than the price
     var rule = '', of = d.percent + NB + '% du total (arrondi à l’euro, ' + eur(500) + ' au minimum, jamais plus que le prix)';
@@ -44,7 +48,9 @@
       depositRule: s.payments && s.payments.live === false ? '' : rule,
       // a fee is only announced once a card can really be kept for it (online payment live and card saving shipped)
       noShowFee: live && s.payments.cardOnFile === true && d.noShowFeeCents > 0 ? eur(d.noShowFeeCents) : '',
-      pack: pack ? { name: pack.name, credits: pack.pack.credits, days: pack.pack.days, price: eur(pack.price) } : null
+      pack: pack ? { name: pack.name, credits: pack.pack.credits, days: pack.pack.days, price: eur(pack.price) } : null,
+      // the monthly membership's clauses show only while it is really sold online (live: on, a real or demo payment, plans)
+      membership: { live: !!(mb && mb.live && (mb.plans || []).length), cgv: mb && mb.cgv ? dayLong(mb.cgv) : '' }
     };
   }
 
@@ -91,12 +97,23 @@
     each(document, '[data-list-note]', function (el) { el.hidden = !(s.services || []).length; });
   }
 
+  /** « Essentiel : 34 € par mois, 2 coupes par mois · Coupe classique », one line per formule sold online. */
+  function plans(mb) {
+    each(document, '[data-list="plans"]', function (ul) {
+      while (ul.firstChild) ul.removeChild(ul.firstChild);
+      ((mb && mb.live && mb.plans) || []).forEach(function (p) {
+        var gap = p.cuts && p.minDays ? ', au moins ' + p.minDays + NB + 'jours entre deux coupes' : '';
+        ul.appendChild(h('li', {}, [h('b', {}, [p.name]), ' : ' + eur(p.price) + ' par mois, ' + p.words + gap + '.']));
+      });
+    });
+  }
+
   /** One footer for every page, written here so the pages never drift apart. */
   function footer() {
     each(document, '[data-footer]', function (ft) {
       ft.className = 'ft';
       while (ft.firstChild) ft.removeChild(ft.firstChild);
-      var links = [['/', 'Le site'], ['/?reserver', 'Réserver'], ['/mon-rendez-vous', 'Mon rendez-vous'], ['/mentions-legales', 'Mentions légales'], ['/confidentialite', 'Confidentialité'], ['/cgv', 'CGV']];
+      var links = [['/', 'Le site'], ['/?reserver', 'Réserver'], ['/mon-rendez-vous', 'Mon rendez-vous'], ['/resilier', 'Résilier mon abonnement'], ['/mentions-legales', 'Mentions légales'], ['/confidentialite', 'Confidentialité'], ['/cgv', 'CGV']];
       var here = location.pathname.replace(/\.html$/, '').replace(/\/+$/, '') || '/';
       ft.appendChild(h('div', { class: 'ft-g' }, [
         h('div', {}, [
@@ -132,8 +149,11 @@
 
   footer();
   forget();
-  fetch('/api/public/salon').then(function (r) { return r.ok ? r.json() : null; }).then(function (s) {
-    if (s && s.shop) { fill(document, view(s)); prices(s); }
+  var json = function (u) { return fetch(u).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }); };
+  var wantsPlans = !!document.querySelector('[data-list="plans"],[data-if^="membership."],[data-unless^="membership."],[data-if="pack"]');
+  Promise.all([json('/api/public/salon'), wantsPlans ? json('/api/public/memberships') : null]).then(function (x) {
+    var s = x[0];
+    if (s && s.shop) { fill(document, view(s, x[1])); prices(s); plans(x[1]); }
   }).catch(function () { /* keep the page's own text */ }).then(function () {
     document.documentElement.setAttribute('data-ready', '1');
   });

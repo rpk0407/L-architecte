@@ -26,6 +26,7 @@ import { memberScheduled, startDayOf } from '../commands/member-billing.js';
 import { fmtEur } from '../../shared/money.js';
 import { claimFromLink } from './routes-loyalty.js';
 import { receiptLoyalty } from '../domain/loyalty.js';
+import { readMemberToken } from '../auth/member-token.js';
 
 /** The demo, for real: both the configuration and the journal say so (a demo journal opened in production is not one). */
 export const isDemo = (r) => r.rt.cfg.mode === 'demo' && r.s.mode === 'demo';
@@ -201,7 +202,10 @@ export function publicRoutes(app) {
   app.post('/api/public/bookings', async (r) => {
     guard('book|' + r.ip, 6, 60000, 'Trop de réservations d’un coup. Patiente une minute.');
     guard('bookh|' + r.ip, 30, 3600000, 'Trop de réservations depuis cet appareil. Appelle le salon.');
-    const res = await r.rt.engine.run(A.bookOnline, { ...r.body, demo: undefined }, CLIENT(r));
+    // PAY-04: « Réserver ma coupe » from the member page carries its signed link (mbr): the one way a guest booking is a member's
+    const mt = r.body && typeof r.body.mbr === 'string' ? readMemberToken(r.rt.secret, r.body.mbr.slice(0, 200), r.now) : null;
+    const ctx = CLIENT(r);
+    const res = await r.rt.engine.run(A.bookOnline, { ...r.body, demo: undefined }, mt && 'id' in mt ? { ...ctx, meta: { ...ctx.meta, memberId: mt.id } } : ctx);
     const token = signLink(r.rt.secret, 'appt', res.code);
     let payment = null;
     if (res.status === 'pending' && res.deposit > 0) {
@@ -210,7 +214,7 @@ export function publicRoutes(app) {
     }
     // FID-02: a booking that came through a referrer's link (?parrain=); a refusal never touches the booking
     const ref = r.body && r.body.parrain ? await claimFromLink(r, res.id, r.body.parrain) : null;
-    return json({ code: res.code, token, manage: r.origin + '/r/' + token, status: res.status, deposit: res.deposit, staffId: res.staffId, payment, ...(ref ? { referral: { ok: !!ref.ok, why: ref.ok ? null : ref.why } } : {}) }, 201);
+    return json({ code: res.code, token, manage: r.origin + '/r/' + token, status: res.status, deposit: res.deposit, staffId: res.staffId, payment, ...(res.member ? { member: res.member } : {}), ...(ref ? { referral: { ok: !!ref.ok, why: ref.ok ? null : ref.why } } : {}) }, 201);
   });
 
   app.get('/api/public/bookings/:token', (r) => bookingView(r, apptFromToken(r)));

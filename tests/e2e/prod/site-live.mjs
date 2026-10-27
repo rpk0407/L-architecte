@@ -80,7 +80,7 @@ export default async ({ browser, h }) => {
   let a = await answer(PRICE_Q);
   if (!a || !a.startsWith('La coupe classique est à 20 €. Avec le contour de barbe, 25 €. Avec la taille de barbe, 30 €. La transformation complète est à 50 €.')) throw new Error('the price answer says ' + a);
   a = await answer(SUB_Q);
-  if (!a || !a.startsWith('Oui : 5 coupes sur 5 semaines pour 80 €, soit 16 € la coupe, hors barbe.')) throw new Error('the subscription answer says ' + a);
+  if (!a || !a.startsWith('Oui : le carnet de 5 coupes pour 80 €, soit 16 € la coupe, hors barbe, à prendre au salon.')) throw new Error('the subscription answer says ' + a);
   await h.shot(site, 'site-live-faq');
   errs();
 
@@ -92,12 +92,12 @@ export default async ({ browser, h }) => {
   if (!a || !a.startsWith('La coupe classique est à 22 €.')) throw new Error('after the change, the price answer says ' + a);
   let f = await ldFaq();
   if (!(f[PRICE_Q] || '').startsWith('La coupe classique est à 22 €.')) throw new Error('the JSON-LD FAQ says ' + f[PRICE_Q]);
-  if (!(f[SUB_Q] || '').startsWith('Oui : 5 coupes sur 5 semaines pour 85 €, soit 17 € la coupe, hors barbe.')) throw new Error('the JSON-LD subscription says ' + f[SUB_Q]);
+  if (!(f[SUB_Q] || '').startsWith('Oui : le carnet de 5 coupes pour 85 €, soit 17 € la coupe, hors barbe, à prendre au salon.')) throw new Error('the JSON-LD subscription says ' + f[SUB_Q]);
   // a price that does not fall on whole cents per cut: the clause goes rather than round
   ok(await h.api('/api/v1/services/' + ids.ab, { method: 'PATCH', body: { price: 8001 } }), 'ab at 80,01 €');
   await open();
   a = await answer(SUB_Q);
-  if (!a || !a.startsWith('Oui : 5 coupes sur 5 semaines pour 80,01 €, hors barbe.')) throw new Error('the subscription answer at 80,01 € says ' + a);
+  if (!a || !a.startsWith('Oui : le carnet de 5 coupes pour 80,01 €, hors barbe, à prendre au salon.')) throw new Error('the subscription answer at 80,01 € says ' + a);
 
   /* the subscription taken off the Catalogue: its question leaves the page and the JSON-LD */
   ok(await h.api('/api/v1/services/' + ids.ab + '/archive', { body: {} }), 'archive ab');

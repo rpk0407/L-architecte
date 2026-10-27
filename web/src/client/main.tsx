@@ -6,6 +6,7 @@ import { api, qs } from '../lib/api';
 import { cap, dates, eur, time } from '../lib/format';
 import './client.css';
 import './cadeau.css';
+import Member from './abonnement/Member';
 
 type Booking = {
   code: string; status: 'pending' | 'booked' | 'arrived' | 'in_chair' | 'done' | 'no_show' | 'cancelled'; day: string; start: number; dur: number;
@@ -23,6 +24,7 @@ function App() {
   if (parts[0] === 'paiement' && parts[1]) return <Checkout id={parts[1]} />;
   if (parts[0] === 'recu' && parts[1]) return <Receipt token={parts[1]} />;
   if (parts[0] === 'cadeau' && parts[1]) return <Gift token={parts[1]} back={q.get('paiement')} />;
+  if (parts[0] === 'abo' && parts[1]) return <Shell><Member token={parts[1]} /></Shell>;
   return <Shell><Lost /></Shell>;
 }
 
@@ -201,9 +203,12 @@ function Checkout({ id }: { id: string }) {
   // a gift card bought on /carte-cadeau comes back to its own page (only that kind of address: never an open redirect)
   const retour = new URLSearchParams(location.search).get('retour') || '';
   const gift = /^\/cadeau\/[A-Za-z0-9_.-]{8,120}$/.test(retour) ? retour : null;
+  // a membership subscribed on the site comes back to its member page (PAY-04), as from Stripe's page
+  const abo = /^\/abo\/[A-Za-z0-9_.~-]{8,160}$/.test(retour) ? retour : null;
   const after = (ok: boolean, res?: { status?: string; start?: string }) => {
     if (gift) { location.href = ok ? gift + '?paiement=ok' : '/carte-cadeau?paiement=annule'; return; }
     // a membership says what happened: paid now, or recorded for its start day (nothing charged)
+    if (ok && p!.kind === 'membership' && abo) { location.href = abo + '?paiement=ok'; return; }
     if (ok && p!.kind === 'membership') { location.href = '/paiement/merci?abonnement=' + encodeURIComponent(res && res.status === 'scheduled' && res.start ? res.start : 'ok'); return; }
     location.href = p!.back ? p!.back + '?paiement=' + (ok ? 'ok' : 'annule') : '/paiement/merci' + (ok ? '' : '?paiement=annule');
   };

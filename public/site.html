@@ -223,8 +223,8 @@
      "@type": "Offer",
      "itemOffered": {
       "@type": "Service",
-      "name": "Abonnement 5 coupes",
-      "description": "5 coupes sur 5 semaines, soit 16 € la coupe, hors barbe."
+      "name": "Carnet 5 coupes",
+      "description": "5 coupes sur 5 semaines, soit 16 € la coupe, hors barbe, à prendre au salon."
      },
      "priceCurrency": "EUR",
      "price": "80"
@@ -290,7 +290,7 @@
      "name": "Existe-t-il un abonnement ?",
      "acceptedAnswer": {
       "@type": "Answer",
-      "text": "Oui : 5 coupes sur 5 semaines pour 80 €, soit 16 € la coupe, hors barbe. Tu réserves la première, le salon fixe les suivantes avec toi."
+      "text": "Oui : le carnet de 5 coupes pour 80 €, soit 16 € la coupe, hors barbe, à prendre au salon. On fixe tes coupes avec toi."
      }
     },
     {
@@ -1003,6 +1003,46 @@ html{scroll-behavior:auto}
 .dc.dc-more>span{color:var(--cendre2);font-size:10.5px;white-space:nowrap}
 .dc.dc-more:hover{box-shadow:inset 0 0 0 1.5px var(--encre)}
 
+/* 07 abonnement & carnet (PAY-04): the monthly membership and the carnet, side by side; the subscribe sheet is the booking sheet's kit */
+.ab{background:var(--encre2);color:var(--os);padding:clamp(100px,15vw,180px) 0 clamp(90px,13vw,150px)}
+.ab .h2{margin-top:22px}
+.ab-lead{max-width:34ch;margin-top:20px;font:500 16px/1.45 var(--f-sans);color:var(--cendre)}
+.ab-g{display:grid;gap:14px;margin-top:clamp(34px,6vw,56px)}
+.ab-c{display:flex;flex-direction:column;padding:24px 22px;border-radius:26px;background:var(--encre3);box-shadow:inset 0 0 0 1px var(--ligne)}
+.ab-c.carnet{background:var(--pierre);color:var(--encre);box-shadow:none}
+.ab-k{font:600 12px/1 var(--f-sans);letter-spacing:.1em;text-transform:uppercase;color:var(--cendre)}
+.ab-c.carnet .ab-k{color:var(--cendre2)}
+.ab-p{display:flex;flex-direction:column;align-items:flex-start;padding:20px 0 22px;border-bottom:1px solid var(--ligne2)}
+.ab-p:last-child{padding-bottom:0;border-bottom:0}
+.ab-n{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;font:400 clamp(38px,9vw,56px)/1 var(--f-serif);letter-spacing:-.01em}
+.ab-n small{font:500 17px/1 var(--f-sans);letter-spacing:0;color:var(--cendre)}
+.ab-c.carnet .ab-n small{color:var(--cendre2)}
+.ab-w{margin-top:12px;font:500 16px/1.4 var(--f-sans)}
+.ab-s{display:flex;align-items:center;gap:8px;margin-top:8px;font:500 14px/1.35 var(--f-sans);color:var(--cendre)}
+.ab-s i{flex:none;width:7px;height:7px;border-radius:50%;background:#4ADE80}
+.ab-c.carnet .ab-s{color:var(--cendre2)}
+.ab-c.carnet .ab-s i{background:var(--rouge)}
+.ab-p .btn{margin-top:18px}
+.ab-foot{display:flex;flex-wrap:wrap;gap:0 24px;margin-top:26px}
+.ab-foot a{display:inline-flex;align-items:center;min-height:44px;font:500 15px/1.3 var(--f-sans);color:var(--cendre);text-decoration:underline;text-underline-offset:5px}
+.ab-foot a:hover{color:var(--os)}
+@media (min-width:1000px){.ab .wrap{max-width:1100px}.ab-g{grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:18px;align-items:start}.ab-c{padding:30px}}
+.ab-box{display:flex;align-items:flex-start;gap:14px;margin-top:18px;padding:16px 16px 16px 18px;border-radius:18px;background:var(--blanc);box-shadow:inset 0 0 0 2px var(--encre);cursor:pointer}
+.ab-box input{flex:none;width:26px;height:26px;margin:1px 0 0;accent-color:#23824B;cursor:pointer}
+.ab-box span{display:flex;flex-direction:column;gap:5px}
+.ab-box b{font:600 16px/1.25 var(--f-sans)}
+.ab-box small{font:500 13.5px/1.4 var(--f-sans);color:var(--cendre2)}
+.ab-start{margin-top:10px;padding:0 4px;font:500 14px/1.45 var(--f-sans);color:var(--encre)}
+.ab-me{margin-top:16px;padding:14px 16px;border-radius:16px;background:rgba(15,14,13,.05);font:500 14.5px/1.4 var(--f-sans)}
+.ab-ok{margin-top:10px;font:400 26px/1.15 var(--f-serif)}
+.cx-s a{color:var(--encre);text-decoration:underline;text-underline-offset:3px}
+/* the subscribe sheet exists only while open: it slides in as the booking sheet does */
+.bk.ab-sh{animation:abUp .6s var(--ease) both}
+@keyframes abUp{from{transform:translateY(104%)}to{transform:none}}
+@media (min-width:1000px){.bk.ab-sh{animation-name:abIn}@keyframes abIn{from{transform:translateX(104%)}to{transform:none}}}
+.tk-m{display:inline-flex;align-items:center;gap:8px;margin-top:12px;padding:8px 12px;border-radius:999px;background:rgba(74,222,128,.14);color:#86EFAC;font:600 14px/1.2 var(--f-sans)}
+.tk-m::before{content:"";flex:none;width:8px;height:8px;border-radius:50%;background:#4ADE80}
+
 </style>
 </helmet>
 <div class="lp" id="top" style="--rouge: {{accent}}">
@@ -1222,10 +1262,39 @@ html{scroll-behavior:auto}
 </div>
 </div>
 </section>
-<section class="fq sheet" id="questions" data-ch="7" data-tone="light" aria-labelledby="t-fq">
+<sc-if value="{{aboOn}}" hint-placeholder-val="{{ false }}">
+<section class="ab sheet" id="abonnement" data-ch="7" data-tone="dark" aria-labelledby="t-ab" data-guide="site-abonnement">
+<div class="wrap">
+<p class="kk" data-rv><span>07</span>Abonnement &amp; carnet</p>
+<h2 class="h2" id="t-ab" data-rv="lines"><span class="ln"><span>Ta coupe,</span></span><span class="ln"><span>chaque mois.</span></span></h2>
+<p class="ab-lead" data-rv>Un prix par mois, sans engagement. Ou un carnet de cinq coupes, payé une fois au salon.</p>
+<div class="ab-g">
+<article class="ab-c" data-rv aria-labelledby="t-ab-m" data-guide="site-abonnement-plans">
+<p class="ab-k" id="t-ab-m">Abonnement mensuel</p>
+<sc-for list="{{aboPlans}}" as="p" hint-placeholder-count="2"><div class="ab-p">
+<h3 class="ab-n">{{p.name}}<small>{{p.price}}/mois</small></h3>
+<p class="ab-w">{{p.words}}</p>
+<p class="ab-s"><i aria-hidden="true"></i>Sans engagement · résiliable en 3 clics</p>
+<button type="button" class="btn" aria-label="{{p.aria}}" onClick="{{p.go}}">Je m’abonne</button>
+</div></sc-for>
+</article>
+<sc-if value="{{hasCarnet}}" hint-placeholder-val="{{ true }}"><article class="ab-c carnet" data-rv aria-labelledby="t-ab-c" data-guide="site-abonnement-carnet">
+<p class="ab-k" id="t-ab-c">Carnet</p>
+<div class="ab-p">
+<h3 class="ab-n">{{carnetName}}<small>{{carnetPrice}}</small></h3>
+<p class="ab-w">{{carnetLine}}</p>
+<p class="ab-s"><i aria-hidden="true"></i>À acheter au salon</p>
+</div>
+</article></sc-if>
+</div>
+<p class="ab-foot"><a href="/cgv#abonnement">Conditions de l’abonnement</a><a href="/resilier">Résilier mon abonnement</a></p>
+</div>
+</section>
+</sc-if>
+<section class="fq sheet" id="questions" data-ch="{{chFq}}" data-tone="light" aria-labelledby="t-fq">
 <div class="wrap fq-g">
 <div class="fq-hd">
-<p class="kk" data-rv><span>07</span>Questions</p>
+<p class="kk" data-rv><span>{{numFq}}</span>Questions</p>
 <h2 class="h2" id="t-fq" data-rv="lines"><span class="ln"><span>Tu te</span></span><span class="ln"><span>demandes&nbsp;?</span></span></h2>
 <p class="fq-lead" data-rv>Les réponses courtes aux questions qu’on nous pose le plus.</p>
 </div>
@@ -1235,11 +1304,11 @@ html{scroll-behavior:auto}
 </div>
 </section>
 </main>
-<footer class="ft sheet" id="venir" data-ch="8" data-tone="light" aria-labelledby="t-ft">
+<footer class="ft sheet" id="venir" data-ch="{{chFt}}" data-tone="light" aria-labelledby="t-ft">
 <div class="wrap ft-g">
 <figure class="ft-ph" data-rv><img src="/img/salon.jpg" width="1220" height="901" alt="Le salon : long miroir bordé de LED rouge, canapés noir et rouge, fauteuils et bacs à shampooing" loading="lazy"></figure>
 <div class="ft-i">
-<p class="kk" data-rv><span>08</span>Venir</p>
+<p class="kk" data-rv><span>{{numFt}}</span>Venir</p>
 <h2 class="h2" id="t-ft" data-rv="lines"><span class="ln"><span>16, place</span></span><span class="ln"><span>Pélabon.</span></span></h2>
 <address class="ft-ad"><span class="vh">Barber L’Architecte, 16, place Pélabon, </span><span class="ft-city">13013 Marseille</span></address>
 <p class="{{stCls}}"><i aria-hidden="true"></i><span>{{stText}}</span></p>
@@ -1256,6 +1325,7 @@ html{scroll-behavior:auto}
 <li><a href="/formations">Formations</a></li>
 <li><a href="/carte-cadeau">Carte cadeau</a></li>
 <li><a href="/mon-rendez-vous">Mon rendez-vous</a></li>
+<li><a href="/resilier">Résilier mon abonnement</a></li>
 <li><a href="/mentions-legales">Mentions légales</a></li>
 <li><a href="/confidentialite">Confidentialité</a></li>
 <li><a href="/cgv">CGV</a></li>
@@ -1354,7 +1424,8 @@ html{scroll-behavior:auto}
 <button type="button" id="f-mkt" class="{{mktCls}}" role="switch" aria-checked="{{mktOn}}" onClick="{{toggleMkt}}"><span class="sw-t"><b>Les bons plans du salon par SMS</b><small>Places de dernière minute, rappel de coupe. Tu arrêtes quand tu veux : STOP, comme indiqué dans chaque SMS.</small></span><span class="sw-k" aria-hidden="true"><i></i></span></button>
 <p class="priv">Tes coordonnées servent à ce rendez-vous, et aux bons plans seulement si tu coches. <a href="{{dataHref}}" target="_blank" rel="noopener">Comment elles sont traitées</a></p>
 <sc-if value="{{hasDeposit}}" hint-placeholder-val="{{ false }}"><p class="dep">{{depLine}}</p></sc-if>
-<sc-if value="{{isDemo}}" hint-placeholder-val="{{ true }}"><p class="demo">Démo&nbsp;: aucun SMS n’est envoyé, aucun paiement n’est débité. La réservation apparaît tout de suite dans le Comptoir.</p></sc-if>
+<sc-if value="{{bkMbr}}" hint-placeholder-val="{{ false }}"><p class="dep">Réservé avec ton abonnement&nbsp;: si la coupe tombe dans ton mois, elle est incluse, et rien n’est demandé en ligne.</p></sc-if>
+<sc-if value="{{isDemo}}" hint-placeholder-val="{{ true }}"><p class="demo">Démo&nbsp;: n’entre pas tes vraies coordonnées, tout est visible. Aucun SMS n’est envoyé, aucun paiement n’est débité. La réservation apparaît tout de suite dans le Comptoir.</p></sc-if>
 </div>
 </sc-if>
 
@@ -1367,6 +1438,7 @@ html{scroll-behavior:auto}
 <p class="tk-f">{{tkWhat}}</p>
 <p class="tk-b">{{tkWho}}</p>
 <p class="tk-a">16, place Pélabon · 13013 Marseille</p>
+<sc-if value="{{hasMemberLine}}" hint-placeholder-val="{{ false }}"><p class="tk-m">{{memberLine}}</p></sc-if>
 </div>
 <sc-if value="{{needPay}}" hint-placeholder-val="{{ false }}"><div class="pay-b"><p>{{payLine}}</p><a class="btn" href="{{payUrl}}">Régler l’acompte</a></div></sc-if>
 <sc-if value="{{showSms}}" hint-placeholder-val="{{ true }}"><p class="sms-k">Le SMS que tu reçois</p>
@@ -1416,6 +1488,36 @@ html{scroll-behavior:auto}
 <sc-if value="{{hasTerms}}" hint-placeholder-val="{{ false }}"><p class="bk-terms">En réservant, tu acceptes les conditions d’annulation&nbsp;: gratuite jusqu’à {{termsHours}}&nbsp;h avant, ensuite l’acompte reste au salon. <a href="/cgv" target="_blank" rel="noopener">Voir les CGV</a></p></sc-if>
 </div>
 </div>
+<sc-if value="{{abShow}}" hint-placeholder-val="{{ false }}">
+<div class="bk-veil {{abCls}}" onClick="{{abClose}}" aria-hidden="true"></div>
+<div class="bk ab-sh {{abCls}}" role="dialog" aria-modal="true" aria-labelledby="ab-t" onKeyDown="{{abKey}}" data-guide="site-subscribe">
+<div class="bk-top">
+<span aria-hidden="true"></span>
+<div class="bk-tt"><p class="bk-k">{{abStepLabel}}</p><p class="bk-t" id="ab-t" tabindex="-1">{{abTitle}}</p></div>
+<button type="button" class="bk-x" aria-label="Fermer l’abonnement" onClick="{{abClose}}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+</div>
+<div class="bk-body">
+<div class="st">
+<sc-if value="{{abHasErr}}" hint-placeholder-val="{{ false }}"><p class="bk-err" role="alert">{{abErr}}</p></sc-if>
+<sc-if value="{{abIsForm}}" hint-placeholder-val="{{ true }}">
+<div class="recap" data-guide="site-subscribe-recap"><p class="recap-w">{{abRecapW}}</p><p class="recap-s">{{abRecapS}}</p></div>
+<sc-if value="{{isDemo}}" hint-placeholder-val="{{ true }}"><p class="demo">Démo&nbsp;: n’entre pas tes vraies coordonnées, tout est visible. Aucun paiement n’est débité.</p></sc-if>
+<div class="fld"><label for="a-first">Prénom</label><input id="a-first" type="text" autocomplete="given-name" value="{{fFirst}}" onChange="{{setFirst}}"></div>
+<sc-if value="{{abAskPhone}}" hint-placeholder-val="{{ true }}"><div class="fld"><label for="a-phone">Téléphone</label><input id="a-phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="06 12 34 56 78" value="{{fPhone}}" onChange="{{setPhone}}"><span class="{{abPhoneCls}}">{{abPhoneHint}}</span></div></sc-if>
+<sc-if value="{{abSignedIn}}" hint-placeholder-val="{{ false }}"><p class="ab-me">Ton numéro&nbsp;: celui de ton espace. L’abonnement s’y ajoute.</p></sc-if>
+<div class="fld"><label for="a-email">E-mail</label><input id="a-email" type="email" inputmode="email" autocomplete="email" value="{{fEmail}}" onChange="{{setEmail}}"><span class="hint">Pour recevoir tes reçus et ta confirmation.</span></div>
+<label class="ab-box" for="a-now" data-guide="site-subscribe-start"><input id="a-now" type="checkbox" checked="{{abNow}}" onChange="{{toggleNow}}"><span><b>Commencer tout de suite</b><small>Je veux que mon abonnement commence tout de suite. Si je me rétracte dans les 14&nbsp;jours, je paie seulement ce que j’ai utilisé.</small></span></label>
+<p class="ab-start" aria-live="polite">{{abStartLine}}</p>
+</sc-if>
+<sc-if value="{{abIsAlready}}" hint-placeholder-val="{{ false }}"><p class="ab-ok" role="status">{{abAlready}}</p><p class="cx-s">Le lien part au numéro et à l’e-mail de ton abonnement. Rien reçu&nbsp;? <a href="/resilier">Résilier ou gérer mon abonnement</a></p></sc-if>
+</div>
+</div>
+<div class="bk-foot">
+<sc-if value="{{abIsForm}}" hint-placeholder-val="{{ true }}"><p class="bk-terms">En continuant, tu acceptes les <a href="/cgv#abonnement" target="_blank" rel="noopener">conditions de l’abonnement</a>.</p></sc-if>
+<button type="button" class="btn" disabled="{{abOff}}" onClick="{{abGo}}">{{abCta}}</button>
+</div>
+</div>
+</sc-if>
 </div>
 </x-dc>
 <script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#EB4639","options":["#EB4639","#D9342B","#FF7A1A","#3D7BFF"]},"$preview":{"width":390,"height":844}}'>
@@ -1447,7 +1549,7 @@ const LXE = (function () {
     co: { n: 'Coloration', sh: 'Coloration', p: 30, d: 60, from: true },
     si: { n: 'Silver', sh: 'Silver', p: 100, d: 60 },
     cd: { n: 'Coupe + décoloration', sh: 'Coupe + déco', p: 80, d: 90, from: true },
-    ab: { n: 'Abonnement 5 coupes', sh: 'Abonnement', p: 80, d: 30 }
+    ab: { n: 'Carnet 5 coupes', sh: 'Carnet', p: 80, d: 30 }
   };
   const BARBERS = [
     { id: 'jkut', n: 'JKut', ini: 'JK' },
@@ -1592,6 +1694,17 @@ const LXE = (function () {
     salonP = call('GET', '/api/public/salon').then(applySalon).catch(function () { salonP = null; });
     return salonP;
   }
+  /* the monthly membership (PAY-04): its formules, whether it is sold online now, the carnet beside it */
+  let mbr = null, mbrAt = 0, mbrP = null;
+  function loadMemberships(force) {
+    if (mbrP && !force) return mbrP;
+    mbrP = call('GET', '/api/public/memberships').then(function (j) { mbr = j; mbrAt = Date.now(); emit(); }).catch(function () { mbrP = null; });
+    return mbrP;
+  }
+  /* a signed-in client (AC-01): the subscribe sheet binds to his own file */
+  let acct = null;
+  function loadAccount() { return call('GET', '/api/public/account').then(function (j) { acct = j; emit(); return j; }, function () { return null; }); }
+  function subscribe(o) { return call('POST', '/api/public/memberships', o); }
 
   /* ---------- free slots, fetched per (prestation, barbier) and per 14 days (the API's page), kept a few seconds ---------- */
   const av = {}, used = {};
@@ -1660,6 +1773,7 @@ const LXE = (function () {
   function pull() {
     const t = Date.now(), jobs = [];
     if (!salon || t - salonAt > 300000) jobs.push(loadSalon(true));
+    if (!mbr || t - mbrAt > 300000) jobs.push(loadMemberships(true));
     Object.keys(used).forEach(function (k) {
       if (t - used[k] > 90000) return;
       const e = av[k];
@@ -1685,7 +1799,9 @@ const LXE = (function () {
     return sid(o.f).then(function (id) { return call('POST', '/api/public/bookings', {
       serviceIds: [id], staffId: !o.barber || o.barber === 'any' ? 'any' : staffOf[o.barber], day: o.day, start: o.time, holdId: o.holdId || undefined,
       first: o.first, last: o.last || undefined, phone: o.phone, email: o.email || undefined, note: o.note || undefined, sms: o.sms !== false,
-      marketing: o.marketing === true ? true : undefined
+      marketing: o.marketing === true ? true : undefined,
+      // the member page's « Réserver ma coupe » (PAY-04): its signed link, the server checks it
+      mbr: o.mbr || undefined
     }); }).then(function (r) { invalidate(); emit(); r.barber = barberIdOf[r.staffId] || o.barber; return r; });
   }
   function booking(token) { return call('GET', '/api/public/bookings/' + encodeURIComponent(token)); }
@@ -1707,7 +1823,8 @@ const LXE = (function () {
     BARBERS: BARBERS, BMAP: BMAP, SV: SV, DAYS: DAYS, DAYS_SH: DAYS_SH, MONTHS: MONTHS, MONTHS_SH: MONTHS_SH,
     pad: pad, clamp: clamp, parisParts: parisParts, keyOf: keyOf, parts: parts, addDays: addDays, diffDays: diffDays,
     isOpenDay: isOpenDay, hoursOf: hoursOf, closureOf: closureOf, openingOf: openingOf, specialOf: specialOf, notices: notices, now: now, nextOpen: nextOpen, fmtH: fmtH, hm: hm, dayLong: dayLong, dayShort: dayShort, dayWord: dayWord, eur: eur,
-    slots: slots, ready: ready, openDays: openDays, earliest: earliest, stillFree: stillFree, pull: pull, on: on, init: function () { return loadSalon(); },
+    slots: slots, ready: ready, openDays: openDays, earliest: earliest, stillFree: stillFree, pull: pull, on: on, init: function () { return Promise.all([loadSalon(), loadMemberships()]).then(function () {}); },
+    memberships: function () { return mbr; }, account: function () { return acct; }, loadAccount: loadAccount, subscribe: subscribe,
     salon: function () { return salon; }, services: function () { return catalog; }, first: first, barberOf: barberOf, serviceOf: serviceOf, clock: function () { return Date.now() + skew; }, hold: hold, release: release, book: book, booking: booking, cancel: cancel, move: move, wait: wait, offer: offer, live: live,
     setMoving: setMoving, uid: uid
   };
@@ -1735,7 +1852,7 @@ const FORMULAS = [
   { id: 'eb', n: 'Entretien barbe', s: 'L’entretenir', p: 15, d: 30, k: 'seule', inc: ['Contour de la barbe', 'Huile'] },
   { id: 'tb', n: 'Taille de barbe', s: 'La tailler', p: 18, d: 30, k: 'seule', inc: ['Taille', 'Mise en forme', 'Huile'] },
   { id: 'cb', n: 'Cover barbe', s: 'La colorer', p: 15, d: 30, k: 'seule', inc: ['Couleur de la barbe', 'Soin'] },
-  { id: 'ab', n: 'Abonnement 5 coupes', s: 'Abonnement', p: 80, d: 30, k: 'abo', tag: '16 € la coupe', inc: ['5 coupes sur 5 semaines d’affilée', 'Tu réserves la première ici', 'Le salon te contacte pour fixer les 4 suivantes', 'Sans barbe'] }
+  { id: 'ab', n: 'Carnet 5 coupes', s: 'Carnet', p: 80, d: 30, k: 'carnet', tag: '16 € la coupe', inc: ['5 coupes sur 5 semaines', 'Il se prend au salon', 'On fixe tes coupes avec toi', 'Sans barbe'] }
 ];
 const FMAP = {};
 FORMULAS.forEach(function (f) { FMAP[f.id] = f; });
@@ -1757,6 +1874,8 @@ const CH = [
   { id: 'barbiers', t: 'L’équipe', d: 'Choisis ton barbier' },
   { id: 'carte', t: 'La carte', d: 'Les prix' },
   { id: 'temps', t: 'Le rendez-vous', d: 'On recoupe' + NBS + '?' },
+  /* shown only while the monthly membership is sold online (PAY-04): the chapters after it move by one */
+  { id: 'abonnement', t: 'Abonnement', d: 'Au mois, ou le carnet', opt: true },
   { id: 'questions', t: 'Questions', d: 'Prix, horaires, réservation' },
   { id: 'venir', t: 'Venir', d: '16, place Pélabon' }
 ];
@@ -1764,7 +1883,7 @@ const TABS = [
   { t: 'Coupes', ids: ['cl', 'cc', 'ct'] },
   { t: 'Barbe', ids: ['eb', 'tb', 'cb'] },
   { t: 'Changer de tête', ids: ['tr', 'de', 'co', 'si'] },
-  { t: 'Abonnement', ids: ['ab'] }
+  { t: 'Carnet', ids: ['ab'] }
 ];
 /* ---------- the site's own words: fixed, the owner does not edit the site ----------
    Prices and hours come from the salon (/api/public/salon `menu` and `hoursText`), the old menu until it answers. */
@@ -1787,11 +1906,14 @@ const FAQ = [
   { q: 'Où se trouve le salon ?', a: (x) => 'Au ' + x.address + '.', link: () => mapsOf(), linkLabel: 'Voir l’itinéraire' },
   { q: 'Comment réserver ?', a: () => 'En ligne, en moins d’une minute et sans créer de compte : tu choisis ta prestation, ton barbier et ton créneau.' },
   { q: 'Faites-vous les décolorations et le silver ?', a: (x) => 'Oui. Décoloration dès ' + x.p('de') + ', coloration dès ' + x.p('co') + ', silver (blanc ou gris) à ' + x.p('si') + ', toujours après un avis sur la faisabilité.' },
-  { q: 'Existe-t-il un abonnement ?', a: (x) => 'Oui : 5 coupes sur 5 semaines pour ' + x.p('ab') + perCut(x.c('ab'), 5) + ', hors barbe. Tu réserves la première, le salon fixe les suivantes avec toi.' },
+  // the monthly membership while it is sold online (PAY-04), the carnet always
+  { q: 'Existe-t-il un abonnement ?', a: (x) => { const lo = aboLow(); return lo ? 'Oui, deux formules : l’abonnement mensuel (dès ' + num(lo / 100) + NB + '€/mois, sans engagement) et le carnet de 5 coupes (' + x.p('ab') + ').' : 'Oui : le carnet de 5 coupes pour ' + x.p('ab') + perCut(x.c('ab'), 5) + ', hors barbe, à prendre au salon. On fixe tes coupes avec toi.'; } },
   { q: 'Le salon forme-t-il des barbiers ?', a: () => 'Oui. L’Architecte est titulaire d’un agrément de formateur en coiffure et propose des stages, de l’entretien de la barbe à la coupe homme complexe.', link: '/formations', linkLabel: 'Les formations de L’Archi' },
   { q: 'Peut-on payer par carte ?', a: () => 'Oui, la carte bancaire est acceptée au salon.' }
 ];
-/* ', soit 16 € la coupe' from the subscription's price, said only when it falls on whole cents */
+/* the cheapest monthly plan sold online, in cents, or 0 while the membership is not live (PAY-04) */
+function aboLow() { const m = LXE.memberships(); return m && m.live && m.plans.length ? Math.min.apply(null, m.plans.map((p) => p.price)) : 0; }
+/* ', soit 16 € la coupe' from the carnet's price, said only when it falls on whole cents */
 function perCut(cents, n) { return cents && cents % n === 0 ? ', soit ' + num(cents / n / 100) + NB + '€ la coupe' : ''; }
 /* the FAQ as the page shows it now: the salon's whole menu (online or not: a price quoted is a price) and hours */
 function faqNow() {
@@ -2087,7 +2209,9 @@ class Component extends DCLogic {
       now: Date.now(), chap: 0, tone: 'light', scrolled: false, ctaHide: false, tmStage: 0, menu: false,
       finDone: false, shaved: false, cut: 0, zoom: -1, bOpen: null,
       tab: 0, crOpen: null,
-      sheet: false, bk: this.bkEmpty(), fFirst: '', fLast: '', fPhone: '', fEmail: '', fNote: '', fSms: true, fMkt: false, forgot: false, icsUrl: '', holdNow: 0, storeV: 0
+      sheet: false, bk: this.bkEmpty(), fFirst: '', fLast: '', fPhone: '', fEmail: '', fNote: '', fSms: true, fMkt: false, forgot: false, icsUrl: '', holdNow: 0, storeV: 0,
+      // the subscribe sheet (PAY-04): { plan, step: 'form'|'already', busy, err } while open; abNow: the express request, never ticked for him
+      ab: null, abNow: false
     };
     this._s = 0; this._t = 0; this._par = 0; this._intro = 0; this._ap = 0;
     this._rm = false;
@@ -2204,6 +2328,13 @@ class Component extends DCLogic {
         this._pSheet = s.sheet;
         document.documentElement.style.overflow = s.sheet ? 'hidden' : '';
         if (!s.sheet && this._lastFocus && this._lastFocus.focus) { try { this._lastFocus.focus({ preventScroll: true }); } catch (e) { /* ignore */ } }
+      }
+      // the subscribe sheet: the page stays put under it, and the focus comes back where it was
+      if (!!s.ab !== !!this._pAb) {
+        this._pAb = !!s.ab;
+        document.documentElement.style.overflow = s.ab || s.sheet ? 'hidden' : '';
+        if (s.ab) setTimeout(() => { const t = document.getElementById('ab-t'); if (t) { try { t.focus({ preventScroll: true }); } catch (e) { /* ignore */ } } }, 60);
+        else if (this._abFocus && this._abFocus.focus) { try { this._abFocus.focus({ preventScroll: true }); } catch (e) { /* ignore */ } }
       }
       if (s.menu !== !!this._pMenu) {
         this._pMenu = s.menu;
@@ -2630,10 +2761,13 @@ class Component extends DCLogic {
       };
     });
 
-    /* chapters and the index */
+    /* chapters and the index: « Abonnement » is one only while it is sold online */
+    const aboOn = this.aboOn();
+    const chs = CH.filter((c) => !c.opt || aboOn);
     const chap = s.chap;
-    const cur = chap > 0 ? CH[chap - 1] : null;
-    const nav = CH.map((c, i) => ({
+    const cur = chap > 0 ? chs[chap - 1] : null;
+    const at = (id) => chs.findIndex((c) => c.id === id) + 1;
+    const nav = chs.map((c, i) => ({
       href: '#' + c.id, t: c.t, d: c.id === 'preuve' ? (rate && nrev ? rate + ' sur ' + nrev + ' avis Google' : 'Les avis Google') : c.d, num: '0' + (i + 1), i: i,
       cur: chap === i + 1, cls: chap === i + 1 ? 'cur' : '',
       go: () => this.setState({ menu: false })
@@ -2654,7 +2788,7 @@ class Component extends DCLogic {
       menuKey: (e) => { if (e.key === 'Escape') { e.preventDefault(); this._menuFocusBack = true; this.setState({ menu: false }); } },
       nav: nav,
       mnSt: 'mn-st ' + st.cls,
-      ctaCls: 'cta' + ((s.sheet || s.menu || s.ctaHide) ? ' off' : ''),
+      ctaCls: 'cta' + ((s.sheet || s.ab || s.menu || s.ctaHide) ? ' off' : ''),
       ctaLabel: inFlow ? 'Continuer' : 'Réserver',
       ctaSub: inFlow ? LXE.eur(F.p, F.from) : low < Infinity ? 'dès ' + num(low) + NB + '€' : '',
       hasCtaSub: inFlow || low < Infinity,
@@ -2680,6 +2814,7 @@ class Component extends DCLogic {
       hasIg: !!ig, igUrl: ig, igHandle: igHandle(ig),
       faq: faqNow().map((q, i) => ({ num: LXE.pad(i + 1), q: q.q, a: q.a, hasLink: !!q.link, link: q.link, linkLabel: q.linkLabel || 'En savoir plus', target: /^https:/.test(q.link) ? '_blank' : '_self' })),
       hoursLine: hours ? hours + '.' : '', hasHours: !!hours,
+      chFq: String(at('questions')), numFq: LXE.pad(at('questions')), chFt: String(at('venir')), numFt: LXE.pad(at('venir')),
       addrLine: sal && sal.shop ? sal.shop.address + ' · ' + sal.shop.zip + ' ' + sal.shop.city : '16, place Pélabon · 13013 Marseille',
 
 
@@ -2706,7 +2841,7 @@ class Component extends DCLogic {
       forgetMe: () => { clearMe(); this.setState({ forgot: true, fFirst: '', fLast: '', fPhone: '', fEmail: '', fNote: '', fMkt: false }); },
 
       mapsUrl: mapsOf()
-    }, bv);
+    }, bv, this.abVals());
   }
 }
 
@@ -2723,8 +2858,7 @@ const BK_TITLE = { svc: 'On te fait quoi ?', who: 'Avec qui ?', when: 'Quand 
 const SVC_GROUPS = [
   { t: 'Coupes', ids: ['cl', 'cc', 'ct'] },
   { t: 'Changer de tête', ids: ['tr', 'cd', 'de', 'co', 'si'] },
-  { t: 'La barbe seule', ids: ['eb', 'tb', 'cb'] },
-  { t: 'Abonnement', ids: ['ab'] }
+  { t: 'La barbe seule', ids: ['eb', 'tb', 'cb'] }
 ];
 const SLOT_GROUPS = [
   { t: 'Matin', a: 0, z: 720 },
@@ -2811,6 +2945,13 @@ const BookingMixin = {
     const me = readMe() || {};
     // the offers switch always starts off: consent is asked, never assumed (not even from a previous visit)
     this.setState({ fFirst: me.first || '', fLast: me.last || '', fPhone: me.phone || '', fEmail: me.email || '', fNote: '', fSms: true, fMkt: false });
+    // the demo asks for no real details (PAY-04): an identity of its own, erased with the visitor's file 2 h later
+    LXE.init().then(() => {
+      const sal = LXE.salon();
+      if (!this._mounted || !sal || sal.mode !== 'demo' || readMe() || this.state.fFirst || this.state.fPhone) return;
+      const n = String(Math.floor(Math.random() * 9000) + 1000);
+      this.setState({ fFirst: 'Démo', fLast: 'Visiteur', fPhone: '06 00 00 ' + n.slice(0, 2) + ' ' + n.slice(2), fEmail: 'demo+' + n.slice(0, 2) + '@exemple.fr' });
+    });
     this._bkOff = LXE.on(() => {
       if (!this._mounted) return;
       // the owner took the chosen service off the site while the sheet was open: back to step 1, never another service
@@ -2848,7 +2989,11 @@ const BookingMixin = {
         this.setState({ sheet: true, bk: Object.assign(this.bkEmpty(), { step: 'when', err: e.message }) });
       });
       try { history.replaceState(null, '', window.location.pathname + window.location.hash); } catch (e) { /* ignore */ }
-    } else if (q.has('reserver')) this.openWith(this.bkPreset(q));
+    } else if (q.has('reserver')) {
+      this.openWith(this.bkPreset(q));
+      // the member's link is not left in the address bar (a shared screenshot, the history)
+      if (q.has('mbr')) { q.delete('mbr'); try { history.replaceState(null, '', window.location.pathname + (q.toString() ? '?' + q.toString().replace(/=(&|$)/g, '$1') : '') + window.location.hash); } catch (e) { /* ignore */ } }
+    } else this.abFromUrl(q);
   },
   /* ?reserver&barbier=jkut&prestation=coupe-classique: a link from Instagram, the old site or a barber's card lands on the right step */
   bkPreset(q) {
@@ -2857,7 +3002,10 @@ const BookingMixin = {
     if (f) pre.formula = f;
     const b = LXE.barberOf(q.get('barbier'));
     if (b) pre.barber = b;
-    return pre.formula || pre.barber ? pre : null;
+    // « Réserver ma coupe » from the member page (PAY-04): its signed link rides with the booking, the server checks it
+    const mbr = String(q.get('mbr') || '');
+    if (/^[A-Za-z0-9_.~-]{8,200}$/.test(mbr)) pre.mbr = mbr;
+    return pre.formula || pre.barber || pre.mbr ? pre : null;
   },
 
   /* ---------- who is this visitor ---------- */
@@ -2891,6 +3039,7 @@ const BookingMixin = {
     if (finished) LXE.setMoving(null);
     bk = finished ? this.bkEmpty() : Object.assign({}, bk, { err: '', ask: false });
     if (pre) {
+      if (pre.mbr) bk.mbr = pre.mbr;
       if (pre.formula) bk.f = pre.formula;
       if (pre.barber) bk.barber = pre.barber;
       if (pre.day) { bk.day = pre.day; bk.time = pre.time != null ? pre.time : null; bk.assigned = null; }
@@ -2979,10 +3128,11 @@ const BookingMixin = {
     try {
       const r = await LXE.book({
         f: b.f, barber: b.barber, day: b.day, time: b.time, holdId: b.holdId, first: first, last: String(s0.fLast || '').trim().slice(0, 40),
-        phone: String(s0.fPhone), email: String(s0.fEmail || '').trim(), note: String(s0.fNote || '').trim().slice(0, 200), sms: !!s0.fSms, marketing: s0.fMkt === true
+        phone: String(s0.fPhone), email: String(s0.fEmail || '').trim(), note: String(s0.fNote || '').trim().slice(0, 200), sms: !!s0.fSms, marketing: s0.fMkt === true,
+        mbr: b.mbr || undefined
       });
       // the ticket keeps what was booked, even if the service leaves the catalogue later
-      const result = { token: r.token, code: r.code, manage: r.manage, day: b.day, time: b.time, dur: F.d, f: b.f, n: F.n, p: F.p, from: !!F.from, barber: r.barber, any: b.barber === 'any', first: first, status: r.status, deposit: r.deposit, payUrl: r.payment ? r.payment.url : null };
+      const result = { token: r.token, code: r.code, manage: r.manage, day: b.day, time: b.time, dur: F.d, f: b.f, n: F.n, p: F.p, from: !!F.from, barber: r.barber, any: b.barber === 'any', first: first, status: r.status, deposit: r.deposit, payUrl: r.payment ? r.payment.url : null, member: r.member && r.member.covered ? r.member.label : '' };
       this.remember({ first: String(s0.fFirst).trim(), last: String(s0.fLast || '').trim(), phone: s0.fPhone, email: String(s0.fEmail || '').trim(), lastF: b.f, lastBarber: r.barber }, result);
       clearInterval(this._holdT);
       this.setState({ bk: Object.assign(this.bkEmpty(), { step: 'done', result: result, f: b.f }), icsUrl: this.bkIcs(result), fNote: '' });
@@ -3077,11 +3227,11 @@ const BookingMixin = {
     return "L'Architecte : c'est noté " + e.first + ' ! ' + when + (b ? ' avec ' + b.n : '') + '. Gérer : ' + (e.manage || '');
   },
 
-  sheetKey(e) {
-    if (e.key === 'Escape') { e.preventDefault(); this.setState({ sheet: false }); return; }
+  sheetKey(e, trapOnly) {
+    if (e.key === 'Escape' && !trapOnly) { e.preventDefault(); this.setState({ sheet: false }); return; }
     if (e.key !== 'Tab') return;
     const root = e.currentTarget;
-    const f = Array.prototype.filter.call(root.querySelectorAll('button:not([disabled]),a[href],input,textarea'), (x) => x.offsetParent !== null);
+    const f = Array.prototype.filter.call(root.querySelectorAll('button:not([disabled]),a[href],input,textarea,select'), (x) => x.offsetParent !== null);
     if (!f.length) return;
     const first = f[0], last = f[f.length - 1];
     if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
@@ -3240,6 +3390,7 @@ const BookingMixin = {
     // no online payment in production yet (payments.live false): the salon takes no deposit, so none is announced
     const dep = F && sal && !(sal.payments && sal.payments.live === false) ? depositOf(F, sal.deposits) : 0;
     v.hasDeposit = dep > 0 && step === 'info';
+    v.bkMbr = !!b.mbr && step === 'info';
     v.depLine = dep > 0 ? 'Un acompte de ' + LXE.eur(dep / 100) + ' est demandé pour cette prestation, déduit au salon. Annulé plus de ' + (sal ? sal.booking.cancelUntilHours : 12) + ' h avant, il est remboursé.' : '';
     v.fFirst = s.fFirst; v.fLast = s.fLast; v.fPhone = s.fPhone; v.fEmail = s.fEmail; v.fNote = s.fNote;
     v.setFirst = (e) => this.setState({ fFirst: e.target.value });
@@ -3268,7 +3419,9 @@ const BookingMixin = {
       const rb = LXE.BMAP[r.barber];
       v.doneCode = r.code;
       v.tkWhen = capFirst(LXE.dayLong(r.day)) + ' · ' + LXE.fmtH(r.time);
-      v.tkWhat = f.n + ' · ' + LXE.eur(f.p, f.from);
+      v.tkWhat = f.n + ' · ' + (r.member ? 'Inclus' : LXE.eur(f.p, f.from));
+      // the server's word, never the page's guess: « Inclus dans ton abonnement · 2/2 ce mois »
+      v.hasMemberLine = !!r.member; v.memberLine = r.member || '';
       v.tkWho = (rb ? 'Avec ' + rb.n + ' · ' : '') + fmtDur(f.d);
       v.smsText = this.smsText(r);
       v.goMove = () => this.bkMove();
@@ -3282,6 +3435,7 @@ const BookingMixin = {
       v.payUrl = r.payUrl || '';
       v.payLine = pending ? 'Il reste à régler l’acompte de ' + LXE.eur((r.deposit || 0) / 100) + ' dans les ' + (sal ? sal.booking.pendingPayMin || 15 : 15) + ' minutes. Sans paiement, le créneau est libéré.' : '';
     } else {
+      v.hasMemberLine = false; v.memberLine = '';
       v.doneCode = ''; v.tkWhen = ''; v.tkWhat = ''; v.tkWho = ''; v.smsText = ''; v.cancelLine = ''; v.manageUrl = ''; v.needPay = false; v.payUrl = ''; v.payLine = '';
       v.goMove = () => {}; v.askCancel = () => {}; v.keep = () => {}; v.doCancel = () => {}; v.toCockpit = () => {};
     }
@@ -3317,6 +3471,122 @@ const BookingMixin = {
   }
 };
 Object.assign(Component.prototype, BookingMixin);
+
+/* ======================================================================
+   L'abonnement (PAY-04) : le bloc « Abonnement & carnet » et la feuille
+   « Je m'abonne », dans le même kit que la réservation. Le paiement se fait
+   chez Stripe (ou sur la page de test de la démo), puis la page du membre.
+   ====================================================================== */
+const SubscribeMixin = {
+  /* the block shows while the salon sells the membership online (enabled, a real or demo payment, at least one plan) */
+  aboOn() { const m = LXE.memberships(); return !!(m && m.live && m.plans && m.plans.length); },
+  aboPlan(id) { const m = LXE.memberships(); return m && m.plans ? m.plans.filter((p) => p.id === id)[0] || null : null; },
+  /* « 2 coupes par mois · Coupe classique »; an illimité in the site's words */
+  aboWords(p) {
+    const names = (p.services || []).map((x) => x.name).join(', ');
+    if (!p.cuts && p.minDays === 7) return '1 coupe par semaine, autant de semaines que tu veux' + (names ? ' · ' + names : '');
+    return p.words;
+  },
+  abOpen(planId) {
+    if (!this.aboPlan(planId)) return;
+    try { this._abFocus = document.activeElement; } catch (e) { /* ignore */ }
+    this.setState({ ab: { plan: planId, step: 'form', busy: false, err: '' }, abNow: false, menu: false, sheet: false });
+    // a signed-in client subscribes on his own file: his number is the space's
+    if (!LXE.account()) LXE.loadAccount();
+  },
+  abClose() { if (this.state.ab && !this.state.ab.busy) this.setState({ ab: null }); },
+  abSignedIn() { const a = LXE.account(); return !!(a && a.enabled && a.signedIn && !a.demo); },
+  abValid() {
+    const s = this.state;
+    const ph = String(s.fPhone || '').replace(/\D/g, '');
+    const okPhone = this.abSignedIn() || (ph.length === 10 && ph.charAt(0) === '0');
+    return String(s.fFirst || '').trim().length >= 2 && okPhone && /^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(String(s.fEmail || '').trim());
+  },
+  async abGo() {
+    const s0 = this.state, a = s0.ab;
+    if (!a || a.busy || !this.abValid()) return;
+    const m = LXE.memberships();
+    this.setState({ ab: Object.assign({}, a, { busy: true, err: '' }) });
+    const first = capFirst(String(s0.fFirst).trim().split(/\s+/)[0]).slice(0, 40);
+    const email = String(s0.fEmail).trim().toLowerCase();
+    try {
+      const r = await LXE.subscribe({ planId: a.plan, first: first, phone: this.abSignedIn() ? undefined : String(s0.fPhone), email: email, startNow: s0.abNow === true, cgv: m && m.cgv ? m.cgv : undefined });
+      this.remember(Object.assign({ first: String(s0.fFirst).trim(), email: email, lastPlan: a.plan }, this.abSignedIn() ? {} : { phone: s0.fPhone }));
+      // the demo's test page comes back to the member page, as Stripe's success address does
+      let url = r.url;
+      try {
+        const u = new URL(url, window.location.href);
+        if (u.origin === window.location.origin && /^\/paiement\//.test(u.pathname) && r.page) { u.searchParams.set('retour', new URL(r.page, window.location.href).pathname); url = u.pathname + u.search; }
+      } catch (e) { /* the plain test page then */ }
+      window.location.href = url;
+    } catch (e) {
+      if (e.code === 'already') this.setState({ ab: Object.assign({}, this.state.ab, { busy: false, step: 'already', err: '', already: e.message }) });
+      else this.setState({ ab: Object.assign({}, this.state.ab, { busy: false, err: e.message }) });
+    }
+  },
+  abKey(e) {
+    if (e.key === 'Escape') { e.preventDefault(); this.abClose(); return; }
+    this.sheetKey(e, true);
+  },
+  /* back from a checkout left at Stripe (?abonnement=annule): the same sheet, nothing charged */
+  abFromUrl(q) {
+    if (q.get('abonnement') !== 'annule') return;
+    const me = readMe() || {};
+    const plan = me.lastPlan && this.aboPlan(me.lastPlan) ? me.lastPlan : null;
+    if (plan) { this.abOpen(plan); this.setState({ ab: { plan: plan, step: 'form', busy: false, err: 'Paiement annulé : rien n’a été prélevé. Tu peux reprendre quand tu veux.' } }); }
+    try { history.replaceState(null, '', window.location.pathname + window.location.hash); } catch (e) { /* ignore */ }
+  },
+
+  abVals() {
+    const s = this.state;
+    const m = LXE.memberships();
+    const v = {};
+    /* the block */
+    v.aboOn = this.aboOn();
+    v.aboPlans = v.aboOn ? m.plans.map((p) => ({
+      name: p.name, price: num(p.price / 100) + NB + '€', words: this.aboWords(p),
+      aria: 'Je m’abonne à la formule ' + p.name + ', ' + num(p.price / 100) + ' euros par mois',
+      go: () => this.abOpen(p.id)
+    })) : [];
+    const c = m && m.carnet ? m.carnet : null;
+    v.hasCarnet = !!c;
+    v.carnetName = c ? c.name : '';
+    v.carnetPrice = c ? num(c.price / 100) + NB + '€' : '';
+    const weeks = c && c.days && c.days % 7 === 0 ? c.days / 7 + NB + 'semaines' : c && c.days ? c.days + NB + 'jours' : '';
+    v.carnetLine = c ? [c.price % c.credits === 0 ? num(c.price / c.credits / 100) + NB + '€ la coupe' : '', weeks ? 'valable ' + weeks : ''].filter(Boolean).join(' · ') : '';
+    /* the sheet */
+    const a = s.ab;
+    const p = a ? this.aboPlan(a.plan) : null;
+    v.abCls = a ? 'open' : '';
+    v.abShow = !!a;
+    v.abClose = () => this.abClose();
+    v.abKey = (e) => this.abKey(e);
+    v.abIsForm = !!a && a.step === 'form';
+    v.abIsAlready = !!a && a.step === 'already';
+    v.abAlready = a && a.already ? a.already : 'Tu as déjà un abonnement : on t’envoie le lien pour le gérer.';
+    v.abHasErr = !!(a && a.err); v.abErr = a ? a.err : '';
+    v.abStepLabel = 'Abonnement';
+    v.abTitle = !a ? '' : a.step === 'already' ? 'Déjà abonné' : p ? 'Je m’abonne' : '';
+    v.abRecapW = p ? p.name + ' · ' + num(p.price / 100) + NB + '€/mois' : '';
+    v.abRecapS = p ? this.aboWords(p) + ' · sans engagement, résiliable en 3 clics' : '';
+    v.abSignedIn = this.abSignedIn();
+    v.abAskPhone = !v.abSignedIn;
+    const phd = String(s.fPhone || '').replace(/\D/g, '');
+    const bad = phd.length > 0 && (phd.length < 10 || phd.charAt(0) !== '0');
+    v.abPhoneHint = bad ? 'Un numéro français à 10 chiffres, comme 06 12 34 56 78.' : 'Pour ta confirmation et le lien de ton abonnement.';
+    v.abPhoneCls = 'hint' + (bad ? ' warn' : '');
+    v.abNow = !!s.abNow;
+    v.toggleNow = (e) => this.setState({ abNow: !!(e && e.target ? e.target.checked : !this.state.abNow) });
+    const start = m && m.startDay ? LXE.dayLong(m.startDay) : '';
+    v.abStartLine = s.abNow ? 'Il démarre aujourd’hui : tes coupes du mois sont incluses tout de suite.' : start ? 'Ton abonnement démarre le ' + start + ' : avant, tes coupes sont au prix normal.' : '';
+    v.abOff = !a || !!a.busy || (a.step === 'form' && !this.abValid());
+    v.abCta = !a ? '' : a.step === 'already' ? 'Fermer' : a.busy ? 'Un instant…' : 'Continuer vers le paiement · ' + (p ? num(p.price / 100) + NB + '€/mois' : '');
+    v.abGo = () => { if (this.state.ab && this.state.ab.step === 'already') this.abClose(); else this.abGo(); };
+    if (v.abIsAlready) v.abOff = false;
+    return v;
+  }
+};
+Object.assign(Component.prototype, SubscribeMixin);
 
 /* the deposit the salon will ask, mirrored from its rule so the client knows before confirming */
 function depositOf(F, d) {
