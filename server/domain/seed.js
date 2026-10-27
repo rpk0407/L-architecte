@@ -27,6 +27,9 @@ import { memberOf, cover, addMonths } from './membership.js';
 import { fiscalSteps } from '../commands/steps/fiscal.js';
 import { demoSigner } from '../core/signer.js';
 import { SOFTWARE } from '../version.js';
+import { launchLoyalty, importLoyalty, claimReferral } from '../commands/loyalty.js';
+import { rewardsOf } from './loyalty.js';
+import { rewardValue } from '../../shared/loyalty.js';
 
 export const DEMO = {
   email: 'gerant@larchitecte.fr',
@@ -163,7 +166,27 @@ export function planDay(s, day, fill, r, pickClient, now) {
   return plans.sort((a, b) => a.start - b.start);
 }
 
-/** What a demo client pays: the menu price, sometimes a product, a tip, a loyalty discount. */
+/**
+ * The reward a demo client uses on this appointment, 7 times out of 10 when one waits (FID-02): on the first line it
+ * applies to. Drawn from the appointment's day, time and number, not from r, so the demo's other draws stay what they were
+ * (and the same demo comes out every time: ids are random).
+ * @returns {{ i: number, id: string, off: number } | null}
+ */
+function demoReward(s, a, lines) {
+  const c = a.clientId ? s.clients.get(a.clientId) : null;
+  if (!c || hashStr('fid|' + a.day + '|' + a.start + '|' + c.phone) % 10 >= 7) return null;
+  const rw = rewardsOf(s, a.clientId, a.day)[0];
+  if (!rw) return null;
+  for (const [i, l] of lines.entries()) {
+    if ((l.kind !== 'service' && l.kind !== 'product') || l.packId || l.memberId) continue;
+    const unit = l.kind === 'service' ? l.unit : (s.products.get(l.ref) || {}).price || 0;
+    const off = rewardValue(rw.reward, { kind: l.kind, ref: l.ref, unit, qty: 1 });
+    if (off > 0) return { i, id: rw.id, off };
+  }
+  return null;
+}
+
+/** What a demo client pays: the menu price, sometimes a product, a tip, a loyalty discount or a reward of his card. */
 export function demoCheckoutInput(s, a, r, { cash = true, packId = null, member = /** @type {{ memberId: string, serviceId: string } | null} */ (null) } = {}) {
   let covered = false;
   const lines = a.services.map((sv) => {
@@ -181,9 +204,13 @@ export function demoCheckoutInput(s, a, r, { cash = true, packId = null, member 
   const gross = lines.reduce((t, l) => t + (l.kind === 'service' ? (l.packId || l.memberId ? 0 : l.unit) : (s.products.get(l.ref)?.price || 0)), 0);
   // a cut the membership pays draws as a paid one did (the demo's other draws stay in step), and may still get a tip
   const drawn = gross > 0 || covered;
-  const discount = drawn && r() < 0.03 && gross > 0 ? { amount: Math.round(gross * 0.1 / 100) * 100, reason: 'Fidélité' } : undefined;
+  const typed = drawn && r() < 0.03 && gross > 0 ? { amount: Math.round(gross * 0.1 / 100) * 100, reason: 'Fidélité' } : undefined;
   const tip = drawn && r() < 0.22 ? { amount: r() < 0.7 ? 200 : 500, staffId: a.staffId } : undefined;
-  const due = gross - (discount ? discount.amount : 0) + (tip ? tip.amount : 0);
+  // a reward of the card takes the place of a typed loyalty discount
+  const reward = demoReward(s, a, lines);
+  if (reward) lines[reward.i] = { ...lines[reward.i], rewardId: reward.id };
+  const discount = reward ? undefined : typed;
+  const due = gross - (reward ? reward.off : 0) - (discount ? discount.amount : 0) + (tip ? tip.amount : 0);
   const payCash = cash && r() < 0.34;
   const given = payCash ? Math.ceil(due / 1000) * 1000 + (r() < 0.3 ? 1000 : 0) : undefined;
   const payments = due > 0 ? [payCash ? { method: 'cash', amount: due, given } : { method: 'card', amount: due }] : [{ method: 'card', amount: 0 }];
@@ -226,6 +253,10 @@ export async function buildDemoJournal(nowReal, opt = {}) {
   // the carnet covers the classic cut only
   await eng.run(updateService, { id: slugId.ab, patch: { pack: { credits: 5, days: 70, serviceIds: [slugId.cl] } } }, base);
   await eng.run(updateSettings, { membership: { enabled: true, plans: PLANS.map(({ slugs, ...p }) => ({ ...p, serviceIds: slugs.map((k) => slugId[k]), online: true, active: true })) } }, base);
+  // FID-02: the stamp card, launched before the history so its tickets earn for real: 9 paid visits, the 10th cut
+  // offered up to 25 €, referral on (off in production)
+  await eng.run(updateSettings, { loyalty: { enabled: true, goal: 9, reward: { kind: 'service', refs: [], cap: 2500 }, referral: { enabled: true } } }, base);
+  await eng.run(launchLoyalty, { headStart: 'half' }, base);
   for (const p of PRODUCTS) { const { w, stock, ...rest } = p; const res = await eng.run(addProduct, rest, base); await eng.run(adjustStock, { id: res.id, delta: stock + 6, reason: 'Stock initial' }, base); }
 
   /* the clientele */
@@ -247,6 +278,9 @@ export async function buildDemoJournal(nowReal, opt = {}) {
     const join = i >= 320 ? addDays(start, Math.floor(((i - 320) / 200) * weeks * 7)) : null;
     pool.push({ id: res.id, pref: barberIds[Math.floor(r() * barberIds.length)], cadence, fav: slugId[favSlug], last: null, packId: null, abo: i % 19 === 3, booked: null, stop, join });
   }
+  // the clientele came before these ten weeks: half of it kept its paper card, taken over (1 to 8 stamps, from its place
+  // in the list, not from r), so full cards and rewards show from the first weeks (half: the journal budget)
+  await eng.run(importLoyalty, { rows: pool.slice(0, 320).map((c, i) => ({ clientId: c.id, units: 1 + (hashStr('card|' + i) % 8) })).filter((x, i) => i % 2 === 0) }, base);
   // regulars who come every four weeks at most for a cut a formule covers: Illimité for the contour or the frequent ones
   // (from the end of the list: the first files stay plain clients, as the tests and the demo script know them)
   const regulars = pool.filter((c) => !c.abo && !c.stop && !c.join && c.cadence <= 28 && (c.fav === slugId.cl || c.fav === slugId.cc)).reverse();
@@ -289,9 +323,27 @@ export async function buildDemoJournal(nowReal, opt = {}) {
     }
   };
 
+  /* six newcomers say at the till who sent them (FID-02), the first open day of theirs: a regular who already came */
+  const referees = new Set([360, 390, 420, 450, 480, 505].map((i) => pool[i]).filter(Boolean));
+  const referrals = async (day) => {
+    for (const c of referees) {
+      if (!c.join || c.join > day) continue;
+      referees.delete(c);
+      at(day, 7 * 60 + 50);
+      const start = pool.indexOf(c) % 300;
+      for (let k = 0; k < 12; k++) {
+        const by = pool[(start + k * 23) % 320];
+        if (!by.last) continue;
+        const res = await eng.run(claimReferral, { refereeId: c.id, referrerId: by.id, via: 'till' }, base);
+        if (res.ok) break;
+      }
+    }
+  };
+
   /* one day of the salon */
   const runDay = async (day, isToday) => {
     await memberOps(day);
+    await referrals(day);
     if (weekday(day) === 2 || weekday(day) === 5) {
       at(day, 8 * 60 + 30);
       for (const p of eng.state.products.values()) {

@@ -17,13 +17,15 @@ export function fileStore(path) {
   const rewrite = () => writeFileSync(path, events.map((e) => JSON.stringify(e)).join('\n') + (events.length ? '\n' : ''));
   return {
     kind: 'file',
-    async read(after) { return { epoch, events: events.slice(after) }; },
+    // copies in and out, as the memory store does: an engine that erases a client deletes the pii of its own objects,
+    // and sharing them would leave nothing for redact to find, so the file would keep the personal data (FID-02's test)
+    async read(after) { return { epoch, events: events.slice(after).map((e) => structuredClone(e)) }; },
     async append(list, ep) {
       if (ep !== epoch) return { ok: false };
       if (!list.length) return { ok: true };
       if (list[0].v !== events.length + 1) return { ok: false };
       appendFileSync(path, list.map((e) => JSON.stringify(e)).join('\n') + '\n');
-      events = events.concat(list);
+      events = events.concat(list.map((e) => structuredClone(e)));
       return { ok: true };
     },
     async redact(match) {

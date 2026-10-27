@@ -45,7 +45,8 @@ const BEFORE = () => {
         waitlist: "L'Architecte : place libérée {date} à {heure} avec {barbier}, à toi pendant 30 min : {lien}",
         queue: "L'Architecte : c'est presque ton tour, {prenom}. Reviens au salon, on t'installe dans 5 minutes.",
         cancelled: "L'Architecte : ton rendez-vous du {date} à {heure} est annulé. Pour en reprendre un : {lien}",
-        receipt: "L'Architecte : merci {prenom} ! Ton ticket {ticket} de {montant} : {lien}",
+        // FID-02: the loyalty card after the ticket
+        receipt: "L'Architecte : merci {prenom} ! Ton ticket {ticket} de {montant} : {lien}{fidelite}",
         // WP-04: the link asked from /mon-rendez-vous, and DO-03's gift card code
         lookup: "L'Architecte : ton rendez-vous {date} à {heure} : {lien}{suite}",
         giftcardCode: "L'Architecte : {acheteur} t'offre une carte cadeau de {montant} ! Code {code}, valable jusqu'au {date}. Réserve : {lien}",
@@ -88,7 +89,9 @@ const BEFORE = () => {
     // PAY-02: the monthly membership, off until the owner switches it on
     membership: { enabled: false, plans: [], graceDays: 7 },
     // CPT-01a: the month the fiscal year ends
-    fiscal: { yearEndMonth: 12 }
+    fiscal: { yearEndMonth: 12 },
+    // FID-02: the stamp card, off until the owner launches it
+    loyalty: { enabled: false, goal: 9, minNet: 1000, reward: { kind: 'service', refs: [], cap: 2500 }, rewardDays: 180, resetDays: 365, headStart: 'half', referral: { enabled: false, referrer: { kind: 'amount', amount: 500 }, referee: { kind: 'amount', amount: 500 }, perYear: 5 } }
   };
 };
 
