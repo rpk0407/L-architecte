@@ -54,7 +54,10 @@ export default async ({ h, page }) => {
   // /nos-services lands on #carte (a fresh load, as from the redirect): the page goes there once rendered
   await page.goto('about:blank');
   await page.goto(h.base + '/#carte');
-  await page.waitForTimeout(1500);
-  const top = await page.evaluate(() => document.getElementById('carte').getBoundingClientRect().top);
-  if (Math.abs(top) > 120) throw new Error('#carte is not in view (top ' + Math.round(top) + ' px)');
+  // the jump waits for the salon's answer, which can take a while on a loaded machine
+  const inView = () => { const c = document.getElementById('carte'); return !!c && Math.abs(c.getBoundingClientRect().top) <= 120; };
+  if (!(await page.waitForFunction(inView, null, { timeout: 10000 }).then(() => true, () => false))) {
+    const top = await page.evaluate(() => document.getElementById('carte').getBoundingClientRect().top);
+    throw new Error('#carte is not in view (top ' + Math.round(top) + ' px)');
+  }
 };
