@@ -68,7 +68,7 @@ export function saleView(s, x, caps) {
     id: x.id, number: x.number, ref: ticketNo(x.number), day: x.day, at: x.at, apptId: x.apptId, clientId: x.clientId,
     client: c ? (c.first + ' ' + (c.last ? c.last.charAt(0) + '.' : '')).trim() : null, cashier: cashier ? cashier.name : 'Système',
     lines: x.lines.map((l) => ({ kind: l.kind, ref: l.ref, name: l.name, qty: l.qty, unit: l.unit, discount: l.discount || 0, net: l.net, staffId: l.staffId, vat: l.vat, packId: l.packId || null })),
-    discount: x.discount, tip: x.tip, totals: x.totals, payments: x.payments.map((p) => ({ method: p.method, amount: p.amount, given: p.given, change: p.change, last4: p.last4 })),
+    discount: x.discount && x.discountNote ? { ...x.discount, reason: x.discountNote } : x.discount, tip: x.tip, totals: x.totals, payments: x.payments.map((p) => ({ method: p.method, amount: p.amount, given: p.given, change: p.change, last4: p.last4 })),
     refunded: x.refunded, refunds: x.refundIds.map((id) => { const r = s.refunds.get(id); return r ? { id: r.id, ref: refundNo(r.number), amount: r.amount, method: r.method, reason: r.reason, at: r.at } : null; }).filter(Boolean),
     note: x.note || '', demo: !!x.demo
   };

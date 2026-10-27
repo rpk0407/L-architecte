@@ -112,7 +112,8 @@ function badges(r) {
   const s = r.s, L = r.local;
   const mineOnly = !r.caps.has('agenda.all');
   let toPay = 0;
-  for (const id of s.apptsByDay.get(L.day) || []) {
+  // a sealed day takes no more payments: what is left is not "to pay" any more
+  for (const id of s.closures.has(L.day) ? [] : s.apptsByDay.get(L.day) || []) {
     const a = s.appts.get(id);
     if (!a || a.saleId || a.legacy || (mineOnly && a.staffId !== r.me.id)) continue; // legacy: paid on the old site's till
     if (a.status === 'in_chair' || a.status === 'done' || ((a.status === 'booked' || a.status === 'arrived') && a.start + a.dur <= L.min)) toPay++;

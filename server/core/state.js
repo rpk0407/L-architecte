@@ -139,6 +139,7 @@ export function evolve(s, e) {
       }
       for (const a of s.appts.values()) if (ids.has(a.clientId)) { a.note = ''; if (a.cancel && a.cancel.by === 'client') a.cancel.reason = ''; }
       for (const m of s.messages.values()) if (ids.has(m.cid)) { m.to = ''; m.body = ''; }
+      for (const x of s.sales.values()) if (ids.has(x.clientId)) x.discountNote = '';
       for (const w of s.waitlist.values()) if (ids.has(w.clientId)) { w.first = ''; w.phone = ''; }
       for (const q of s.queue.values()) if (ids.has(q.clientId)) { q.name = 'Client effacé'; q.phone = ''; }
       break;
@@ -207,7 +208,8 @@ export function evolve(s, e) {
     case 'waitlist.updated': { const w = s.waitlist.get(d.id); if (w) Object.assign(w, d.patch); break; }
 
     case 'sale.completed': {
-      const x = { ...d, at: d.at || e.at, by: e.actor.id, refunded: 0, refundIds: [] };
+      // a typed discount reason travels in pii (chained data says "Autre"), so erasure removes it
+      const x = { ...d, at: d.at || e.at, by: e.actor.id, refunded: 0, refundIds: [], discountNote: p.discountReason || '' };
       s.sales.set(d.id, x);
       let list = s.salesByDay.get(d.day);
       if (!list) { list = []; s.salesByDay.set(d.day, list); }

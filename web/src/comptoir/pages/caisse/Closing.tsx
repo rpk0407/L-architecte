@@ -9,6 +9,7 @@ import { Icon } from '../../../ui/Icon';
 import { Button, Empty, Field, Modal, Note, Skeleton, confirm, toast, toastError } from '../../../ui/kit';
 import { useApp } from '../../state';
 import { ZReport, printNow, zRows, zValue, type ZFigures } from './Receipt';
+import type { Agenda } from '../../types';
 
 type Remaining = { name: string; start: number; staff: string };
 type Closure = ZFigures & { number: number; day: string; at: number; grandTotal: number; seal: string; early?: boolean; late?: boolean; auto?: boolean };
@@ -24,11 +25,18 @@ type Early = { remaining: Remaining[]; closesAt: number; open: boolean };
 type Missed = Drawer['missed'][number];
 
 const zNo = (n: number) => 'Z' + String(n).padStart(4, '0');
+// a day the shop does not open, with nothing at the till: a Z would only seal an empty day
+const nothingToClose = (d: Drawer) => d.closesAt === 0 && !d.today.tickets && !d.today.refundsTotal;
+const PENDING = ['booked', 'arrived', 'in_chair'];
 const kindOf = (z: { early?: boolean; late?: boolean; auto?: boolean }) => (z.auto ? 'automatique' : z.late ? 'rattrapage' : z.early ? 'en avance' : '');
 
 export function Closing() {
-  const { can, now } = useApp();
+  const { boot, can, now } = useApp();
   const { data, loading } = useQuery<Drawer>('/api/v1/drawer');
+  // the demo's automatic Z waits for its own appointments of that day to be checked out: it promises nothing while some are left
+  const first = data?.missed[0]?.day;
+  const past = useQuery<Agenda>(boot.mode === 'demo' && first && can('closure') ? '/api/v1/agenda?day=' + first : null);
+  const stillDue = (past.data?.appts || []).filter((a) => a.demo && !a.saleId && PENDING.includes(a.status)).length;
   const z = useQuery<{ items: (Closure & { ref: string; by: string })[]; grandTotal: number }>(can('closure') ? '/api/v1/closures?limit=14' : null);
   const [count, setCount] = useState(false);
   const [mv, setMv] = useState(false);
@@ -74,7 +82,7 @@ export function Closing() {
     try {
       const d = await api.get<Drawer>('/api/v1/drawer');
       if (d.missed.length) closeMissed(d.missed[0]);
-      else if (day === today && !d.closure && !d.remaining.length && nowMin >= d.closesAt) ask(d);
+      else if (day === today && !d.closure && !d.remaining.length && nowMin >= d.closesAt && !nothingToClose(d)) ask(d);
     } catch { /* the screen refreshes anyway */ }
   };
 
@@ -111,7 +119,7 @@ export function Closing() {
           <Note key={m.day} tone="warn" icon="alert">
             <b>La journée de {m.words} n’est pas clôturée</b> ({m.tickets} ticket{m.tickets > 1 ? 's' : ''}).{' '}
             {i === 0
-              ? <>Elle va être clôturée automatiquement d’ici une minute, ou tout de suite{'\u202f'}:<span className="cl-missed"><Button size="sm" variant="primary" icon="lock" busy={busy} onClick={() => closeMissed(m)}>Clôturer {m.words}</Button></span></>
+              ? <>{stillDue ? <>{stillDue} rendez-vous de ce jour-là {stillDue > 1 ? 'ne sont pas encaissés' : 'n’est pas encaissé'}{'\u202f'}: la clôture automatique attend. Tu peux la clôturer tout de suite{'\u202f'}:</> : <>Elle va être clôturée automatiquement d’ici une minute, ou tout de suite{'\u202f'}:</>}<span className="cl-missed"><Button size="sm" variant="primary" icon="lock" busy={busy} onClick={() => closeMissed(m)}>Clôturer {m.words}</Button></span></>
               : <>Elle suivra, dans l’ordre des jours.</>}
           </Note>
         )) : null}
@@ -126,7 +134,9 @@ export function Closing() {
           <>
             {data.unpaid ? <Note tone="warn" icon="alert"><b>{data.unpaid} rendez-vous</b> terminé{data.unpaid > 1 ? 's' : ''} sans encaissement. Encaisse-les ou marque l’absence avant de clôturer.</Note> : null}
             {data.open ? <Note tone="warn" icon="cash">Compte d’abord la caisse.</Note> : null}
-            <Button variant="primary" size="lg" icon="lock" block busy={busy} disabled={!!data.open} onClick={() => ask(data)}>Clôturer la journée</Button>
+            {nothingToClose(data) && !data.open
+              ? <p className="muted">Salon fermé aujourd’hui, aucun ticket{'\u202f'}: rien à clôturer.</p>
+              : <Button variant="primary" size="lg" icon="lock" block busy={busy} disabled={!!data.open} onClick={() => ask(data)}>Clôturer la journée</Button>}
           </>
         ) : <p className="muted">La clôture est faite par le gérant.</p>}
       </section>

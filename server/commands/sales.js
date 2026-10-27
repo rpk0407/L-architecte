@@ -21,12 +21,15 @@ const lineSchema = obj({
 const paySchema = obj({ method: oneOf(/** @type {const} */ (['card', 'cash', 'online', 'giftcard', 'deposit'])), amount: money(1000000), given: opt(money(1000000)), ref: opt(str({ max: 40 })) });
 const checkoutSchema = obj({
   apptId: opt(id()), clientId: opt(id()), lines: arr(lineSchema, { min: 1, max: 30 }),
-  discount: opt(obj({ amount: money(500000), reason: opt(str({ max: 80 })) })),
+  discount: opt(obj({ amount: money(500000), reason: opt(str({ max: 40 })) })),
   tip: opt(obj({ amount: money(50000), staffId: id() })),
   payments: arr(paySchema, { min: 1, max: 6 }), note: opt(str({ max: 200 }))
 });
 
 const PACK_NEW = 'new';
+// the Comptoir's reasons (Checkout.tsx). Anything else is typed by staff and may name someone: it is kept in pii,
+// out of the chain (the client can be erased) and off his receipt, which shows "Autre"
+export const DISCOUNT_REASONS = ['Fidélité', 'Ami de la maison', 'Geste commercial', 'Retard du salon', 'Étudiant'];
 
 export const checkout = {
   run(s, input, ctx) {
@@ -41,8 +44,31 @@ export const checkout = {
     if (appt && (appt.status === 'done' || appt.saleId)) fail(409, 'paid', 'Ce rendez-vous est déjà encaissé.');
     if (appt && appt.status === 'cancelled') fail(409, 'cancelled', 'Ce rendez-vous est annulé.');
     const client = x.clientId ? getClient(s, x.clientId) : appt && appt.clientId ? getClient(s, appt.clientId) : null;
-    const performer = (l) => l.staffId || (appt && appt.staffId) || (ctx.staff && ctx.staff.id) || null;
     const isBoss = ctx.staff && ['owner', 'manager'].includes(ctx.staff.role);
+    // commissions follow the line: a barber credits himself or the appointment's barber. Whoever already edits every
+    // chair's agenda (owner, manager, the desk ringing up for the barbers) may credit any of them.
+    const anyPerformer = ctx.actor.t === 'system' || ctx.can('agenda.edit');
+    const performer = (l) => {
+      if (l.staffId && l.staffId !== (appt && appt.staffId) && l.staffId !== (ctx.staff && ctx.staff.id)) {
+        if (!anyPerformer) fail(403, 'performer', 'Seul le gérant peut attribuer la prestation d’un autre barbier.');
+        getStaff(s, l.staffId);
+      }
+      return l.staffId || (appt && appt.staffId) || (ctx.staff && ctx.staff.id) || null;
+    };
+    // the client pays the price he booked at, or today's if it went down: a later rise never reaches his ticket.
+    // Each booked service covers one line. Exact prices are matched first, so the order of the lines does not matter.
+    const pool = appt ? (appt.services || []).map((v) => ({ id: v.id, price: v.price })) : [];
+    /** @type {Map<number, number>} line index → booked price */
+    const bookedAt = new Map();
+    const low = (v) => { const sv = s.services.get(v.id); return sv ? Math.min(v.price, sv.price) : v.price; };
+    const take = (fits) => x.lines.forEach((l, i) => {
+      if (l.kind !== 'service' || l.packId || bookedAt.has(i)) return;
+      const j = pool.findIndex((v) => v.id === l.ref && fits(l, v));
+      if (j >= 0) bookedAt.set(i, pool.splice(j, 1)[0].price);
+    });
+    take((l, v) => l.unit === low(v));
+    take((l, v) => l.unit == null || isBoss || (!!s.services.get(v.id)?.from && l.unit >= low(v)));
+    take((l) => true);
 
     /** @type {any[]} */
     const lines = [];
@@ -58,12 +84,14 @@ export const checkout = {
       newPack = { id: ctx.id('pk'), clientId: client.id, name: sv.name, total: sv.pack.credits, serviceIds: sv.pack.serviceIds || [], expires: addDays(day, sv.pack.days), serviceId: sv.id };
     }
     const packUses = new Map();
-    for (const l of x.lines) {
+    for (const [i, l] of x.lines.entries()) {
       const qty = l.qty || 1;
       if (l.kind === 'service') {
         const sv = getService(s, l.ref || '');
-        let unit = l.unit ?? sv.price;
-        if (unit !== sv.price && !(sv.from && unit >= sv.price) && !isBoss) fail(403, 'price', `Le prix de « ${sv.name} » est fixé à la carte. Utilise une remise.`);
+        const at = bookedAt.get(i);
+        const price = at == null ? sv.price : Math.min(at, sv.price);
+        let unit = l.unit ?? price;
+        if (unit !== price && !(sv.from && unit >= price) && !isBoss) fail(403, 'price', `Le prix de « ${sv.name} » est fixé à la carte. Utilise une remise.`);
         let name = sv.name, packId = null;
         if (l.packId) {
           const pk = l.packId === PACK_NEW ? newPack : s.packs.get(l.packId);
@@ -108,6 +136,8 @@ export const checkout = {
       if (pct > maxDiscountPct(ctx.staff, s.settings) + 0.001) fail(403, 'discount', `Remise maximale : ${maxDiscountPct(ctx.staff, s.settings)} %.`);
       if (x.discount && x.discount.amount > 0 && !x.discount.reason) fail(400, 'invalid', 'Indique la raison de la remise.');
     }
+    const why = x.discount ? x.discount.reason || '' : '';
+    const typed = why && !DISCOUNT_REASONS.includes(why) ? why : '';
     if (x.tip && x.tip.amount > 0) getStaff(s, x.tip.staffId);
 
     /* payments must cover the ticket exactly */
@@ -152,10 +182,10 @@ export const checkout = {
     const number = s.saleSeq + 1;
     ctx.emit('sale.completed', {
       id: sid, number, day, cashierId: ctx.staff ? ctx.staff.id : null, apptId: appt ? appt.id : null, clientId: client ? client.id : null, cid: client ? client.id : undefined,
-      lines: lines.map((l, i) => ({ ...l, net: totals.nets[i] })), discount: x.discount ? { amount: discount, reason: x.discount.reason || '' } : null,
+      lines: lines.map((l, i) => ({ ...l, net: totals.nets[i] })), discount: x.discount ? { amount: discount, reason: typed ? 'Autre' : why } : null,
       tip: totals.tip ? { amount: totals.tip, staffId: /** @type {any} */ (x.tip).staffId } : null, totals: { gross: totals.gross, discount: totals.discount, total: totals.total, tip: totals.tip, due: totals.due, revenue: totals.revenue, revenueHT: totals.revenueHT, liability: totals.liability, vat: totals.vat },
       payments, note: x.note || '', ...(backfill ? { at: input.at } : {}), ...(ctx.actor.t === 'system' ? { demo: true } : {})
-    });
+    }, typed ? { discountReason: typed } : undefined);
     for (const l of lines) if (l.kind === 'product') ctx.emit('stock.adjusted', { productId: l.ref, delta: -l.qty, reason: 'Vente', saleId: sid, name: l.name });
     for (const g of issued) {
       ctx.emit('giftcard.issued', { id: g.id, codeHash: sha256(normGiftCode(g.code)), last4: g.code.slice(-4), amount: g.amount, saleId: sid, expires: addDays(day, 365), cid: client ? client.id : undefined }, { buyer: client ? client.first + ' ' + client.last : '', recipient: g.recipient });

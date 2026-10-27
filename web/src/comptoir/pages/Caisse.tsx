@@ -8,7 +8,7 @@ import { Icon } from '../../ui/Icon';
 import { Avatar, Button, Empty, Skeleton } from '../../ui/kit';
 import { useApp } from '../state';
 import { PageTitle } from '../App';
-import { Checkout } from './caisse/Checkout';
+import { Checkout, qrOff } from './caisse/Checkout';
 import { Sales } from './caisse/Sales';
 import { Closing } from './caisse/Closing';
 import type { Agenda, Appt } from '../types';
@@ -45,6 +45,9 @@ function Till() {
   useInterval(() => setTick((t) => t + 1), 30000);
   const nowMin = useMemo(() => dates.localParts(now()).min, [tick, pulse?.min]);
   const mine = !can('agenda.all');
+  // what works with the drawer closed (the QR needs Stripe outside the demo)
+  const P = boot.settings.payments;
+  const ways = [P.card ? 'la carte' : '', P.qr && !qrOff(boot) ? 'le QR' : ''].filter(Boolean);
 
   const { toPay, later, paid } = useMemo(() => {
     const appts = (data?.appts || []).filter((a) => !['cancelled', 'no_show'].includes(a.status) && (!mine || a.staffId === boot.me.id));
@@ -102,7 +105,7 @@ function Till() {
             <ul className="list">{later.map((a) => item(a, false))}</ul>
           </section>
         ) : null}
-        {!data?.drawer.open ? <p className="faint" style={{ fontSize: 12.5, padding: '0 4px' }}><Icon name="cash" size={13} /> Tiroir fermé : la carte et le QR fonctionnent, les espèces demandent d’ouvrir la caisse.</p> : null}
+        {!data?.drawer.open ? <p className="faint" style={{ fontSize: 12.5, padding: '0 4px' }}><Icon name="cash" size={13} /> Tiroir fermé{ways.length || P.cash ? ' : ' : '.'}{ways.length ? ways.join(' et ') + (ways.length > 1 ? ' fonctionnent' : ' fonctionne') + (P.cash ? ', ' : '.') : ''}{P.cash ? 'les espèces demandent d’ouvrir la caisse.' : ''}</p> : null}
       </aside>
       <div className="cs-main">
         {showTicket ? (

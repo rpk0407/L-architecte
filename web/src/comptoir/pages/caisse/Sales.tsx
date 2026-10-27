@@ -17,6 +17,8 @@ export function Sales() {
   const open = route.query.get('ticket');
   const { data, loading } = useQuery<{ day: string; items: Sale[]; totals: any; closed: boolean }>('/api/v1/sales?day=' + day);
   const t = data?.totals;
+  // by method net of refunds, as on the Z
+  const pm = t ? (Object.entries(t.paymentsNet || t.byMethod) as [string, number][]).filter(([, v]) => v).sort((a, b) => b[1] - a[1]) : [];
   return (
     <>
       <div className="row wrap" style={{ justifyContent: 'space-between' }}>
@@ -29,9 +31,10 @@ export function Sales() {
       </div>
       {t ? (
         <section className="kpis">
-          <Kpi k="Chiffre du jour" v={<Money cents={t.net} />} s={'HT ' + eur(t.revenueHT) + (t.refunded ? ' · remboursé ' + eur(t.refunded) : '')} icon="euro" />
+          {/* the Z's own figures: net TTC with net HT, and the gross only when refunds made them differ */}
+          <Kpi k="Chiffre du jour" v={<Money cents={t.netTtc} />} s={'TTC net · HT ' + eur(t.htNet) + (t.refundsTotal ? ' · brut ' + eur(t.grossTtc) + ', remboursé ' + eur(t.refundsTotal) : '')} icon="euro" />
           <Kpi k="Tickets" v={t.tickets} s={t.tickets ? 'panier moyen ' + eur(Math.round(t.revenue / t.tickets)) : ''} icon="ticket" />
-          <Kpi k="Encaissements" v={<span className="kpi-v sm">{Object.entries(t.byMethod).sort((a: any, b: any) => b[1] - a[1]).slice(0, 2).map(([m, v]) => METHOD[m] + ' ' + eur(v as number)).join(' · ') || '—'}</span>} s={Object.keys(t.byMethod).length > 2 ? Object.entries(t.byMethod).slice(2).map(([m, v]) => METHOD[m] + ' ' + eur(v as number)).join(' · ') : ''} icon="card" />
+          <Kpi k="Encaissements" v={<span className="kpi-v sm">{pm.slice(0, 2).map(([m, v]) => METHOD[m] + ' ' + eur(v)).join(' · ') || '—'}</span>} s={[pm.slice(2).map(([m, v]) => METHOD[m] + ' ' + eur(v)).join(' · '), t.refundsTotal ? 'net des remboursements' : ''].filter(Boolean).join(' · ')} icon="card" />
           <Kpi k="Pourboires" v={<Money cents={t.tips} />} s={t.liability ? 'cartes cadeaux vendues ' + eur(t.liability) : 'hors chiffre d’affaires'} icon="heart" />
         </section>
       ) : null}

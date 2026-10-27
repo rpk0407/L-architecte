@@ -9,20 +9,22 @@ import { QR } from '../../../lib/qr';
 import { Icon } from '../../../ui/Icon';
 import { Avatar, Button, Chip, Field, Modal, Money, Note, Seg, Sheet, Skeleton, confirm, toast, toastError } from '../../../ui/kit';
 import { useApp } from '../../state';
-import type { Appt, ClientCard, ClientFull } from '../../types';
+import type { Appt, ApptService, Boot, ClientCard, ClientFull, Service } from '../../types';
 import { Receipt, printNow } from './Receipt';
 
 type Kind = 'service' | 'product' | 'giftcard' | 'pack' | 'fee';
-type Line = { key: string; kind: Kind; ref: string | null; name: string; qty: number; unit: number; base: number; from: boolean; staffId: string | null; packId: string | null; discount: number; vat: number; recipient?: string };
+// base: the price the line starts from (the booked one for an appointment), now: today's catalogue price
+type Line = { key: string; kind: Kind; ref: string | null; name: string; qty: number; unit: number; base: number; now: number; booked?: boolean; from: boolean; staffId: string | null; packId: string | null; discount: number; vat: number; recipient?: string };
 type Pay = { key: string; method: 'card' | 'cash' | 'online' | 'giftcard' | 'deposit'; amount: number; given?: number; ref?: string; label: string };
 const k = () => Math.random().toString(36).slice(2, 9);
 const METHOD_ICON: Record<string, string> = { card: 'card', cash: 'cash', online: 'qr', giftcard: 'gift', deposit: 'globe' };
+/** The test checkout takes no real money: outside the demo, a QR needs Stripe (the server refuses it too). */
+export const qrOff = (boot: Pick<Boot, 'mode' | 'providers'>) => boot.mode !== 'demo' && boot.providers.payments === 'simulated';
 
 export function Checkout({ apptId, drawerOpen, onClose }: { apptId: string | null; drawerOpen: boolean; onClose: () => void }) {
-  const { boot, staffById, serviceById, can } = useApp();
+  const { boot, staffById, serviceById, can, now } = useApp();
   const S = boot.settings.payments;
-  // the test checkout takes no real money: outside the demo, a QR needs Stripe (the server refuses it too)
-  const qrOff = boot.mode !== 'demo' && boot.providers.payments === 'simulated';
+  const noQr = qrOff(boot);
   const isBoss = ['owner', 'manager'].includes(boot.me.role);
   const detail = useQuery<{ appt: Appt; client: ClientFull | null; payments: { id: string; kind: string; amount: number; status: string }[] }>(apptId ? '/api/v1/appointments/' + apptId : null);
   const [client, setClient] = useState<ClientCard | null>(null);
@@ -37,9 +39,12 @@ export function Checkout({ apptId, drawerOpen, onClose }: { apptId: string | nul
   const rid = useRef(uuid());
   const loaded = useRef('');
 
-  const svcLine = (id: string, staffId: string | null): Line => {
-    const s = serviceById.get(id)!;
-    return { key: k(), kind: s.pack ? 'pack' : 'service', ref: s.id, name: s.name, qty: 1, unit: s.price, base: s.price, from: s.from, staffId, packId: null, discount: 0, vat: s.vat };
+  // an appointment's line starts from the price the client booked at, or today's when it went down (the server agrees)
+  const svcLine = (b: ApptService, staffId: string | null): Line => {
+    const s = serviceById.get(b.id);
+    const cur = s ? s.price : b.price;
+    const base = s?.pack ? cur : b.price;
+    return { key: k(), kind: s?.pack ? 'pack' : 'service', ref: b.id, name: s?.name || b.name, qty: 1, unit: Math.min(base, cur), base, now: cur, booked: !s?.pack, from: s ? s.from : b.from, staffId, packId: null, discount: 0, vat: s ? s.vat : S.vat };
   };
   useEffect(() => {
     if (!apptId) { if (loaded.current !== 'free') { loaded.current = 'free'; setLines([]); setClient(null); } return; }
@@ -48,7 +53,7 @@ export function Checkout({ apptId, drawerOpen, onClose }: { apptId: string | nul
     loaded.current = apptId;
     rid.current = uuid();
     setClient(d.client);
-    const ls = d.appt.services.map((s) => svcLine(s.id, d.appt.staffId));
+    const ls = d.appt.services.map((s) => svcLine(s, d.appt.staffId));
     // a subscriber's cut is covered by the pack
     for (const l of ls) {
       const pk = d.client?.packs.find((p) => p.used < p.total && (!p.serviceIds.length || p.serviceIds.includes(l.ref!)));
@@ -67,6 +72,8 @@ export function Checkout({ apptId, drawerOpen, onClose }: { apptId: string | nul
   const update = (key: string, patch: Partial<Line>) => setLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...patch } : l)));
   const addPay = (p: Omit<Pay, 'key'>) => { setPays((ps) => [...ps, { ...p, key: k() }]); buzz(8); };
   const maxPct = isBoss ? 100 : boot.me.role === 'desk' ? 20 : boot.settings.team.barberMaxDiscountPct;
+  // the server refuses the rest: whoever edits every chair's agenda (owner, manager, desk) credits any chair, a barber himself or the appointment's barber
+  const performers = (l: Line) => boot.staff.filter((s) => s.active && (s.id === l.staffId || (can('agenda.edit') ? s.chair : s.id === boot.me.id || s.id === detail.data?.appt.staffId)));
 
   const packOptions = (l: Line) => {
     const out: { id: string; label: string }[] = [];
@@ -83,13 +90,13 @@ export function Checkout({ apptId, drawerOpen, onClose }: { apptId: string | nul
     try {
       const body = {
         apptId: apptId || undefined, clientId: client?.id || undefined,
-        lines: lines.map((l) => ({ kind: l.kind, ref: l.ref || undefined, name: l.kind === 'fee' ? l.name : undefined, qty: l.qty, unit: l.kind === 'giftcard' || l.kind === 'fee' || (l.unit !== l.base && !l.packId) ? l.unit : undefined, discount: l.discount || undefined, staffId: l.staffId || undefined, packId: l.packId || undefined, recipient: l.recipient || undefined })),
+        lines: lines.map((l) => ({ kind: l.kind, ref: l.ref || undefined, name: l.kind === 'fee' ? l.name : undefined, qty: l.qty, unit: l.kind === 'giftcard' || l.kind === 'fee' || (l.kind === 'service' && !l.packId) ? l.unit : undefined, discount: l.discount || undefined, staffId: l.staffId || undefined, packId: l.packId || undefined, recipient: l.recipient || undefined })),
         discount: disc && disc.amount ? disc : undefined, tip: tip && tip.amount ? tip : undefined,
         payments: pays.length ? pays.map((p) => ({ method: p.method, amount: p.amount, given: p.given, ref: p.ref })) : [{ method: 'card', amount: 0 }]
       };
       const r = await api.post('/api/v1/sales', body, rid.current);
       buzz([20, 60, 20]);
-      setDone({ ...r, client, lines, pays, apptId, staffId: performer, habit: detail.data?.appt.start ?? null });
+      setDone({ ...r, client, lines, pays, apptId, staffId: performer, habit: detail.data?.appt.start ?? dates.localParts(now()).min });
       refreshAll();
     } catch (e: any) {
       if (e.code === 'drawer_closed') toast({ kind: 'err', title: 'La caisse n’est pas ouverte', sub: can('drawer') ? 'Ouvre-la dans l’onglet « Caisse & clôture » avec le fond de caisse.' : 'Demande au gérant de l’ouvrir, ou encaisse par carte.', icon: 'alert' });
@@ -113,7 +120,7 @@ export function Checkout({ apptId, drawerOpen, onClose }: { apptId: string | nul
           <Button size="sm" variant="ghost" icon="x" onClick={async () => { if (!lines.length || await confirm({ title: 'Abandonner ce ticket ?', ok: 'Abandonner', danger: true })) onClose(); }}>Fermer</Button>
         </div>
       </div>
-      {client?.badges.length ? <div className="row wrap" style={{ gap: 6, marginTop: -6 }}>{client.badges.map((b) => <span key={b} className={'badge ' + (b === 'abonné' ? 'badge-ok' : b === 'fidèle' ? 'badge-ok' : b === 'nouveau' ? 'badge-info' : '')}>{b}</span>)}{client.visits ? <span className="badge">{client.visits} visites · {rhythmWords(client.cadence)}</span> : null}</div> : null}
+      {client?.badges.length ? <div className="row wrap" style={{ gap: 6, marginTop: -6 }}>{client.badges.map((b) => <span key={b} className={'badge ' + (b === 'abonné' ? 'badge-ok' : b === 'fidèle' ? 'badge-ok' : b === 'nouveau' ? 'badge-info' : '')}>{b}</span>)}{client.visits ? <span className="badge">{client.visits} visite{client.visits > 1 ? 's' : ''} · {rhythmWords(client.cadence)}</span> : null}</div> : null}
 
       <div className="tk-lines">
         {!lines.length ? <p className="muted" style={{ padding: '10px 4px' }}>Ajoute une prestation, un produit ou une carte cadeau.</p> : null}
@@ -125,20 +132,15 @@ export function Checkout({ apptId, drawerOpen, onClose }: { apptId: string | nul
             <div key={l.key} className="tk-line">
               <button type="button" className="tk-main" onClick={() => setOpen(open === l.key ? null : l.key)} aria-expanded={open === l.key}>
                 {st ? <Avatar name={st.name} initials={st.initials} color={st.color} size="sm" /> : <span className="av av-sm" style={{ ['--c' as any]: 'var(--panel3)' }}><Icon name={l.kind === 'giftcard' ? 'gift' : 'box'} size={14} /></span>}
-                <span className="nm"><b>{l.qty > 1 ? l.qty + ' × ' : ''}{l.name}</b><small>{l.packId ? 'Couvert par l’abonnement' : l.kind === 'giftcard' ? (l.recipient || 'Carte cadeau') + ' · valable 1 an' : st ? 'par ' + st.name : ''}{l.discount ? ' · remise ' + eur(l.discount) : ''}</small></span>
+                <span className="nm"><b>{l.qty > 1 ? l.qty + ' × ' : ''}{l.name}</b><small>{l.packId ? 'Couvert par l’abonnement' : l.kind === 'giftcard' ? (l.recipient || 'Carte cadeau') + ' · valable 1 an' : st ? 'par ' + st.name : ''}{l.discount ? ' · remise ' + eur(l.discount) : ''}</small>{l.booked && !l.packId && l.base !== l.now ? <small style={{ color: 'var(--warn-tx)' }}>Réservé à {eur(l.base, { decimals: l.base % 100 !== 0 })} (prix actuel {eur(l.now, { decimals: l.now % 100 !== 0 })})</small> : null}</span>
               </button>
               <span className="pr"><Money cents={net} />{l.packId || l.discount ? <s><Money cents={l.unit * l.qty} /></s> : null}</span>
               {open === l.key ? (
                 <div className="ed">
                   {l.kind === 'product' ? <div className="row"><span className="muted grow">Quantité</span><span className="qty"><Button size="sm" icon="minus" aria-label="Moins" onClick={() => update(l.key, { qty: Math.max(1, l.qty - 1) })} /><b>{l.qty}</b><Button size="sm" icon="plus" aria-label="Plus" onClick={() => update(l.key, { qty: Math.min(99, l.qty + 1) })} /></span></div> : null}
-                  {l.kind === 'service' && (l.from || isBoss) && !l.packId ? (
-                    <Field label={l.from ? 'Prix (dès ' + eur(l.base) + ')' : 'Prix'} htmlFor={'u' + l.key}>
-                      <div className="chips">{(l.from ? [0, 1000, 2000, 3000] : [0]).map((x) => <Chip key={x} small on={l.unit === l.base + x} onClick={() => update(l.key, { unit: l.base + x })}>{eur(l.base + x)}</Chip>)}
-                        <input id={'u' + l.key} className="input" style={{ width: 110, minHeight: 32 }} inputMode="decimal" placeholder="Autre" onBlur={(e) => { const v = money.parseEur(e.target.value); if (v != null && (isBoss || v >= l.base)) update(l.key, { unit: v }); }} /></div>
-                    </Field>
-                  ) : null}
+                  {l.kind === 'service' && (l.from || isBoss) && !l.packId ? <PriceField l={l} isBoss={isBoss} onUnit={(unit) => update(l.key, { unit })} /> : null}
                   {l.kind !== 'giftcard' ? (
-                    <div className="col" style={{ gap: 8 }}><span className="label">Réalisé par</span><div className="chips">{boot.staff.filter((s) => s.active && s.chair).map((s) => <Chip key={s.id} small dot={s.color} on={l.staffId === s.id} onClick={() => update(l.key, { staffId: s.id })}>{s.name}</Chip>)}</div></div>
+                    <div className="col" style={{ gap: 8 }}><span className="label">Réalisé par</span><div className="chips">{performers(l).map((s) => <Chip key={s.id} small dot={s.color} on={l.staffId === s.id} onClick={() => update(l.key, { staffId: s.id })}>{s.name}</Chip>)}</div></div>
                   ) : null}
                   {opts.length ? <div className="col" style={{ gap: 8 }}><span className="label">Abonnement</span><div className="chips"><Chip small on={!l.packId} onClick={() => update(l.key, { packId: null })}>Payer la prestation</Chip>{opts.map((o) => <Chip key={o.id} small on={l.packId === o.id} onClick={() => update(l.key, { packId: o.id })}>{o.label}</Chip>)}</div></div> : null}
                   <div className="row"><span className="grow" /><Button size="sm" variant="danger" icon="trash" onClick={() => { setLines(lines.filter((x) => x.key !== l.key)); setOpen(null); }}>Retirer</Button></div>
@@ -172,7 +174,7 @@ export function Checkout({ apptId, drawerOpen, onClose }: { apptId: string | nul
           <div className="methods">
             <button type="button" className="method" disabled={!S.card} onClick={() => addPay({ method: 'card', amount: left, label: 'Carte · terminal' })}><Icon name="card" /><span><b>Carte</b><small>Terminal de paiement</small></span></button>
             <button type="button" className="method" disabled={!S.cash} onClick={() => setModal('cash')}><Icon name="cash" /><span><b>Espèces</b><small>{drawerOpen ? 'Calcule la monnaie' : 'Caisse fermée'}</small></span></button>
-            <button type="button" className="method" disabled={!S.qr || qrOff} onClick={() => setModal('qr')}><Icon name="qr" /><span><b>QR code</b><small>{qrOff ? 'Branche Stripe pour le QR' : 'Apple Pay, carte'}</small></span></button>
+            <button type="button" className="method" disabled={!S.qr || noQr} onClick={() => setModal('qr')}><Icon name="qr" /><span><b>QR code</b><small>{noQr ? 'Branche Stripe pour le QR' : 'Apple Pay, carte'}</small></span></button>
             <button type="button" className="method" disabled={!S.giftcard || lines.some((l) => l.kind === 'giftcard')} onClick={() => setModal('gift')}><Icon name="gift" /><span><b>Carte cadeau</b><small>Saisir le code</small></span></button>
           </div>
         </>
@@ -205,36 +207,74 @@ function AddSheet({ open, onClose, onAdd, performer }: { open: boolean; onClose:
   return (
     <Sheet open={open} onClose={onClose} title="Ajouter" kicker="Au ticket">
       <Seg value={tab} onChange={setTab} options={[{ v: 'svc', t: 'Prestation' }, { v: 'prd', t: 'Produit' }, { v: 'gift', t: 'Carte cadeau' }, ...(packs.length ? [{ v: 'pack' as const, t: 'Abonnement' }] : [])]} />
-      {tab === 'svc' ? <div className="pick">{svc.map((s) => <button key={s.id} type="button" className="pick-r" onClick={() => onAdd([{ key: k(), kind: 'service', ref: s.id, name: s.name, qty: 1, unit: s.price, base: s.price, from: s.from, staffId: performer, packId: null, discount: 0, vat: s.vat }])}><span className="li-main"><b>{s.name}</b><small>{s.category} · {dates.fmtDur(s.dur)}</small></span><b className="money">{s.from ? 'dès ' : ''}{eur(s.price)}</b></button>)}</div> : null}
-      {tab === 'prd' ? <div className="pick">{products.map((p) => <button key={p.id} type="button" className="pick-r" onClick={() => onAdd([{ key: k(), kind: 'product', ref: p.id, name: p.name, qty: 1, unit: p.price, base: p.price, from: false, staffId: performer, packId: null, discount: 0, vat: p.vat }])}><span className="li-main"><b>{p.name}</b><small>{p.stock <= 0 ? 'Rupture de stock' : p.stock <= p.low ? 'Plus que ' + p.stock + ' en stock' : p.stock + ' en stock'}</small></span><b className="money">{eur(p.price)}</b></button>)}</div> : null}
+      {tab === 'svc' ? <div className="pick">{svc.map((s) => <button key={s.id} type="button" className="pick-r" onClick={() => onAdd([{ key: k(), kind: 'service', ref: s.id, name: s.name, qty: 1, unit: s.price, base: s.price, now: s.price, from: s.from, staffId: performer, packId: null, discount: 0, vat: s.vat }])}><span className="li-main"><b>{s.name}</b><small>{s.category} · {dates.fmtDur(s.dur)}</small></span><b className="money">{s.from ? 'dès ' : ''}{eur(s.price)}</b></button>)}</div> : null}
+      {tab === 'prd' ? <div className="pick">{products.map((p) => <button key={p.id} type="button" className="pick-r" onClick={() => onAdd([{ key: k(), kind: 'product', ref: p.id, name: p.name, qty: 1, unit: p.price, base: p.price, now: p.price, from: false, staffId: performer, packId: null, discount: 0, vat: p.vat }])}><span className="li-main"><b>{p.name}</b><small>{p.stock <= 0 ? 'Rupture de stock' : p.stock <= p.low ? 'Plus que ' + p.stock + ' en stock' : p.stock + ' en stock'}</small></span><b className="money">{eur(p.price)}</b></button>)}</div> : null}
       {tab === 'gift' ? (
         <div className="col" style={{ gap: 14 }}>
           <div className="chips">{[2000, 3000, 5000, 8000, 10000].map((a) => <Chip key={a} on={amount === a} onClick={() => setAmount(a)}>{eur(a)}</Chip>)}</div>
           <Field label="Pour qui ?" htmlFor="gc-to" hint="Imprimé sur la carte"><input id="gc-to" className="input" value={to} onChange={(e) => setTo(e.target.value)} placeholder="Ex. : Pour Karim, joyeux anniversaire" maxLength={60} /></Field>
           <Note icon="info">Une carte cadeau n’est pas du chiffre d’affaires : la TVA est due quand elle est utilisée. Valable 1 an, code unique imprimé sur le ticket.</Note>
-          <Button variant="primary" onClick={() => onAdd([{ key: k(), kind: 'giftcard', ref: null, name: 'Carte cadeau', qty: 1, unit: amount, base: amount, from: false, staffId: performer, packId: null, discount: 0, vat: 0, recipient: to }])}>Ajouter la carte de {eur(amount)}</Button>
+          <Button variant="primary" onClick={() => onAdd([{ key: k(), kind: 'giftcard', ref: null, name: 'Carte cadeau', qty: 1, unit: amount, base: amount, now: amount, from: false, staffId: performer, packId: null, discount: 0, vat: 0, recipient: to }])}>Ajouter la carte de {eur(amount)}</Button>
         </div>
       ) : null}
-      {tab === 'pack' ? <div className="pick">{packs.map((s) => <button key={s.id} type="button" className="pick-r" onClick={() => onAdd([{ key: k(), kind: 'pack', ref: s.id, name: s.name, qty: 1, unit: s.price, base: s.price, from: false, staffId: performer, packId: null, discount: 0, vat: s.vat }])}><span className="li-main"><b>{s.name}</b><small>{s.pack!.credits} prestations · valable {Math.round(s.pack!.days / 7)} semaines</small></span><b className="money">{eur(s.price)}</b></button>)}<Note icon="info">La coupe d’aujourd’hui est déduite automatiquement de l’abonnement.</Note></div> : null}
+      {tab === 'pack' ? <div className="pick">{packs.map((s) => <button key={s.id} type="button" className="pick-r" onClick={() => onAdd([{ key: k(), kind: 'pack', ref: s.id, name: s.name, qty: 1, unit: s.price, base: s.price, now: s.price, from: false, staffId: performer, packId: null, discount: 0, vat: s.vat }])}><span className="li-main"><b>{s.name}</b><small>{s.pack!.credits} prestations · valable {Math.round(s.pack!.days / 7)} semaines</small></span><b className="money">{eur(s.price)}</b></button>)}<Note icon="info">La coupe d’aujourd’hui est déduite automatiquement de l’abonnement.</Note></div> : null}
     </Sheet>
   );
 }
 
+/** The price of a service line: the lower of the booked and today's prices, the steps of a "dès" price, or either price (or any amount) for the owner. */
+function PriceField({ l, isBoss, onUnit }: { l: Line; isBoss: boolean; onUnit: (unit: number) => void }) {
+  const moved = l.base !== l.now;
+  const floor = Math.min(l.base, l.now);
+  // a barber never charges a booked client more than he booked for, nor more than today's price
+  const opts = [...new Set([...(isBoss ? [l.base, l.now] : [floor]), ...(l.from ? [1000, 2000, 3000].map((x) => floor + x) : [])])];
+  const label = (v: number) => (moved && v === l.base ? 'Réservé ' : moved && v === l.now ? 'Actuel ' : '') + eur(v, { decimals: v % 100 !== 0 });
+  return (
+    <Field label={l.from ? 'Prix (dès ' + eur(floor) + ')' : 'Prix'} htmlFor={'u' + l.key}>
+      <div className="chips">{opts.map((v) => <Chip key={v} small on={l.unit === v} onClick={() => onUnit(v)}>{label(v)}</Chip>)}
+        {isBoss || l.from ? <input id={'u' + l.key} className="input" style={{ width: 110, minHeight: 32 }} inputMode="decimal" placeholder="Autre" onBlur={(e) => { const v = money.parseEur(e.target.value); if (v != null && (isBoss || v >= floor)) onUnit(v); }} /> : null}</div>
+    </Field>
+  );
+}
+
+// the same list as DISCOUNT_REASONS (server/commands/sales.js): a reason outside it is kept out of the chain
+const REASONS = ['Fidélité', 'Ami de la maison', 'Geste commercial', 'Retard du salon', 'Étudiant'];
+const OTHER = 'Autre raison';
+
 function DiscountModal({ open, onClose, gross, maxPct, value, onSet }: { open: boolean; onClose: () => void; gross: number; maxPct: number; value: { amount: number; reason: string } | null; onSet: (d: { amount: number; reason: string } | null) => void }) {
-  const [amount, setAmount] = useState(value?.amount || 0);
-  const [reason, setReason] = useState(value?.reason || 'Fidélité');
-  useEffect(() => { if (open) { setAmount(value?.amount || 0); setReason(value?.reason || 'Fidélité'); } }, [open]);
+  // the field keeps what is typed ("2,", "2,5"): it is read as an amount, never rewritten while typing
+  const [txt, setTxt] = useState('');
+  const [reason, setReason] = useState('Fidélité');
+  const [other, setOther] = useState('');
+  const fmt = (c: number) => (c ? (c / 100).toFixed(2).replace('.', ',') : '');
+  useEffect(() => {
+    if (!open) return;
+    const r = value?.reason || 'Fidélité';
+    setTxt(fmt(value?.amount || 0));
+    setReason(REASONS.includes(r) ? r : OTHER); setOther(REASONS.includes(r) ? '' : r);
+  }, [open]);
+  const typed = money.parseEur(txt);
+  const amount = typed == null || typed < 0 ? 0 : Math.min(typed, gross);
   const pcts = [5, 10, 15, 20, 50].filter((p) => p <= maxPct);
+  // a round amount off is how a barber says it ("5 € de remise"), within what the role allows
+  const cap = Math.floor((gross * maxPct) / 100);
+  const euros = [200, 500, 1000].filter((c) => c <= cap);
   const pct = gross ? (amount * 100) / gross : 0;
+  const why = reason === OTHER ? other.trim() : reason;
   return (
     <Modal open={open} onClose={onClose} label="Remise">
       <h2>Une remise</h2>
       <p>{maxPct >= 100 ? 'Sans plafond pour ton rôle.' : 'Jusqu’à ' + maxPct + ' % pour ton rôle.'} Chaque remise est tracée avec sa raison.</p>
-      <div className="chips">{pcts.map((p) => <Chip key={p} on={Math.round(pct) === p} onClick={() => setAmount(Math.round((gross * p) / 100 / 50) * 50)}>{p} %</Chip>)}</div>
-      <Field label="Montant" htmlFor="dc-a"><input id="dc-a" className="input input-money" inputMode="decimal" value={amount ? (amount / 100).toFixed(2).replace('.', ',') : ''} onChange={(e) => { const v = money.parseEur(e.target.value); setAmount(v == null ? 0 : Math.min(v, gross)); }} placeholder="0,00" /></Field>
-      <div className="chips">{['Fidélité', 'Ami de la maison', 'Geste commercial', 'Retard du salon', 'Étudiant'].map((r) => <Chip key={r} small on={reason === r} onClick={() => setReason(r)}>{r}</Chip>)}</div>
+      <div className="chips">
+        {pcts.map((p) => { const c = Math.round((gross * p) / 100 / 50) * 50; return <Chip key={p} on={!!amount && amount === c} onClick={() => setTxt(fmt(c))}>{p} %</Chip>; })}
+        {euros.map((c) => <Chip key={'e' + c} on={amount === c} onClick={() => setTxt(fmt(c))}>{eur(c)}</Chip>)}
+      </div>
+      <Field label="Montant" htmlFor="dc-a"><input id="dc-a" className="input input-money" inputMode="decimal" value={txt} onChange={(e) => setTxt(e.target.value)} onBlur={() => { if (typed != null) setTxt(fmt(amount)); }} placeholder="0,00" autoComplete="off" /></Field>
+      {txt.trim() && typed == null ? <Note tone="warn" icon="alert">Un montant en euros, par exemple 2,50.</Note> : null}
+      <div className="chips">{[...REASONS, OTHER].map((r) => <Chip key={r} small on={reason === r} onClick={() => setReason(r)}>{r}</Chip>)}</div>
+      {reason === OTHER ? <Field label="Raison" htmlFor="dc-r" hint="Reste au salon : le reçu du client indique « Autre »."><input id="dc-r" className="input" value={other} onChange={(e) => setOther(e.target.value)} maxLength={40} placeholder="Ex. : coupe de l’enfant offerte" data-autofocus /></Field> : null}
       {pct > maxPct + 0.01 ? <Note tone="err" icon="alert">C’est au-dessus de ta limite ({maxPct} %).</Note> : null}
-      <div className="acts">{value ? <Button variant="ghost" onClick={() => onSet(null)}>Retirer la remise</Button> : null}<Button variant="primary" disabled={!amount || pct > maxPct + 0.01} onClick={() => onSet({ amount, reason })}>Appliquer −{eur(amount, { decimals: amount % 100 !== 0 })}</Button></div>
+      <div className="acts">{value ? <Button variant="ghost" onClick={() => onSet(null)}>Retirer la remise</Button> : null}<Button variant="primary" disabled={!amount || pct > maxPct + 0.01 || !why} onClick={() => onSet({ amount, reason: why })}>Appliquer −{eur(amount, { decimals: amount % 100 !== 0 })}</Button></div>
     </Modal>
   );
 }
@@ -363,19 +403,35 @@ function ClientSheet({ open, onClose, onPick }: { open: boolean; onClose: () => 
 
 /* ---------------- after payment ---------------- */
 
+// a colour or a transformation has no rhythm of its own: the next visit is the next cut, not the same service.
+// Read from the names until the catalogue carries a per-service "no rebooking" flag.
+const NO_RHYTHM = /colo|d[ée]co|couleur|transfo|changer de t[êe]te|silver|m[èe]ches?|balayage|ombr[ée]|teinture|henn[ée]|lissage|d[ée]frisage|permanente|blond/i;
+// the weeks behind rhythmWords' words, so the heading and the first suggestion always agree
+const rhythmWeeks = (days: number) => (days < 10 ? 1 : days <= 17 ? 2 : days <= 24 ? 3 : days <= 31 ? 4 : Math.round(days / 7));
+const rhythmFree = (s: Service | undefined) => !!s && NO_RHYTHM.test(s.category + ' ' + s.name);
+type Slots = { days: { day: string; slots: { m: number; s: string }[] }[] };
+
 function Done({ done, onNext }: { done: any; onNext: () => void }) {
-  const { boot, staffById, can } = useApp();
+  const { boot, staffById, serviceById, can } = useApp();
   const [sent, setSent] = useState(false);
   const [booked, setBooked] = useState('');
   const c: ClientCard | null = done.client;
-  const cadence = c?.cadence || 21;
-  const target = dates.addDays(boot.today, cadence);
-  const serviceIds = (done.lines as Line[]).filter((l) => l.kind === 'service').map((l) => l.ref!).slice(0, 2);
-  const slots = useQuery<{ days: { day: string; slots: { m: number; s: string }[] }[] }>(c && serviceIds.length && can('agenda.own') ? '/api/v1/slots' + qs({ day: target, services: serviceIds.join(','), staff: done.staffId, days: 6 }) : null);
-  // one suggestion per day, at the hour he usually comes: people keep their habits
-  const habit: number | null = done.habit;
-  const picks = (slots.data?.days || []).filter((d) => d.slots.length).slice(0, 3).map((d) => {
-    const best = habit == null ? d.slots[0] : d.slots.reduce((a, x) => (Math.abs(x.m - habit) < Math.abs(a.m - habit) ? x : a));
+  // a new client has no rhythm yet: 3 weeks is a proposal, not a fact
+  const known = !!c?.cadence;
+  const weeks = known ? rhythmWeeks(c!.cadence!) : 3;
+  // the same weekday as today, three weeks in a row: people keep their day as much as their hour
+  const targets = [0, 1, 2].map((i) => dates.addDays(boot.today, (weeks + i) * 7));
+  const serviceIds = (done.lines as Line[]).filter((l) => l.kind === 'service' && !rhythmFree(serviceById.get(l.ref!))).map((l) => l.ref!).slice(0, 2);
+  const ask = !!c && !!serviceIds.length && can('agenda.own');
+  // with the same barber; a sale rung up by someone without a chair (the owner at the desk) looks at every chair
+  const staff = staffById.get(done.staffId)?.chair ? done.staffId : 'any';
+  const url = (day: string) => (ask ? '/api/v1/slots' + qs({ day, services: serviceIds.join(','), staff, days: 1 }) : null);
+  const w0 = useQuery<Slots>(url(targets[0])), w1 = useQuery<Slots>(url(targets[1])), w2 = useQuery<Slots>(url(targets[2]));
+  const loading = [w0, w1, w2].some((q) => q.loading && !q.data);
+  // one suggestion per week, at the hour he came today (or was booked for)
+  const habit: number = done.habit;
+  const picks = [w0, w1, w2].flatMap((q) => q.data?.days || []).filter((d) => d.slots.length).map((d) => {
+    const best = d.slots.reduce((a, x) => (Math.abs(x.m - habit) < Math.abs(a.m - habit) ? x : a));
     return { day: d.day, ...best };
   });
   const sale = useQuery<any>('/api/v1/sales/' + done.id);
@@ -395,11 +451,11 @@ function Done({ done, onNext }: { done: any; onNext: () => void }) {
         <Button variant="ghost" icon="print" disabled={!sale.data} onClick={() => printNow()}>Imprimer le ticket</Button>
         <Button variant="solid" icon="arrowR" onClick={onNext}>Ticket suivant</Button>
       </div>
-      {c && can('agenda.own') && serviceIds.length ? (
+      {c && ask ? (
         <div className="rebook">
           <p className="section-k">Avant qu’il parte</p>
-          <h3>{booked ? 'Prochain rendez-vous : ' + booked + '.' : c.first + ' revient ' + rhythmWords(c.cadence || 21).replace('pas encore de rythme', 'dans 3 semaines') + '. On réserve ?'}</h3>
-          {booked ? <p className="muted">Confirmation et rappel partent par SMS.</p> : slots.loading ? <Skeleton h={44} /> : picks.length ? <div className="chips">{picks.map((p) => <Chip key={p.day + p.m} onClick={() => book(p)}>{dayShortWord(p.day, boot.today)} · {time(p.m)} · {staffById.get(p.s)?.name}</Chip>)}</div> : <p className="muted">Pas de créneau autour du {dates.dayShort(target)} : propose-lui un autre jour depuis l’agenda.</p>}
+          <h3>{booked ? 'Prochain rendez-vous : ' + booked + '.' : known ? c.first + ' revient ' + rhythmWords(c.cadence) + '. On réserve ?' : 'On lui garde une place dans 3 semaines ?'}</h3>
+          {booked ? <p className="muted">Confirmation et rappel partent par SMS.</p> : loading ? <Skeleton h={44} /> : picks.length ? <div className="chips">{picks.map((p) => <Chip key={p.day + p.m} onClick={() => book(p)}>{dayShortWord(p.day, boot.today)} · {time(p.m)} · {staffById.get(p.s)?.name}</Chip>)}</div> : <p className="muted">Pas de créneau le {dates.DAYS_FR[dates.weekday(boot.today)]} dans {weeks} à {weeks + 2} semaines : propose-lui un autre jour depuis l’agenda.</p>}
         </div>
       ) : null}
       {sale.data ? <Receipt sale={sale.data} /> : null}
