@@ -81,14 +81,22 @@ export async function handle(req, opt = {}) {
     };
     const requestId = req.headers.get('x-request-id') || undefined;
     if (requestId && !/^[A-Za-z0-9-]{8,64}$/.test(requestId)) throw new HttpError(400, 'invalid', 'Identifiant de requête invalide.');
+    // one key per command: a handler that runs two commands must not get the first one's cached
+    // answer for the second; a retried request replays the same sequence, so it stays idempotent.
+    // ':' is refused in x-request-id, so a derived key can never equal an id a client sends
+    let n = 0;
     const r = {
       req, url, params, query: url.searchParams, body, raw, ip, rt, me, caps, device, session, setCookies, meta, origin,
       get s() { return rt.engine.state; },
       get now() { return rt.engine.clock(); },
       get local() { return localParts(rt.engine.clock()); },
-      run: (handler, input) => engine.run(handler, input, {
-        actor: { t: 'staff', id: me.id, n: me.name, ...(device ? { dev: device.id } : {}) }, staff: me, caps, meta, requestId
-      })
+      run: (handler, input) => {
+        const i = n++;
+        return engine.run(handler, input, {
+          actor: { t: 'staff', id: me.id, n: me.name, ...(device ? { dev: device.id } : {}) }, staff: me, caps, meta,
+          requestId: requestId && i ? requestId + ':' + i : requestId
+        });
+      }
     };
 
     // keep active staff signed in: re-issue a session that is more than an hour old

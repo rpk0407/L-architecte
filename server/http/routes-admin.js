@@ -79,12 +79,11 @@ export function adminRoutes(app) {
   /* team */
   app.get('/api/v1/staff', (r) => ({ items: [...r.s.staff.values()].sort((a, b) => (a.order ?? 99) - (b.order ?? 99)).map((x) => staffView(x, true)), timeoff: [...r.s.timeoff.values()] }), { cap: 'team' });
   app.post('/api/v1/staff', async (r) => {
+    // refuse a weak PIN before adding anyone, or the member would exist without a PIN
+    const pb = r.body.pin ? pinProblem(r.body.pin) : null;
+    if (pb) throw new HttpError(400, 'weak', pb);
     const res = await r.run(T.addStaff, r.body);
-    if (r.body.pin) {
-      const pb = pinProblem(r.body.pin);
-      if (pb) throw new HttpError(400, 'weak', pb);
-      await r.run(T.setCredentials, { id: res.id, pinHash: await hashSecret(r.body.pin) });
-    }
+    if (r.body.pin) await r.run(T.setCredentials, { id: res.id, pinHash: await hashSecret(r.body.pin) });
     return res;
   }, { cap: 'team' });
   app.patch('/api/v1/staff/:id', (r) => r.run(T.updateStaff, { id: r.params.id, patch: r.body }), { cap: 'agenda.own' });
