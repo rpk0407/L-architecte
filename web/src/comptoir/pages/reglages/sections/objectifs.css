@@ -1,0 +1,9 @@
+/* Objectifs › L’objectif de chaque barbier (TEAM-03) */
+.og-list { display: flex; flex-direction: column; }
+.og-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.og-row:last-child { border-bottom: 0; }
+.og-who { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.og-who small { font-size: 12.5px; color: var(--tx3); }
+.og-in.input { width: 150px; min-height: 44px; font-size: 20px; flex: none; }
+.og-in::placeholder { font: 400 14px/1 var(--sans); color: var(--tx3); }
+@media (max-width: 420px) { .og-in.input { width: 112px; } }

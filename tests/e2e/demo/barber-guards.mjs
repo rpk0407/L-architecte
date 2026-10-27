@@ -107,6 +107,19 @@ export default async ({ h, page }) => {
   // the owner still gets the full screens
   await owner.goto(h.base + '/comptoir/catalogue');
   await h.expectText(owner, 'Nouvelle prestation');
+  // TEAM-03: the team table keeps Barbier, Chiffre and Commission on a phone, the rest in a row sheet
+  await owner.goto(h.base + '/comptoir/rapports');
+  await owner.getByRole('button', { name: 'Le détail de JKut' }).click();
+  await owner.getByRole('dialog').getByText('Revenus sous 60 j').waitFor({ timeout: 8000 });
+  await owner.keyboard.press('Escape');
+  if (await owner.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)) throw new Error('Rapports scrolls sideways on a phone');
+  await h.shot(owner, 'owner-team-phone');
+  const desk = await h.newPage();
+  await h.loginOwner(desk);
+  await desk.goto(h.base + '/comptoir/rapports');
+  await desk.getByRole('columnheader', { name: 'Passages' }).waitFor({ timeout: 8000 }).catch(() => { throw new Error('the owner’s team table has no « Passages »'); });
+  await desk.getByRole('link', { name: /Relevés de paie \(CSV\)/ }).waitFor({ timeout: 8000 });
+  await h.shot(desk, 'owner-team');
   await owner.goto(h.base + '/comptoir/reglages/salon');
   await h.expectText(owner, 'Coordonnées');
   await owner.goto(h.base + '/comptoir/reglages/constructor');
@@ -117,6 +130,20 @@ export default async ({ h, page }) => {
   await page.goto(h.base + '/comptoir');
   await page.getByRole('region', { name: 'La journée en chiffres' }).getByText('Mon chiffre').waitFor({ timeout: 8000 });
   if (!(await page.getByRole('link', { name: 'Mes chiffres' }).count())) throw new Error('JKut: his « Mes chiffres » tab is missing');
+
+  // TEAM-03: Mes chiffres shows his tips and opens his monthly statement, printable
+  await page.goto(h.base + '/comptoir/rapports');
+  await title(page, 'Mes chiffres');
+  const mine = page.getByRole('region', { name: 'Mes chiffres' });
+  await mine.locator('.kpi-k', { hasText: 'Pourboires' }).waitFor({ timeout: 8000 }).catch(() => { throw new Error('Mes chiffres: « Pourboires » missing'); });
+  for (const k of ['Mon chiffre', 'Commission estimée', 'Repris avant de partir', 'Revenus sous 60 j']) if (!(await mine.locator('.kpi-k', { hasText: k }).count())) throw new Error('Mes chiffres: « ' + k + ' » missing');
+  await page.getByRole('button', { name: 'Mon relevé du mois' }).click();
+  const sheet = page.getByRole('dialog');
+  await sheet.getByText('Estimation, la paie fait foi.').first().waitFor({ timeout: 8000 });
+  if (!(await sheet.getByRole('button', { name: 'Imprimer' }).count())) throw new Error('the statement has no « Imprimer »');
+  await h.shot(page, 'barber-statement');
+  await page.keyboard.press('Escape');
+  await none(page, 'Relevés de paie (CSV)', '/rapports');
 
   // the desk tablet, portrait: the whole salon's day in counts, never in euros
   const tablet = await h.newPage({ viewport: { width: 1024, height: 1366 } });

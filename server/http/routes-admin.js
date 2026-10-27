@@ -5,9 +5,11 @@ import { staffView, serviceView, productView } from './views.js';
 import { verifyChain, publicEvent } from '../core/journal.js';
 import { hashSecret, passwordProblem, pinProblem } from '../auth/password.js';
 import { report } from '../domain/insights.js';
+import { staffStatement, monthWords } from '../domain/statement.js';
+import { payRulesOf } from '../settings/team.js';
 import { ticketNo, refundNo, closureNo, METHOD_LABEL, METHODS, zFigures, refundParts } from '../domain/cash.js';
 import { closingWarnings } from '../commands/tick-steps.js';
-import { isDay, dayRange, monthStart, addDays } from '../../shared/dates.js';
+import { isDay, dayRange, monthStart, monthEnd, addDays } from '../../shared/dates.js';
 import { staffIntervals } from '../domain/availability.js';
 import { refundOnline } from './routes-public.js';
 import { fmtEur } from '../../shared/money.js';
@@ -162,6 +164,16 @@ function csv(rows) {
   return '﻿' + rows.map((r) => r.map(esc).join(';')).join('\r\n') + '\r\n';
 }
 const eu = (c) => (c / 100).toFixed(2).replace('.', ',');
+/** The rules the commission figures follow, as the first row of the payroll and commissions CSV (TEAM-03). */
+function rulesRow(s) {
+  const R = payRulesOf(s.settings);
+  return [
+    'Base : ' + (R.base === 'ht' ? 'HT' : 'TTC'), 'Coupes de carnet : ' + (R.cutCredit === 'seller' ? 'pour qui vend' : 'pour qui coupe'),
+    'Coupes d’abonnement : ' + { split: 'part du mois', zero: 'rien', list: 'prix de la carte' }[R.memberCredit],
+    'Coupes fidélité : ' + (R.rewardCredit === 'net' ? 'ce qui est payé' : 'comme payées'),
+    'Pourboires carte et espèces : estimés selon le paiement du ticket', 'Estimation, la paie fait foi'
+  ];
+}
 
 export function adminRoutes(app) {
   /* team */
@@ -325,7 +337,7 @@ export function adminRoutes(app) {
     const kind = r.query.get('kind') || 'sales';
     const from = isDay(r.query.get('from') || '') ? /** @type {string} */ (r.query.get('from')) : monthStart(r.local.day);
     const to = isDay(r.query.get('to') || '') ? /** @type {string} */ (r.query.get('to')) : r.local.day;
-    const need = { sales: 'report.shop', vat: 'report.shop', closures: 'closure', clients: 'client.export', journal: 'data', commissions: 'team' }[kind];
+    const need = { sales: 'report.shop', vat: 'report.shop', closures: 'closure', clients: 'client.export', journal: 'data', commissions: 'team', payroll: 'team' }[kind];
     if (!need) throw new HttpError(400, 'invalid', 'Export inconnu.');
     if (!r.caps.has(need)) throw new HttpError(403, 'forbidden', 'Tu n’as pas accès à cet export.');
     let body = '', name = kind + '-' + from + '-' + to, type = 'text/csv; charset=utf-8';
@@ -357,10 +369,30 @@ export function adminRoutes(app) {
       }
       body = csv(rows);
     } else if (kind === 'commissions') {
+      // the Chiffre réalisé of each person (refunds deducted, carnet and membership cuts credited), on the salon's base
       const rep = report(s, { from, to, today: r.local.day, now: r.now });
-      const rows = [['Barbier', 'CA prestations TTC', 'CA produits TTC', 'Taux prestations %', 'Taux produits %', 'Commission', 'Pourboires', 'Clients', 'Panier moyen']];
-      for (const x of rep.staff) rows.push([x.name, eu(x.serviceRevenue), eu(x.productRevenue), x.rates.service / 100, x.rates.product / 100, eu(x.commission), eu(x.tips), x.clients, eu(x.avgTicket)]);
+      const rows = [rulesRow(s), ['Barbier', 'Réalisé TTC', 'Réalisé HT', 'Prestations TTC', 'Produits TTC', 'Taux prestations %', 'Taux produits %', 'Commission', 'Pourboires', 'Clients', 'Panier moyen', 'Passages']];
+      for (const x of rep.staff) rows.push([x.name, eu(x.revenue), eu(x.revenueHT), eu(x.serviceRevenue), eu(x.productRevenue), x.rates.service / 100, x.rates.product / 100, eu(x.commission), eu(x.tips), x.clients, eu(x.avgTicket), x.walkins]);
       body = csv(rows);
+    } else if (kind === 'payroll') {
+      // one row per barber for the payroll provider: the month's statement of each (server/domain/statement.js)
+      const month = r.query.get('month') || r.local.day.slice(0, 7);
+      if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) throw new HttpError(400, 'invalid', 'Mois attendu au format AAAA-MM.');
+      if (month > r.local.day.slice(0, 7)) throw new HttpError(400, 'future', 'Ce mois n’a pas encore commencé.');
+      const ids = [...s.staff.values()].filter((x) => x.chair && x.active).map((x) => x.id);
+      const end = monthEnd(month + '-01');
+      const rep = report(s, { from: month + '-01', to: end < r.local.day ? end : r.local.day, today: r.local.day, now: r.now });
+      // anyone else something is credited to that month (a carnet sold under « pour qui vend », a barber gone since)
+      for (const x of rep.staff) if (!ids.includes(x.id) && (x.revenue || x.tips || x.refunds)) ids.push(x.id);
+      const all = ids.map((id) => staffStatement(s, id, month, r.local.day, r.now));
+      const rows = [[...rulesRow(s), 'Mois : ' + monthWords(month) + (all.some((x) => x.provisional) ? ' (provisoire)' : '')],
+        ['Barbier', 'Réalisé TTC', 'Réalisé HT', 'Commission', 'Pourboires carte', 'Pourboires espèces', 'Coupes carnet', 'Coupes abonnement', 'Remboursements déduits', 'Jours travaillés', 'Jours d’absence', 'Remarques']];
+      for (const x of all) {
+        const notes = [x.cuts.carnet.estimated ? 'dont ' + eu(x.cuts.carnet.estimated) + ' estimé (carnet repris)' : '', x.rewards.value ? 'coupes fidélité ' + eu(x.rewards.value) : ''].filter(Boolean).join(' · ');
+        rows.push([x.staff.name, eu(x.performed), eu(x.performedHt), eu(x.commission), eu(x.tips.card), eu(x.tips.cash), eu(x.cuts.carnet.value), eu(x.cuts.member.value), eu(x.refunds), x.workedDays, x.absenceDays, notes]);
+      }
+      body = csv(rows);
+      name = 'paie-' + month;
     } else if (kind === 'clients') {
       const rows = [['Prénom', 'Nom', 'Téléphone', 'E-mail', 'SMS', 'Marketing', 'Créé le', 'Notes']];
       for (const c of [...s.clients.values()].filter((c) => !c.erased && !c.mergedInto)) rows.push([c.first, c.last, fmtPhone(c.phone), c.email, c.sms ? 'oui' : 'non', c.marketing ? 'oui' : 'non', new Date(c.createdAt).toISOString().slice(0, 10), c.notes]);
