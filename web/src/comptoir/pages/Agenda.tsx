@@ -1,5 +1,5 @@
 // L'agenda: the day of the salon, live.
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { api, qs } from '../../lib/api';
 import { refreshAll, useQuery } from '../../lib/query';
 import { navigate, setQuery, useRoute } from '../../lib/router';
@@ -89,6 +89,7 @@ export default function Agenda() {
 
       {view === 'semaine' ? <Week day={day} today={today} onPick={(d) => setQuery({ day: d === today ? null : d, vue: null })} /> : (
         <>
+          <AbsentBanner data={data} today={today} />
           {data?.closed ? <div className="note ok"><Icon name="lock" /><div><b>Journée clôturée</b> · {data.closure ? 'Z' + String(data.closure.number).padStart(4, '0') + ' · ' + eur(data.closure.net) : ''}. Les ventes de ce jour ne peuvent plus être modifiées.</div></div> : null}
           <section className="kpis" aria-label="La journée en chiffres">
             {moneyOk ? <Kpi k={k!.scope === 'own' ? 'Mon chiffre' : 'Encaissé'} v={<Money cents={k!.revenue} />} s={<>sur <Money cents={k!.planned} /> prévus{k!.tips ? <> · <Money cents={k!.tips} /> de pourboires</> : null}</>} bar={k!.planned ? (k!.revenue || 0) / k!.planned : 0} icon="euro" />
@@ -165,6 +166,28 @@ export default function Agenda() {
       <BlockSheet open={!!block} prefill={block || null} onClose={() => setBlock(false)} />
     </>
   );
+}
+
+type Orphans = { items: { id: string; staffId: string; from: string; to: string; count: number; day: string }[]; requests: { id: string; staffId: string; from: string; to: string; count: number }[] } | null;
+/** Clients still booked with a barber who will be away, and absences waiting for approval: one tap to the plan. */
+function AbsentBanner({ data, today }: { data: AgendaData | undefined; today: string }) {
+  const { staffById } = useApp();
+  const o = (data as (AgendaData & { absences?: Orphans }) | undefined)?.absences;
+  if (!o || (!o.items.length && !o.requests.length)) return null;
+  // "jeudi" within the week, "jeudi 12 nov." beyond; a request already under way reads from today
+  const when = (d: string) => { const n = Math.max(0, dates.diffDays(today, d)); return n === 0 ? 'aujourd’hui' : n === 1 ? 'demain' : n < 7 ? dates.DAYS_FR[dates.weekday(d)] : dates.dayShort(d); };
+  const line = (key: string, text: ReactNode, go: string, label: string) => (
+    <div key={key} className="note warn" style={{ alignItems: 'center' }}><Icon name="alert" /><div className="grow">{text}</div><Button size="sm" variant="subtle" onClick={() => navigate(go)}>{label}</Button></div>
+  );
+  const q = o.requests;
+  const req = !q.length ? null : q.length === 1
+    ? line(q[0].id, <><b>{staffById.get(q[0].staffId)?.name || 'Un barbier'} demande {when(q[0].from)}{q[0].to !== q[0].from ? ' – ' + when(q[0].to) : ''}</b>{q[0].count ? ' · ' + q[0].count + ' rdv à replacer' : ''}</>, '/equipe', 'Voir')
+    : line('requests', <><b>{q.length} demandes d’absence</b> à valider</>, '/equipe', 'Voir');
+  // two lines at most, or the day's figures and the agenda drop below a phone's fold: the rest is one tap away
+  const room = req ? 1 : 2;
+  const shown = o.items.slice(0, room), more = o.items.length - shown.length;
+  const absents = shown.map((x, i) => line(x.id, <><b>{x.count} rendez-vous</b> chez {staffById.get(x.staffId)?.name || 'un barbier'}, absent {when(x.day)}{i === shown.length - 1 && more ? ' · et ' + more + ' autre' + (more > 1 ? 's' : '') + ' absence' + (more > 1 ? 's' : '') + ' dans Équipe' : ''}</>, '/equipe?absence=' + x.id, 'Traiter'));
+  return <>{absents}{req}</>;
 }
 
 function NoTeam() {

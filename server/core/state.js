@@ -24,6 +24,8 @@ export function emptyState() {
     /** imported from WordPress: post id → appointment id (old e-mail links, re-runs of the import) */
     apptByWp: new Map(),
     holds: new Map(), blocks: new Map(), blocksByDay: new Map(), timeoff: new Map(),
+    /** absences a barber asked for, waiting for the owner (or refused): they close no slot (DO-05) */
+    timeoffRequests: new Map(),
     queue: new Map(), waitlist: new Map(),
     sales: new Map(), salesByDay: new Map(), saleSeq: 0, refunds: new Map(), refundSeq: 0,
     payments: new Map(), paymentByRef: new Map(),
@@ -55,8 +57,10 @@ const DONE = new Set(['sent', 'simulated', 'expired', 'skipped']);
 /** Events that change what the Comptoir loads once at start (settings, team, catalogue). */
 const CFG = /^(shop|settings|staff|timeoff|device|service|product|stock)\./;
 
-/** Events worth showing in the live feed (plus each extension's `feed`, when it has an `item` to show them). */
-const FEED = new Set(['appt.booked', 'appt.cancelled', 'appt.moved', 'appt.status', 'sale.completed', 'sale.refunded', 'payment.succeeded', 'waitlist.added', 'queue.added', 'day.closed', 'drawer.closed', 'stock.adjusted']);
+/** Events worth showing in the live feed (plus each extension's `feed`, when it has an `item` to show them).
+ *  inquiry.received is WP-05's (an extension): routes-staff.js renders it, so it is kept whatever its extension says. */
+const FEED = new Set(['appt.booked', 'appt.cancelled', 'appt.moved', 'appt.status', 'sale.completed', 'sale.refunded', 'payment.succeeded', 'waitlist.added', 'queue.added', 'day.closed', 'drawer.closed', 'stock.adjusted',
+  'timeoff.added', 'timeoff.requested', 'timeoff.refused', 'timeoff.withdrawn', 'inquiry.received']);
 
 /**
  * @param {State} s
@@ -96,8 +100,12 @@ export function evolve(s, e) {
       break;
     }
     case 'staff.revoked': { const x = s.staff.get(d.id); if (x) x.revokedAt = e.at; break; }
-    case 'timeoff.added': s.timeoff.set(d.id, { ...d, at: e.at }); break;
+    case 'timeoff.added': s.timeoff.set(d.id, { ...d, at: e.at, by: e.actor.id }); s.timeoffRequests.delete(d.id); break;
     case 'timeoff.removed': s.timeoff.delete(d.id); break;
+    // a barber's own absence while the salon asks for approval: kept apart, so availability never sees it
+    case 'timeoff.requested': s.timeoffRequests.set(d.id, { ...d, at: e.at, by: e.actor.id, status: 'pending' }); break;
+    case 'timeoff.refused': { const q = s.timeoffRequests.get(d.id); if (q) Object.assign(q, { status: 'refused', decidedAt: e.at, decidedBy: e.actor.id }); break; }
+    case 'timeoff.withdrawn': s.timeoffRequests.delete(d.id); break;
 
     case 'device.enrolled':
       s.devices.set(d.id, { id: d.id, name: d.name, tokenHash: d.tokenHash, by: e.actor.id, at: e.at, revoked: false });

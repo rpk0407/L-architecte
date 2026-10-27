@@ -15,7 +15,15 @@ export const TEMPLATES = {
   // asked from /mon-rendez-vous: the next appointment's link, {suite} the one after it (or nothing)
   lookup: "L'Architecte : ton rendez-vous {date} à {heure} : {lien}{suite}",
   // DO-03: the code of a gift card, sent from the till's voucher to the person it is for
-  giftcardCode: "L'Architecte : {acheteur} t'offre une carte cadeau de {montant} ! Code {code}, valable jusqu'au {date}. Réserve : {lien}"
+  giftcardCode: "L'Architecte : {acheteur} t'offre une carte cadeau de {montant} ! Code {code}, valable jusqu'au {date}. Réserve : {lien}",
+  // DO-05: a barber is away, the owner's handover plan. {absent} the barber away, {date} "jeudi 29", {barbier} the one who
+  // takes the client; "prix inchangé", not "même prix": an ê would make it a Unicode SMS, and the link must still fit
+  reassign: "{absent} est absent {date}, {barbier} te prend à {heure}, prix inchangé. Pas d'accord ? {lien}",
+  // the same, at another time than the one booked: {avant} that time, so he does not turn up at it (the price gives way)
+  reassignAt: "{absent} est absent {date}, {barbier} te prend à {heure} au lieu de {avant}. Pas d'accord ? {lien}",
+  reschedule: "{prenom}, on doit décaler ton rendez-vous du {date}. Choisis un nouveau créneau : {lien}",
+  // IN-01: a gift card bought online, sent to the person it is for
+  giftcard: "{acheteur} t'offre {montant} chez L'Architecte ! Ton code : {code}. Réserve ici : {lien}"
 };
 
 // What a text is, beyond its words, keyed like TEMPLATES (the same owner adds both). marketing: sent only to

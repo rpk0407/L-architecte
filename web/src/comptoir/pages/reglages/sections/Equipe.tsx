@@ -15,6 +15,7 @@ export default function Equipe({ s, data }: SectionProps) {
         <Switch on={T.barberCheckout} onChange={(v) => t.setV({ ...T, barberCheckout: v })} title="Encaisser" hint="Sinon, seuls l’accueil et le gérant encaissent." />
         <Switch on={T.barberAllAgenda} onChange={(v) => t.setV({ ...T, barberAllAgenda: v })} title="Voir l’agenda de tout le salon" hint="Utile pour prendre un client au vol quand un collègue est plein." />
         <Switch on={T.barberSeeRevenue} onChange={(v) => t.setV({ ...T, barberSeeRevenue: v })} title="Voir le chiffre du salon" hint="Sinon chacun ne voit que ses propres chiffres et sa commission." />
+        <Switch on={T.timeoffApproval !== false} onChange={(v) => t.setV({ ...T, timeoffApproval: v })} title="Valider leurs absences" hint="Une absence posée par un barbier t’attend : ses créneaux restent ouverts jusqu’à ce que tu la valides, et tu replaces ses clients en un geste." />
         <Field label="Remise maximale qu’un barbier peut accorder"><div className="chips">{[0, 5, 10, 15, 20].map((n) => <Chip key={n} small on={T.barberMaxDiscountPct === n} onClick={() => t.setV({ ...T, barberMaxDiscountPct: n })}>{n ? n + ' %' : 'aucune'}</Chip>)}</div></Field>
       </Card>
       <Card title="Qui peut quoi" icon="key" aside={<span className="faint" style={{ fontSize: 13 }}>Selon les réglages enregistrés</span>}>

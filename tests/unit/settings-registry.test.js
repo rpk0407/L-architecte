@@ -46,14 +46,20 @@ const BEFORE = () => {
         receipt: "L'Architecte : merci {prenom} ! Ton ticket {ticket} de {montant} : {lien}",
         // WP-04: the link asked from /mon-rendez-vous, and DO-03's gift card code
         lookup: "L'Architecte : ton rendez-vous {date} à {heure} : {lien}{suite}",
-        giftcardCode: "L'Architecte : {acheteur} t'offre une carte cadeau de {montant} ! Code {code}, valable jusqu'au {date}. Réserve : {lien}"
+        giftcardCode: "L'Architecte : {acheteur} t'offre une carte cadeau de {montant} ! Code {code}, valable jusqu'au {date}. Réserve : {lien}",
+        // DO-05: the handover of an absent barber's clients, and IN-01's gift card bought online
+        reassign: "{absent} est absent {date}, {barbier} te prend à {heure}, prix inchangé. Pas d'accord ? {lien}",
+        reassignAt: "{absent} est absent {date}, {barbier} te prend à {heure} au lieu de {avant}. Pas d'accord ? {lien}",
+        reschedule: "{prenom}, on doit décaler ton rendez-vous du {date}. Choisis un nouveau créneau : {lien}",
+        giftcard: "{acheteur} t'offre {montant} chez L'Architecte ! Ton code : {code}. Réserve ici : {lien}"
       },
       // GL-08: quiet hours, the STOP mention, the countries texted
       quiet: { from: 1200, to: 480, sunday: true, holidays: true }, stopSuffix: ' STOP au 36173', countries: ['+33', '+32', '+41', '+352', '+262', '+590', '+594', '+596', '+508', '+681', '+687', '+689'],
       // WP-02: confirmations and cancellations by e-mail too
       email: true
     },
-    team: { barberCheckout: true, barberAllAgenda: true, barberMaxDiscountPct: 10, barberSeeRevenue: false },
+    // DO-05: a barber's own absence waits for the owner
+    team: { barberCheckout: true, barberAllAgenda: true, barberMaxDiscountPct: 10, barberSeeRevenue: false, timeoffApproval: true },
     goals: { monthCents: 2400000 },
     // WP-02: what the owner is told without opening the Comptoir
     notify: { to: '', phone: '', newBooking: true, cancel: true, evening: '20:00', weekly: true },

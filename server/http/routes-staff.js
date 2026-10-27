@@ -17,6 +17,7 @@ import * as A from '../commands/agenda.js';
 import * as C from '../commands/clients.js';
 import * as S from '../commands/sales.js';
 import { sendRebook } from '../commands/messages.js';
+import { rangeWords, timeoffConflicts } from '../commands/team.js';
 import { attribution } from '../domain/attribution.js';
 import { webhookUrl } from '../messaging/sms.js';
 import { TEMPLATE_FLAGS } from '../core/templates.js';
@@ -89,6 +90,46 @@ function feedItem(r, f) {
       if (!p || d.reason !== 'Vente' || p.stock > p.low || !r.caps.has('catalog')) return null;
       return { ...base, kind: 'stock', title: 'Stock bas · ' + p.name, sub: 'Il en reste ' + p.stock };
     }
+    // a request withdrawn while still pending: the owner's toast for it closes (any item for that id that is no request)
+    case 'timeoff.withdrawn': {
+      if (!r.caps.has('team') || d.was !== 'pending' || !d.staffId || !d.from) return null;
+      return { ...base, kind: 'timeoff', title: staffName(d.staffId) + ' retire sa demande · ' + rangeWords(d), sub: 'Plus rien à valider', timeoffId: d.id, staffId: d.staffId, day: d.from };
+    }
+    case 'timeoff.requested': case 'timeoff.added': case 'timeoff.refused': {
+      const mine = d.staffId === r.me.id;
+      if (!r.caps.has('team') && !mine) return null;
+      // the request keeps its dates once refused; a posted absence may have been removed since (then the event's own)
+      const t = s.timeoff.get(d.id) || s.timeoffRequests.get(d.id) || null;
+      const x = t || d;
+      const range = x.from ? rangeWords(x) : '';
+      const ref = { timeoffId: d.id, staffId: d.staffId, day: x.from };
+      if (mine && !r.caps.has('team')) {
+        // told: decided or posted by someone else, worth a toast on his screen
+        const told = { mine: f.actor.id !== r.me.id };
+        if (f.type === 'timeoff.requested') return { ...base, kind: 'timeoff', title: 'Demande envoyée · ' + range, sub: t && t.status === 'refused' ? 'Refusée' : s.timeoff.has(d.id) ? 'Validée' : t ? 'En attente du gérant' : 'Retirée', ...ref };
+        if (f.type === 'timeoff.refused') return { ...base, kind: 'timeoff', title: 'Absence refusée · ' + range, sub: 'Vois avec le gérant', ...told, ...ref };
+        return { ...base, kind: 'timeoff', title: (d.request ? 'Absence validée · ' : 'Absence posée · ') + range, sub: d.reason || '', ...told, ...ref };
+      }
+      const who = staffName(d.staffId);
+      if (f.type === 'timeoff.refused') return { ...base, kind: 'timeoff', title: who + ' · absence refusée', sub: range, ...ref };
+      // what is still to replace, now: the count falls as the plan is applied
+      const open = t && t.to >= r.local.day && (f.type === 'timeoff.added' ? s.timeoff.has(d.id) : t.status === 'pending');
+      const n = open ? timeoffConflicts(s, t, { now: r.now, local: r.local }).length : 0;
+      const left = n ? ' · ' + n + ' rdv à replacer' : '';
+      if (f.type === 'timeoff.requested') {
+        const pending = !!t && t.status === 'pending';
+        return { ...base, kind: 'timeoff', title: who + ' demande ' + range + (pending ? left : ''), sub: (d.reason || 'Absence') + ' · ' + (pending ? 'à valider' : s.timeoff.has(d.id) ? 'validée' : t ? 'refusée' : 'retirée'), request: true, pending, ...ref };
+      }
+      return { ...base, kind: 'timeoff', title: who + ' absent ' + range + left, sub: (d.request ? 'Demande validée' : d.reason || 'Absence') + (t ? '' : ' · retirée'), ...ref };
+    }
+    // WP-05's contact and training requests: the first name from its projection (personal data, never in the event)
+    case 'inquiry.received': {
+      if (!r.caps.has('marketing')) return null;
+      const q = s.inquiries && typeof s.inquiries.get === 'function' ? s.inquiries.get(d.id) : null;
+      const first = (q && !q.erased && (q.first || q.name)) || '';
+      const mod = d.module ? ((s.settings.trainings?.modules || []).find((m) => m.id === d.module)?.title || '') : '';
+      return { ...base, kind: 'inquiry', title: 'Nouvelle demande : ' + (d.kind === 'formation' ? 'formation' : 'contact') + (first ? ' · ' + first : ''), sub: mod || (d.kind === 'formation' ? 'Formations' : 'Contact du site'), inquiryId: d.id };
+    }
     default: for (const x of EXTENSIONS) if (x.item && x.feed?.includes(f.type)) return x.item(r, f); return null;
   }
 }
@@ -124,7 +165,28 @@ function badges(r) {
   const waitlist = [...s.waitlist.values()].filter((w) => w.status === 'waiting' && w.day >= L.day).length;
   // files past the 3 years /confidentialite promises: on the Clients tab, so the purge does not wait on a memory
   const retention = r.caps.has('client.erase') ? C.inactiveClients(s, L.day).length : 0;
-  return { toPay, queue, relances, waitlist, retention };
+  // absences barbers asked for, waiting for the owner (Équipe)
+  let requests = 0;
+  if (r.caps.has('team')) for (const q of s.timeoffRequests.values()) if (q.status === 'pending' && q.to >= L.day) requests++;
+  return { toPay, queue, relances, waitlist, retention, requests };
+}
+
+/**
+ * Clients still booked with a barber who will be away, absence by absence, for the agenda's banner: only for whoever
+ * can hand them over (Équipe › the absence's plan), and the absences barbers asked for, still to approve.
+ */
+function orphans(r) {
+  if (!r.caps.has('team') || !r.caps.has('agenda.edit')) return null;
+  const o = { now: r.now, local: r.local };
+  const list = [];
+  for (const t of r.s.timeoff.values()) {
+    if (t.to < r.local.day) continue;
+    const c = timeoffConflicts(r.s, t, o);
+    if (c.length) list.push({ id: t.id, staffId: t.staffId, from: t.from, to: t.to, count: c.length, day: c[0].day });
+  }
+  const requests = [...r.s.timeoffRequests.values()].filter((q) => q.status === 'pending' && q.to >= r.local.day)
+    .map((q) => ({ id: q.id, staffId: q.staffId, from: q.from, to: q.to, count: timeoffConflicts(r.s, q, o).length, day: q.from }));
+  return { items: list.sort((a, b) => a.day.localeCompare(b.day)), requests };
 }
 
 /** The file a client route names, followed through merges; an erased file is still found (it says so). */
@@ -139,7 +201,8 @@ const STATUS_FR = { pending: 'acompte en attente', booked: 'à venir', arrived: 
 // the export is read by the client: words, not the codes the server keeps
 const SOURCE_FR = { site: 'en ligne', salon: 'au salon', phone: 'par téléphone', walkin: 'sans rendez-vous', wordpress: 'ancien site', import: 'ancien site' };
 const WAIT_FR = { waiting: 'en attente', offered: 'place proposée', booked: 'réservé', removed: 'retiré', expired: 'expiré' };
-const SMS_FR = { confirmation: 'confirmation', reminder: 'rappel la veille', reminder2h: 'rappel 2 h avant', moved: 'déplacement', cancelled: 'annulation', review: 'demande d’avis', rebook: 'relance', receipt: 'reçu', waitlist: 'place libérée', queue: 'file d’attente', deposit: 'lien d’acompte' };
+const SMS_FR = { confirmation: 'confirmation', reminder: 'rappel la veille', reminder2h: 'rappel 2 h avant', moved: 'déplacement', cancelled: 'annulation', review: 'demande d’avis', rebook: 'relance', receipt: 'reçu', waitlist: 'place libérée', queue: 'file d’attente', deposit: 'lien d’acompte',
+  reassign: 'changement de barbier', reassignAt: 'changement de barbier et d’heure', reschedule: 'rendez-vous à décaler', giftcard: 'carte cadeau' };
 const SMS_STATUS_FR = { queued: 'en attente', claimed: 'en cours d’envoi', sent: 'envoyé', simulated: 'non envoyé (simulé)', failed: 'échec', skipped: 'non envoyé', expired: 'trop tard, non envoyé' };
 const fr = (map, v) => map[v] || v || '';
 const iso = (ms) => (ms ? new Date(ms).toISOString() : null);
@@ -242,7 +305,7 @@ export function staffRoutes(app) {
     const v = agendaView(r.s, day, r.caps, r.me, r.now);
     const L = r.local;
     const est = day === L.day ? walkinEstimate(r.s, r.now, L) : null;
-    return { ...v, kpis: dayKpis(r, day), walkin: est, drawer: r.s.drawer ? { open: true, since: r.s.drawer.openedAt } : { open: false } };
+    return { ...v, kpis: dayKpis(r, day), walkin: est, drawer: r.s.drawer ? { open: true, since: r.s.drawer.openedAt } : { open: false }, absences: orphans(r) };
   }, { cap: 'agenda.own' });
 
   app.get('/api/v1/week', (r) => {

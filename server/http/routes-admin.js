@@ -7,7 +7,9 @@ import { hashSecret, passwordProblem, pinProblem } from '../auth/password.js';
 import { report } from '../domain/insights.js';
 import { ticketNo, refundNo, closureNo, METHOD_LABEL, METHODS, zFigures, refundParts } from '../domain/cash.js';
 import { closingWarnings } from '../commands/tick-steps.js';
-import { isDay, dayRange, monthStart } from '../../shared/dates.js';
+import { isDay, dayRange, monthStart, addDays } from '../../shared/dates.js';
+import { staffIntervals } from '../domain/availability.js';
+import { refundOnline } from './routes-public.js';
 import { fmtEur } from '../../shared/money.js';
 import { fmtPhone, safeEqual } from '../lib/util.js';
 import * as T from '../commands/team.js';
@@ -25,7 +27,8 @@ import { STALE_MS, backupOff, backupStatus, backupsOf, freshBackup, makeBackup, 
 const LABELS = {
   'shop.initialized': 'Salon créé', 'shop.restored': 'Salon restauré', 'settings.updated': 'Réglages modifiés', 'staff.added': 'Membre ajouté', 'staff.updated': 'Fiche équipe modifiée',
   'staff.archived': 'Membre désactivé', 'staff.restored': 'Membre réactivé', 'staff.credentials': 'Accès modifiés', 'staff.revoked': 'Sessions fermées',
-  'timeoff.added': 'Absence posée', 'timeoff.removed': 'Absence retirée', 'device.enrolled': 'Appareil enregistré', 'device.revoked': 'Appareil retiré',
+  'timeoff.added': 'Absence posée', 'timeoff.removed': 'Absence retirée', 'timeoff.requested': 'Absence demandée', 'timeoff.refused': 'Absence refusée',
+  'timeoff.withdrawn': 'Demande d’absence retirée', 'device.enrolled': 'Appareil enregistré', 'device.revoked': 'Appareil retiré',
   'service.added': 'Prestation créée', 'service.updated': 'Prestation modifiée', 'service.archived': 'Prestation retirée', 'product.added': 'Produit créé',
   'product.updated': 'Produit modifié', 'product.archived': 'Produit retiré', 'stock.adjusted': 'Stock ajusté', 'client.added': 'Client créé',
   'client.updated': 'Fiche client modifiée', 'client.merged': 'Fiches fusionnées', 'client.erased': 'Client effacé (RGPD)', 'appt.held': 'Créneau gardé',
@@ -70,6 +73,7 @@ function summary(s, e) {
     case 'giftcard.voided': return '•••• ' + ((s.giftcards.get(d.id) || {}).last4 || '') + (d.reason === 'reissued' ? ' · remplacée' : d.reason === 'refunded' ? ' · remboursée' : '');
     case 'pack.voided': { const k = s.packs.get(d.id); return k ? k.name + (k.voided ? ' · ' + k.voided.left + ' restante' + (k.voided.left > 1 ? 's' : '') + ' annulée' + (k.voided.left > 1 ? 's' : '') : '') : ''; }
     case 'client.updated': return (d.fields || []).join(', ');
+    case 'timeoff.added': case 'timeoff.requested': return ((s.staff.get(d.staffId) || {}).name || '') + ' · ' + T.rangeWords(d) + (d.reason ? ' · ' + d.reason : '') + (d.request ? ' · demande validée' : '');
     default: return '';
   }
 }
@@ -84,6 +88,39 @@ function actorName(s, a) {
   return a.n || 'Automatique';
 }
 
+/* ---------------- an absence and the clients it lands on ---------------- */
+
+/** The absence a request names: posted, or still a request. */
+function absenceOf(r, id) {
+  const t = r.s.timeoff.get(id) || r.s.timeoffRequests.get(id);
+  // a barber only ever reads his own
+  if (!t || (!r.caps.has('team') && t.staffId !== r.me.id)) throw new HttpError(404, 'not_found', 'Absence introuvable.');
+  return t;
+}
+function clientWord(s, a) {
+  const c = a.clientId ? s.clients.get(a.clientId) : null;
+  return c && !c.erased ? c.first + (c.last ? ' ' + c.last.charAt(0) + '.' : '') : a.name || 'Client';
+}
+/** What the absence sheet shows: each appointment, what is proposed for it, and whether the client can be texted
+ *  (online: still in time to change it himself, so 'ask' may text him a link; otherwise the salon calls him). */
+function planView(r, t) {
+  const s = r.s;
+  const rows = T.handoverPlan(s, t, { now: r.now, local: r.local }).map(({ a, same, nearest, choice, online }) => ({
+    id: a.id, day: a.day, start: a.start, dur: a.dur, name: clientWord(s, a), services: a.services.map((x) => x.name), serviceIds: a.services.map((x) => x.id),
+    price: a.price, status: a.status, deposit: a.deposit && a.deposit.paid ? a.deposit.paid : 0, textable: T.textable(s, a), asked: T.askedToReschedule(s, a),
+    online, same, nearest, choice
+  }));
+  return { staffId: t.staffId, from: t.from, to: t.to, startMin: t.startMin ?? null, endMin: t.endMin ?? null, count: rows.length, rows, back: backDay(s, t) };
+}
+/** The first day after the absence the barber works again (his week, the salon's hours and closures, his other
+ *  absences): the site's note proposes it ('Frank revient le 3 novembre', not a Sunday). Null beyond two months. */
+function backDay(s, t) {
+  const h = s.timeoff.has(t.id) ? s : { ...s, timeoff: new Map(s.timeoff).set('_preview', { ...t, id: '_preview' }) };
+  for (let d = addDays(t.to, 1), i = 0; i < 62; d = addDays(d, 1), i++) if (staffIntervals(h, t.staffId, d).length) return d;
+  return null;
+}
+const conflictCount = (r, t) => T.timeoffConflicts(r.s, t, { now: r.now, local: r.local }).length;
+
 /* ---------------- CSV for the accountant ---------------- */
 
 function csv(rows) {
@@ -94,7 +131,12 @@ const eu = (c) => (c / 100).toFixed(2).replace('.', ',');
 
 export function adminRoutes(app) {
   /* team */
-  app.get('/api/v1/staff', (r) => ({ items: [...r.s.staff.values()].sort((a, b) => (a.order ?? 99) - (b.order ?? 99)).map((x) => staffView(x, true)), timeoff: [...r.s.timeoff.values()] }), { cap: 'team' });
+  app.get('/api/v1/staff', (r) => ({
+    items: [...r.s.staff.values()].sort((a, b) => (a.order ?? 99) - (b.order ?? 99)).map((x) => staffView(x, true)),
+    // each absence to come with the appointments still on it (the 'à replacer' of the list), and the requests waiting
+    timeoff: [...r.s.timeoff.values()].map((t) => (t.to >= r.local.day ? { ...t, conflicts: conflictCount(r, t) } : t)),
+    requests: [...r.s.timeoffRequests.values()].filter((q) => q.to >= r.local.day).sort((a, b) => a.at - b.at).map((q) => ({ ...q, conflicts: conflictCount(r, q) }))
+  }), { cap: 'team' });
   app.post('/api/v1/staff', async (r) => {
     // refuse a weak PIN before adding anyone, or the member would exist without a PIN
     const pb = r.body.pin ? pinProblem(r.body.pin) : null;
@@ -116,8 +158,51 @@ export function adminRoutes(app) {
     return r.run(T.setCredentials, { id: r.params.id, pwdHash: await hashSecret(r.body.password) });
   }, { cap: 'team' });
   app.post('/api/v1/staff/:id/revoke', (r) => r.run(T.revokeSessions, { id: r.params.id }), { cap: 'agenda.own' });
-  app.get('/api/v1/timeoff/mine', (r) => ({ items: [...r.s.timeoff.values()].filter((t) => t.staffId === r.me.id && t.to >= r.local.day).sort((a, b) => a.from.localeCompare(b.from)) }), { cap: 'agenda.own' });
-  app.post('/api/v1/timeoff', (r) => r.run(T.addTimeOff, r.body), { cap: 'agenda.own' });
+  app.get('/api/v1/timeoff/mine', (r) => {
+    const mine = (t) => t.staffId === r.me.id && t.to >= r.local.day;
+    const byFrom = (a, b) => a.from.localeCompare(b.from);
+    return {
+      items: [...r.s.timeoff.values()].filter(mine).sort(byFrom).map((t) => ({ ...t, conflicts: conflictCount(r, t) })),
+      // asked for and not yet approved, or refused: the barber sees where his request stands
+      requests: [...r.s.timeoffRequests.values()].filter(mine).sort(byFrom).map((q) => ({ ...q, conflicts: conflictCount(r, q) })),
+      approval: r.s.settings.team.timeoffApproval !== false && !r.caps.has('team')
+    };
+  }, { cap: 'agenda.own' });
+  app.post('/api/v1/timeoff', async (r) => {
+    const res = await r.run(T.addTimeOff, r.body);
+    const t = r.s.timeoff.get(res.id) || r.s.timeoffRequests.get(res.id);
+    return { ...res, conflicts: t ? conflictCount(r, t) : 0 };
+  }, { cap: 'agenda.own' });
+  // the appointments an absence would land on, each with a proposal; {id} for one already posted or asked for
+  app.post('/api/v1/timeoff/preview', (r) => {
+    let t;
+    if (r.body && r.body.id) t = absenceOf(r, String(r.body.id));
+    else t = T.parseTimeOff({ staffId: r.body.staffId, from: r.body.from, to: r.body.to, startMin: r.body.startMin, endMin: r.body.endMin });
+    if (!r.s.staff.has(t.staffId)) throw new HttpError(404, 'not_found', 'Membre de l’équipe introuvable.');
+    if (!r.caps.has('team') && t.staffId !== r.me.id) throw new HttpError(403, 'forbidden', 'Seul le gérant voit les absences de l’équipe.');
+    return planView(r, t);
+  }, { cap: 'agenda.own' });
+  app.post('/api/v1/timeoff/:id/approve', async (r) => {
+    const res = await r.run(T.approveTimeOff, { id: r.params.id });
+    const t = r.s.timeoff.get(res.id);
+    return { ...res, conflicts: t ? conflictCount(r, t) : 0 };
+  }, { cap: 'team' });
+  app.post('/api/v1/timeoff/:id/refuse', (r) => r.run(T.refuseTimeOff, { id: r.params.id }), { cap: 'team' });
+  // the handover plan, applied: moves, texts and cancellations in one batch, then the deposits of the cancelled given back.
+  // team and agenda.edit, as the plan's preview and the agenda's banner: whoever applies a plan could read it first
+  app.post('/api/v1/timeoff/:id/reassign', async (r) => {
+    if (!r.caps.has('team')) throw new HttpError(403, 'forbidden', 'Seul le gérant replace les clients d’une absence.');
+    const t = r.s.timeoff.get(r.params.id);
+    if (!t) throw new HttpError(404, 'not_found', r.s.timeoffRequests.has(r.params.id) ? 'Valide d’abord la demande d’absence.' : 'Absence introuvable.');
+    const base = { actor: { t: /** @type {const} */ ('staff'), id: r.me.id, n: r.me.name, ...(r.device ? { dev: r.device.id } : {}) }, staff: r.me, caps: r.caps, meta: r.meta };
+    const { deposits, ...res } = await T.applyHandover(r.rt.engine, t, r.body, base);
+    let refunded = 0;
+    // the salon cancels, so a paid deposit goes back (only for whoever may refund, as on the appointment sheet)
+    if (r.caps.has('sale.refund')) for (const d of deposits) if (await refundOnline(r, r.s.payments.get(d.paymentId), 'Barbier absent')) refunded++;
+    // what is still paid: refused, failed or not ours to refund; said, so it is done from the appointment's sheet
+    const unrefunded = deposits.filter((d) => { const p = r.s.payments.get(d.paymentId); return p && p.status === 'paid'; }).length;
+    return { ...res, refunded, unrefunded, left: conflictCount(r, t) };
+  }, { cap: 'agenda.edit' });
   app.del('/api/v1/timeoff/:id', (r) => r.run(T.removeTimeOff, { id: r.params.id }), { cap: 'agenda.own' });
 
   /* catalogue */
