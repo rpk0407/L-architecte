@@ -6,8 +6,8 @@ import { Empty, Sheet } from '../ui/kit';
 import { useApp } from './state';
 import type { FeedItem } from './types';
 
-const ICON: Record<string, string> = { booking: 'calendar', cancel: 'x', move: 'move', arrived: 'check', noshow: 'alert', sale: 'caisse', refund: 'refund', payment: 'card', wait: 'wait', walkin: 'walk', closure: 'lock', drawer: 'cash', stock: 'box' };
-const TONE: Record<string, string> = { booking: 'var(--ok)', cancel: 'var(--accent)', payment: 'var(--ok)', noshow: 'var(--warn)', stock: 'var(--warn)', refund: 'var(--warn)' };
+const ICON: Record<string, string> = { booking: 'calendar', cancel: 'x', move: 'move', arrived: 'check', noshow: 'alert', sale: 'caisse', refund: 'refund', payment: 'card', wait: 'wait', walkin: 'walk', closure: 'lock', drawer: 'cash', stock: 'box', dispute: 'alert' };
+const TONE: Record<string, string> = { booking: 'var(--ok)', cancel: 'var(--accent)', payment: 'var(--ok)', noshow: 'var(--warn)', stock: 'var(--warn)', refund: 'var(--warn)', dispute: 'var(--danger)' };
 
 export function FeedList({ items, now, onPick, limit }: { items: FeedItem[]; now: number; onPick?: (f: FeedItem) => void; limit?: number }) {
   const list = limit ? items.slice(0, limit) : items;
@@ -32,7 +32,7 @@ export function FeedSheet({ open, onClose }: { open: boolean; onClose: () => voi
   const pick = (f: FeedItem) => {
     onClose();
     if (f.apptId && f.day) navigate('/?day=' + f.day + '&rdv=' + f.apptId);
-    else if (f.saleId) navigate('/caisse/ventes?ticket=' + f.saleId);
+    else if (f.saleId) navigate('/caisse/ventes?' + (f.day && f.day !== pulse?.today ? 'jour=' + f.day + '&' : '') + 'ticket=' + f.saleId);
   };
   return (
     <Sheet open={open} onClose={onClose} title="Le fil" kicker="En direct">

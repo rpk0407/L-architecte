@@ -114,7 +114,7 @@ test('importing the export: client files, past visits, upcoming bookings, nothin
   const res = await send(t, W.toRows(p, map));
   assert.equal(res.clients.added, 5);
   assert.deepEqual([...res.clients.merged], [t.ids.yanis], 'same number as an existing file: merged into it');
-  assert.deepEqual(res.appts, { done: 7, noShow: 0, cancelled: 2, booked: 4, skipped: 0, already: 0, updated: 0, moved: 0, closed: 0 });
+  assert.deepEqual(res.appts, { done: 7, noShow: 0, cancelled: 2, booked: 4, skipped: 1, already: 0, updated: 0, moved: 0, closed: 0 }, 'ERREUR is sent too: the server counts it, by reason');
   assert.equal(s.clients.size, clients0 + 5);
 
   // phones normalised: '612345678' and '0033612345678' both land on Yanis's file (+33612345678)
@@ -212,7 +212,7 @@ test('the delta run, through the wizard: what the old site cancelled, moved or s
   assert.ok(pv.review.some((r) => r.wp === 1360 && /sera annulé ici/.test(r.text)));
   assert.ok(pv.review.some((r) => r.wp === 1380 && /sera déplacé ici/.test(r.text)));
   const rows = W.toRows(later, map, imported);
-  assert.equal(rows.appts.length, 14, 'bookings already imported are sent again: the server decides what changed');
+  assert.equal(rows.appts.length, 15, 'bookings already imported are sent again, and the ERREUR one: the server decides what changed');
   const res = await send(t, rows);
   assert.deepEqual([res.appts.cancelled, res.appts.moved, res.appts.closed, res.appts.booked, res.clients.added], [1, 1, 1, 1, 0]);
   assert.equal(byWp(t, 1360).status, 'cancelled');

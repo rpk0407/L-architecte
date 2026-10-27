@@ -9,6 +9,7 @@ import { Icon } from '../../ui/Icon';
 import { Chip, Delta, Empty, Kpi, Skeleton } from '../../ui/kit';
 import { useApp } from '../state';
 import { PageTitle } from '../App';
+import ReviewsCard from './avis/ReviewsCard';
 import './rapports.css';
 
 type StaffRow = { id: string; name: string; color: string; revenue: number; serviceRevenue: number; productRevenue: number; services: number; tips: number; tickets: number; clients: number; avgTicket: number; done: number; noShows: number; occupancy: number; rebookRate: number; commission: number; rates: { service: number; product: number } };
@@ -139,6 +140,7 @@ function Body({ r, shop, who }: { r: Report; shop: boolean; who: string }) {
             </section>
           </div>
           {r.scope === 'shop' ? <Team rows={r.staff} r={r} /> : null}
+          {shop ? <ReviewsCard from={r.from} to={r.to} /> : null}
           <Exports from={r.from} to={r.to} shop={shop} canTeam={can('team')} canClosure={can('closure')} canData={can('data')} mode={boot.mode} />
         </>
       )}

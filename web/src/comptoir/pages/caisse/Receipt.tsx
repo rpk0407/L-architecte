@@ -197,3 +197,51 @@ export function ZReport({ z }: { z: ZFigures & { number: number; day: string; gr
     document.body
   );
 }
+
+type Span = { count: number; first: number | null; last: number | null };
+/** A month or year closure as GET /api/v1/periods/:ref sends it (CPT-01a). */
+export type PeriodRecord = {
+  ref: string; kind: 'month' | 'year'; period: string; number: number; from: string; to: string; at: number; by: string;
+  z?: Span; tickets?: Span; credits?: Span; months?: Span; seal: string; signatureLabel: string; kid: string | null;
+  totals: Omit<ZFigures, 'tickets' | 'first' | 'last' | 'paidTotal'>;
+  perpetual: { net: number; gross: number; refunds: number };
+};
+
+const fr = (day: string) => day.split('-').reverse().join('/');
+const range = (sp: Span | undefined, no: (n: number) => string) => (sp && sp.count ? no(sp.first || 0) + ' → ' + no(sp.last || 0) + ' (' + sp.count + ')' : 'aucun');
+const pad = (p: string, n: number) => p + String(n).padStart(4, '0');
+
+/** The printed month (or year) closure: the Z layout of its totals, then the period's grand total and the perpetual totals. */
+export function MonthReport({ p }: { p: PeriodRecord }) {
+  const year = p.kind === 'year';
+  const z: ZFigures = { ...p.totals, tickets: p.tickets?.count || 0, first: p.tickets?.first ?? null, last: p.tickets?.last ?? null, paidTotal: p.totals.takings + p.totals.prepaid };
+  // a year sums its months: their tickets are on each month's closure
+  const rows = zRows(z).filter((r) => !year || r.k !== 'Tickets');
+  return createPortal(
+    <div className="print-only receipt" aria-hidden>
+      <Shop />
+      <hr />
+      <div className="r"><b>{year ? 'CLÔTURE ANNUELLE' : 'CLÔTURE MENSUELLE'} {p.ref}</b><b>{year ? 'Exercice ' + p.period : p.period.slice(5) + '/' + p.period.slice(0, 4)}</b></div>
+      <p className="c">Du {fr(p.from)} au {fr(p.to)}</p>
+      {year
+        ? <div className="r"><span>Mois</span><span>{range(p.months, (n) => pad('M', n))}</span></div>
+        : <>
+          <div className="r"><span>Z</span><span>{range(p.z, (n) => pad('Z', n))}</span></div>
+          <div className="r"><span>Avoirs</span><span>{range(p.credits, (n) => 'A' + String(n).padStart(6, '0'))}</span></div>
+        </>}
+      <hr />
+      {rows.map((r, i) => r.tone === 'head' ? <p key={i} style={{ marginTop: 6 }}><b>{r.k}</b></p> : (
+        <div key={i} className="r" style={r.tone === 'sub' ? { paddingLeft: 8 } : undefined}>{r.tone === 'total' ? <><b>{r.k}</b><b>{zValue(r)}</b></> : <><span>{r.k}</span><span>{zValue(r)}</span></>}</div>
+      ))}
+      <hr />
+      <div className="r"><b>Grand total de la période</b><b>{eur(p.totals.netTtc, { decimals: true })}</b></div>
+      <p style={{ marginTop: 6 }}><b>Total perpétuel</b></p>
+      <div className="r" style={{ paddingLeft: 8 }}><span>Net</span><span>{eur(p.perpetual.net, { decimals: true })}</span></div>
+      <div className="r" style={{ paddingLeft: 8 }}><span>Brut</span><span>{eur(p.perpetual.gross, { decimals: true })}</span></div>
+      <div className="r" style={{ paddingLeft: 8 }}><span>Avoirs</span><span>{eur(-p.perpetual.refunds, { decimals: true })}</span></div>
+      <p style={{ wordBreak: 'break-all', fontSize: 9, marginTop: 6 }}>Sceau : {p.seal}</p>
+      <p style={{ fontSize: 9 }}>Signature : {p.signatureLabel}{p.kid ? ' · clé ' + p.kid : ''}</p>
+    </div>,
+    document.body
+  );
+}

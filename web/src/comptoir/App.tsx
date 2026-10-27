@@ -78,8 +78,9 @@ function useNav(): NavItem[] {
     { to: '/catalogue', page: 'catalogue', label: 'Catalogue', icon: 'catalogue', cap: 'catalog' },
     { to: '/reglages', page: 'reglages', label: 'Réglages', icon: 'reglages' }
   ];
-  void boot;
-  return items.filter((x) => !x.cap || can(x.cap));
+  // the desk has no chair: no figures of its own, so no page of zeros (the agenda gives it the salon's counts)
+  const noFigures = !boot.me.chair && !can('report.shop');
+  return items.filter((x) => (!x.cap || can(x.cap)) && !(x.page === 'rapports' && noFigures));
 }
 
 function Shell() {
@@ -201,7 +202,7 @@ function Shell() {
   );
 }
 
-type AbsenceItem = FeedItem & { timeoffId?: string; staffId?: string; request?: boolean; pending?: boolean; mine?: boolean };
+type AbsenceItem = FeedItem & { timeoffId?: string; aboutStaffId?: string; request?: boolean; pending?: boolean; mine?: boolean };
 /**
  * Absences as they happen: a barber's request reaches the owner as a toast he can answer there (Valider opens the
  * plan when clients are on it), and the barber hears the answer. Only what arrives while the Comptoir is open.
@@ -223,7 +224,7 @@ function useAbsenceToasts() {
         open.current.set(id, toast({
           kind: 'info', icon: 'calendar', title: f.title, sub: f.sub, ttl: 20000,
           // Équipe's own answer (its chunk loads on the tap): a request withdrawn meanwhile is said, not an error
-          actions: [false, true].map((yes) => ({ label: yes ? 'Valider' : 'Refuser', run: () => { void import('./pages/Equipe').then((m) => m.decideRequest(id, yes, (f.staffId && app.staffById.get(f.staffId)?.name) || '')); } }))
+          actions: [false, true].map((yes) => ({ label: yes ? 'Valider' : 'Refuser', run: () => { void import('./pages/Equipe').then((m) => m.decideRequest(id, yes, (f.aboutStaffId && app.staffById.get(f.aboutStaffId)?.name) || '')); } }))
         }));
       } else if (f.mine) toast({ kind: 'info', icon: 'calendar', title: f.title, sub: f.sub, ttl: 8000 });
     }

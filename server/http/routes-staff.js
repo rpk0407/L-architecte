@@ -11,17 +11,20 @@ import { addDays, isDay, weekStart, monthStart, monthEnd, diffDays, dayShort, fm
 import { fmtEur } from '../../shared/money.js';
 import { maskPhone, fmtPhone, normGiftCode, sha256 } from '../lib/util.js';
 import { EXTENSIONS } from '../core/extensions.js';
+import { membersOf, isLive, graceOf, statusIn } from '../domain/membership.js';
 import { startPayment, refundOnline } from './routes-public.js';
+import { tillRefund } from './routes-payments.js';
 import { meView } from './routes-auth.js';
 import * as A from '../commands/agenda.js';
 import * as C from '../commands/clients.js';
 import * as S from '../commands/sales.js';
 import { sendRebook } from '../commands/messages.js';
 import { rangeWords, timeoffConflicts } from '../commands/team.js';
+import { teamViewOf } from '../settings/team.js';
 import { attribution } from '../domain/attribution.js';
 import { webhookUrl } from '../messaging/sms.js';
 import { TEMPLATE_FLAGS } from '../core/templates.js';
-import { maybeTick, dispatch } from './scheduler.js';
+import { maybeTick, dispatchNow } from './scheduler.js';
 import { waitUntil } from '@vercel/functions';
 
 const dayParam = (r, name = 'day') => { const d = r.query.get(name); return d && isDay(d) ? d : r.local.day; };
@@ -33,6 +36,16 @@ function nameOfAppt(s, a) {
   const c = a.clientId ? s.clients.get(a.clientId) : null;
   return c ? c.first + (c.last ? ' ' + c.last.charAt(0) + '.' : '') : a.name || 'Client';
 }
+/** Whose ticket this is, for a barber's own toasts: the appointment's chair, else the tip's barber, else the first line's. */
+function saleStaff(s, x) {
+  const a = x.apptId ? s.appts.get(x.apptId) : null;
+  return (a && a.staffId) || (x.tip && x.tip.staffId) || (x.lines.find((l) => l.staffId) || {}).staffId || null;
+}
+/**
+ * One feed entry as a line for this viewer, or null to hide it. Every line about an appointment or a ticket carries
+ * `staffId` (the chair it concerns), so a barber's phone can keep only his own toasts (TEAM-02); staffId null means the
+ * line is meant only for holders of the capability it is checked against.
+ */
 function feedItem(r, f) {
   const s = r.s;
   const d = f.data || {};
@@ -45,55 +58,63 @@ function feedItem(r, f) {
       if (!a || !own(a.staffId)) return null;
       const who = nameOfAppt(s, a);
       const sub = dayShort(a.day) + ' · ' + fmtTime(a.start) + ' · ' + staffName(a.staffId) + ' · ' + a.services.map((x) => x.name).join(' + ');
-      if (a.source === 'site') return { ...base, kind: 'booking', title: who + ' a réservé en ligne', sub, apptId: a.id, day: a.day };
-      if (a.source === 'walkin') return { ...base, kind: 'walkin', title: who + ' installé sans rendez-vous', sub, apptId: a.id, day: a.day };
-      return { ...base, kind: 'booking', title: 'RDV ajouté · ' + who, sub, apptId: a.id, day: a.day };
+      const ref = { apptId: a.id, day: a.day, staffId: a.staffId };
+      if (a.source === 'site') return { ...base, kind: 'booking', title: who + ' a réservé en ligne', sub, ...ref };
+      if (a.source === 'walkin') return { ...base, kind: 'walkin', title: who + ' installé sans rendez-vous', sub, ...ref };
+      return { ...base, kind: 'booking', title: 'RDV ajouté · ' + who, sub, ...ref };
     }
     case 'appt.cancelled': {
       if (!a || !own(a.staffId)) return null;
       const who = nameOfAppt(s, a);
       const sub = dayShort(a.day) + ' · ' + fmtTime(a.start) + ' · ' + staffName(a.staffId);
       const title = d.by === 'client' ? who + ' a annulé' : d.by === 'system' ? 'Acompte non réglé · ' + who : 'RDV annulé · ' + who;
-      return { ...base, kind: 'cancel', title, sub: sub + ' · créneau libéré', apptId: a.id, day: a.day };
+      return { ...base, kind: 'cancel', title, sub: sub + ' · créneau libéré', apptId: a.id, day: a.day, staffId: a.staffId };
     }
     case 'appt.moved':
       if (!a || !own(a.staffId)) return null;
-      return { ...base, kind: 'move', title: (d.by === 'client' ? nameOfAppt(s, a) + ' a déplacé son RDV' : 'RDV déplacé · ' + nameOfAppt(s, a)), sub: dayShort(a.day) + ' · ' + fmtTime(a.start) + ' · ' + staffName(a.staffId), apptId: a.id, day: a.day };
+      return { ...base, kind: 'move', title: (d.by === 'client' ? nameOfAppt(s, a) + ' a déplacé son RDV' : 'RDV déplacé · ' + nameOfAppt(s, a)), sub: dayShort(a.day) + ' · ' + fmtTime(a.start) + ' · ' + staffName(a.staffId), apptId: a.id, day: a.day, staffId: a.staffId };
     case 'appt.status':
       if (!a || !own(a.staffId) || !['arrived', 'no_show'].includes(d.status)) return null;
-      return { ...base, kind: d.status === 'arrived' ? 'arrived' : 'noshow', title: nameOfAppt(s, a) + (d.status === 'arrived' ? ' est arrivé' : ' ne s’est pas présenté'), sub: fmtTime(a.start) + ' · ' + staffName(a.staffId), apptId: a.id, day: a.day };
+      return { ...base, kind: d.status === 'arrived' ? 'arrived' : 'noshow', title: nameOfAppt(s, a) + (d.status === 'arrived' ? ' est arrivé' : ' ne s’est pas présenté'), sub: fmtTime(a.start) + ' · ' + staffName(a.staffId), apptId: a.id, day: a.day, staffId: a.staffId };
     case 'sale.completed': {
       const x = s.sales.get(d.id);
       if (!x || (!r.caps.has('sale.all') && x.cashierId !== r.me.id && !x.lines.some((l) => l.staffId === r.me.id))) return null;
       const methods = [...new Set(x.payments.map((p) => METHOD_LABEL[p.method] || p.method))].join(' + ');
-      return { ...base, kind: 'sale', title: 'Encaissé ' + fmtEur(x.totals.due), sub: ticketNo(x.number) + (methods ? ' · ' + methods : '') + (x.tip ? ' · pourboire ' + fmtEur(x.tip.amount) : ''), saleId: x.id, money: true };
+      return { ...base, kind: 'sale', title: 'Encaissé ' + fmtEur(x.totals.due), sub: ticketNo(x.number) + (methods ? ' · ' + methods : '') + (x.tip ? ' · pourboire ' + fmtEur(x.tip.amount) : ''), saleId: x.id, money: true, staffId: saleStaff(s, x) };
     }
-    case 'sale.refunded':
+    case 'sale.refunded': {
       if (!r.caps.has('sale.all')) return null;
-      return { ...base, kind: 'refund', title: 'Remboursé ' + fmtEur(d.amount), sub: d.reason, money: true };
+      const x = s.sales.get(d.saleId);
+      return { ...base, kind: 'refund', title: 'Remboursé ' + fmtEur(d.amount), sub: d.reason, money: true, staffId: x ? saleStaff(s, x) : null };
+    }
+    // money paid online on a booking: the till sees every chair's, a barber only his own clients' (a QR or gift card
+    // payment names no appointment: the till's only)
     case 'payment.succeeded': {
       const p = s.payments.get(d.id);
       if (!p) return null;
-      return { ...base, kind: 'payment', title: (p.kind === 'deposit' ? 'Acompte reçu ' : 'Paiement reçu ') + fmtEur(p.amount), sub: p.label, apptId: p.apptId, paymentId: p.id, money: true };
+      const pa = p.apptId ? s.appts.get(p.apptId) : null;
+      // a membership's month (PAY-02) is the salon's money, not a barber's; other payments: everyone's with sale.all, else one's own
+      if (p.kind === 'membership' ? !r.caps.has('member.manage') && !r.caps.has('report.shop') : !r.caps.has('sale.all') && !(pa && pa.staffId === r.me.id)) return null;
+      return { ...base, kind: 'payment', title: (p.kind === 'deposit' ? 'Acompte reçu ' : 'Paiement reçu ') + fmtEur(p.amount), sub: p.label, apptId: p.apptId, paymentId: p.id, money: true, staffId: pa ? pa.staffId : null };
     }
     case 'waitlist.added':
-      return { ...base, kind: 'wait', title: 'Liste d’attente · ' + (s.waitlist.get(d.id)?.first || ''), sub: dayShort(d.day) + (d.staffId !== 'any' ? ' · ' + staffName(d.staffId) : ' · sans préférence'), day: d.day };
+      return { ...base, kind: 'wait', title: 'Liste d’attente · ' + (s.waitlist.get(d.id)?.first || ''), sub: dayShort(d.day) + (d.staffId !== 'any' ? ' · ' + staffName(d.staffId) : ' · sans préférence'), day: d.day, staffId: d.staffId !== 'any' ? d.staffId || null : null };
     case 'queue.added':
-      return { ...base, kind: 'walkin', title: (s.queue.get(d.id)?.name || 'Un client') + ' attend sans rendez-vous', sub: (s.services.get(d.serviceId)?.name || '') + (d.staffId !== 'any' ? ' · ' + staffName(d.staffId) : '') };
+      return { ...base, kind: 'walkin', title: (s.queue.get(d.id)?.name || 'Un client') + ' attend sans rendez-vous', sub: (s.services.get(d.serviceId)?.name || '') + (d.staffId !== 'any' ? ' · ' + staffName(d.staffId) : ''), staffId: d.staffId !== 'any' ? d.staffId || null : null };
     case 'day.closed':
       if (!r.caps.has('closure') && !r.caps.has('report.shop')) return null;
-      return { ...base, kind: 'closure', title: d.auto ? 'Z du ' + dayAndDate(d.day) + ' fait automatiquement' : 'Journée clôturée · ' + closureNo(d.number), sub: (d.auto ? closureNo(d.number) + ' · ' : '') + fmtEur(d.net) + ' · ' + d.tickets + ' tickets', money: true };
+      return { ...base, kind: 'closure', title: d.auto ? 'Z du ' + dayAndDate(d.day) + ' fait automatiquement' : 'Journée clôturée · ' + closureNo(d.number), sub: (d.auto ? closureNo(d.number) + ' · ' : '') + fmtEur(d.net) + ' · ' + d.tickets + ' tickets', money: true, staffId: null };
     case 'drawer.closed':
-      return r.caps.has('drawer') ? { ...base, kind: 'drawer', title: 'Caisse comptée', sub: d.diff ? 'Écart ' + fmtEur(d.diff) : 'Aucun écart', money: true } : null;
+      return r.caps.has('drawer') ? { ...base, kind: 'drawer', title: 'Caisse comptée', sub: d.diff ? 'Écart ' + fmtEur(d.diff) : 'Aucun écart', money: true, staffId: null } : null;
     case 'stock.adjusted': {
       const p = s.products.get(d.productId);
       if (!p || d.reason !== 'Vente' || p.stock > p.low || !r.caps.has('catalog')) return null;
-      return { ...base, kind: 'stock', title: 'Stock bas · ' + p.name, sub: 'Il en reste ' + p.stock };
+      return { ...base, kind: 'stock', title: 'Stock bas · ' + p.name, sub: 'Il en reste ' + p.stock, staffId: null };
     }
     // a request withdrawn while still pending: the owner's toast for it closes (any item for that id that is no request)
     case 'timeoff.withdrawn': {
       if (!r.caps.has('team') || d.was !== 'pending' || !d.staffId || !d.from) return null;
-      return { ...base, kind: 'timeoff', title: staffName(d.staffId) + ' retire sa demande · ' + rangeWords(d), sub: 'Plus rien à valider', timeoffId: d.id, staffId: d.staffId, day: d.from };
+      return { ...base, kind: 'timeoff', title: staffName(d.staffId) + ' retire sa demande · ' + rangeWords(d), sub: 'Plus rien à valider', timeoffId: d.id, staffId: null, aboutStaffId: d.staffId, day: d.from };
     }
     case 'timeoff.requested': case 'timeoff.added': case 'timeoff.refused': {
       const mine = d.staffId === r.me.id;
@@ -102,6 +123,7 @@ function feedItem(r, f) {
       const t = s.timeoff.get(d.id) || s.timeoffRequests.get(d.id) || null;
       const x = t || d;
       const range = x.from ? rangeWords(x) : '';
+      // his own line names him (his toasts); the team holders' line names nobody, the absence's barber is aboutStaffId
       const ref = { timeoffId: d.id, staffId: d.staffId, day: x.from };
       if (mine && !r.caps.has('team')) {
         // told: decided or posted by someone else, worth a toast on his screen
@@ -111,16 +133,17 @@ function feedItem(r, f) {
         return { ...base, kind: 'timeoff', title: (d.request ? 'Absence validée · ' : 'Absence posée · ') + range, sub: d.reason || '', ...told, ...ref };
       }
       const who = staffName(d.staffId);
-      if (f.type === 'timeoff.refused') return { ...base, kind: 'timeoff', title: who + ' · absence refusée', sub: range, ...ref };
+      const about = { timeoffId: d.id, staffId: null, aboutStaffId: d.staffId, day: x.from };
+      if (f.type === 'timeoff.refused') return { ...base, kind: 'timeoff', title: who + ' · absence refusée', sub: range, ...about };
       // what is still to replace, now: the count falls as the plan is applied
       const open = t && t.to >= r.local.day && (f.type === 'timeoff.added' ? s.timeoff.has(d.id) : t.status === 'pending');
       const n = open ? timeoffConflicts(s, t, { now: r.now, local: r.local }).length : 0;
       const left = n ? ' · ' + n + ' rdv à replacer' : '';
       if (f.type === 'timeoff.requested') {
         const pending = !!t && t.status === 'pending';
-        return { ...base, kind: 'timeoff', title: who + ' demande ' + range + (pending ? left : ''), sub: (d.reason || 'Absence') + ' · ' + (pending ? 'à valider' : s.timeoff.has(d.id) ? 'validée' : t ? 'refusée' : 'retirée'), request: true, pending, ...ref };
+        return { ...base, kind: 'timeoff', title: who + ' demande ' + range + (pending ? left : ''), sub: (d.reason || 'Absence') + ' · ' + (pending ? 'à valider' : s.timeoff.has(d.id) ? 'validée' : t ? 'refusée' : 'retirée'), request: true, pending, ...about };
       }
-      return { ...base, kind: 'timeoff', title: who + ' absent ' + range + left, sub: (d.request ? 'Demande validée' : d.reason || 'Absence') + (t ? '' : ' · retirée'), ...ref };
+      return { ...base, kind: 'timeoff', title: who + ' absent ' + range + left, sub: (d.request ? 'Demande validée' : d.reason || 'Absence') + (t ? '' : ' · retirée'), ...about };
     }
     // WP-05's contact and training requests: the first name from its projection (personal data, never in the event)
     case 'inquiry.received': {
@@ -128,7 +151,7 @@ function feedItem(r, f) {
       const q = s.inquiries && typeof s.inquiries.get === 'function' ? s.inquiries.get(d.id) : null;
       const first = (q && !q.erased && (q.first || q.name)) || '';
       const mod = d.module ? ((s.settings.trainings?.modules || []).find((m) => m.id === d.module)?.title || '') : '';
-      return { ...base, kind: 'inquiry', title: 'Nouvelle demande : ' + (d.kind === 'formation' ? 'formation' : 'contact') + (first ? ' · ' + first : ''), sub: mod || (d.kind === 'formation' ? 'Formations' : 'Contact du site'), inquiryId: d.id };
+      return { ...base, kind: 'inquiry', title: 'Nouvelle demande : ' + (d.kind === 'formation' ? 'formation' : 'contact') + (first ? ' · ' + first : ''), sub: mod || (d.kind === 'formation' ? 'Formations' : 'Contact du site'), inquiryId: d.id, staffId: null };
     }
     default: for (const x of EXTENSIONS) if (x.item && x.feed?.includes(f.type)) return x.item(r, f); return null;
   }
@@ -202,7 +225,9 @@ const STATUS_FR = { pending: 'acompte en attente', booked: 'à venir', arrived: 
 const SOURCE_FR = { site: 'en ligne', salon: 'au salon', phone: 'par téléphone', walkin: 'sans rendez-vous', wordpress: 'ancien site', import: 'ancien site' };
 const WAIT_FR = { waiting: 'en attente', offered: 'place proposée', booked: 'réservé', removed: 'retiré', expired: 'expiré' };
 const SMS_FR = { confirmation: 'confirmation', reminder: 'rappel la veille', reminder2h: 'rappel 2 h avant', moved: 'déplacement', cancelled: 'annulation', review: 'demande d’avis', rebook: 'relance', receipt: 'reçu', waitlist: 'place libérée', queue: 'file d’attente', deposit: 'lien d’acompte',
-  reassign: 'changement de barbier', reassignAt: 'changement de barbier et d’heure', reschedule: 'rendez-vous à décaler', giftcard: 'carte cadeau' };
+  reassign: 'changement de barbier', reassignAt: 'changement de barbier et d’heure', reschedule: 'rendez-vous à décaler', giftcard: 'carte cadeau',
+  memberWelcome: 'abonnement : bienvenue', memberFailed: 'abonnement : paiement refusé', memberAction: 'abonnement : paiement à valider', memberCancelled: 'abonnement : résiliation', memberStopped: 'abonnement : résiliation', memberWithdrawn: 'abonnement : rétractation', memberWithdrawnNone: 'abonnement : rétractation', memberEnded: 'abonnement : fin faute de paiement', memberOffer: 'abonnement proposé', memberLink: 'lien de l’abonnement', owner_member: 'alerte abonnement' };
+const MEMBER_FR = { pending: 'paiement attendu', active: 'en cours', grace: 'paiement en retard', unpaid: 'impayé', ending: 'résilié, en cours jusqu’à la fin du mois payé', ended: 'terminé' };
 const SMS_STATUS_FR = { queued: 'en attente', claimed: 'en cours d’envoi', sent: 'envoyé', simulated: 'non envoyé (simulé)', failed: 'échec', skipped: 'non envoyé', expired: 'trop tard, non envoyé' };
 const fr = (map, v) => map[v] || v || '';
 const iso = (ms) => (ms ? new Date(ms).toISOString() : null);
@@ -216,7 +241,7 @@ function clientExport(s, c, now) {
     fiche: {
       prenom: c.first, nom: c.last, telephone: fmtPhone(c.phone), email: c.email, anniversaire: c.birthday ? c.birthday.replace('-', '/') : '',
       notes: c.notes, ficheTechnique: c.tech, etiquettes: c.tags || [], smsDeService: !!c.sms,
-      smsBonsPlans: { accord: !!c.marketing, origine: c.marketingSrc === 'stop' ? 'STOP par SMS' : fr(SOURCE_FR, c.marketingSrc), depuis: iso(c.marketingAt) }, origine: fr(SOURCE_FR, c.source), creeLe: iso(c.createdAt), effacee: !!c.erased
+      smsBonsPlans: { accord: !!c.marketing, origine: c.marketingSrc === 'stop' ? 'STOP par SMS' : c.marketingSrc === 'wordpress' ? 'ancien site · jamais demandé' : fr(SOURCE_FR, c.marketingSrc), depuis: iso(c.marketingAt) }, origine: fr(SOURCE_FR, c.source), creeLe: iso(c.createdAt), effacee: !!c.erased
     },
     rendezVous: [...s.appts.values()].filter((a) => ids.has(a.clientId)).sort(byDay).map((a) => ({
       jour: a.day, heure: hhmm(a.start), dureeMinutes: a.dur, prestations: a.services.map((x) => x.name), barbier: who(a.staffId), prix: fmtEur(a.price),
@@ -229,7 +254,14 @@ function clientExport(s, c, now) {
       total: fmtEur(x.totals.due), reglements: (x.payments || []).map((p) => ({ moyen: METHOD_LABEL[p.method] || p.method, montant: fmtEur(p.amount) })),
       ...(x.refunded ? { rembourse: fmtEur(x.refunded) } : {}), ...(x.discountNote ? { motifRemise: x.discountNote } : {})
     })),
-    abonnements: [...s.packs.values()].filter((k) => ids.has(k.clientId)).map((k) => ({ nom: k.name, coupesUtilisees: k.used, coupesTotal: k.total, valableJusquAu: k.expires })),
+    // the monthly contract (PAY-02) and the prepaid carnets
+    abonnementsMensuels: [...s.members.values()].filter((m) => ids.has(m.cid)).map((m) => ({
+      formule: m.name, prixParMois: fmtEur(m.price), statut: fr(MEMBER_FR, statusIn(s, m, now)), souscritLe: iso(m.createdAt), actifDepuis: iso(m.activatedAt || null), carte: m.card,
+      periodesPayees: m.periods.map((p) => ({ du: p.start, au: addDays(p.end, -1), montant: fmtEur(p.amount) })), coupes: m.uses.map((u) => u.day),
+      ...(m.cancel ? { resiliation: { le: iso(m.cancel.at), dernierJourInclus: addDays(m.cancel.effective, -1), par: m.cancel.by === 'salon' ? 'salon' : 'client', motif: m.cancel.reason || '' } } : {}),
+      ...(m.withdrawn ? { retractation: { le: iso(m.withdrawn.at), rembourse: fmtEur(m.withdrawn.refund) } } : {})
+    })),
+    carnets: [...s.packs.values()].filter((k) => ids.has(k.clientId)).map((k) => ({ nom: k.name, coupesUtilisees: k.used, coupesTotal: k.total, valableJusquAu: k.expires })),
     cartesCadeaux: [...s.giftcards.values()].filter((g) => ids.has(g.cid)).map((g) => ({ carte: '•••• ' + g.last4, montant: fmtEur(g.amount), solde: fmtEur(g.balance), valableJusquAu: g.expires, pour: g.recipient || '' })),
     listeAttente: [...s.waitlist.values()].filter((w) => ids.has(w.clientId)).map((w) => ({ jour: w.day, statut: fr(WAIT_FR, w.status), inscritLe: iso(w.at) })),
     sms: [...s.messages.values()].filter((m) => ids.has(m.cid)).sort((a, b) => a.at - b.at).map((m) => ({ le: iso(m.at), type: fr(SMS_FR, m.template), statut: fr(SMS_STATUS_FR, m.status), numero: fmtPhone(m.to), texte: m.body }))
@@ -241,9 +273,16 @@ function rebookable(c, st) { return !c.erased && !c.mergedInto && c.sms && !!c.p
 
 /* ---------------- day figures ---------------- */
 
+/**
+ * The agenda's day figures. scope 'shop': everything (report.shop); 'own': a chair's own; 'desk': someone with no chair
+ * and no report.shop (the desk tablet), who runs the whole salon's day but sees no money: counts and fill for every chair,
+ * revenue, tips and planned null.
+ */
 function dayKpis(r, day) {
   const s = r.s;
-  const mine = !r.caps.has('report.shop');
+  // the desk runs every chair's day: without agenda.all, someone with no chair is no desk (own scope, an empty day)
+  const desk = !r.caps.has('report.shop') && !r.me.chair && r.caps.has('agenda.all');
+  const mine = !r.caps.has('report.shop') && !desk;
   const appts = [...(s.apptsByDay.get(day) || [])].map((id) => s.appts.get(id)).filter((a) => a && a.status !== 'cancelled' && (!mine || a.staffId === r.me.id));
   const done = appts.filter((a) => a.status === 'done').length;
   const noShows = appts.filter((a) => a.status === 'no_show').length;
@@ -260,8 +299,29 @@ function dayKpis(r, day) {
   let cap = 0, booked = 0;
   for (const id of staffIds) for (const [a, b] of staffIntervals(s, id, day)) cap += b - a;
   for (const a of appts) if (a.status !== 'no_show') booked += a.dur;
-  const showMoney = r.caps.has('report.shop') || r.caps.has('report.own');
-  return { total: appts.length, done, noShows, upcoming, revenue: showMoney ? revenue : null, tips: showMoney ? tips : null, planned: showMoney ? planned : null, fill: cap ? Math.min(1, booked / cap) : 0, scope: mine ? 'own' : 'shop' };
+  const showMoney = !desk && (r.caps.has('report.shop') || r.caps.has('report.own'));
+  return { total: appts.length, done, noShows, upcoming, revenue: showMoney ? revenue : null, tips: showMoney ? tips : null, planned: showMoney ? planned : null, fill: cap ? Math.min(1, booked / cap) : 0, scope: desk ? 'desk' : mine ? 'own' : 'shop' };
+}
+
+/**
+ * What someone in own scope sees of the others (TEAM-01, Réglages › Équipe › « Ce que chacun voit des autres »):
+ * salon, unless the owner chose 'off': the month goal reached and the salon's fill this month, in % and never in euros
+ * (goalPct a whole percent, null without a goal; fill 0..1 like the agenda's); team, with report.team ('named'): each
+ * active chair's figures over the asked period, never commission, rates or tips.
+ */
+function teamSide(r, from, to) {
+  const s = r.s, L = r.local;
+  const out = {};
+  if (teamViewOf(s.settings) !== 'off') {
+    const m = report(s, { from: monthStart(L.day), to: L.day, staffId: null, today: L.day, now: r.now });
+    const target = s.settings.goals.monthCents;
+    out.salon = { goalPct: target > 0 ? Math.round((m.revenue / target) * 100) : null, fill: m.occupancy };
+  }
+  if (r.caps.has('report.team')) {
+    out.team = report(s, { from, to, staffId: null, today: L.day, now: r.now }).staff.filter((x) => s.staff.get(x.id)?.active)
+      .map((x) => ({ id: x.id, name: x.name, color: x.color, revenue: x.revenue, done: x.done, occupancy: x.occupancy, rebookRate: x.rebookRate, noShows: x.noShows, avgTicket: x.avgTicket }));
+  }
+  return out;
 }
 
 export function staffRoutes(app) {
@@ -270,7 +330,8 @@ export function staffRoutes(app) {
     const full = r.caps.has('team');
     const settings = r.caps.has('settings') ? s.settings : {
       shop: s.settings.shop, hours: s.settings.hours, closures: s.settings.closures, booking: s.settings.booking, deposits: s.settings.deposits,
-      payments: s.settings.payments, team: s.settings.team, goals: s.settings.goals,
+      // the month's goal is the owner's and the managers' (Objectifs): a barber gets none
+      payments: s.settings.payments, team: s.settings.team, goals: r.caps.has('report.shop') ? s.settings.goals : {},
       messages: { ...s.settings.messages, templates: r.caps.has('marketing') ? s.settings.messages.templates : {} }
     };
     return {
@@ -279,7 +340,8 @@ export function staffRoutes(app) {
       services: [...s.services.values()].filter((x) => x.active || r.caps.has('catalog')).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)).map(serviceView),
       products: [...s.products.values()].filter((x) => x.active || r.caps.has('catalog')).map(productView),
       providers: { payments: r.rt.pay.name, paymentsLive: !!r.rt.pay.live, sms: r.rt.sms ? r.rt.sms.name : null, email: r.rt.email ? r.rt.email.name : null, store: r.rt.store.kind },
-      warnings: r.me.role === 'owner' ? [...r.rt.warnings, ...closingWarnings(s, r.local.day)] : []
+      // the server's own set-up is the owner's; what stops tonight's Z reaches whoever may close the day
+      warnings: [...(r.me.role === 'owner' ? r.rt.warnings : []), ...(r.caps.has('closure') ? closingWarnings(s, r.local.day) : [])]
     };
   });
 
@@ -303,6 +365,8 @@ export function staffRoutes(app) {
   app.get('/api/v1/agenda', (r) => {
     const day = dayParam(r);
     const v = agendaView(r.s, day, r.caps, r.me, r.now);
+    // a sealed day's Z is the salon's money: its number for everyone, its figures for whoever closes or reads the salon's
+    if (v.closure && !r.caps.has('closure') && !r.caps.has('report.shop')) v.closure = { number: v.closure.number, auto: !!v.closure.auto };
     const L = r.local;
     const est = day === L.day ? walkinEstimate(r.s, r.now, L) : null;
     return { ...v, kpis: dayKpis(r, day), walkin: est, drawer: r.s.drawer ? { open: true, since: r.s.drawer.openedAt } : { open: false }, absences: orphans(r) };
@@ -359,7 +423,7 @@ export function staffRoutes(app) {
       .map((x) => ({ id: x.id, day: x.day, start: x.start, services: x.services.map((v) => v.name), staff: (s.staff.get(x.staffId) || {}).name, status: x.status, price: x.saleId ? (s.sales.get(x.saleId)?.totals.revenue ?? x.price) : x.price })) : [];
     const messages = [...s.messages.values()].filter((m) => m.apptId === a.id).map((m) => ({ id: m.id, channel: m.channel || 'sms', template: m.template, status: m.status, at: m.at, sentAt: m.sentAt || null, to: m.toMasked }));
     const payments = [...s.payments.values()].filter((p) => p.apptId === a.id).map((p) => ({ id: p.id, kind: p.kind, amount: p.amount, status: p.status, at: p.createdAt }));
-    return { appt: apptView(s, a, r.caps, stats), client: c && r.caps.has('client.view') ? clientFull(s, c, r.caps, stats) : null, history, messages, payments, sale: a.saleId && s.sales.get(a.saleId) ? saleView(s, s.sales.get(a.saleId), r.caps) : null };
+    return { appt: apptView(s, a, r.caps, stats, r.now), client: c && r.caps.has('client.view') ? clientFull(s, c, r.caps, stats, r.now) : null, history, messages, payments, sale: a.saleId && s.sales.get(a.saleId) ? saleView(s, s.sales.get(a.saleId), r.caps) : null };
   }, { cap: 'agenda.own' });
 
   app.post('/api/v1/appointments', (r) => r.run(A.createAppointment, r.body), { cap: 'agenda.own' });
@@ -370,7 +434,9 @@ export function staffRoutes(app) {
     const res = await r.run(A.cancelAppointment, { id: r.params.id, reason: r.body.reason, notify: r.body.notify });
     if (r.body.refundDeposit && res.deposit && res.deposit.paymentId) {
       if (!r.caps.has('sale.refund')) throw new HttpError(403, 'forbidden', 'Seul le gérant rembourse un acompte.');
-      res.refunded = await refundOnline(r, r.s.payments.get(res.deposit.paymentId), 'Annulé par le salon');
+      const back = await refundOnline(r, r.s.payments.get(res.deposit.paymentId), 'Annulé par le salon');
+      res.refunded = back.ok;
+      if (!back.ok) res.refundError = back.error;
     }
     return res;
   }, { cap: 'agenda.own' });
@@ -413,7 +479,7 @@ export function staffRoutes(app) {
     const segs = {
       all: () => true, nouveaux: (c) => st(c).firstDay && diffDays(st(c).firstDay, L.day) <= 30 || !st(c).visits, fideles: (c) => st(c).loyal,
       // the same people as Relances: late on their rhythm and agreed to the offers
-      relancer: (c) => st(c).overdue && rebookable(c, st(c)), absents: (c) => st(c).noShows > 0, abonnes: (c) => [...s.packs.values()].some((k) => k.clientId === c.id && k.used < k.total),
+      relancer: (c) => st(c).overdue && rebookable(c, st(c)), absents: (c) => st(c).noShows > 0, abonnes: (c) => membersOf(s, c.id).some((m) => isLive(m, L.day, graceOf(s))) || [...s.packs.values()].some((k) => k.clientId === c.id && k.used < k.total),
       vip: (c) => (c.tags || []).includes('VIP'), anniversaires: (c) => c.birthday && c.birthday.slice(3, 5) === month,
       doublons: (c) => dups.has(c.id), inactifs: (c) => inactive.has(c.id)
     };
@@ -433,7 +499,7 @@ export function staffRoutes(app) {
       overdue: (a, b) => (st(a).dueIn ?? 999) - (st(b).dueIn ?? 999)
     };
     list.sort(sorters[sort] || sorters.recent);
-    return { total: list.length, counts, excludedNoConsent, retention, items: list.slice(offset, offset + limit).map((c) => clientCard(s, c, r.caps, stats)) };
+    return { total: list.length, counts, excludedNoConsent, retention, items: list.slice(offset, offset + limit).map((c) => clientCard(s, c, r.caps, stats, r.now)) };
   }, { cap: 'client.view' });
 
   /** Probably the same person twice: the file to keep first (more visits, then the older one). Before /:id. */
@@ -445,7 +511,7 @@ export function staffRoutes(app) {
     const pairs = all.slice(0, 200).map((p) => {
       const a = s.clients.get(p.a), b = s.clients.get(p.b);
       const [keep, drop] = visits(a) > visits(b) || (visits(a) === visits(b) && a.createdAt <= b.createdAt) ? [a, b] : [b, a];
-      return { keep: clientCard(s, keep, r.caps, stats), drop: clientCard(s, drop, r.caps, stats), why: p.why };
+      return { keep: clientCard(s, keep, r.caps, stats, r.now), drop: clientCard(s, drop, r.caps, stats, r.now), why: p.why };
     });
     return { total: all.length, pairs };
   }, { cap: 'client.view' });
@@ -462,7 +528,7 @@ export function staffRoutes(app) {
     const messages = [...s.messages.values()].filter((m) => m.cid === c.id && !m.template.startsWith('owner_')).sort((a, b) => b.at - a.at).slice(0, 20).map((m) => ({ id: m.id, channel: m.channel || 'sms', template: m.template, status: m.status, at: m.at }));
     // where the consent to the offers comes from, and since when: "SMS bons plans : oui (site, 12/10/2026)"
     const consent = { marketingSrc: c.marketingSrc || '', marketingAt: c.marketingAt || null };
-    return { client: { ...clientFull(s, c, r.caps, stats), ...consent }, appts, sales: r.caps.has('sale.all') || r.caps.has('report.shop') ? sales : [], packs, messages };
+    return { client: { ...clientFull(s, c, r.caps, stats, r.now), ...consent }, appts, sales: r.caps.has('sale.all') || r.caps.has('report.shop') ? sales : [], packs, messages };
   }, { cap: 'client.view' });
 
   app.post('/api/v1/clients', (r) => r.run(C.addClient, r.body), { cap: 'client.edit' });
@@ -484,14 +550,11 @@ export function staffRoutes(app) {
       if (res.duplicate) { if (fileOf(r).erased) return { ok: true, ...out }; continue; }
       out.cancelled += (res.cancelled || []).length;
       if (res.texts && res.texts.length) {
-        // the outbox leaves oldest first: send as far as these texts go, so a backlog never leaves them behind
-        const mine = new Set(res.texts), due = [...r.s.messages.values()].filter((m) => m.status === 'queued' && m.dueAt <= r.now);
-        let last = -1;
-        due.forEach((m, k) => { if (mine.has(m.id)) last = k; });
-        await dispatch(r.rt, Math.min(500, Math.max(last + 1, res.texts.length)));
+        // exactly these, now: not held behind a backlog nor by the salon's phone's per-dispatch cap
+        await dispatchNow(r.rt, res.texts);
         for (const id of res.texts) { const m = r.s.messages.get(id); if (m && ['sent', 'simulated', 'claimed'].includes(m.status)) out.texted++; else out.unsent++; }
       }
-      if (r.caps.has('sale.refund')) for (const pid of res.deposits || []) if (await refundOnline(r, r.s.payments.get(pid), 'Fiche client effacée')) out.refunded++;
+      if (r.caps.has('sale.refund')) for (const pid of res.deposits || []) if ((await refundOnline(r, r.s.payments.get(pid), 'Fiche client effacée')).ok) out.refunded++;
       if (res.erased) return { ok: true, ...out };
     }
     throw new HttpError(409, 'busy', 'De nouveaux rendez-vous arrivent sur cette fiche. Réessaie dans un instant.');
@@ -543,17 +606,8 @@ export function staffRoutes(app) {
   app.post('/api/v1/sales/:id/refund', async (r) => {
     const x = r.s.sales.get(r.params.id);
     if (!x) throw new HttpError(404, 'not_found', 'Ticket introuvable.');
-    let providerRef;
-    if (r.body.method === 'online') {
-      // every rule of the credit note, run before any money moves at the provider: what it refuses never leaves
-      S.checkRefund(r.s, { ...r.body, saleId: x.id }, { local: r.local, actor: { t: 'staff' }, staff: r.me });
-      const pay = x.payments.map((p) => p.paymentId && r.s.payments.get(p.paymentId)).find((p) => p && p.status === 'paid');
-      if (!pay) throw new HttpError(400, 'invalid', 'Aucun paiement en ligne à rembourser sur ce ticket.');
-      if (r.body.amount > pay.amount) throw new HttpError(400, 'invalid', 'Le remboursement en ligne ne peut dépasser ' + fmtEur(pay.amount) + '.');
-      const res = await r.rt.pay.refund(pay.chargeRef || pay.providerRef, r.body.amount, x.id + '-' + x.refundIds.length);
-      providerRef = res.ref;
-    }
-    return r.run(S.refund, { ...r.body, saleId: x.id, providerRef });
+    // every rule of the credit note, run before any money moves at the provider it was paid with (routes-payments.js)
+    return tillRefund(r, x, r.body);
   }, { cap: 'sale.refund' });
   app.post('/api/v1/sales/:id/receipt', (r) => r.run(S.sendReceipt, { saleId: r.params.id, phone: r.body.phone, n: r.body.n }), { cap: 'sale.create' });
 
@@ -635,7 +689,7 @@ export function staffRoutes(app) {
     const ms = monthStart(L.day), me = monthEnd(L.day);
     const month = own ? null : report(r.s, { from: ms, to: L.day, staffId: null, today: L.day, now: r.now });
     const goal = own ? null : { target: r.s.settings.goals.monthCents, done: month ? month.revenue : 0, days: diffDays(ms, me) + 1, elapsed: diffDays(ms, L.day) + 1 };
-    return { ...cur, scope: own ? 'own' : staffId ? 'staff' : 'shop', prev: pick(prev), prevRange: pp, goal };
+    return { ...cur, scope: own ? 'own' : staffId ? 'staff' : 'shop', prev: pick(prev), prevRange: pp, goal, ...(own ? teamSide(r, from, to) : {}) };
   }, { cap: 'report.own' });
 
   /* ---------------- relances ---------------- */
@@ -646,7 +700,7 @@ export function staffRoutes(app) {
     const overdue = [...s.clients.values()].filter((c) => !c.erased && !c.mergedInto && c.sms && c.phone && stats.get(c.id)?.overdue);
     // without consent to the offers, no follow-up: they are counted, not listed
     const items = overdue.filter((c) => rebookable(c, stats.get(c.id)))
-      .map((c) => clientCard(s, c, r.caps, stats)).sort((a, b) => (a.dueIn ?? 0) - (b.dueIn ?? 0)).slice(0, 200);
+      .map((c) => clientCard(s, c, r.caps, stats, r.now)).sort((a, b) => (a.dueIn ?? 0) - (b.dueIn ?? 0)).slice(0, 200);
     /** @type {Map<string, any>} */
     const recent = new Map();
     for (const m of s.messages.values()) if (m.template === 'rebook' && r.now - m.at < 60 * 86400000 && m.at > (recent.get(m.cid)?.at || 0)) recent.set(m.cid, m);
@@ -662,7 +716,7 @@ export function staffRoutes(app) {
 
   app.get('/api/v1/messages', (r) => {
     const items = [...r.s.messages.values()].sort((a, b) => b.at - a.at).slice(0, Math.min(300, Number(r.query.get('limit')) || 100))
-      .map((m) => ({ id: m.id, channel: m.channel || 'sms', template: m.template, status: m.status, at: m.at, dueAt: m.dueAt || m.at, sentAt: m.sentAt || null, to: m.toMasked || maskPhone(m.to), body: r.caps.has('settings') ? m.body : '', subject: r.caps.has('settings') && m.mail ? m.mail.subject || '' : '', error: m.error || '' }));
+      .map((m) => ({ id: m.id, channel: m.channel || 'sms', template: m.template, status: m.status, at: m.at, dueAt: m.dueAt || m.at, sentAt: m.sentAt || null, to: m.toMasked || maskPhone(m.to), body: r.caps.has('settings') ? m.body : '', subject: r.caps.has('settings') && m.mail ? m.mail.subject || '' : '', error: m.error || '', via: m.via || null, fallback: m.fallback || '' }));
     return { items, provider: r.rt.sms ? r.rt.sms.name : null, emailProvider: r.rt.email ? r.rt.email.name : null, mode: r.s.mode };
   }, { cap: 'marketing' });
   /** The address that brings STOP replies back (sent with every text; also for the provider's own settings). */

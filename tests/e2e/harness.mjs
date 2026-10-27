@@ -162,7 +162,9 @@ export function helpers({ base, mode, owner, setupToken }) {
 export async function runFiles(browser, dir, { boot, scenario }) {
   const full = join(ROOT, 'tests', 'e2e', dir);
   if (!existsSync(full)) return;
-  const files = readdirSync(full).filter((f) => f.endsWith('.mjs')).sort();
+  // E2E_ONLY=barber-guards,month-closure runs only the scenarios whose file starts with one of these names
+  const only = (process.env.E2E_ONLY || '').split(',').filter(Boolean);
+  const files = readdirSync(full).filter((f) => f.endsWith('.mjs') && (!only.length || only.some((x) => f.startsWith(x)))).sort();
   for (const f of files) {
     const name = dir + '/' + basename(f, '.mjs');
     let mod;

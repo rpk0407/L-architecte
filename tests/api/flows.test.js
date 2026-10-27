@@ -38,7 +38,7 @@ test('sign-in: demo hints, wrong password, right password, session cookie', asyn
   assert.ok(b.jar.has('lx_s'));
   const boot = await b.get('/api/v1/bootstrap');
   assert.equal(boot.json.me.role, 'owner');
-  assert.equal(boot.json.staff.length, 5);
+  assert.equal(boot.json.staff.length, 6);
 });
 
 test('every staff route needs a session; changes need our own origin', async () => {

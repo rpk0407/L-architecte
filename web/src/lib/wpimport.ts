@@ -7,6 +7,8 @@
 import * as D from '../../../shared/dates.js';
 // @ts-ignore: plain JS module with JSDoc types
 import * as PH from '../../../shared/phone.js';
+// @ts-ignore: plain JS module with JSDoc types
+import { retentionCutoff } from '../../../shared/retention.js';
 
 const dates = D as { instantOf(day: string, min: number): number; isDay(s: string): boolean; addDays(key: string, n: number): string; localParts(ms: number): { day: string } };
 
@@ -15,14 +17,24 @@ export type WpBooking = {
   wp: number; uniq?: string; day: string; start: number; dur?: number; createdAt?: number;
   first: string; last: string; email: string; phone: string; prefix?: string;
   services: string[]; staff: string; price: number | null; paid: number; status: WpStatus; noShow: boolean; note: string;
+  /** the WordPress customer id (a site pull gives it; the exports do not) */
+  wpUser?: number;
 };
-export type WpClient = { first: string; last: string; email: string; phone: string; prefix?: string; notes: string };
+export type WpClient = { first: string; last: string; email: string; phone: string; prefix?: string; notes: string; wpUser?: number };
 export type WpGift = { code: string; amount: number; expires?: string };
 export type WpPack = { phone: string; first: string; last: string; left: number; expires: string };
 export type FileKind = 'bookings' | 'wxr' | 'customers' | 'giftcards' | 'packs' | 'unknown';
-export type FileReport = { name: string; kind: FileKind; rows: number; dupes?: number };
-export type Problem = { file: string; line: number; text: string };
-export type Parsed = { bookings: WpBooking[]; clients: WpClient[]; giftcards: WpGift[]; packs: WpPack[]; files: FileReport[]; problems: Problem[] };
+/** rows: read and kept; dupes: the same booking read again (the newest file wins); bad: lines that could not be read (each has a Problem); window: the period a bookings CSV says it covers */
+export type FileReport = { name: string; kind: FileKind; rows: number; dupes?: number; bad?: number; window?: Period };
+export type Period = { from: string; to: string };
+export type Problem = { file: string; line: number; text: string; kind?: 'status-unknown' };
+export type Parsed = {
+  bookings: WpBooking[]; clients: WpClient[]; giftcards: WpGift[]; packs: WpPack[]; files: FileReport[]; problems: Problem[];
+  /** the periods the files cover (a CSV with its « de / à » preamble); WXR and a CSV without one cover nothing */
+  windows: Period[];
+  /** ids of bookings read badly (date, state): they exist in the export, so they are never taken for deleted ones */
+  unreadable: Set<number>;
+};
 
 /* ---------------- small readers ---------------- */
 
@@ -207,7 +219,9 @@ export function unserialize(src: string): unknown {
 }
 
 type WxrBooking = Partial<WpBooking> & { wp: number };
-function readWxr(text: string, problems: Problem[], file: string): WxrBooking[] {
+const STATUS_UNKNOWN = 'État inconnu sur l’ancien site : ligne ignorée';
+function readWxr(text: string, problems: Problem[], file: string): { list: WxrBooking[]; bad: number } {
+  let bad = 0;
   const items = text.split(/<item>/).slice(1).map((x) => x.split('</item>')[0]);
   const titles = new Map<string, string>();
   for (const it of items) { const type = tag(it, 'wp:post_type'); if (type === 'sln_service' || type === 'sln_attendant') titles.set(tag(it, 'wp:post_id'), tag(it, 'title')); }
@@ -220,6 +234,8 @@ function readWxr(text: string, problems: Problem[], file: string): WxrBooking[] 
     for (const m of it.split(/<wp:postmeta>/).slice(1)) meta.set(tag(m, 'wp:meta_key'), tag(m, 'wp:meta_value'));
     const g = (k: string) => (meta.get('_sln_booking_' + k) || '').trim();
     const st = parseStatus(tag(it, 'wp:status'));
+    // a status the plugin does not know (a trashed booking, a draft): never guessed, said
+    if (!st) { bad++; problems.push({ file, line: 0, kind: 'status-unknown', text: 'Réservation n° ' + wp + ' : ' + STATUS_UNKNOWN }); continue; }
     const svc = unserialize(g('services'));
     const lines = svc && typeof svc === 'object' ? Object.values(svc as Record<string, any>).filter((x) => x && typeof x === 'object') : [];
     const services = lines.map((l) => titles.get(String(l.service)) || '').filter(Boolean);
@@ -247,44 +263,55 @@ function readWxr(text: string, problems: Problem[], file: string): WxrBooking[] 
     if (amount != null && Number.isFinite(amount)) { b.price = amount; b.paid = deposit || (st === 'paid' ? amount : 0); }
     out.push(b);
   }
-  if (!out.length) problems.push({ file, line: 0, text: 'Aucune réservation dans ce fichier WordPress (type sln_booking).' });
+  if (!out.length && !bad) problems.push({ file, line: 0, text: 'Aucune réservation dans ce fichier WordPress (type sln_booking).' });
   // an export of the bookings alone names no service nor barber: the bookings the CSV lacks could not be taken
-  else if (!titles.size) problems.push({ file, line: 0, text: 'Ni prestations ni barbiers dans ce fichier : refais l’export avec « Tout le contenu »' });
-  return out;
+  else if (out.length && !titles.size) problems.push({ file, line: 0, text: 'Ni prestations ni barbiers dans ce fichier : refais l’export avec « Tout le contenu »' });
+  return { list: out, bad };
 }
 
 /* ---------------- everything at once ---------------- */
 
-/** Reads every dropped file and merges them: bookings deduplicated by ID across files, the WXR filling in what the CSV lacks. */
-export function readFiles(files: { name: string; text: string }[]): Parsed {
+/**
+ * Reads every dropped file and merges them: bookings deduplicated by ID across files (the most recently modified file
+ * wins, then the first dropped), the WXR filling in what the CSV lacks.
+ */
+export function readFiles(files: { name: string; text: string; modified?: number }[]): Parsed {
   const problems: Problem[] = [];
   const reports: FileReport[] = [];
   const csv = new Map<number, WpBooking>();
-  const wxr: WxrBooking[] = [];
+  /** where each booking was read: the report it counts in, and that file's date */
+  const src = new Map<number, { rep: number; mod: number }>();
+  const unreadable = new Set<number>();
+  const wxr: (WxrBooking & { rep: number })[] = [];
   const clients: WpClient[] = [], giftcards: WpGift[] = [], packs: WpPack[] = [];
+  const windows: Period[] = [];
   for (const f of files) {
     const text = f.text.replace(/^﻿/, '');
     if (/^\s*<\?xml|<rss[\s>]/.test(text.slice(0, 400))) {
-      const list = readWxr(text, problems, f.name);
-      wxr.push(...list);
-      reports.push({ name: f.name, kind: 'wxr', rows: list.length });
+      const { list, bad } = readWxr(text, problems, f.name);
+      wxr.push(...list.map((w) => ({ ...w, rep: reports.length })));
+      reports.push({ name: f.name, kind: 'wxr', rows: list.length, ...(bad ? { bad } : {}) });
       continue;
     }
     const rows = parseCsv(text).filter((r) => r.some((c) => c.trim() !== ''));
     const cell = (r: string[], i: number | undefined) => (i == null ? '' : (r[i] || '').trim());
     let h = findHeader(rows, BOOKING_HEADERS, ['id', 'when']);
     if (h) {
-      let n = 0, dupes = 0;
+      let n = 0, dupes = 0, bad = 0;
+      const mod = f.modified || 0;
       for (let i = h.at + 1; i < rows.length; i++) {
         const r = rows[i], c = h.c;
         const wp = Number(cell(r, c.id));
         const line = i + 1;
-        if (!wp) { problems.push({ file: f.name, line, text: 'Ligne sans ID' }); continue; }
-        if (csv.has(wp)) { dupes++; continue; }
+        if (!wp) { problems.push({ file: f.name, line, text: 'Ligne sans ID' }); bad++; continue; }
+        // the same booking in two exports: the one read from the most recently modified file stands
+        const prior = src.get(wp);
+        if (prior && !(mod > prior.mod)) { dupes++; continue; }
         const when = parseWhen(cell(r, c.when));
         const status = parseStatus(cell(r, c.status));
-        if (!when) { problems.push({ file: f.name, line, text: 'Date illisible : « ' + cell(r, c.when) + ' »' }); continue; }
-        if (!status) { problems.push({ file: f.name, line, text: 'État inconnu : « ' + cell(r, c.status) + ' »' }); continue; }
+        if (!when) { problems.push({ file: f.name, line, text: 'Date illisible : « ' + cell(r, c.when) + ' »' }); bad++; unreadable.add(wp); continue; }
+        if (!status) { problems.push({ file: f.name, line, text: 'État inconnu : « ' + cell(r, c.status) + ' »' }); bad++; unreadable.add(wp); continue; }
+        if (prior) { const old = reports[prior.rep]; old.rows--; old.dupes = (old.dupes || 0) + 1; }
         const created = cell(r, c.created) ? parseWhen(cell(r, c.created)) : null;
         const { price, deposit } = parsePrice(cell(r, c.price));
         csv.set(wp, {
@@ -294,36 +321,44 @@ export function readFiles(files: { name: string; text: string }[]): Parsed {
           // a deposit paid online counts whatever the status ('Confirmé' with '(10 € déjà payé en acompte)')
           price, paid: deposit || (status === 'paid' ? price || 0 : 0), status, noShow: false, note: ''
         });
+        src.set(wp, { rep: reports.length, mod });
         n++;
       }
-      reports.push({ name: f.name, kind: 'bookings', rows: n, dupes });
+      // « Réservations · de · à » above the header: the period this export covers (what is missing from it, inside, was deleted)
+      let window: Period | undefined;
+      for (const r of rows.slice(0, h.at)) {
+        const from = r[1] ? parseWhen(r[1]) : null, to = r[2] ? parseWhen(r[2]) : null;
+        if (from && to && from.day <= to.day) { window = { from: from.day, to: to.day }; break; }
+      }
+      if (window) windows.push(window);
+      reports.push({ name: f.name, kind: 'bookings', rows: n, dupes, ...(bad ? { bad } : {}), ...(window ? { window } : {}) });
       continue;
     }
     if ((h = findHeader(rows, GIFT_HEADERS, ['code', 'amount']))) {
-      let n = 0;
+      let n = 0, bad = 0;
       for (let i = h.at + 1; i < rows.length; i++) {
         const r = rows[i];
         const amount = parseMoney(cell(r, h.c.amount));
-        if (!cell(r, h.c.code) || amount == null) { problems.push({ file: f.name, line: i + 1, text: 'Carte sans code ou sans solde' }); continue; }
-        if (amount < 0 || amount > 100000) { problems.push({ file: f.name, line: i + 1, text: 'Solde hors limites (1 000 € au plus) : reprends-la à la caisse' }); continue; }
+        if (!cell(r, h.c.code) || amount == null) { problems.push({ file: f.name, line: i + 1, text: 'Carte sans code ou sans solde' }); bad++; continue; }
+        if (amount < 0 || amount > 100000) { problems.push({ file: f.name, line: i + 1, text: 'Solde hors limites (1 000 € au plus) : reprends-la à la caisse' }); bad++; continue; }
         const exp = cell(r, h.c.expires);
         giftcards.push({ code: cell(r, h.c.code), amount, ...(exp && localDay(exp) ? { expires: localDay(exp) } : {}) });
         n++;
       }
-      reports.push({ name: f.name, kind: 'giftcards', rows: n });
+      reports.push({ name: f.name, kind: 'giftcards', rows: n, ...(bad ? { bad } : {}) });
       continue;
     }
     if ((h = findHeader(rows, PACK_HEADERS, ['phone', 'left']))) {
-      let n = 0;
+      let n = 0, bad = 0;
       for (let i = h.at + 1; i < rows.length; i++) {
         const r = rows[i];
         const left = parseInt(cell(r, h.c.left), 10);
         const expires = localDay(cell(r, h.c.expires));
-        if (!(left > 0) || !expires) { problems.push({ file: f.name, line: i + 1, text: 'Abonnement sans coupes restantes ou sans date d’expiration' }); continue; }
+        if (!(left > 0) || !expires) { problems.push({ file: f.name, line: i + 1, text: 'Carnet sans coupes restantes ou sans date d’expiration' }); bad++; continue; }
         packs.push({ phone: cell(r, h.c.phone), first: cell(r, h.c.first), last: cell(r, h.c.last), left, expires });
         n++;
       }
-      reports.push({ name: f.name, kind: 'packs', rows: n });
+      reports.push({ name: f.name, kind: 'packs', rows: n, ...(bad ? { bad } : {}) });
       continue;
     }
     if ((h = findHeader(rows, CUSTOMER_HEADERS, ['first', 'email']) || findHeader(rows, CUSTOMER_HEADERS, ['first', 'phone']))) {
@@ -349,14 +384,24 @@ export function readFiles(files: { name: string; text: string }[]): Parsed {
       if (w.note) b.note = w.note;
       if (w.dur) b.dur = w.dur;
       if (w.noShow) b.noShow = true;
+      // a deposit only the WXR knows (the CSV prints it for « Payant » only)
+      if (w.paid && !b.paid) b.paid = w.paid;
+      if (b.price == null && w.price != null) b.price = w.price;
       if (!b.phone && w.phone) b.phone = w.phone;
       if (!b.email && w.email) b.email = w.email.toLowerCase();
     } else if (w.day && w.start != null && w.status && w.services && w.services.length) {
-      csv.set(w.wp, { first: '', last: '', phone: '', staff: '', price: null, paid: 0, noShow: false, note: '', ...w, email: (w.email || '').toLowerCase() } as WpBooking);
+      const { rep, ...rest } = w;
+      csv.set(w.wp, { first: '', last: '', phone: '', staff: '', price: null, paid: 0, noShow: false, note: '', ...rest, email: (w.email || '').toLowerCase() } as WpBooking);
+    } else {
+      // not in the CSV and not complete enough to book: counted as unreadable, not silently dropped
+      const rep = reports[w.rep];
+      rep.rows--; rep.bad = (rep.bad || 0) + 1;
+      unreadable.add(w.wp);
+      problems.push({ file: rep.name, line: 0, text: 'Réservation n° ' + w.wp + ' : sans date, prestation ou état lisibles dans le fichier XML, ignorée' });
     }
   }
   const bookings = [...csv.values()].sort((a, b) => (a.day < b.day ? -1 : a.day > b.day ? 1 : a.start - b.start));
-  return { bookings, clients, giftcards, packs, files: reports, problems };
+  return { bookings, clients, giftcards, packs, files: reports, problems, windows, unreadable };
 }
 
 /* ---------------- matching names to the Comptoir ---------------- */
@@ -417,7 +462,7 @@ export function chunks<T>(rows: T[], max = 150, bytes = 48000): T[][] {
 export type Mapping = { services: Record<string, string>; staff: Record<string, string> };
 export const LEGACY = 'legacy';
 export type ReviewRow = { wp?: number; day?: string; start?: number; name: string; text: string; kind?: string };
-export type Identity = { phone?: string; prefix?: string; email?: string };
+export type Identity = { phone?: string; prefix?: string; email?: string; wpUser?: number };
 /** Where a booking an earlier run brought in stands now (POST /api/v1/import/preview). */
 export type Prior = { wp: number; day: string; start: number; dur: number; staffId: string; status: string; open: boolean; movedHere: boolean };
 type Has = { has(wp: number): boolean };
@@ -428,15 +473,15 @@ const nameOf = (x: { first?: string; last?: string }) => [x.first, x.last].filte
 export function people(p: Parsed) {
   const byKey = new Map<string, number>();
   const ids: Identity[][] = [];
-  const add = (x: { phone: string; prefix?: string; email: string }) => {
+  const add = (x: { phone: string; prefix?: string; email: string; wpUser?: number }) => {
     const phone = x.phone ? normPhoneImport(x.phone, x.prefix) : null;
     const email = x.email && isEmail(x.email) ? x.email : '';
-    const keys = [phone ? 'p:' + phone : '', email ? 'e:' + email : ''].filter(Boolean);
+    const keys = [x.wpUser ? 'w:' + x.wpUser : '', phone ? 'p:' + phone : '', email ? 'e:' + email : ''].filter(Boolean);
     if (!keys.length) return -1;
     let g = keys.map((k) => byKey.get(k)).find((v) => v != null);
     if (g == null) { g = ids.length; ids.push([]); }
     for (const k of keys) byKey.set(k, g);
-    ids[g].push({ ...(phone ? { phone: x.phone, prefix: x.prefix } : {}), ...(email ? { email } : {}) });
+    ids[g].push({ ...(phone ? { phone: x.phone, prefix: x.prefix } : {}), ...(email ? { email } : {}), ...(x.wpUser ? { wpUser: x.wpUser } : {}) });
     return g;
   };
   return { add, ids };
@@ -481,48 +526,99 @@ export function priorStaff(p: Parsed, prior: Map<number, Prior>): Record<string,
   return Object.fromEntries([...n].map(([name, m]) => [name, [...m].sort((a, b) => b[1] - a[1])[0][0]]));
 }
 
+/** The first day still kept: older bookings and customers are not brought in (shared/retention.js). */
+export const cutoff = (today: string): string => retentionCutoff(today);
+
+/** An imported booking still to come inside a period the files cover (POST /api/v1/import/preview, `window`). */
+export type InWindow = { wp: number; day: string; start: number; staffId: string; status: string; open: boolean };
+/** An active booking of the agenda (`busy`): the double-booking check reads it as the batch does. */
+export type Busy = { day: string; staffId: string; start: number; dur: number };
+export type PreviewOpts = {
+  known?: Set<number>; again?: Set<number>; erased?: Map<number, number>; imported?: Map<number, Prior>; chairs?: Set<string>; today?: string;
+  inWindow?: InWindow[]; busy?: Busy[]; svcDur?: Record<string, { dur: number; buffer?: number }>;
+};
+
+/**
+ * Who the import leaves out for retention: files are kept 3 years from the last contact (shared/retention.js), so a
+ * person whose newest booking (any state, upcoming included) is before the cutoff is not brought in, nor a customer with no
+ * booking at all. Not for a person who already has a file, who is being erased anyway, or who has a running subscription.
+ * The same decision serves the preview and the rows sent.
+ */
+function plan(p: Parsed, o: { known?: Set<number>; again?: Set<number>; erased?: Map<number, number>; today: string }) {
+  const P = people(p);
+  const cutoff: string = retentionCutoff(o.today);
+  const g = p.bookings.map((b) => P.add(b));
+  const cg = p.clients.map((c) => P.add(c));
+  const packed = new Set(p.packs.map((k) => P.add({ ...k, email: '' })).filter((x) => x >= 0));
+  const newest = new Map<number, string>();
+  p.bookings.forEach((b, i) => { if (g[i] >= 0 && !((newest.get(g[i]) || '') >= b.day)) newest.set(g[i], b.day); });
+  const out = new Map<number, 'retention' | 'noVisit'>();
+  for (let x = 0; x < P.ids.length; x++) {
+    if (o.known?.has(x) || o.again?.has(x) || o.erased?.has(x) || packed.has(x)) continue;
+    const n = newest.get(x);
+    if (n === undefined) out.set(x, 'noVisit');
+    else if (n < cutoff) out.set(x, 'retention');
+  }
+  /** a booking nobody can keep: its person is out, or it names nobody and is older than the cutoff */
+  const left = (b: WpBooking, i: number) => (g[i] >= 0 ? out.has(g[i]) : b.day < cutoff);
+  return { P, g, cg, out, cutoff, left };
+}
+
 /**
  * What the import would do, before anything is sent: only the rows that will be sent are counted. `known` holds the
  * groups that already have a file of the salon, `again` those an earlier run created (POST /api/v1/import/preview),
  * `erased` those whose file was erased, and when (the server skips their rows from before), `imported` the bookings
- * an earlier run brought in and where they stand now, `chairs` the active chairs.
+ * an earlier run brought in and where they stand now, `chairs` the active chairs, `busy` the agenda's bookings on the
+ * days to come (double bookings are checked against them too), `inWindow` the imported bookings still to come inside the
+ * periods the files cover (what the export no longer lists was deleted on the old site).
  */
-export function preview(p: Parsed, map: Mapping, now: number, o: { known?: Set<number>; again?: Set<number>; erased?: Map<number, number>; imported?: Map<number, Prior>; chairs?: Set<string>; today?: string } = {}) {
+export function preview(p: Parsed, map: Mapping, now: number, o: PreviewOpts = {}) {
   const known = o.known || new Set<number>(), again = o.again || new Set<number>(), imported = o.imported || new Map<number, Prior>();
   const erased = o.erased || new Map<number, number>(), told = new Set<number>();
   const today = o.today || dates.localParts(now).day;
-  const P = people(p);
+  const { P, g, cg, out: left, left: isLeft } = plan(p, { known, again, erased, today });
   const groups = new Set<number>();
   const counts = { newClients: 0, merged: 0, past: 0, noShow: 0, upcoming: 0, cancelled: 0, skipped: 0, unmapped: 0, already: 0, toCancel: 0, toMove: 0, toClose: 0, erased: 0, giftcards: p.giftcards.length, packs: p.packs.length };
   const review: ReviewRow[] = [];
+  /** the chairs' bookings per day: the agenda's first, then this run's own */
   const lanes = new Map<string, { start: number; dur: number }[]>();
-  for (const b of p.bookings) {
-    const g = P.add(b);
+  for (const x of o.busy || []) { const k = x.day + '|' + x.staffId; lanes.set(k, [...(lanes.get(k) || []), { start: x.start, dur: x.dur }]); }
+  /** the server's length: the file's own, else the services' (with the longest buffer) */
+  const durOf = (b: WpBooking) => {
+    if (b.dur) return b.dur;
+    const sv = [...new Set(b.services.map((n) => map.services[n]).filter(Boolean))].map((id) => o.svcDur?.[id]).filter(Boolean) as { dur: number; buffer?: number }[];
+    return sv.length ? sv.reduce((t, x) => t + x.dur, 0) + Math.max(0, ...sv.map((x) => x.buffer || 0)) : 30;
+  };
+  let retentionRows = 0;
+  p.bookings.forEach((b, i) => {
+    const gi = g[i];
     const row = { wp: b.wp, day: b.day, start: b.start, name: nameOf(b) };
+    const k = imported.get(b.wp);
+    // retention: not brought in, as the rows sent leave it out (an earlier run's booking is carried over whatever its age)
+    if (!k && isLeft(b, i)) { retentionRows++; return; }
     // erased at their request or after 3 years: left out, as the server does, unless booked on the old site since
-    const gone = g >= 0 ? erased.get(g) : undefined;
+    const gone = gi >= 0 ? erased.get(gi) : undefined;
     if (gone !== undefined && !(b.createdAt && b.createdAt > gone)) {
       counts.erased++;
-      if (!told.has(g)) { told.add(g); review.push({ wp: b.wp, day: b.day, start: b.start, name: '', kind: 'erased', text: 'Client effacé : ses lignes sont ignorées' }); }
-      continue;
+      if (!told.has(gi)) { told.add(gi); review.push({ wp: b.wp, day: b.day, start: b.start, name: '', kind: 'erased', text: 'Client effacé : ses lignes sont ignorées' }); }
+      return;
     }
-    const k = imported.get(b.wp);
     if (k) {
       const ch = b.status === 'error' ? null : change(b, k, map.staff[b.staff] || '', now, today, o.chairs);
       if (ch === 'cancel') { counts.toCancel++; review.push({ ...row, kind: 'cancel', text: 'Annulé sur l’ancien site depuis le premier import : sera annulé ici' }); }
       else if (ch === 'move') { counts.toMove++; review.push({ ...row, kind: 'move', text: 'Déplacé sur l’ancien site depuis le premier import : sera déplacé ici' }); }
       else if (ch === 'close') counts.toClose++;
       else counts.already++;
-      continue;
+      return;
     }
     const out = outcome(b, now);
-    if (!out) { counts.skipped++; continue; }
+    if (!out) { counts.skipped++; return; }
     if (!mapped(b, map)) {
       counts.unmapped++;
       review.push({ ...row, kind: 'service', text: 'Prestation inconnue : ' + (b.services.filter((n) => !map.services[n]).join(', ') || 'aucune') + ' (ligne ignorée)' });
-      continue;
+      return;
     }
-    if (g >= 0) groups.add(g);
+    if (gi >= 0) groups.add(gi);
     if (b.phone && !normPhoneImport(b.phone, b.prefix)) review.push({ ...row, kind: 'phone', text: 'Numéro illisible : « ' + b.phone + ' »' });
     if (!b.phone && !b.email) review.push({ ...row, kind: 'phone', text: 'Ni numéro ni e-mail : rendez-vous sans fiche client' });
     if (out === 'done') counts.past++;
@@ -531,17 +627,47 @@ export function preview(p: Parsed, map: Mapping, now: number, o: { known?: Set<n
     else {
       counts.upcoming++;
       const staffId = map.staff[b.staff] || '';
-      if (!staffId || staffId === LEGACY || (o.chairs && !o.chairs.has(staffId))) { review.push({ ...row, kind: 'staff', text: 'À venir : choisis un barbier actif pour « ' + (b.staff || 'Sans barbier') + ' »' }); continue; }
-      const lane = b.day + '|' + staffId, dur = b.dur || 30;
+      if (!staffId || staffId === LEGACY || (o.chairs && !o.chairs.has(staffId))) { review.push({ ...row, kind: 'staff', text: 'À venir : choisis un barbier actif pour « ' + (b.staff || 'Sans barbier') + ' »' }); return; }
+      const lane = b.day + '|' + staffId, dur = durOf(b);
       const list = lanes.get(lane) || [];
-      if (list.some((x) => x.start < b.start + dur && b.start < x.start + x.dur)) review.push({ ...row, kind: 'overlap', text: 'Chevauche un autre rendez-vous à venir du fichier' });
+      if (list.some((x) => x.start < b.start + dur && b.start < x.start + x.dur)) review.push({ ...row, kind: 'overlap', text: 'Chevauche un autre rendez-vous' });
       lanes.set(lane, [...list, { start: b.start, dur }]);
     }
-  }
-  for (const c of p.clients) { const g = P.add(c); if (g >= 0 && !erased.has(g)) groups.add(g); }
+  });
+  p.clients.forEach((c, i) => { const x = cg[i]; if (x >= 0 && !erased.has(x) && !left.has(x)) groups.add(x); });
   // a file an earlier run created is neither new nor merged (the server counts it as neither)
-  for (const g of groups) if (!again.has(g)) counts[known.has(g) ? 'merged' : 'newClients']++;
-  return { counts, review, identities: P.ids };
+  for (const x of groups) if (!again.has(x)) counts[known.has(x) ? 'merged' : 'newClients']++;
+
+  // deleted on the old site: still to come inside a period an export covers, and in none of the files. Those nobody
+  // handled here are cancelled; the server tells the others apart and lists them for a look
+  const inFiles = new Set([...p.bookings.map((b) => b.wp), ...p.unreadable]);
+  // the guard counts the ones that would be cancelled (open: nobody handled them here); the others are sent too, the server lists them for a look
+  const live = [...new Map((o.inWindow || []).filter((x) => ['booked', 'pending', 'arrived', 'in_chair'].includes(x.status)).map((x) => [x.wp, x])).values()];
+  const openLive = live.filter((x) => x.open).length;
+  let gone = live.filter((x) => !inFiles.has(x.wp));
+  let warning = '';
+  // an export that stops short would cancel half the agenda: past a few, nothing is sent
+  const goneOpen = gone.filter((x) => x.open).length;
+  if (goneOpen > Math.max(5, openLive * 0.2)) { warning = goneOpen + ' rendez-vous à venir ont disparu de l’export : vérifie qu’il couvre toute la période. Rien n’est annulé.'; gone = []; }
+  for (const x of gone) review.push({ wp: x.wp, day: x.day, start: x.start, name: '', kind: 'gone', text: x.open ? 'Supprimé sur l’ancien site : sera annulé ici, sans SMS' : 'Supprimé sur l’ancien site, mais déjà pris en charge ici : vérifie' });
+
+  // what the files held, and what is left out before sending, so the run's report can add up
+  const rep = (kinds: FileKind[]) => p.files.filter((f) => kinds.includes(f.kind));
+  const sum = (list: FileReport[], k: 'rows' | 'dupes' | 'bad') => list.reduce((t, f) => t + (f[k] || 0), 0);
+  const bk = rep(['bookings', 'wxr']);
+  const raw = sum(bk, 'rows') + sum(bk, 'dupes') + sum(bk, 'bad');
+  const duplicate = sum(bk, 'rows') + sum(bk, 'dupes') - p.bookings.length;
+  const bad = { bookings: sum(bk, 'bad'), giftcards: sum(rep(['giftcards']), 'bad'), packs: sum(rep(['packs']), 'bad') };
+  const people_ = { retention: 0, noVisit: 0 };
+  for (const v of left.values()) people_[v]++;
+  // people the server will not bring back (their file was erased): neither made nor already there, but not lost
+  const skippedPeople = [...erased.keys()].filter((x) => !groups.has(x)).length;
+  const totals = { bookings: raw, clients: P.ids.length, giftcards: p.giftcards.length + bad.giftcards, packs: p.packs.length + bad.packs };
+  const excluded = {
+    retention: people_.retention, noVisit: people_.noVisit, duplicate, unreadable: bad.bookings + bad.giftcards + bad.packs,
+    by: { bookings: duplicate + bad.bookings + retentionRows, clients: people_.retention + people_.noVisit, giftcards: bad.giftcards, packs: bad.packs }
+  };
+  return { counts, review, identities: P.ids, gone: gone.map((x) => x.wp), goneOpen: gone.filter((x) => x.open).length, warning, totals, excluded, skippedPeople };
 }
 
 const cut = (s: string | undefined, n: number) => (s ? s.trim().slice(0, n) : undefined) || undefined;
@@ -551,24 +677,59 @@ const within = (v: number | null | undefined, min: number, max: number) => (v !=
 /**
  * The rows for POST /api/v1/import/batch (cut into requests by `chunks`). Bookings an earlier run brought in are
  * sent again, even with a service left unmatched: the server carries over what changed since (cancelled, moved).
+ * Rows it will skip anyway (an error, a service left unmatched) are sent too, so the server counts them by reason.
+ * With `today`, the people the retention rule leaves out are not sent at all; the older bookings of those who stay go
+ * after the others (the server brings an old row in when its person has a visit since, here or in an earlier batch).
+ * `gone`: the bookings the preview found deleted on the old site.
  */
-export function toRows(p: Parsed, map: Mapping, imported: Has = new Set<number>()) {
-  const appts = [];
-  for (const b of p.bookings) {
-    if (b.status === 'error') continue;
+export function toRows(p: Parsed, map: Mapping, imported: Has = new Set<number>(), o: { today?: string; known?: Set<number>; again?: Set<number>; erased?: Map<number, number>; gone?: number[] } = {}) {
+  const pl = o.today ? plan(p, { known: o.known, again: o.again, erased: o.erased, today: o.today }) : null;
+  const recent: Record<string, unknown>[] = [], old: Record<string, unknown>[] = [];
+  p.bookings.forEach((b, i) => {
     const again = imported.has(b.wp);
-    if (!again && !mapped(b, map)) continue;
-    appts.push({
+    if (!again && pl && pl.left(b, i)) return;
+    (pl && b.day < pl.cutoff ? old : recent).push({
       wp: b.wp, uniq: b.uniq, day: b.day, start: b.start, dur: within(b.dur, 5, 600), createdAt: b.createdAt,
-      first: cut(b.first, 60), last: cut(b.last, 60), phone: cut(b.phone, 32), prefix: cut(b.prefix, 6), email: cut(b.email, 160),
+      first: cut(b.first, 60), last: cut(b.last, 60), phone: cut(b.phone, 32), prefix: cut(b.prefix, 6), email: cut(b.email, 160), wpUser: b.wpUser,
       serviceIds: mapped(b, map) ? [...new Set(b.services.map((n) => map.services[n]))].slice(0, 6) : [], staffId: map.staff[b.staff] || LEGACY,
-      price: within(b.price, 0, 1000000), paid: within(b.paid, 1, 1000000), status: b.status, noShow: b.noShow || undefined, note: cut(b.note, 300)
+      price: within(b.price, 0, 1000000), paid: within(b.paid, 1, 1000000), status: b.status, noShow: b.noShow || undefined, note: cut(b.note, 300),
+      // the old site's name for a service left unmatched, so the report says which one the skipped row was
+      wpServices: mapped(b, map) ? undefined : b.services.filter((n) => !map.services[n]).map((n) => n.slice(0, 80)).slice(0, 6)
     });
-  }
-  const clients = p.clients.map((c) => ({ first: cut(c.first, 60), last: cut(c.last, 60), phone: cut(c.phone, 32), email: cut(c.email, 160), notes: cut(c.notes, 1000) }));
+  });
+  const appts = [...recent, ...old];
+  const clients = p.clients.filter((c, i) => !(pl && pl.cg[i] >= 0 && pl.out.has(pl.cg[i]))).map((c) => ({ first: cut(c.first, 60), last: cut(c.last, 60), phone: cut(c.phone, 32), email: cut(c.email, 160), notes: cut(c.notes, 1000), wpUser: c.wpUser }));
   const giftcards = p.giftcards.map((g) => ({ code: g.code.slice(0, 40), amount: g.amount, expires: g.expires }));
   const packs = p.packs.map((k) => ({ phone: cut(k.phone, 32), first: cut(k.first, 60), last: cut(k.last, 60), left: Math.min(50, k.left), expires: k.expires }));
-  return { clients, appts, giftcards, packs };
+  return { clients, appts, giftcards, packs, gone: [...new Set(o.gone || [])] };
+}
+
+/** The first 16 hex digits of a file's SHA-256: which export a run was made from, without keeping it. */
+export async function sha16(text: string): Promise<string> {
+  try {
+    const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+    return [...new Uint8Array(d)].slice(0, 8).map((x) => x.toString(16).padStart(2, '0')).join('');
+  } catch {
+    // not a secure context: a plain 53-bit hash does the same job here (telling two exports apart)
+    let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+    for (let i = 0; i < text.length; i++) { const c = text.charCodeAt(i); h1 = Math.imul(h1 ^ c, 2654435761); h2 = Math.imul(h2 ^ c, 1597334677); }
+    return ((h1 >>> 0).toString(16).padStart(8, '0') + (h2 >>> 0).toString(16).padStart(8, '0'));
+  }
+}
+
+/** The body of POST /api/v1/import/runs: what the files held and what was left out before sending (see `preview`). */
+export function runBody(p: Parsed, pv: ReturnType<typeof preview>, map: Mapping, shas: string[], parts: number) {
+  const windows = [...new Map(p.windows.map((w) => [w.from + w.to, w])).values()].slice(0, 12);
+  return {
+    source: 'files' as const,
+    files: p.files.slice(0, 30).map((f, i) => ({ name: f.name.slice(0, 80), kind: f.kind, rows: f.rows, sha: shas[i] || '' })),
+    window: windows,
+    map: {
+      services: Object.fromEntries(Object.entries(map.services).filter(([, v]) => v).map(([k, v]) => [k.slice(0, 80), v])),
+      staff: Object.fromEntries(Object.entries(map.staff).map(([k, v]) => [k.slice(0, 80), v || LEGACY]))
+    },
+    totals: pv.totals, excluded: pv.excluded, skippedPeople: pv.skippedPeople, parts
+  };
 }
 
 /** WordPress names seen in the bookings, most used first: the services and barbers to map. */
@@ -579,4 +740,76 @@ export function names(p: Parsed) {
     return [...m].sort((a, b) => b[1] - a[1]);
   };
   return { services: count((b) => b.services), staff: count((b) => [b.staff]) };
+}
+
+/* ---------------- the report of a run (GET /api/v1/import/runs/:id) ---------------- */
+
+export type RunCounts = { clients?: Record<string, number>; appts?: Record<string, number>; giftcards?: Record<string, number>; packs?: Record<string, number> };
+export type RunRecord = {
+  id: string; at: number; by: string; source: 'files' | 'site'; batches: number; parts?: number; lastIndex: number; finishedAt: number | null; undoneAt: number | null;
+  files: { name: string; kind: string; rows: number; sha: string }[]; window: Period[]; site?: { url: string };
+  totals: { bookings: number; clients: number; giftcards: number; packs: number };
+  excluded: { retention: number; noVisit: number; duplicate: number; unreadable: number; by?: Record<string, number> };
+  counts: RunCounts; skip: Record<string, number>; skippedPeople?: number;
+};
+export type ReportLine = { kind: string; wp: number; day: string; start: number | null; name: string; staff: string; text: string; todo: boolean };
+/** Why rows are skipped, in the owner's words (the keys of a run's `skip`). */
+export const SKIP_WORDS: Record<string, string> = {
+  error: 'État « Erreur » sur l’ancien site', unpaid: 'Paiement en ligne jamais terminé', service: 'Prestation inconnue', staff: 'Barbier inconnu ou sans chaise',
+  retention: 'Plus de 3 ans sans visite', erased: 'Client effacé', phone: 'Ni numéro ni e-mail', rows: 'Autres lignes ignorées (personnes regroupées autrement ici)', giftcard: 'Carte non reprise', pack: 'Carnet non repris'
+};
+export type Recon = { type: 'bookings' | 'clients' | 'giftcards' | 'packs'; label: string; source: number; made: number; already: number; skipped: number; reasons: { key: string; n: number }[]; left: number; gap: number };
+
+/**
+ * « Rows in the export = rows here + rows skipped »: for each kind of record, what the files held, what was made,
+ * what was already there, what was skipped (by reason), what was left out before sending. gap ≠ 0 means something was lost
+ * or counted twice. Clients are people: those whose file was erased are counted by the browser
+ * (`skippedPeople`); the remainder is shown as its own reason.
+ */
+export function reconcile(run: Pick<RunRecord, 'totals' | 'excluded' | 'counts' | 'skip' | 'skippedPeople'>): Recon[] {
+  const c = run.counts || {}, a = c.appts || {}, cl = c.clients || {}, gc = c.giftcards || {}, pk = c.packs || {}, k = run.skip || {}, by = run.excluded.by || {};
+  const n = (x: number | undefined) => x || 0;
+  const bookingsSkipped = n(a.skipped);
+  const erasedB = Math.max(0, bookingsSkipped - ['error', 'unpaid', 'service', 'staff', 'retention'].reduce((t, r) => t + n(k[r]), 0));
+  const packsErased = Math.max(0, n(pk.skipped) - n(k.pack));
+  const rows: Recon[] = [];
+  const add = (type: Recon['type'], label: string, source: number, made: number, already: number, skipped: number, reasons: [string, number][], left: number) => {
+    const sum = made + already + skipped + left;
+    rows.push({ type, label, source, made, already, skipped, reasons: reasons.filter(([, v]) => v > 0).map(([key, v]) => ({ key, n: v })), left, gap: source - sum });
+  };
+  add('bookings', 'Réservations', run.totals.bookings, ['done', 'noShow', 'cancelled', 'booked', 'moved', 'closed', 'updated'].reduce((t, r) => t + n(a[r]), 0), n(a.already), bookingsSkipped,
+    [['error', n(k.error)], ['unpaid', n(k.unpaid)], ['service', n(k.service)], ['staff', n(k.staff)], ['retention', n(k.retention)], ['erased', erasedB]], n(by.bookings));
+  const made = n(cl.added), already = n(cl.merged) + n(cl.again), left = n(by.clients), erased = n(run.skippedPeople);
+  // people whose file was erased are named; what is left is grouped differently here and there (a person with two numbers) and shown as such, not hidden
+  const rest = Math.max(0, run.totals.clients - made - already - left - erased);
+  add('clients', 'Clients', run.totals.clients, made, already, erased + rest, [['erased', erased], ['rows', rest]], left);
+  add('giftcards', 'Cartes cadeaux', run.totals.giftcards, n(gc.added), n(gc.already), n(gc.skipped), [['giftcard', n(gc.skipped)]], n(by.giftcards));
+  add('packs', 'Carnets', run.totals.packs, n(pk.added), n(pk.already), n(pk.skipped), [['pack', n(k.pack)], ['erased', packsErased]], n(by.packs));
+  return rows;
+}
+
+/** What each kind of line is called in the report's groups (the line itself says the rest). */
+const KIND_TITLE: Record<string, string> = {
+  pending: 'En attente sur l’ancien site', paid: 'Déjà payé sur l’ancien site', overlap: 'Chevauchements', today: 'Terminés aujourd’hui sur l’ancien site', moved: 'Déplacés',
+  cancelled: 'Annulés sur l’ancien site mais déjà pris en charge', service: 'Prestations inconnues', staff: 'Barbiers à choisir', phone: 'Numéros illisibles', erased: 'Clients effacés',
+  giftcard: 'Cartes cadeaux non reprises', pack: 'Carnets non repris', error: 'État « Erreur » sur l’ancien site', unpaid: 'Paiement en ligne jamais terminé', retention: 'Plus de 3 ans sans visite',
+  gone: 'Supprimés sur l’ancien site', 'gone-handled': 'Supprimés sur l’ancien site mais déjà pris en charge', name: 'Même numéro, autre prénom', 'email-elsewhere': 'E-mail déjà sur une autre fiche',
+  'new-number': 'Nouveau numéro sur l’ancien site', 'status-unknown': 'État inconnu sur l’ancien site'
+};
+export const kindTitle = (k: string) => KIND_TITLE[k] || k;
+
+/** A CSV cell Excel will not run as a formula (names come from the old site), quoted when it holds the separator. */
+export const csvCell = (v: string | number | null | undefined) => {
+  let s = v == null ? '' : String(v);
+  if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
+  return /[;"\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+};
+/** The report as a file for whoever helps: UTF-8 with a BOM, `;` as French Excel wants, the counts first (so the file alone says whether the run adds up), then one line per row to look at. */
+export function reportCsv(lines: ReportLine[], rep: Recon[]) {
+  const head = ['type', 'raison', 'n° WordPress', 'date', 'heure', 'client', 'barbier', 'détail'];
+  const dmy = (d: string) => d.split('-').reverse().join('/');
+  const hhmm = (m: number) => pad(Math.floor(m / 60)) + ':' + pad(m % 60);
+  const counts = rep.map((r) => ['compte', r.label, '', '', '', '', '', 'source ' + r.source + ' · repris ' + r.made + ' · déjà là ' + r.already + ' · ignorés ' + r.skipped + ' · hors conservation ' + r.left + ' · écart ' + r.gap]);
+  const out = lines.map((l) => [l.kind, kindTitle(l.kind), l.wp || '', l.day ? dmy(l.day) : '', l.start != null ? hhmm(l.start) : '', l.name, l.staff, l.text]);
+  return '\uFEFF' + [head, ...counts, ...out].map((r) => r.map(csvCell).join(';')).join('\r\n') + '\r\n';
 }

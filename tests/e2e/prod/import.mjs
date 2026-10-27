@@ -51,7 +51,7 @@ export default async ({ h, page }) => {
   } else if (await john.inputValue() !== 'legacy') throw new Error('John should default to the archived profile (history only) or to no choice');
   await page.waitForFunction(() => { const b = [...document.querySelectorAll('.wp-go button')][0]; return b && !b.disabled; }, null, { timeout: 10000 });
   await go.click();
-  await seen(page, 'C’est repris', 20000);
+  await seen(page, 'Tout est compté', 20000);
 
   // an imported booking on its date: Karim's cut of 12 August with JKut
   const day = '2026-08-12';
@@ -81,7 +81,7 @@ export default async ({ h, page }) => {
   await delta.waitFor({ timeout: 10000 });
   await page.waitForFunction(() => { const b = [...document.querySelectorAll('.wp-go button')][0]; return b && !b.disabled; }, null, { timeout: 10000 });
   await delta.click();
-  await seen(page, 'C’est repris', 20000);
+  await seen(page, 'Tout est compté', 20000);
   const dec = must(await call(page, '/api/v1/agenda?day=2026-12-15'), 'agenda 15 Dec');
   const k = (dec.appts || []).find((a) => a.name.startsWith('Karim'));
   if (!k || k.status !== 'cancelled') throw new Error('Karim’s booking cancelled on the old site is still ' + (k && k.status));
@@ -92,5 +92,5 @@ export default async ({ h, page }) => {
   await page.goto(base + '/comptoir/reglages/wordpress');
   await drop();
   await seen(page, 'Tout est déjà repris');
-  await page.getByRole('button', { name: 'Rien de nouveau à importer' }).waitFor();
+  await page.getByRole('button', { name: 'Enregistrer la vérification (rien de nouveau)' }).waitFor();
 };

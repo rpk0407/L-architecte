@@ -9,6 +9,8 @@ import { shopIntervals } from '../domain/availability.js';
 import { phoneAllowed, renderTemplate } from '../domain/messages.js';
 import { normPhone, maskPhone } from '../lib/util.js';
 import { frHoliday } from '../../shared/sms.js';
+import { lastSmsTrouble } from './routes-channels.js';
+import { TEMPLATE_FLAGS } from '../core/templates.js';
 import { addDays, weekday } from '../../shared/dates.js';
 
 const HOUR = 3600000;
@@ -18,6 +20,8 @@ export const TICK_LATE_MS = 30 * 60000;
 /** a text that waited this long after its time with no dispatch at all in between: nothing was sending */
 export const LATE_MS = 30 * 60000;
 export const TEST_SMS_PER_HOUR = 3;
+/** FID-01: the salon's phone sends 5 texts a dispatch; with the cron further apart than this, it falls behind */
+export const GATEWAY_CRON_MS = 3 * 60000;
 /** the Blob store is listed at most this often for the health answer (each list is a billed call) */
 const BACKUP_LIST_MS = 5 * 60000;
 
@@ -31,7 +35,7 @@ const get = (o, path) => path.split('.').reduce((x, k) => (x == null ? undefined
 
 /** the whole chain is checked again at most this often: a long journal takes a second or two */
 const VERIFY_EVERY_MS = 10 * 60000;
-const WEBHOOK_TYPES = new Set(['payment.succeeded', 'payment.failed', 'payment.expired']);
+const WEBHOOK_TYPES = new Set(['payment.succeeded', 'payment.failed', 'payment.expired', 'payment.refundedOutside', 'payment.disputed', 'payment.disputeClosed', 'payout.recorded']);
 
 /** Things only the journal knows. The journal only grows, so each visit reads just the events added since the last one
  *  (from the start again when it was replaced: a demo reset, a restore). */
@@ -43,8 +47,8 @@ export function journalFacts(rt) {
   for (; m.n < j.length; m.n++) {
     const x = j[m.n];
     const d = x.data || {};
-    // what /api/stripe/webhook records; a refund is written as 'stripe' too, but by our own server (refundOnline)
-    if (x.actor.t === 'provider' && x.actor.id === 'stripe' && WEBHOOK_TYPES.has(x.type)) m.stripe = x.at;
+    // what a provider's webhook records (routes-payments.js; not the test page); a refund is written as the provider too, but by our own server (refundOnline)
+    if (x.actor.t === 'provider' && x.actor.id !== 'simulated' && WEBHOOK_TYPES.has(x.type)) m.stripe = x.at;
     else if (x.type === 'appt.booked' && d.source === 'site' && !d.demo) m.site = x.at;
     // the WordPress import: what a run brought or carried over (a delta run that changed nothing leaves no trace)
     if ((x.type === 'client.added' && d.source === 'wordpress') || (x.type === 'appt.booked' && d.source === 'import') || (x.type === 'appt.moved' && d.by === 'import')
@@ -102,6 +106,20 @@ function lateness(msgs, now, hasProvider) {
     if (!last || m.dueAt > last.dueAt) last = { dueAt: m.dueAt, ms: next - m.dueAt };
   }
   return { late, overdue, last };
+}
+
+/**
+ * FID-01 · What the owner checks when a client says « je n'ai rien reçu »: how long the oldest text a client asked for
+ * (a code, a link) has been waiting, and when the salon's phone last took a text.
+ */
+function sendFacts(msgs, now) {
+  let oldest = 0, gatewayAt = 0;
+  for (const m of msgs) {
+    if (m.status === 'queued' && (TEMPLATE_FLAGS[m.template] || {}).requested && m.dueAt <= now && (!oldest || m.dueAt < oldest)) oldest = m.dueAt;
+    // by SMS from the phone: not WhatsApp, not the Brevo fallback, not an e-mail
+    if (m.status === 'sent' && m.channel !== 'email' && (m.via || 'sms') === 'sms' && m.sentAt > gatewayAt) gatewayAt = m.sentAt;
+  }
+  return { requestedWaitMs: oldest ? now - oldest : null, lastSentAt: gatewayAt || null };
 }
 
 /** The backup facts without listing Blob on every visit: the list at most every 5 minutes, this instance's newer
@@ -173,7 +191,14 @@ export async function healthOf(rt, L) {
       open, overdue: late.overdue, late24h: late.late, lastLate: late.last, okMs: TICK_OK_MS, lateMs: TICK_LATE_MS
     },
     stripe: { provider: rt.pay.name, live: !!rt.pay.live, lastWebhook: j.stripe || null },
-    sms: channel('sms', sms ? rt.sms.name : null),
+    // MSG-02: the route in use (provider, and WhatsApp in front of it when it is on) and the last text that failed
+    // FID-01: the oldest text a client asked for still waiting, the last text that left by SMS (from the salon's phone when it
+    // is the provider), and whether the cron calls too seldom for the phone (5 texts a dispatch: one call a minute)
+    sms: {
+      ...channel('sms', sms ? rt.sms.name : null), whatsapp: !!rt.whatsapp && !!(s.settings.messages.whatsapp && s.settings.messages.whatsapp.enabled), ...lastSmsTrouble(msgs),
+      ...sendFacts(msgs, now), fallback: !!rt.smsFallback,
+      cronSlow: sms && rt.sms.name === 'gateway' && (!rt.cfg.cronSecret || (rt.cronGap || 0) > GATEWAY_CRON_MS || (cronAge != null && cronAge > GATEWAY_CRON_MS))
+    },
     email: channel('email', mail),
     backup,
     // when the chain was last checked, on the salon's clock; `events` is the journal now (it grew since, maybe)

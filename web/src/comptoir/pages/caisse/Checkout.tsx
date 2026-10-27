@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { api, qs, uuid } from '../../../lib/api';
 import { refreshAll, useQuery } from '../../../lib/query';
+import { useRoute } from '../../../lib/router';
 import { dates, dayShortWord, eur, money, rhythmWords, time } from '../../../lib/format';
 import { useDebounced, buzz } from '../../../lib/hooks';
 import { QR } from '../../../lib/qr';
@@ -46,6 +47,14 @@ export function Checkout({ apptId, drawerOpen, onClose }: { apptId: string | nul
     const base = s?.pack ? cur : b.price;
     return { key: k(), kind: s?.pack ? 'pack' : 'service', ref: b.id, name: s?.name || b.name, qty: 1, unit: Math.min(base, cur), base, now: cur, booked: !s?.pack, from: s ? s.from : b.from, staffId, packId: null, discount: 0, vat: s ? s.vat : S.vat };
   };
+  // a payment made online on no ticket (Caisse › En ligne, « Encaisser sur un ticket »): the free sale starts paid by it
+  const paidOnline = useRoute().query.get('paiement');
+  useEffect(() => {
+    if (apptId || !paidOnline) return;
+    api.get<{ id: string; status: string; amount: number; usedBy: string | null }>('/api/v1/payments/' + encodeURIComponent(paidOnline))
+      .then((p) => { if (p.status === 'paid' && !p.usedBy) setPays((ps) => (ps.some((x) => x.ref === p.id) ? ps : [...ps, { key: k(), method: 'online', amount: p.amount, ref: p.id, label: 'Payé en ligne' }])); })
+      .catch(toastError);
+  }, [apptId, paidOnline]);
   useEffect(() => {
     if (!apptId) { if (loaded.current !== 'free') { loaded.current = 'free'; setLines([]); setClient(null); } return; }
     const d = detail.data;

@@ -3,8 +3,10 @@
 // The same ticket arithmetic runs in the till (live totals) and on the server (the figure that is recorded).
 
 /**
- * @typedef {'service'|'product'|'giftcard'|'pack'|'fee'} LineKind
- * @typedef {{ kind: LineKind, ref?: string, name: string, qty: number, unit: number, discount?: number, staffId?: string, vat: number, packId?: string }} Line
+ * 'membership': a month of the monthly membership, paid online (revenue at the plan's VAT, `period` attached); a cut the
+ * membership pays is a 'service' line at 0 with memberId, listPrice and credit (its share of the month).
+ * @typedef {'service'|'product'|'giftcard'|'pack'|'fee'|'membership'} LineKind
+ * @typedef {{ kind: LineKind, ref?: string, name: string, qty: number, unit: number, discount?: number, staffId?: string|null, vat: number, packId?: string, memberId?: string }} Line
  * @typedef {{ rate: number, base: number, tax: number }} VatRow
  * @typedef {{ gross: number, discount: number, total: number, tip: number, due: number, revenue: number, revenueHT: number, liability: number, vat: VatRow[], nets: number[] }} Totals
  */
@@ -16,7 +18,8 @@ export function vatSplit(ttc, rateBp) {
   return { base, tax: ttc - base };
 }
 
-/** Lines that count as turnover. A gift card sold is a debt to the holder, not revenue (VAT is due when it is spent). */
+/** Lines that count as turnover. A gift card sold is a debt to the holder, not revenue (VAT is due when it is spent).
+ *  A membership's month is revenue the day it is collected (VAT on services is due on collection). */
 export function isRevenue(kind) { return kind !== 'giftcard'; }
 
 /**

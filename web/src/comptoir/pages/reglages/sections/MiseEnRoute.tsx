@@ -8,10 +8,13 @@ import { ago, dates, plural } from '../../../../lib/format';
 import { useInterval } from '../../../../lib/hooks';
 import { Icon } from '../../../../ui/Icon';
 import { Button, Empty, Note, Skeleton, toast, toastError } from '../../../../ui/kit';
+import { REVIEW_HOWTO, REVIEW_KIND, reviewLinkKind } from '../../../../lib/reviews';
 import { useApp } from '../../../state';
 import './mise-en-route.css';
 
 type Channel = { provider: string | null; failed24h: number; queuedNoProvider: number };
+// MSG-02: WhatsApp in front of the SMS, and the last text that failed (or that WhatsApp handed to the SMS)
+type Trouble = { at: number; error: string; via?: string } | null;
 export type Health = {
   now: number; mode: 'demo' | 'production';
   // at/ageMs: this server's last tick, from any traffic; cronAt/cronAgeMs: its last call by the external scheduler;
@@ -21,7 +24,9 @@ export type Health = {
     overdue: number; late24h: number; lastLate: { dueAt: number; ms: number } | null; okMs: number; lateMs: number
   };
   stripe: { provider: string; live: boolean; lastWebhook: number | null };
-  sms: Channel; email: Channel;
+  // FID-01: the oldest text a client asked for still waiting, the last text that left by SMS, the Brevo fallback, and a
+  // cron too seldom for the salon's phone
+  sms: Channel & { whatsapp?: boolean; lastFailure?: Trouble; lastFallback?: Trouble; requestedWaitMs?: number | null; lastSentAt?: number | null; fallback?: boolean; cronSlow?: boolean }; email: Channel;
   backup: { at: number | null; off: string; configured: boolean; problem: string; staleAfterMs: number };
   integrity: { ok: boolean; count: number; brokenAt?: number; reason?: string; at: number; events: number };
   publicUrl: string; publicUrlCustom: boolean; indexable: boolean;
@@ -67,8 +72,9 @@ function daysList(days: string[], max = 3) {
   return days.length > max ? shown + ' et ' + s(days.length - max, 'autre') : shown;
 }
 
-/** The thirteen steps, in the order that works: a wrong order (texts before PUBLIC_URL, indexing before the menu) breaks the site. */
-export function stepsOf(h: Health, robots: boolean | null, countries: string[], now = h.now): Step[] {
+/** The fourteen steps, in the order that works: a wrong order (texts before PUBLIC_URL, indexing before the menu) breaks the site.
+ *  review: the review request's switch and Google link (boot settings), checked here like the server checks it. */
+export function stepsOf(h: Health, robots: boolean | null, countries: string[], now = h.now, review: { on: boolean; url: string } = { on: false, url: '' }): Step[] {
   const demo = h.mode === 'demo';
   const st = h.setup;
   const since = (at: number) => ago(at, now);
@@ -115,7 +121,7 @@ export function stepsOf(h: Health, robots: boolean | null, countries: string[], 
     line: demo ? 'Démo : les SMS sont simulés, rien ne part.'
       : !sms.provider ? 'Aucun fournisseur' + (sms.queuedNoProvider ? ' : ' + s(sms.queuedNoProvider, 'SMS attend', 'SMS attendent') + ' dans la boîte d’envoi.' : ' : rien ne part.')
         + ' Il se branche le jour J, juste après le passage du domaine : avant, les clients repris de WordPress recevraient un second rappel, avec un lien vers l’ancien site.'
-        : (sms.provider === 'brevo' ? 'Brevo' : sms.provider === 'twilio' ? 'Twilio' : sms.provider) + ' branché' + (sms.failed24h ? ', mais ' + s(sms.failed24h, 'SMS a échoué', 'SMS ont échoué') + ' en 24 h.' : '.')
+        : (sms.provider === 'brevo' ? 'Brevo' : sms.provider === 'twilio' ? 'Twilio' : sms.provider === 'gateway' ? 'Le téléphone du salon' : sms.provider) + (sms.whatsapp ? ' (WhatsApp en premier)' : '') + ' branché' + (sms.failed24h ? ', mais ' + s(sms.failed24h, 'SMS a échoué', 'SMS ont échoué') + ' en 24 h.' : '.')
           + (h.publicUrlCustom ? '' : ' Règle PUBLIC_URL avant le premier SMS : les liens partiraient vers ' + (h.publicUrl || 'une adresse provisoire') + '.'),
     more: <>À confirmer avec Brevo avant d’ouvrir : le numéro STOP des offres (« STOP au 36173 » par défaut), les champs de son webhook et le nom d’expéditeur. Pays où les SMS partent : {countries.join(' ')}{countries.includes('+377') ? '' : ' (Monaco +377 non compris)'}.</>,
     extra: <TestSms disabled={!demo && !sms.provider} /> });
@@ -126,6 +132,16 @@ export function stepsOf(h: Health, robots: boolean | null, countries: string[], 
     line: demo ? 'Démo : les e-mails sont simulés.'
       : !em.provider ? 'Pas encore branché' + (em.queuedNoProvider ? ' : ' + s(em.queuedNoProvider, 'e-mail attend', 'e-mails attendent') + '.' : ' : aucun e-mail ne part (confirmation, résumé du soir).')
         : 'Branché' + (em.failed24h ? ', mais ' + s(em.failed24h, 'e-mail a échoué', 'e-mails ont échoué') + ' en 24 h.' : '.') });
+
+  // REV-02: the link the review request leads to must open the Google review form, not the profile or the map
+  const kind = reviewLinkKind(review.url);
+  out.push({ id: 'reviews', title: 'Avis Google', to: '/reglages/messages', go: 'Messages',
+    tone: !review.url ? 'todo' : !kind || !review.on ? 'warn' : 'ok',
+    line: !review.url ? 'Aucun lien d’avis : ' + REVIEW_HOWTO.charAt(0).toLowerCase() + REVIEW_HOWTO.slice(1) + ', puis colle-le dans Messages › Avis Google.'
+      : !kind ? 'Le lien enregistré n’ouvre pas le formulaire d’avis Google : ' + REVIEW_HOWTO.charAt(0).toLowerCase() + REVIEW_HOWTO.slice(1) + '.'
+        : !review.on ? 'Le lien ouvre bien ' + REVIEW_KIND[kind] + ', mais la demande d’avis est coupée.'
+          : 'Demandé après chaque visite encaissée, une fois par trimestre au plus ; le lien ouvre ' + REVIEW_KIND[kind] + '.',
+    extra: review.url && /^https:\/\//.test(review.url) ? <a className="btn btn-ghost btn-sm" style={{ marginTop: 8, alignSelf: 'flex-start' }} href={review.url} target="_blank" rel="noopener">Tester le lien<Icon name="ext" size={14} /></a> : undefined });
 
   const wp = st.import;
   out.push({ id: 'wordpress', title: 'Reprise WordPress', tone: wp.clients || wp.appts ? 'ok' : 'todo', to: '/reglages/wordpress', go: 'Reprise',
@@ -209,7 +225,7 @@ export default function MiseEnRoute() {
   const robots = useRobots();
   if (loading && !data) return <Skeleton h={520} r={22} />;
   if (!data) return <section className="card"><Empty icon="alert" title="État du salon indisponible" action={<Button variant="subtle" icon="undo" onClick={() => void refresh()}>Réessayer</Button>}>{error?.message || 'Le serveur ne répond pas.'}</Empty></section>;
-  const steps = stepsOf(data, robots, boot.settings.messages?.countries || [], now());
+  const steps = stepsOf(data, robots, boot.settings.messages?.countries || [], now(), { on: !!boot.settings.messages?.review, url: String(boot.settings.shop?.reviewUrl || '') });
   const done = steps.filter((x) => x.tone === 'ok').length;
   const counted = steps.filter((x) => x.tone !== 'info').length;
   const broken = steps.filter((x) => x.tone === 'err');

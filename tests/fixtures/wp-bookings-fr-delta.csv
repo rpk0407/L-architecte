@@ -1,0 +1,17 @@
+﻿Réservations,de,à
+,"01 Jan 2025","31 Déc 2026"
+
+ID,DATE/HEURE,CRÉÉ,"PRÉNOM DU CLIENT","NOM DU CLIENT","E-MAIL DU CLIENT","TÉL DU CLIENT",SERVICES,ASSISTANTS,"NOMBRE DE POUR CHAQUE SERVICE","PRIX TOTAL",ÉTAT
+1100,"13 Déc 2025 10:00","10 Déc 2025 19:02",Mehdi,Haddad,mehdi.h@exemple.fr,0711223344,Coupe,JKut,1,"20 €",Confirmé
+1201,"12 Aoû 2026 10:00","10 Aoû 2026 18:22",Karim,Benali,karim.benali@exemple.fr,0698765432,"Formule Coupe + Contour Barbe 25€",JKut,1,"25 €",Confirmé
+1245,"09 Sep 2026 10:30","01 Sep 2026 09:12",Karim,Benali,,33698765432,"Formule Coupe + Contour Barbe 25€",JKut,1,"25 €",Payant
+1288,"06 Oct 2026 09:30","05 Oct 2026 08:00",Yanis,Martin,yanis@exemple.fr,612345678,Coupe,Soldat,1,"20 €",Confirmé
+1290,"07 Oct 2026 11:00","30 Sep 2026 20:41",Karim,Benali,karim.benali@exemple.fr,"+33 6 98 76 54 32",Coupe,Soldat,1,"20 €","Payer plus tard"
+1302,"14 Oct 2026 15:00","12 Oct 2026 12:30",Mehdi,Haddad,mehdi.h@exemple.fr,0711223344,Coupe,John,1,"20 €",Annulé
+1310,"21 Oct 2026 16:30","20 Oct 2026 10:10",Lucas,Martin,,0755667788,Coupe,Soldat,1,"20 €","En attente"
+1311,"21 Oct 2026 17:00","20 Oct 2026 10:15",Hugo,Fabre,hugo.f@exemple.fr,0622334455,Coupe,JKut,1,"20 €",ERREUR
+1315,"28 Oct 2026 18:00","27 Oct 2026 22:40",Nolan,Girard,nolan.girard@exemple.fr,"12 34",Coupe,John,1,"20 €",Confirmé
+1350,"10 Nov 2026 10:00","02 Nov 2026 21:05",Yanis,Martin,yanis@exemple.fr,0033612345678,"Coupe + barbe",JKut,1,"40 € (10 € déjà payé en acompte)",Payant
+1360,"15 Déc 2026 14:30","01 Nov 2026 11:11",Karim,Benali,karim.benali@exemple.fr,0698765432,Coupe,Soldat,1,"20 €",Confirmé
+1361,"15 Déc 2026 14:30","01 Nov 2026 12:00",Lucas,Martin,,0755667788,Coupe,Soldat,1,"20 €","Payer plus tard"
+1370,"17 Nov 2026 11:00","28 Oct 2026 09:00",Mehdi,Haddad,,0711223344,Coupe,JKut,1,"20 €",Annulé

@@ -27,7 +27,7 @@ type Ctx = {
 const C = createContext<Ctx | null>(null);
 export function useApp() { const c = useContext(C); if (!c) throw new Error('outside app'); return c; }
 
-const LIVE_KINDS = new Set(['booking', 'cancel', 'move', 'payment', 'wait', 'walkin', 'noshow', 'stock']);
+const LIVE_KINDS = new Set(['booking', 'cancel', 'move', 'payment', 'wait', 'walkin', 'noshow', 'stock', 'dispute', 'refund']);
 /** the pulse and a page's query can both be refused at once: one notice is enough */
 let idleToldAt = 0;
 
@@ -79,7 +79,7 @@ export function AppProvider({ initial, onOut, children }: { initial: Boot; onOut
             if (live.length) {
               setUnread((n) => n + live.length);
               const last = live[live.length - 1];
-              toast({ kind: 'info', title: last.title, sub: last.sub, icon: last.kind === 'booking' ? 'calendar' : last.kind === 'cancel' ? 'x' : last.kind === 'payment' ? 'card' : 'bell' });
+              toast({ kind: 'info', title: last.title, sub: last.sub, icon: last.kind === 'booking' ? 'calendar' : last.kind === 'cancel' ? 'x' : last.kind === 'payment' ? 'card' : last.kind === 'dispute' ? 'alert' : 'bell' });
               buzz([12, 50, 12]);
             }
           }

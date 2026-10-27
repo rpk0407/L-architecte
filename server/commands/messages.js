@@ -3,8 +3,9 @@
 import { fail } from '../core/engine.js';
 import { str, arr, id, opt, obj, parse } from '../lib/validate.js';
 import { normPhone } from '../lib/util.js';
-import { queueMessage, consentGone } from '../domain/messages.js';
+import { queueMessage, consentGone, fileOf } from '../domain/messages.js';
 import { clientStats } from '../domain/insights.js';
+import { SECRET_TEMPLATES, SECRET_ERROR } from '../core/templates.js';
 
 // a client seen less than a week ago is not drifting away ("déjà 0 jours depuis ta dernière coupe")
 const MIN_DAYS = 7;
@@ -26,7 +27,20 @@ export const messageResult = {
     const m = s.messages.get(input.id);
     if (!m) return { ok: false };
     const status = ['sent', 'failed', 'simulated', 'skipped', 'queued', 'expired'].includes(input.status) ? input.status : 'failed';
-    ctx.emit('message.updated', { id: m.id, patch: { status, sentAt: ctx.now, providerRef: input.providerRef || null, error: String(input.error || '').slice(0, 160), tries: (m.tries || 0) + 1 } });
+    // via (MSG-02): the way it really left, 'whatsapp' or 'sms' ('fallback': by Brevo SMS after the salon's phone
+    // refused it, FID-01), and fallback: why the first way handed it on
+    const via = ['whatsapp', 'sms', 'fallback'].includes(input.via) ? { via: input.via } : {};
+    // a text with a code: the provider's words may echo it, and this patch is chained for good (whatever the status)
+    const secret = SECRET_TEMPLATES.has(m.template);
+    const fallback = input.fallback ? { fallback: secret ? SECRET_ERROR : String(input.fallback).slice(0, 160) } : {};
+    const error = input.error ? (secret ? SECRET_ERROR : String(input.error).slice(0, 160)) : '';
+    // a contract's acknowledgement that failed waits for the next try (legal: retried until sent, core/templates.js)
+    const retry = status === 'queued' && Number.isFinite(input.retryAt) ? { dueAt: Math.max(ctx.now, input.retryAt) } : {};
+    ctx.emit('message.updated', { id: m.id, patch: { status, ...(status === 'queued' ? {} : { sentAt: ctx.now }), providerRef: input.providerRef || null, error, tries: (m.tries || 0) + 1, ...via, ...fallback, ...retry } });
+    // the text that tells a file imported from WordPress about the new site has left: relation texts may follow (FID-01)
+    const left = status === 'sent' || (status === 'simulated' && s.mode === 'demo');
+    const c = left && m.informs ? fileOf(s, m.cid) : null;
+    if (c && !c.erased && !(s.informed && s.informed.has(c.id))) ctx.emit('client.informed', { cid: c.id, msgId: m.id });
     return { ok: true };
   }
 };

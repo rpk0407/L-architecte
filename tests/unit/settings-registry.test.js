@@ -39,7 +39,8 @@ const BEFORE = () => {
         confirmation: "L'Architecte : c'est noté {prenom} ! {date} à {heure} avec {barbier}. Gérer : {lien}",
         reminder: "L'Architecte : rappel, demain {heure} avec {barbier}. Un imprévu ? Déplace ou annule ici : {lien}",
         reminder2h: "L'Architecte : on t'attend à {heure} avec {barbier}, à tout à l'heure !",
-        review: "Merci {prenom} ! 30 secondes pour un avis ? Ça nous aide énormément : {avis}",
+        // REV-02: shorter, so the tracked /avis/ link still fits in one SMS
+        review: "Merci {prenom} ! Ton avis Google nous aide énormément : {avis}",
         rebook: "Salut {prenom}, déjà {jours} jours depuis ta dernière coupe. On s'y remet ? Réserve ici : {lien}",
         waitlist: "L'Architecte : place libérée {date} à {heure} avec {barbier}, à toi pendant 30 min : {lien}",
         queue: "L'Architecte : c'est presque ton tour, {prenom}. Reviens au salon, on t'installe dans 5 minutes.",
@@ -52,20 +53,38 @@ const BEFORE = () => {
         reassign: "{absent} est absent {date}, {barbier} te prend à {heure}, prix inchangé. Pas d'accord ? {lien}",
         reassignAt: "{absent} est absent {date}, {barbier} te prend à {heure} au lieu de {avant}. Pas d'accord ? {lien}",
         reschedule: "{prenom}, on doit décaler ton rendez-vous du {date}. Choisis un nouveau créneau : {lien}",
-        giftcard: "{acheteur} t'offre {montant} chez L'Architecte ! Ton code : {code}. Réserve ici : {lien}"
+        giftcard: "{acheteur} t'offre {montant} chez L'Architecte ! Ton code : {code}. Réserve ici : {lien}",
+        // PAY-02: the monthly membership's texts
+        memberWelcome: "L'Architecte : bienvenue {prenom} ! Abonnement {formule} ({prix}/mois) actif. Réserve : {lien}",
+        memberFailed: "L'Architecte : {prenom}, paiement de l'abonnement ({prix}) refusé. Mets ta carte à jour : {lien}",
+        memberAction: "L'Architecte : ta banque demande de valider le paiement de ton abonnement ({prix}). Valide ici : {lien}",
+        memberCancelled: "L'Architecte : résiliation enregistrée le {date}. Tes coupes restent incluses jusqu'au {fin}. {lien}",
+        memberStopped: "L'Architecte : résiliation enregistrée le {date}. Ton abonnement prend fin aujourd'hui. {lien}",
+        memberWithdrawn: "L'Architecte : rétractation enregistrée le {date}. Remboursement de {montant} sous 14 jours. {lien}",
+        memberWithdrawnNone: "L'Architecte : rétractation enregistrée le {date}. Tes coupes valent le mois : rien à rembourser. {lien}",
+        memberEnded: "L'Architecte : ton abonnement a pris fin faute de paiement. Pour le reprendre : {lien}",
+        memberOffer: "L'Architecte : ton abonnement {formule} ({prix}/mois) : {lien}",
+        memberLink: "L'Architecte : pour gérer ou résilier ton abonnement (lien valable 1 h) : {lien}"
       },
       // GL-08: quiet hours, the STOP mention, the countries texted
       quiet: { from: 1200, to: 480, sunday: true, holidays: true }, stopSuffix: ' STOP au 36173', countries: ['+33', '+32', '+41', '+352', '+262', '+590', '+594', '+596', '+508', '+681', '+687', '+689'],
       // WP-02: confirmations and cancellations by e-mail too
-      email: true
+      email: true,
+      // MSG-02: WhatsApp off until the owner maps an approved template
+      whatsapp: { enabled: false, templates: {} }
     },
     // DO-05: a barber's own absence waits for the owner
-    team: { barberCheckout: true, barberAllAgenda: true, barberMaxDiscountPct: 10, barberSeeRevenue: false, timeoffApproval: true },
+    // TEAM-01: what barbers see of colleagues, the nudge of their own regulars, their phones and calendars
+    team: { barberCheckout: true, barberAllAgenda: true, barberMaxDiscountPct: 10, barberSeeRevenue: false, timeoffApproval: true, teamView: 'salon', barberRebook: false, personalPhones: true, staffCalendar: true },
     goals: { monthCents: 2400000 },
     // WP-02: what the owner is told without opening the Comptoir
     notify: { to: '', phone: '', newBooking: true, cancel: true, evening: '20:00', weekly: true },
     // the /formations page (WP-05): its modules and certificates
-    trainings: trainings.defaults()
+    trainings: trainings.defaults(),
+    // PAY-02: the monthly membership, off until the owner switches it on
+    membership: { enabled: false, plans: [], graceDays: 7 },
+    // CPT-01a: the month the fiscal year ends
+    fiscal: { yearEndMonth: 12 }
   };
 };
 
@@ -92,9 +111,14 @@ const ACCEPTED = [
   [{ payments: { tipPresets: [100, 300], vat: 550, receiptFooter: ' À bientôt ' } }, { payments: { tipPresets: [100, 300], vat: 550, receiptFooter: 'À bientôt' } }],
   [{ messages: { reminderHour: 9, templates: { rebook: 'Salut {prenom}, on se revoit ? {lien}' } } }, { messages: { reminderHour: 9, templates: { rebook: 'Salut {prenom}, on se revoit ? {lien}' } } }],
   [{ team: { barberMaxDiscountPct: 0, barberSeeRevenue: true } }, { team: { barberMaxDiscountPct: 0, barberSeeRevenue: true } }],
+  [{ team: { teamView: 'named', barberSeeRevenue: true, barberRebook: true } }, { team: { teamView: 'named', barberSeeRevenue: false, barberRebook: true } }],
   [{ goals: { monthCents: 3000000 } }, { goals: { monthCents: 3000000 } }],
+  [{ fiscal: { yearEndMonth: '6' } }, { fiscal: { yearEndMonth: 6 } }],
   // closures have their own commands, and unknown sections are dropped
-  [{ closures: [{ id: 'x', from: '2026-12-24', to: '2026-12-26', label: 'Noël' }], mystery: 1 }, {}]
+  [{ closures: [{ id: 'x', from: '2026-12-24', to: '2026-12-26', label: 'Noël' }], mystery: 1 }, {}],
+  // PAY-02: a plan's fair use and flags filled in (a week between two cuts for illimité)
+  [{ membership: { enabled: true, graceDays: 5, plans: [{ id: 'illimite', name: ' Illimité ', price: 4900, cuts: 0, serviceIds: ['sv_1'] }, { id: 'essentiel', name: 'Essentiel', price: 3400, cuts: 2, serviceIds: ['sv_1'], online: false }] } },
+    { membership: { enabled: true, graceDays: 5, plans: [{ id: 'illimite', name: 'Illimité', price: 4900, cuts: 0, serviceIds: ['sv_1'], minDays: 7, online: true, blurb: '', active: true }, { id: 'essentiel', name: 'Essentiel', price: 3400, cuts: 2, serviceIds: ['sv_1'], online: false, minDays: 0, blurb: '', active: true }] } }]
 ];
 const REJECTED = [
   [{ shop: { name: 'A' } }, 'shop.name : au moins 2 caractères'],
@@ -118,8 +142,17 @@ const REJECTED = [
   [{ messages: { reminderHour: 22 } }, 'messages.reminderHour : entre 8 et 21'],
   [{ messages: { reviewDelayMin: 10 } }, 'messages.reviewDelayMin : entre 30 et 1440'],
   [{ team: { barberMaxDiscountPct: 51 } }, 'team.barberMaxDiscountPct : entre 0 et 50'],
+  [{ team: { teamView: 'all' } }, 'team.teamView : valeur non permise'],
   [{ goals: { monthCents: -1 } }, 'goals.monthCents : entre 0 et 100000000'],
   [{ goals: { monthCents: 1.5 } }, 'goals.monthCents : nombre entier attendu'],
+  // PAY-02: plans checked one by one, and as a set
+  [{ membership: { plans: [{ id: 'e', name: 'Essentiel', price: 3400, cuts: 2, serviceIds: ['sv_1'] }] } }, 'membership.plans[0].id : au moins 2 caractères'],
+  [{ membership: { plans: [{ id: 'essentiel', name: 'Essentiel', price: 3400, cuts: 9, serviceIds: ['sv_1'] }] } }, 'membership.plans[0].cuts : entre 0 et 8'],
+  [{ membership: { plans: [{ id: 'essentiel', name: 'Essentiel', price: 3400, cuts: 2, serviceIds: [] }] } }, 'membership.plans[0].serviceIds : de 1 à 20 éléments'],
+  [{ membership: { plans: [{ id: 'essentiel', name: 'Essentiel', price: 400, cuts: 2, serviceIds: ['sv_1'] }] } }, 'membership.plans[0].price : entre 500 et 50000'],
+  [{ membership: { plans: ['a', 'b', 'c', 'd', 'e'].map((k) => ({ id: 'plan-' + k, name: 'Formule', price: 3400, cuts: 2, serviceIds: ['sv_1'] })) } }, 'membership.plans : de 0 à 4 éléments'],
+  [{ membership: { plans: [1, 2].map(() => ({ id: 'essentiel', name: 'Essentiel', price: 3400, cuts: 2, serviceIds: ['sv_1'] })) } }, 'membership.plans[1].id : deux formules ont le même code'],
+  [{ fiscal: { yearEndMonth: 13 } }, 'fiscal.yearEndMonth : entre 1 et 12'],
   ['x', 'objet attendu'],
   [[], 'objet attendu']
 ];

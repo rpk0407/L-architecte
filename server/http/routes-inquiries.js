@@ -29,6 +29,8 @@ function inquiryView(r, q) {
   return {
     id: q.id, kind: q.kind, kindLabel: KIND_FR[q.kind] || q.kind, module: q.module, moduleTitle: q.module ? moduleTitle(s, q.module) : '', at: q.at,
     status: gone ? 'handled' : q.status, handledAt: q.handledAt || null, handledBy: who(q.handledBy), erased: gone, cid: gone ? null : q.cid,
+    // FID-01: the text an SMS answer replies to (« Réponse à : Demande d’avis du 3 nov. »), and an « ok » filed by itself
+    re: q.re ? { template: q.re.template, at: (s.messages.get(q.re.msgId) || {}).sentAt || null } : null, auto: !!q.auto,
     first: gone ? '' : q.first, message: gone ? '' : q.message, hasPhone: !gone && !!q.phone,
     phone: gone || !q.phone ? '' : full ? fmtPhone(q.phone) : maskPhone(q.phone),
     email: gone || !q.email ? '' : full ? q.email : maskEmail(q.email, { domain: true }),

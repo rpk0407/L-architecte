@@ -20,13 +20,20 @@ import { createAppointment, setStatus, cancelAppointment, bookOnline, addWait } 
 import { checkout, openDrawer, closeDrawer, closeDay } from '../commands/sales.js';
 import { updateSettings } from '../commands/shop.js';
 import { sendRebook } from '../commands/messages.js';
+import { seedReviews } from '../commands/reviews.js';
+import { startMembership, memberPaid, requestCancel } from '../commands/memberships.js';
+import simBilling from '../commands/steps/sim-billing.js';
+import { memberOf, cover, addMonths } from './membership.js';
+import { fiscalSteps } from '../commands/steps/fiscal.js';
+import { demoSigner } from '../core/signer.js';
+import { SOFTWARE } from '../version.js';
 
 export const DEMO = {
   email: 'gerant@larchitecte.fr',
   password: 'Architecte13',
   ownerPin: '1313',
   giftcard: 'CADO-DEMO-2026',
-  pins: { JKut: '2468', Frank: '1357', 'Le Soldat': '8642', Esteban: '9753' }
+  pins: { JKut: '2468', Frank: '1357', 'Le Soldat': '8642', Esteban: '9753', 'Inès': '1470' }
 };
 
 const BARBERS = [
@@ -48,8 +55,37 @@ const SERVICES = [
   { slug: 'eb', name: 'Entretien barbe', category: 'Barbe', price: 1500, dur: 30, includes: ['Contour de la barbe', 'Huile'], w: 5 },
   { slug: 'tb', name: 'Taille de barbe', category: 'Barbe', price: 1800, dur: 30, includes: ['Taille', 'Mise en forme', 'Huile'], w: 5 },
   { slug: 'cb', name: 'Cover barbe', category: 'Barbe', price: 1500, dur: 30, includes: ['Couleur de la barbe', 'Soin'], w: 2 },
-  { slug: 'ab', name: 'Abonnement 5 coupes', short: 'Abonnement', category: 'Abonnement', price: 8000, dur: 30, includes: ['5 coupes sur 5 semaines', 'Sans barbe'], description: '16 € la coupe. Tu réserves la première, on fixe les suivantes avec toi.', tag: '16 € la coupe', w: 0, pack: { credits: 5, days: 70 } }
+  // the prepaid pack is a « carnet », sold at the till (« abonnement » is the monthly membership below)
+  { slug: 'ab', name: 'Carnet 5 coupes', short: 'Carnet', category: 'Carnet', price: 8000, dur: 30, online: false, includes: ['5 coupes sur 5 semaines', 'Sans barbe'], description: '16 € la coupe. Il se prend au salon : on fixe tes coupes avec toi.', tag: '16 € la coupe', w: 0, pack: { credits: 5, days: 70 } }
 ];
+
+/* the monthly membership (PAY-02): two formules, sixteen members over the history, the demo's billing renews them */
+const PLANS = [
+  { id: 'essentiel', name: 'Essentiel', price: 3400, cuts: 2, minDays: 0, slugs: ['cl'], blurb: '2 coupes classiques par mois, sans engagement.' },
+  { id: 'illimite', name: 'Illimité', price: 4900, cuts: 0, minDays: 7, slugs: ['cl', 'cc'], blurb: 'Une coupe chaque semaine, contour de barbe compris.' }
+];
+/**
+ * What happens to each of the sixteen members, counted back from today: 12 run, 1 has its renewal refused (in grace), 1
+ * ends at its period's end, 2 were cancelled. ago: days before today it starts (kept inside the history); a start or a
+ * cancellation on a closed day happens on the next open one. graceAt: started so that the renewal is due yesterday;
+ * endAt: so that the period ends in four days. The members are regulars whose usual service a formule covers, picked
+ * from the clientele as it is drawn, so the rest of the demo (bookings, the random draws) stays what it was.
+ */
+const MEMBERS = [
+  { ago: 66 }, { ago: 60 }, { ago: 55, salon: true }, { ago: 49 }, { ago: 43 }, { ago: 38 }, { ago: 31, salon: true }, { ago: 26 },
+  { ago: 19 }, { ago: 12 }, { ago: 7 }, { ago: 3 }, { graceAt: true }, { endAt: true, cancelAgo: 6 },
+  { ago: 67, cancelAfter: 10, by: 'salon' }, { ago: 62, cancelAfter: 20 }
+];
+/** A demo run of the simulated provider's billing, as the tick does it (steps/sim-billing.js). */
+const SIM_BILLING = { run(s, input, ctx) { simBilling.run(s, ctx); return {}; } };
+
+/** The membership that pays one of this appointment's services today, as the till would offer it, or null. */
+export function memberCut(s, a, day) {
+  const m = a.clientId ? memberOf(s, a.clientId) : null;
+  if (!m || !m.activatedAt) return null;
+  const sv = a.services.find((x) => cover(s, m, x.id, { day }).ok);
+  return sv ? { memberId: m.id, serviceId: sv.id } : null;
+}
 
 const PRODUCTS = [
   { name: 'Huile à barbe', price: 1500, cost: 600, stock: 14, low: 4, category: 'Barbe', w: 5 },
@@ -128,10 +164,13 @@ export function planDay(s, day, fill, r, pickClient, now) {
 }
 
 /** What a demo client pays: the menu price, sometimes a product, a tip, a loyalty discount. */
-export function demoCheckoutInput(s, a, r, { cash = true, packId = null } = {}) {
+export function demoCheckoutInput(s, a, r, { cash = true, packId = null, member = /** @type {{ memberId: string, serviceId: string } | null} */ (null) } = {}) {
+  let covered = false;
   const lines = a.services.map((sv) => {
     const base = s.services.get(sv.id);
     const unit = base && base.from ? sv.price + Math.floor(r() * 3) * 1000 : sv.price;
+    // the month already paid covers one cut (before any carnet)
+    if (member && !covered && sv.id === member.serviceId) { covered = true; return { kind: 'service', ref: sv.id, unit: sv.price, memberId: member.memberId }; }
     return { kind: 'service', ref: sv.id, unit, ...(packId && base && base.slug === 'cl' ? { packId } : {}) };
   });
   const products = [...s.products.values()].filter((p) => p.active);
@@ -139,9 +178,11 @@ export function demoCheckoutInput(s, a, r, { cash = true, packId = null } = {}) 
     const p = weighted(r, products.map((x) => ({ ...x, w: (PRODUCTS.find((y) => y.name === x.name) || { w: 1 }).w })));
     lines.push({ kind: 'product', ref: p.id });
   }
-  const gross = lines.reduce((t, l) => t + (l.kind === 'service' ? (l.packId ? 0 : l.unit) : (s.products.get(l.ref)?.price || 0)), 0);
-  const discount = gross > 0 && r() < 0.03 ? { amount: Math.round(gross * 0.1 / 100) * 100, reason: 'Fidélité' } : undefined;
-  const tip = gross > 0 && r() < 0.22 ? { amount: r() < 0.7 ? 200 : 500, staffId: a.staffId } : undefined;
+  const gross = lines.reduce((t, l) => t + (l.kind === 'service' ? (l.packId || l.memberId ? 0 : l.unit) : (s.products.get(l.ref)?.price || 0)), 0);
+  // a cut the membership pays draws as a paid one did (the demo's other draws stay in step), and may still get a tip
+  const drawn = gross > 0 || covered;
+  const discount = drawn && r() < 0.03 && gross > 0 ? { amount: Math.round(gross * 0.1 / 100) * 100, reason: 'Fidélité' } : undefined;
+  const tip = drawn && r() < 0.22 ? { amount: r() < 0.7 ? 200 : 500, staffId: a.staffId } : undefined;
   const due = gross - (discount ? discount.amount : 0) + (tip ? tip.amount : 0);
   const payCash = cash && r() < 0.34;
   const given = payCash ? Math.ceil(due / 1000) * 1000 + (r() < 0.3 ? 1000 : 0) : undefined;
@@ -171,14 +212,20 @@ export async function buildDemoJournal(nowReal, opt = {}) {
     const res = await eng.run(addStaff, { name: b.name, role: 'barber', color: b.color, initials: b.initials, bookable: true, chair: true, schedule: b.week, commission: { service: 4000, product: 1000 }, bio: b.bio, instagram: b.instagram, order: i + 1 }, base);
     await eng.run(setCredentials, { id: res.id, pinHash: hashSecretSync(DEMO.pins[b.name]) }, base);
   }
+  // the desk persona (TEAM-01): Inès on the tablet sees the salon's counts and fill, never its money
+  const desk = await eng.run(addStaff, { name: 'Inès', role: 'desk', order: BARBERS.length + 1 }, base);
+  await eng.run(setCredentials, { id: desk.id, pinHash: hashSecretSync(DEMO.pins['Inès']) }, base);
+  // barbers may text their own regulars in the demo (off in production)
+  await eng.run(updateSettings, { team: { barberRebook: true } }, base);
   const slugId = {};
   for (const [i, sv] of SERVICES.entries()) {
     const { w, ...rest } = sv;
     const res = await eng.run(addService, { ...rest, order: i }, base);
     slugId[sv.slug] = res.id;
   }
-  // the subscription covers the classic cut only
+  // the carnet covers the classic cut only
   await eng.run(updateService, { id: slugId.ab, patch: { pack: { credits: 5, days: 70, serviceIds: [slugId.cl] } } }, base);
+  await eng.run(updateSettings, { membership: { enabled: true, plans: PLANS.map(({ slugs, ...p }) => ({ ...p, serviceIds: slugs.map((k) => slugId[k]), online: true, active: true })) } }, base);
   for (const p of PRODUCTS) { const { w, stock, ...rest } = p; const res = await eng.run(addProduct, rest, base); await eng.run(adjustStock, { id: res.id, delta: stock + 6, reason: 'Stock initial' }, base); }
 
   /* the clientele */
@@ -200,6 +247,17 @@ export async function buildDemoJournal(nowReal, opt = {}) {
     const join = i >= 320 ? addDays(start, Math.floor(((i - 320) / 200) * weeks * 7)) : null;
     pool.push({ id: res.id, pref: barberIds[Math.floor(r() * barberIds.length)], cadence, fav: slugId[favSlug], last: null, packId: null, abo: i % 19 === 3, booked: null, stop, join });
   }
+  // regulars who come every four weeks at most for a cut a formule covers: Illimité for the contour or the frequent ones
+  // (from the end of the list: the first files stay plain clients, as the tests and the demo script know them)
+  const regulars = pool.filter((c) => !c.abo && !c.stop && !c.join && c.cadence <= 28 && (c.fav === slugId.cl || c.fav === slugId.cc)).reverse();
+  const plans = MEMBERS.slice(0, regulars.length).map((x, i) => {
+    const c = regulars[i];
+    const plan = /** @type {any} */ (PLANS[c.fav === slugId.cc || c.cadence <= 14 ? 1 : 0]);
+    const startDay = x.graceAt ? addMonths(addDays(today, -1), -1) : x.endAt ? addMonths(addDays(today, 4), -1) : addDays(today, -(x.ago || 0));
+    const from = startDay < start ? start : startDay;
+    const cancelDay = x.cancelAgo != null ? addDays(today, -x.cancelAgo) : x.cancelAfter != null ? addDays(from, x.cancelAfter) : null;
+    return { ...x, c, plan, from, cancelDay: cancelDay && cancelDay < from ? from : cancelDay, id: '', started: false, cancelled: false };
+  });
   const pickClient = (day) => (staffId) => {
     const due = pool.filter((c) => (!c.booked || c.booked < day) && (!c.stop || day < c.stop) && (!c.join || day >= c.join)).filter((c) => !c.last || diffDays(c.last, day) >= c.cadence * 0.75);
     const mine = due.filter((c) => c.pref === staffId);
@@ -212,8 +270,28 @@ export async function buildDemoJournal(nowReal, opt = {}) {
   const giftDays = new Set([addDays(start, 9), addDays(start, 23), addDays(today, -3)]);
   const seeded = [];
 
+  /* the memberships of the day, before the salon opens: the simulated provider's renewals and ends, new members, cancellations */
+  const memberOps = async (day) => {
+    at(day, 7 * 60 + 45);
+    for (let i = 0; i < 40; i++) { const v = eng.state.version; await eng.run(SIM_BILLING, {}, base); if (eng.state.version === v) break; }
+    for (const p of plans) {
+      if (!p.started && p.from <= day) {
+        p.started = true;
+        const cl = eng.state.clients.get(p.c.id);
+        const res = await eng.run(startMembership, { planId: p.plan.id, first: cl.first, phone: cl.phone, ...(cl.email ? { email: cl.email } : {}), provider: 'simulated', providerRef: 'sim_co_' + p.c.id, channel: p.salon ? 'salon' : 'online', ...(p.graceAt ? { demoFail: true } : {}) }, base);
+        p.id = res.id;
+        await eng.run(memberPaid, { id: res.id, invoice: 'sim_' + res.id + '_0', amount: p.plan.price, periodStart: day, periodEnd: addMonths(day, 1), chargeRef: 'sim_ch_' + res.id + '_0', customer: 'cus_sim_' + p.c.id, subscription: 'sub_sim_' + p.c.id, card: p.from.endsWith('5') ? 'Mastercard •• 5100' : 'Visa •• 4242' }, base);
+      }
+      if (p.started && !p.cancelled && p.cancelDay && p.cancelDay <= day) {
+        p.cancelled = true;
+        await eng.run(requestCancel, { id: p.id, by: p.by || 'client', channel: p.by === 'salon' ? 'comptoir' : 'site' }, base);
+      }
+    }
+  };
+
   /* one day of the salon */
   const runDay = async (day, isToday) => {
+    await memberOps(day);
     if (weekday(day) === 2 || weekday(day) === 5) {
       at(day, 8 * 60 + 30);
       for (const p of eng.state.products.values()) {
@@ -222,6 +300,8 @@ export async function buildDemoJournal(nowReal, opt = {}) {
       }
     }
     at(day, 8 * 60);
+    // the review requests of the last evening's visits leave as the quiet hours end, as the tick sends them (REV-02)
+    await eng.run(seedReviews, {}, base);
     const plans = planDay(eng.state, day, fillFor(day, today), r, pickClient(day), clock);
     for (const p of plans) { const c = byId.get(p.clientId); if (c) c.booked = day; await eng.run(createAppointment, p, base).catch(() => null); }
     seeded.push(day);
@@ -247,7 +327,7 @@ export async function buildDemoJournal(nowReal, opt = {}) {
         const pk = c.packId ? eng.state.packs.get(c.packId) : null;
         if (pk && pk.used < pk.total) packId = pk.id;
       }
-      let input = demoCheckoutInput(eng.state, cur, r, { packId });
+      let input = demoCheckoutInput(eng.state, cur, r, { packId, member: memberCut(eng.state, cur, day) });
       if (c && c.abo && isCut && !packId) {
         // first visit of a subscriber: buys the pack, today's cut is the first of five
         input = { apptId: cur.id, lines: [{ kind: 'pack', ref: slugId.ab }, { kind: 'service', ref: slugId.cl, packId: 'new' }], payments: [{ method: 'card', amount: 8000 }] };
@@ -278,6 +358,7 @@ export async function buildDemoJournal(nowReal, opt = {}) {
       at(day, 18 * 60 + 45);
       await eng.run(closeDay, {}, base);
     }
+    if (!isToday) { at(day, 19 * 60 + 55); await eng.run(seedReviews, {}, base); }
   };
 
   // three weeks ago the owner sent a round of relances; a good share of them came back
@@ -303,11 +384,15 @@ export async function buildDemoJournal(nowReal, opt = {}) {
       }
     }
   };
+  // CPT-01a: the tick's month closures and signatures, each morning at 05:10 (the first day, once the salon exists)
+  const fiscalDay = (d) => { at(d, d === start ? 7 * 60 + 1 : 5 * 60 + 10); return eng.run(fiscalSteps, {}, { ...SYS, meta: { signer: demoSigner(), software: SOFTWARE } }); };
   for (let d = start; d < today; d = addDays(d, 1)) {
+    await fiscalDay(d);
     if (!eng.state.settings.hours[weekday(d)]?.length) continue;
     if (!relanced && diffDays(d, today) <= 20) { relanced = true; await sendRelances(d); }
     await runDay(d, false);
   }
+  await fiscalDay(today);
   if (eng.state.settings.hours[weekday(today)]?.length) await runDay(today, true);
   at(today, localParts(nowReal).min);
   clock = nowReal;
@@ -357,7 +442,7 @@ export async function demoTick(engine, meta = {}) {
       else if (a.day === L.day && a.start <= L.min && a.status === 'booked') tryStep(setStatus, { id: a.id, status: 'in_chair' });
     }
     for (const a of due.slice(0, 60)) {
-      const input = demoCheckoutInput(s, a, r, { cash: false });
+      const input = demoCheckoutInput(s, a, r, { cash: false, member: memberCut(s, a, a.day) });
       tryStep(checkout, { ...input, day: a.day, at: instantOf(a.day, a.start + a.dur + 2) });
     }
     // 2. close the books of past days nobody closed

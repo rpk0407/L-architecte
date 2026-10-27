@@ -6,10 +6,12 @@ import { str, bool, int, opt, obj, arr, id, parse } from '../lib/validate.js';
 import { createHmac } from 'node:crypto';
 import { normPhone, isEmail, capFirst } from '../lib/util.js';
 import { localParts } from '../../shared/dates.js';
+import { RETENTION_YEARS, retentionCutoff } from '../../shared/retention.js';
 import { queueMessage, apptVars } from '../domain/messages.js';
 import { mailCancellation } from '../domain/mails.js';
 import { TRUSTED } from '../domain/policy.js';
 import { getClient } from './common.js';
+import { isLive, graceOf, statusOf, periodAt } from '../domain/membership.js';
 
 const fields = {
   first: opt(str({ min: 1, max: 40 })), last: opt(str({ max: 40 })), phone: opt(str({ max: 24 })), email: opt(str({ max: 120, lower: true })),
@@ -206,7 +208,7 @@ const tombsOfFiles = (s, ids, key) => (key ? [...new Set(ids.flatMap((cid) => { 
 
 const OPEN = new Set(['pending', 'booked', 'arrived', 'in_chair']);
 /**
- * What is still running on a file: bookings to come, subscription cuts left, gift card balance. Erasure lists them
+ * What is still running on a file: bookings to come, a monthly membership (PAY-02), carnet cuts left, gift card balance. Erasure lists them
  * first, so no "Client effacé" stays booked in the agenda without anyone being told. A booking of earlier today that
  * nobody closed counts too (it would stay "à encaisser" under no name); passed: its slot is over, no text for it.
  */
@@ -216,9 +218,15 @@ export function openItems(s, c, local) {
     .sort((a, b) => a.day.localeCompare(b.day) || a.start - b.start)
     .map((a) => ({ id: a.id, day: a.day, start: a.start, staffId: a.staffId, services: a.services.map((x) => x.name), deposit: a.deposit && a.deposit.paid ? a.deposit.paid : 0, passed: a.day === local.day && a.start + a.dur <= local.min }));
   const packs = [...s.packs.values()].filter((k) => ids.has(k.clientId) && k.used < k.total && k.expires >= local.day).map((k) => ({ id: k.id, name: k.name, left: k.total - k.used, expires: k.expires }));
+  // a contract still running: the owner cancels it first (« Résilier tout de suite »), erasure never ends it on its own
+  const grace = graceOf(s);
+  const memberships = s.members ? [...s.members.values()].filter((m) => ids.has(m.cid) && isLive(m, local.day, grace)).map((m) => {
+    const p = periodAt(m, local.day, grace);
+    return { id: m.id, plan: m.name, status: statusOf(m, local.day, grace), until: p ? p.end : null };
+  }) : [];
   const giftcards = [...s.giftcards.values()].filter((g) => ids.has(g.cid) && g.status === 'active' && g.balance > 0 && g.expires >= local.day).map((g) => ({ id: g.id, last4: g.last4, balance: g.balance, expires: g.expires }));
   // email: the cancellation mail (METHOD:CANCEL) leaves too, so the Comptoir names both channels before erasing
-  return { appts, packs, giftcards, sms: !!(c.phone && c.sms), email: !!(c.email && isEmail(c.email) && s.settings.messages.email) };
+  return { appts, memberships, packs, giftcards, sms: !!(c.phone && c.sms), email: !!(c.email && isEmail(c.email) && s.settings.messages.email) };
 }
 
 const eraseSchema = obj({ id: id(), cancelUpcoming: opt(bool()) });
@@ -236,6 +244,7 @@ export const eraseClient = {
     const c = getClient(s, x.id);
     if (c.erased) return { ok: true, erased: true };
     const open = openItems(s, c, ctx.local);
+    if (open.memberships.length) fail(409, 'member', 'Cette fiche a un abonnement en cours : résilie-le d’abord.', { open });
     if ((open.appts.length || open.packs.length || open.giftcards.length) && !x.cancelUpcoming) fail(409, 'open', 'Cette fiche a encore ' + openWords(open) + '.', { open });
     const ids = fileIds(s, c);
     const texts = [];
@@ -265,23 +274,20 @@ export const eraseClient = {
 function openWords(open) {
   const w = [];
   if (open.appts.length) w.push(open.appts.length + ' rendez-vous à venir');
-  if (open.packs.length) w.push(open.packs.length > 1 ? open.packs.length + ' abonnements en cours' : 'un abonnement en cours');
+  if (open.memberships && open.memberships.length) w.push('un abonnement en cours');
+  if (open.packs.length) w.push(open.packs.length > 1 ? open.packs.length + ' carnets en cours' : 'un carnet en cours');
   if (open.giftcards.length) w.push(open.giftcards.length > 1 ? open.giftcards.length + ' cartes cadeaux avec du solde' : 'une carte cadeau avec du solde');
   return w.join(', ');
 }
 
 /* ---------------- retention: 3 years after the last visit, as /confidentialite promises ---------------- */
 
-export const RETENTION_YEARS = 3;
-/** The first day still kept: three years back to the day (a 29 February goes to the 28th). */
-export function retentionCutoff(today) {
-  const md = today.slice(5) === '02-29' ? '02-28' : today.slice(5);
-  return String(Number(today.slice(0, 4)) - RETENTION_YEARS) + '-' + md;
-}
+// the rule itself is shared with the WordPress import's preview (shared/retention.js)
+export { RETENTION_YEARS, retentionCutoff };
 const dayOf = (ms) => localParts(ms).day;
 
 /**
- * Files with nothing since the cutoff: no visit, booking, ticket or waiting list, no subscription or card still
+ * Files with nothing since the cutoff: no visit, booking, ticket or waiting list, no membership, carnet or card still
  * running, and created before it.
  */
 export function inactiveClients(s, today) { return memo(s, 'inactive|' + today, () => inactive(s, today)); }
@@ -294,6 +300,8 @@ function inactive(s, today) {
   for (const x of s.sales.values()) bump(x.clientId, x.day);
   for (const w of s.waitlist.values()) bump(w.clientId, w.day);
   for (const k of s.packs.values()) if (k.used < k.total) bump(k.clientId, k.expires);
+  // a membership that runs is a contract in force, whatever the visits
+  if (s.members) for (const m of s.members.values()) if (isLive(m, today, graceOf(s))) bump(m.cid, today);
   for (const g of s.giftcards.values()) if (g.status === 'active' && g.balance > 0) bump(g.cid, g.expires);
   return live(s).filter((c) => fileIds(s, c).every((cid) => (last.get(cid) || '') < cut) && dayOf(c.createdAt) < cut);
 }

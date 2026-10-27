@@ -1,5 +1,8 @@
 // @ts-check
 // Who may do what. Checked on the server for every request; the Comptoir only hides what you cannot use.
+// report.shop (the salon's money: every barber's figures, commissions, tips, exports) is the owner's and the manager's
+// only, whatever the toggles: a barber sees colleagues through report.team at most (TEAM-01).
+import { teamViewOf } from '../settings/team.js';
 
 export const ROLES = {
   owner: 'Gérant',
@@ -21,10 +24,12 @@ export const CAPS = {
   'closure': 'Clôturer la journée',
   'client.view': 'Voir les fiches clients',
   'client.edit': 'Modifier les fiches clients',
+  'client.rebook': 'Relancer ses propres habitués',
   'client.contact': 'Voir les numéros complets',
   'client.export': 'Exporter les clients',
   'client.erase': 'Effacer un client (RGPD)',
   'report.shop': 'Voir les chiffres du salon',
+  'report.team': 'Voir les chiffres de l’équipe (sans commissions ni pourboires)',
   'report.own': 'Voir ses propres chiffres',
   'marketing': 'Envoyer des relances',
   'team': 'Gérer l’équipe',
@@ -32,14 +37,15 @@ export const CAPS = {
   'settings': 'Modifier les réglages',
   'devices': 'Gérer les appareils',
   'audit': 'Voir le journal d’activité',
-  'data': 'Exporter et vérifier les données'
+  'data': 'Exporter et vérifier les données',
+  'member.manage': 'Gérer les abonnements (résiliation, coupe hors forfait)'
 };
 
 const ALL = Object.keys(CAPS);
 const BASE = {
   owner: ALL,
   manager: ALL.filter((c) => !['settings', 'devices', 'client.erase', 'data'].includes(c)),
-  desk: ['agenda.all', 'agenda.edit', 'agenda.own', 'sale.create', 'sale.all', 'drawer', 'client.view', 'client.edit', 'client.contact', 'marketing', 'report.own'],
+  desk: ['agenda.all', 'agenda.edit', 'agenda.own', 'sale.create', 'sale.all', 'drawer', 'client.view', 'client.edit', 'client.contact', 'client.rebook', 'marketing', 'report.own'],
   barber: ['agenda.all', 'agenda.own', 'sale.create', 'sale.discount', 'client.view', 'client.edit', 'report.own']
 };
 
@@ -51,7 +57,8 @@ export function capsOf(staff, settings) {
     const t = settings.team || {};
     if (!t.barberCheckout) caps.delete('sale.create');
     if (!t.barberAllAgenda) caps.delete('agenda.all');
-    if (t.barberSeeRevenue) caps.add('report.shop');
+    if (teamViewOf(settings) === 'named') caps.add('report.team');
+    if (t.barberRebook) caps.add('client.rebook');
   }
   return caps;
 }

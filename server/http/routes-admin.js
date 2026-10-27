@@ -11,6 +11,7 @@ import { isDay, dayRange, monthStart, addDays } from '../../shared/dates.js';
 import { staffIntervals } from '../domain/availability.js';
 import { refundOnline } from './routes-public.js';
 import { fmtEur } from '../../shared/money.js';
+import { monthNo, yearNo } from '../domain/fiscal.js';
 import { fmtPhone, safeEqual } from '../lib/util.js';
 import * as T from '../commands/team.js';
 import * as K from '../commands/catalog.js';
@@ -19,16 +20,19 @@ import { refundPlan, sendGiftcode, reissueGiftcard } from '../commands/sales.js'
 import { buildDemoJournal } from '../domain/seed.js';
 import { TEMPLATES } from '../core/state.js';
 import { CAPS, ROLES, capsOf } from '../domain/permissions.js';
+import { changeWords } from '../projections/governance.js';
 import { maybeTick } from './scheduler.js';
 import { STALE_MS, backupOff, backupStatus, backupsOf, freshBackup, makeBackup, ownBackups, salonOf } from '../core/backup.js';
 
 /* ---------------- the activity log, in plain French ---------------- */
 
 const LABELS = {
+  'team.changed': 'Rémunération ou accès modifié',
   'shop.initialized': 'Salon créé', 'shop.restored': 'Salon restauré', 'settings.updated': 'Réglages modifiés', 'staff.added': 'Membre ajouté', 'staff.updated': 'Fiche équipe modifiée',
   'staff.archived': 'Membre désactivé', 'staff.restored': 'Membre réactivé', 'staff.credentials': 'Accès modifiés', 'staff.revoked': 'Sessions fermées',
   'timeoff.added': 'Absence posée', 'timeoff.removed': 'Absence retirée', 'timeoff.requested': 'Absence demandée', 'timeoff.refused': 'Absence refusée',
   'timeoff.withdrawn': 'Demande d’absence retirée', 'device.enrolled': 'Appareil enregistré', 'device.revoked': 'Appareil retiré',
+  'import.started': 'Reprise WordPress commencée', 'import.batch': 'Paquet WordPress repris', 'import.finished': 'Reprise WordPress terminée',
   'service.added': 'Prestation créée', 'service.updated': 'Prestation modifiée', 'service.archived': 'Prestation retirée', 'product.added': 'Produit créé',
   'product.updated': 'Produit modifié', 'product.archived': 'Produit retiré', 'stock.adjusted': 'Stock ajusté', 'client.added': 'Client créé',
   'client.updated': 'Fiche client modifiée', 'client.merged': 'Fiches fusionnées', 'client.erased': 'Client effacé (RGPD)', 'appt.held': 'Créneau gardé',
@@ -37,11 +41,33 @@ const LABELS = {
   'block.removed': 'Créneau rouvert', 'queue.added': 'Passage en file', 'queue.updated': 'File mise à jour', 'waitlist.added': 'Liste d’attente',
   'waitlist.updated': 'Liste d’attente mise à jour', 'sale.completed': 'Vente', 'sale.refunded': 'Remboursement', 'payment.created': 'Paiement en ligne demandé',
   'payment.succeeded': 'Paiement en ligne reçu', 'payment.failed': 'Paiement en ligne échoué', 'payment.expired': 'Paiement en ligne expiré', 'payment.refunded': 'Paiement en ligne remboursé',
+  'payment.refundedOutside': 'Remboursé chez le prestataire', 'payment.disputed': 'Litige ouvert', 'payment.disputeClosed': 'Litige clos', 'payout.recorded': 'Virement reçu',
   'drawer.opened': 'Caisse ouverte', 'drawer.moved': 'Mouvement de caisse', 'drawer.closed': 'Caisse comptée', 'day.closed': 'Clôture journalière',
-  'giftcard.issued': 'Carte cadeau émise', 'giftcard.redeemed': 'Carte cadeau utilisée', 'giftcard.voided': 'Carte cadeau annulée', 'pack.sold': 'Abonnement vendu',
-  'pack.used': 'Coupe d’abonnement', 'pack.voided': 'Abonnement annulé', 'pack.returned': 'Coupe rendue à l’abonnement', 'message.queued': 'Message programmé', 'message.updated': 'Message', 'demo.seeded': 'Démo préparée'
+  'giftcard.issued': 'Carte cadeau émise', 'giftcard.redeemed': 'Carte cadeau utilisée', 'giftcard.voided': 'Carte cadeau annulée', 'pack.sold': 'Carnet vendu',
+  'pack.used': 'Coupe de carnet', 'pack.voided': 'Carnet annulé', 'pack.returned': 'Coupe rendue au carnet',
+  'member.created': 'Abonnement demandé', 'member.activated': 'Abonnement souscrit', 'member.renewed': 'Mois d’abonnement payé', 'member.pastDue': 'Paiement d’abonnement refusé',
+  'member.used': 'Coupe d’abonnement', 'member.cancelRequested': 'Abonnement résilié', 'member.withdrawn': 'Rétractation d’abonnement', 'member.ended': 'Abonnement terminé', 'message.queued': 'Message programmé', 'message.updated': 'Message', 'demo.seeded': 'Démo préparée'
 };
+// CPT-01a: the month and year closures, their signatures, the technical log
+Object.assign(LABELS, { 'period.closed': 'Clôture du mois ou de l’année', 'seal.signed': 'Clôture signée', 'tech.logged': 'Journal technique' });
 const STATUS = { arrived: 'arrivé', in_chair: 'au fauteuil', booked: 'remis à venir', no_show: 'absent' };
+
+const END_FR = { cancelled: 'résilié', unpaid: 'faute de paiement', withdrawn: 'rétractation', abandoned: 'paiement jamais fait' };
+const dm = (day) => (typeof day === 'string' ? day.slice(8, 10) + '/' + day.slice(5, 7) : '');
+function memberSummary(s, type, d) {
+  const m = s.members ? s.members.get(d.id) : null;
+  const plan = m ? m.name : '';
+  switch (type) {
+    case 'member.created': return plan + ' · ' + fmtEur(d.price) + '/mois · ' + (d.channel === 'salon' ? 'au salon' : d.channel === 'import' ? 'reprise' : 'en ligne');
+    case 'member.renewed': return plan + ' · ' + dm(d.periodStart) + ' au ' + dm(addDays(d.periodEnd, -1)) + ' · ' + fmtEur(d.amount);
+    case 'member.pastDue': return plan + ' · essai ' + (d.attempt || 1) + (d.action ? ' · validation demandée par la banque' : '');
+    case 'member.used': return plan + (d.forced ? ' · hors forfait' : '');
+    case 'member.cancelRequested': return plan + ' · fin le ' + dm(d.effective) + ' · ' + (d.by === 'salon' ? 'par le salon' : 'par le client');
+    case 'member.withdrawn': return plan + ' · ' + fmtEur(d.refund) + ' à rembourser';
+    case 'member.ended': return plan + ' · ' + (END_FR[d.reason] || 'résilié');
+    default: return plan;
+  }
+}
 
 /** Z CSV columns, written out: a gift card used or a deposit settles a ticket without money coming in that day. */
 const Z_CSV_METHOD = { card: 'Encaissé carte (TPE)', cash: 'Encaissé espèces', online: 'Encaissé paiement en ligne', deposit: 'Réglé par acompte en ligne', giftcard: 'Réglé par carte cadeau' };
@@ -58,6 +84,10 @@ function summary(s, e) {
     case 'appt.booked': return d.day + ' ' + Math.floor(d.start / 60) + 'h' + String(d.start % 60).padStart(2, '0') + ' · ' + ((s.staff.get(d.staffId) || {}).name || '') + ' · ' + (d.services || []).map((x) => x.name).join(' + ');
     case 'appt.moved': return 'vers ' + d.day + ' ' + Math.floor(d.start / 60) + 'h' + String(d.start % 60).padStart(2, '0');
     case 'appt.status': return STATUS[d.status] || d.status;
+    case 'period.closed': return (d.kind === 'year' ? yearNo(d.number) : monthNo(d.number)) + ' · ' + d.period + ' · ' + fmtEur(d.totals ? d.totals.netTtc : 0);
+    case 'seal.signed': return d.ref + (d.late ? ' · en retard' : '') + ' · clé ' + d.kid;
+    case 'tech.logged': return d.kind === 'key' ? 'clé ' + d.kid + (d.backlog && d.backlog.length ? ' · ' + d.backlog.length + ' en attente' : '') : d.kind === 'version' ? 'version ' + d.to : d.kind;
+    case 'import.batch': return d.i != null ? 'Paquet n° ' + (d.i + 1) : '';
     case 'shop.restored': return 'depuis ' + (d.from === 'fichier' ? 'un fichier' : d.from) + ' · ' + d.count + ' opérations';
     case 'appt.cancelled': {
       // a client's own reason is personal data (pii): shown until the client is erased
@@ -67,12 +97,16 @@ function summary(s, e) {
     case 'stock.adjusted': return (d.name || '') + ' ' + (d.delta > 0 ? '+' : '') + d.delta + ' · ' + d.reason;
     case 'settings.updated': return Object.keys(d.patch || {}).join(', ');
     case 'staff.added': return d.staff ? d.staff.name : '';
+    case 'team.changed': return changeWords(s, d);
     case 'service.updated': case 'product.updated': return Object.keys(d.patch || {}).join(', ');
     case 'payment.succeeded': { const p = s.payments.get(d.id); return p ? fmtEur(p.amount) + ' · ' + p.label : ''; }
     case 'giftcard.issued': return '•••• ' + d.last4 + ' · ' + fmtEur(d.amount) + (d.reissueOf ? ' · réémise (remplace •••• ' + ((s.giftcards.get(d.reissueOf) || {}).last4 || '') + ')' : d.legacy ? ' · reprise' : '');
     case 'giftcard.voided': return '•••• ' + ((s.giftcards.get(d.id) || {}).last4 || '') + (d.reason === 'reissued' ? ' · remplacée' : d.reason === 'refunded' ? ' · remboursée' : '');
     case 'pack.voided': { const k = s.packs.get(d.id); return k ? k.name + (k.voided ? ' · ' + k.voided.left + ' restante' + (k.voided.left > 1 ? 's' : '') + ' annulée' + (k.voided.left > 1 ? 's' : '') : '') : ''; }
     case 'client.updated': return (d.fields || []).join(', ');
+    // the memberships (PAY-02): the formule and the figures, never the person (pii)
+    case 'member.created': case 'member.activated': case 'member.renewed': case 'member.pastDue': case 'member.used':
+    case 'member.cancelRequested': case 'member.withdrawn': case 'member.ended': return memberSummary(s, e.type, d);
     case 'timeoff.added': case 'timeoff.requested': return ((s.staff.get(d.staffId) || {}).name || '') + ' · ' + T.rangeWords(d) + (d.reason ? ' · ' + d.reason : '') + (d.request ? ' · demande validée' : '');
     default: return '';
   }
@@ -198,7 +232,7 @@ export function adminRoutes(app) {
     const { deposits, ...res } = await T.applyHandover(r.rt.engine, t, r.body, base);
     let refunded = 0;
     // the salon cancels, so a paid deposit goes back (only for whoever may refund, as on the appointment sheet)
-    if (r.caps.has('sale.refund')) for (const d of deposits) if (await refundOnline(r, r.s.payments.get(d.paymentId), 'Barbier absent')) refunded++;
+    if (r.caps.has('sale.refund')) for (const d of deposits) if ((await refundOnline(r, r.s.payments.get(d.paymentId), 'Barbier absent')).ok) refunded++;
     // what is still paid: refused, failed or not ours to refund; said, so it is done from the appointment's sheet
     const unrefunded = deposits.filter((d) => { const p = r.s.payments.get(d.paymentId); return p && p.status === 'paid'; }).length;
     return { ...res, refunded, unrefunded, left: conflictCount(r, t) };
@@ -387,6 +421,8 @@ export function adminRoutes(app) {
     if (!r.rt.cfg.cronSecret || !safeEqual(auth, 'Bearer ' + r.rt.cfg.cronSecret)) throw new HttpError(401, 'unauthorized', 'Non autorisé.');
     await maybeTick(r.rt, r.meta, { force: true });
     // the external scheduler was seen (Réglages › Mise en route): the Comptoir's own pulse ticks too, so lastTick cannot tell
+    // and how far apart its calls are (FID-01: the salon's phone needs one a minute, routes-health.js)
+    if (r.rt.lastCron) r.rt.cronGap = Date.now() - r.rt.lastCron;
     r.rt.lastCron = Date.now();
     return { ok: true, version: r.s.version };
   }, { auth: false, csrf: false });

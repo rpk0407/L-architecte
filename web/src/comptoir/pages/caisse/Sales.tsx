@@ -1,11 +1,11 @@
 // Les ventes du jour: every ticket, reprintable, refundable by credit note (line by line, printed as an avoir).
 import { useEffect, useRef, useState } from 'react';
-import { api } from '../../../lib/api';
+import { api, ApiError } from '../../../lib/api';
 import { refreshAll, useQuery } from '../../../lib/query';
 import { setQuery, useRoute } from '../../../lib/router';
 import { cap, clock, dates, dayWord, eur, METHOD, money } from '../../../lib/format';
 import { Icon } from '../../../ui/Icon';
-import { Button, Chip, Empty, Field, Kpi, Modal, Money, Note, Sheet, Skeleton, Switch, toast, toastError } from '../../../ui/kit';
+import { Button, Chip, Empty, Field, Kpi, Modal, Money, Note, Sheet, Skeleton, Switch, confirm, toast, toastError } from '../../../ui/kit';
 import { useApp } from '../../state';
 import type { Sale } from '../../types';
 import { CreditNote, Receipt, printNow, type CreditNoteData } from './Receipt';
@@ -158,7 +158,7 @@ function RefundModal({ open, sale, onClose, onPrint }: { open: boolean; sale: Sa
 
   const toggle = (l: PlanLine) => { setTxt(null); setPick((p) => { const n = { ...p }; if (n[l.i]) delete n[l.i]; else n[l.i] = l.left; return n; }); };
   const setQty = (l: PlanLine, n: number) => { setTxt(null); setPick((p) => ({ ...p, [l.i]: Math.max(1, Math.min(l.left, n)) })); };
-  const go = async () => {
+  const go = async (outside = false) => {
     setBusy(true);
     try {
       // the larger part names the credit note's method; a part of 0 € is no split at all
@@ -167,17 +167,25 @@ function RefundModal({ open, sale, onClose, onPrint }: { open: boolean; sale: Sa
         amount, reason, method: pay ? pay[0]?.method || 'card' : how, ...(pay && pay.length === 2 ? { split: pay } : {}),
         ...(byLine ? { lines: chosen.map((l) => ({ i: l.i, qty: pick[l.i] })) } : {}),
         ...(restock && products.length ? { restock: products.map((l) => ({ productId: l.ref!, qty: pick[l.i] })) } : {}),
-        ...(full && owner ? { override: true } : {})
+        ...(full && owner ? { override: true } : {}), ...(outside ? { outside: true } : {})
       };
       const r = await api.post<{ id: string; ref: string; amount: number }>('/api/v1/sales/' + sale.id + '/refund', body);
       toast({ title: 'Avoir ' + r.ref + ' · ' + eur(r.amount, { decimals: r.amount % 100 !== 0 }), icon: 'refund' });
       setDone(r); refreshAll();
-    } catch (e) { toastError(e); } finally { setBusy(false); }
+    } catch (e) {
+      // paid through a provider no longer plugged in: refunded from its dashboard, the credit note only records it
+      if (e instanceof ApiError && e.code === 'provider_gone' && !outside) {
+        setBusy(false);
+        if (await confirm({ title: 'Déjà remboursé depuis le tableau de bord ?', body: e.message, ok: 'Faire l’avoir (remboursé hors caisse)', cancel: 'Pas encore' })) return go(true);
+        return;
+      }
+      toastError(e);
+    } finally { setBusy(false); }
   };
   const lineNote = (l: PlanLine) => {
     if (l.pack) return l.pack.voided ? 'Abonnement déjà annulé' : l.pack.used ? eur(l.net) + ' − ' + l.pack.used + ' coupe' + (l.pack.used > 1 ? 's' : '') + ' faite' + (l.pack.used > 1 ? 's' : '') + ' × ' + eur(l.pack.unit) + ' = ' + eur(l.pack.suggested) : 'Aucune coupe faite';
     if (l.kind === 'giftcard') return !l.giftcard ? 'Carte introuvable' : l.giftcard.unused ? 'Carte •••• ' + l.giftcard.last4 + (l.giftcard.replaced ? ' (réémise)' : '') + ' jamais utilisée · hors chiffre d’affaires' : l.giftcard.status !== 'active' ? 'Carte annulée' : 'Carte déjà utilisée : elle ne se rembourse plus';
-    if (l.net <= 0) return l.name.includes('abonnement') ? 'Couverte par l’abonnement' : 'Rien à rembourser';
+    if (l.net <= 0) return /carnet/i.test(l.name) ? 'Couverte par le carnet' : /abonnement/i.test(l.name) ? 'Couverte par l’abonnement' : 'Rien à rembourser';
     if (!l.left) return 'Déjà remboursé';
     const unit = Math.round(l.net / l.qty);
     return (l.qty > 1 ? l.qty + ' × ' + eur(unit, { decimals: unit % 100 !== 0 }) + ' = ' : '') + eur(l.net, { decimals: l.net % 100 !== 0 }) + (l.left < l.qty ? ' · ' + l.left + ' à rembourser' : '');
@@ -230,7 +238,7 @@ function RefundModal({ open, sale, onClose, onPrint }: { open: boolean; sale: Sa
           </div>
           <div className="chips">{REASONS.map((r) => <Chip key={r} small on={reason === r} onClick={() => setReason(r)}>{r}</Chip>)}</div>
           <input className="input" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Raison (obligatoire)" aria-label="Raison du remboursement" />
-          <div className="acts"><Button variant="ghost" onClick={onClose}>Annuler</Button><Button variant="danger" busy={busy} disabled={!plan || !amount || short || reason.trim().length < 3} onClick={go}>Rembourser {eur(amount, { decimals: amount % 100 !== 0 })}</Button></div>
+          <div className="acts"><Button variant="ghost" onClick={onClose}>Annuler</Button><Button variant="danger" busy={busy} disabled={!plan || !amount || short || reason.trim().length < 3} onClick={() => go()}>Rembourser {eur(amount, { decimals: amount % 100 !== 0 })}</Button></div>
         </>
       )}
     </Modal>

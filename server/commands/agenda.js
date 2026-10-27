@@ -168,17 +168,19 @@ export const createAppointment = {
     const free = isFree(s, st.id, x.day, x.start, dur, { now: ctx.now });
     if (!free && !x.force) fail(409, inHours ? 'taken' : 'outside', inHours ? 'Ce créneau n’est pas libre.' : 'C’est en dehors des horaires de ' + st.name + '.', { canForce: ctx.can('agenda.edit') || ctx.staff?.id === st.id });
     if (x.force && !free && !(ctx.can('agenda.edit') || ctx.staff?.id === st.id)) fail(403, 'forbidden', 'Seul le gérant peut forcer un créneau.');
-    let clientId = null, phone = '';
-    if (x.clientId) { const c = getClient(s, x.clientId); clientId = c.id; phone = c.phone; }
+    // fileSms: the client's own « SMS de service » switch, what the booking's switch defaults to when it is not sent
+    let clientId = null, phone = '', fileSms = true;
+    if (x.clientId) { const c = getClient(s, x.clientId); clientId = c.id; phone = c.phone; fileSms = c.sms !== false; }
     else if (x.client) {
       const r = upsertClient(s, ctx, { first: x.client.first, last: x.client.last || '', phone: x.client.phone || '' }, x.source === 'phone' ? 'phone' : 'salon');
       clientId = r.id; phone = r.created ? normPhone(x.client.phone || '') : getClient(s, r.id).phone;
+      if (!r.created) fileSms = getClient(s, r.id).sms !== false;
     }
     if (!clientId && !x.name) fail(400, 'invalid', 'Choisis un client ou indique un prénom.');
     const aid = ctx.id('ap');
     const a = {
       id: aid, code: uniqueCode(s, ctx), clientId, staffId: st.id, anyStaff: false, day: x.day, start: x.start, dur, services,
-      price: totalPrice(services), source: x.source || 'salon', status: x.seat ? 'in_chair' : 'booked', sms: x.sms !== false && !!phone, deposit: null, cid: clientId || undefined,
+      price: totalPrice(services), source: x.source || 'salon', status: x.seat ? 'in_chair' : 'booked', sms: (x.sms ?? fileSms) !== false && !!phone, deposit: null, cid: clientId || undefined,
       ...(x.demo ? { demo: true } : {})
     };
     const pii = {};

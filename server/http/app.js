@@ -17,11 +17,17 @@ import { clientRoutes } from './routes-client.js';
 import { healthRoutes } from './routes-health.js';
 import { inquiryRoutes } from './routes-inquiries.js';
 import { giftshopRoutes } from './routes-giftshop.js';
+import { channelRoutes } from './routes-channels.js';
+import { reviewRoutes } from './routes-reviews.js';
+import { fiscalRoutes } from './routes-fiscal.js';
+import { paymentRoutes } from './routes-payments.js';
 
 // A REGISTRY: one line per route file
 const app = router();
 publicRoutes(app);
 authRoutes(app);
+// before staffRoutes: /api/v1/payments/online must not be read as GET /api/v1/payments/:id
+paymentRoutes(app);
 staffRoutes(app);
 adminRoutes(app);
 importRoutes(app);
@@ -29,6 +35,9 @@ clientRoutes(app);
 healthRoutes(app);
 inquiryRoutes(app);
 giftshopRoutes(app);
+channelRoutes(app);
+reviewRoutes(app);
+fiscalRoutes(app);
 
 const MUTATING = new Set(['POST', 'PATCH', 'PUT', 'DELETE']);
 const READ_DOWN = 'La base de données ne répond pas. Réessaie dans un instant.';
@@ -139,6 +148,8 @@ export async function handle(req, opt = {}) {
       siteUrl: origin + '/',
       offerLink: (wid) => origin + '/?offre=' + encodeURIComponent(signLink(rt.secret, 'offer', wid)),
       receiptLink: (sale) => origin + '/recu/' + signLink(rt.secret, 'receipt', String(sale.number)),
+      // the review request's tracked link: records the opening, then on to Google (routes-reviews.js)
+      reviewLink: (msgId) => origin + '/avis/' + signLink(rt.secret, 'review', msgId),
       ip
     };
     const requestId = req.headers.get('x-request-id') || undefined;

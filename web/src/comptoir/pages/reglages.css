@@ -18,8 +18,14 @@
 .rg-closure { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr) auto; gap: 8px; }
 .rg-tpl .li { padding-left: 4px; padding-right: 4px; }
 .rg-tpl-ed { display: flex; flex-direction: column; gap: 10px; padding: 4px 0 14px; }
-.rg-matrix td:first-child { white-space: normal; min-width: 200px; }
-.rg-matrix td svg { color: var(--ok); }
+/* svg is a block (base.css): centred like the dots and the headers, so each mark sits under its role */
+.rg-matrix th, .rg-matrix td { text-align: center; }
+.rg-matrix tbody th { text-align: left; white-space: normal; min-width: 200px; font: 400 14px/1.35 var(--sans); color: var(--tx); border-bottom: 1px solid var(--line); padding: 12px 10px; }
+.rg-matrix tr:last-child th { border-bottom: 0; }
+.rg-matrix td svg { color: var(--ok); margin: 0 auto; }
+.rg-matrix .rg-s { display: none; }
+/* « Ce que chacun voit des autres »: a finger-sized target on a touch screen (the kit's Seg is 34 px) */
+@media (pointer: coarse), (max-width: 760px) { .rg-view .seg button { min-height: var(--tap); } }
 .rg-strength { display: flex; gap: 4px; }
 .rg-strength i { flex: 1; height: 5px; border-radius: 3px; background: var(--panel3); }
 .rg-strength i.on.s1 { background: var(--danger); }
@@ -54,4 +60,8 @@ code { font: 500 .92em ui-monospace, SFMono-Regular, Menlo, monospace; padding: 
   .rg-closure .btn { grid-column: 1 / -1; }
   .rg-body { padding-bottom: 100px; }
   .rg-save { bottom: calc(76px + var(--safe-b)); }
+  .rg-matrix .rg-l { display: none; }
+  .rg-matrix .rg-s { display: inline; }
+  .rg-matrix th, .rg-matrix td { padding-left: 4px; padding-right: 4px; }
+  .rg-matrix tbody th { min-width: 0; font-size: 13.5px; }
 }

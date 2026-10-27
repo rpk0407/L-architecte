@@ -24,7 +24,7 @@ npm run typecheck      # server (JSDoc) and web (TypeScript strict)
 
 For development, `npm run dev` (API, data kept in `.lx-data/`) together with `npm run dev:web` (Vite, hot reload on :5173). `LX_FAKE_NOW=2026-10-27T15:10:00+01:00 npm start` pins the clock to a busy Tuesday afternoon (it is ignored in production).
 
-Demo access (demo mode only): owner `gerant@larchitecte.fr` / `Architecte13`. Barbers sign in with a PIN on a salon device: JKut 2468, Frank 1357, Le Soldat 8642, Esteban 9753. On the login screen, "Faire de ce navigateur un poste du salon" turns the browser into a salon device.
+Demo access (demo mode only): owner `gerant@larchitecte.fr` / `Architecte13`. Barbers sign in with a PIN on a salon device: JKut 2468, Frank 1357, Le Soldat 8642, Esteban 9753; the desk (accueil) Inès 1470. On the login screen, "Faire de ce navigateur un poste du salon" turns the browser into a salon device.
 
 ## How it is built
 

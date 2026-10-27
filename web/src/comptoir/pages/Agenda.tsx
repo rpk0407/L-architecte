@@ -64,6 +64,8 @@ export default function Agenda() {
   // after the Z (even an early one) nothing more can be paid today; imported history was paid on the old till
   const toPay = data && day === today && !data.closed ? data.appts.filter((a) => !a.saleId && !a.legacy && (a.status === 'in_chair' || a.status === 'done' || (['booked', 'arrived'].includes(a.status) && a.start + a.dur <= nowMin))) : [];
   const moneyOk = k?.revenue != null;
+  // the desk tablet (no chair, no salon figures): the whole salon's day in counts, never in euros
+  const desk = k ? k.scope === 'desk' : !boot.me.chair && !can('report.shop') && can('agenda.all');
   // a fresh salon has no chair yet: the agenda is not closed, it is waiting for the team
   if (!boot.staff.some((x) => x.active && x.chair)) return <NoTeam />;
   return (
@@ -90,12 +92,13 @@ export default function Agenda() {
       {view === 'semaine' ? <Week day={day} today={today} onPick={(d) => setQuery({ day: d === today ? null : d, vue: null })} /> : (
         <>
           <AbsentBanner data={data} today={today} />
-          {data?.closed ? <div className="note ok"><Icon name="lock" /><div><b>Journée clôturée</b> · {data.closure ? 'Z' + String(data.closure.number).padStart(4, '0') + ' · ' + eur(data.closure.net) : ''}. Les ventes de ce jour ne peuvent plus être modifiées.</div></div> : null}
+          {data?.closed ? <div className="note ok"><Icon name="lock" /><div><b>Journée clôturée</b> · {/* the Z's figures only reach whoever closes or reads the salon's money; the others get its number */}{data.closure ? 'Z' + String(data.closure.number).padStart(4, '0') + (typeof data.closure.net === 'number' ? ' · ' + eur(data.closure.net) : '') : ''}. Les ventes de ce jour ne peuvent plus être modifiées.</div></div> : null}
           <section className="kpis" aria-label="La journée en chiffres">
-            {moneyOk ? <Kpi k={k!.scope === 'own' ? 'Mon chiffre' : 'Encaissé'} v={<Money cents={k!.revenue} />} s={<>sur <Money cents={k!.planned} /> prévus{k!.tips ? <> · <Money cents={k!.tips} /> de pourboires</> : null}</>} bar={k!.planned ? (k!.revenue || 0) / k!.planned : 0} icon="euro" />
+            {desk ? null : moneyOk ? <Kpi k={k!.scope === 'own' ? 'Mon chiffre' : 'Encaissé'} v={<Money cents={k!.revenue} />} s={<>sur <Money cents={k!.planned} /> prévus{k!.tips ? <> · <Money cents={k!.tips} /> de pourboires</> : null}</>} bar={k!.planned ? (k!.revenue || 0) / k!.planned : 0} icon="euro" />
               : <Kpi k="Mes rendez-vous" v={k ? k.total : '—'} s={k ? k.upcoming + ' à venir' : ''} icon="calendar" />}
             <Kpi k="Rendez-vous" v={k ? <>{k.done}<small>/ {k.total}</small></> : '—'} s={k ? k.upcoming + ' à venir' + (k.noShows ? ' · ' + k.noShows + ' absent' + (k.noShows > 1 ? 's' : '') : '') : ''} icon="calendar" />
-            <Kpi k="Remplissage" v={k ? pct(k.fill) : '—'} dots={k ? k.fill : 0} s={k ? (k.fill > 0.85 ? 'Presque plein' : k.fill > 0.6 ? 'Belle journée' : 'Il reste de la place') : ''} icon="chair" />
+            <Kpi k={desk ? 'Remplissage salon' : 'Remplissage'} v={k ? pct(k.fill) : '—'} dots={k ? k.fill : 0} s={k ? (k.fill > 0.85 ? 'Presque plein' : k.fill > 0.6 ? 'Belle journée' : 'Il reste de la place') : ''} icon="chair" />
+            {desk ? <Kpi k="À encaisser" v={day === today && !data?.closed ? toPay.length : '—'} s={day !== today ? 'Le jour même' : data?.closed ? 'Journée clôturée' : toPay.length ? 'Prestation' + (toPay.length > 1 ? 's' : '') + ' à passer en caisse' : 'Rien en attente'} icon="caisse" /> : null}
             {day === today && next ? (
               <Kpi hot k={<><i style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent)', animation: 'pulse 1.8s infinite' }} />Prochain client</>} v={<span className="kpi-v sm">{next.name}</span>} s={time(next.start) + ' · ' + (staffById.get(next.staffId)?.name || '') + (next.start <= nowMin ? ' · en retard de ' + (nowMin - next.start) + ' min' : ' · dans ' + Math.max(0, next.start - nowMin) + ' min')} onClick={() => open(next)} />
             ) : (

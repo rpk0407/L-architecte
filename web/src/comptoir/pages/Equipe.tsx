@@ -590,9 +590,10 @@ function Profile({ st }: { st: Staff }) {
         <Field label="Initiales" htmlFor="pf-i"><input id="pf-i" className="input" value={f.initials} maxLength={3} onChange={(e) => setF({ ...f, initials: e.target.value.toUpperCase() })} /></Field>
       </div>
       <Field label="Couleur dans l’agenda"><div className="eq-colors">{COLORS.map((c) => <button key={c} type="button" aria-label={'Couleur ' + c} aria-pressed={f.color === c} style={{ background: c }} onClick={() => setF({ ...f, color: c })} />)}</div></Field>
-      <Field label="Rôle" hint={ROLE_HINT[f.role]}>
+      {/* one's own role is set by another (the server refuses it: self_role) */}
+      {st.id === boot.me.id ? null : <Field label="Rôle" hint={ROLE_HINT[f.role]}>
         <div className="chips">{(['barber', 'desk', 'manager', 'owner'] as Staff['role'][]).filter((r) => r !== 'owner' || boot.me.role === 'owner').map((r) => <Chip key={r} on={f.role === r} onClick={() => setF({ ...f, role: r })}>{ROLE_LABEL[r]}</Chip>)}</div>
-      </Field>
+      </Field>}
       <Switch on={f.chair} onChange={(v) => setF({ ...f, chair: v, bookable: v ? f.bookable : false })} title="A un fauteuil" hint="Apparaît comme colonne dans l’agenda." />
       <Switch on={f.bookable} disabled={!f.chair} onChange={(v) => setF({ ...f, bookable: v })} title="Réservable en ligne" hint="Les clients peuvent le choisir sur le site." />
       <Field label="Présentation sur le site" hint={f.bio.length + ' / 280'} htmlFor="pf-b"><textarea id="pf-b" className="input textarea" rows={3} maxLength={280} value={f.bio} onChange={(e) => setF({ ...f, bio: e.target.value })} placeholder="Spécialiste des dégradés, 8 ans de métier…" /></Field>
@@ -709,6 +710,9 @@ function ServicesCard({ st }: { st: Staff }) {
 }
 
 function Commission({ st }: { st: Staff }) {
+  const { boot } = useApp();
+  // a manager's own rate is the owner's call (the server refuses it: self_commission): shown, not editable
+  const fixed = st.id === boot.me.id && boot.me.role !== 'owner';
   const [svc, setSvc] = useState(String((st.commission?.service ?? 0) / 100));
   const [prd, setPrd] = useState(String((st.commission?.product ?? 0) / 100));
   const [busy, setBusy] = useState(false);
@@ -725,11 +729,11 @@ function Commission({ st }: { st: Staff }) {
     <section className="card col" style={{ gap: 12 }}>
       <div className="card-h"><h2><Icon name="percent" size={16} />Rémunération</h2><Link to={'/rapports?barbier=' + st.id} className="link">Ses chiffres</Link></div>
       <div className="grid2">
-        <Field label="Sur les prestations (%)" htmlFor="cm-s"><input id="cm-s" className="input tnum" inputMode="decimal" value={svc} onChange={(e) => setSvc(e.target.value)} /></Field>
-        <Field label="Sur les produits (%)" htmlFor="cm-p"><input id="cm-p" className="input tnum" inputMode="decimal" value={prd} onChange={(e) => setPrd(e.target.value)} /></Field>
+        <Field label="Sur les prestations (%)" htmlFor="cm-s"><input id="cm-s" className="input tnum" inputMode="decimal" value={svc} readOnly={fixed} onChange={(e) => setSvc(e.target.value)} /></Field>
+        <Field label="Sur les produits (%)" htmlFor="cm-p"><input id="cm-p" className="input tnum" inputMode="decimal" value={prd} readOnly={fixed} onChange={(e) => setPrd(e.target.value)} /></Field>
       </div>
       {row ? <div className="eq-month"><span>Ce mois : <b className="money">{eur(row.revenue)}</b> de chiffre, <b className="money">{eur(row.tips)}</b> de pourboires</span><span>Commission estimée <b className="serif money" style={{ fontSize: 26 }}>{eur(row.commission)}</b></span></div> : <Skeleton h={48} />}
-      {dirty ? <div className="row" style={{ justifyContent: 'flex-end' }}><Button variant="primary" busy={busy} onClick={save}>Enregistrer</Button></div> : null}
+      {fixed ? <p className="faint" style={{ fontSize: 13 }}>Ta commission se règle avec le gérant.</p> : dirty ? <div className="row" style={{ justifyContent: 'flex-end' }}><Button variant="primary" busy={busy} onClick={save}>Enregistrer</Button></div> : null}
     </section>
   );
 }

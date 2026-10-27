@@ -11,6 +11,7 @@ import { Avatar, Button, Chip, Empty, Field, Kpi, Menu, Modal, Note, Sheet, Skel
 import { useApp } from '../state';
 import { PageTitle } from '../App';
 import type { ClientCard, ClientFull } from '../types';
+import ClientReview from './avis/ClientReview';
 import './clients.css';
 
 type ListData = { total: number; counts: Record<string, number>; excludedNoConsent?: number; retention?: { before: string; other: number } | null; items: ClientCard[] };
@@ -304,6 +305,7 @@ function ClientFile({ id }: { id: string }) {
             {c.email ? <span><Icon name="globe" size={14} />{c.email}</span> : null}
             <span className="faint">Client depuis {monthYear(c.createdAt)}{c.source === 'site' ? ' · venu par le site' : ''}</span>
           </p>
+          {c.erased ? null : <ClientReview id={c.id} />}
         </div>
         <div className="cl-acts">
           {can('agenda.own') ? <Button variant="primary" icon="calendar" onClick={() => navigate('/agenda?new=1&client=' + c.id)}>Prendre RDV</Button> : null}
@@ -439,7 +441,7 @@ function TechCard({ c, favStaff, favSvc }: { c: ClientFull; favStaff: string; fa
   );
 }
 
-const CONSENT_SRC: Record<string, string> = { site: 'site', salon: 'au salon', stop: 'STOP par SMS' };
+const CONSENT_SRC: Record<string, string> = { site: 'site', salon: 'au salon', stop: 'STOP par SMS', wordpress: 'jamais demandé (ancien site)' };
 /** "oui (site, 12/10/2026)", "non (STOP par SMS, 03/11/2026)", or just "oui" / "non" when nobody recorded where. */
 export function consentWords(c: { marketing: boolean; marketingSrc?: string; marketingAt?: number | null }) {
   const src = c.marketingSrc ? CONSENT_SRC[c.marketingSrc] || c.marketingSrc : '';

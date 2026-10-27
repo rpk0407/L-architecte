@@ -1,5 +1,6 @@
 // A barber who opens an owner page by its address gets a read-only view or a clear refusal, never an edit screen
-// or a blank page, and no refused API call along the way (a 403 in the console fails the scenario).
+// or a blank page, and no refused API call along the way (a 403 in the console fails the scenario). The desk tablet
+// (TEAM-01): Inès sees the salon's counts and fill on the agenda, never an amount, and no refused call either.
 export const name = 'a barber on owner pages: read-only or “Réservé au gérant”';
 
 const PHONE = { width: 390, height: 844 };
@@ -111,4 +112,26 @@ export default async ({ h, page }) => {
   await owner.goto(h.base + '/comptoir/reglages/constructor');
   await h.expectText(owner, 'Coordonnées');
   await none(owner, 'Réservé au gérant', 'owner /reglages/constructor');
+
+  // JKut's agenda: his own figures, without the salon's month goal or warnings (bootstrap), and no refused call
+  await page.goto(h.base + '/comptoir');
+  await page.getByRole('region', { name: 'La journée en chiffres' }).getByText('Mon chiffre').waitFor({ timeout: 8000 });
+  if (!(await page.getByRole('link', { name: 'Mes chiffres' }).count())) throw new Error('JKut: his « Mes chiffres » tab is missing');
+
+  // the desk tablet, portrait: the whole salon's day in counts, never in euros
+  const tablet = await h.newPage({ viewport: { width: 1024, height: 1366 } });
+  await barber(tablet, h.base, 'Inès', '1470');
+  await tablet.goto(h.base + '/comptoir');
+  const kpis = tablet.getByRole('region', { name: 'La journée en chiffres' });
+  await kpis.getByText('Remplissage salon').waitFor({ timeout: 8000 });
+  for (const t of ['Rendez-vous', 'À encaisser']) if (!(await kpis.getByText(t, { exact: true }).count())) throw new Error('desk agenda: KPI "' + t + '" missing');
+  await tablet.waitForTimeout(300);
+  const words = await kpis.innerText();
+  if (/€/.test(words)) throw new Error('desk agenda: an amount is shown: ' + JSON.stringify(words));
+  for (const t of ['Mon chiffre', 'Encaissé', 'Mes rendez-vous']) if (await kpis.getByText(t, { exact: true }).count()) throw new Error('desk agenda: "' + t + '" is shown');
+  await h.shot(tablet, 'desk-agenda');
+  // no page of zeros: the desk has no figures of its own, so no « Mes chiffres » tab
+  if (await tablet.getByRole('link', { name: 'Mes chiffres' }).count()) throw new Error('desk: a « Mes chiffres » tab is shown');
+  // her other pages open without a refused call
+  for (const path of ['/comptoir/caisse', '/comptoir/clients', '/comptoir/relances']) { await tablet.goto(h.base + path); await tablet.locator('#page-title h1').waitFor({ timeout: 8000 }); }
 };

@@ -142,6 +142,8 @@ export function report(s, q) {
           productRevenue += l.net;
           if (st) { st.productRevenue += l.net; st.revenue += l.net; }
         } else if (l.kind === 'fee' && st) st.revenue += l.net;
+        // a membership's month (PAY-02): the salon's, no barber's row
+        else if (l.kind === 'membership') byCategory.set('Abonnements', (byCategory.get('Abonnements') || 0) + l.net);
         if (st) { st.tickets.add(x.id); if (x.clientId) st.clients.add(x.clientId); }
       }
       if (x.tip) { const st = byStaff.get(x.tip.staffId); if (st && (!one || x.tip.staffId === one)) st.tips += x.tip.amount; }

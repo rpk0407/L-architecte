@@ -8,6 +8,7 @@ import { Icon } from '../../../ui/Icon';
 import { Button, Chip, Empty, Field, Note, Skeleton, confirm, toast, toastError } from '../../../ui/kit';
 import { useApp } from '../../state';
 import { cronStep, useHealth } from './sections/MiseEnRoute';
+import { smsVia } from './sections/messages/Canal';
 
 export default function System({ section }: { section: string }) {
   if (section === 'appareils') return <Devices />;
@@ -130,7 +131,7 @@ function Data() {
           <div className="kv"><span>Stockage</span><b>{STORE[sys.data.store] || sys.data.store}</b></div>
           <div className="kv"><span>Opérations enregistrées</span><b className="tnum">{sys.data.events.toLocaleString('fr-FR')}</b></div>
           <div className="kv"><span>Paiement en ligne</span><b>{sys.data.payments.provider === 'stripe' ? 'Stripe' + (sys.data.payments.live ? ' (réel)' : ' (test)') : 'Simulé'}</b></div>
-          <div className="kv"><span>SMS</span><b>{sys.data.sms ? cap(sys.data.sms) : sys.data.mode === 'demo' ? 'Simulés' : 'Non branché'}</b></div>
+          <div className="kv"><span>SMS</span><b>{sys.data.sms ? cap(smsVia(sys.data.sms)) : sys.data.mode === 'demo' ? 'Simulés' : 'Non branché'}</b></div>
           <div className="kv"><span>Appareils autorisés</span><b>{sys.data.devices}</b></div>
           {sys.data.warnings.map((w) => <Note key={w} tone="warn" icon="alert">{w}</Note>)}
         </section>
@@ -172,6 +173,15 @@ function Health() {
       : [!t.cron ? 'cron non réglé' : t.cronAt != null ? 'dernier appel du cron ' + since(t.cronAt) : 'aucun appel du cron vu par ce serveur',
         t.overdue ? plural(t.overdue, 'message en attente', 'messages en attente') : '', t.late24h ? plural(t.late24h, 'parti en retard', 'partis en retard') + ' (24 h)' : ''].filter(Boolean).join(' · '), tickBad],
     ['Stripe', h.stripe.provider !== 'stripe' ? 'simulé' : (h.stripe.live ? 'réel' : 'test') + (h.stripe.lastWebhook ? ' · dernier webhook ' + since(h.stripe.lastWebhook) : ' · aucun webhook reçu'), !demo && (h.stripe.provider !== 'stripe' || !h.stripe.live)],
+    // MSG-02: the route the texts take now, and the last one that failed
+    ['Envoi des SMS', demo ? 'simulé' : !h.sms.provider && !h.sms.whatsapp ? 'aucun fournisseur' : (h.sms.whatsapp ? 'WhatsApp + SMS en secours' + (h.sms.provider ? ' (' + smsVia(h.sms.provider) + ')' : '') : cap(smsVia(h.sms.provider)))
+      + (h.sms.lastFailure ? ' · dernier échec ' + since(h.sms.lastFailure.at) + (h.sms.lastFailure.error ? ' : ' + h.sms.lastFailure.error : '') : ''), !demo && (!h.sms.provider || (!!h.sms.lastFailure && h.now - h.sms.lastFailure.at < 86400000))],
+    // FID-01: the salon's phone, its last text and its pace; a code or a link a client asked for and still waits for
+    ...(!demo && h.sms.provider === 'gateway' ? [['Téléphone du salon', (h.sms.lastSentAt ? 'dernier SMS parti ' + since(h.sms.lastSentAt) : 'aucun SMS parti') + (h.sms.fallback ? ' · Brevo en secours' : '')
+      + (h.sms.cronSlow ? ' · règle le cron toutes les minutes, sinon 5 SMS toutes les 5 minutes au plus.' : ''),
+      // each server sees only its own cron calls: a hint, red only when texts really wait (or there is no cron at all)
+      !!h.sms.cronSlow && (!t.cron || t.overdue > 0 || t.late24h > 0)] as [string, string, boolean]] : []),
+    ...(h.sms.requestedWaitMs != null && h.sms.requestedWaitMs > 60000 ? [['Demandé par un client', 'un code ou un lien attend depuis ' + plural(Math.round(h.sms.requestedWaitMs / 60000), 'minute'), true] as [string, string, boolean]] : []),
     ['SMS échoués (24 h)', String(h.sms.failed24h), h.sms.failed24h > 0],
     ['E-mails échoués (24 h)', String(h.email.failed24h), h.email.failed24h > 0],
     ['En attente d’un fournisseur', waiting ? [h.sms.queuedNoProvider ? plural(h.sms.queuedNoProvider, 'SMS') : '', h.email.queuedNoProvider ? plural(h.email.queuedNoProvider, 'e-mail') : ''].filter(Boolean).join(', ') : 'rien', waiting > 0],

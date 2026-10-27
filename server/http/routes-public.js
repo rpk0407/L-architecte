@@ -11,11 +11,14 @@ import * as A from '../commands/agenda.js';
 import { createPayment, paymentSucceeded, paymentEnded } from '../commands/payments.js';
 import { ticketNo } from '../domain/cash.js';
 import { smsOptOut } from '../commands/messages.js';
+import { smsReply, smsReport } from '../commands/sms-inbound.js';
 import { webhookKey, parseSmsWebhook } from '../messaging/sms.js';
 import { maybeTick } from './scheduler.js';
 import { hoursText, closedText } from '../settings/hours.js';
 import { waitUntil } from '@vercel/functions';
 import { fulfilGiftcard } from './routes-giftshop.js';
+import { providerFor, providerLabel } from '../payments/provider.js';
+import { providerKnown } from '../projections/payments.js';
 
 /** The demo, for real: both the configuration and the journal say so (a demo journal opened in production is not one). */
 export const isDemo = (r) => r.rt.cfg.mode === 'demo' && r.s.mode === 'demo';
@@ -84,14 +87,38 @@ export async function startPayment(r, { kind, amount, label, apptId, returnPath,
   return { id, url: co.url };
 }
 
-/** Give back an online deposit (timely cancellation, payment after expiry). */
-export async function refundOnline(r, payment, reason) {
-  if (!payment || payment.status !== 'paid') return false;
+/**
+ * Give back an online payment (a timely cancellation, a payment after expiry, a deposit the salon gives back): all of
+ * what is left of it, or `amount`, through the provider it was paid with (never whichever is plugged in now). A
+ * payment recorded before its charge was known asks the provider for it rather than skipping the refund. ok: the
+ * money went back; error: why not, in the provider's words for the Comptoir (« Acompte non remboursé chez Stripe : … »),
+ * and the payment stays paid.
+ * @param {any} r @param {any} payment @param {string} reason @param {number} [amount]
+ * @returns {Promise<{ ok: boolean, error?: string }>}
+ */
+export async function refundOnline(r, payment, reason, amount) {
+  if (!payment || payment.status !== 'paid') return { ok: false, error: 'ce paiement n’est pas réglé' };
+  const done = providerKnown(r.s, payment);
+  const left = payment.amount - done;
+  const amt = amount == null ? left : Math.min(amount, left);
+  if (!(amt > 0)) return { ok: false, error: 'déjà remboursé' };
+  let prov;
   try {
-    if (payment.chargeRef || r.rt.pay.name === 'simulated') await r.rt.pay.refund(payment.chargeRef || payment.providerRef, payment.amount, payment.id);
-    await r.rt.engine.run(paymentEnded, { id: payment.id, status: 'refunded', reason }, PROVIDER(r, r.rt.pay.name));
-    return true;
-  } catch (e) { console.error('[lx] refund failed', e && e.message); return false; }
+    prov = providerFor(r.rt, payment.provider || r.rt.pay.name);
+    let charge = payment.chargeRef || '';
+    if (!charge && prov.name !== 'simulated') charge = (await prov.retrieveCharge(payment.providerRef)).chargeRef || '';
+    if (!charge && prov.name !== 'simulated') throw new Error('paiement introuvable chez ' + providerLabel(prov.name));
+    // the whole payment keeps the key it always had, so a retry never refunds twice; a part is keyed by what went back before
+    await prov.refund(charge || payment.providerRef, amt, payment.id + (amt === payment.amount ? '' : '-' + done));
+  } catch (e) {
+    const why = (e && (/** @type {any} */ (e).detail || /** @type {any} */ (e).message)) || 'erreur';
+    console.error('[lx] refund failed', payment.id, why);
+    return { ok: false, error: why };
+  }
+  // the money is back: if this record fails, the provider's refund notice writes it (payments/handlers.js refunded)
+  try { await r.rt.engine.run(paymentEnded, { id: payment.id, status: 'refunded', reason, ...(amt < payment.amount ? { amount: amt } : {}) }, PROVIDER(r, prov.name)); }
+  catch (e) { console.error('[lx] refund not recorded', payment.id, e && /** @type {any} */ (e).message); }
+  return { ok: true };
 }
 
 /** Client traffic carries the reminders too, so they leave even when no one has the Comptoir open (at most once a minute). */
@@ -249,28 +276,29 @@ export function publicRoutes(app) {
     };
   });
 
-  app.post('/api/stripe/webhook', async (r) => {
-    const ev = r.rt.pay.parseWebhook(r.raw, r.req.headers.get('stripe-signature'));
-    if (!ev) return { received: true };
-    const pid = r.s.paymentByRef.get(ev.ref);
-    if (!pid) return { received: true, unknown: true };
-    if (ev.kind === 'paid') await afterProviderPaid(r, ev, 'stripe');
-    else await r.rt.engine.run(paymentEnded, { id: pid, status: ev.kind === 'expired' ? 'expired' : 'failed' }, PROVIDER(r, 'stripe'));
-    return { received: true };
-  }, { raw: true, csrf: false });
-
-  /** Brevo (unsubscribe event, reply STOP) or Twilio (inbound STOP): that client gets no more offers. */
+  /**
+   * Brevo (unsubscribe event, reply STOP), Twilio (inbound STOP) or the salon's phone (sms:received STOP): that client
+   * gets no more offers. The salon's phone also brings the clients' other answers (Relances › Demandes) and its
+   * delivery reports (the outbox).
+   */
   app.post('/api/sms/webhook', async (r) => {
     guard('smswh|' + r.ip, 120, 60000);
     const key = webhookKey(r.rt.cfg.cronSecret);
     if (!key) throw new HttpError(404, 'not_found', 'Indisponible.');
     if (!safeEqual(r.query.get('k') || '', key)) throw new HttpError(401, 'unauthorized', 'Non autorisé.');
-    const stops = parseSmsWebhook(r.raw, r.req.headers.get('content-type')).filter((ev) => ev.stop);
-    if (!stops.length) return { received: true };
+    const events = parseSmsWebhook(r.raw, r.req.headers.get('content-type'));
+    const ctx = PROVIDER(r, r.rt.sms ? r.rt.sms.name : 'sms');
+    let replied = 0;
+    for (const ev of events) {
+      if (ev.reply && (await r.rt.engine.run(smsReply, ev.reply, ctx)).ok) replied++;
+      if (ev.report) await r.rt.engine.run(smsReport, ev.report, ctx);
+    }
+    const stops = events.filter((ev) => ev.stop);
+    if (!stops.length) return replied ? { received: true, replied: true } : { received: true };
     let optedOut = 0;
     for (const ev of stops) {
       for (const phone of ev.phones) {
-        const res = await r.rt.engine.run(smsOptOut, { phone }, PROVIDER(r, r.rt.sms ? r.rt.sms.name : 'sms'));
+        const res = await r.rt.engine.run(smsOptOut, { phone }, ctx);
         if (res.found) { optedOut++; break; }
       }
     }
@@ -278,8 +306,9 @@ export function publicRoutes(app) {
   }, { raw: true, csrf: false });
 }
 
-/** A payment went through: record it; if its booking expired meanwhile, give the money back. */
-async function afterProviderPaid(r, ev, provider) {
+/** A payment went through (the provider's notice, payments/handlers.js, or the test page): record it; if its booking
+ *  expired meanwhile, give the money back. */
+export async function afterProviderPaid(r, ev, provider) {
   const res = await r.rt.engine.run(paymentSucceeded, { providerRef: ev.ref, amount: ev.amount, chargeRef: ev.chargeRef, pm: ev.pm, customer: ev.customer }, PROVIDER(r, provider));
   const p = r.s.payments.get(r.s.paymentByRef.get(ev.ref));
   if (res && res.late) await refundOnline(r, p, 'Réservation expirée avant le paiement');

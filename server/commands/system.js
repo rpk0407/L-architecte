@@ -8,6 +8,7 @@ import { freeSlots } from '../domain/availability.js';
 import { queueMessage, apptVars, whenWords, afterQuiet } from '../domain/messages.js';
 import { payDeadline } from '../domain/policy.js';
 import { runSteps } from './tick-steps.js';
+import { queueReviews } from './reviews.js';
 
 const OFFER_MIN = 30;
 
@@ -37,12 +38,11 @@ export const tick = {
       if (M.reminder2h && a.status === 'booked' && a.day === L.day && a.start - L.min <= 120 && a.start - L.min > 60 && a.sms) {
         if (queueMessage(s, ctx, { key: 'rem2_' + a.id + '_' + a.day, template: 'reminder2h', to: c.phone, cid: c.id, apptId: a.id, vars: apptVars(s, a, ctx.meta.linkFor) })) n++;
       }
-      // 4. thanks + review, once per client per quarter
-      if (M.review && a.status === 'done' && a.day === L.day && a.statusAt.done && ctx.now - a.statusAt.done >= M.reviewDelayMin * 60000) {
-        const q = L.day.slice(0, 5) + Math.ceil(+L.day.slice(5, 7) / 3);
-        if (queueMessage(s, ctx, { key: 'rev_' + c.id + '_' + q, template: 'review', to: c.phone, cid: c.id, apptId: a.id, vars: apptVars(s, a) })) n++;
-      }
     }
+    // 4. thanks + review: once the visit is done and paid, after the delay and out of the quiet hours (a visit finished at
+    // 19:30 is asked the next morning), once per client per quarter, by text or else by e-mail; the same request for every
+    // client, never only the happy ones (commands/reviews.js says why)
+    if (n < cap) n += queueReviews(s, ctx, { demo: !!input.demoMessages, cap: cap - n }).length;
 
     // 5. the waiting list gets a freed slot first; no new offer during quiet hours: a 30-minute offer texted in the morning would be gone
     const quiet = afterQuiet(M.quiet, ctx.now) > ctx.now;

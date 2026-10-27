@@ -27,6 +27,25 @@ function initialsOf(name) {
 function checkSchedule(sc) { if (sc) for (const k of Object.keys(sc)) checkIntervals(sc[k], 'horaires'); }
 function owners(s) { return [...s.staff.values()].filter((x) => x.active && x.role === 'owner'); }
 
+/** What a patch really changes in someone's pay or rank (a field sent with its current value is no change). */
+function govChanges(st, patch) {
+  const out = [];
+  const com = st.commission || { service: 0, product: 0 };
+  if (patch.commission && (patch.commission.service !== com.service || patch.commission.product !== com.product)) out.push({ field: 'commission', from: { service: com.service, product: com.product }, to: { service: patch.commission.service, product: patch.commission.product } });
+  if (patch.role !== undefined && patch.role !== st.role) out.push({ field: 'role', from: st.role, to: patch.role });
+  return out;
+}
+/**
+ * Governance (TEAM-01): a change someone other than the owner makes to a colleague's commission, role or access, or a
+ * colleague he adds (role, and the commission he chose), is told to the owner by a team.changed in the same command
+ * (projections/governance.js). The owner's own changes and a person's own access are no news; nor is the system's (seed,
+ * imports), which has no staff behind it.
+ */
+function told(ctx, st, c) {
+  if (!ctx.staff || ctx.staff.role === 'owner' || ctx.staff.id === st.id) return;
+  ctx.emit('team.changed', { staffId: st.id, field: c.field, from: c.from, to: c.to, by: ctx.staff.id });
+}
+
 export const addStaff = {
   run(s, input, ctx) {
     ctx.need('team');
@@ -42,6 +61,9 @@ export const addStaff = {
       services: 'all', schedule: { ...s.settings.hours }, commission: { service: 4000, product: 1000 }, order: s.staff.size, ...rest
     };
     ctx.emit('staff.added', { id: sid, staff }, email ? { email } : undefined);
+    // a newcomer's rank, and a rate other than the salon's default, are the owner's to know (from null: he is new)
+    told(ctx, { id: sid }, { field: 'role', from: null, to: staff.role });
+    if (x.commission) told(ctx, { id: sid }, { field: 'commission', from: null, to: { service: staff.commission.service, product: staff.commission.product } });
     return { id: sid };
   }
 };
@@ -55,11 +77,16 @@ export const updateStaff = {
     if (!ctx.can('team') && !(self && Object.keys(patch).every((k) => selfOnly.includes(k)))) fail(403, 'forbidden', 'Seul le gérant modifie l’équipe.');
     if ((patch.role === 'owner' || st.role === 'owner') && ctx.staff?.role !== 'owner' && patch.role !== undefined) fail(403, 'forbidden', 'Seul le gérant change ce rôle.');
     if (st.role === 'owner' && patch.role && patch.role !== 'owner' && owners(s).length <= 1) fail(409, 'last_owner', 'Il faut au moins un gérant.');
+    // nobody raises his own pay or rank: a manager's commission is the owner's call, and a role is always set by another
+    const changes = govChanges(st, patch);
+    if (self && changes.some((c) => c.field === 'commission') && ctx.staff.role !== 'owner') fail(403, 'self_commission', 'Ta commission se règle avec le gérant.');
+    if (self && changes.some((c) => c.field === 'role')) fail(403, 'self_role', 'Ton rôle se change par un autre gérant.');
     if (patch.email && !isEmailLike(patch.email)) fail(400, 'invalid', 'E-mail invalide.');
     checkSchedule(patch.schedule);
     const { email, ...rest } = patch;
     if (!Object.keys(rest).length && email === undefined) return { ok: true };
     ctx.emit('staff.updated', { id: st.id, patch: rest }, email !== undefined ? { email } : undefined);
+    for (const c of changes) told(ctx, st, c);
     return { ok: true };
   }
 };
@@ -89,6 +116,8 @@ export const setCredentials = {
     if (!Object.keys(pii).length) return { ok: true };
     // a new password signs out every session of that person, except on a PIN-only change
     ctx.emit('staff.credentials', { id: st.id, revoke: input.pwdHash !== undefined && !self }, pii);
+    // set: from null to 'pin'; removed (an empty hash): from 'pin' to null
+    for (const [k, w] of /** @type {const} */ ([['pwd', 'password'], ['pin', 'pin']])) if (pii[k] !== undefined) told(ctx, st, pii[k] ? { field: 'access', from: null, to: w } : { field: 'access', from: w, to: null });
     return { ok: true };
   }
 };

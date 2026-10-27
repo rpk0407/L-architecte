@@ -8,6 +8,8 @@ import { Field, Note, Switch } from '../../../../ui/kit';
 import { useApp } from '../../../state';
 import { quietWords, smsSegments, withStop } from '../../Relances';
 import { Card, SaveBar, useSave, useSection, type SectionProps } from '../shared';
+import Canal, { smsVia } from './messages/Canal';
+import Avis from './messages/Avis';
 
 const TPL: { k: string; t: string; when: string; vars: string[] }[] = [
   { k: 'confirmation', t: 'Confirmation', when: 'dès la réservation', vars: ['prenom', 'date', 'heure', 'barbier', 'prestation', 'lien'] },
@@ -32,7 +34,7 @@ function phoneOk(v: string) {
   if (d.startsWith('+33')) d = '0' + d.slice(3);
   return d.startsWith('+') ? /^\+\d{8,15}$/.test(d) : /^0[1-9]\d{8}$/.test(d);
 }
-const SAMPLE: Record<string, string> = { prenom: 'Karim', date: 'jeudi 12 novembre', heure: '14 h 30', barbier: 'JKut', prestation: 'Coupe + taille de barbe', lien: 'https://larchitecte.fr/r/LA-7K2P', avis: 'https://g.page/r/…', jours: '34', ticket: 'T001042', montant: '30,00 €' };
+const SAMPLE: Record<string, string> = { prenom: 'Karim', date: 'jeudi 12 novembre', heure: '14 h 30', barbier: 'JKut', prestation: 'Coupe + taille de barbe', lien: 'https://larchitecte.fr/r/LA-7K2P', avis: 'https://larchitecte.fr/avis/msg_rev_cl_mvqgbw0v1jm5vI6W_2026-4.Ab3dEf9hIj2kLm4nOp6qRs', jours: '34', ticket: 'T001042', montant: '30,00 €' };
 
 export default function Messages({ s, data }: SectionProps) {
   const { boot } = useApp();
@@ -58,19 +60,20 @@ export default function Messages({ s, data }: SectionProps) {
     for (const k of Object.keys(v) as (keyof Notify)[]) if (v[k] !== n0[k]) (out as Record<string, unknown>)[k] = v[k];
     return out;
   };
-  const toggles: [string, string, string][] = [['confirmation', 'Confirmation de rendez-vous', 'Avec le lien pour déplacer ou annuler soi-même.'], ['reminder', 'Rappel la veille', 'Le meilleur remède contre les absences.'], ['reminder2h', 'Rappel 2 h avant', 'En plus, pour les oublis du jour même.'], ['review', 'Demande d’avis Google', 'Une fois par trimestre au plus par client.'], ['waitlist', 'Place libérée', 'Proposée au premier de la liste d’attente.'], ['rebook', 'Relances', 'Proposées dans Relances, jamais envoyées sans toi.']];
+  const toggles: [string, string, string][] = [['confirmation', 'Confirmation de rendez-vous', 'Avec le lien pour déplacer ou annuler soi-même.'], ['reminder', 'Rappel la veille', 'Le meilleur remède contre les absences.'], ['reminder2h', 'Rappel 2 h avant', 'En plus, pour les oublis du jour même.'], ['waitlist', 'Place libérée', 'Proposée au premier de la liste d’attente.'], ['rebook', 'Relances', 'Proposées dans Relances, jamais envoyées sans toi.']];
   const bad = TPL.find((t) => (M.templates[t.k] || '').trim().length < 10);
   return (
     <div className="col" style={{ gap: 16 }}>
-      <Card title="Envois automatiques" icon="bolt" aside={<span className={'badge ' + (boot.providers.sms ? 'badge-ok' : boot.mode === 'demo' ? 'badge-info' : 'badge-warn')}>{boot.providers.sms ? 'SMS via ' + cap(boot.providers.sms) : boot.mode === 'demo' ? 'Démo · simulé' : 'Aucun fournisseur'}</span>}>
+      <Card title="Envois automatiques" icon="bolt" aside={<span className={'badge ' + (boot.providers.sms ? 'badge-ok' : boot.mode === 'demo' ? 'badge-info' : 'badge-warn')}>{boot.providers.sms ? 'SMS via ' + smsVia(boot.providers.sms) : boot.mode === 'demo' ? 'Démo · simulé' : 'Aucun fournisseur'}</span>}>
         {toggles.map(([k, t, h]) => <Switch key={k} on={!!M[k]} onChange={(v) => m.setV({ ...M, [k]: v })} title={t} hint={h} />)}
         <div className="grid2">
           <Field label="Heure du rappel de la veille"><select className="input select" value={M.reminderHour} onChange={(e) => m.setV({ ...M, reminderHour: Number(e.target.value) })}>{Array.from({ length: 14 }, (_, i) => i + 8).map((h) => <option key={h} value={h}>{h} h</option>)}</select></Field>
-          <Field label="Demande d’avis, après la visite"><select className="input select" value={M.reviewDelayMin} onChange={(e) => m.setV({ ...M, reviewDelayMin: Number(e.target.value) })}>{[30, 60, 120, 240, 1440].map((n) => <option key={n} value={n}>{n < 60 ? n + ' min' : n === 1440 ? 'le lendemain' : n / 60 + ' h'}</option>)}</select></Field>
         </div>
         <Note icon="moon">{quietWords(M.quiet)} Les avis, les relances et les places libérées attendent le matin.</Note>
-        {!boot.providers.sms && boot.mode !== 'demo' ? <Note tone="warn" icon="alert">Branche Brevo ou Twilio (variables <code>SMS_PROVIDER</code>, <code>BREVO_API_KEY</code> ou <code>TWILIO_*</code>) pour que les SMS partent vraiment. En attendant, ils restent dans la boîte d’envoi.</Note> : null}
+        {!boot.providers.sms && boot.mode !== 'demo' ? <Note tone="warn" icon="alert">Branche Brevo, le téléphone du salon ou Twilio (Canal d’envoi, ci-dessous) pour que les SMS partent vraiment. En attendant, ils restent dans la boîte d’envoi.</Note> : null}
       </Card>
+      <Canal s={s} />
+      <Avis s={s} data={data} />
       <Card title="E-mails aux clients" icon="mail" aside={<span className={'badge ' + (mailer ? 'badge-ok' : boot.mode === 'demo' ? 'badge-info' : 'badge-warn')}>{mailer ? 'E-mail via ' + cap(mailer) : boot.mode === 'demo' ? 'Démo · simulé' : 'Aucun fournisseur'}</span>}>
         <Switch on={M.email !== false} onChange={(v) => m.setV({ ...M, email: v })} title="Confirmation et annulation par e-mail" hint="Aux clients qui ont donné leur e-mail, avec ou sans SMS : le rendez-vous à ajouter à l’agenda (fichier .ics) et le bouton « Gérer mon rendez-vous », puis le déplacement ou l’annulation." />
         {!mailer && boot.mode !== 'demo' ? <Note tone="warn" icon="alert">Ajoute <code>BREVO_API_KEY</code> et <code>EMAIL_FROM</code> (par exemple <code>rdv@barberlarchitecte.com</code>, une adresse validée dans Brevo) pour que les e-mails partent. En attendant, ils restent dans la boîte d’envoi.</Note> : null}

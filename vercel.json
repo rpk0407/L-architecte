@@ -52,7 +52,8 @@
     { "source": "/r/:token", "destination": "/client" },
     { "source": "/recu/:token", "destination": "/client" },
     { "source": "/paiement/:id", "destination": "/client" },
-    { "source": "/cadeau/:token", "destination": "/client" }
+    { "source": "/cadeau/:token", "destination": "/client" },
+    { "source": "/avis/:token", "destination": "/api/main?route=avis/:token" }
   ],
   "headers": [
     {
@@ -64,8 +65,8 @@
         { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=(), payment=()" }
       ]
     },
-    { "source": "/(comptoir|r|recu|paiement|cadeau|client|api|demo|ancien-lien)", "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }] },
-    { "source": "/(comptoir|r|recu|paiement|cadeau|client|api|demo|ancien-lien)/(.*)", "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }] },
+    { "source": "/(comptoir|r|recu|paiement|cadeau|client|api|demo|ancien-lien|avis)", "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }] },
+    { "source": "/(comptoir|r|recu|paiement|cadeau|client|api|demo|ancien-lien|avis)/(.*)", "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }] },
     {
       "source": "/(comptoir|r|recu|paiement|cadeau|client)(.*)",
       "headers": [

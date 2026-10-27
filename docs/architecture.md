@@ -48,7 +48,7 @@ One Vercel Function (`api/main.js`) serves every `/api/*` route through `server/
 4. session and device cookies are verified against the live state (a revoked person or device is out at once);
 5. the route's capability is checked, then the handler runs.
 
-Route families: `/api/public/*` (site and client pages, no account), `/api/auth/*`, `/api/v1/*` (staff), `/api/stripe/webhook`, `/api/cron/tick`.
+Route families: `/api/public/*` (site and client pages, no account), `/api/auth/*`, `/api/v1/*` (staff), `/api/pay/:provider/webhook` (and its older alias `/api/stripe/webhook`), `/api/cron/tick`.
 
 ## Background work
 

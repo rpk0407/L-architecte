@@ -64,7 +64,7 @@ test('erasing a client with bookings to come: refused with the list, or cancelle
   const no = await b.post('/api/v1/clients/' + cid + '/erase', {});
   assert.equal(no.status, 409);
   assert.equal(no.json.error.code, 'open');
-  assert.match(no.json.error.message, /1 rendez-vous à venir, un abonnement en cours, une carte cadeau avec du solde/);
+  assert.match(no.json.error.message, /1 rendez-vous à venir, un carnet en cours, une carte cadeau avec du solde/);
   assert.deepEqual(no.json.error.extra.open.appts.map((x) => x.id), [a.id]);
   assert.equal(rt.engine.state.version, v);
   assert.equal(rt.engine.state.clients.get(cid).erased, false);

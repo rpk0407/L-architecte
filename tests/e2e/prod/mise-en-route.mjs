@@ -52,7 +52,7 @@ export default async ({ browser, h, page }) => {
   await page.waitForURL(/\/comptoir\/reglages\/mise-en-route$/);
   await step(page, 'team').waitFor();
   for (const id of ['menu', 'team']) if (await done(page, id)) throw new Error(id + ' is ticked on a fresh salon');
-  if ((await page.locator('.mr-step').count()) !== 13) throw new Error('Mise en route should list 13 steps');
+  if ((await page.locator('.mr-step').count()) !== 14) throw new Error('Mise en route should list 14 steps');
   // Réglages opens on it, at the top
   await page.goto(h.base + '/comptoir/reglages');
   await step(page, 'menu').waitFor();

@@ -6,7 +6,8 @@ export const TEMPLATES = {
   confirmation: "L'Architecte : c'est noté {prenom} ! {date} à {heure} avec {barbier}. Gérer : {lien}",
   reminder: "L'Architecte : rappel, demain {heure} avec {barbier}. Un imprévu ? Déplace ou annule ici : {lien}",
   reminder2h: "L'Architecte : on t'attend à {heure} avec {barbier}, à tout à l'heure !",
-  review: "Merci {prenom} ! 30 secondes pour un avis ? Ça nous aide énormément : {avis}",
+  // {avis}: the tracked link /avis/<token> (about 90 characters with the domain): the words leave room for it in one SMS
+  review: "Merci {prenom} ! Ton avis Google nous aide énormément : {avis}",
   rebook: "Salut {prenom}, déjà {jours} jours depuis ta dernière coupe. On s'y remet ? Réserve ici : {lien}",
   waitlist: "L'Architecte : place libérée {date} à {heure} avec {barbier}, à toi pendant 30 min : {lien}",
   queue: "L'Architecte : c'est presque ton tour, {prenom}. Reviens au salon, on t'installe dans 5 minutes.",
@@ -23,15 +24,60 @@ export const TEMPLATES = {
   reassignAt: "{absent} est absent {date}, {barbier} te prend à {heure} au lieu de {avant}. Pas d'accord ? {lien}",
   reschedule: "{prenom}, on doit décaler ton rendez-vous du {date}. Choisis un nouveau créneau : {lien}",
   // IN-01: a gift card bought online, sent to the person it is for
-  giftcard: "{acheteur} t'offre {montant} chez L'Architecte ! Ton code : {code}. Réserve ici : {lien}"
+  giftcard: "{acheteur} t'offre {montant} chez L'Architecte ! Ton code : {code}. Réserve ici : {lien}",
+  // PAY-02: the monthly membership, texts about the contract ({lien}: the member's page, else /resilier, the site for the
+  // welcome; {date} and {fin} as 27/10, the day it is received and the last day it covers)
+  memberWelcome: "L'Architecte : bienvenue {prenom} ! Abonnement {formule} ({prix}/mois) actif. Réserve : {lien}",
+  memberFailed: "L'Architecte : {prenom}, paiement de l'abonnement ({prix}) refusé. Mets ta carte à jour : {lien}",
+  memberAction: "L'Architecte : ta banque demande de valider le paiement de ton abonnement ({prix}). Valide ici : {lien}",
+  memberCancelled: "L'Architecte : résiliation enregistrée le {date}. Tes coupes restent incluses jusqu'au {fin}. {lien}",
+  memberStopped: "L'Architecte : résiliation enregistrée le {date}. Ton abonnement prend fin aujourd'hui. {lien}",
+  memberWithdrawn: "L'Architecte : rétractation enregistrée le {date}. Remboursement de {montant} sous 14 jours. {lien}",
+  memberWithdrawnNone: "L'Architecte : rétractation enregistrée le {date}. Tes coupes valent le mois : rien à rembourser. {lien}",
+  memberEnded: "L'Architecte : ton abonnement a pris fin faute de paiement. Pour le reprendre : {lien}",
+  memberOffer: "L'Architecte : ton abonnement {formule} ({prix}/mois) : {lien}",
+  memberLink: "L'Architecte : pour gérer ou résilier ton abonnement (lien valable 1 h) : {lien}"
 };
 
-// What a text is, beyond its words, keyed like TEMPLATES (the same owner adds both). marketing: sent only to
-// clients who agreed, with the STOP mention (settings.messages.stopSuffix). quiet: never at night nor on Sunday,
-// it waits for settings.messages.quiet to end. A text with no entry is a service message and leaves at once.
-/** @type {Record<string, { marketing?: boolean, quiet?: boolean }>} */
+// What a text is, beyond its words, keyed like TEMPLATES (the same owner adds both). Three classes, one rule each
+// (classOf; the gate is queueMessage and consentGone in domain/messages.js, re-checked at claim):
+// - service (no class flag): about a booking, a purchase or a contract of the client. Needs c.sms (the caller checks
+//   it: the per-booking switch, the file's « SMS de service »). Leaves by SMS or WhatsApp.
+// - relation: to an existing client about a visit he made or a right he holds, never a promotion (legitimate interest,
+//   CNIL « messages relationnels »): the review request. Needs c.sms and no STOP (marketingSrc 'stop'); never to an
+//   erased file nor without one. SMS only (WhatsApp asks a separate opt-in), or an e-mail to a file without a phone.
+// - marketing: an offer. Needs c.marketing, carries the STOP mention (settings.messages.stopSuffix), waits for the
+//   quiet hours. SMS only, never by e-mail.
+// Relation and marketing texts never go to a file imported from WordPress that was never told about the new site
+// (projections/informed.js). Other flags: quiet: never at night nor on Sunday, it waits for settings.messages.quiet
+// to end. legal: a contract's acknowledgement (membership texts, a fee link): never expired, never held by the
+// cutover, retried until sent. requested: asked by the client himself (lookup, a sign-in code, a link to his space,
+// his data): ignores c.sms, never held, sent before anything else. A text with no entry is a service message and
+// leaves at once. Service texts about a contract never carry the marketing flag.
+/** @type {Record<string, { marketing?: boolean, relation?: boolean, quiet?: boolean, legal?: boolean, requested?: boolean }>} */
 export const TEMPLATE_FLAGS = {
-  review: { quiet: true },
+  review: { relation: true, quiet: true },
   rebook: { marketing: true, quiet: true },
-  waitlist: { quiet: true }
+  waitlist: { quiet: true },
+  // PAY-02: the membership's acknowledgements (and their e-mails) are legal; the member's own link is requested
+  memberWelcome: { legal: true },
+  memberCancelled: { legal: true },
+  memberStopped: { legal: true },
+  memberWithdrawn: { legal: true },
+  memberWithdrawnNone: { legal: true },
+  memberLink: { requested: true },
+  lookup: { requested: true }
 };
+
+/** @typedef {'service'|'relation'|'marketing'} TextClass */
+/** The consent class of a text (the header above says what each one needs). @returns {TextClass} */
+export function classOf(template) {
+  const f = TEMPLATE_FLAGS[template] || {};
+  return f.marketing ? 'marketing' : f.relation ? 'relation' : 'service';
+}
+
+/** Texts that carry a secret (a sign-in code): a provider's error may echo the text, and the chained outcome can never be
+ *  erased, so their error and fallback keep these fixed words instead (commands/messages.js, commands/sms-inbound.js).
+ *  The package that adds such a text adds its key here. */
+export const SECRET_TEMPLATES = new Set(['otp']);
+export const SECRET_ERROR = 'Refusé par le fournisseur (détail masqué : le message contient un code)';
