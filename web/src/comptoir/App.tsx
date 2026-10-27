@@ -11,6 +11,7 @@ import { Login, type AuthState } from './Login';
 import { Palette } from './Palette';
 import { FeedSheet } from './Feed';
 import type { Boot } from './types';
+import { GUARD_OPEN as OWN_SECTIONS, SECTION_CAP } from './pages/reglages/caps';
 
 const Agenda = lazy(() => import('./pages/Agenda'));
 const Caisse = lazy(() => import('./pages/Caisse'));
@@ -26,9 +27,6 @@ const Site = lazy(() => import('./pages/Site'));
 // A new page is one entry here (an address not listed opens the Agenda). No `cap` opens it for every role:
 // Équipe and Catalogue are read-only without `team` / `catalog` (own card, prices), Relances refuses its own tabs.
 type Route = { C: ComponentType; title: string; cap?: string; sub?: (id: string) => string | undefined };
-// Réglages sections are the owner's unless listed: a new section open to every role is added here.
-const OWN_SECTIONS = ['compte'];
-const SECTION_CAP: Record<string, string> = { appareils: 'devices', donnees: 'data', journal: 'audit' };
 const ROUTES: Record<string, Route> = {
   agenda: { C: Agenda, title: 'Agenda', cap: 'agenda.own' },
   caisse: { C: Caisse, title: 'Caisse', cap: 'sale.create' },

@@ -31,9 +31,9 @@ export const backupName = (/** @type {string} */ day) => day + '.json.gz.enc';
 
 /** The 32-byte key from BACKUP_KEY (base64 or base64url), or an explicit error. */
 export function backupKey(b64) {
-  if (!b64) fail(503, 'backup_key', 'BACKUP_KEY n’est pas défini : sans cette clé, aucune sauvegarde ne peut être chiffrée ni ouverte. Ajoute-la dans les variables d’environnement (openssl rand -base64 32) puis redéploie.');
+  if (!b64) fail(503, 'backup_key', 'BACKUP_KEY n’est pas définie : sans cette clé, aucune sauvegarde ne peut être chiffrée ni ouverte. Ton prestataire la crée dans Vercel (exactement 43 lettres et chiffres), puis redéploie.');
   const k = Buffer.from(String(b64).trim(), 'base64');
-  if (k.length !== 32) fail(503, 'backup_key', 'BACKUP_KEY doit faire 32 octets en base64 (openssl rand -base64 32).');
+  if (k.length !== 32) fail(503, 'backup_key', 'BACKUP_KEY n’a pas le bon format (32 octets en base64, soit 43 lettres et chiffres) : ton prestataire la recrée dans Vercel, puis redéploie.');
   return k;
 }
 /** @returns {string} what is wrong with the key, or '' */

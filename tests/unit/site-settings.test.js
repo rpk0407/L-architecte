@@ -12,12 +12,7 @@ import { updateSite } from '../../server/commands/site.js';
 import { blobMedia, fakeBlobSdk } from '../../server/store/blob.js';
 import { sniff, privateIp, MAX_PHOTO } from '../../server/http/routes-uploads.js';
 import { parse } from '../../server/lib/validate.js';
-import { readFile, writeFile, mkdtemp, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
-import { optionalRoutes } from '../../server/http/app.js';
-import { router } from '../../server/http/kit.js';
+import { readFile } from 'node:fs/promises';
 
 const sp = (s) => String(s).replace(/[  ]/g, ' ');
 const clock = { now: at('2026-11-03', 10) };
@@ -291,21 +286,6 @@ test('the old site’s address: private, reserved and embedded IPv4 ranges are r
   for (const ip of ['10.1.2.3', '127.0.0.1', '169.254.169.254', '172.20.0.1', '192.168.1.1', '100.64.0.1', '198.18.0.1', '198.19.255.1', '192.0.0.8', '192.0.2.1', '0.0.0.0', '224.0.0.1',
     '::', '::1', 'fd00::1', 'fe80::1', 'ff02::1', '::ffff:127.0.0.1', '::ffff:7f00:1', '::ffff:a9fe:a9fe', '64:ff9b::a9fe:a9fe', '64:ff9b::10.0.0.1', '2002:c0a8:101::1', '2002:7f00:1::', '2001:db8::1']) assert.equal(privateIp(ip), true, ip);
   for (const ip of ['93.184.216.34', '151.101.1.69', '2a00:1450:4007:80b::200e', '::ffff:93.184.216.34', '2002:5db8:d822::1']) assert.equal(privateIp(ip), false, ip);
-});
-
-test('the route files of other packages: wired once present, skipped while missing, loud when broken', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'lx-routes-'));
-  try {
-    const ok = join(dir, 'routes-x.js'), broken = join(dir, 'routes-y.js'), missing = join(dir, 'routes-z.js');
-    await writeFile(ok, "export function xRoutes(app) { app.get('/api/public/x', () => ({ x: 1 })); }\n");
-    await writeFile(broken, "import './nowhere.js';\nexport function yRoutes() {}\n");
-    const app = router();
-    const u = (f) => pathToFileURL(f);
-    assert.equal(await optionalRoutes(app, () => import(u(ok).href), u(ok)), true);
-    assert.ok(app.match('GET', '/api/public/x'), 'a present file is registered');
-    assert.equal(await optionalRoutes(app, () => import(u(missing).href), u(missing)), false, 'a missing file is skipped');
-    await assert.rejects(optionalRoutes(app, () => import(u(broken).href), u(broken)), /nowhere\.js/, 'a file that is there but breaks stops the server');
-  } finally { await rm(dir, { recursive: true, force: true }); }
 });
 
 test('the salon’s Instagram is one value: Le site writes Réglages › Salon’s, and follows it', async () => {

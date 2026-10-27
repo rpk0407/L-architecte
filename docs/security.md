@@ -40,6 +40,18 @@ The owner adjusts the barbers' toggles in Réglages › Équipe et accès; the m
 
 `/mon-rendez-vous` has no account behind it: `POST /api/public/lookup {phone}` (server/http/routes-client.js) texts the links of the client's next two appointments, and only to the number on file (an erased client or a merged file's old number gets nothing). Whoever typed the number learns nothing: the answer is the same words and status for a known, unknown or erased number, and it leaves after 450 to 650 ms whatever the store, because the journal write runs after it (`waitUntil`). Limits: 10 asks per IP per hour (then a 429, which says nothing about the number), 3 per number per day in the instance's memory, and 3 texts per client per day kept in the journal across instances; past them the answer stays the same and nothing is sent. The text is a service text asked for by the person holding the phone, so it leaves at once, quiet hours included: at worst a stranger who knows the number makes the salon text it three times in a day, with links only that phone can use.
 
+## Public endpoints
+
+Everything under `/api/v1/*` needs a session and a capability. The routes below answer without one, each with its own guard:
+
+| Endpoint | Who calls it | Guard | What it can change |
+|---|---|---|---|
+| `/api/public/*` | the site and the client pages | same-origin writes, rate limits, signed links for one booking | holds, bookings, moves and cancellations of the client's own booking |
+| `/api/auth/*`, `/api/setup*` | the sign-in and setup screens | rate limits on failures; setup and restore need `SETUP_TOKEN` and an empty salon | sessions; the first owner, or a restore |
+| `POST /api/stripe/webhook` | Stripe | signature with `STRIPE_WEBHOOK_SECRET` (5-minute tolerance), idempotent | payments only |
+| `GET /api/cron/tick` | the external scheduler | `Authorization: Bearer <CRON_SECRET>` | runs the background work, as the scheduler does |
+| `POST /api/sms/webhook?k=…` | the SMS provider (Brevo, Twilio) | CSRF check off (the provider is another site); the key `k` in the query string is derived from `CRON_SECRET` (HMAC, `webhookKey` in server/messaging/sms.js), compared in constant time; 120 calls per minute per IP; unknown without `CRON_SECRET` | **only marketing consent**: a STOP reply turns that client's offers off (`marketing: false`, source `stop`) and closes their offers still waiting. Service texts, bookings and files are never touched; an unknown number changes nothing |
+
 ## Payments
 
 - **Stripe Checkout**: card data never touches the salon's server. Amounts are computed on the server; the webhook is verified (signature, 5-minute tolerance, constant-time comparison) and idempotent. Refunds go through Stripe with an idempotency key.

@@ -7,8 +7,8 @@ import { ROOT } from '../harness.mjs';
 export const name = 'the site at /, WordPress redirects, old e-mail links, 404';
 
 const PAY = 'sln_step_page=summary&submit_summary=next&sln_booking_id=4410-0cc175b9c0f1b6a831c399e269772661&pay_remaining_amount=0';
-// [request, status, Location, the vercel.json rule it exercises]
-const CASES = [
+// [request, status, Location, the vercel.json rule it exercises]; scripts/check-redirects.mjs runs the same list on the live domain
+export const CASES = [
   ['/Main.dc', 307, '/', '/Main.dc'], ['/Cockpit.dc', 307, '/comptoir', '/Cockpit.dc'], ['/Parcours.dc', 307, '/demo', '/Parcours.dc'],
   ['/?sln-api=cancel_booking&booking_id=12-abc', 307, '/ancien-lien?sln-api=cancel_booking&booking_id=12-abc', '/?sln-api'],
   ['/?sln_customer_login=9f2c41&feedback_id=4410', 307, '/ancien-lien?sln_customer_login=9f2c41&feedback_id=4410', '/?sln_customer_login'],
@@ -76,12 +76,12 @@ export default async ({ h, page }) => {
   if (sitemap.status !== 200 || !sitemap.text.includes('<loc>https://barberlarchitecte.com/</loc>')) throw new Error('sitemap.xml: ' + sitemap.status);
 
   // the demo landing page sends production visitors to the site, and stays hidden while it asks (a slow cold start)
-  await page.route('**/api/public/salon', async (route) => { await new Promise((r) => setTimeout(r, 1000)); await route.continue(); });
+  await page.route('**/api/public/salon', async (route) => { await new Promise((r) => setTimeout(r, 1000)); await route.continue().catch(() => {}); });
   await page.goto(h.base + '/demo', { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(400);
   if (page.url().endsWith('/demo') && await page.getByText('Architecte13').locator('visible=true').count()) throw new Error('/demo shows the demo credentials before leaving');
   await page.waitForURL(h.base + '/', { timeout: 8000 });
-  await page.unroute('**/api/public/salon');
+  await page.unroute('**/api/public/salon', { behavior: 'ignoreErrors' });
   await page.locator('.lp').first().waitFor({ timeout: 8000 });
 
   // every old address: the right status and destination, query kept

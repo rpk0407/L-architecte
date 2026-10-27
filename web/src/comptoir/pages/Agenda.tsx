@@ -64,6 +64,8 @@ export default function Agenda() {
   // after the Z (even an early one) nothing more can be paid today; imported history was paid on the old till
   const toPay = data && day === today && !data.closed ? data.appts.filter((a) => !a.saleId && !a.legacy && (a.status === 'in_chair' || a.status === 'done' || (['booked', 'arrived'].includes(a.status) && a.start + a.dur <= nowMin))) : [];
   const moneyOk = k?.revenue != null;
+  // a fresh salon has no chair yet: the agenda is not closed, it is waiting for the team
+  if (!boot.staff.some((x) => x.active && x.chair)) return <NoTeam />;
   return (
     <>
       <PageTitle><h1>{day === today ? 'Aujourd’hui' : 'Agenda'}</h1></PageTitle>
@@ -161,6 +163,25 @@ export default function Agenda() {
       <CreateSheet open={!!create} prefill={create} onClose={() => setCreate(null)} onCreated={(id, d) => setQuery({ day: d === today ? null : d, rdv: id })} />
       <WalkinSheet open={walkin} onClose={() => setWalkin(false)} freeNow={freeNow} />
       <BlockSheet open={!!block} prefill={block || null} onClose={() => setBlock(false)} />
+    </>
+  );
+}
+
+function NoTeam() {
+  const { can } = useApp();
+  return (
+    <>
+      <PageTitle><h1>Agenda</h1></PageTitle>
+      <section className="card">
+        <Empty icon="equipe" title="Ajoute ton équipe pour ouvrir l’agenda" action={
+          <div className="row" style={{ gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
+            {can('team') ? <Button variant="primary" icon="plus" onClick={() => navigate('/equipe')}>Ajouter l’équipe</Button> : null}
+            {can('settings') ? <Button variant="ghost" icon="check" onClick={() => navigate('/reglages/mise-en-route')}>Voir la mise en route</Button> : null}
+          </div>
+        }>
+          Chaque barbier a sa colonne, ses horaires et son code. Dès le premier, l’agenda se remplit et le site propose ses créneaux.
+        </Empty>
+      </section>
     </>
   );
 }

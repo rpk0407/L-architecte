@@ -19,6 +19,8 @@ export function readConfig(env = process.env) {
     sessionSecret: env.SESSION_SECRET || '',
     setupToken: env.SETUP_TOKEN || '',
     cronSecret: env.CRON_SECRET || '',
+    // LX_INDEX=1: the build opens the site to search engines; the Comptoir shows it (routes-health.js)
+    index: env.LX_INDEX === '1',
     db: env.DATABASE_URL || env.POSTGRES_URL || '',
     blob: !!env.BLOB_READ_WRITE_TOKEN,
     blobPrefix: env.LX_BLOB_PREFIX || 'lx2',

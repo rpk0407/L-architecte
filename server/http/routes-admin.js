@@ -301,6 +301,8 @@ export function adminRoutes(app) {
     const auth = r.req.headers.get('authorization') || '';
     if (!r.rt.cfg.cronSecret || !safeEqual(auth, 'Bearer ' + r.rt.cfg.cronSecret)) throw new HttpError(401, 'unauthorized', 'Non autorisé.');
     await maybeTick(r.rt, r.meta, { force: true });
+    // the external scheduler was seen (Réglages › Mise en route): the Comptoir's own pulse ticks too, so lastTick cannot tell
+    r.rt.lastCron = Date.now();
     return { ok: true, version: r.s.version };
   }, { auth: false, csrf: false });
 }

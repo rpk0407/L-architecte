@@ -2,10 +2,12 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../../lib/api';
 import { refreshAll, useQuery } from '../../../lib/query';
+import { Link } from '../../../lib/router';
 import { ago, cap, clock, dates, eur, plural } from '../../../lib/format';
 import { Icon } from '../../../ui/Icon';
 import { Button, Chip, Empty, Field, Note, Skeleton, confirm, toast, toastError } from '../../../ui/kit';
 import { useApp } from '../../state';
+import { cronStep, useHealth } from './sections/MiseEnRoute';
 
 export default function System({ section }: { section: string }) {
   if (section === 'appareils') return <Devices />;
@@ -101,6 +103,8 @@ function Data() {
         </section>
       ) : null}
 
+      {can('settings') ? <Health /> : null}
+
       {can('settings') ? <Backups /> : null}
 
       <section className="card col" style={{ gap: 10 }}>
@@ -143,6 +147,46 @@ function Data() {
         </section>
       ) : null}
     </div>
+  );
+}
+
+/* ---------------- health: the same answer as Réglages › Mise en route ---------------- */
+
+function Health() {
+  const { now } = useApp();
+  const { data, loading, refresh, refreshing } = useHealth();
+  if (loading && !data) return <section className="card"><Skeleton h={180} /></section>;
+  if (!data) return null;
+  const h = data;
+  const demo = h.mode === 'demo';
+  const since = (at: number) => ago(at, now());
+  const t = h.tick;
+  // the same verdict as Mise en route ⑪: a call from the cron and texts that left on time, not merely a tick
+  const cron = cronStep(h, since);
+  const tickBad = cron.tone === 'err' || cron.tone === 'todo';
+  const backupBad = !h.backup.off && (!!h.backup.problem || h.backup.at == null || h.now - h.backup.at > h.backup.staleAfterMs);
+  const waiting = h.sms.queuedNoProvider + h.email.queuedNoProvider;
+  /** [label, value, problem] */
+  const rows: [string, string, boolean][] = [
+    ['Planificateur', demo ? 'simulé à chaque visite'
+      : [!t.cron ? 'cron non réglé' : t.cronAt != null ? 'dernier appel du cron ' + since(t.cronAt) : 'aucun appel du cron vu par ce serveur',
+        t.overdue ? plural(t.overdue, 'message en attente', 'messages en attente') : '', t.late24h ? plural(t.late24h, 'parti en retard', 'partis en retard') + ' (24 h)' : ''].filter(Boolean).join(' · '), tickBad],
+    ['Stripe', h.stripe.provider !== 'stripe' ? 'simulé' : (h.stripe.live ? 'réel' : 'test') + (h.stripe.lastWebhook ? ' · dernier webhook ' + since(h.stripe.lastWebhook) : ' · aucun webhook reçu'), !demo && (h.stripe.provider !== 'stripe' || !h.stripe.live)],
+    ['SMS échoués (24 h)', String(h.sms.failed24h), h.sms.failed24h > 0],
+    ['E-mails échoués (24 h)', String(h.email.failed24h), h.email.failed24h > 0],
+    ['En attente d’un fournisseur', waiting ? [h.sms.queuedNoProvider ? plural(h.sms.queuedNoProvider, 'SMS') : '', h.email.queuedNoProvider ? plural(h.email.queuedNoProvider, 'e-mail') : ''].filter(Boolean).join(', ') : 'rien', waiting > 0],
+    ['Dernière sauvegarde', h.backup.off ? 'aucune en démo' : h.backup.at ? since(h.backup.at) : 'aucune', backupBad],
+    // the chain is checked again every 10 minutes at most: the count is today's journal, the check says when it ran
+    ['Journal', h.integrity.ok ? plural(h.integrity.events ?? h.integrity.count, 'opération') + ' · intact, vérifié ' + since(h.integrity.at) : 'anomalie à l’opération n° ' + h.integrity.brokenAt, !h.integrity.ok],
+    ['Adresse publique', h.publicUrl ? h.publicUrl.replace(/^https?:\/\//, '') : 'non réglée', !demo && !h.publicUrlCustom],
+    ['Indexation Google', h.indexable ? 'ouverte' : 'coupée (LX_INDEX)', false]
+  ];
+  return (
+    <section className="card col" style={{ gap: 4 }}>
+      <div className="card-h"><h2><Icon name="bolt" size={16} />Santé</h2><Button size="sm" variant="ghost" icon="undo" busy={refreshing} onClick={() => void refresh()}>Actualiser</Button></div>
+      {rows.map(([k, v, bad]) => <div key={k} className="kv"><span>{k}</span><b style={bad ? { color: 'var(--danger)' } : undefined}>{v}</b></div>)}
+      <p className="faint" style={{ fontSize: 12.5, marginTop: 6 }}>Le détail et ce qu’il reste à faire : <Link to="/reglages/mise-en-route" className="link">Réglages › Mise en route</Link>.</p>
+    </section>
   );
 }
 

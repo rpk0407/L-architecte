@@ -1,0 +1,27 @@
+/* Réglages › Mise en route */
+.mr-head .kpi-bar { height: 6px; margin-top: 0; }
+.mr-head .kpi-bar i { background: var(--ok); }
+.mr-list { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; border-radius: 22px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line); overflow: hidden; }
+.mr-step { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; gap: 14px; align-items: start; padding: 16px 18px; }
+.mr-step + .mr-step { border-top: 1px solid var(--line); }
+.mr-n { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--panel2); color: var(--tx2); box-shadow: inset 0 0 0 1.5px var(--line2); font: 600 13px/1 var(--sans); font-variant-numeric: tabular-nums; }
+.mr-step.ok .mr-n { background: var(--ok-bg); color: var(--ok-tx); box-shadow: none; }
+.mr-step.warn .mr-n { background: var(--warn-bg); color: var(--warn-tx); box-shadow: none; }
+.mr-step.err .mr-n { background: var(--danger-bg); color: var(--danger); box-shadow: none; }
+.mr-step.info .mr-n { background: var(--info-bg); color: var(--info); box-shadow: none; }
+.mr-main { display: flex; flex-direction: column; gap: 4px; min-width: 0; padding-top: 5px; }
+.mr-t { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.mr-t b { font: 600 15px/1.25 var(--sans); }
+.mr-main p { font-size: 13.5px; line-height: 1.45; color: var(--tx2); overflow-wrap: anywhere; }
+.mr-main p.mr-more { font-size: 12.5px; color: var(--tx3); }
+.mr-step.ok .mr-t b { color: var(--tx2); }
+.mr-go { margin-top: 1px; white-space: nowrap; }
+.mr-go svg { width: 14px; height: 14px; }
+.mr-sms { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+.mr-sms .input { flex: 1 1 180px; min-width: 0; max-width: 240px; }
+.mr-sms .btn { flex: none; }
+@media (max-width: 760px) {
+  .mr-step { grid-template-columns: 32px minmax(0, 1fr); gap: 12px; padding: 14px; }
+  .mr-go { grid-column: 2; justify-self: start; margin-top: 2px; }
+  .mr-sms .input { max-width: none; }
+}
