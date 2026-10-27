@@ -2,47 +2,17 @@
 // The projection: what the journal means right now. `evolve` folds one event into the state.
 // It is the only code that mutates state, and it runs only for events already stored.
 import { GENESIS } from './journal.js';
+import { TEMPLATES } from './templates.js';
+import { defaultSettings } from '../settings/index.js';
+import { EXTENSIONS } from './extensions.js';
 
 /** @typedef {import('./journal.js').JEvent} JEvent */
 
-// Written in the GSM alphabet (straight apostrophe, no ç, ê or ô) so each text costs one SMS, not three.
-export const TEMPLATES = {
-  confirmation: "L'Architecte : c'est noté {prenom} ! {date} à {heure} avec {barbier}. Gérer : {lien}",
-  reminder: "L'Architecte : rappel, demain {heure} avec {barbier}. Un imprévu ? Déplace ou annule ici : {lien}",
-  reminder2h: "L'Architecte : on t'attend à {heure} avec {barbier}, à tout à l'heure !",
-  review: "Merci {prenom} ! 30 secondes pour un avis ? Ça nous aide énormément : {avis}",
-  rebook: "Salut {prenom}, déjà {jours} jours depuis ta dernière coupe. On s'y remet ? Réserve ici : {lien}",
-  waitlist: "L'Architecte : place libérée {date} à {heure} avec {barbier}, à toi pendant 30 min : {lien}",
-  queue: "L'Architecte : c'est presque ton tour, {prenom}. Reviens au salon, on t'installe dans 5 minutes.",
-  cancelled: "L'Architecte : ton rendez-vous du {date} à {heure} est annulé. Pour en reprendre un : {lien}",
-  receipt: "L'Architecte : merci {prenom} ! Ton ticket {ticket} de {montant} : {lien}"
-};
-
-export function defaultSettings() {
-  const day = [[540, 1110]];
-  return {
-    shop: {
-      name: 'Barber L’Architecte', address: '16, place Pélabon', zip: '13013', city: 'Marseille',
-      phone: '', email: 'larchitectebarber@gmail.com', siret: '', vatNumber: '', legalName: '',
-      mapsUrl: 'https://www.google.com/maps/search/?api=1&query=L%27Architecte%20coiffeur&query_place_id=ChIJJSWkBLy_yRIRbgAQcMwb-JY',
-      reviewUrl: 'https://search.google.com/local/writereview?placeid=ChIJJSWkBLy_yRIRbgAQcMwb-JY',
-      instagram: 'https://www.instagram.com/barbershoplarchitecte/'
-    },
-    /** weekday (0 = Sunday) → open intervals in minutes */
-    hours: { 0: [], 1: [], 2: day, 3: day, 4: day, 5: day, 6: day },
-    /** @type {{ id: string, from: string, to: string, label: string }[]} */
-    closures: [],
-    booking: { enabled: true, stepMin: 30, minNoticeMin: 30, maxDaysAhead: 30, holdMin: 5, pendingPayMin: 15, cancelUntilHours: 12, waitlist: true, walkinWait: true },
-    deposits: { mode: 'threshold', thresholdCents: 5000, percent: 30, noShowFeeCents: 1000 },
-    payments: { card: true, cash: true, qr: true, giftcard: true, tips: true, tipPresets: [200, 500, 1000], vat: 2000, receiptFooter: 'Merci et à bientôt !' },
-    messages: { confirmation: true, reminder: true, reminderHour: 18, reminder2h: false, review: true, reviewDelayMin: 120, rebook: true, waitlist: true, templates: { ...TEMPLATES } },
-    team: { barberCheckout: true, barberAllAgenda: true, barberMaxDiscountPct: 10, barberSeeRevenue: false },
-    goals: { monthCents: 2400000 }
-  };
-}
+// Kept here so existing imports keep working; each is defined once, in its registry.
+export { TEMPLATES, defaultSettings };
 
 export function emptyState() {
-  return {
+  const s = {
     version: 0, head: GENESIS, mode: /** @type {null|'demo'|'production'} */ (null), createdAt: 0,
     settings: defaultSettings(),
     staff: new Map(), creds: new Map(), devices: new Map(), deviceByHash: new Map(),
@@ -60,6 +30,8 @@ export function emptyState() {
     /** small, recent activity feed for the Comptoir (id, type, at, actor) */
     feed: /** @type {any[]} */ ([])
   };
+  for (const x of EXTENSIONS) x.init?.(s);
+  return s;
 }
 /** @typedef {ReturnType<typeof emptyState>} State */
 
@@ -76,7 +48,7 @@ function unindex(map, key, id) { const s = map.get(key); if (s) s.delete(id); }
 /** Events that change what the Comptoir loads once at start (settings, team, catalogue). */
 const CFG = /^(shop|settings|staff|timeoff|device|service|product|stock)\./;
 
-/** Events worth showing in the live feed. */
+/** Events worth showing in the live feed (plus each extension's `feed`, when it has an `item` to show them). */
 const FEED = new Set(['appt.booked', 'appt.cancelled', 'appt.moved', 'appt.status', 'sale.completed', 'sale.refunded', 'payment.succeeded', 'waitlist.added', 'queue.added', 'day.closed', 'drawer.closed', 'stock.adjusted']);
 
 /**
@@ -298,13 +270,15 @@ export function evolve(s, e) {
       break;
     case 'message.updated': { const m = s.messages.get(d.id); if (m) Object.assign(m, d.patch, { updatedAt: e.at }); break; }
     default:
+      // own keys only: an event type never reaches an inherited method (constructor, __proto__…)
+      for (const x of EXTENSIONS) if (Object.hasOwn(x.on, e.type)) x.on[e.type](s, e, d, p);
       break;
   }
   s.eventIds.add(e.id);
   if (CFG.test(e.type)) s.cfgVersion = e.v;
   s.version = e.v;
   s.head = e.h;
-  if (FEED.has(e.type) && !(e.actor.t === 'system' && (e.type !== 'appt.cancelled' || e.actor.id === 'seed' || e.actor.id === 'demo'))) {
+  if ((FEED.has(e.type) || EXTENSIONS.some((x) => x.item && x.feed?.includes(e.type))) && !(e.actor.t === 'system' && (e.type !== 'appt.cancelled' || e.actor.id === 'seed' || e.actor.id === 'demo'))) {
     s.feed.push({ v: e.v, type: e.type, at: e.at, actor: e.actor, data: e.data });
     if (s.feed.length > 300) s.feed.splice(0, s.feed.length - 300);
   }

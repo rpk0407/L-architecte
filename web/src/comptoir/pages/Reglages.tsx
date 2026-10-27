@@ -1,5 +1,5 @@
 // Réglages: one place for everything the owner sets once and forgets, and for each person's own account.
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, use, useEffect, type ComponentType, type ReactNode } from 'react';
 import { Link, useRoute } from '../../lib/router';
 import { useIsPhone } from '../../lib/hooks';
 import { Icon } from '../../ui/Icon';
@@ -7,24 +7,43 @@ import { Skeleton } from '../../ui/kit';
 import { useApp } from '../state';
 import { PageTitle } from '../App';
 import { Account } from './reglages/Account';
+import Shop from './reglages/Shop';
+import type { SectionProps } from './reglages/shared';
 import './reglages.css';
 
-const Shop = lazy(() => import('./reglages/Shop'));
 const System = lazy(() => import('./reglages/System'));
 
-type Section = { id: string; label: string; hint: string; icon: string; cap?: string; group: string };
+// The salon sections are one file each but load together, on the first visit to any of them, so moving between them
+// never waits again (as when they were all in Shop).
+const parts: (() => Promise<unknown>)[] = [];
+let all: Promise<unknown> | undefined;
+const loadSalon = () => (all ??= Promise.all(parts.map((f) => f())));
+const salon = (load: () => Promise<{ default: ComponentType<SectionProps> }>) => {
+  let C: ComponentType<SectionProps> | undefined;
+  parts.push(() => load().then((m) => { C = m.default; }));
+  function Part(p: SectionProps) {
+    if (!C) use(loadSalon());
+    return C ? <C {...p} /> : null;
+  }
+  return () => <Shop section={Part} />;
+};
+const system = (id: string) => () => <System section={id} />;
+
+// The REGISTRY of Réglages: a new section is one entry here (and its file in ./reglages/sections).
+// `component` is called, not mounted: sections sharing Shop or System keep it mounted, so the settings load once.
+type Section = { id: string; label: string; hint: string; icon: string; cap?: string; group: string; component: () => ReactNode };
 const SECTIONS: Section[] = [
-  { id: 'compte', label: 'Mon compte', hint: 'Code, mot de passe, profil', icon: 'user', group: 'Moi' },
-  { id: 'salon', label: 'Le salon', hint: 'Coordonnées, mentions du ticket', icon: 'map', cap: 'settings', group: 'Salon' },
-  { id: 'horaires', label: 'Horaires et fermetures', hint: 'Semaine type, jours fériés, congés', icon: 'clock', cap: 'settings', group: 'Salon' },
-  { id: 'reservation', label: 'Réservation en ligne', hint: 'Délais, annulation, acomptes', icon: 'globe', cap: 'settings', group: 'Salon' },
-  { id: 'paiements', label: 'Paiements', hint: 'Moyens acceptés, pourboires, Stripe', icon: 'card', cap: 'settings', group: 'Salon' },
-  { id: 'messages', label: 'Messages', hint: 'SMS automatiques et leurs textes', icon: 'sms', cap: 'settings', group: 'Salon' },
-  { id: 'equipe', label: 'Équipe et accès', hint: 'Ce que les barbiers peuvent faire', icon: 'shield', cap: 'settings', group: 'Salon' },
-  { id: 'objectifs', label: 'Objectifs', hint: 'Chiffre visé chaque mois', icon: 'target', cap: 'settings', group: 'Salon' },
-  { id: 'appareils', label: 'Appareils', hint: 'Postes autorisés à la connexion par code', icon: 'device', cap: 'devices', group: 'Sécurité' },
-  { id: 'donnees', label: 'Données et intégrité', hint: 'Vérification, exports, système', icon: 'shieldOk', cap: 'data', group: 'Sécurité' },
-  { id: 'journal', label: 'Journal d’activité', hint: 'Qui a fait quoi, quand', icon: 'journal', cap: 'audit', group: 'Sécurité' }
+  { id: 'compte', label: 'Mon compte', hint: 'Code, mot de passe, profil', icon: 'user', group: 'Moi', component: () => <Account /> },
+  { id: 'salon', label: 'Le salon', hint: 'Coordonnées, mentions du ticket', icon: 'map', cap: 'settings', group: 'Salon', component: salon(() => import('./reglages/sections/Salon')) },
+  { id: 'horaires', label: 'Horaires et fermetures', hint: 'Semaine type, jours fériés, congés', icon: 'clock', cap: 'settings', group: 'Salon', component: salon(() => import('./reglages/sections/Horaires')) },
+  { id: 'reservation', label: 'Réservation en ligne', hint: 'Délais, annulation, acomptes', icon: 'globe', cap: 'settings', group: 'Salon', component: salon(() => import('./reglages/sections/Reservation')) },
+  { id: 'paiements', label: 'Paiements', hint: 'Moyens acceptés, pourboires, Stripe', icon: 'card', cap: 'settings', group: 'Salon', component: salon(() => import('./reglages/sections/Paiements')) },
+  { id: 'messages', label: 'Messages', hint: 'SMS automatiques et leurs textes', icon: 'sms', cap: 'settings', group: 'Salon', component: salon(() => import('./reglages/sections/Messages')) },
+  { id: 'equipe', label: 'Équipe et accès', hint: 'Ce que les barbiers peuvent faire', icon: 'shield', cap: 'settings', group: 'Salon', component: salon(() => import('./reglages/sections/Equipe')) },
+  { id: 'objectifs', label: 'Objectifs', hint: 'Chiffre visé chaque mois', icon: 'target', cap: 'settings', group: 'Salon', component: salon(() => import('./reglages/sections/Objectifs')) },
+  { id: 'appareils', label: 'Appareils', hint: 'Postes autorisés à la connexion par code', icon: 'device', cap: 'devices', group: 'Sécurité', component: system('appareils') },
+  { id: 'donnees', label: 'Données et intégrité', hint: 'Vérification, exports, système', icon: 'shieldOk', cap: 'data', group: 'Sécurité', component: system('donnees') },
+  { id: 'journal', label: 'Journal d’activité', hint: 'Qui a fait quoi, quand', icon: 'journal', cap: 'audit', group: 'Sécurité', component: system('journal') }
 ];
 
 export default function Reglages() {
@@ -34,6 +53,7 @@ export default function Reglages() {
   const list = SECTIONS.filter((s) => !s.cap || can(s.cap));
   const cur = list.find((s) => s.id === route.id) || (phone ? null : list[0]);
   const groups = [...new Set(list.map((s) => s.group))];
+  useEffect(() => { if (cur?.group === 'Salon') void loadSalon(); }, [cur?.group]);
   return (
     <>
       <PageTitle><h1>{phone && cur ? cur.label : 'Réglages'}</h1></PageTitle>
@@ -54,7 +74,7 @@ export default function Reglages() {
           <div className="rg-body">
             {phone ? <Link to="/reglages" className="rg-back"><Icon name="chevL" size={16} />Réglages</Link> : null}
             <Suspense fallback={<Skeleton h={320} r={22} />}>
-              {cur.id === 'compte' ? <Account /> : ['appareils', 'donnees', 'journal'].includes(cur.id) ? <System section={cur.id} /> : <Shop section={cur.id} />}
+              {cur.component()}
             </Suspense>
           </div>
         ) : null}

@@ -9,6 +9,7 @@ import { drawerExpected, dayTotals, METHOD_LABEL, ticketNo, closureNo } from '..
 import { addDays, isDay, weekStart, monthStart, monthEnd, diffDays, dayShort, fmtTime, localParts } from '../../shared/dates.js';
 import { fmtEur } from '../../shared/money.js';
 import { maskPhone, normGiftCode, sha256 } from '../lib/util.js';
+import { EXTENSIONS } from '../core/extensions.js';
 import { startPayment, refundOnline } from './routes-public.js';
 import { meView } from './routes-auth.js';
 import * as A from '../commands/agenda.js';
@@ -83,7 +84,7 @@ function feedItem(r, f) {
       if (!p || d.reason !== 'Vente' || p.stock > p.low || !r.caps.has('catalog')) return null;
       return { ...base, kind: 'stock', title: 'Stock bas · ' + p.name, sub: 'Il en reste ' + p.stock };
     }
-    default: return null;
+    default: for (const x of EXTENSIONS) if (x.item && x.feed?.includes(f.type)) return x.item(r, f); return null;
   }
 }
 
