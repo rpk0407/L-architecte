@@ -52,6 +52,18 @@ test('every staff route needs a session; changes need our own origin', async () 
   assert.equal(form.status, 415, 'only JSON bodies');
 });
 
+test('PIN codes sent all at once count while they are checked: five answers, then « trop d’essais »', async () => {
+  const tab = await salonDevice();
+  const frank = (await tab.get('/api/auth/state')).json.team.find((x) => x.name === 'Frank');
+  const codes = Array.from({ length: 12 }, (_, i) => String(1000 + i));
+  const res = await Promise.all(codes.map((pin) => tab.post('/api/auth/pin', { staffId: frank.id, pin })));
+  const st = res.map((x) => x.status);
+  assert.equal(st.filter((s) => s === 401).length, 5, st.join(' '));
+  assert.equal(st.filter((s) => s === 429).length, 7, st.join(' '));
+  // the right code too waits now: the five wrong ones are on the clock
+  assert.equal((await tab.post('/api/auth/pin', { staffId: frank.id, pin: DEMO.pins.Frank })).status, 429);
+});
+
 test('the salon tablet: PIN sign-in, barbers see their scope only', async () => {
   const tab = await salonDevice();
   const st = await tab.get('/api/auth/state');

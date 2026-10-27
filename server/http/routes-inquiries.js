@@ -47,10 +47,11 @@ export function inquiryRoutes(app) {
     const refused = failureGuard('inq-x|' + r.ip, REFUSED_PER_HOUR, HOUR_MS, SLOW);
     const b = r.body && typeof r.body === 'object' ? r.body : {};
     // the field a person never sees: a robot that fills it is told it worked, and nothing is kept (it counts as sent)
-    if (String(b.website ?? '').trim()) { sent.fail(); return { ok: true }; }
+    if (String(b.website ?? '').trim()) { refused.done(); sent.fail(); return { ok: true }; }
     let out;
     try { out = await r.rt.engine.run(receiveInquiry, { kind: b.kind, first: b.first, phone: b.phone, email: b.email, module: b.module, message: b.message }, CLIENT(r)); }
-    catch (err) { if (err && err.status === 400) refused.fail(); throw err; }
+    catch (err) { sent.done(); if (err && err.status === 400) refused.fail(); else refused.done(); throw err; }
+    refused.done();
     sent.fail();
     background(r);
     return { ok: true, id: out.id };

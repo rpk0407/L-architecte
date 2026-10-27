@@ -72,6 +72,7 @@ export function authRoutes(app) {
     const creds = staff ? r.s.creds.get(staff.id) : null;
     const ok = creds && creds.pwd ? await verifySecret(password, creds.pwd) : await verifyDummy(password);
     if (!ok || !staff) { acct.fail(); throw new HttpError(401, 'bad_login', 'E-mail ou mot de passe incorrect.'); }
+    acct.done();
     setSession(r, staff, 'pwd', !!r.body.remember);
     return { me: meView(r.s, staff, r.device, 'pwd') };
   }, { auth: false });
@@ -97,6 +98,7 @@ export function authRoutes(app) {
       }
       throw new HttpError(401, 'bad_pin', 'Code incorrect.');
     }
+    tries.done();
     if (r.device.personal && r.s.phoneMisses && r.s.phoneMisses.get(r.device.id)) await r.rt.engine.run(clearPhonePin, { id: r.device.id }, asPhone(r, r.device));
     setSession(r, staff, 'pin', false);
     return { me: meView(r.s, staff, r.device, 'pin') };
@@ -197,6 +199,7 @@ export function authRoutes(app) {
     if (!r.rt.cfg.setupToken) throw new HttpError(403, 'no_token', 'SETUP_TOKEN n’est pas défini : ajoute-le dans les variables d’environnement pour installer le salon.');
     const tries = failureGuard('setup-token|' + r.ip, 8, 15 * 60000, 'Trop d’essais. Réessaie dans un quart d’heure.');
     if (!safeEqual(String(r.req.headers.get('x-setup-token') || ''), r.rt.cfg.setupToken)) { tries.fail(); throw new HttpError(403, 'bad_token', 'Code d’installation incorrect.'); }
+    tries.done();
   };
   /** @param {string} from the Blob file's name, or 'fichier' for an upload: recorded in the journal (shop.restored) */
   const restore = async (r, text, from) => {

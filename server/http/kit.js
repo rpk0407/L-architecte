@@ -101,13 +101,23 @@ export function limited(key, max, perMs) {
 export function guard(key, max, perMs, message = 'Trop de tentatives. Patiente un instant.') {
   if (limited(key, max, perMs)) throw new HttpError(429, 'slow_down', message);
 }
-/** Like guard, but only failures count: call `fail()` when the attempt was wrong. */
+/** Like guard, but only failures count: call `fail()` when the attempt was wrong, `done()` when it was right. */
+const inflight = new Map();
 export function failureGuard(key, max, perMs, message) {
   const now = Date.now();
-  const list = (windows.get(key) || []).filter((t) => t > now - perMs);
+  // one list per key, trimmed in place: a failure recorded by an earlier call must land in the list later calls read
+  const list = windows.get(key) || [];
+  while (list.length && list[0] <= now - perMs) list.shift();
   windows.set(key, list);
-  if (list.length >= max) throw new HttpError(429, 'slow_down', message);
-  return { fail() { list.push(Date.now()); } };
+  // an attempt still being checked counts too: thirty codes sent at once must not all pass before the first failure lands
+  if (list.length + (inflight.get(key) || 0) >= max) throw new HttpError(429, 'slow_down', message);
+  inflight.set(key, (inflight.get(key) || 0) + 1);
+  let open = true;
+  const done = () => { if (!open) return; open = false; const n = (inflight.get(key) || 1) - 1; if (n > 0) inflight.set(key, n); else inflight.delete(key); };
+  // a caller that never says how it ended (an exception on the way) frees its place anyway
+  const t = setTimeout(done, 15000);
+  if (typeof t === 'object' && t && 'unref' in t) t.unref();
+  return { fail() { done(); list.push(Date.now()); }, done };
 }
 
 /* ---------------- routing ---------------- */
