@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { api } from '../../lib/api';
 import { refreshAll, useQuery } from '../../lib/query';
 import { Link, navigate, useRoute } from '../../lib/router';
-import { ago, dates, dur, eur, money, pct, plural } from '../../lib/format';
+import { ago, clock, dates, dur, eur, money, pct, plural } from '../../lib/format';
 import { Icon } from '../../ui/Icon';
 import { Button, Chip, Empty, Field, Kpi, Modal, Note, Sheet, Skeleton, Switch, confirm, toast, toastError } from '../../ui/kit';
 import { useApp } from '../state';
@@ -16,6 +16,12 @@ import './catalogue.css';
 type Catalog = { services: Service[]; products: Product[] };
 // legacy: a paper card taken over ('reprise'); reissueOf: the card it replaced
 type Gift = { id: string; last4: string; amount: number; balance: number; expires: string; status: string; recipient: string; buyer: string; issuedAt: number; uses: number; legacy?: boolean; reissueOf?: string | null; voidReason?: string; replacedBy?: string | null };
+// a card bought on /carte-cadeau (GET /api/v1/giftshop): how it was to be given, and its text
+// cardIds: the card and those that replaced it (reissued), the live one last
+type Online = {
+  giftcardId: string; cardIds?: string[]; reissued?: boolean; paymentId: string; amount: number; paidAt: number; delivery: 'buyer' | 'recipient'; sendAt: number;
+  sms: { status: string; state?: 'planned' | 'leaving' | 'sent' | 'failed'; dueAt: number; to: string; error: string } | null;
+};
 const VATS = [{ v: 2000, t: '20 %' }, { v: 1000, t: '10 %' }, { v: 550, t: '5,5 %' }, { v: 0, t: '0 %' }];
 const DURS = [10, 15, 20, 30, 45, 60, 90, 120];
 const euros = (c: number) => (c / 100).toFixed(2).replace('.', ',').replace(/,00$/, '');
@@ -491,6 +497,8 @@ function Inventory({ open, items, onClose }: { open: boolean; items: Product[]; 
 function Gifts() {
   const { boot, now, can } = useApp();
   const { data, loading } = useQuery<{ items: Gift[]; outstanding: number }>('/api/v1/giftcards');
+  const shop = useQuery<{ items: Online[] }>('/api/v1/giftshop');
+  const online = useMemo(() => new Map((shop.data?.items || []).flatMap((o) => (o.cardIds || [o.giftcardId]).map((id) => [id, o] as const))), [shop.data]);
   const [code, setCode] = useState('');
   const [found, setFound] = useState<any>(null);
   const [open, setOpen] = useState<Gift | null>(null);
@@ -535,14 +543,14 @@ function Gifts() {
             <ul className="list">{data.items.slice(0, 80).map((g) => (
               <li key={g.id}><button type="button" className="li" onClick={() => setOpen(g)} style={{ width: '100%', textAlign: 'left' }}>
                 <span className="ct-card"><Icon name="gift" size={16} /></span>
-                <span className="li-main"><b>•••• {g.last4}{g.recipient ? ' · ' + g.recipient : ''}{g.legacy && !g.reissueOf ? <span className="badge" style={{ marginLeft: 8 }}>reprise</span> : null}{g.reissueOf ? <span className="badge badge-info" style={{ marginLeft: 8 }}>réémise</span> : null}{state(g) ? <span className="badge badge-warn" style={{ marginLeft: 8 }}>{state(g)}</span> : null}</b><small>{g.legacy && !g.reissueOf ? 'Reprise' : g.reissueOf ? 'Réémise' : 'Vendue'} {ago(g.issuedAt, now())} · {g.uses ? plural(g.uses, 'utilisation') + ' · ' : ''}{g.expires < boot.today ? 'expirée' : 'valable jusqu’au ' + dates.dayShort(g.expires) + (g.expires.slice(0, 4) !== boot.today.slice(0, 4) ? ' ' + g.expires.slice(0, 4) : '')}</small></span>
+                <span className="li-main"><b>•••• {g.last4}{g.recipient ? ' · ' + g.recipient : ''}{online.has(g.id) ? <span className="badge badge-info" style={{ marginLeft: 8 }}><Icon name="globe" size={12} />en ligne</span> : null}{g.legacy && !g.reissueOf ? <span className="badge" style={{ marginLeft: 8 }}>reprise</span> : null}{g.reissueOf ? <span className="badge badge-info" style={{ marginLeft: 8 }}>réémise</span> : null}{state(g) ? <span className="badge badge-warn" style={{ marginLeft: 8 }}>{state(g)}</span> : null}</b><small>{g.legacy && !g.reissueOf ? 'Reprise' : g.reissueOf ? 'Réémise' : online.has(g.id) ? 'Achetée en ligne' + (g.buyer ? ' par ' + g.buyer : '') : 'Vendue'} {ago(g.issuedAt, now())} · {g.uses ? plural(g.uses, 'utilisation') + ' · ' : ''}{g.expires < boot.today ? 'expirée' : 'valable jusqu’au ' + dates.dayShort(g.expires) + (g.expires.slice(0, 4) !== boot.today.slice(0, 4) ? ' ' + g.expires.slice(0, 4) : '')}</small></span>
                 <span className="li-end">{off(g) ? <b className="faint">—</b> : <b className="money tnum">{eur(g.balance, { decimals: g.balance % 100 !== 0 })}</b>}<small className="faint">{off(g) && g.replacedBy ? '→ •••• ' + g.replacedBy : 'sur ' + eur(g.amount)}</small></span>
               </button></li>
             ))}</ul>
           )}
         </section>
       </div>
-      <GiftSheet gift={open} onClose={() => setOpen(null)} onReissued={(card) => { setOpen(null); setFresh({ card, title: 'Nouvelle carte · l’ancien code ne marche plus' }); }} />
+      <GiftSheet gift={open} online={open ? online.get(open.id) || null : null} onClose={() => setOpen(null)} onReissued={(card) => { setOpen(null); setFresh({ card, title: 'Nouvelle carte · l’ancien code ne marche plus' }); }} />
       <TakeoverModal open={takeover} onClose={() => setTakeover(false)} onDone={(card) => { setTakeover(false); setFresh({ card, title: 'Carte reprise' }); }} />
       {voucher ? <Voucher card={voucher} /> : null}
     </>
@@ -550,7 +558,7 @@ function Gifts() {
 }
 
 /** One card: where it stands, and for the owner, a new code when the old one is lost or leaked. */
-function GiftSheet({ gift: g, onClose, onReissued }: { gift: Gift | null; onClose: () => void; onReissued: (c: VoucherCard) => void }) {
+function GiftSheet({ gift: g, online: o, onClose, onReissued }: { gift: Gift | null; online: Online | null; onClose: () => void; onReissued: (c: VoucherCard) => void }) {
   const { boot, can } = useApp();
   const [busy, setBusy] = useState(false);
   const usable = !!g && g.status === 'active' && g.balance > 0 && g.expires >= boot.today;
@@ -564,7 +572,7 @@ function GiftSheet({ gift: g, onClose, onReissued }: { gift: Gift | null; onClos
     } catch (e) { toastError(e); } finally { setBusy(false); }
   };
   return (
-    <Sheet open={!!g} onClose={onClose} title={g ? 'Carte •••• ' + g.last4 : 'Carte cadeau'} kicker={g ? (g.legacy && !g.reissueOf ? 'Reprise de l’ancien salon' : g.reissueOf ? 'Réémise' : 'Vendue au salon') : ''}
+    <Sheet open={!!g} onClose={onClose} title={g ? 'Carte •••• ' + g.last4 : 'Carte cadeau'} kicker={g ? (g.legacy && !g.reissueOf ? 'Reprise de l’ancien salon' : g.reissueOf ? 'Réémise' : o ? 'Achetée en ligne' : 'Vendue au salon') : ''}
       footer={g && usable && can('sale.refund') ? <><span className="grow" /><Button variant="danger" icon="gift" busy={busy} onClick={reissue}>Annuler et réémettre</Button></> : null}>
       {g ? (
         <div className="card card-tight">
@@ -576,8 +584,51 @@ function GiftSheet({ gift: g, onClose, onReissued }: { gift: Gift | null; onClos
           <div className="kv"><span>État</span><b>{g.status !== 'active' ? (g.voidReason === 'reissued' ? 'Remplacée par ' + (g.replacedBy ? '•••• ' + g.replacedBy : 'une nouvelle carte') : g.voidReason === 'refunded' ? 'Annulée et remboursée' : 'Annulée') : g.expires < boot.today ? 'Expirée' : g.balance ? 'Utilisable' : 'Épuisée'}</b></div>
         </div>
       ) : null}
+      {g && o ? <OnlineGift gift={g} online={o} usable={usable && o.giftcardId === g.id} /> : null}
       {g && usable ? <p className="faint" style={{ fontSize: 12.5 }}>Carte perdue ou code divulgué ? « Annuler et réémettre » bloque l’ancien code et en donne un nouveau, avec le même solde et la même date.</p> : null}
     </Sheet>
+  );
+}
+
+/**
+ * A card bought on /carte-cadeau: the text the buyer planned, and DO-03's resend. Nobody at the salon holds its code,
+ * so the server sends it (POST /api/v1/giftshop/:id/resend): to the order's number, or, for whoever may reissue a card
+ * (sale.refund), to another one. A reissued card has a code nobody keeps: it goes out from the reissue screen.
+ */
+function OnlineGift({ gift: g, online: o, usable }: { gift: Gift; online: Online; usable: boolean }) {
+  const { now, can } = useApp();
+  const [phone, setPhone] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [sent, setSent] = useState<string[]>([]);
+  const when = (ms: number) => dates.dayShort(dates.localParts(ms).day) + ' à ' + clock(ms);
+  const m = o.sms;
+  const st = !m ? '' : m.state || (m.status === 'sent' || m.status === 'simulated' ? 'sent' : m.status === 'queued' || m.status === 'claimed' ? 'leaving' : 'failed');
+  const smsLine = !m ? 'Aucun' : st === 'planned' || (st === 'leaving' && m.dueAt > now()) ? 'Prévu ' + when(m.dueAt)
+    : st === 'failed' ? 'Pas parti' + (m.error ? ' (' + m.error + ')' : m.status === 'expired' ? ' (trop tard)' : '')
+      : st === 'leaving' ? 'En cours d’envoi' : 'Envoyé' + (m.status === 'simulated' ? ' (simulé)' : '');
+  const other = can('sale.refund');
+  const resend = async () => {
+    setBusy(true);
+    try {
+      const r = await api.post<{ id: string; to: string }>('/api/v1/giftshop/' + g.id + '/resend', phone.trim() ? { phone } : {});
+      setSent((x) => [...x, r.to]); setPhone(''); toast({ title: 'Code renvoyé par SMS', icon: 'sms' });
+    } catch (e) { toastError(e); } finally { setBusy(false); }
+  };
+  return (
+    <div className="card card-tight">
+      <div className="kv"><span>Payée en ligne</span><b>{o.paidAt ? when(o.paidAt) : '—'}</b></div>
+      <div className="kv"><span>{o.delivery === 'recipient' ? 'SMS à la personne' : 'SMS à l’acheteur'}</span><b>{smsLine}</b></div>
+      {m ? <div className="kv"><span>Numéro</span><b className="tnum" style={{ whiteSpace: 'nowrap' }}>{m.to}</b></div> : null}
+      {usable && o.reissued ? <small className="muted">Code réémis : il ne se renvoie que depuis l’écran de la réémission.</small> : usable && can('sale.create') ? (
+        <>
+          <div className="gift-send">
+            {other ? <input className="input" inputMode="tel" autoComplete="off" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Même numéro" aria-label="Renvoyer à un autre numéro" /> : null}
+            <Button size="sm" variant="ghost" icon="sms" busy={busy} onClick={resend}>{other ? 'Renvoyer le code par SMS' : 'Renvoyer le code au même numéro'}</Button>
+          </div>
+          {sent.length ? <small className="muted">Renvoyé au {sent.join(', ')}.</small> : null}
+        </>
+      ) : null}
+    </div>
   );
 }
 

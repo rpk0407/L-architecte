@@ -1,10 +1,11 @@
-// The client's pages, reached from an SMS or the site: my appointment, paying a deposit, my receipt.
+// The client's pages, reached from an SMS or the site: my appointment, paying a deposit, my receipt, a gift card.
 // No account, no password: each link carries a signature the server checks.
 import { StrictMode, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { api, qs } from '../lib/api';
 import { cap, dates, eur, time } from '../lib/format';
 import './client.css';
+import './cadeau.css';
 
 type Booking = {
   code: string; status: 'pending' | 'booked' | 'arrived' | 'in_chair' | 'done' | 'no_show' | 'cancelled'; day: string; start: number; dur: number;
@@ -21,6 +22,7 @@ function App() {
   if (parts[0] === 'paiement' && parts[1] === 'merci') return <Thanks ok={q.get('paiement') !== 'annule'} />;
   if (parts[0] === 'paiement' && parts[1]) return <Checkout id={parts[1]} />;
   if (parts[0] === 'recu' && parts[1]) return <Receipt token={parts[1]} />;
+  if (parts[0] === 'cadeau' && parts[1]) return <Gift token={parts[1]} back={q.get('paiement')} />;
   return <Shell><Lost /></Shell>;
 }
 
@@ -193,7 +195,13 @@ function Checkout({ id }: { id: string }) {
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState<'' | 'ok' | 'cancel'>('');
   useEffect(() => { api.get<Pay>('/api/public/payments/' + encodeURIComponent(id)).then(setP).catch((e) => setErr(e.message)); }, []);
-  const after = (ok: boolean) => { location.href = p!.back ? p!.back + '?paiement=' + (ok ? 'ok' : 'annule') : '/paiement/merci' + (ok ? '' : '?paiement=annule'); };
+  // a gift card bought on /carte-cadeau comes back to its own page (only that kind of address: never an open redirect)
+  const retour = new URLSearchParams(location.search).get('retour') || '';
+  const gift = /^\/cadeau\/[A-Za-z0-9_.-]{8,120}$/.test(retour) ? retour : null;
+  const after = (ok: boolean) => {
+    if (gift) { location.href = ok ? gift + '?paiement=ok' : '/carte-cadeau?paiement=annule'; return; }
+    location.href = p!.back ? p!.back + '?paiement=' + (ok ? 'ok' : 'annule') : '/paiement/merci' + (ok ? '' : '?paiement=annule');
+  };
   const run = async (outcome: 'ok' | 'cancel') => {
     setBusy(outcome);
     try { await api.post('/api/public/payments/' + encodeURIComponent(id) + '/simulate', { outcome }); await new Promise((r) => setTimeout(r, 700)); after(outcome === 'ok'); }
@@ -201,7 +209,7 @@ function Checkout({ id }: { id: string }) {
   };
   if (err) return <Shell><Lost msg={err} /></Shell>;
   if (!p) return <Shell><Spinner /></Shell>;
-  if (p.status !== 'pending') return <Shell shop={p.shop}><section className="c-card c-center"><p className="c-k">Paiement</p><h1 className="c-h">{p.status === 'paid' ? 'Déjà payé. Merci !' : 'Ce paiement n’est plus en attente.'}</h1>{p.back ? <a className="c-btn" href={p.back}>Voir mon rendez-vous</a> : null}</section></Shell>;
+  if (p.status !== 'pending') return <Shell shop={p.shop}><section className="c-card c-center"><p className="c-k">Paiement</p><h1 className="c-h">{p.status === 'paid' ? 'Déjà payé. Merci !' : 'Ce paiement n’est plus en attente.'}</h1>{gift ? <a className="c-btn" href={gift}>Voir ma carte cadeau</a> : p.back ? <a className="c-btn" href={p.back}>Voir mon rendez-vous</a> : null}</section></Shell>;
   return (
     <Shell shop={p.shop}>
       <section className="c-card c-pay">
@@ -261,6 +269,96 @@ function Receipt({ token }: { token: string }) {
         {r.footer ? <p className="c-muted">{r.footer}</p> : null}
         <div className="c-row c-noprint"><button type="button" className="c-btn ghost" onClick={() => window.print()}>Imprimer ou enregistrer en PDF</button><a className="c-link" href="/?reserver">Reprendre rendez-vous</a></div>
       </section>
+    </Shell>
+  );
+}
+
+/* ---------------- a gift card bought online ---------------- */
+
+type GiftCard = {
+  status: 'pending' | 'paid' | 'failed' | 'ready' | 'spent' | 'expired' | 'void' | 'replaced'; amount: number; balance?: number; code?: string | null; last4?: string; expires?: string;
+  first: string; from: string; message: string; delivery: 'buyer' | 'recipient'; sendAt: number; hidden?: 'reissued' | 'secret';
+  // state: as the server reads the text's status (only a text that left reads 'sent')
+  sms?: { status: string; state?: 'planned' | 'leaving' | 'sent' | 'failed'; dueAt: number; to: string } | null;
+  shop: { name: string; address: string; phone: string };
+};
+const dmy = (day: string) => day.split('-').reverse().join('/');
+/** "jeudi 24 décembre à 19 h", from an instant (Paris time). */
+function whenWords(ms: number) { const p = dates.localParts(ms); return dates.dayLong(p.day) + ' à ' + time(p.min); }
+
+function Gift({ token, back }: { token: string; back: string | null }) {
+  const [g, setG] = useState<GiftCard | null>(null);
+  const [err, setErr] = useState('');
+  const [tries, setTries] = useState(0);
+  const load = () => api.get<GiftCard>('/api/public/giftcards/' + encodeURIComponent(token)).then(setG).catch((e) => setErr(e.message));
+  useEffect(() => { document.title = 'Carte cadeau · Barber L’Architecte'; load(); if (back) history.replaceState(null, '', location.pathname); }, []);
+  // the bank's confirmation can take a few seconds to reach the salon
+  const waiting = !!g && (g.status === 'pending' || g.status === 'paid');
+  useEffect(() => {
+    if (!waiting || tries >= 45) return;
+    const t = setTimeout(() => { setTries((n) => n + 1); load(); }, 2000);
+    return () => clearTimeout(t);
+  }, [g]);
+  if (err) return <Shell><Lost msg={err} /></Shell>;
+  if (!g) return <Shell><Spinner /></Shell>;
+  const amount = (c: number) => eur(c, { decimals: c % 100 !== 0 });
+
+  if (waiting) {
+    return (
+      <Shell shop={g.shop.name}>
+        <section className="c-card c-center" aria-busy={tries < 45}>
+          {tries < 45 ? <span className="c-spin" /> : null}
+          <p className="c-k">Carte cadeau · {amount(g.amount)}</p>
+          <h1 className="c-h">{tries < 45 ? (back === 'ok' || g.status === 'paid' ? 'Paiement reçu, on prépare ta carte…' : 'On attend la confirmation du paiement…') : 'La confirmation tarde.'}</h1>
+          <p className="c-muted">{tries < 45 ? 'Quelques secondes, ne ferme pas cette page.' : 'Garde ce lien et reviens dans quelques minutes, ou appelle le salon' + (g.shop.phone ? ' au ' + g.shop.phone : '') + '.'}</p>
+        </section>
+      </Shell>
+    );
+  }
+  if (g.status === 'failed') {
+    return (
+      <Shell shop={g.shop.name}>
+        <section className="c-card c-center">
+          <span className="c-check no" aria-hidden>×</span>
+          <h1 className="c-h">Le paiement n’est pas passé.</h1>
+          <p className="c-muted">Rien n’a été débité. Tu peux recommencer, ou l’acheter directement au salon.</p>
+          <a className="c-btn" href="/carte-cadeau">Offrir une carte cadeau</a>
+        </section>
+      </Shell>
+    );
+  }
+  const ready = g.status === 'ready' && !!g.code;
+  // still valid, but its code is not one this page can show
+  const valid = g.status === 'ready' && !g.code;
+  const why = valid ? (g.hidden === 'reissued' ? 'Ta carte a reçu un nouveau code : il t’a été donné par le salon' + (g.sms && g.sms.state === 'planned' ? ' et part par SMS le ' + whenWords(g.sms.dueAt) : '') + '. Sinon, demande-le au salon.' : 'Carte valable : demande ton code au salon.') : ({ spent: 'Carte utilisée en entier. Merci !', expired: 'Cette carte a expiré le ' + dmy(g.expires || '') + '.', void: 'Cette carte a été annulée.', replaced: 'Cette carte a été remplacée par une nouvelle : son code ne marche plus. Le salon t’a donné le nouveau.' } as Record<string, string>)[g.status] || '';
+  const left = g.balance != null && g.balance < g.amount ? g.balance : null;
+  const sms = g.sms && g.delivery === 'recipient' ? g.sms : null;
+  const st = sms ? sms.state || (sms.status === 'sent' || sms.status === 'simulated' ? 'sent' : sms.status === 'queued' ? 'leaving' : 'failed') : '';
+  const later = st === 'planned' && !!sms && sms.dueAt > Date.now() + 60000;
+  return (
+    <Shell shop={g.shop.name}>
+      {back === 'ok' ? <p className="c-note ok" role="status">Paiement reçu, ta carte est prête.</p> : null}
+      {why ? <p className={'c-note' + (valid ? '' : ' warn')} role="status">{why}</p> : null}
+      <section className={'c-card g-card' + (ready || valid ? '' : ' g-off')} aria-label="Carte cadeau">
+        <div className="g-top"><span className="g-brand">L’Architecte</span><span className="g-kind">Carte cadeau</span></div>
+        <p className="g-for">{g.first ? 'Pour ' + g.first : 'Offerte avec plaisir'}</p>
+        <p className="g-amount">{amount(g.amount)}{left != null && ready ? <small>reste {amount(left)}</small> : null}</p>
+        {g.message ? <p className="g-msg">« {g.message} »</p> : null}
+        {g.from ? <p className="g-from">De la part de {g.from}</p> : null}
+        {ready ? <div className="g-code"><small>Code à donner au salon</small><b>{g.code}</b></div> : g.last4 ? <div className="g-code"><small>Carte</small><b>•••• {g.last4}</b></div> : null}
+        {g.expires ? <p className="g-exp">Valable jusqu’au {dmy(g.expires)}, en une ou plusieurs fois.</p> : null}
+        <p className="g-shop">{g.shop.name} · {g.shop.address}{g.shop.phone ? ' · ' + g.shop.phone : ''}</p>
+      </section>
+      {ready && sms ? <p className={'c-muted g-sms' + (st === 'sent' ? '' : st === 'failed' ? ' no' : ' wait')}>{later ? 'Le code part par SMS au ' + sms.to + ' le ' + whenWords(sms.dueAt) + '.' : st === 'failed' ? 'Le SMS au ' + sms.to + ' n’a pas pu partir : transmets-lui ce lien ou imprime la carte.' : st === 'sent' ? 'Envoyée par SMS au ' + sms.to + '.' : 'Le SMS au ' + sms.to + ' part dans quelques minutes.'}</p> : null}
+      {ready ? (
+        <section className="c-actions c-noprint">
+          <button type="button" className="c-btn ghost" onClick={() => window.print()}>Imprimer la carte</button>
+          <a className="c-btn" href="/?reserver">Réserver</a>
+          <p className="c-muted c-small">À présenter au salon au moment de payer{g.delivery === 'buyer' ? ' : imprime-la, ou envoie ce lien à qui tu l’offres' : ''}.</p>
+        </section>
+      ) : (
+        <section className="c-card c-center c-noprint"><a className="c-btn" href="/?reserver">Réserver un créneau</a></section>
+      )}
     </Shell>
   );
 }

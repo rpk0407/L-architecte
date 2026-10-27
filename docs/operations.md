@@ -7,7 +7,7 @@ Set them in Vercel › Project › Settings › Environment Variables, for Produ
 | Variable | Required | What |
 |---|---|---|
 | `LX_MODE` | production | `production` for the real salon. Anything else runs the **demo** (seeded salon, simulated SMS and payments, demo access shown on the login screen). |
-| `SESSION_SECRET` | production | 64 random letters and digits. Signs cookies and client links. Changing it signs everyone out and invalidates links already sent. Without it, production answers every `/api` route with 503 « Configuration incomplète : SESSION_SECRET ». |
+| `SESSION_SECRET` | production | 64 random letters and digits. Signs cookies and client links. Changing it signs everyone out and invalidates links already sent. It also derives the codes of gift cards bought online: after a change, their pages say « demande ton code au salon » and only « Annuler et réémettre » gives a new code. Without it, production answers every `/api` route with 503 « Configuration incomplète : SESSION_SECRET ». |
 | `SETUP_TOKEN` | first start | One-time code asked by the setup screen (« Code d’installation ») to create the owner account, so nobody else can claim an empty installation. The provider gives it to the owner, then removes it (the Comptoir warns while it is still set). |
 | `DATABASE_URL` (or `POSTGRES_URL`) | production | Postgres (Neon or Supabase from the Vercel marketplace, **EU region**). Set by the marketplace; tables are created on first start. |
 | `BLOB_READ_WRITE_TOKEN` | alternative | Vercel Blob instead of Postgres. `LX_BLOB_PREFIX` (default `lx2`), `LX_BLOB_ACCESS` (`private` default). With Postgres too, a Blob store holds the nightly backups (`backups/`). |

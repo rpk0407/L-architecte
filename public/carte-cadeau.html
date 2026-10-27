@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="referrer" content="no-referrer">
+<title>Carte cadeau · Barber L’Architecte</title>
+<meta name="description" content="Offre une carte cadeau Barber L’Architecte, à partir de 20 €, valable 1 an au salon, place Pélabon à Marseille. Le code arrive par SMS au moment que tu choisis.">
+<meta name="theme-color" content="#ECE8E0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0F0E0D" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="preload" href="/fonts/instrument-serif-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/fonts/instrument-sans-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/pages.css">
+<script src="/pages.js" defer></script>
+<style>
+/* the fonts come from the salon's own domain (scripts/postbuild.mjs copies them into /fonts), as on the site */
+@font-face{font-family:'Instrument Sans';font-style:normal;font-weight:400;font-display:swap;src:url(/fonts/instrument-sans-latin-400-normal.woff2) format('woff2')}
+@font-face{font-family:'Instrument Sans';font-style:normal;font-weight:500;font-display:swap;src:url(/fonts/instrument-sans-latin-500-normal.woff2) format('woff2')}
+@font-face{font-family:'Instrument Sans';font-style:normal;font-weight:600;font-display:swap;src:url(/fonts/instrument-sans-latin-600-normal.woff2) format('woff2')}
+@font-face{font-family:'Instrument Sans';font-style:normal;font-weight:700;font-display:swap;src:url(/fonts/instrument-sans-latin-700-normal.woff2) format('woff2')}
+@font-face{font-family:'Instrument Serif';font-style:normal;font-weight:400;font-display:swap;src:url(/fonts/instrument-serif-latin-400-normal.woff2) format('woff2')}
+@font-face{font-family:'Instrument Serif';font-style:italic;font-weight:400;font-display:swap;src:url(/fonts/instrument-serif-latin-400-italic.woff2) format('woff2')}
+
+/* the order, on top of pages.css: four steps, one button */
+.cc{margin-top:clamp(28px,5vw,44px)}
+.cc fieldset{margin:0 0 14px;padding:clamp(20px,3.4vw,28px);border:0;border-radius:24px;background:var(--sf);box-shadow:inset 0 0 0 1px var(--ln);min-width:0}
+.cc legend{float:left;width:100%;margin:0 0 16px;padding:0;font:400 clamp(28px,4vw,34px)/1.05 var(--f-serif)}
+.cc legend+*{clear:both}
+.cc label.f{display:block;margin:16px 0 8px;font:600 15px/1.3 var(--f-sans)}
+.cc legend+label.f{margin-top:0}
+.cc label.f small{font-weight:500;color:var(--tx2)}
+.inp{display:block;width:100%;min-height:54px;margin:0;padding:0 16px;border:0;border-radius:14px;background:var(--bg);color:var(--tx);box-shadow:inset 0 0 0 1.5px var(--ln2);font:500 18px/1 var(--f-sans);-webkit-appearance:none;appearance:none;transition:box-shadow .2s}
+textarea.inp{min-height:88px;padding:14px 16px;line-height:1.4;resize:vertical}
+.inp::placeholder{color:var(--tx2);opacity:.55}
+.inp:focus{outline:none;box-shadow:inset 0 0 0 2px var(--tx)}
+.inp[aria-invalid="true"]{box-shadow:inset 0 0 0 2px var(--ac)}
+.two{display:grid;gap:0 12px}
+.two.top>div:first-child>label.f{margin-top:0}
+@media (min-width:600px){.two{grid-template-columns:1fr 1fr}.two.top>div>label.f{margin-top:0}}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:0;padding:0;border:0}
+.chip{position:relative;display:inline-flex}
+.chip input{position:absolute;opacity:0;inset:0;margin:0;cursor:pointer}
+.chip span{display:inline-flex;align-items:center;min-height:48px;padding:0 20px;border-radius:999px;box-shadow:inset 0 0 0 1.5px var(--ln2);font:600 16px/1 var(--f-sans);white-space:nowrap;transition:background-color .2s,color .2s,box-shadow .2s}
+.chip.big span{min-width:84px;justify-content:center;font:400 26px/1 var(--f-serif)}
+.chip input:checked+span{background:var(--tx);color:var(--bg);box-shadow:none}
+.chip input:focus-visible+span{outline:2.5px solid var(--tx);outline-offset:3px}
+.chip:hover span{box-shadow:inset 0 0 0 1.5px var(--tx)}
+.free{display:flex;align-items:center;gap:10px;margin-top:12px;max-width:260px}
+.free .inp{text-align:right}
+.free b{font:400 26px/1 var(--f-serif)}
+.hint{margin:10px 0 0;color:var(--tx2);font-size:15px}
+.hint.big{margin-top:14px;color:var(--tx);font-weight:500}
+.count{float:right;font-weight:500;color:var(--tx2);font-variant-numeric:tabular-nums}
+/* the error sits on the sticky bar, so it is on screen wherever the buyer taps "Payer" */
+.paybox{position:sticky;bottom:calc(10px + env(safe-area-inset-bottom,0px));z-index:2;margin-top:6px}
+.err{display:flex;align-items:baseline;gap:10px;margin:0 0 8px;padding:12px 16px;border-radius:16px;background:var(--bg);box-shadow:inset 0 0 0 1.5px var(--ac),0 10px 26px -14px rgba(15,14,13,.5);font-weight:600;font-size:15.5px;line-height:1.35}
+.err::before{content:"";flex:none;width:9px;height:9px;border-radius:50%;background:var(--ac);transform:translateY(-1px)}
+.pay{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 12px 12px clamp(18px,3vw,24px);border-radius:22px;background:var(--tx);color:var(--bg);box-shadow:0 14px 34px -14px rgba(15,14,13,.55)}
+.pay p{min-width:0;margin:0;font-size:14.5px;line-height:1.35}
+.pay p span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pay .btn{flex:none}
+.pay p b{display:block;font:400 30px/1 var(--f-serif)}
+.pay .btn:hover{background:var(--bg);color:var(--tx)}
+.btn[disabled]{opacity:.65;cursor:progress}
+.legal{margin-top:16px;color:var(--tx2);font-size:14px}
+.note{margin:22px 0 0;padding:14px 18px;border-radius:16px;background:var(--sf);box-shadow:inset 0 0 0 1px var(--ln);font-weight:500}
+.info{margin-top:clamp(28px,5vw,44px)}
+.info .acts{display:flex;flex-wrap:wrap;gap:12px;margin-top:22px}
+@media (max-width:520px){.info .acts .btn{flex:1 1 100%}.pay .btn{padding:0 20px}.chip.big span{min-width:72px;padding:0 16px}}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Aller au contenu</a>
+<header class="tb"><a class="wm" href="/" aria-label="Barber L’Architecte, accueil"><span class="wm-a">L’Architecte</span><span class="wm-b">Barber · Marseille</span></a><a class="btn" href="/?reserver">Réserver</a></header>
+<main id="main">
+<p class="kk">Carte cadeau</p>
+<h1>Offre une <em>coupe</em></h1>
+<p class="lead">Le montant de ton choix, à dépenser au salon en une ou plusieurs fois, pendant un an.</p>
+<p id="cc-note" class="note" role="status" hidden></p>
+
+<!-- not sold online (and without JavaScript): how to get one at the salon -->
+<section id="cc-info" class="info" aria-labelledby="cc-it">
+<h2 id="cc-it">En vente au salon</h2>
+<p id="cc-off" class="lead" hidden>Le salon ne propose pas de carte cadeau en ce moment. Une question&nbsp;? Appelle-nous ou passe au salon.</p>
+<dl id="cc-dl">
+<div><dt>Montant</dt><dd>À partir de 20&nbsp;€, le montant que tu veux</dd></div>
+<div><dt>Où</dt><dd><span data-f="address">16, place Pélabon, 13013 Marseille</span></dd></div>
+<div><dt>Validité</dt><dd>1 an, en une ou plusieurs fois</dd></div>
+<div><dt>Comment</dt><dd>Au comptoir, par carte ou en espèces&nbsp;: on te l’imprime ou on envoie le code par SMS à qui tu l’offres</dd></div>
+</dl>
+<div class="acts"><a class="btn" href="/?reserver">Réserver</a><span data-opt hidden><a class="btn ghost" data-f="phone" data-link="tel"></a></span></div>
+</section>
+
+<form id="cc" class="cc" novalidate hidden>
+<fieldset>
+<legend>Le montant</legend>
+<div class="chips" role="radiogroup" aria-label="Montant" id="cc-amounts"></div>
+<div class="free" id="cc-free" hidden><input id="cc-eur" class="inp" type="text" inputmode="numeric" autocomplete="off" maxlength="3" placeholder="40" aria-label="Montant en euros" aria-describedby="cc-free-h"><b aria-hidden="true">€</b></div>
+<p id="cc-free-h" class="hint" hidden>De <span id="cc-min">20</span> à <span id="cc-max">200</span>&nbsp;€, en euros ronds.</p>
+</fieldset>
+
+<fieldset>
+<legend>Pour qui&nbsp;?</legend>
+<label class="f" for="cc-to">Son prénom <small>(facultatif)</small></label>
+<input id="cc-to" class="inp" type="text" autocomplete="off" maxlength="40" placeholder="Karim">
+<p class="hint" id="cc-to-h">Le code lui arrive par SMS, ou tu le gardes pour l’offrir toi-même.</p>
+<div class="chips" role="radiogroup" aria-label="Comment l’offrir" style="margin-top:16px" id="cc-how">
+<label class="chip"><input type="radio" name="delivery" value="recipient" checked><span>On lui envoie par SMS</span></label>
+<label class="chip"><input type="radio" name="delivery" value="buyer"><span>Je la garde pour l’offrir</span></label>
+</div>
+<div id="cc-tophone">
+<label class="f" for="cc-tp">Son numéro</label>
+<input id="cc-tp" class="inp" type="tel" inputmode="tel" autocomplete="off" maxlength="24" placeholder="06 12 34 56 78">
+</div>
+<label class="f" for="cc-msg">Un mot <small>(facultatif)</small> <span class="count" id="cc-count">0/120</span></label>
+<textarea id="cc-msg" class="inp" maxlength="120" placeholder="Joyeux Noël, frérot !"></textarea>
+</fieldset>
+
+<fieldset>
+<legend>De la part de</legend>
+<div class="two top">
+<div><label class="f" for="cc-bf">Ton prénom</label><input id="cc-bf" class="inp" type="text" autocomplete="given-name" maxlength="40" placeholder="Sofiane" required></div>
+<div><label class="f" for="cc-bp">Ton numéro</label><input id="cc-bp" class="inp" type="tel" inputmode="tel" autocomplete="tel" maxlength="24" placeholder="06 12 34 56 78" required></div>
+</div>
+<label class="f" for="cc-be">Ton e-mail <small>(facultatif, pour le reçu du paiement)</small></label>
+<input id="cc-be" class="inp" type="email" autocomplete="email" maxlength="120" placeholder="toi@exemple.fr">
+</fieldset>
+
+<fieldset id="cc-whenbox">
+<legend>Quand l’envoyer</legend>
+<div class="chips" role="radiogroup" aria-label="Quand l’envoyer" id="cc-when">
+<label class="chip"><input type="radio" name="when" value="now" checked><span>Tout de suite</span></label>
+<label class="chip" id="cc-xmas" hidden><input type="radio" name="when" value="xmas"><span>Le 24/12 à 19&nbsp;h</span></label>
+<label class="chip"><input type="radio" name="when" value="pick"><span>Choisir le moment</span></label>
+</div>
+<div class="two" id="cc-pick" hidden>
+<div><label class="f" for="cc-day">Le jour</label><input id="cc-day" class="inp" type="date"></div>
+<div><label class="f" for="cc-time">À</label><input id="cc-time" class="inp" type="time" value="19:00" step="900"></div>
+</div>
+<p class="hint big">Le code arrive par SMS au moment que tu choisis.</p>
+<p class="hint" id="cc-when-h">Tu vois aussi la carte, à imprimer, dès le paiement.</p>
+</fieldset>
+
+<div class="paybox">
+<p id="cc-err" class="err" role="alert" hidden></p>
+<div class="pay"><p><span id="cc-sum-k">Carte cadeau</span><b id="cc-sum">30&nbsp;€</b></p><button id="cc-go" class="btn" type="submit">Payer</button></div>
+</div>
+<p class="legal">Valable 1 an au salon, en une ou plusieurs fois, sur les prestations comme sur les produits. <span id="cc-stripe" hidden>Paiement sécurisé par Stripe : ta carte bancaire ne passe jamais par le salon.</span></p>
+</form>
+</main>
+<footer data-footer></footer>
+<script>
+/* /carte-cadeau: GET /api/public/giftcards says whether cards are sold online (Stripe connected) and the chips; the order
+   goes to POST /api/public/giftcards (server/http/routes-giftshop.js), which answers with the payment page. Not sold
+   online, or the API out of reach: the page stays the information above, which is also what it says without JavaScript. */
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  var form = $('cc'), info = $('cc-info'), note = $('cc-note'), err = $('cc-err'), go = $('cc-go');
+  var NB = ' ';
+  var cfg = null, amount = 3000;
+
+  function eur(c) { var e = Math.round(c) / 100; return (e % 1 ? e.toFixed(2).replace('.', ',') : String(e)) + NB + '€'; }
+  // as server/lib/util.js normPhone reads it: 06…, +33 6…, 0033 6…, or another country's +…
+  function digits(v) { var d = String(v || '').replace(/[^\d+]/g, ''); if (d.indexOf('00') === 0) d = '+' + d.slice(2); if (d.indexOf('+33') === 0) d = '0' + d.slice(3); return d; }
+  function valid(v) { var d = digits(v); return /^0[1-9]\d{8}$/.test(d) || /^\+\d{8,15}$/.test(d); }
+  function pretty(v) { var d = digits(v); return /^0\d{9}$/.test(d) ? d.replace(/(\d{2})(?=\d)/g, '$1 ') : String(v || '').trim(); }
+  function radio(name) { var x = form.querySelector('input[name="' + name + '"]:checked'); return x ? x.value : ''; }
+  function say(t, el) {
+    err.textContent = t || ''; err.hidden = !t;
+    [].forEach.call(form.querySelectorAll('[aria-invalid="true"]'), function (x) { x.setAttribute('aria-invalid', 'false'); });
+    // the field in the middle of the screen; the message itself rides on the sticky bar
+    if (el) { el.setAttribute('aria-invalid', 'true'); el.focus({ preventScroll: true }); try { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (e) { el.scrollIntoView(); } }
+  }
+  // the salon's day and minute (Paris), whatever this device's time zone
+  function paris() {
+    try {
+      var p = {};
+      new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Paris', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+        .formatToParts(new Date()).forEach(function (x) { p[x.type] = x.value; });
+      return { day: p.year + '-' + p.month + '-' + p.day, min: (Number(p.hour) % 24) * 60 + Number(p.minute) };
+    } catch (e) { var n = new Date(); return { day: n.toISOString().slice(0, 10), min: n.getHours() * 60 + n.getMinutes() }; }
+  }
+  function addDays(day, n) { var d = new Date(day + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
+
+  var q = new URLSearchParams(location.search);
+  var cancelled = q.get('paiement') === 'annule';
+  if (cancelled) { note.textContent = 'Paiement annulé : rien n’a été débité. Ta carte t’attend ci-dessous, tu peux recommencer quand tu veux.'; note.hidden = false; history.replaceState(null, '', location.pathname); }
+  // the order typed before the checkout, for the way back from "Annuler" (this tab only)
+  var DRAFT = 'lx-gift-draft';
+  var FIELDS = ['cc-eur', 'cc-to', 'cc-tp', 'cc-msg', 'cc-bf', 'cc-bp', 'cc-be', 'cc-day', 'cc-time'];
+  function saveDraft() {
+    try {
+      var d = { amount: radio('amount'), delivery: radio('delivery'), when: radio('when') };
+      FIELDS.forEach(function (k) { d[k] = $(k).value; });
+      sessionStorage.setItem(DRAFT, JSON.stringify(d));
+    } catch (e) { /* storage off */ }
+  }
+  function restoreDraft() {
+    try {
+      var d = JSON.parse(sessionStorage.getItem(DRAFT) || 'null');
+      sessionStorage.removeItem(DRAFT);
+      if (!d) return;
+      FIELDS.forEach(function (k) { if (typeof d[k] === 'string' && d[k]) $(k).value = d[k]; });
+      ['amount', 'delivery', 'when'].forEach(function (n) { var x = form.querySelector('input[name="' + n + '"][value="' + String(d[n]).replace(/[^\w-]/g, '') + '"]'); if (x && !x.closest('label[hidden]')) x.checked = true; });
+    } catch (e) { /* storage off */ }
+  }
+
+  function chip(value, text, checked, big) {
+    var l = document.createElement('label'), i = document.createElement('input'), s = document.createElement('span');
+    l.className = 'chip' + (big ? ' big' : ''); i.type = 'radio'; i.name = 'amount'; i.value = value; i.checked = !!checked; s.textContent = text;
+    l.appendChild(i); l.appendChild(s);
+    return l;
+  }
+  function free() { var n = Number(String($('cc-eur').value).replace(/\s/g, '').replace(',', '.')); return Number.isFinite(n) && n > 0 ? Math.round(n) * 100 : 0; }
+  function update() {
+    var a = radio('amount');
+    $('cc-free').hidden = $('cc-free-h').hidden = a !== 'free';
+    amount = a === 'free' ? free() : Number(a);
+    var toThem = radio('delivery') === 'recipient';
+    $('cc-tophone').hidden = !toThem;
+    var w = radio('when');
+    $('cc-pick').hidden = w !== 'pick';
+    $('cc-when-h').textContent = toThem ? 'Tu vois aussi la carte, à imprimer, dès le paiement.' : 'Le SMS part sur ton numéro. Tu vois aussi la carte, à imprimer, dès le paiement.';
+    var to = $('cc-to').value.trim();
+    $('cc-sum-k').textContent = 'Carte cadeau' + (to ? ' pour ' + to : '');
+    $('cc-sum').textContent = amount ? eur(amount) : '—';
+    go.textContent = amount ? 'Payer ' + eur(amount) : 'Payer';
+    $('cc-count').textContent = $('cc-msg').value.length + '/120';
+  }
+
+  function start(c) {
+    cfg = c;
+    var box = $('cc-amounts');
+    (c.amounts || []).forEach(function (a, i) { box.appendChild(chip(String(a), eur(a), a === 3000 || (i === 0 && c.amounts.indexOf(3000) < 0), true)); });
+    box.appendChild(chip('free', 'Autre montant', false));
+    $('cc-min').textContent = String(c.min / 100); $('cc-max').textContent = String(c.max / 100);
+    $('cc-stripe').hidden = c.provider !== 'stripe';
+    var now = paris();
+    // before Christmas Eve's evening, the obvious moment is one tap away, once it is close enough to be planned
+    var xmas = now.day.slice(0, 4) + '-12-24';
+    if ((now.day < xmas || (now.day === xmas && now.min < 18 * 60)) && within(xmas, 19 * 60)) $('cc-xmas').hidden = false;
+    $('cc-day').min = now.day; $('cc-day').max = addDays(now.day, c.sendDays || 120); $('cc-day').value = now.day;
+    // no SMS provider yet: the card is shown to print, nothing is texted
+    if (!c.sms) {
+      var keep = form.querySelector('input[name="delivery"][value="buyer"]');
+      keep.checked = true;
+      $('cc-how').hidden = true; $('cc-whenbox').hidden = true;
+      $('cc-to-h').textContent = 'Ta carte s’affiche dès le paiement : imprime-la, ou envoie-lui son lien.';
+    }
+    // what the site remembers on this phone (lx-me, see /confidentialite): read, never written here
+    try { var me = JSON.parse(localStorage.getItem('lx-me') || 'null') || {}; if (me.first) $('cc-bf').value = me.first; if (me.phone) $('cc-bp').value = pretty(me.phone); if (me.email) $('cc-be').value = me.email; } catch (e) { /* storage off */ }
+    if (cancelled) restoreDraft();
+    form.addEventListener('input', function () { update(); if (!err.hidden) say(''); });
+    form.addEventListener('change', update);
+    ['cc-tp', 'cc-bp'].forEach(function (k) { $(k).addEventListener('blur', function () { if (valid($(k).value)) $(k).value = pretty($(k).value); }); });
+    update();
+    info.hidden = true; form.hidden = false;
+  }
+
+  /** Is that moment (Paris) no further than the server plans a text (sendDays)? */
+  function within(day, min) {
+    var now = paris(), last = addDays(now.day, (cfg && cfg.sendDays) || 120);
+    return day < last || (day === last && min <= now.min);
+  }
+  function sendAt() {
+    var w = radio('when'), now = paris();
+    if ($('cc-whenbox').hidden) return undefined;
+    if (w === 'xmas') return now.day.slice(0, 4) + '-12-24T19:00';
+    if (w !== 'pick') return undefined;
+    var d = $('cc-day').value, t = $('cc-time').value;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || !/^\d{2}:\d{2}$/.test(t)) return null;
+    var m = Number(t.slice(0, 2)) * 60 + Number(t.slice(3));
+    if (d < now.day || (d === now.day && m <= now.min)) return null;
+    if (!within(d, m)) return false;
+    return d + 'T' + t;
+  }
+
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    if (go.disabled || !cfg) return;
+    if (!amount || amount < cfg.min || amount > cfg.max) return say('Choisis un montant de ' + eur(cfg.min) + ' à ' + eur(cfg.max) + '.', radio('amount') === 'free' ? $('cc-eur') : null);
+    var toThem = radio('delivery') === 'recipient';
+    if (toThem && !valid($('cc-tp').value)) return say($('cc-tp').value.trim() ? 'Vérifie son numéro : 10 chiffres, comme 06 12 34 56 78.' : 'Donne son numéro pour lui envoyer la carte.', $('cc-tp'));
+    if (!$('cc-bf').value.trim()) return say('Donne ton prénom : il signe la carte.', $('cc-bf'));
+    if (!valid($('cc-bp').value)) return say($('cc-bp').value.trim() ? 'Vérifie ton numéro : 10 chiffres, comme 06 12 34 56 78.' : 'Donne ton numéro : on t’écrit si besoin.', $('cc-bp'));
+    var at = sendAt();
+    if (at === null) return say('Choisis un moment à venir pour l’envoi.', $('cc-day'));
+    if (at === false) return say('L’envoi se programme jusqu’à ' + (cfg.sendDays || 120) + ' jours à l’avance.', $('cc-day'));
+    say('');
+    go.disabled = true; go.textContent = 'Un instant…';
+    var body = {
+      amount: amount, delivery: toThem ? 'recipient' : 'buyer', message: $('cc-msg').value.trim() || undefined, sendAt: at,
+      buyer: { first: $('cc-bf').value.trim(), phone: $('cc-bp').value, email: $('cc-be').value.trim() || undefined },
+      recipient: { first: $('cc-to').value.trim() || undefined, phone: toThem ? $('cc-tp').value : undefined }
+    };
+    fetch('/api/public/giftcards', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), cache: 'no-store' })
+      .then(function (r) { return r.json().catch(function () { return null; }).then(function (d) { return { ok: r.ok, d: d }; }); })
+      .then(function (x) {
+        if (x.ok && x.d && x.d.url) { saveDraft(); location.href = x.d.url; return; }
+        say((x.d && x.d.error && x.d.error.message) || 'Ça n’a pas marché. Réessaie dans un instant.');
+        go.disabled = false; update();
+      })
+      .catch(function () { say('Pas de connexion. Réessaie dans un instant.'); go.disabled = false; update(); });
+  });
+
+  fetch('/api/public/giftcards', { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (c) {
+      if (c && c.live) return start(c);
+      // gift cards switched off in Réglages: not at the salon either
+      if (c && c.on === false) { $('cc-it').textContent = 'Pas de carte cadeau pour le moment'; $('cc-dl').hidden = true; $('cc-off').hidden = false; }
+    }).catch(function () { /* the information stays */ });
+})();
+</script>
+</body>
+</html>

@@ -13,6 +13,7 @@ import { shopIntervals } from '../domain/availability.js';
 import { DENOMS, fmtEur } from '../../shared/money.js';
 import { queueMessage } from '../domain/messages.js';
 import { TEMPLATES } from '../core/templates.js';
+import { clientParts } from './clients.js';
 
 const lineSchema = obj({
   kind: oneOf(/** @type {const} */ (['service', 'product', 'giftcard', 'pack', 'fee'])), ref: opt(id()), name: opt(str({ max: 60 })),
@@ -38,13 +39,17 @@ export const checkout = {
     const x = parse(checkoutSchema, input);
     // the demo back-fills past days; nobody else can date a ticket
     const backfill = ctx.actor.t === 'system' && typeof input.day === 'string' && input.day < ctx.local.day ? input.day : null;
-    const day = backfill || ctx.local.day;
+    // a card bought online after today's Z (sellGiftcardOnline): the money is in, the sealed day stays as sealed,
+    // the ticket opens tomorrow's till
+    const online = ctx.actor.t === 'system' && input.online === true && !backfill;
+    const day = backfill || (online && s.closures.has(ctx.local.day) ? addDays(ctx.local.day, 1) : ctx.local.day);
     if (s.closures.has(day)) fail(409, 'day_closed', 'La journée est clôturée : plus aucun encaissement possible aujourd’hui.');
     const P = s.settings.payments;
     const appt = x.apptId ? getAppt(s, x.apptId) : null;
     if (appt && (appt.status === 'done' || appt.saleId)) fail(409, 'paid', 'Ce rendez-vous est déjà encaissé.');
     if (appt && appt.status === 'cancelled') fail(409, 'cancelled', 'Ce rendez-vous est annulé.');
-    const client = x.clientId ? getClient(s, x.clientId) : appt && appt.clientId ? getClient(s, appt.clientId) : null;
+    // online: the buyer's file sellGiftcardOnline adds in this same command (not in the state yet)
+    const client = online && input.newClient ? input.newClient : x.clientId ? getClient(s, x.clientId) : appt && appt.clientId ? getClient(s, appt.clientId) : null;
     const isBoss = ctx.staff && ['owner', 'manager'].includes(ctx.staff.role);
     // commissions follow the line: a barber credits himself or the appointment's barber. Whoever already edits every
     // chair's agenda (owner, manager, the desk ringing up for the barbers) may credit any of them.
@@ -113,7 +118,8 @@ export const checkout = {
         if (!p.active) fail(409, 'inactive', `« ${p.name} » n’est plus en vente.`);
         lines.push({ kind: 'product', ref: p.id, name: p.name, qty, unit: p.price, discount: l.discount || 0, staffId: performer(l), vat: p.vat ?? P.vat, cost: p.cost || 0 });
       } else if (l.kind === 'giftcard') {
-        if (!P.giftcard) fail(409, 'off', 'Les cartes cadeaux sont désactivées.');
+        // a card already paid online is issued even if the owner switched cards off since
+        if (!P.giftcard && !online) fail(409, 'off', 'Les cartes cadeaux sont désactivées.');
         const amount = l.unit || 0;
         if (amount < 1000 || amount > 50000) fail(400, 'invalid', 'Une carte cadeau va de 10 € à 500 €.');
         const code = ctx.actor.t === 'system' && l.code ? l.code : giftCode();
@@ -188,18 +194,105 @@ export const checkout = {
       id: sid, number, day, cashierId: ctx.staff ? ctx.staff.id : null, apptId: appt ? appt.id : null, clientId: client ? client.id : null, cid: client ? client.id : undefined,
       lines: lines.map((l, i) => ({ ...l, net: totals.nets[i] })), discount: x.discount ? { amount: discount, reason: typed ? 'Autre' : why } : null,
       tip: totals.tip ? { amount: totals.tip, staffId: /** @type {any} */ (x.tip).staffId } : null, totals: { gross: totals.gross, discount: totals.discount, total: totals.total, tip: totals.tip, due: totals.due, revenue: totals.revenue, revenueHT: totals.revenueHT, liability: totals.liability, vat: totals.vat },
-      payments, note: x.note || '', ...(backfill ? { at: input.at } : {}), ...(ctx.actor.t === 'system' ? { demo: true } : {})
+      payments, note: x.note || '', ...(backfill ? { at: input.at } : {}), ...(ctx.actor.t === 'system' && !online ? { demo: true } : {})
     }, typed ? { discountReason: typed } : undefined);
     for (const l of lines) if (l.kind === 'product') ctx.emit('stock.adjusted', { productId: l.ref, delta: -l.qty, reason: 'Vente', saleId: sid, name: l.name });
+    // online: the name the buyer typed ("De la part de"), which may not be the one on the file their number found
+    const buyer = online && typeof input.buyer === 'string' ? input.buyer.slice(0, 60) : client ? (client.first + ' ' + client.last).trim() : '';
     for (const g of issued) {
-      ctx.emit('giftcard.issued', { id: g.id, codeHash: sha256(normGiftCode(g.code)), last4: g.code.slice(-4), amount: g.amount, saleId: sid, expires: addDays(day, 365), cid: client ? client.id : undefined }, { buyer: client ? client.first + ' ' + client.last : '', recipient: g.recipient });
+      ctx.emit('giftcard.issued', { id: g.id, codeHash: sha256(normGiftCode(g.code)), last4: g.code.slice(-4), amount: g.amount, saleId: sid, expires: addDays(day, 365), ...(online ? { online: true } : {}), cid: client ? client.id : undefined }, { buyer, recipient: g.recipient });
     }
     for (const r of redeem) ctx.emit('giftcard.redeemed', { id: r.id, amount: r.amount, saleId: sid });
     if (newPack) ctx.emit('pack.sold', { ...newPack, saleId: sid, cid: newPack.clientId });
     for (const [pid, n] of packUses) for (let i = 0; i < n; i++) ctx.emit('pack.used', { id: pid, saleId: sid });
     const change = payments.reduce((t, p) => t + (p.change || 0), 0);
     // the only time the full code is known: the till prints it (voucher) or texts it (sendGiftcode), nothing keeps it
-    return { id: sid, number, totals, change, giftcards: issued.map((g) => ({ id: g.id, code: g.code, last4: g.code.slice(-4), amount: g.amount, recipient: g.recipient, expires: addDays(day, 365) })) };
+    return { id: sid, number, day, totals, change, giftcards: issued.map((g) => ({ id: g.id, code: g.code, last4: g.code.slice(-4), amount: g.amount, recipient: g.recipient, expires: addDays(day, 365) })) };
+  }
+};
+
+/* ---------------- a gift card bought on /carte-cadeau ---------------- */
+
+// DO-05 adds 'giftcard' to the registry (core/templates.js); until then, and on a salon whose settings predate it, this one
+const GIFT_ONLINE = "{acheteur} t'offre {montant} chez {salon} ! Ton code : {code}. Réserve ici : {lien}";
+// the buyer keeps it (to print, or to pass on himself): his own text, not "X t'offre"
+const GIFT_BUYER = "{salon} : merci {acheteur} ! Ta carte cadeau de {montant} : code {code}, valable jusqu'au {date}. Pour l'imprimer ou l'offrir : {lien}";
+const onlineSchema = obj({
+  paymentId: id(), code: str({ min: 12, max: 20 }), link: str({ max: 300 }), buyer: opt(str({ max: 40 })),
+  recipient: opt(str({ max: 40 })), to: opt(str({ max: 32 })), buyerPhone: opt(str({ max: 32 })), buyerEmail: opt(str({ max: 120 }))
+});
+
+/** The order paid on /carte-cadeau behind a card, through the cards it replaced (reissued): its payment, or null (sold at the till). */
+export function giftOrderOf(s, g) {
+  for (let i = 0; g && !g.saleId && i < 20; i++) g = g.reissueOf ? s.giftcards.get(g.reissueOf) : null;
+  const sale = g && g.saleId ? s.sales.get(g.saleId) : null;
+  const pay = sale ? sale.payments.find((p) => p.method === 'online' && p.paymentId) : null;
+  const py = pay ? s.payments.get(pay.paymentId) : null;
+  return py && py.kind === 'giftcard' ? py : null;
+}
+/** The text the buyer planned, its latest version: a card reissued before it left queues it again under the new code. */
+export function plannedText(s, paymentId) {
+  const k = 'msg_giftshop_' + paymentId;
+  let m = s.messages.get(k) || null;
+  for (const [key, v] of s.messages) if (key.startsWith(k + '_')) m = v;
+  return m;
+}
+/** A card cancelled before its planned text left: the text stays unsent (a dead code on Christmas Eve helps nobody). */
+function withdrawPlanned(s, ctx, g, why) {
+  const py = giftOrderOf(s, g);
+  const m = py ? plannedText(s, py.id) : null;
+  if (!m || m.status !== 'queued') return null;
+  ctx.emit('message.updated', { id: m.id, patch: { status: 'skipped', error: why } });
+  return { py, m };
+}
+
+/**
+ * A card paid on /carte-cadeau, once the provider confirms: the buyer's file, the ticket (nobody at the till, paid
+ * online, so a liability at 0 % VAT), the card under the code the route derived from the payment, and one text at the
+ * time the buyer chose, to the person it is for or to the buyer. Run by fulfilGiftcard (routes-giftshop.js) as the
+ * system, with the order's names and numbers read back from the journal; they only reach the events' pii. A second
+ * confirmation (webhook retried, the card page polling) finds the payment used and stops there.
+ */
+export const sellGiftcardOnline = {
+  run(s, input, ctx) {
+    ctx.need('sale.create');
+    if (ctx.actor.t !== 'system') fail(403, 'forbidden', 'Réservé au paiement en ligne.');
+    const x = parse(onlineSchema, input);
+    const py = s.payments.get(x.paymentId);
+    if (!py || py.kind !== 'giftcard') fail(404, 'not_found', 'Commande introuvable.');
+    if (py.usedBy) return { already: true, saleId: py.usedBy };
+    if (py.status !== 'paid') fail(409, 'unpaid', 'Ce paiement en ligne n’est pas encore confirmé.');
+    // the buyer's file only once paid (an abandoned checkout leaves none): the one their number already had, or a new one
+    // under the id the order reserved (payments.js), so erasing that file also erases the order's personal data
+    let cid = py.cid && s.clients.has(py.cid) ? py.cid : undefined;
+    /** @type {any} */
+    let fresh = null;
+    if (!cid && x.buyerPhone && x.buyer) {
+      const { pii } = clientParts({ first: x.buyer, phone: x.buyerPhone, ...(x.buyerEmail ? { email: x.buyerEmail } : {}) });
+      const known = pii.phone ? s.clientByPhone.get(pii.phone) : null;
+      if (known && s.clients.has(known)) cid = known;
+      else if (py.cid) {
+        ctx.emit('client.added', { id: py.cid, cid: py.cid, source: 'site', sms: true, marketing: false, tags: [] }, pii);
+        cid = py.cid; fresh = { id: py.cid, first: pii.first || '', last: '' };
+      }
+    }
+    const res = checkout.run(s, {
+      clientId: fresh ? undefined : cid, newClient: fresh, online: true, buyer: x.buyer || '',
+      lines: [{ kind: 'giftcard', unit: py.amount, ...(x.recipient ? { recipient: x.recipient } : {}), code: x.code }],
+      payments: [{ method: 'online', amount: py.amount, ref: py.id }]
+    }, ctx);
+    const g = res.giftcards[0];
+    const gift = py.gift || {};
+    const toBuyer = gift.delivery !== 'recipient';
+    const own = (s.settings.messages.templates || {}).giftcard;
+    const tpl = toBuyer ? GIFT_BUYER : own || /** @type {any} */ (TEMPLATES).giftcard || GIFT_ONLINE;
+    const mid = x.to ? queueMessage(s, ctx, {
+      key: 'giftshop_' + py.id, template: 'giftcard', text: tpl, to: x.to, cid: cid || null,
+      vars: { acheteur: x.buyer || '', prenom: x.recipient || '', montant: fmtEur(g.amount), code: g.code, date: g.expires.split('-').reverse().join('/'), lien: x.link, salon: s.settings.shop.name },
+      // planned for 24/12 19:00, never before the card exists
+      dueAt: Math.max(ctx.now, gift.sendAt || 0)
+    }) : null;
+    return { saleId: res.id, number: res.number, day: res.day, giftcardId: g.id, last4: g.last4, expires: g.expires, messageId: mid, cid: cid || null };
   }
 };
 
@@ -243,9 +336,11 @@ export function refundPlan(s, sale) {
     const o = { i, kind: l.kind, ref: l.ref, name: l.name, qty: l.qty, net: l.net, vat: l.vat, left: l.net > 0 ? l.qty - r.qty : 0, value: l.net - r.amount };
     if (l.kind === 'pack') {
       const pk = s.packs.get(l.packId);
-      inPacks += Math.max(0, o.value);
+      const unit = pk ? cutPrice(s, pk, l) : 0;
+      // a live pack keeps its whole value out of a refund without lines; a cancelled one only the cuts taken (what a
+      // credit note lowered below the line did not give back is the ticket's again)
+      inPacks += Math.max(0, pk && pk.voided ? Math.min(o.value, pk.used * unit) : o.value);
       if (pk) {
-        const unit = cutPrice(s, pk, l);
         consumed += Math.max(0, Math.min(o.value, pk.used * unit));
         o.pack = { id: pk.id, name: pk.name, total: pk.voided ? pk.used + pk.voided.left : pk.total, used: pk.used, left: pk.voided ? 0 : pk.total - pk.used, unit, voided: !!pk.voided, suggested: Math.max(0, o.value - pk.used * unit) };
         if (pk.voided) o.left = 0;
@@ -327,6 +422,17 @@ export function checkRefund(s, input, ctx) {
     // what was already given back without lines comes off what these lines may still take
     const room = plan.free + picked.filter((o) => o.kind === 'pack').reduce((t, o) => t + Math.max(0, o.value), 0);
     if (max - liability > room) fail(409, 'refunded', 'Une partie du ticket est déjà remboursée : au plus ' + eu(room + liability) + ' pour ces lignes, ou rembourse un montant sans ligne.', { max: room + liability });
+    // less than the lines are worth: each line gives back its share (a gift card always its whole value), so the
+    // credit note's lines add up to its amount, the VAT below follows them and what is left of a line stays its own
+    if (x.amount < max) {
+      const scaled = picked.filter((o) => o.kind !== 'giftcard' && o.amount > 0);
+      const from = max - liability, to = x.amount - liability;
+      // largest remainder: the cents rounding leaves go to the lines that lost most, so no line exceeds its own value
+      const exact = scaled.map((o) => (o.amount * to) / from);
+      scaled.forEach((o, i) => { o.amount = Math.floor(exact[i]); });
+      let rest = to - scaled.reduce((t, o) => t + o.amount, 0);
+      for (const i of scaled.map((o, k) => k).sort((a, b) => (exact[b] - Math.floor(exact[b])) - (exact[a] - Math.floor(exact[a])) || a - b)) { if (rest <= 0) break; scaled[i].amount += 1; rest -= 1; }
+    }
   } else if (x.amount > plan.free) {
     // a pack's value goes back only through its line, which cancels it: no refund leaves the cuts behind
     if (livePack) fail(409, 'pack_used', 'Un abonnement se rembourse par sa ligne (« Annuler l’abonnement ») : sans ligne, au plus ' + eu(plan.free) + '.', { max: plan.free });
@@ -386,7 +492,10 @@ export const refund = {
     });
     for (const o of picked) {
       if (o.kind === 'pack' && o.pack) ctx.emit('pack.voided', { id: o.pack.id, saleId: sale.id, refundId: rid, cid: sale.clientId || undefined });
-      if (o.kind === 'giftcard' && o.giftcard) ctx.emit('giftcard.voided', { id: o.giftcard.id, reason: 'refunded', saleId: sale.id, refundId: rid });
+      if (o.kind === 'giftcard' && o.giftcard) {
+        ctx.emit('giftcard.voided', { id: o.giftcard.id, reason: 'refunded', saleId: sale.id, refundId: rid });
+        withdrawPlanned(s, ctx, s.giftcards.get(o.giftcard.id), 'Carte annulée');
+      }
     }
     for (const r of restock) ctx.emit('stock.adjusted', { productId: r.product.id, delta: r.qty, reason: 'Retour', saleId: sale.id, name: r.product.name });
     return { id: rid, number, ref: refundNo(number), amount: x.amount, liability };
@@ -399,7 +508,11 @@ export const refund = {
 const GIFT_TEXT = "L'Architecte : {acheteur} t'offre une carte cadeau de {montant} ! Code {code}, valable jusqu'au {date}. Réserve : {lien}";
 // nobody named (no client on the ticket, "De la part de" left empty): a text out of the blue says it plainly
 const GIFT_ANON = "L'Architecte : une carte cadeau de {montant} t'a été offerte ! Code {code}, valable jusqu'au {date}. Réserve : {lien}";
-const giftSendSchema = obj({ id: id(), code: str({ min: 4, max: 40 }), phone: str({ min: 6, max: 32 }), from: opt(str({ max: 40 })) });
+const giftSendSchema = obj({
+  id: id(), code: str({ min: 4, max: 40 }), phone: str({ min: 6, max: 32 }), from: opt(str({ max: 40 })),
+  // a card bought online: its own printable page (/cadeau/…) rather than the site; nothing else can go in a salon's text
+  link: opt(str({ max: 300, pattern: /^https?:\/\/[^\s/]+\/cadeau\/[A-Za-z0-9_.-]{8,200}$/ }))
+});
 
 /**
  * Text the code of a card to its recipient. Only someone holding the code can send it (the server keeps a hash):
@@ -423,7 +536,7 @@ export const sendGiftcode = {
     const tpl = buyer ? own || /** @type {any} */ (TEMPLATES).giftcardCode || GIFT_TEXT : own && !own.includes('{acheteur}') ? own : GIFT_ANON;
     const mid = queueMessage(s, ctx, {
       key: 'giftcard_' + g.id + '_' + n, template: 'giftcardCode', text: tpl, to, cid: g.cid || null,
-      vars: { acheteur: buyer, montant: fmtEur(g.balance), code: x.code.trim().toUpperCase(), date: g.expires.split('-').reverse().join('/'), lien: ctx.meta.siteUrl || '' }
+      vars: { acheteur: buyer, montant: fmtEur(g.balance), code: x.code.trim().toUpperCase(), date: g.expires.split('-').reverse().join('/'), lien: x.link || ctx.meta.siteUrl || '' }
     });
     if (!mid) fail(409, 'not_sent', 'Ce numéro ne peut pas recevoir de SMS du salon.');
     return { id: mid };
@@ -444,7 +557,13 @@ export const reissueGiftcard = {
     ctx.emit('giftcard.voided', { id: g.id, reason: 'reissued', replacedBy: gid });
     // the balance moves to the new card: no sale, so no Z counts it again
     ctx.emit('giftcard.issued', { id: gid, codeHash: sha256(normGiftCode(code)), last4: code.slice(-4), amount: g.balance, expires: g.expires, reissueOf: g.id, ...(g.legacy ? { legacy: true } : {}), cid: g.cid || undefined }, { buyer: g.buyer || '', recipient: g.recipient || '' });
-    return { id: gid, code, last4: code.slice(-4), amount: g.balance, expires: g.expires, recipient: g.recipient || '' };
+    // bought online with its text still to leave: the same text, at the same moment, to the same number, under the new code
+    const w = withdrawPlanned(s, ctx, g, 'Carte remplacée');
+    const old = w && (String(w.m.body).match(/[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}/g) || []).find((c) => sha256(normGiftCode(c)) === g.codeHash);
+    const planned = w && old && w.m.to ? queueMessage(s, ctx, {
+      key: 'giftshop_' + w.py.id + '_' + gid, template: w.m.template, text: String(w.m.body).split(old).join(code), to: w.m.to, cid: w.m.cid || null, vars: {}, dueAt: w.m.dueAt
+    }) : null;
+    return { id: gid, code, last4: code.slice(-4), amount: g.balance, expires: g.expires, recipient: g.recipient || '', ...(planned ? { planned: { to: w.m.toMasked, dueAt: w.m.dueAt } } : {}) };
   }
 };
 
