@@ -7,7 +7,7 @@ import { createEngine } from '../../server/core/engine.js';
 import { memoryStore } from '../../server/store/memory.js';
 import { CAPS, capsOf } from '../../server/domain/permissions.js';
 import { initialize } from '../../server/commands/setup.js';
-import { addStaff } from '../../server/commands/team.js';
+import { addStaff, addTimeOff } from '../../server/commands/team.js';
 import { addService, addProduct, adjustStock } from '../../server/commands/catalog.js';
 import { addClient } from '../../server/commands/clients.js';
 import { updateSettings } from '../../server/commands/shop.js';
@@ -133,7 +133,7 @@ test('carnet cuts count for whoever cuts, at the price paid per cut; « pour qui
   let rep = report(t.s(), t.q());
   let e = rowOf(rep, t.ids.Esteban);
   assert.equal(e.revenue, 3200, 'Esteban: 2 × 16 €');
-  assert.deepEqual(e.cutsCarnet, { n: 2, value: 3200, estimated: 0 });
+  assert.deepEqual(e.cutsCarnet, { n: 2, value: 3200, estimated: 0, unpriced: 0 });
   assert.equal(e.commission, 1280, 'commission on 32 €');
   assert.equal(rowOf(rep, t.ids.desk), undefined, 'the desk: nothing (the carnet is money for later)');
   assert.equal(rep.gap.prepaidSold, 8000);
@@ -160,10 +160,50 @@ test('a carnet taken over from the old site: its cut is worth the catalogue carn
   await t.engine.run(S.checkout, { clientId: t.ids.yanis, lines: [{ kind: 'service', ref: t.ids.cut, packId: 'pk_old', staffId: t.ids.JKut }], payments: [{ method: 'card', amount: 0 }] }, t.asOwner());
   const j = rowOf(report(t.s(), t.q()), t.ids.JKut);
   assert.equal(j.revenue, 1600, '80 € ÷ 5');
-  assert.deepEqual(j.cutsCarnet, { n: 1, value: 1600, estimated: 1600 });
+  assert.deepEqual(j.cutsCarnet, { n: 1, value: 1600, estimated: 1600, unpriced: 0 });
   const st = staffStatement(t.s(), t.ids.JKut, '2026-11', DAY, t.clock.now);
   assert.equal(st.cuts.carnet.estimated, 1600);
   assert.ok(st.warnings.some((w) => /estimée/.test(w) && /ancien site/.test(w)));
+  // one that matches nothing in the catalogue: worth 0 € until linked, and said so rather than silently nothing
+  await t.engine.run(raw, { events: [['pack.sold', { id: 'pk_lost', clientId: t.ids.ali, cid: t.ids.ali, name: 'Carnet fidèle', total: 4, serviceIds: [], expires: '2027-06-01', serviceId: null, legacy: true }]] }, t.sys);
+  await t.engine.run(S.checkout, { clientId: t.ids.ali, lines: [{ kind: 'service', ref: t.ids.cut, packId: 'pk_lost', staffId: t.ids.JKut }], payments: [{ method: 'card', amount: 0 }] }, t.asOwner());
+  assert.deepEqual(rowOf(report(t.s(), t.q()), t.ids.JKut).cutsCarnet, { n: 2, value: 1600, estimated: 1600, unpriced: 1 });
+  const st2 = staffStatement(t.s(), t.ids.JKut, '2026-11', DAY, t.clock.now);
+  assert.ok(st2.warnings.includes('1 coupe de carnet repris sans prix au catalogue'), st2.warnings.join(' | '));
+});
+
+test('only a chair earns a barber’s figures: the desk or the owner ringing up alone stays « sans barbier »', async () => {
+  const t = await shop();
+  // the desk sells a wax with no appointment: the line is credited to the cashier, who has no chair
+  const sold = await t.engine.run(S.checkout, { lines: [{ kind: 'product', ref: t.ids.wax }], payments: card(600) }, t.as(t.ids.desk));
+  assert.equal(t.s().sales.get(sold.id).lines[0].staffId, t.ids.desk);
+  assert.ok(!t.s().staff.get(t.ids.owner).chair, 'the owner of this salon has no chair');
+  await t.engine.run(S.checkout, { lines: [{ kind: 'product', ref: t.ids.wax }], payments: card(600) }, t.asOwner());
+  let rep = report(t.s(), t.q());
+  assert.equal(rowOf(rep, t.ids.desk), undefined, 'no row for the desk');
+  assert.equal(rowOf(rep, t.ids.owner), undefined, 'no row for the owner');
+  assert.equal(rep.gap.unassigned, 1200);
+  assert.equal(rep.staff.reduce((s, x) => s + x.revenue, 0), rep.performed);
+  assert.equal(rep.revenue, rep.performed + rep.gap.prepaidSold - rep.gap.prepaidUsed - rep.gap.rewards + rep.gap.unassigned);
+  // its refund comes off « sans barbier » too
+  await t.engine.run(S.refund, { saleId: sold.id, amount: 600, method: 'card', reason: 'Retour' }, t.asOwner());
+  rep = report(t.s(), t.q());
+  assert.equal(rowOf(rep, t.ids.desk), undefined);
+  assert.equal(rep.gap.unassigned, 600);
+  assert.equal(rep.revenue, rep.performed + rep.gap.prepaidSold - rep.gap.prepaidUsed - rep.gap.rewards + rep.gap.unassigned);
+});
+
+test('statement: an absence on a special opening he was named for counts as a day away', async () => {
+  const t = await shop();
+  // Monday 9 November: the salon is usually closed, opens for Frank; Frank is away that day
+  await t.set({ openings: [{ day: '2026-11-09', intervals: [[540, 1080]], label: 'Avant les fêtes', staff: [t.ids.Frank] }] });
+  let st = staffStatement(t.s(), t.ids.Frank, '2026-11');
+  const worked = st.workedDays;
+  assert.equal(st.absenceDays, 0);
+  await t.engine.run(addTimeOff, { staffId: t.ids.Frank, from: '2026-11-09', to: '2026-11-09', reason: 'Malade' }, t.asOwner());
+  st = staffStatement(t.s(), t.ids.Frank, '2026-11');
+  assert.equal(st.workedDays, worked - 1);
+  assert.equal(st.absenceDays, 1, 'the two columns agree');
 });
 
 test('a member’s cut counts at its share of the month; the membership line is nobody’s', async () => {
@@ -360,6 +400,11 @@ test('API: one number for one barber and one day (agenda, Mes chiffres, statemen
   for (const k of ['walkins', 'newClients', 'returned60', 'cutsCarnet', 'cutsMember', 'tipsCard', 'tipsCash', 'capMin', 'idleMin', 'perHour', 'discounts', 'refunds']) assert.ok(k in shopRep.staff[0], k);
   assert.equal(shopRep.goal.month, '2026-10', 'the goal follows the chosen month');
   assert.equal(shopRep.goal.target, s.settings.goals.monthCents);
+  assert.deepEqual(shopRep.rules, { base: 'ttc', cutCredit: 'performer', memberCredit: 'split', rewardCredit: 'list' }, 'the rules the figures were computed on');
+  // a period over several months follows the month it ends in, never a false « non atteint » for its first month
+  const q3 = (await o.get('/api/v1/reports?from=' + addDays(DAY, -89) + '&to=' + DAY)).json;
+  assert.equal(q3.goal.month, '2026-11');
+  assert.equal(q3.goal.elapsed, 3);
 });
 
 test('API: the statement is one’s own unless one manages the team; no future month; the goal hides when the owner says so', async () => {

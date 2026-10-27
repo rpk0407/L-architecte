@@ -84,14 +84,27 @@
 .rp-team th { white-space: normal; vertical-align: bottom; line-height: 1.25; }
 .rp-team th.num { min-width: 64px; }
 .rp-team th, .rp-team td { padding-left: 7px; padding-right: 7px; }
-@media (max-width: 1300px) { .rp-team .rp-m { display: none; } }
+/* the secondary columns go first, so Commission (the one payroll reads) never slides out of view */
+@media (max-width: 1400px) { .rp-team .rp-m { display: none; } }
+@media (max-width: 1250px) { .rp-team .rp-m2 { display: none; } }
 .rp-who { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; margin: -10px 0 -6px; padding: 0 8px 0 0; border-radius: 10px; color: inherit; text-align: left; }
 .rp-who > svg { color: var(--tx3); }
 .rp-who:hover b, .rp-who:focus-visible b { text-decoration: underline; text-underline-offset: 3px; }
+/* the owner's table: Barbier, Chiffre, Commission on a tablet and a phone, the rest in the row sheet */
+@media (max-width: 1100px) { .rp-shop .rp-x { display: none; } }
 @media (max-width: 760px) {
   .rp-team .rp-x { display: none; }
   .rp-team .tr { width: 96px; }
   .rp-rules { text-align: left; }
+}
+/* the narrowest phones: the three columns still fit without a sideways scroll */
+@media (max-width: 360px) {
+  .rp-team { font-size: 13px; }
+  .rp-team .tr { width: 64px; }
+  .rp-team th, .rp-team td { padding-left: 4px; padding-right: 4px; }
+  .rp-team th.num { min-width: 0; }
+  .rp-who { gap: 7px; }
+  .rp-who > svg { display: none; }
 }
 .rp-row { display: flex; flex-direction: column; }
 .rp-row > div { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; padding: 11px 0; border-bottom: 1px solid var(--line); }
@@ -116,6 +129,8 @@
 @page statement { size: A4; margin: 14mm; }
 @media print {
   html:has(.rp-print), body:has(.rp-print) { background: #fff !important; }
+  /* hidden is not gone: the app would still take its height and print blank pages after the statement */
+  body:has(.rp-print) > :not(.rp-print) { display: none !important; }
   .print-only.rp-print { width: auto; right: 0; font: 11pt/1.4 var(--sans), Arial, sans-serif; page: statement; }
   .rp-print h1 { font: 600 16pt/1.2 var(--sans), Arial, sans-serif; margin-bottom: 10pt; }
   .rp-print .note, .rp-print .rp-st-top > div { background: none; box-shadow: none; border: 1px solid #999; }

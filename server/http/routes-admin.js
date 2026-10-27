@@ -388,7 +388,7 @@ export function adminRoutes(app) {
       const rows = [[...rulesRow(s), 'Mois : ' + monthWords(month) + (all.some((x) => x.provisional) ? ' (provisoire)' : '')],
         ['Barbier', 'Réalisé TTC', 'Réalisé HT', 'Commission', 'Pourboires carte', 'Pourboires espèces', 'Coupes carnet', 'Coupes abonnement', 'Remboursements déduits', 'Jours travaillés', 'Jours d’absence', 'Remarques']];
       for (const x of all) {
-        const notes = [x.cuts.carnet.estimated ? 'dont ' + eu(x.cuts.carnet.estimated) + ' estimé (carnet repris)' : '', x.rewards.value ? 'coupes fidélité ' + eu(x.rewards.value) : ''].filter(Boolean).join(' · ');
+        const notes = [x.cuts.carnet.estimated ? 'dont ' + eu(x.cuts.carnet.estimated) + ' estimé (carnet repris)' : '', x.cuts.carnet.unpriced ? x.cuts.carnet.unpriced + ' coupe(s) de carnet repris sans prix au catalogue' : '', x.rewards.value ? 'coupes fidélité ' + eu(x.rewards.value) : ''].filter(Boolean).join(' · ');
         rows.push([x.staff.name, eu(x.performed), eu(x.performedHt), eu(x.commission), eu(x.tips.card), eu(x.tips.cash), eu(x.cuts.carnet.value), eu(x.cuts.member.value), eu(x.refunds), x.workedDays, x.absenceDays, notes]);
       }
       body = csv(rows);

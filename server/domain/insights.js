@@ -134,7 +134,8 @@ function lineCredit(s, rules, l) {
     // 'seller': as before, the cut counts but is worth nothing to whoever does it
     const c = rules.cutCredit === 'seller' ? { value: 0, estimated: false } : carnetCutValue(s, s.packs.get(l.packId));
     const v = c.value * (l.qty || 1);
-    return { kind: 'carnet', cls: 'service', value: l.net + v, extra: v, estimated: c.estimated && v > 0 };
+    // a carnet taken over with no price in the catalogue is worth nothing until the owner links it: still flagged
+    return { kind: 'carnet', cls: 'service', value: l.net + v, extra: v, estimated: c.estimated && rules.cutCredit !== 'seller', unpriced: c.estimated && rules.cutCredit !== 'seller' && !c.value };
   }
   if (l.memberId) {
     // PAY-02's credit is the month's price ÷ its cuts; 'list' the price on the card; 'zero' nothing
@@ -193,7 +194,7 @@ const blankRow = (st) => ({
   id: st.id, name: st.name, color: st.color, chair: !!st.chair, revenue: 0, revenueHT: 0, serviceRevenue: 0, productRevenue: 0, services: 0,
   base: { service: { ttc: 0, ht: 0 }, product: { ttc: 0, ht: 0 } },
   paid: { services: { n: 0, net: 0 }, products: { n: 0, net: 0 }, fees: { n: 0, net: 0 }, packs: { n: 0, net: 0 } },
-  cutsCarnet: { n: 0, value: 0, estimated: 0 }, cutsMember: { n: 0, value: 0 }, rewards: { n: 0, value: 0 },
+  cutsCarnet: { n: 0, value: 0, estimated: 0, unpriced: 0 }, cutsMember: { n: 0, value: 0 }, rewards: { n: 0, value: 0 },
   tips: 0, tipsCard: 0, tipsCash: 0, discounts: 0, refunds: 0, refundIds: new Set(), tickets: new Set(), clients: new Set(),
   done: 0, noShows: 0, booked: 0, minutes: 0, rebooked: 0, walkins: 0, walkinOverrides: 0, newClients: new Set(), newToMe: new Set(),
   pastMin: 0, capMin: 0, returned: { base: 0, back: 0, mine: 0 }, days: new Map()
@@ -216,10 +217,15 @@ function teamRows(s, q) {
     /** @type {Map<string, any>} */
     const rows = new Map();
     for (const st of s.staff.values()) if (st.chair) rows.set(st.id, blankRow(st));
-    const row = (id) => {
+    // only a chair earns a barber's figures: a sale the desk or a chairless owner rings up alone stays « sans barbier »;
+    // the one exception is a carnet sold under 'seller', which is its seller's whoever he is
+    const row = (id, c) => {
       if (!id) return null;
       let x = rows.get(id);
-      if (!x) { const st = s.staff.get(id); if (!st) return null; x = blankRow(st); rows.set(id, x); }
+      if (x && (x.chair || (c && c.kind === 'pack'))) return x;
+      if (x || !c || c.kind !== 'pack') return null;
+      const st = s.staff.get(id); if (!st) return null;
+      x = blankRow(st); rows.set(id, x);
       return x;
     };
     const dayOf = (x, d) => { let v = x.days.get(d); if (!v) { v = { day: d, revenue: 0, tickets: 0, tips: 0 }; x.days.set(d, v); } return v; };
@@ -233,7 +239,7 @@ function teamRows(s, q) {
       const seen = new Set();
       for (const l of x.lines) {
         const c = lineCredit(s, rules, l);
-        const st = c ? row(l.staffId) : null;
+        const st = c ? row(l.staffId, c) : null;
         if (!c || !st) {
           // nobody's: a carnet or a month sold is prepaid money; anything else rung up without a barber stays the salon's
           if (l.kind === 'giftcard') continue;
@@ -244,7 +250,7 @@ function teamRows(s, q) {
         st.revenue += c.value; st.revenueHT += h;
         if (c.cls) { st.base[c.cls].ttc += c.value; st.base[c.cls].ht += h; }
         if (c.kind === 'service' || c.kind === 'carnet' || c.kind === 'member' || c.kind === 'pack') st.services += l.qty;
-        if (c.kind === 'carnet') { st.cutsCarnet.n += l.qty; st.cutsCarnet.value += c.extra; if (c.estimated) st.cutsCarnet.estimated += c.extra; gap.prepaidUsed += c.extra; }
+        if (c.kind === 'carnet') { st.cutsCarnet.n += l.qty; st.cutsCarnet.value += c.extra; if (c.estimated) st.cutsCarnet.estimated += c.extra; if (c.unpriced) st.cutsCarnet.unpriced += l.qty || 1; gap.prepaidUsed += c.extra; }
         else if (c.kind === 'member') { st.cutsMember.n += l.qty; st.cutsMember.value += c.extra; gap.prepaidUsed += c.extra; }
         else if (c.kind === 'pack') { st.paid.packs.n += l.qty; st.paid.packs.net += l.net; }
         else { const k = c.kind === 'service' ? 'services' : c.kind === 'product' ? 'products' : 'fees'; st.paid[k].n += l.qty; st.paid[k].net += l.net; }
@@ -254,7 +260,7 @@ function teamRows(s, q) {
         if (!seen.has(st.id)) { seen.add(st.id); dayOf(st, d).tickets++; }
       }
       if (x.tip && x.tip.amount) {
-        const st = row(x.tip.staffId);
+        const st = row(x.tip.staffId, null);
         if (st) {
           // the tip leaves the way the ticket was paid: its cash share in cash (an estimate; the rest by card or online)
           const paid = x.payments.reduce((t, p) => t + p.amount, 0);
@@ -274,7 +280,7 @@ function teamRows(s, q) {
       for (const sh of refundShares(s, r)) {
         const l = sale && sale.lines[sh.i];
         const c = l ? lineCredit(s, rules, l) : null;
-        const st = c ? row(l.staffId) : null;
+        const st = c ? row(l.staffId, c) : null;
         if (!c || !st) { if (sh.kind === 'pack' || sh.kind === 'membership') gap.prepaidSold -= sh.amount; else gap.unassigned -= sh.amount; continue; }
         const h = htOf(sh.amount, sh.vat);
         st.revenue -= sh.amount; st.revenueHT -= h; st.refunds += sh.amount; st.refundIds.add(r.id);
@@ -296,7 +302,7 @@ function teamRows(s, q) {
       const a = s.appts.get(aid);
       // history taken over from the old site took no chair time here: it stays out of the team's figures
       if (!a || a.legacy || a.status === 'cancelled') continue;
-      const st = row(a.staffId);
+      const st = row(a.staffId, null);
       if (!st) continue;
       if (a.status === 'no_show') { st.noShows++; continue; }
       st.booked++; st.minutes += a.dur; st.pastMin += past(d, a.start, a.start + a.dur);
@@ -330,8 +336,8 @@ function teamRows(s, q) {
       const st = s.staff.get(x.id);
       let cap = 0, pastCap = 0;
       if (st && st.chair) for (const d of days) for (const [a, b] of staffIntervals(s, x.id, d)) { cap += b - a; pastCap += past(d, a, b); }
-      // someone with no chair shows only when something is his (a carnet sold under 'seller', a tip, a refund)
-      if (!x.chair && !x.revenue && !x.tips && !x.refunds && !x.tickets.size) continue;
+      // someone with no chair shows only for a carnet sold under 'seller' (or its refund)
+      if (!x.chair && !x.revenue && !x.refunds && !x.tickets.size) continue;
       const com = st && st.commission ? st.commission : { service: 0, product: 0 };
       const b = rules.base === 'ht' ? 'ht' : 'ttc';
       out.push({
@@ -471,7 +477,9 @@ export function report(s, q) {
       products: [...byProduct.values()].sort((a, b) => b.revenue - a.revenue),
       methods, sources, heatmap,
       // the shop: what the team performed against what came in, and why they differ
-      ...(one ? {} : { performed: team.performed, gap: { ...team.gap } })
+      ...(one ? {} : { performed: team.performed, gap: { ...team.gap } }),
+      // the rules these figures were computed on, so a note under them never disagrees with them
+      rules: { ...team.rules }
     };
   });
 }

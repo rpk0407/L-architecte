@@ -3,9 +3,9 @@
 // memberships credited to him, the refunds deducted, his days. Read from report()'s rows only, so Mes chiffres, the agenda
 // and the payroll CSV give the same numbers; the accountant's payroll pack reuses it and never recomputes a commission.
 // An estimate for the payroll provider: « Estimation, la paie fait foi ».
-import { addDays, dayRange, monthStart, monthEnd, weekday, instantOf, MONTHS_FR } from '../../shared/dates.js';
+import { dayRange, monthEnd, instantOf, MONTHS_FR } from '../../shared/dates.js';
 import { report } from './insights.js';
-import { staffIntervals, shopIntervals, UNDECIDED } from './availability.js';
+import { staffIntervals, UNDECIDED } from './availability.js';
 import { hadTill } from './cash.js';
 import { payRulesOf } from '../settings/team.js';
 
@@ -15,14 +15,15 @@ export const PROVISIONAL = 'mois non clôturé : chiffres provisoires';
 export const monthWords = (month) => MONTHS_FR[Number(month.slice(5, 7)) - 1] + ' ' + month.slice(0, 4);
 
 /**
- * Days of the month (up to `last`) he was due in and was away: an approved absence on a day his week and the salon
- * open; a part of a day counts as a day.
+ * Days of the month (up to `last`) he was due in and was away: an approved absence on a day he would have worked, read
+ * as the worked days are (his week, the salon's hours and its special openings: staffIntervals without the time off);
+ * a part of a day counts as a day.
  */
 function absences(s, staffId, days) {
-  const st = s.staff.get(staffId);
-  if (!st) return 0;
-  return days.filter((d) => ((st.schedule && st.schedule[weekday(d)]) || []).length && shopIntervals(s, d).length
-    && [...s.timeoff.values()].some((t) => t.staffId === staffId && d >= t.from && d <= t.to && !UNDECIDED.has(t.status))).length;
+  const off = [...s.timeoff.values()].filter((t) => t.staffId === staffId && !UNDECIDED.has(t.status));
+  if (!off.length) return 0;
+  const plain = { ...s, timeoff: new Map() };
+  return days.filter((d) => off.some((t) => d >= t.from && d <= t.to) && staffIntervals(plain, staffId, d).length).length;
 }
 
 /**
@@ -42,10 +43,12 @@ export function staffStatement(s, staffId, month, today, now) {
   const days = to >= from ? dayRange(from, to) : [];
   const zero = { n: 0, net: 0 };
   const refunds = row ? row.refunds : 0, refundCount = row ? row.refundCount : 0;
-  const carnet = row ? row.cutsCarnet : { n: 0, value: 0, estimated: 0 };
+  const carnet = row ? row.cutsCarnet : { n: 0, value: 0, estimated: 0, unpriced: 0 };
   const warnings = [];
   if (refundCount) warnings.push(refundCount + (refundCount > 1 ? ' remboursements déduits' : ' remboursement déduit'));
   if (carnet.estimated) warnings.push('coupes de carnet repris de l’ancien site : valeur estimée (prix du carnet ÷ coupes)');
+  // a carnet taken over that matches nothing in the catalogue: the cut counts 0 € until the owner links it
+  if (carnet.unpriced) warnings.push(carnet.unpriced + (carnet.unpriced > 1 ? ' coupes de carnet repris sans prix au catalogue' : ' coupe de carnet repris sans prix au catalogue'));
   // a day with something at the till and no Z, or a month that is not over: the figures may still move
   const provisional = (!!today && today <= end) || days.some((d) => hadTill(s, d) && !s.closures.has(d));
   if (provisional) warnings.push(PROVISIONAL);
@@ -62,6 +65,3 @@ export function staffStatement(s, staffId, month, today, now) {
     warnings
   };
 }
-
-/** The month before `day`'s, as YYYY-MM (the statement a barber checks at the start of a month). */
-export const lastMonth = (day) => addDays(monthStart(day), -1).slice(0, 7);

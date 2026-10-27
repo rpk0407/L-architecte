@@ -321,7 +321,7 @@ function teamSide(r, from, to) {
     out.salon = { goalPct: target > 0 ? Math.round((m.revenue / target) * 100) : null, fill: m.occupancy };
   }
   if (r.caps.has('report.team')) {
-    out.team = report(s, { from, to, staffId: null, today: L.day, now: r.now }).staff.filter((x) => s.staff.get(x.id)?.active)
+    out.team = report(s, { from, to, staffId: null, today: L.day, now: r.now }).staff.filter((x) => s.staff.get(x.id)?.active && s.staff.get(x.id)?.chair)
       .map((x) => ({ id: x.id, name: x.name, color: x.color, revenue: x.revenue, done: x.done, occupancy: x.occupancy, rebookRate: x.rebookRate, noShows: x.noShows, avgTicket: x.avgTicket }));
   }
   return out;
@@ -689,10 +689,11 @@ export function staffRoutes(app) {
     const pp = previousPeriod(from, to);
     const prev = report(r.s, { ...pp, staffId, today: L.day, now: r.now });
     const pick = (x) => ({ revenue: x.revenue, tickets: x.tickets, avgTicket: x.avgTicket, clients: x.clients, newClients: x.newClients, occupancy: x.occupancy, noShowRate: x.noShowRate, tips: x.tips, series: x.series.map((d) => d.revenue) });
-    // the goal of the month the period starts in (TEAM-03): the salon's on Encaissé, a barber's on his Chiffre réalisé;
+    // the goal of the chosen month (TEAM-03): the salon's on Encaissé, a barber's on his Chiffre réalisé. A period over
+    // several months (7 days astride two, 3 months, the year) follows the month it ends in, today's for the usual ones;
     // a barber sees his own only when the owner lets barbers see theirs, never the salon's in euros
-    const ms = monthStart(from), me = monthEnd(from);
-    const gday = me < L.day ? me : from > L.day ? from : L.day;
+    const ms = monthStart(to), me = monthEnd(to);
+    const gday = me < L.day ? me : ms > L.day ? ms : L.day;
     const elapsed = me < L.day ? diffDays(ms, me) + 1 : ms > L.day ? 0 : diffDays(ms, L.day) + 1;
     const showGoal = !own || r.s.settings.goals.showBarbers !== false;
     const goal = showGoal ? { ...goalOf(r.s, staffId, gday, r.now), days: diffDays(ms, me) + 1, elapsed } : null;

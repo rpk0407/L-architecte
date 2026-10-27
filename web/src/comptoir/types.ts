@@ -34,7 +34,7 @@ export type StaffRow = {
   id: string; name: string; color: string; chair: boolean; revenue: number; revenueHT: number; serviceRevenue: number; productRevenue: number; services: number;
   tips: number; tipsCard: number; tipsCash: number; tickets: number; clients: number; avgTicket: number; done: number; noShows: number; occupancy: number; rebookRate: number;
   commission: number; rates: { service: number; product: number }; base: 'ttc' | 'ht'; walkins: number; walkinOverrides: number; newClients: number; newToMe: number;
-  discounts: number; refunds: number; refundCount: number; cutsCarnet: { n: number; value: number; estimated: number }; cutsMember: { n: number; value: number };
+  discounts: number; refunds: number; refundCount: number; cutsCarnet: { n: number; value: number; estimated: number; unpriced?: number }; cutsMember: { n: number; value: number };
   rewards: { n: number; value: number }; paid: { services: Count; products: Count; fees: Count; packs: Count };
   capMin: number; idleMin: number; perHour: number; returned60: number; returned60Mine: number; returned60Base: number;
 };
@@ -47,7 +47,7 @@ export type Statement = {
   month: string; from: string; to: string; label: string; provisional: boolean; staff: { id: string; name: string; color: string };
   base: 'ttc' | 'ht'; rates: { service: number; product: number }; cutCredit: 'performer' | 'seller'; memberCredit: 'split' | 'zero' | 'list'; rewardCredit: 'list' | 'net';
   performed: number; performedHt: number; commission: number; services: Count; products: Count; fees: Count; packs: Count;
-  cuts: { carnet: { n: number; value: number; estimated: number }; member: { n: number; value: number } }; rewards: { n: number; value: number };
+  cuts: { carnet: { n: number; value: number; estimated: number; unpriced?: number }; member: { n: number; value: number } }; rewards: { n: number; value: number };
   refunds: number; refundCount: number; tips: { card: number; cash: number }; discountsGiven: number; done: number; noShows: number; walkins: number;
   absenceDays: number; workedDays: number; warnings: string[];
 };

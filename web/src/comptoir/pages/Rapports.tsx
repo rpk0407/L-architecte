@@ -2,13 +2,13 @@
 // and what to do about it. A barber sees his own numbers and his commission; the owner sees the salon.
 // TEAM-03: a barber's figure is his Chiffre réalisé (refunds deducted, carnet and membership cuts credited), the same on
 // the agenda, here and in his monthly statement; the salon's is Encaissé, and the gap between the two is explained.
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { qs } from '../../lib/api';
 import { useQuery } from '../../lib/query';
 import { setQuery, useRoute } from '../../lib/router';
 import { cap, dates, eur, METHOD, pct, plural, SOURCE } from '../../lib/format';
-import { gapWords, rulesWords } from '../../lib/figures';
+import { gapParts, rulesWords } from '../../lib/figures';
 import { Icon } from '../../ui/Icon';
 import { Avatar, Button, Chip, Delta, Empty, Kpi, Note, Sheet, Skeleton } from '../../ui/kit';
 import { useApp } from '../state';
@@ -30,6 +30,8 @@ type Report = OwnSide & {
   goal: GoalView | null;
   // the shop: the team's Chiffre réalisé and why it is not Encaissé; own scope: his rebooking rate
   performed?: number; gap?: Gap; rebookRate?: number;
+  // the rules these figures were computed on (Équipe › Rémunération)
+  rules?: { base: 'ttc' | 'ht'; cutCredit: 'performer' | 'seller'; memberCredit: string; rewardCredit: string };
 };
 
 const PERIODS = [
@@ -97,8 +99,8 @@ function Body({ r, shop, who }: { r: Report; shop: boolean; who: string }) {
   const span = r.from === r.to ? cap(dates.dayLong(r.from)) : 'Du ' + dates.dayShort(r.from) + ' au ' + dates.dayShort(r.to);
   const prevSpan = r.prevRange.from === r.prevRange.to ? dates.dayShort(r.prevRange.from) : dates.dayShort(r.prevRange.from) + ' → ' + dates.dayShort(r.prevRange.to);
   const nothing = !r.tickets && !r.done && !r.noShows;
-  // the statement of the month the period starts in (never a month to come)
-  const month = (r.from > boot.today ? boot.today : r.from).slice(0, 7);
+  // the statement of the goal's month: the month the period ends in (today's for the usual periods), never one to come
+  const month = (r.to > boot.today ? boot.today : r.to).slice(0, 7);
   const [sheet, setSheet] = useState<{ staffId: string | null } | null>(null);
   return (
     <div className="col" style={{ gap: 16 }}>
@@ -107,20 +109,23 @@ function Body({ r, shop, who }: { r: Report; shop: boolean; who: string }) {
       {r.goal && own ? <MyGoal g={r.goal} /> : null}
       {own ? (
         <section className="kpis k6" aria-label="Mes chiffres">
-          <Kpi k="Mon chiffre" v={eur(r.revenue)} s={'HT ' + eur(r.revenueHT) + (r.refunds ? ' · remboursé ' + eur(r.refunds) : '')} delta={rel(r.revenue, r.prev.revenue)} icon="euro" />
-          <Kpi k="Commission estimée" v={mine ? eur(mine.commission) : '—'} s={mine ? 'prestations ' + mine.rates.service / 100 + ' % · produits ' + mine.rates.product / 100 + ' % · sur le ' + (mine.base === 'ht' ? 'HT' : 'TTC') : ''} icon="percent" />
-          <Kpi k="Pourboires" v={eur(r.tips)} s={mine ? 'carte ' + eur(mine.tipsCard) + ' · espèces ' + eur(mine.tipsCash) : 'hors chiffre'} delta={rel(r.tips, r.prev.tips)} icon="heart" />
-          <Kpi k="Panier moyen" v={eur(r.avgTicket)} s={plural(r.tickets, 'ticket')} delta={rel(r.avgTicket, r.prev.avgTicket)} icon="ticket" />
+          <Kpi k="Mon chiffre" v={<M c={r.revenue} />} s={<>HT <M c={r.revenueHT} />{r.refunds ? <> · remboursé <M c={r.refunds} /></> : null}</>} delta={rel(r.revenue, r.prev.revenue)} icon="euro" />
+          <Kpi k="Commission estimée" v={mine ? <M c={mine.commission} /> : '—'} s={mine ? 'prestations ' + mine.rates.service / 100 + ' % · produits ' + mine.rates.product / 100 + ' % · sur le ' + (mine.base === 'ht' ? 'HT' : 'TTC') : ''} icon="percent" />
+          <Kpi k="Pourboires" v={<M c={r.tips} />} s={mine ? <>carte <M c={mine.tipsCard} /> · espèces <M c={mine.tipsCash} /></> : 'hors chiffre'} delta={rel(r.tips, r.prev.tips)} icon="heart" />
+          <Kpi k="Panier moyen" v={<M c={r.avgTicket} />} s={plural(r.tickets, 'ticket')} delta={rel(r.avgTicket, r.prev.avgTicket)} icon="ticket" />
           <Kpi k="Repris avant de partir" v={mine && mine.done ? pct(r.rebookRate ?? mine.rebookRate) : '—'} s={mine && mine.done ? 'sur ' + plural(mine.done, 'visite') : 'aucune visite terminée'} icon="calendar" />
           <Kpi k="Revenus sous 60 j" v={mine && mine.returned60Base ? pct(mine.returned60) : '—'} s={mine && mine.returned60Base ? pct(mine.returned60Mine) + ' avec toi · ' + plural(mine.returned60Base, 'visite') + ' d’il y a 2 à 5 mois' : 'pas encore assez de recul'} icon="clients" />
         </section>
       ) : (
         <section className="kpis k5">
-          <Kpi k="Chiffre d’affaires" v={eur(r.revenue)} s={'HT ' + eur(r.revenueHT) + (r.refunds ? ' · avoirs ' + eur(r.refunds) : '')} delta={rel(r.revenue, r.prev.revenue)} icon="euro" />
-          <Kpi k="Panier moyen" v={eur(r.avgTicket)} s={plural(r.tickets, 'ticket')} delta={rel(r.avgTicket, r.prev.avgTicket)} icon="ticket" />
+          {mine ? (
+            // one barber: his Chiffre réalisé, not the money taken (the salon's « Chiffre d’affaires » is Encaissé)
+            <Kpi k="Chiffre réalisé" v={<M c={r.revenue} />} s={<>avoirs déduits, coupes de carnet comprises · HT <M c={r.revenueHT} /></>} delta={rel(r.revenue, r.prev.revenue)} icon="euro" />
+          ) : <Kpi k="Chiffre d’affaires" v={<M c={r.revenue} />} s={<>HT <M c={r.revenueHT} />{r.refunds ? <> · avoirs <M c={r.refunds} /></> : null}</>} delta={rel(r.revenue, r.prev.revenue)} icon="euro" />}
+          <Kpi k="Panier moyen" v={<M c={r.avgTicket} />} s={plural(r.tickets, 'ticket')} delta={rel(r.avgTicket, r.prev.avgTicket)} icon="ticket" />
           <Kpi k="Clients" v={r.clients} s={r.newClients ? r.newClients + ' nouveau' + (r.newClients > 1 ? 'x' : '') : 'aucun nouveau'} delta={rel(r.clients, r.prev.clients)} icon="clients" />
           <Kpi k="Remplissage" v={pct(r.occupancy)} s={r.noShows ? plural(r.noShows, 'absence') + ' · ' + pct(r.noShowRate, 1) : 'aucune absence'} delta={rel(r.occupancy, r.prev.occupancy)} bar={r.occupancy} icon="chair" />
-          {mine ? <Kpi k="Commission estimée" v={eur(mine.commission)} s={'prestations ' + mine.rates.service / 100 + ' % · produits ' + mine.rates.product / 100 + ' %'} icon="percent" /> : <Kpi k="Pourboires" v={eur(r.tips)} s="hors chiffre d’affaires" delta={rel(r.tips, r.prev.tips)} icon="heart" />}
+          {mine ? <Kpi k="Commission estimée" v={<M c={mine.commission} />} s={'prestations ' + mine.rates.service / 100 + ' % · produits ' + mine.rates.product / 100 + ' %'} icon="percent" /> : <Kpi k="Pourboires" v={<M c={r.tips} />} s="hors chiffre d’affaires" delta={rel(r.tips, r.prev.tips)} icon="heart" />}
         </section>
       )}
       {own && r.salon ? <p className="rp-salon"><Icon name="target" size={15} />Le salon : {r.salon.goalPct != null ? r.salon.goalPct + ' % de l’objectif du mois · ' : ''}remplissage {pct(r.salon.fill)}</p> : null}
@@ -182,11 +187,16 @@ function Body({ r, shop, who }: { r: Report; shop: boolean; who: string }) {
 /* ---------------- the month's target ---------------- */
 
 const monthName = (m: string) => dates.MONTHS_FR[Number(m.slice(5, 7)) - 1];
+/** A goal reads to the euro, every amount of it (« 4 098 € sur 6 370 € · il te faut 455 € »), never « 4 098,25 € sur 6370 € ». */
+const whole = (c: number) => eur(Math.round(c / 100) * 100);
+/** An amount hidden with « Masquer les montants ». */
+const M = ({ c, d }: { c: number; d?: boolean }) => <span className="money">{d ? eur(c, { decimals: true }) : eur(c)}</span>;
 /** « d’octobre », « de novembre » */
 const ofMonth = (m: string) => (/^[aeiouéèêh]/i.test(monthName(m)) ? 'd’' : 'de ') + monthName(m);
 
 function Goal({ g, who }: { g: GoalView; who: string }) {
   const over = g.elapsed >= g.days;
+  const before = g.elapsed <= 0;
   const proj = g.elapsed ? Math.round((g.done / g.elapsed) * g.days / 100) * 100 : 0;
   const ratio = g.target ? g.done / g.target : 0;
   const left = Math.max(0, g.target - g.done);
@@ -195,20 +205,22 @@ function Goal({ g, who }: { g: GoalView; who: string }) {
     <section className="card rp-goal">
       <div className="grow">
         <p className="section-k">Objectif du mois · {monthName(g.month)}{who ? ' · ' + who : ''}{g.staffId && g.auto ? ' · automatique' : ''}</p>
-        <p className="rp-goal-v"><b className="money">{eur(g.done)}</b> <span>sur {eur(g.target)}</span></p>
+        <p className="rp-goal-v"><b className="money">{whole(g.done)}</b> <span>sur <span className="money">{whole(g.target)}</span></span></p>
         <div className="rp-track" role="img" aria-label={pct(ratio) + ' de l’objectif'}>
           <i style={{ width: Math.min(100, ratio * 100) + '%' }} />
-          {over ? null : <s style={{ left: Math.min(100, (g.elapsed / g.days) * 100) + '%' }} title="Où on devrait en être aujourd’hui" />}
+          {over || before ? null : <s style={{ left: Math.min(100, (g.elapsed / g.days) * 100) + '%' }} title="Où on devrait en être aujourd’hui" />}
         </div>
       </div>
       <div className="rp-goal-side">
-        {over ? (
+        {before ? (
+          <><span className="badge">pas commencé</span><p className="faint">Le mois n’a pas commencé : rien à comparer pour l’instant.</p></>
+        ) : over ? (
           <><span className={'badge ' + (ratio >= 1 ? 'badge-ok' : 'badge-warn')}>{ratio >= 1 ? 'atteint' : 'non atteint'}</span><p>Mois terminé : <b>{pct(ratio)}</b> de l’objectif.</p></>
         ) : (
           <>
             <span className={'badge ' + (ahead ? 'badge-ok' : 'badge-warn')}>{ahead ? 'en avance' : 'en retard'}</span>
-            <p>Au rythme actuel : <b className="money">{eur(proj)}</b> fin du mois.</p>
-            {left && g.openDaysLeft ? <p className="faint">Il reste {eur(left)} à faire, soit {eur(g.perDay)} par jour ouvré ({plural(g.openDaysLeft, 'jour')}).</p> : left ? null : <p className="faint">Objectif atteint.</p>}
+            <p>Au rythme actuel : <b className="money">{whole(proj)}</b> fin du mois.</p>
+            {left && g.openDaysLeft ? <p className="faint">Il reste <span className="money">{whole(left)}</span> à faire, soit <span className="money">{whole(g.perDay)}</span> par jour ouvré ({plural(g.openDaysLeft, 'jour')}).</p> : left ? null : <p className="faint">Objectif atteint.</p>}
           </>
         )}
       </div>
@@ -225,13 +237,13 @@ function MyGoal({ g }: { g: GoalView }) {
   return (
     <section className="card rp-goal rp-mygoal" aria-label="Mon objectif">
       <div className="grow">
-        <p className="rp-goal-line"><b>Mon objectif {ofMonth(g.month)} :</b> <span className="money">{eur(g.done)}</span> sur <span className="money">{eur(g.target)}</span>
-          {left && g.openDaysLeft && !over ? <> · il te faut <b className="money">{eur(g.perDay)}</b> par jour ouvré</> : !left ? <> · <b>atteint</b>, bravo</> : null}</p>
+        <p className="rp-goal-line"><b>Mon objectif {ofMonth(g.month)} :</b> <span className="money">{whole(g.done)}</span> sur <span className="money">{whole(g.target)}</span>
+          {left && g.openDaysLeft && !over ? <> · il te faut <b className="money">{whole(g.perDay)}</b> par jour ouvré</> : !left ? <> · <b>atteint</b>, bravo</> : null}</p>
         <div className="rp-track" role="img" aria-label={pct(ratio) + ' de mon objectif'}>
           <i style={{ width: Math.min(100, ratio * 100) + '%' }} />
           {over ? null : <s style={{ left: Math.min(100, (g.elapsed / g.days) * 100) + '%' }} title="Où tu devrais en être aujourd’hui" />}
         </div>
-        {!over && g.week.target ? <p className="faint rp-goal-week">Cette semaine : <span className="money">{eur(g.week.done)}</span> sur <span className="money">{eur(g.week.target)}</span>{g.auto ? ' · objectif calculé sur tes heures au fauteuil' : ''}</p> : null}
+        {!over && g.week.target ? <p className="faint rp-goal-week">Cette semaine : <span className="money">{whole(g.week.done)}</span> sur <span className="money">{whole(g.week.target)}</span>{g.auto ? ' · objectif calculé sur tes heures au fauteuil' : ''}</p> : null}
       </div>
     </section>
   );
@@ -258,11 +270,11 @@ function StatementSheet({ open, staffId, month, onClose }: { open: boolean; staf
 
 function StatementBody({ st }: { st: Statement }) {
   const rows: [string, string, string?][] = [
-    ['Prestations', eur(st.services.net, { decimals: true }), plural(st.services.n, 'prestation')],
+    ['Prestations', eur(st.services.net, { decimals: true }), plural(st.services.n, 'prestation payée', 'prestations payées')],
     ['Produits', eur(st.products.net, { decimals: true }), plural(st.products.n, 'produit')],
     ...(st.fees.net ? [['Frais', eur(st.fees.net, { decimals: true })] as [string, string]] : []),
     ...(st.packs.net ? [['Carnets vendus', eur(st.packs.net, { decimals: true }), plural(st.packs.n, 'carnet')] as [string, string, string]] : []),
-    ['Coupes de carnet', eur(st.cuts.carnet.value, { decimals: true }), plural(st.cuts.carnet.n, 'coupe') + (st.cuts.carnet.estimated ? ' · estimé (carnet repris)' : '')],
+    ['Coupes de carnet', eur(st.cuts.carnet.value, { decimals: true }), plural(st.cuts.carnet.n, 'coupe') + (st.cuts.carnet.estimated ? ' · estimé (carnet repris)' : '') + (st.cuts.carnet.unpriced ? ' · ' + st.cuts.carnet.unpriced + ' sans prix au catalogue' : '')],
     ['Coupes d’abonnement', eur(st.cuts.member.value, { decimals: true }), plural(st.cuts.member.n, 'coupe')],
     ...(st.rewards.value ? [['Coupes offertes (fidélité)', eur(st.rewards.value, { decimals: true }), plural(st.rewards.n, 'coupe')] as [string, string, string]] : []),
     ['Remboursements déduits', st.refunds ? '−' + eur(st.refunds, { decimals: true }) : eur(0, { decimals: true }), st.refundCount ? plural(st.refundCount, 'avoir') : undefined]
@@ -271,7 +283,7 @@ function StatementBody({ st }: { st: Statement }) {
     <div className="rp-st">
       {st.warnings.length ? <Note tone={st.provisional ? 'warn' : ''} icon="info">{st.warnings.map((w) => cap(w)).join(' · ')}.</Note> : null}
       <div className="rp-st-top">
-        <div><span className="faint">Chiffre réalisé</span><b className="money">{eur(st.performed, { decimals: true })}</b><small>HT {eur(st.performedHt, { decimals: true })}</small></div>
+        <div><span className="faint">Chiffre réalisé</span><b className="money">{eur(st.performed, { decimals: true })}</b><small>HT <M c={st.performedHt} d /></small></div>
         <div><span className="faint">Commission estimée</span><b className="money">{eur(st.commission, { decimals: true })}</b><small>{st.rates.service / 100} % prestations · {st.rates.product / 100} % produits · sur le {st.base === 'ht' ? 'HT' : 'TTC'}</small></div>
       </div>
       <table className="table rp-st-t">
@@ -446,18 +458,20 @@ function Team({ rows, r, onStatement }: { rows: StaffRow[]; r: Report; onStateme
   const [open, setOpen] = useState<StaffRow | null>(null);
   const shown = rows.filter((x) => x.revenue || x.done || x.tips);
   const max = Math.max(1, ...shown.map((x) => x.revenue));
+  // the note says the rules the figures were computed on (the report's), the settings only for an older server
   const T = boot.settings.team || {};
-  const gap = gapWords(r);
+  const R = r.rules || { base: T.commissionBase === 'ht' ? 'ht' : 'ttc', cutCredit: T.cutCredit === 'seller' ? 'seller' : 'performer' };
+  const gap = gapParts(r);
   return (
     <section className="card">
-      <div className="card-h"><h2><Icon name="equipe" size={16} />L’équipe</h2><span className="faint rp-rules">{rulesWords({ base: T.commissionBase === 'ht' ? 'ht' : 'ttc', cutCredit: T.cutCredit === 'seller' ? 'seller' : 'performer' })}</span></div>
-      {gap ? <p className="rp-gap">{gap}</p> : null}
+      <div className="card-h"><h2><Icon name="equipe" size={16} />L’équipe</h2><span className="faint rp-rules">{rulesWords(R)}</span></div>
+      {gap.length ? <p className="rp-gap">{gap.map(([k, v], i) => <Fragment key={i}>{k}<M c={v} d /></Fragment>)}</p> : null}
       <div className="table-wrap">
-        <table className="table rp-team">
+        <table className="table rp-team rp-shop">
           <thead><tr>
             <th>Barbier</th><th className="num">Chiffre</th><th className="num rp-x rp-m">Prestations</th><th className="num rp-x rp-m">Panier</th><th className="num rp-x">Remplissage</th>
-            <th className="num rp-x" title="Clients qui reprennent rendez-vous avant de partir">Repris avant de partir</th><th className="num rp-x" title="Visites d’il y a 2 à 5 mois dont le client est revenu sous 60 jours">Revenus 60 j</th>
-            <th className="num rp-x" title="Clients sans rendez-vous">Passages</th><th className="num rp-x" title="Première visite au salon">Nouveaux</th><th className="num rp-x" title="Coupes de carnet et d’abonnement">Coupes carnet/abonnement</th>
+            <th className="num rp-x" title="Clients qui reprennent rendez-vous avant de partir">Repris avant de partir</th><th className="num rp-x rp-m2" title="Visites d’il y a 2 à 5 mois dont le client est revenu sous 60 jours">Revenus 60 j</th>
+            <th className="num rp-x rp-m2" title="Clients sans rendez-vous">Passages</th><th className="num rp-x rp-m2" title="Première visite au salon">Nouveaux</th><th className="num rp-x" title="Coupes de carnet et d’abonnement">Coupes carnet/abonnement</th>
             <th className="num rp-x">Absences</th><th className="num rp-x">Pourboires</th><th className="num">Commission</th>
           </tr></thead>
           <tbody>{shown.map((x) => (
@@ -471,9 +485,9 @@ function Team({ rows, r, onStatement }: { rows: StaffRow[]; r: Report; onStateme
               <td className="num money rp-x rp-m">{cents(x.avgTicket)}</td>
               <td className="num rp-x">{pct(x.occupancy)}</td>
               <td className="num rp-x">{x.done ? pct(x.rebookRate) : '—'}</td>
-              <td className="num rp-x">{x.returned60Base ? pct(x.returned60) : '—'}</td>
-              <td className="num rp-x">{x.walkins || '—'}</td>
-              <td className="num rp-x">{x.newClients || '—'}</td>
+              <td className="num rp-x rp-m2">{x.returned60Base ? pct(x.returned60) : '—'}</td>
+              <td className="num rp-x rp-m2">{x.walkins || '—'}</td>
+              <td className="num rp-x rp-m2">{x.newClients || '—'}</td>
               <td className="num rp-x" title={cuts(x) ? x.cutsCarnet.n + ' de carnet, ' + x.cutsMember.n + ' d’abonnement' : undefined}>{cuts(x) || '—'}{cuts(x) ? <small className="money">{cents(x.cutsCarnet.value + x.cutsMember.value)}</small> : null}</td>
               <td className="num rp-x">{x.noShows || '—'}</td>
               <td className="num money rp-x">{cents(x.tips)}</td>
@@ -493,7 +507,8 @@ function RowSheet({ x, r, onClose, onStatement }: { x: StaffRow | null; r: Repor
   const items: [string, string, string?][] = [
     ['Chiffre réalisé', cents(x.revenue), 'HT ' + cents(x.revenueHT) + (r.performed ? ' · ' + pct(x.revenue / r.performed) + ' de l’équipe' : '')],
     ['Commission estimée', cents(x.commission), x.rates.service / 100 + ' % prestations · ' + x.rates.product / 100 + ' % produits · sur le ' + (x.base === 'ht' ? 'HT' : 'TTC')],
-    ['Prestations', String(x.services), plural(x.tickets, 'ticket') + ' · panier ' + cents(x.avgTicket)],
+    // the statement lists the paid ones and the cuts apart: say what this count holds, so 160 here is 155 + 4 + 1 there
+    ['Prestations', String(x.services), (cuts(x) ? 'dont ' + cuts(x) + ' coupe' + (cuts(x) > 1 ? 's' : '') + ' de carnet ou d’abonnement · ' : '') + plural(x.tickets, 'ticket') + ' · panier ' + cents(x.avgTicket)],
     ['Remplissage', pct(x.occupancy), x.idleMin ? dates.fmtDur(x.idleMin) + ' de fauteuil libre · ' + cents(x.perHour) + ' par heure ouverte' : undefined],
     ['Repris avant de partir', x.done ? pct(x.rebookRate) : '—', plural(x.done, 'visite')],
     ['Revenus sous 60 j', x.returned60Base ? pct(x.returned60) : '—', x.returned60Base ? pct(x.returned60Mine) + ' avec lui · ' + plural(x.returned60Base, 'visite') + ' d’il y a 2 à 5 mois' : 'pas encore assez de recul'],
@@ -509,7 +524,7 @@ function RowSheet({ x, r, onClose, onStatement }: { x: StaffRow | null; r: Repor
   return (
     <Sheet open onClose={onClose} kicker="L’équipe" title={<span className="row" style={{ gap: 10 }}><Avatar name={x.name} color={x.color} size="sm" />{x.name}</span>}
       footer={onStatement ? <Button variant="primary" icon="ticket" onClick={() => onStatement(x.id)}>Relevé du mois</Button> : null}>
-      <dl className="rp-row">{items.map(([k, v, s]) => <div key={k}><dt>{k}{s ? <small>{s}</small> : null}</dt><dd className="money tnum">{v}</dd></div>)}</dl>
+      <dl className="rp-row">{items.map(([k, v, s]) => <div key={k}><dt>{k}{s ? <small className={/€/.test(s) ? 'money' : undefined}>{s}</small> : null}</dt><dd className="money tnum">{v}</dd></div>)}</dl>
     </Sheet>
   );
 }
