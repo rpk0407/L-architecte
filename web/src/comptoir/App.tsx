@@ -119,7 +119,7 @@ function Shell() {
           ))}
         </nav>
         <div className="side-foot">
-          <a className="nav-site link" href="/site" target="_blank" rel="noopener" style={{ padding: '0 12px', fontSize: 13 }}>Voir le site client</a>
+          <a className="nav-site link" href="/" target="_blank" rel="noopener" style={{ padding: '0 12px', fontSize: 13 }}>Voir le site client</a>
           <button type="button" className="me-btn" onClick={(e) => setUserMenu(e.currentTarget.getBoundingClientRect())} aria-label="Mon compte">
             <Avatar name={boot.me.name} initials={boot.me.initials} color={boot.me.color} size="sm" />
             <span className="grow"><b className="ellipsis">{boot.me.name}</b><small>{boot.me.roleLabel}{boot.me.device ? ' · ' + boot.me.device.name : ''}</small></span>
@@ -158,7 +158,7 @@ function Shell() {
           {rest.map((x) => <Link key={x.page} to={x.to} className="li" onClick={() => setMore(false)}><Icon name={x.icon} size={22} /><span className="li-main"><b>{x.label}</b></span>{x.badge ? <span className="badge badge-accent">{x.badge}</span> : <Icon name="chevR" size={18} />}</Link>)}
           <button type="button" className="li" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}><Icon name={theme === 'dark' ? 'sun' : 'moon'} size={22} /><span className="li-main"><b>{theme === 'dark' ? 'Thème clair' : 'Thème sombre'}</b></span></button>
           <button type="button" className="li" onClick={() => { setMore(false); setPalette(true); }}><Icon name="search" size={22} /><span className="li-main"><b>Rechercher</b><small>Un client, une page, une action</small></span></button>
-          <a className="li" href="/site" target="_blank" rel="noopener"><Icon name="globe" size={22} /><span className="li-main"><b>Voir le site client</b></span><Icon name="ext" size={18} /></a>
+          <a className="li" href="/" target="_blank" rel="noopener"><Icon name="globe" size={22} /><span className="li-main"><b>Voir le site client</b></span><Icon name="ext" size={18} /></a>
         </div>
       </Sheet>
 

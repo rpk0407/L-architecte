@@ -4,8 +4,8 @@ The salon's own system, replacing the WordPress setup: the public site where cli
 
 | URL | What | Who |
 |---|---|---|
-| `/` | Demo landing page: how it works, demo access | the owner, during the demo |
-| `/site` | The public site with live booking | clients |
+| `/` (also `/site`) | The public site with live booking | clients |
+| `/demo` | Demo landing page: how it works, demo access (goes to `/` outside the demo) | the owner, during the demo |
 | `/comptoir` | Le Comptoir, the back office | owner, managers, front desk, barbers |
 | `/r/:token` | "Mon rendez-vous": confirm, pay the deposit, move, cancel | a client, from the SMS link |
 | `/paiement/:id`, `/recu/:token` | Test checkout (until Stripe is connected), receipt | clients |
@@ -14,10 +14,10 @@ The salon's own system, replacing the WordPress setup: the public site where cli
 
 ```bash
 npm ci
-npm run build          # the Comptoir and client pages (Vite) into dist/, with public/
+npm run build          # the Comptoir and client pages (Vite) into dist/, with public/ (LX_INDEX=1: indexable by search engines)
 npm start              # http://localhost:3000, demo salon with ten weeks of history
 npm test               # unit and API tests (node:test), 79 tests
-npm run test:e2e       # browser end to end (needs Playwright's Chromium)
+npm run test:e2e       # browser end to end on the demo salon, then on a fresh production salon (needs Playwright's Chromium)
 npm run typecheck      # server (JSDoc) and web (TypeScript strict)
 ```
 

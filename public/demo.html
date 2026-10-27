@@ -6,6 +6,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Barber L’Architecte · Comment ça marche</title>
 <meta name="description" content="Démo privée : le site de réservation de Barber L’Architecte, le Comptoir du salon, et comment une réservation circule de bout en bout.">
+<script>
+/* this page only makes sense on a demo salon: anywhere else (production, or not set up yet) it goes to the site */
+(function () {
+  // hidden until the mode is known, so a production visitor never sees the demo credentials flash by
+  var de = document.documentElement, t = setTimeout(show, 1500);
+  function show() { clearTimeout(t); de.style.visibility = ''; }
+  de.style.visibility = 'hidden';
+  fetch('/api/public/salon', { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (s) { if (s && s.mode !== 'demo') location.replace('/'); else show(); }).catch(show);
+})();
+</script>
 <script src="/support.js"></script>
 </head>
 <body>
@@ -398,7 +408,7 @@ transition:opacity .45s var(--ease),transform .6s var(--ease)}
 <div class="pc" style="--rouge: {{accent}}">
 <header class="pc-top">
 <a class="pc-wm" href="#top"><span>L’Architecte</span><small>Démo privée</small></a>
-<nav class="pc-nav" aria-label="Accès"><a href="/site">Le site</a><a class="dk" href="/comptoir">Le Comptoir</a></nav>
+<nav class="pc-nav" aria-label="Accès"><a href="/">Le site</a><a class="dk" href="/comptoir">Le Comptoir</a></nav>
 </header>
 
 <main>
@@ -408,7 +418,7 @@ transition:opacity .45s var(--ease),transform .6s var(--ease)}
 <h1 class="pc-h1">Du téléphone<br>au <em>fauteuil.</em></h1>
 <p class="pc-lead">Le site où tes clients réservent, et le Comptoir où tu vois tout arriver. Voici comment une réservation circule, de bout en bout.</p>
 <div class="doors">
-<a class="door d-site" href="/site">
+<a class="door d-site" href="/">
 <span class="door-k">01 · Le site</span>
 <span class="door-t">Ce que voient tes clients.</span>
 <span class="door-ill" aria-hidden="true"><span class="mph"><span class="mph-b"></span><span class="mph-t">Frais.</span><span class="mph-l"></span><span class="mph-l s"></span><span class="mph-c">Réserver</span></span></span>
@@ -437,7 +447,7 @@ transition:opacity .45s var(--ease),transform .6s var(--ease)}
 <p class="note">Aucun SMS n’est envoyé et aucune carte n’est débitée pendant la démo. Gérant&nbsp;: gerant@larchitecte.fr · Architecte13. Codes des barbiers&nbsp;: JKut 2468, Frank 1357, Le Soldat 8642, Esteban 9753. La démo se remet à zéro depuis Réglages › Données.</p>
 </div>
 <div class="tg-r">
-<div class="qr-card qr-live"><div class="qr-img qr-slot" aria-hidden="true"></div><div class="qr-txt"><p class="qr-url">/site</p><p>Scanne avec ton téléphone pour réserver comme un client. Garde le Comptoir ouvert sur cet écran&nbsp;: la réservation y arrive en direct.</p></div></div>
+<div class="qr-card qr-live"><div class="qr-img qr-slot" aria-hidden="true"></div><div class="qr-txt"><p class="qr-url">/</p><p>Scanne avec ton téléphone pour réserver comme un client. Garde le Comptoir ouvert sur cet écran&nbsp;: la réservation y arrive en direct.</p></div></div>
 </div>
 </div>
 </section>
@@ -605,7 +615,7 @@ transition:opacity .45s var(--ease),transform .6s var(--ease)}
 <footer class="pc-ft">
 <div class="w">
 <h2 class="pc-ft-h">À toi de jouer.</h2>
-<div class="ft-b"><a class="btn" href="/site">Ouvrir le site</a><a class="btn ghost" href="/comptoir">Ouvrir le Comptoir</a></div>
+<div class="ft-b"><a class="btn" href="/">Ouvrir le site</a><a class="btn ghost" href="/comptoir">Ouvrir le Comptoir</a></div>
 <p class="ft-s">Barber L’Architecte · 16, place Pélabon · 13013 Marseille</p>
 <p class="ft-s">Démo conçue par NEXUS. Données fictives, aucun SMS envoyé.</p>
 </div>
