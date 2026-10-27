@@ -14,6 +14,7 @@ import { maskPhone, fmtPhone, normGiftCode, sha256 } from '../lib/util.js';
 import { EXTENSIONS } from '../core/extensions.js';
 import { membersOf, isLive, graceOf, statusIn } from '../domain/membership.js';
 import { loyaltyExport } from '../domain/loyalty.js';
+import { cutNotesOf } from '../projections/cutnotes.js';
 import { startPayment, refundOnline } from './routes-public.js';
 import { tillRefund } from './routes-payments.js';
 import { meView } from './routes-auth.js';
@@ -272,6 +273,8 @@ function clientExport(s, c, now) {
     cartesCadeaux: [...s.giftcards.values()].filter((g) => ids.has(g.cid)).map((g) => ({ carte: '•••• ' + g.last4, montant: fmtEur(g.amount), solde: fmtEur(g.balance), valableJusquAu: g.expires, pour: g.recipient || '' })),
     // FID-02: the loyalty card, its movements and rewards, the reasons of adjustments made by hand
     fidelite: loyaltyExport(s, c.id, localParts(now).day),
+    // TEAM-04: what the barbers wrote about the cuts, by the day of the visit (an earlier wording of a note too)
+    notesDeCoupe: cutNotesOf(s, [...ids]).map((n) => ({ jour: n.day, barbier: who(n.staffId), texte: n.text, ...(n.prev.length ? { anciennesVersions: n.prev.map((p) => p.text) } : {}) })),
     listeAttente: [...s.waitlist.values()].filter((w) => ids.has(w.clientId)).map((w) => ({ jour: w.day, statut: fr(WAIT_FR, w.status), inscritLe: iso(w.at) })),
     sms: [...s.messages.values()].filter((m) => ids.has(m.cid)).sort((a, b) => a.at - b.at).map((m) => ({ le: iso(m.at), type: fr(SMS_FR, m.template), statut: fr(SMS_STATUS_FR, m.status), numero: fmtPhone(m.to), texte: m.body }))
   };

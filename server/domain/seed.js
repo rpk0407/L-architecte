@@ -24,6 +24,7 @@ import { seedReviews } from '../commands/reviews.js';
 import { startMembership, memberPaid, requestCancel } from '../commands/memberships.js';
 import simBilling from '../commands/steps/sim-billing.js';
 import { memberOf, cover, addMonths } from './membership.js';
+import { addCutNote } from '../commands/cutnotes.js';
 import { fiscalSteps } from '../commands/steps/fiscal.js';
 import { demoSigner } from '../core/signer.js';
 import { SOFTWARE } from '../version.js';
@@ -102,6 +103,8 @@ const PRODUCTS = [
 const FIRST = ['Yanis', 'Mehdi', 'Lucas', 'Karim', 'Nolan', 'Enzo', 'Sofiane', 'Hugo', 'Adam', 'Ilyes', 'Matteo', 'Bilal', 'Théo', 'Nassim', 'Kylian', 'Jules', 'Samir', 'Walid', 'Ethan', 'Amine', 'Louis', 'Ryad', 'Malik', 'Gabriel', 'Anis', 'Noah', 'Sami', 'Yassine', 'Tom', 'Axel', 'Nathan', 'Ismaël', 'Raphaël', 'Hamza', 'Marius', 'Zakaria', 'Jordan', 'Kenzo', 'Sacha', 'Dylan', 'Younes', 'Lenny', 'Mathis', 'Wassim', 'Imran', 'Léo', 'Djibril', 'Timéo', 'Nabil', 'Kaïs', 'Lounis', 'Bastien', 'Moussa', 'Florian', 'Chris', 'Idriss', 'Kevin', 'Maxime', 'Yann', 'Aymen'];
 const LAST = ['Martin', 'Benali', 'Rossi', 'Fabre', 'Haddad', 'Garcia', 'Moreau', 'Mansouri', 'Romano', 'Durand', 'Belkacem', 'Lopez', 'Bernard', 'Chabane', 'Ferrari', 'Girard', 'Amrani', 'Blanc', 'Mercier', 'Ziani', 'Santini', 'Bouzid', 'Faure', 'Ricci', 'Kaci', 'Roux', 'Medjahed', 'Pons', 'Esposito', 'Brahimi'];
 const TECH = ['Dégradé bas, sabot 0,5 sur les côtés', 'Garde la longueur sur le dessus', 'Barbe : ne pas trop raccourcir', 'Raie à gauche, bien marquée', 'Skin fade, dessus texturé', 'Ciseaux uniquement sur le dessus', 'Taper, nuque arrondie', 'Contour au rasoir, pas à la tondeuse', 'Cuir chevelu sensible : pas de lotion alcoolisée', '', '', '', ''];
+// what a barber writes after the cut (TEAM-04): the 20 most regular clients have one or two, from their usual barber
+const CUT_NOTES = ['Dégradé bas, sabot 1 sur les côtés, dessus aux ciseaux', 'Comme d’habitude, un peu plus court derrière', 'Skin fade net, contour au rasoir, dessus texturé', 'Garde la longueur dessus, nuque arrondie', 'Barbe taillée au sabot 3, joues propres', 'Plus court sur les côtés cette fois, il a aimé', 'Raie à gauche bien marquée, produit mat', 'Dégradé 1,5 sur les côtés, 4 cm dessus, cire mate'];
 const NOTES = ['Vient avec son fils le samedi', 'Préfère les créneaux du matin', 'Toujours à l’heure', 'Aime parler foot', '', '', '', '', ''];
 
 const SYS = { actor: /** @type {const} */ ({ t: 'system', id: 'seed', n: 'Démo' }), caps: new Set(Object.keys(CAPS)) };
@@ -303,6 +306,8 @@ export async function buildDemoJournal(nowReal, opt = {}) {
     return c;
   };
   const byId = new Map(pool.map((c) => [c.id, c]));
+  // the most regular (a cut every two or three weeks, still coming): chosen from their place in the list, not from r
+  const noters = new Map(pool.filter((c) => !c.abo && !c.stop && !c.join && c.cadence <= 21).slice(0, 20).map((c) => [c.id, 0]));
   const giftDays = new Set([addDays(start, 9), addDays(start, 23), addDays(today, -3)]);
   const seeded = [];
 
@@ -389,6 +394,12 @@ export async function buildDemoJournal(nowReal, opt = {}) {
       const res = await eng.run(checkout, input, base).catch((e) => { if (process.env.LX_DEBUG) console.error('seed checkout', e.message); return null; });
       if (res && c && c.abo && !packId && input.lines[0].kind === 'pack') c.packId = [...eng.state.packs.values()].find((k) => k.saleId === res.id)?.id || null;
       if (c) { c.last = day; c.booked = null; }
+      // the barber who usually cuts him notes the cut, on his last visits (at most two a client; not r: the draws stay what they were)
+      if (res && c && noters.has(c.id) && noters.get(c.id) < 2 && cur.staffId === c.pref && diffDays(day, today) <= 21) {
+        noters.set(c.id, noters.get(c.id) + 1);
+        at(day, end + 6);
+        await eng.run(addCutNote, { id: cur.id, text: CUT_NOTES[hashStr('cut|' + pool.indexOf(c) + '|' + noters.get(c.id)) % CUT_NOTES.length] }, base).catch(() => null);
+      }
       // a third of clients book their next cut before leaving
       if (res && c && r() < 0.33 && (!c.stop || addDays(day, c.cadence) < c.stop)) {
         const next = addDays(day, c.cadence);
