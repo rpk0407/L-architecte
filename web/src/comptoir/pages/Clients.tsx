@@ -21,7 +21,7 @@ type FileData = {
   appts: { id: string; day: string; start: number; dur: number; status: string; services: string[]; staffId: string; price: number; source: string; saleId: string | null; note: string }[];
   sales: { id: string; ref: string; day: string; due: number; revenue: number; refunded: number; lines: string[] }[];
   packs: { id: string; name: string; used: number; total: number; expires: string; soldAt: number }[];
-  messages: { id: string; template: string; status: string; at: number }[];
+  messages: { id: string; channel?: 'sms' | 'email'; template: string; status: string; at: number }[];
 };
 type Why = 'name' | 'email' | 'phone';
 type Pair = { keep: ClientCard; drop: ClientCard; why: Why[] };
@@ -47,7 +47,7 @@ const SEGMENTS: { v: string; t: string; hint: string; rare?: boolean; cap?: stri
 ];
 const SORTS = [{ v: 'recent', t: 'Dernière visite' }, { v: 'overdue', t: 'À relancer d’abord' }, { v: 'spend', t: 'Dépense' }, { v: 'visits', t: 'Visites' }, { v: 'name', t: 'Nom' }];
 const TAGS = ['VIP', 'Barbe', 'Enfant', 'Étudiant', 'Sensible', 'Parle peu'];
-const MSG: Record<string, string> = { confirm: 'Confirmation', reminder: 'Rappel la veille', reminder2h: 'Rappel 2 h avant', moved: 'Déplacement', cancelled: 'Annulation', review: 'Demande d’avis', rebook: 'Relance', receipt: 'Reçu', waitlist: 'Créneau libéré', deposit: 'Lien d’acompte' };
+const MSG: Record<string, string> = { confirm: 'Confirmation', confirmation: 'Confirmation', reminder: 'Rappel la veille', reminder2h: 'Rappel 2 h avant', moved: 'Déplacement', cancelled: 'Annulation', review: 'Demande d’avis', rebook: 'Relance', receipt: 'Reçu', waitlist: 'Créneau libéré', deposit: 'Lien d’acompte', lookup: 'Lien Mon rendez-vous', giftcardCode: 'Code carte cadeau' };
 
 export default function Clients() {
   const route = useRoute();
@@ -342,7 +342,7 @@ function ClientFile({ id }: { id: string }) {
           <div className="tabs" role="tablist" style={{ marginTop: -6 }}>
             <button type="button" role="tab" aria-selected={tab === 'rdv'} onClick={() => setTab('rdv')}>Rendez-vous<span className="count">{data.appts.length}</span></button>
             {data.sales.length ? <button type="button" role="tab" aria-selected={tab === 'tickets'} onClick={() => setTab('tickets')}>Tickets<span className="count">{data.sales.length}</span></button> : null}
-            <button type="button" role="tab" aria-selected={tab === 'sms'} onClick={() => setTab('sms')}>SMS<span className="count">{data.messages.length}</span></button>
+            <button type="button" role="tab" aria-selected={tab === 'sms'} onClick={() => setTab('sms')}>Messages<span className="count">{data.messages.length}</span></button>
           </div>
           {tab === 'rdv' ? (
             data.appts.length ? <ul className="list">{[...upcoming, ...past].map((a) => {
@@ -364,7 +364,7 @@ function ClientFile({ id }: { id: string }) {
             ))}</ul>
           ) : data.messages.length ? (
             <ul className="list">{data.messages.map((m) => (
-              <li key={m.id} className="li"><Icon name="sms" size={18} /><span className="li-main"><b>{MSG[m.template] || m.template}</b><small>{cap(dates.dayShort(dates.localParts(m.at).day))} · {time(dates.localParts(m.at).min)}</small></span><span className={'badge ' + (m.status === 'sent' ? 'badge-ok' : m.status === 'failed' ? 'badge-danger' : '')}>{({ sent: 'envoyé', failed: 'échec', simulated: boot.mode === 'demo' ? 'simulé (démo)' : 'jamais parti', skipped: 'non envoyé', expired: 'trop tard', claimed: 'en cours' } as Record<string, string>)[m.status] || 'en file'}</span></li>
+              <li key={m.id} className="li"><Icon name={m.channel === 'email' ? 'mail' : 'sms'} size={18} title={m.channel === 'email' ? 'E-mail' : 'SMS'} /><span className="li-main"><b>{MSG[m.template] || m.template}</b><small>{cap(dates.dayShort(dates.localParts(m.at).day))} · {time(dates.localParts(m.at).min)}</small></span><span className={'badge ' + (m.status === 'sent' ? 'badge-ok' : m.status === 'failed' ? 'badge-danger' : '')}>{({ sent: 'envoyé', failed: 'échec', simulated: boot.mode === 'demo' ? 'simulé (démo)' : 'jamais parti', skipped: 'non envoyé', expired: 'trop tard', claimed: 'en cours' } as Record<string, string>)[m.status] || 'en file'}</span></li>
             ))}</ul>
           ) : <Empty icon="sms" title="Aucun SMS">{c.sms ? 'Confirmations, rappels et relances apparaîtront ici.' : 'Il a refusé les SMS.'}</Empty>}
         </div>
