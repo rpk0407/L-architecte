@@ -1,0 +1,10 @@
+/* AC-02 · the client file's « Espace client » card: a header that opens, then a few lines and the actions */
+.ac { padding: 0; }
+.ac-h { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 48px; padding: 8px 18px; border-radius: var(--r4); text-align: left; font: inherit; font-size: 14.5px; color: var(--tx); }
+.ac-h:hover { background: var(--panel2); }
+.ac-h .faint { font-size: 13px; }
+.ac-b { padding: 0 18px 16px; }
+.ac-line { margin: 0; font-size: 13.5px; color: var(--tx2); }
+.ac-acts { display: flex; flex-wrap: wrap; gap: 8px; }
+/* targets of 44 px, and a long label wraps instead of pushing the card wider than a phone */
+.ac-acts .btn { white-space: normal; text-align: center; line-height: 1.25; padding-top: 8px; padding-bottom: 8px; }

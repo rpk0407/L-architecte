@@ -225,7 +225,7 @@ function fileOf(r) {
 
 const STATUS_FR = { pending: 'acompte en attente', booked: 'à venir', arrived: 'arrivé', in_chair: 'au fauteuil', done: 'venu', no_show: 'absent', cancelled: 'annulé' };
 // the export is read by the client: words, not the codes the server keeps
-const SOURCE_FR = { site: 'en ligne', salon: 'au salon', phone: 'par téléphone', walkin: 'sans rendez-vous', wordpress: 'ancien site', import: 'ancien site' };
+const SOURCE_FR = { site: 'en ligne', salon: 'au salon', phone: 'par téléphone', walkin: 'sans rendez-vous', wordpress: 'ancien site', import: 'ancien site', espace: 'depuis son espace' };
 const WAIT_FR = { waiting: 'en attente', offered: 'place proposée', booked: 'réservé', removed: 'retiré', expired: 'expiré' };
 const SMS_FR = { confirmation: 'confirmation', reminder: 'rappel la veille', reminder2h: 'rappel 2 h avant', moved: 'déplacement', cancelled: 'annulation', review: 'demande d’avis', rebook: 'relance', receipt: 'reçu', waitlist: 'place libérée', queue: 'file d’attente', deposit: 'lien d’acompte',
   reassign: 'changement de barbier', reassignAt: 'changement de barbier et d’heure', reschedule: 'rendez-vous à décaler', giftcard: 'carte cadeau',
@@ -234,12 +234,14 @@ const SMS_FR = { confirmation: 'confirmation', reminder: 'rappel la veille', rem
 Object.assign(SMS_FR, { memberCard: 'abonnement : changer la carte', memberLinkMail: 'lien de l’abonnement (e-mail)' });
 // AC-01: the client space's texts
 Object.assign(SMS_FR, { otp: 'code de connexion', accountOpened: 'espace ouvert', accesInvite: 'lien vers son espace' });
+// AC-02: a copy of his data sent to a client, and the owner's mails about his requests
+Object.assign(SMS_FR, { dataExport: 'copie de ses données (e-mail)', owner_erase: 'alerte demande d’effacement', owner_export: 'alerte demande de données' });
 const MEMBER_FR = { pending: 'paiement attendu', active: 'en cours', grace: 'paiement en retard', unpaid: 'impayé', ending: 'résilié, en cours jusqu’à la fin du mois payé', ended: 'terminé' };
 const SMS_STATUS_FR = { queued: 'en attente', claimed: 'en cours d’envoi', sent: 'envoyé', simulated: 'non envoyé (simulé)', failed: 'échec', skipped: 'non envoyé', expired: 'trop tard, non envoyé' };
 const fr = (map, v) => map[v] || v || '';
 const iso = (ms) => (ms ? new Date(ms).toISOString() : null);
 /** The client's own data, in words a person can read: the file, bookings, tickets, subscriptions, cards, texts. */
-function clientExport(s, c, now) {
+export function clientExport(s, c, now) {
   const ids = new Set(C.fileIds(s, c));
   const who = (id) => (s.staff.get(id) || {}).name || '';
   const byDay = (a, b) => (a.day + String(a.start ?? 0).padStart(4, '0')).localeCompare(b.day + String(b.start ?? 0).padStart(4, '0'));

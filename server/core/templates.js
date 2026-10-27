@@ -76,7 +76,9 @@ export const TEMPLATE_FLAGS = {
   lookup: { requested: true },
   // AC-01: the sign-in code (its fixed words live in domain/otp.js, not here) and the salon's invite to the space
   otp: { requested: true },
-  accesInvite: { requested: true }
+  accesInvite: { requested: true },
+  // AC-02: a copy of his data, e-mailed to a client who asked for it from his space
+  dataExport: { requested: true }
 };
 
 /** @typedef {'service'|'relation'|'marketing'} TextClass */

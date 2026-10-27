@@ -4,6 +4,7 @@ import { eur, money } from '../../../../lib/format';
 import { Chip, Field, Note, Switch } from '../../../../ui/kit';
 import { useApp } from '../../../state';
 import { Card, SaveBar, num, useSave, useSection, type SectionProps } from '../shared';
+import EspaceClient from './EspaceClient';
 
 export default function Reservation({ s }: SectionProps) {
   const { boot } = useApp();
@@ -26,6 +27,7 @@ export default function Reservation({ s }: SectionProps) {
         <Switch on={B.waitlist} onChange={(v) => b.setV({ ...B, waitlist: v })} title="Liste d’attente" hint="Quand c’est complet, le client s’inscrit ; une place libérée lui est proposée par SMS." />
         <Switch on={B.walkinWait} onChange={(v) => b.setV({ ...B, walkinWait: v })} title="Afficher l’attente sans rendez-vous" hint="Le site montre en direct « environ 20 min d’attente »." />
       </Card>
+      <EspaceClient s={s} />
       <Card title="Acomptes et absences" icon="card">
         {noOnline ? <Note icon="info">Les acomptes s’activeront dès que Stripe sera branché. En attendant, les clients réservent sans payer.</Note> : null}
         <Field label="Demander un acompte">

@@ -46,7 +46,7 @@ const LABEL: Record<string, string> = { inquiry_reply: 'Réponse à une demande'
 // PAY-03's member texts and mails
 Object.assign(LABEL, { memberCard: 'Abonnement : changer la carte', memberLinkMail: 'Lien de l’abonnement (e-mail)' });
 // AC-01: the client space's texts (a code's words stay {code} here: its digits only exist in the text that left)
-Object.assign(LABEL, { otp: 'Code de connexion', accountOpened: 'Espace client ouvert', accesInvite: 'Lien vers son espace' });
+Object.assign(LABEL, { otp: 'Code de connexion', accountOpened: 'Espace client ouvert', accesInvite: 'Lien vers son espace', dataExport: 'Copie de ses données', owner_erase: 'Alerte : demande d’effacement', owner_export: 'Alerte : demande de données' });
 const STATUS: Record<string, [string, string]> = { sent: ['envoyé', 'badge-ok'], simulated: ['simulé (démo)', 'badge-info'], failed: ['échec', 'badge-danger'], skipped: ['non envoyé', 'badge-warn'], expired: ['trop tard', 'badge-warn'], claimed: ['en cours', ''], queued: ['en file', ''] };
 /** Outside the demo nothing is simulated: without a provider a message waits for one (and an old 'simulé' never left). */
 function msgStatus(m: Msg, demo: boolean, provider: string | null, now: number): [string, string] {
