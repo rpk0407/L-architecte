@@ -12,6 +12,7 @@ import { useApp } from '../state';
 import { PageTitle } from '../App';
 import type { ClientCard, ClientFull } from '../types';
 import ClientReview from './avis/ClientReview';
+import CutNotes from './espace/CutNotes';
 import './clients.css';
 
 type ListData = { total: number; counts: Record<string, number>; excludedNoConsent?: number; retention?: { before: string; other: number } | null; items: ClientCard[] };
@@ -332,6 +333,7 @@ function ClientFile({ id }: { id: string }) {
       <div className="cl-cols">
         <div className="col" style={{ gap: 14 }}>
           <TechCard c={c} favStaff={favStaff ? staffById.get(favStaff)?.name || '' : ''} favSvc={favSvc} />
+          {c.erased ? null : <CutNotes clientId={c.id} />}
           {data.packs.length ? (
             <div className="card">
               <div className="card-h"><h2><Icon name="ticket" size={16} />Abonnements</h2></div>

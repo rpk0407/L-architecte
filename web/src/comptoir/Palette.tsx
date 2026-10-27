@@ -31,6 +31,7 @@ export function Palette({ onClose }: { onClose: () => void }) {
     { id: 'walk', group: 'Actions', label: 'Ajouter un passage (sans rendez-vous)', hint: 'P', icon: 'walk', run: go('/?walkin=1') },
     ...(can('sale.create') ? [{ id: 'sale', group: 'Actions', label: 'Vente libre (produit, carte cadeau)', icon: 'caisse', run: go('/caisse?vente=1') }] : []),
     ...(can('closure') ? [{ id: 'z', group: 'Actions', label: 'Compter la caisse et clôturer', icon: 'lock', run: go('/caisse/cloture') }] : []),
+    ...(boot.me.chair ? [{ id: 'p-espace', group: 'Pages', label: 'Mon espace', icon: 'chair', run: go('/espace') }] : []),
     { id: 'p-agenda', group: 'Pages', label: 'Agenda', icon: 'agenda', run: go('/agenda') },
     ...(can('sale.create') ? [{ id: 'p-caisse', group: 'Pages', label: 'Caisse', icon: 'caisse', run: go('/caisse') }] : []),
     ...(can('client.view') ? [{ id: 'p-clients', group: 'Pages', label: 'Clients', icon: 'clients', run: go('/clients') }] : []),
