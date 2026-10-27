@@ -14,8 +14,9 @@ export const TEMPLATES = {
   cancelled: "L'Architecte : ton rendez-vous du {date} à {heure} est annulé. Pour en reprendre un : {lien}",
   // {fidelite}: the loyalty card after this ticket (FID-02), short to stay one SMS: « Carte 6/9. », « Ta prochaine coupe est offerte ! » or nothing
   receipt: "L'Architecte : merci {prenom} ! Ton ticket {ticket} de {montant} : {lien}{fidelite}",
-  // asked from /mon-rendez-vous: the next appointment's link, {suite} the one after it (or nothing)
-  lookup: "L'Architecte : ton rendez-vous {date} à {heure} : {lien}{suite}",
+  // asked from /mon-rendez-vous: the next appointment's link, {suite} the one after it (or nothing), {espace} the client
+  // space's line when it is open (AC-01: " Ton espace : salon.fr/moi", or nothing)
+  lookup: "L'Architecte : ton rendez-vous {date} à {heure} : {lien}{suite}{espace}",
   // DO-03: the code of a gift card, sent from the till's voucher to the person it is for
   giftcardCode: "L'Architecte : {acheteur} t'offre une carte cadeau de {montant} ! Code {code}, valable jusqu'au {date}. Réserve : {lien}",
   // DO-05: a barber is away, the owner's handover plan. {absent} the barber away, {date} "jeudi 29", {barbier} the one who
@@ -38,7 +39,10 @@ export const TEMPLATES = {
   memberEnded: "L'Architecte : ton abonnement a pris fin faute de paiement. Pour le reprendre : {lien}",
   memberOffer: "L'Architecte : ton abonnement {formule} ({prix}/mois) : {lien}",
   memberLink: "L'Architecte : pour gérer ou résilier ton abonnement (lien valable 1 h) : {lien}",
-  memberCard: "L'Architecte : pour mettre à jour la carte de ton abonnement {formule} : {lien}"
+  memberCard: "L'Architecte : pour mettre à jour la carte de ton abonnement {formule} : {lien}",
+  // AC-01: the salon sends a client the way into his space (AC-02's invite from the file); {lien} /moi?garder=…
+  // (« tickets », not « reçus »: a ç would make it a Unicode SMS)
+  accesInvite: "L'Architecte : ouvre ton espace (tes rendez-vous, tes tickets) : {lien}"
 };
 
 // What a text is, beyond its words, keyed like TEMPLATES (the same owner adds both). Three classes, one rule each
@@ -69,7 +73,11 @@ export const TEMPLATE_FLAGS = {
   memberWithdrawnNone: { legal: true },
   memberLink: { requested: true },
   memberLinkMail: { requested: true },
-  lookup: { requested: true }
+  lookup: { requested: true },
+  lookup: { requested: true },
+  // AC-01: the sign-in code (its fixed words live in domain/otp.js, not here) and the salon's invite to the space
+  otp: { requested: true },
+  accesInvite: { requested: true }
 };
 
 /** @typedef {'service'|'relation'|'marketing'} TextClass */

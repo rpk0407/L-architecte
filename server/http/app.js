@@ -24,6 +24,7 @@ import { paymentRoutes } from './routes-payments.js';
 import { teamMeRoutes } from './routes-team-me.js';
 import { membershipRoutes } from './routes-membership.js';
 import { loyaltyRoutes } from './routes-loyalty.js';
+import { meRoutes } from './routes-me.js';
 
 // A REGISTRY: one line per route file
 const app = router();
@@ -44,6 +45,7 @@ fiscalRoutes(app);
 teamMeRoutes(app);
 membershipRoutes(app);
 loyaltyRoutes(app);
+meRoutes(app);
 
 const MUTATING = new Set(['POST', 'PATCH', 'PUT', 'DELETE']);
 const READ_DOWN = 'La base de données ne répond pas. Réessaie dans un instant.';

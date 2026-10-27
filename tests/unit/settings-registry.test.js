@@ -48,7 +48,7 @@ const BEFORE = () => {
         // FID-02: the loyalty card after the ticket
         receipt: "L'Architecte : merci {prenom} ! Ton ticket {ticket} de {montant} : {lien}{fidelite}",
         // WP-04: the link asked from /mon-rendez-vous, and DO-03's gift card code
-        lookup: "L'Architecte : ton rendez-vous {date} à {heure} : {lien}{suite}",
+        lookup: "L'Architecte : ton rendez-vous {date} à {heure} : {lien}{suite}{espace}",
         giftcardCode: "L'Architecte : {acheteur} t'offre une carte cadeau de {montant} ! Code {code}, valable jusqu'au {date}. Réserve : {lien}",
         // DO-05: the handover of an absent barber's clients, and IN-01's gift card bought online
         reassign: "{absent} est absent {date}, {barbier} te prend à {heure}, prix inchangé. Pas d'accord ? {lien}",
@@ -66,7 +66,9 @@ const BEFORE = () => {
         memberEnded: "L'Architecte : ton abonnement a pris fin faute de paiement. Pour le reprendre : {lien}",
         memberOffer: "L'Architecte : ton abonnement {formule} ({prix}/mois) : {lien}",
         memberLink: "L'Architecte : pour gérer ou résilier ton abonnement (lien valable 1 h) : {lien}",
-        memberCard: "L'Architecte : pour mettre à jour la carte de ton abonnement {formule} : {lien}"
+        memberCard: "L'Architecte : pour mettre à jour la carte de ton abonnement {formule} : {lien}",
+        // AC-01: the salon's invite to the client space
+        accesInvite: "L'Architecte : ouvre ton espace (tes rendez-vous, tes tickets) : {lien}"
       },
       // GL-08: quiet hours, the STOP mention, the countries texted
       quiet: { from: 1200, to: 480, sunday: true, holidays: true }, stopSuffix: ' STOP au 36173', countries: ['+33', '+32', '+41', '+352', '+262', '+590', '+594', '+596', '+508', '+681', '+687', '+689'],
@@ -91,7 +93,9 @@ const BEFORE = () => {
     // CPT-01a: the month the fiscal year ends
     fiscal: { yearEndMonth: 12 },
     // FID-02: the stamp card, off until the owner launches it
-    loyalty: { enabled: false, goal: 9, minNet: 1000, reward: { kind: 'service', refs: [], cap: 2500 }, rewardDays: 180, resetDays: 365, headStart: 'half', referral: { enabled: false, referrer: { kind: 'amount', amount: 500 }, referee: { kind: 'amount', amount: 500 }, perYear: 5 } }
+    loyalty: { enabled: false, goal: 9, minNet: 1000, reward: { kind: 'service', refs: [], cap: 2500 }, rewardDays: 180, resetDays: 365, headStart: 'half', referral: { enabled: false, referrer: { kind: 'amount', amount: 500 }, referee: { kind: 'amount', amount: 500 }, perYear: 5 } },
+    // AC-01: the client space, off until the SMS route is tested (on in the demo, by the seed)
+    accounts: { enabled: false, sessionDays: 180, fenceDays: 180 }
   };
 };
 
@@ -121,6 +125,7 @@ const ACCEPTED = [
   [{ team: { teamView: 'named', barberSeeRevenue: true, barberRebook: true } }, { team: { teamView: 'named', barberSeeRevenue: false, barberRebook: true } }],
   [{ goals: { monthCents: 3000000 } }, { goals: { monthCents: 3000000 } }],
   [{ fiscal: { yearEndMonth: '6' } }, { fiscal: { yearEndMonth: 6 } }],
+  [{ accounts: { enabled: true, sessionDays: 30, fenceDays: 1095 } }, { accounts: { enabled: true, sessionDays: 30, fenceDays: 1095 } }],
   // closures have their own commands, and unknown sections are dropped
   [{ closures: [{ id: 'x', from: '2026-12-24', to: '2026-12-26', label: 'Noël' }], mystery: 1 }, {}],
   // PAY-02: a plan's fair use and flags filled in (a week between two cuts for illimité)
@@ -160,6 +165,9 @@ const REJECTED = [
   [{ membership: { plans: ['a', 'b', 'c', 'd', 'e'].map((k) => ({ id: 'plan-' + k, name: 'Formule', price: 3400, cuts: 2, serviceIds: ['sv_1'] })) } }, 'membership.plans : de 0 à 4 éléments'],
   [{ membership: { plans: [1, 2].map(() => ({ id: 'essentiel', name: 'Essentiel', price: 3400, cuts: 2, serviceIds: ['sv_1'] })) } }, 'membership.plans[1].id : deux formules ont le même code'],
   [{ fiscal: { yearEndMonth: 13 } }, 'fiscal.yearEndMonth : entre 1 et 12'],
+  [{ accounts: { sessionDays: 29 } }, 'accounts.sessionDays : entre 30 et 400'],
+  [{ accounts: { fenceDays: 60 } }, 'accounts.fenceDays : entre 90 et 1095'],
+  [{ accounts: { enabled: 'oui' } }, 'accounts.enabled : vrai/faux attendu'],
   ['x', 'objet attendu'],
   [[], 'objet attendu']
 ];

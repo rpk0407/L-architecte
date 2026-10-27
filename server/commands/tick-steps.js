@@ -9,6 +9,7 @@ import { DAYS_FR, dayParts } from '../../shared/dates.js';
 import digest from './steps/digest.js';
 import simBilling from './steps/sim-billing.js';
 import { periodCloseStep, signStep, jetStep } from './steps/fiscal.js';
+import demoPurge from './steps/demo-purge.js';
 
 export { missedZ, dayWords };
 /** "samedi 31" for the feed. */
@@ -50,7 +51,9 @@ export const REGISTRY = [
   // CPT-01a: month and year closures, their signatures, the software version in the technical log
   periodCloseStep,
   signStep,
-  jetStep
+  jetStep,
+  // AC-01: the demo forgets its visitors' files two hours after they were made
+  demoPurge
 ];
 
 /** Run every registered step; a failing step costs only its own work. */

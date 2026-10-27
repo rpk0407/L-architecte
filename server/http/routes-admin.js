@@ -56,6 +56,8 @@ Object.assign(LABELS, { 'period.closed': 'Clôture du mois ou de l’année', 's
 Object.assign(LABELS, { 'phone.linkIssued': 'Lien de téléphone créé', 'phone.pinMissed': 'Code faux sur un téléphone lié', 'phone.pinCleared': 'Code juste après des erreurs', 'phone.locked': 'Téléphone bloqué (codes faux)', 'staff.photo': 'Photo de l’équipe modifiée', 'prefs.set': 'Réglages personnels modifiés' });
 // PAY-03: the salon confirms a cancellation asked from /resilier without the member's link
 Object.assign(LABELS, { 'member.cancelConfirmed': 'Résiliation confirmée' });
+// AC-01: the client space
+Object.assign(LABELS, { 'account.signedIn': 'Espace client : connexion', 'account.codeMissed': 'Espace client : code erroné', 'account.codeBurned': 'Espace client : code bloqué', 'account.fenceOpened': 'Espace client : ouvert sur une fiche inactive', 'account.revoked': 'Espace client : appareils déconnectés', 'account.closed': 'Espace client supprimé' });
 const STATUS = { arrived: 'arrivé', in_chair: 'au fauteuil', booked: 'remis à venir', no_show: 'absent' };
 
 const END_FR = { cancelled: 'résilié', unpaid: 'faute de paiement', withdrawn: 'rétractation', abandoned: 'paiement jamais fait' };
@@ -127,7 +129,7 @@ function refundMethods(rf) {
 }
 function actorName(s, a) {
   if (a.t === 'staff') return (s.staff.get(a.id) || {}).name || 'Équipe';
-  if (a.t === 'client') return 'Client (site)';
+  if (a.t === 'client') return a.id === 'moi' ? 'Client (espace)' : 'Client (site)';
   if (a.t === 'provider') return a.id === 'stripe' ? 'Stripe' : 'Paiement';
   return a.n || 'Automatique';
 }
