@@ -9,6 +9,7 @@ import { QR } from '../../../lib/qr';
 import { Icon } from '../../../ui/Icon';
 import { Button, Note, confirm, toast, toastError } from '../../../ui/kit';
 import { useApp } from '../../state';
+import { ofName } from '../../Login';
 import type { Staff } from '../../types';
 
 export type Phone = { id: string; name: string; at: number; current: boolean };
@@ -28,6 +29,9 @@ export function PhoneQR({ st, self, compact }: { st: Pick<Staff, 'id' | 'name' |
   const [busy, setBusy] = useState(false);
   const [left, setLeft] = useState(0);
   const known = useRef<Set<string> | null>(null);
+  // the button that asked for it unmounts: the keyboard lands on the QR's heading, not on the page's body
+  const head = useRef<HTMLElement>(null);
+  useEffect(() => { if (link) head.current?.focus(); }, [link?.url]);
   const ask = async () => {
     setBusy(true);
     try {
@@ -44,10 +48,10 @@ export function PhoneQR({ st, self, compact }: { st: Pick<Staff, 'id' | 'name' |
     if (fresh) { setLink(null); known.current = null; toast({ title: 'Téléphone lié', sub: fresh.name, icon: 'check' }); }
   }, [phones.data]);
   if (!st.hasPin) return <Note icon="key">{self ? 'Choisis d’abord ton code (ci-dessous) : c’est lui qui ouvrira ton téléphone.' : st.name + ' n’a pas encore de code : définis-le d’abord.'}</Note>;
-  if (!link) return <div><Button variant={compact ? 'ghost' : 'primary'} size={compact ? 'sm' : 'md'} icon="qr" busy={busy} onClick={ask}>{self ? 'Lier mon téléphone' : 'Lier son téléphone'}</Button></div>;
+  if (!link) return <div className="touch44"><Button variant={compact ? 'ghost' : 'primary'} size={compact ? 'sm' : 'md'} icon="qr" busy={busy} onClick={ask}>{self ? 'Lier mon téléphone' : 'Lier son téléphone'}</Button></div>;
   const expired = left <= 0;
   return (
-    <div className="row wrap" style={{ gap: 18, alignItems: 'center' }}>
+    <div className="row wrap touch44" style={{ gap: 18, alignItems: 'center' }}>
       {expired ? (
         <div className="col" style={{ gap: 10, alignItems: 'center' }}>
           <p className="muted" role="status">Ce QR code a expiré.</p>
@@ -55,9 +59,9 @@ export function PhoneQR({ st, self, compact }: { st: Pick<Staff, 'id' | 'name' |
         </div>
       ) : (
         <>
-          <QR text={link.url} size={196} label={'QR code pour lier le téléphone de ' + st.name} />
-          <div className="col" style={{ gap: 6 }}>
-            <b>Scanne avec ton téléphone</b>
+          <QR text={link.url} size={196} label={self ? 'QR code pour lier ton téléphone' : 'QR code pour lier le téléphone ' + ofName(st.name)} />
+          <div className="col" style={{ gap: 6, minWidth: 0 }}>
+            <b ref={head} tabIndex={-1}>Scanne avec {self ? 'ton' : 'son'} téléphone</b>
             <p className="muted" style={{ fontSize: 13.5 }}>L’appareil photo ouvre le Comptoir : {self ? 'tape' : st.name + ' tape'} « Lier mon téléphone », puis {self ? 'ton' : 'son'} code. Une seule fois, valable 10 minutes.</p>
             <p className="row tnum muted" style={{ gap: 6, fontSize: 13.5 }} role="timer" aria-live="off" aria-label={'Expire dans ' + mmss(left)}><Icon name="clock" size={14} />Expire dans {mmss(left)}</p>
             <div><Button size="sm" variant="ghost" onClick={() => setLink(null)}>Fermer</Button></div>
@@ -84,11 +88,11 @@ export function PhoneList({ st, self }: { st: Pick<Staff, 'id' | 'name'>; self: 
   };
   if (!items.length) return <p className="faint" style={{ fontSize: 13 }}>{self ? 'Aucun téléphone lié pour l’instant.' : 'Aucun téléphone lié.'}</p>;
   return (
-    <ul className="list" aria-label={self ? 'Mes téléphones' : 'Téléphones de ' + st.name}>
+    <ul className="list touch44" aria-label={self ? 'Mes téléphones' : 'Téléphones de ' + st.name}>
       {items.map((p) => (
         <li key={p.id} className="li">
           <Icon name="device" size={20} />
-          <span className="li-main"><b>{p.name}</b><small>{p.current ? 'Ce téléphone · ' : ''}lié le {dates.dayShort(dates.localParts(p.at).day)}</small></span>
+          <span className="li-main" style={{ minWidth: 0, overflowWrap: 'anywhere' }}><b>{p.name}</b><small>{p.current ? 'Ce téléphone · ' : ''}lié le {dates.dayShort(dates.localParts(p.at).day)}</small></span>
           <Button size="sm" variant="ghost" onClick={() => remove(p)} aria-label={'Retirer ' + p.name}>Retirer</Button>
         </li>
       ))}

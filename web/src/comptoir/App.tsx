@@ -63,7 +63,8 @@ export function Root() {
   // a phone link (/comptoir/lier/…) shows its own screen, even on a browser already signed in
   if (!auth.me || !boot || linkToken()) return <><Login state={auth} onDone={load} /><Toasts /></>;
   return (
-    <AppProvider initial={boot} onOut={() => { setBoot(null); load(); }}>
+    // signed out (or the phone removed): the sign-in screen starts from the fresh state, never from the stale one
+    <AppProvider initial={boot} onOut={() => { setBoot(null); setAuth(null); load(); }}>
       <Shell />
       <Toasts />
       <ConfirmHost />

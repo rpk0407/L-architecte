@@ -148,8 +148,12 @@ export function blobStore(o = {}) {
         const sealed = [];
         let changed = 0;
         for (const sg of h.sealed) {
+          // the cache still says which segments hold a matching event (match reads ids and types, never pii): only
+          // those are downloaded again, so a redaction costs a few segments, not the whole journal
+          if (segments.has(sg.key) && !segments.get(sg.key).some((e) => match(e))) { sealed.push(sg); continue; }
           const raw = await readJson(sg.key);
           const evs = raw.status === 200 ? raw.body : await segment(sg.key);
+          if (!segments.has(sg.key) && raw.status === 200) segments.set(sg.key, raw.body);
           if (!evs.some((e) => e.pii != null && match(e))) { sealed.push(sg); continue; }
           const clean = evs.map((e) => { if (e.pii != null && match(e)) { changed++; const { pii, ...rest } = e; return rest; } return e; });
           sealed.push(await writeSegment(clean));

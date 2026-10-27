@@ -1,13 +1,13 @@
 // @ts-check
 // Signing in. The owner uses e-mail + password anywhere; on a device enrolled as "poste du salon",
 // the team switches with a 4–6 digit PIN. A PIN is useless anywhere else.
-import { HttpError, guard, failureGuard, cookie } from './kit.js';
+import { HttpError, guard, failureGuard, cookie, parseCookies } from './kit.js';
 import { signSession, checkLink, SESSION_COOKIE, DEVICE_COOKIE, HOUR, PIN_PHONE_DAYS } from '../auth/session.js';
 import { hashSecret, verifySecret, verifyDummy, passwordProblem, pinProblem } from '../auth/password.js';
 import { capsOf, ROLES } from '../domain/permissions.js';
 import { staffView } from './views.js';
 import { newToken, sha256, safeEqual } from '../lib/util.js';
-import { setCredentials, enrollDevice, revokeSessions } from '../commands/team.js';
+import { setCredentials, enrollDevice, revokeDevice, revokeSessions, missPhonePin, clearPhonePin } from '../commands/team.js';
 import { initialize } from '../commands/setup.js';
 import { DEMO } from '../domain/seed.js';
 import { isEmail } from '../lib/util.js';
@@ -27,6 +27,17 @@ export function meView(s, staff, device, kind) {
 
 /** A barber's own phone (TEAM-02): his code about once a day (ph, auth/session.js), for 30 days at most. */
 const onPhone = (r, staff) => !!(r.device && r.device.personal && r.device.staffId === staff.id);
+/** This browser's device cookie names a linked phone that was removed (by its owner, the salon, or too many wrong codes). */
+function removedPhone(r) {
+  if (r.device) return false;
+  const t = parseCookies(r.req)[DEVICE_COOKIE];
+  if (!t) return false;
+  const h = sha256(t);
+  return [...r.s.devices.values()].some((d) => d.tokenHash === h && d.personal && d.revoked);
+}
+const PHONE_REMOVED = 'Ce téléphone a été retiré. Demande un nouveau QR code.';
+/** what a linked phone's own checks run as: the person it belongs to, on that phone */
+const asPhone = (r, d) => { const st = r.s.staff.get(d.staffId); return { actor: /** @type {const} */ ({ t: 'staff', id: d.staffId, n: st ? st.name : '', dev: d.id }), staff: st, caps: new Set() }; };
 
 function setSession(r, staff, kind, remember) {
   const now = r.rt.engine.clock();
@@ -46,6 +57,7 @@ export function authRoutes(app) {
     return {
       mode: s.mode, needsSetup: s.version === 0, shop: { name: s.settings.shop.name },
       device: r.device ? { id: r.device.id, name: r.device.name, personal: !!r.device.personal } : null, team,
+      ...(removedPhone(r) ? { phoneRemoved: true } : {}),
       me: r.me ? meView(s, r.me, r.device, r.session && r.session.kind) : null,
       demo: s.mode === 'demo' ? { email: DEMO.email, password: DEMO.password, ownerPin: DEMO.ownerPin, pins: DEMO.pins, giftcard: DEMO.giftcard } : null
     };
@@ -65,7 +77,7 @@ export function authRoutes(app) {
   }, { auth: false });
 
   app.post('/api/auth/pin', async (r) => {
-    if (!r.device) throw new HttpError(403, 'no_device', 'Ce poste n’est pas enregistré. Le gérant doit d’abord s’y connecter.');
+    if (!r.device) throw removedPhone(r) ? new HttpError(403, 'phone_removed', PHONE_REMOVED) : new HttpError(403, 'no_device', 'Ce poste n’est pas enregistré. Le gérant doit d’abord s’y connecter.');
     const staff = r.s.staff.get(String(r.body.staffId || ''));
     // someone's linked phone is his alone: nobody else's code opens it
     if (r.device.personal) {
@@ -76,7 +88,16 @@ export function authRoutes(app) {
     const tries = failureGuard('pin|' + r.device.id + '|' + (staff ? staff.id : 'x'), 5, 5 * 60000, 'Trop d’essais. Patiente 5 minutes ou demande au gérant.');
     const creds = staff && staff.active ? r.s.creds.get(staff.id) : null;
     const ok = creds && creds.pin ? await verifySecret(String(r.body.pin || ''), creds.pin) : await verifyDummy(String(r.body.pin || ''));
-    if (!ok || !staff) { tries.fail(); throw new HttpError(401, 'bad_pin', 'Code incorrect.'); }
+    if (!ok || !staff) {
+      tries.fail();
+      // on a linked phone the wrong codes are also counted in the journal: at the 10th in a row, the phone is removed
+      if (r.device.personal) {
+        const m = await r.rt.engine.run(missPhonePin, { id: r.device.id }, { actor: { t: 'system', id: 'pin-lock', dev: r.device.id }, caps: new Set() });
+        if (m.locked) throw new HttpError(403, 'phone_locked', 'Trop de codes faux : ce téléphone a été retiré. Demande un nouveau QR code.');
+      }
+      throw new HttpError(401, 'bad_pin', 'Code incorrect.');
+    }
+    if (r.device.personal && r.s.phoneMisses && r.s.phoneMisses.get(r.device.id)) await r.rt.engine.run(clearPhonePin, { id: r.device.id }, asPhone(r, r.device));
     setSession(r, staff, 'pin', false);
     return { me: meView(r.s, staff, r.device, 'pin') };
   }, { auth: false });
@@ -109,7 +130,8 @@ export function authRoutes(app) {
    * not: a link already used (409), expired (410), anything else (404). Said before the tap and checked again by it.
    */
   const phoneLink = (r, token) => {
-    guard('link|' + r.ip, 30, 15 * 60000);
+    // its own window: the clients' « send me a link » pages share link|<ip> (domain/linkcap.js), a barber's phone must not eat it
+    guard('phone-link-ip|' + r.ip, 30, 15 * 60000);
     const id = checkLink(r.rt.secret, 'phone', token);
     const [staffId, exp36, nonce] = id ? id.split('~') : [];
     const st = staffId ? r.s.staff.get(staffId) : null;
@@ -130,12 +152,15 @@ export function authRoutes(app) {
     const token = newToken();
     const name = String(r.body.name || '').trim().slice(0, 40) || 'Téléphone ' + ofName(st.name);
     // as the person himself (his link vouches for him): his feed and the owner's say he linked it
-    await r.rt.engine.run(enrollDevice, { name, tokenHash: sha256(token), staffId: st.id, personal: true, link: nonce }, { actor: { t: 'staff', id: st.id, n: st.name }, staff: st, caps: new Set() });
+    // replaces: this browser's previous linked phone, whose cookie is overwritten here, is removed with it
+    await r.rt.engine.run(enrollDevice, { name, tokenHash: sha256(token), staffId: st.id, personal: true, link: nonce, replaces: r.device ? r.device.id : null }, { actor: { t: 'staff', id: st.id, n: st.name }, staff: st, caps: new Set() });
     r.setCookies.push(cookie(DEVICE_COOKIE, token, { maxAge: 400 * 86400, secure: r.rt.cfg.secureCookies }));
     return { staff: { id: st.id, name: st.name } };
   }, { auth: false });
 
-  app.post('/api/auth/forget-device', (r) => {
+  app.post('/api/auth/forget-device', async (r) => {
+    // a linked phone forgotten is a phone removed: otherwise it would stay in the lists, never usable again
+    if (r.device && r.device.personal) await r.rt.engine.run(revokeDevice, { id: r.device.id }, asPhone(r, r.device));
     r.setCookies.push(cookie(DEVICE_COOKIE, '', { maxAge: 0, secure: r.rt.cfg.secureCookies }));
     r.setCookies.push(cookie(SESSION_COOKIE, '', { maxAge: 0, secure: r.rt.cfg.secureCookies }));
     return { ok: true };

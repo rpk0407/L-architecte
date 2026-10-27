@@ -2,18 +2,22 @@
 // code opens, about once a day (12 h idle instead of 10 min); he or the owner removes it. His prefs are his alone and
 // never reload everyone's boot; his photo lives in pii (erasable) and is checked for what it claims to be; his agenda
 // reaches his phone's calendar without a number, a note, a price, or (unless he asks) a name.
-import { test, before } from 'node:test';
+import { test, before, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { testRuntime, browser } from '../api/client.js';
 import { salon, at, rejects } from '../helpers.js';
 import { DEMO } from '../../server/domain/seed.js';
 import { createRuntime } from '../../server/http/runtime.js';
 import { signLink } from '../../server/auth/session.js';
-import { setPrefs, setPhoto, archiveStaff } from '../../server/commands/team.js';
+import { setPrefs, setPhoto, archiveStaff, issuePhoneLink, addStaff, setCredentials } from '../../server/commands/team.js';
+import { hashSecret } from '../../server/auth/password.js';
+import { capsOf } from '../../server/domain/permissions.js';
+import { limited } from '../../server/http/kit.js';
+import { linkIpKey, LINK_IP_PER_HOUR } from '../../server/domain/linkcap.js';
 import { addClient } from '../../server/commands/clients.js';
 import { createAppointment, cancelAppointment } from '../../server/commands/agenda.js';
 import { emptyState, evolve } from '../../server/core/state.js';
-import { prefsDefaults } from '../../server/projections/staffprefs.js';
+import { prefsDefaults, PHONE_MISSES } from '../../server/projections/staffprefs.js';
 
 const DAY = '2026-11-03'; // a Tuesday
 const clock = { now: at(DAY, 10, 0) };
@@ -293,6 +297,9 @@ test('calendar: his appointments, cancellations marked, no number, note, price o
   assert.equal(body.split('BEGIN:VEVENT').length - 1, 3);
   assert.equal(body.split('STATUS:CANCELLED').length - 1, 1);
   assert.match(body, /SUMMARY:Coupe \+ barbe · 1re visite/);
+  // the next one counts the bookings ahead of it (on any chair), not only the visits already done
+  assert.match(body, /SUMMARY:Coupe \+ barbe · 3e visite/);
+  assert.ok(!/DESCRIPTION:[^\r]*visite/.test(body), 'the visit is said once, in the summary');
   assert.match(body, /BEGIN:VTIMEZONE/);
   for (const bad of ['0698765432', '06 98', '98 76 54 32', '5432', '+33', 'Allergique', 'Dégradé', 'Karim', 'Bensa', '€', '30,00', '/r/', 'http']) assert.ok(!body.includes(bad), 'the feed shows ' + bad);
   for (const line of body.split('\r\n')) assert.ok(Buffer.byteLength(line) <= 75, 'folded: ' + line);
@@ -320,4 +327,149 @@ test('calendar: his appointments, cancellations marked, no number, note, price o
   await fx.engine.run(setPrefs, { staffId: ali, prefs: { cal: 0 } }, asAli());
   assert.equal((await b.get(url(2))).status, 404);
   assert.ok(o);
+});
+
+test('ten wrong codes in a row remove the phone, whatever restarts in between; the right code resets the count', async () => {
+  // the PIN route's own limits count in real time (5 failures per 5 minutes): the fake Date lets the test outlast them
+  mock.timers.enable({ apis: ['Date'], now: Date.now() });
+  try {
+    const jk = await onTablet('JKut');
+    const phone = await phoneOf(await link(jk, 'JKut'), 'JKut');
+    assert.equal((await phone.post('/api/auth/pin', { staffId: ids.JKut, pin: DEMO.pins.JKut })).status, 200);
+    const did = lastDevice().id;
+    const wrong = () => phone.post('/api/auth/pin', { staffId: ids.JKut, pin: '0007' });
+    const misses = async (n) => { for (let i = 0; i < n; i++) { if (i && i % 5 === 0) mock.timers.tick(5 * MIN + 1000); assert.equal((await wrong()).status, 401); } mock.timers.tick(5 * MIN + 1000); };
+    // nine, then the right code: the count starts again
+    await misses(9);
+    assert.equal(rt.engine.state.phoneMisses.get(did), 9);
+    assert.equal((await phone.post('/api/auth/pin', { staffId: ids.JKut, pin: DEMO.pins.JKut })).status, 200);
+    assert.equal(rt.engine.state.phoneMisses.has(did), false);
+    // the count lives in the journal: a fresh instance (a cold start) reads the same
+    await misses(PHONE_MISSES - 1);
+    const cold = await createRuntime({ env: { LX_MODE: 'demo', SESSION_SECRET: 'test-secret-0123456789' }, clock: () => clock.now, store: rt.store });
+    await cold.engine.sync(true);
+    assert.equal(cold.engine.state.phoneMisses.get(did), PHONE_MISSES - 1);
+    // the tenth: removed, its open session ends at the next request
+    const last = await wrong();
+    assert.equal(last.status, 403);
+    assert.equal(last.json.error.code, 'phone_locked');
+    assert.equal(rt.engine.state.devices.get(did).revoked, true);
+    assert.equal((await phone.get('/api/v1/bootstrap')).status, 401);
+    const st = await phone.get('/api/auth/state');
+    assert.equal(st.json.device, null);
+    assert.equal(st.json.phoneRemoved, true, 'the phone says it was removed');
+    const pin = await phone.post('/api/auth/pin', { staffId: ids.JKut, pin: DEMO.pins.JKut });
+    assert.equal(pin.status, 403);
+    assert.equal(pin.json.error.code, 'phone_removed');
+    assert.equal(pin.json.error.message, 'Ce téléphone a été retiré. Demande un nouveau QR code.');
+    // the owner and JKut hear of it
+    const feed = (await (await owner()).get('/api/v1/feed')).json.items;
+    assert.ok(feed.some((f) => f.title === 'Téléphone de JKut retiré après 10 codes faux (iPhone de JKut)'), 'the owner is told');
+    // a salon tablet counts nothing in the journal
+    const tablet = await onTablet('Frank');
+    const n = rt.engine.state.version;
+    assert.equal((await tablet.post('/api/auth/pin', { staffId: ids.Frank, pin: '0007' })).status, 401);
+    assert.equal(rt.engine.state.version, n);
+  } finally { mock.timers.reset(); }
+});
+
+test('a manager links a barber’s phone, never the owner’s; the owner links anyone’s', async () => {
+  const s = rt.engine.state;
+  const o = [...s.staff.values()].find((x) => x.role === 'owner' && x.active);
+  const asO = { actor: { t: 'staff', id: o.id }, staff: o, caps: capsOf(o, s.settings) };
+  const m = await rt.engine.run(addStaff, { name: 'Sami', role: 'manager' }, asO);
+  await rt.engine.run(setCredentials, { id: m.id, pinHash: await hashSecret('4826') }, asO);
+  const mgr = s.staff.get(m.id);
+  const asM = { actor: { t: 'staff', id: mgr.id }, staff: mgr, caps: capsOf(mgr, s.settings) };
+  await rejects(rt.engine.run(issuePhoneLink, { staffId: o.id }, asM), 'forbidden');
+  assert.ok((await rt.engine.run(issuePhoneLink, { staffId: ids.JKut }, asM)).id);
+  // his own, yes; the owner links the manager's
+  assert.ok((await rt.engine.run(issuePhoneLink, { staffId: mgr.id }, asM)).id);
+  assert.ok((await rt.engine.run(issuePhoneLink, { staffId: mgr.id }, asO)).id);
+  // over HTTP the same: the manager on a salon tablet
+  const b = await owner();
+  assert.equal((await b.post('/api/auth/device', { name: 'Tablette 3' })).status, 200);
+  await b.post('/api/auth/logout');
+  assert.equal((await b.post('/api/auth/pin', { staffId: mgr.id, pin: '4826' })).status, 200);
+  assert.equal((await b.post('/api/v1/staff/' + o.id + '/phone-link')).status, 403);
+  assert.equal((await b.post('/api/v1/staff/' + ids.Frank + '/phone-link')).status, 200);
+  await rt.engine.run(archiveStaff, { id: mgr.id }, asO);
+});
+
+test('one browser, one linked phone: linking again or « Oublier cet appareil » leaves no ghost', async () => {
+  const jk = await onTablet('JKut');
+  const active = (id) => [...rt.engine.state.devices.values()].filter((d) => d.personal && d.staffId === id && !d.revoked).length;
+  const before = active(ids.JKut);
+  const phone = await phoneOf(await link(jk, 'JKut'), 'JKut');
+  const first = lastDevice().id;
+  assert.equal(active(ids.JKut), before + 1);
+  // the same browser scans a new QR: the old device goes with its overwritten cookie
+  const again = await phone.post('/api/auth/link', { token: await link(jk, 'JKut') });
+  assert.equal(again.status, 200, again.text);
+  assert.equal(rt.engine.state.devices.get(first).revoked, true);
+  assert.equal(active(ids.JKut), before + 1);
+  // handed to Frank: JKut's phone leaves his list
+  const second = lastDevice().id;
+  const fr = await onTablet('Frank');
+  const frBefore = active(ids.Frank);
+  assert.equal((await phone.post('/api/auth/link', { token: await link(fr, 'Frank') })).status, 200);
+  assert.equal(rt.engine.state.devices.get(second).revoked, true);
+  assert.equal(active(ids.JKut), before);
+  assert.equal(active(ids.Frank), frBefore + 1);
+  // « Oublier cet appareil » on a linked phone removes it
+  const third = lastDevice().id;
+  assert.equal((await phone.post('/api/auth/pin', { staffId: ids.Frank, pin: DEMO.pins.Frank })).status, 200);
+  assert.equal((await phone.post('/api/auth/forget-device')).status, 200);
+  assert.equal(rt.engine.state.devices.get(third).revoked, true);
+  assert.equal(active(ids.Frank), frBefore);
+});
+
+test('linking phones never eats the clients’ « send me a link » allowance from the same wifi', async () => {
+  const ip = '10.77.0.1';
+  const shop = browser(rt, { ip });
+  // four barbers peeking and linking from the salon's wifi (invalid links still count against the phone window)
+  for (let i = 0; i < 8; i++) assert.equal((await shop.get('/api/auth/link/x' + i)).status, 404);
+  // the clients' window for this address is untouched: all of its asks are left
+  for (let i = 0; i < LINK_IP_PER_HOUR; i++) assert.equal(limited(linkIpKey(ip), LINK_IP_PER_HOUR, HOUR), false, 'ask ' + (i + 1));
+  assert.equal(limited(linkIpKey(ip), LINK_IP_PER_HOUR, HOUR), true);
+});
+
+test('archiving a member removes his phones and cuts his calendar: reactivating him brings neither back', async () => {
+  const s = rt.engine.state;
+  const o = [...s.staff.values()].find((x) => x.role === 'owner' && x.active);
+  const asO = { actor: { t: 'staff', id: o.id }, staff: o, caps: capsOf(o, s.settings) };
+  const es = await onTablet('Esteban');
+  const phone = await phoneOf(await link(es, 'Esteban'), 'Esteban');
+  const did = lastDevice().id;
+  const cal = await es.post('/api/v1/prefs/calendar', { on: true });
+  assert.equal(cal.status, 200, cal.text);
+  const feed = new URL(cal.json.https).pathname;
+  assert.equal((await browser(rt).get(feed)).status, 200);
+  await rt.engine.run(archiveStaff, { id: ids.Esteban }, asO);
+  await rt.engine.run(archiveStaff, { id: ids.Esteban, restore: true }, asO);
+  assert.equal(s.devices.get(did).revoked, true);
+  assert.equal((await phone.post('/api/auth/pin', { staffId: ids.Esteban, pin: DEMO.pins.Esteban })).status, 403);
+  assert.equal((await browser(rt).get(feed)).status, 404, 'the old webcal address stays dead');
+  assert.equal(s.prefs.get(ids.Esteban).cal, 0);
+});
+
+test('the calendar link comes from what was stored: a retried request gets the same working address', async () => {
+  const jk = await onTablet('JKut');
+  const h = { 'x-request-id': 'cal-retry-0001' };
+  const a = await jk.post('/api/v1/prefs/calendar', { on: true }, h);
+  assert.equal(a.status, 200, a.text);
+  const b = await jk.post('/api/v1/prefs/calendar', { on: true }, h);
+  assert.equal(b.json.url, a.json.url);
+  assert.equal((await browser(rt).get(new URL(a.json.https).pathname)).status, 200);
+  // a new request: a new generation, the old address dead
+  const c = await jk.post('/api/v1/prefs/calendar', { on: true });
+  assert.notEqual(c.json.url, a.json.url);
+  assert.equal((await browser(rt).get(new URL(a.json.https).pathname)).status, 404);
+  assert.equal((await browser(rt).get(new URL(c.json.https).pathname)).status, 200);
+  // the activity log names it in French
+  const audit = (await (await owner()).get('/api/v1/audit')).json;
+  const items = audit.items || audit.events || [];
+  const link = items.find((x) => x.type === 'phone.linkIssued');
+  assert.ok(link && link.label === 'Lien de téléphone créé' && /^pour /.test(link.summary), JSON.stringify(link));
+  assert.ok(items.filter((x) => x.type === 'prefs.set').every((x) => x.label === 'Réglages personnels modifiés'));
 });

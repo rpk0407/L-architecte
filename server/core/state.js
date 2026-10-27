@@ -339,7 +339,7 @@ export function evolve(s, e) {
   s.head = e.h;
   // an import writes hundreds of bookings at once: they are not news, and would push the real ones out of the feed
   const imported = e.type === 'appt.booked' && d.source === 'import';
-  if (!imported && (FEED.has(e.type) || EXTENSIONS.some((x) => x.item && x.feed?.includes(e.type))) && !(e.actor.t === 'system' && (e.type !== 'appt.cancelled' || e.actor.id === 'seed' || e.actor.id === 'demo'))) {
+  if (!imported && (FEED.has(e.type) || EXTENSIONS.some((x) => x.item && x.feed?.includes(e.type))) && !(e.actor.t === 'system' && ((e.type !== 'appt.cancelled' && e.type !== 'phone.locked') || e.actor.id === 'seed' || e.actor.id === 'demo'))) {
     s.feed.push({ v: e.v, type: e.type, at: e.at, actor: e.actor, data: e.data });
     if (s.feed.length > 300) s.feed.splice(0, s.feed.length - 300);
   }

@@ -74,10 +74,14 @@ export function staffRedact(staffId, types, before = Infinity) {
   return (x) => kinds.has(x.type) && !!x.data && x.data.id === staffId && x.v < before;
 }
 
-/** What an appended event makes erasable elsewhere in the journal, or null: a client's erasure, a staff photo's change. */
-function redactionOf(e) {
+/**
+ * What an appended event makes erasable elsewhere in the journal, or null: a client's erasure, a staff photo's change.
+ * Called once the event is folded: a person's first photo has nothing earlier to redact, so the store is not asked.
+ * The match reads ids, types and versions only, never pii: a store may use it on copies whose pii is already gone.
+ */
+function redactionOf(e, s) {
   if (e.type === 'client.erased') return erasedMatch(e);
-  if (e.type === 'staff.photo' && e.data && e.data.id) return staffRedact(e.data.id, ['staff.photo'], e.v);
+  if (e.type === 'staff.photo' && e.data && e.data.id && (s.photoEvents?.get(e.data.id) || 0) > 1) return staffRedact(e.data.id, ['staff.photo'], e.v);
   return null;
 }
 
@@ -121,7 +125,7 @@ export function createEngine(store, opts = {}) {
       evolve(state, e);
       journal.push(e);
       // an erasure made by another instance reaches this one here: its memory forgets the client (or the old photo) too
-      const match = redactionOf(e);
+      const match = redactionOf(e, state);
       if (match) {
         let kept = false;
         for (const x of journal) if (x.pii != null && match(x)) { if (fresh.has(x) && !own) kept = true; delete x.pii; }
@@ -264,7 +268,7 @@ export function createEngine(store, opts = {}) {
   async function afterAppend(list) {
     for (const e of list) {
       // memory was cleaned by apply; the store forgets now, or after its next read if it fails here (the write stands)
-      const match = redactionOf(e);
+      const match = redactionOf(e, state);
       if (match) redactLater.push(match);
     }
     if (redactLater.length) await redactPending();

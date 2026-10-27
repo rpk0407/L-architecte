@@ -28,8 +28,11 @@ export function fileStore(path) {
     },
     async redact(match) {
       let n = 0;
-      events = events.map((e) => { if (e.pii != null && match(e)) { n++; const { pii, ...rest } = e; return rest; } return e; });
-      if (n) rewrite();
+      // from the disk: the events in memory are the engine's own objects, whose pii it drops before asking, so they
+      // would read as already clean while the file still holds the personal data
+      const disk = existsSync(path) ? readFileSync(path, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l)) : [];
+      const clean = disk.map((e) => { if (e.pii != null && match(e)) { n++; const { pii, ...rest } = e; return rest; } return e; });
+      if (n) { events = clean; rewrite(); }
       return n;
     },
     async reset() { events = []; rewrite(); epoch = 'f' + randomBytes(4).toString('hex'); return epoch; },

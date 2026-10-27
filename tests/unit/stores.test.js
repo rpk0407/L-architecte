@@ -22,7 +22,8 @@ function events(from, n, prev = GENESIS) {
 /** factories return two handles on the same backend, as two servers would have */
 const backends = {
   memory: () => { const s = memoryStore(); return [s, s]; },
-  file: () => { const p = join(mkdtempSync(join(tmpdir(), 'lx-')), 'j.jsonl'); return [fileStore(p), null]; },
+  // the third handle reopens the file, as the next `npm run dev` would: what is on disk, not in this process's memory
+  file: () => { const p = join(mkdtempSync(join(tmpdir(), 'lx-')), 'j.jsonl'); return [fileStore(p), null, () => fileStore(p)]; },
   blob: () => { const sdk = fakeBlobSdk(); return [blobStore({ sdk, prefix: 't' }), blobStore({ sdk, prefix: 't' })]; }
 };
 if (process.env.TEST_DATABASE_URL) {
@@ -96,10 +97,10 @@ for (const [name, make] of Object.entries(backends)) {
     });
 
     test('a staff photo replaced, removed or archived leaves no earlier copy in the store (TEAM-02)', async () => {
-      const [a, b] = make();
+      const [a, b, reopen] = /** @type {any[]} */ (make());
       const fx = await salon({ store: a });
       const pic = (n) => 'data:image/jpeg;base64,' + Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(n, 3)]).toString('base64');
-      const kept = async () => (await (b || a).read(0)).events.filter((e) => e.type === 'staff.photo' && e.pii);
+      const kept = async () => (await (reopen ? reopen() : b || a).read(0)).events.filter((e) => e.type === 'staff.photo' && e.pii);
       await fx.engine.run(setPhoto, { staffId: fx.ids.Ali, data: pic(900) }, fx.asStaff('Ali'));
       await fx.engine.run(setPhoto, { staffId: fx.ids.Ali, data: pic(1200) }, fx.asStaff('Ali'));
       await fx.engine.run(setPhoto, { staffId: fx.ids.Ben, data: pic(800) }, fx.asStaff('Ben'));

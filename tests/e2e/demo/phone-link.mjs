@@ -23,7 +23,7 @@ export default async ({ h, page }) => {
   await page.getByRole('button', { name: 'Lier mon téléphone' }).click();
   const link = await (await issued).json();
   if (!/\/comptoir\/lier\//.test(link.url || '')) throw new Error('no phone link: ' + JSON.stringify(link));
-  await page.getByRole('img', { name: /QR code pour lier le téléphone de JKut/ }).waitFor();
+  await page.getByRole('img', { name: /QR code pour lier ton téléphone/ }).waitFor();
   await h.expectText(page, 'Scanne avec ton téléphone');
   await page.getByRole('timer').waitFor();
   await h.shot(page, 'phone-link-tablet');

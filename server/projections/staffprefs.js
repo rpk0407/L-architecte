@@ -7,6 +7,8 @@
 //   store (core/engine.js staffRedact), so a team member's face is erasable like a client's file.
 // - phone.linkIssued { id: nonce, staffId, exp }: a 10-minute, single-use link that enrolls his own phone; used once
 //   a device.enrolled carries `link: nonce` (state.js keeps it on the device).
+// - phone.pinMissed { id } / phone.pinCleared { id }: wrong codes in a row on a linked phone, counted in the journal so
+//   no restart resets them; phone.locked { id, staffId, name } then device.revoked at PHONE_MISSES (commands/team.js).
 // - device.enrolled is shown in the feed (« JKut a lié un téléphone (iPhone de JKut) ») to `team` and to the person.
 // Registered in core/extensions.js. No import of the engine or the state here.
 
@@ -17,6 +19,8 @@ export const NOTIFY = /** @type {const} */ (['mine', 'all', 'none']);
 export const BLUR = /** @type {const} */ (['auto', 'on', 'off']);
 /** a phone link lives this long */
 export const LINK_MS = 10 * 60000;
+/** wrong codes in a row on a linked phone before it is removed: 10 tries at a 4-digit code is a 1-in-1000 guess */
+export const PHONE_MISSES = 10;
 /** expired links are forgotten after a day: the token carries its own expiry, so a forgotten one still reads as expired */
 const LINK_KEEP = 24 * 3600000;
 
@@ -43,7 +47,7 @@ export function ofName(name) {
 
 /** @type {import('../core/extensions.js').Extension} */
 export const staffprefsExtension = {
-  init(s) { s.prefs = new Map(); s.staffPhotos = new Map(); s.phoneLinks = new Map(); s.calTop = new Map(); },
+  init(s) { s.prefs = new Map(); s.staffPhotos = new Map(); s.photoEvents = new Map(); s.phoneLinks = new Map(); s.calTop = new Map(); s.phoneMisses = new Map(); },
   on: {
     'prefs.set': (s, e, d) => {
       s.prefs.set(d.staffId, { ...(s.prefs.get(d.staffId) || {}), ...d.prefs });
@@ -53,20 +57,26 @@ export const staffprefsExtension = {
     // photoV on the staff record (staffView's `photo`): not `photo`, which old journals of the site editor set to a URL
     'staff.photo': (s, e, d, p) => {
       const st = s.staff.get(d.id);
+      // how many photo events he has: his first one leaves nothing earlier to redact (core/engine.js)
+      s.photoEvents.set(d.id, (s.photoEvents.get(d.id) || 0) + 1);
       if (d.v && p.photo) { s.staffPhotos.set(d.id, { v: d.v, data: p.photo }); if (st) st.photoV = d.v; }
       else { s.staffPhotos.delete(d.id); if (st) st.photoV = 0; }
     },
     'phone.linkIssued': (s, e, d) => {
       for (const [k, l] of s.phoneLinks) if (l.exp < e.at - LINK_KEEP) s.phoneLinks.delete(k);
       s.phoneLinks.set(d.id, { id: d.id, staffId: d.staffId, exp: d.exp, at: e.at, by: e.actor.id });
-    }
+    },
+    'phone.pinMissed': (s, e, d) => { s.phoneMisses.set(d.id, (s.phoneMisses.get(d.id) || 0) + 1); },
+    'phone.pinCleared': (s, e, d) => { s.phoneMisses.delete(d.id); },
+    'phone.locked': (s, e, d) => { s.phoneMisses.delete(d.id); }
   },
-  feed: ['device.enrolled'],
+  feed: ['device.enrolled', 'phone.locked'],
   // staffId null: no chair's toast, the person it is about in aboutStaffId (as the governance lines)
   item(r, f) {
     const d = f.data || {};
-    if (!d.personal || !(r.caps.has('team') || d.staffId === r.me.id)) return null;
+    if (!(f.type === 'phone.locked' || d.personal) || !(r.caps.has('team') || d.staffId === r.me.id)) return null;
     const who = (r.s.staff.get(d.staffId) || {}).name || 'Quelqu’un';
+    if (f.type === 'phone.locked') return { v: f.v, at: f.at, by: f.actor.t, kind: 'phone', title: 'Téléphone ' + ofName(who) + ' retiré après ' + PHONE_MISSES + ' codes faux (' + d.name + ')', sub: 'À lier de nouveau avec un QR code', staffId: null, aboutStaffId: d.staffId };
     return { v: f.v, at: f.at, by: f.actor.t, kind: 'phone', title: who + ' a lié un téléphone (' + d.name + ')', sub: 'Accès de l’équipe', staffId: null, aboutStaffId: d.staffId };
   }
 };

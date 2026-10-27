@@ -31,10 +31,11 @@ export function Account() {
       <section className="card col" style={{ gap: 14 }}>
         <div className="row" style={{ gap: 16 }}>
           <Avatar name={me.name} initials={me.initials} color={f.color} photo={photoOf(me)} size="xl" />
-          <div>
+          <div style={{ minWidth: 0 }}>
             <p className="section-k">{me.roleLabel}</p>
             <h2 className="rg-h">{me.name}</h2>
-            <p className="muted" style={{ fontSize: 13.5, marginTop: 6 }}>{me.session === 'pin' ? 'Connecté par code' : 'Connecté par mot de passe'}{me.device ? ' · ' + me.device.name : ''}</p>
+            {/* a linked phone's name is typed on the phone: a long one wraps instead of pushing the page sideways */}
+            <p className="muted" style={{ fontSize: 13.5, marginTop: 6, overflowWrap: 'anywhere' }}>{me.session === 'pin' ? 'Connecté par code' : 'Connecté par mot de passe'}{me.device ? ' · ' + me.device.name : ''}</p>
           </div>
         </div>
         <PhotoField />
@@ -67,10 +68,12 @@ export function Account() {
             await signOut();
           }}>Me déconnecter partout</Button>
           {me.device ? <Button variant="ghost" icon="device" onClick={async () => {
-            if (!await confirm({ title: 'Oublier cet appareil ?', body: 'Ce poste ne proposera plus la connexion par code. Il faudra l’enregistrer à nouveau depuis Réglages › Appareils.', ok: 'Oublier', danger: true })) return;
+            // a linked phone forgotten is removed from Mes téléphones too (the server revokes it): a new QR links it again
+            const body = me.device?.personal ? 'Ce téléphone sera retiré de tes téléphones. Pour l’utiliser à nouveau, il faudra le lier avec un nouveau QR code.' : 'Ce poste ne proposera plus la connexion par code. Il faudra l’enregistrer à nouveau depuis Réglages › Appareils.';
+            if (!await confirm({ title: me.device?.personal ? 'Oublier ce téléphone ?' : 'Oublier cet appareil ?', body, ok: 'Oublier', danger: true })) return;
             await api.post('/api/auth/forget-device').catch(() => {});
             location.reload();
-          }}>Oublier cet appareil</Button> : null}
+          }}>{me.device.personal ? 'Oublier ce téléphone' : 'Oublier cet appareil'}</Button> : null}
         </div>
       </section>
     </div>
@@ -119,9 +122,10 @@ function PhotoField() {
   };
   return (
     <div className="kv" style={{ alignItems: 'center' }}>
-      <span><b>Ma photo</b><br /><small className="faint">Sur l’agenda et l’écran de connexion, pour l’équipe seulement.</small></span>
-      <span className="row" style={{ gap: 8 }}>
-        <input ref={input} id="ac-photo" className="vh" type="file" accept="image/*" onChange={(e) => pick(e.target.files?.[0])} />
+      <span><b>Ma photo</b><br /><small className="faint">Dans le Comptoir et sur l’écran de connexion, pour l’équipe seulement.</small></span>
+      <span className="row touch44" style={{ gap: 8 }}>
+        {/* opened by « Choisir »: out of the tab order and of the accessibility tree, the button is the control */}
+        <input ref={input} id="ac-photo" className="vh" type="file" accept="image/*" tabIndex={-1} aria-hidden onChange={(e) => pick(e.target.files?.[0])} />
         <Button size="sm" variant="ghost" icon="user" busy={busy} onClick={() => input.current?.click()}>Choisir</Button>
         {me.photo ? <Button size="sm" variant="ghost" disabled={busy} onClick={() => send('')}>Retirer</Button> : null}
       </span>
@@ -134,7 +138,7 @@ function PhoneCard() {
   const me = boot.me;
   const here = !!me.device?.personal;
   return (
-    <section className="card col" style={{ gap: 12 }} aria-labelledby="ac-phone">
+    <section className="card col touch44" style={{ gap: 12 }} aria-labelledby="ac-phone">
       <div className="card-h"><h2 id="ac-phone"><Icon name="phone" size={16} />Mon téléphone</h2></div>
       {here ? <Note tone="ok" icon="check">Ce téléphone est lié. Ton code l’ouvre, une fois par jour.</Note> : (
         <>
@@ -167,7 +171,7 @@ function PrefsCard() {
   if (pages.includes('pilotage') && can('report.shop')) homes.push({ v: 'pilotage', t: 'Pilotage' });
   const home = homes.some((h) => h.v === p.home) ? p.home : 'auto';
   return (
-    <section className="card col" style={{ gap: 14 }} aria-labelledby="ac-prefs" aria-busy={busy || undefined}>
+    <section className="card col touch44" style={{ gap: 14 }} aria-labelledby="ac-prefs" aria-busy={busy || undefined}>
       <div className="card-h"><h2 id="ac-prefs"><Icon name="sparkle" size={16} />Mon Comptoir</h2></div>
       <Field label="Ma page d’accueil" hint="Ce qui s’ouvre quand tu arrives sur le Comptoir.">
         <Seg label="Ma page d’accueil" value={home} options={homes} onChange={(v) => save({ home: v })} />
@@ -176,9 +180,12 @@ function PrefsCard() {
         <Seg label="Me prévenir" value={p.notify} options={[{ v: 'mine', t: 'Mes clients' }, { v: 'all', t: 'Tout le salon' }, { v: 'none', t: 'Rien' }]} onChange={(v) => save({ notify: v })} />
       </Field>
       <Switch on={p.buzz} onChange={(v) => save({ buzz: v })} title="Vibrer" hint="Le téléphone vibre avec l’alerte, quand il le peut." disabled={p.notify === 'none'} />
-      <Field label="Montants sur le poste du salon" hint="Sur la tablette du salon, tes montants restent flous tant que tu ne les touches pas.">
-        <Seg label="Montants sur le poste du salon" value={p.blur === 'off' ? 'off' : 'auto'} options={[{ v: 'auto', t: 'Masqués' }, { v: 'off', t: 'Visibles' }]} onChange={(v) => save({ blur: v })} />
-      </Field>
+      {/* only once a page blurs them (Mon espace and Pilotage read useMaskedAmounts): a promise the screens keep */}
+      {pages.includes('espace') || pages.includes('pilotage') ? (
+        <Field label="Montants sur le poste du salon" hint="Sur la tablette du salon, tes montants restent flous tant que tu ne les touches pas.">
+          <Seg label="Montants sur le poste du salon" value={p.blur === 'off' ? 'off' : 'auto'} options={[{ v: 'auto', t: 'Masqués' }, { v: 'off', t: 'Visibles' }]} onChange={(v) => save({ blur: v })} />
+        </Field>
+      ) : null}
     </section>
   );
 }
@@ -191,8 +198,11 @@ function CalendarCard() {
   const [busy, setBusy] = useState(false);
   useEffect(() => { if (q.data) setCal(q.data); }, [q.data]);
   const c = cal || q.data;
-  const ios = /iPhone|iPad|Macintosh/.test(navigator.userAgent);
-  const android = /Android/.test(navigator.userAgent);
+  // webcal: opens the Calendar app on an iPhone, an iPad (which may say Macintosh, with a touch screen) or a Mac;
+  // elsewhere (Android, Windows, Linux) the address is copied into Google Agenda
+  const ua = navigator.userAgent;
+  const ios = /iPhone|iPad/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+  const mac = !ios && /Macintosh/.test(ua);
   const turn = async (on: boolean) => {
     setBusy(true);
     try { setCal(await api.post<Cal>('/api/v1/prefs/calendar', { on })); await reloadBoot(); toast({ title: on ? 'Lien créé' : 'Agenda coupé', sub: on ? 'L’ancien lien ne marche plus.' : undefined, icon: 'calendar' }); }
@@ -212,14 +222,14 @@ function CalendarCard() {
       {c?.on && c.url ? (
         <>
           <div className="row wrap" style={{ gap: 8 }}>
-            {!android ? <a className={'btn ' + (ios ? 'btn-primary' : 'btn-ghost')} href={c.url}><Icon name="calendar" />Ajouter à mon iPhone</a> : null}
-            <Button variant={android ? 'primary' : 'ghost'} icon="copy" onClick={copy}>Copier le lien</Button>
+            {ios || mac ? <a className="btn btn-primary" href={c.url}><Icon name="calendar" />{ios ? 'Ajouter à mon iPhone' : 'Ajouter à mon calendrier'}</a> : null}
+            <Button variant={ios || mac ? 'ghost' : 'primary'} icon="copy" onClick={copy}>Copier le lien</Button>
             <Button variant="ghost" icon="undo" busy={busy} onClick={() => turn(true)}>Nouveau lien</Button>
           </div>
           <Switch on={boot.me.prefs.calName} onChange={name} title="Afficher le prénom" hint="Le prénom du client à côté de la prestation, jamais son nom." />
         </>
       ) : null}
-      <p className="faint" style={{ fontSize: 12.5 }}>Prestation et numéro de visite, le prénom si tu l’affiches ; jamais le numéro, une note ni un prix. Un nouveau lien coupe l’ancien.</p>
+      <p className="faint" style={{ fontSize: 12.5 }}>Prestation et numéro de visite, le prénom si tu l’affiches ; jamais son téléphone, une note ni un prix. Un nouveau lien coupe l’ancien.</p>
     </section>
   );
 }

@@ -11,6 +11,8 @@ import { Avatar, Button, Field, Note, toast } from '../ui/kit';
 export type AuthState = {
   mode: 'demo' | 'production'; needsSetup: boolean; shop: { name: string };
   device: { id: string; name: string; personal?: boolean } | null;
+  /** this browser's linked phone was removed (by its owner, the salon, or too many wrong codes) */
+  phoneRemoved?: boolean;
   team: { id: string; name: string; initials: string; color: string; role: string; roleLabel: string; photo?: number | null }[];
   me: any;
   demo: { email: string; password: string; ownerPin: string; pins: Record<string, string>; giftcard: string } | null;
@@ -25,13 +27,15 @@ export function linkToken() {
 }
 
 export function Login({ state, onDone }: { state: AuthState; onDone: () => void }) {
-  const [view, setView] = useState<'team' | 'owner' | 'setup'>(state.needsSetup ? 'setup' : state.device && state.team.length ? 'team' : 'owner');
+  const first = (): 'team' | 'owner' | 'setup' => (state.needsSetup ? 'setup' : state.device && state.team.length ? 'team' : 'owner');
+  const [view, setView] = useState(first);
   // a linked phone opens on its own person's code pad
   const alone = state.device?.personal && state.team.length === 1 ? state.team[0] : null;
   const [who, setWho] = useState<AuthState['team'][number] | null>(alone);
   const link = linkToken();
-  // a browser that just became a salon device goes straight to the team's codes
-  useEffect(() => { if (state.device && state.team.length) setView('team'); if (alone) setWho(alone); }, [state.device?.id]);
+  // the device changed under the screen: a browser that just became a salon device goes to the team's codes; a phone
+  // removed while open goes back to the start, never to a code pad that can no longer work
+  useEffect(() => { setView(first()); setWho(alone); }, [state.device?.id ?? '']);
   if (link) return <LinkPhone token={link} state={state} onDone={onDone} />;
   return (
     <div className="auth">
@@ -39,11 +43,12 @@ export function Login({ state, onDone }: { state: AuthState; onDone: () => void 
         <div className="auth-brand">
           <span className="brand-mark" aria-hidden>L’A</span>
           <h1>Le Comptoir</h1>
-          <p>{state.shop.name}{state.device ? ' · ' + state.device.name : ''}</p>
+          <p style={{ overflowWrap: 'anywhere' }}>{state.shop.name}{state.device ? ' · ' + state.device.name : ''}</p>
         </div>
+        {state.phoneRemoved && !state.device ? <Note tone="warn" icon="device">Ce téléphone a été retiré. Demande un nouveau QR code.</Note> : null}
         {view === 'setup' ? <Setup onDone={onDone} onRestored={() => { setView('owner'); onDone(); }} /> : null}
         {view === 'team' && !who ? <Team state={state} onPick={setWho} onOwner={() => setView('owner')} /> : null}
-        {view === 'team' && who ? <Pin who={who} phone={!!state.device?.personal} demoPin={state.demo ? (state.demo.pins[who.name] || (who.role === 'owner' ? state.demo.ownerPin : '')) : ''} onBack={() => setWho(null)} onDone={onDone} /> : null}
+        {view === 'team' && who ? <Pin who={who} phone={!!state.device?.personal} demoPin={state.demo ? (state.demo.pins[who.name] || (who.role === 'owner' ? state.demo.ownerPin : '')) : ''} onBack={() => setWho(null)} onDone={onDone} onGone={onDone} /> : null}
         {view === 'owner' ? <Owner state={state} onDone={onDone} onTeam={state.device && state.team.length ? () => setView('team') : null} /> : null}
       </div>
     </div>
@@ -67,7 +72,9 @@ function Team({ state, onPick, onOwner }: { state: AuthState; onPick: (w: AuthSt
   );
 }
 
-function Pin({ who, demoPin, phone, onBack, onDone }: { who: AuthState['team'][number]; demoPin: string; phone?: boolean; onBack: () => void; onDone: () => void }) {
+/** the device itself is gone (a phone removed, or locked by wrong codes): the sign-in state is asked again */
+const GONE = new Set(['phone_removed', 'phone_locked', 'no_device']);
+function Pin({ who, demoPin, phone, onBack, onDone, onGone }: { who: AuthState['team'][number]; demoPin: string; phone?: boolean; onBack: () => void; onDone: () => void; onGone: () => void }) {
   const [pin, setPin] = useState('');
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
@@ -75,7 +82,11 @@ function Pin({ who, demoPin, phone, onBack, onDone }: { who: AuthState['team'][n
     if (p.length < 4 || busy) return;
     setBusy(true);
     try { await api.post('/api/auth/pin', { staffId: who.id, pin: p }); buzz(10); onDone(); }
-    catch (e: any) { setErr(e.message); setPin(''); buzz([30, 40, 30]); setTimeout(() => setErr(''), 1600); }
+    catch (e: any) {
+      setErr(e.message); setPin(''); buzz([30, 40, 30]);
+      if (GONE.has(e?.code)) { setTimeout(onGone, 1600); return; }
+      setTimeout(() => setErr(''), 1600);
+    }
     finally { setBusy(false); }
   };
   const press = (d: string) => {
@@ -120,7 +131,7 @@ function Pin({ who, demoPin, phone, onBack, onDone }: { who: AuthState['team'][n
 /* ---------------- linking one's own phone (TEAM-02) ---------------- */
 
 /** « de JKut », « d’Esteban », « du Soldat » */
-const ofName = (n: string) => (/^le\s/i.test(n) ? 'du ' + n.slice(3) : /^les\s/i.test(n) ? 'des ' + n.slice(4) : /^[aeiouyhàâäéèêëîïôöûùü]/i.test(n) ? 'd’' + n : 'de ' + n);
+export const ofName = (n: string) => (/^le\s/i.test(n) ? 'du ' + n.slice(3) : /^les\s/i.test(n) ? 'des ' + n.slice(4) : /^[aeiouyhàâäéèêëîïôöûùü]/i.test(n) ? 'd’' + n : 'de ' + n);
 /** what the owner reads in Équipe and the feed: « iPhone de JKut » */
 function phoneName(name: string) {
   const ua = navigator.userAgent;
@@ -171,7 +182,7 @@ function LinkPhone({ token, state, onDone }: { token: string; state: AuthState; 
           <div aria-live="polite">{err ? <Note tone="err" icon="alert">{err}</Note> : null}</div>
           {peek && !salonPost && !err ? <Button variant="primary" size="lg" block busy={busy} icon="device" onClick={go}>Lier mon téléphone</Button> : null}
           {!peek && !err ? <div className="spin" style={{ width: 24, height: 24, alignSelf: 'center', color: 'var(--tx3)' }} aria-label="Vérification du lien" /> : null}
-          <button type="button" className="link" style={{ alignSelf: 'center' }} onClick={leave}>{err || salonPost ? 'Aller à la connexion' : 'Pas maintenant'}</button>
+          <Button variant="ghost" block onClick={leave}>{err || salonPost ? 'Aller à la connexion' : 'Pas maintenant'}</Button>
         </section>
       </div>
     </div>

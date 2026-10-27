@@ -6,7 +6,7 @@
 import { HttpError, guard } from './kit.js';
 import { signLink, checkLink } from '../auth/session.js';
 import { issuePhoneLink, setPrefs, setPhoto, revokeDevice } from '../commands/team.js';
-import { prefsOf, calTopOf } from '../projections/staffprefs.js';
+import { prefsOf } from '../projections/staffprefs.js';
 import { buildCalendar } from '../lib/ics.js';
 import { addDays } from '../../shared/dates.js';
 
@@ -43,8 +43,9 @@ function calUrls(r, staffId, gen) {
 const ord = (n) => (n === 1 ? '1re' : n + 'e');
 /**
  * The feed's events: the barber's appointments in the window, a cancellation kept as cancelled. Each says the services
- * and which visit it is for the client (counted on his file's finished visits before it); the first name only with
- * calName. Exported for the tests.
+ * and which visit it is for the client: what came before it on his file (visits done, the old site's included, walk-in
+ * tickets, and the appointments still booked ahead of it), as the Agenda counts them; the first name only with calName.
+ * Exported for the tests.
  * @param {any} s @param {string} staffId @param {string} today @param {{ calName?: boolean }} prefs
  */
 export function teamCalendarEvents(s, staffId, today, prefs) {
@@ -53,9 +54,14 @@ export function teamCalendarEvents(s, staffId, today, prefs) {
     for (const id of s.apptsByDay.get(d) || []) { const a = s.appts.get(id); if (a && a.staffId === staffId) mine.push(a); }
   }
   const cids = new Set(mine.map((a) => a.clientId).filter(Boolean));
-  /** @type {Map<string, string[]>} each file's finished visits, as sortable keys */
+  /** @type {Map<string, string[]>} each file's visits (done or still booked, not cancelled or missed), as sortable keys */
   const done = new Map();
-  if (cids.size) for (const a of s.appts.values()) if (a.status === 'done' && cids.has(a.clientId)) { const l = done.get(a.clientId) || []; l.push(a.day + ':' + String(a.start).padStart(4, '0')); done.set(a.clientId, l); }
+  const add = (cid, k) => { const l = done.get(cid) || []; l.push(k); done.set(cid, l); };
+  if (cids.size) {
+    for (const a of s.appts.values()) if (cids.has(a.clientId) && a.status !== 'cancelled' && a.status !== 'no_show') add(a.clientId, a.day + ':' + String(a.start).padStart(4, '0'));
+    // a ticket without an appointment (a walk-in rung up directly) is a visit too (domain/insights.js clientStats)
+    for (const x of s.sales.values()) if (x.clientId && cids.has(x.clientId) && !x.apptId && x.lines.some((l) => l.kind === 'service')) add(x.clientId, x.day + ':0000');
+  }
   return mine.sort((a, b) => a.day.localeCompare(b.day) || a.start - b.start).map((a) => {
     const c = a.clientId ? s.clients.get(a.clientId) : null;
     const key = a.day + ':' + String(a.start).padStart(4, '0');
@@ -66,7 +72,7 @@ export function teamCalendarEvents(s, staffId, today, prefs) {
     return {
       uid: a.id + '@larchitecte-equipe', day: a.day, start: a.start, dur: a.dur, sequence: (a.moves || 0) + (a.status === 'cancelled' ? 1 : 0),
       cancel: a.status === 'cancelled', summary: [first, what, visit].filter(Boolean).join(' · '),
-      description: [visit, a.source === 'site' ? 'réservé en ligne' : ''].filter(Boolean).join(' · ') || undefined
+      description: a.source === 'site' ? 'Réservé en ligne' : undefined
     };
   });
 }
@@ -111,9 +117,11 @@ export function teamMeRoutes(app) {
   app.post('/api/v1/prefs/calendar', async (r) => {
     if (!calOn(r)) throw new HttpError(403, 'cal_off', 'Le salon n’a pas activé l’agenda dans le téléphone.');
     const on = r.body.on !== false;
-    const gen = on ? calTopOf(r.s, r.me.id) + 1 : 0;
-    await r.run(setPrefs, { staffId: r.me.id, prefs: { cal: gen } });
-    return { allowed: true, on, ...(on ? calUrls(r, r.me.id, gen) : { url: null, https: null }) };
+    // the command picks the generation (above any given before) and the address is built from what it stored: a retry
+    // gets the same link, a concurrent write never a stale one
+    const res = await r.run(setPrefs, { staffId: r.me.id, prefs: { cal: on ? 'next' : 0 } });
+    const gen = on ? (res.prefs && res.prefs.cal) || prefsOf(r.s, r.me).cal : 0;
+    return { allowed: true, on, ...(on && gen ? calUrls(r, r.me.id, gen) : { url: null, https: null }) };
   });
 
   /* ---------------- my photo ---------------- */

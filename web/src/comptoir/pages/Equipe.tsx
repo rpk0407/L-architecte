@@ -755,7 +755,7 @@ function Access({ st }: { st: Staff }) {
   return (
     <section className="card col" style={{ gap: 10 }}>
       <div className="card-h"><h2><Icon name="key" size={16} />Accès</h2></div>
-      <div className="kv"><span>Code PIN (appareils du salon)</span><span className="row" style={{ gap: 8 }}><span className={'badge ' + (st.hasPin ? 'badge-ok' : 'badge-warn')}>{st.hasPin ? 'défini' : 'aucun'}</span><Button size="sm" variant="ghost" onClick={() => setPin(true)}>{st.hasPin ? 'Changer' : 'Définir'}</Button></span></div>
+      <div className="kv"><span>Code PIN (postes du salon et téléphone lié)</span><span className="row" style={{ gap: 8 }}><span className={'badge ' + (st.hasPin ? 'badge-ok' : 'badge-warn')}>{st.hasPin ? 'défini' : 'aucun'}</span><Button size="sm" variant="ghost" onClick={() => setPin(true)}>{st.hasPin ? 'Changer' : 'Définir'}</Button></span></div>
       {['owner', 'manager'].includes(st.role) ? <div className="kv"><span>Mot de passe (connexion de partout)</span><span className="row" style={{ gap: 8 }}><span className={'badge ' + (st.hasPwd ? 'badge-ok' : '')}>{st.hasPwd ? 'défini' : 'aucun'}</span><Button size="sm" variant="ghost" onClick={() => setPwd(true)}>{st.hasPwd ? 'Changer' : 'Définir'}</Button></span></div> : null}
       {boot.settings.team?.personalPhones !== false ? <LinkedPhones st={st} me={me} /> : null}
       <p className="faint" style={{ fontSize: 12.5 }}>Chacun entre avec son code sur les postes du salon et sur son téléphone lié.</p>

@@ -50,6 +50,8 @@ const LABELS = {
 };
 // CPT-01a: the month and year closures, their signatures, the technical log
 Object.assign(LABELS, { 'period.closed': 'Clôture du mois ou de l’année', 'seal.signed': 'Clôture signée', 'tech.logged': 'Journal technique' });
+// TEAM-02: linked phones, photos, personal prefs
+Object.assign(LABELS, { 'phone.linkIssued': 'Lien de téléphone créé', 'phone.pinMissed': 'Code faux sur un téléphone lié', 'phone.pinCleared': 'Code juste après des erreurs', 'phone.locked': 'Téléphone bloqué (codes faux)', 'staff.photo': 'Photo de l’équipe modifiée', 'prefs.set': 'Réglages personnels modifiés' });
 const STATUS = { arrived: 'arrivé', in_chair: 'au fauteuil', booked: 'remis à venir', no_show: 'absent' };
 
 const END_FR = { cancelled: 'résilié', unpaid: 'faute de paiement', withdrawn: 'rétractation', abandoned: 'paiement jamais fait' };
@@ -88,6 +90,10 @@ function summary(s, e) {
     case 'seal.signed': return d.ref + (d.late ? ' · en retard' : '') + ' · clé ' + d.kid;
     case 'tech.logged': return d.kind === 'key' ? 'clé ' + d.kid + (d.backlog && d.backlog.length ? ' · ' + d.backlog.length + ' en attente' : '') : d.kind === 'version' ? 'version ' + d.to : d.kind;
     case 'import.batch': return d.i != null ? 'Paquet n° ' + (d.i + 1) : '';
+    case 'phone.linkIssued': return 'pour ' + ((s.staff.get(d.staffId) || {}).name || '');
+    case 'device.enrolled': case 'phone.locked': return d.staffId ? 'téléphone de ' + ((s.staff.get(d.staffId) || {}).name || '') + ' · ' + (d.name || '') : '';
+    case 'staff.photo': return ((s.staff.get(d.id) || {}).name || '') + (d.v ? '' : ' · retirée');
+    case 'prefs.set': return Object.keys(d.prefs || {}).join(', ');
     case 'shop.restored': return 'depuis ' + (d.from === 'fichier' ? 'un fichier' : d.from) + ' · ' + d.count + ' opérations';
     case 'appt.cancelled': {
       // a client's own reason is personal data (pii): shown until the client is erased
@@ -288,7 +294,7 @@ export function adminRoutes(app) {
   app.patch('/api/v1/settings', (r) => r.run(SH.updateSettings, r.body), { cap: 'settings' });
   app.post('/api/v1/settings/closures', (r) => r.run(SH.addClosure, r.body), { cap: 'settings' });
   app.del('/api/v1/settings/closures/:id', (r) => r.run(SH.removeClosure, { id: r.params.id }), { cap: 'settings' });
-  app.get('/api/v1/devices', (r) => ({ items: [...r.s.devices.values()].filter((d) => !d.revoked).map((d) => ({ id: d.id, name: d.name, at: d.at, by: (r.s.staff.get(d.by) || {}).name || 'Démo', current: r.device && r.device.id === d.id })) }), { cap: 'devices' });
+  app.get('/api/v1/devices', (r) => ({ items: [...r.s.devices.values()].filter((d) => !d.revoked).map((d) => ({ id: d.id, name: d.name, at: d.at, by: (r.s.staff.get(d.by) || {}).name || 'Démo', current: r.device && r.device.id === d.id, personal: d.personal ? (r.s.staff.get(d.staffId) || {}).name || '' : null })) }), { cap: 'devices' });
   app.del('/api/v1/devices/:id', (r) => r.run(T.revokeDevice, { id: r.params.id }), { cap: 'devices' });
 
   /* the journal */
