@@ -7,20 +7,61 @@ import { readSession, liveSession, signLink, signSession, SESSION_COOKIE, DEVICE
 import { capsOf } from '../domain/permissions.js';
 import { sha256 } from '../lib/util.js';
 import { localParts } from '../../shared/dates.js';
+import { fileURLToPath } from 'node:url';
 import { publicRoutes } from './routes-public.js';
 import { authRoutes } from './routes-auth.js';
 import { staffRoutes } from './routes-staff.js';
 import { adminRoutes } from './routes-admin.js';
 import { importRoutes } from './routes-import.js';
+import { uploadRoutes, readCapped } from './routes-uploads.js';
 
+// A REGISTRY: one line per route file
 const app = router();
 publicRoutes(app);
 authRoutes(app);
 staffRoutes(app);
 adminRoutes(app);
 importRoutes(app);
+uploadRoutes(app);
+// each path is written out: Vercel's bundler (@vercel/nft) ships only the files an import names literally
+// @ts-ignore WP-04's file, until it lands
+await optionalRoutes(app, () => import('./routes-client.js'), new URL('./routes-client.js', import.meta.url)); // WP-04: Mon rendez-vous without an account (POST /api/public/lookup)
+// @ts-ignore GL-10's file, until it lands
+await optionalRoutes(app, () => import('./routes-health.js'), new URL('./routes-health.js', import.meta.url)); // GL-10: the health card of Mise en route (GET /api/v1/health)
+
+/**
+ * A route file another package ships: wired once it is there (each exports `<name>Routes(app)`), skipped while it is not.
+ * Only the file itself missing is skipped: a file that is there but breaks still stops the server.
+ * @param {any} app @param {() => Promise<any>} load the import, with its path literal @param {URL} file the same file
+ * @returns {Promise<boolean>} whether it was wired
+ */
+export async function optionalRoutes(app, load, file) {
+  const abs = fileURLToPath(file);
+  /** @type {any} */
+  let m;
+  try { m = await load(); }
+  catch (e) { if (e && e.code === 'ERR_MODULE_NOT_FOUND' && String(e.message).includes("'" + abs + "'")) return false; throw e; }
+  const named = Object.keys(m).filter((k) => /Routes$/.test(k) && typeof m[k] === 'function');
+  if (named.length) for (const k of named) m[k](app);
+  else if (typeof m.default === 'function') m.default(app);
+  else throw new Error(abs + ' : aucune fonction <nom>Routes(app) exportée');
+  return true;
+}
 
 const MUTATING = new Set(['POST', 'PATCH', 'PUT', 'DELETE']);
+
+/**
+ * A binary body (a photo), refused past `max` bytes before it is read when the length is announced, and while reading
+ * when it is not, so a large upload never sits in memory whole.
+ * @param {Request} req @param {number} max
+ */
+async function readBytes(req, max) {
+  const tooLarge = () => new HttpError(413, 'too_large', 'Fichier trop lourd : ' + Math.round(max / 1048576) + ' Mo au plus.');
+  if (Number(req.headers.get('content-length') || 0) > max) throw tooLarge();
+  const b = await readCapped(req.body, max);
+  if (!b) throw tooLarge();
+  return b;
+}
 
 /**
  * @param {Request} req
@@ -56,8 +97,10 @@ export async function handle(req, opt = {}) {
 
     let raw = '';
     let body = {};
+    /** @type {Uint8Array|null} */
+    let bytes = null;
     if (opt2.raw) raw = await req.text();
-    else body = await readJson(req);
+    else if (!opt2.bytes) body = await readJson(req);
 
     // the session, checked against the live state (a revoked person or device is out at once)
     let me = null, device = null, session = null;
@@ -73,6 +116,8 @@ export async function handle(req, opt = {}) {
     const needsAuth = opt2.auth !== false && pathname.startsWith('/api/v1/');
     if (needsAuth && !me) throw new HttpError(401, 'signed_out', 'Session expirée. Reconnecte-toi.');
     if (opt2.cap && !caps.has(opt2.cap)) throw new HttpError(403, 'forbidden', 'Tu n’as pas accès à cette page.');
+    // a photo is read only once the session and the right are checked: nobody else gets 3 MB into memory
+    if (opt2.bytes) bytes = await readBytes(req, opt2.bytes);
 
     const meta = {
       linkFor: (a) => origin + '/r/' + signLink(rt.secret, 'appt', a.code),
@@ -88,7 +133,7 @@ export async function handle(req, opt = {}) {
     // ':' is refused in x-request-id, so a derived key can never equal an id a client sends
     let n = 0;
     const r = {
-      req, url, params, query: url.searchParams, body, raw, ip, rt, me, caps, device, session, setCookies, meta, origin,
+      req, url, params, query: url.searchParams, body, raw, bytes, ip, rt, me, caps, device, session, setCookies, meta, origin,
       get s() { return rt.engine.state; },
       get now() { return rt.engine.clock(); },
       get local() { return localParts(rt.engine.clock()); },

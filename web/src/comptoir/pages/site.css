@@ -1,0 +1,74 @@
+/* Le site: tabs, editors, photo slots and the picker */
+.si-top { display: flex; align-items: flex-end; gap: 12px; margin-bottom: 16px; }
+.si-top .tabs { margin-bottom: 0; min-width: 0; }
+.si-see { flex: none; margin-bottom: 4px; }
+.si-body { display: flex; flex-direction: column; gap: 14px; }
+.si-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; align-items: start; }
+.si-lead { font-size: 13.5px; line-height: 1.45; max-width: 64ch; }
+.si-small { font-size: 12.5px; line-height: 1.4; }
+.si-serif { font: 400 24px/1 var(--serif); }
+.si-body code { padding: 1px 5px; border-radius: 6px; background: var(--panel3); font: 500 12.5px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--tx); white-space: nowrap; }
+
+/* previews in the site's own colours */
+.si-preview { padding: 18px; border-radius: var(--r3); background: #0F0E0D; color: #ECE8E0; }
+.si-preview-light { background: #D3D0C8; color: #0F0E0D; }
+.si-ann { display: inline-flex; align-items: center; gap: 10px; max-width: 100%; padding: 9px 16px 9px 14px; border-radius: 18px; background: #0F0E0D; color: #ECE8E0; font: 600 14.5px/1.3 var(--sans); }
+.si-ann i { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 4px rgba(235, 70, 57, .26); }
+.si-hero-t { display: block; font: 400 56px/.9 var(--serif); letter-spacing: -.02em; word-break: break-word; }
+.si-hero-s { display: block; margin-top: 10px; font: 400 19px/1.15 var(--serif); white-space: pre-line; opacity: .86; }
+
+/* FAQ */
+.si-num { font: italic 400 20px/1 var(--serif); color: var(--tx3); margin-right: 2px; }
+.si-up svg { transform: rotate(90deg); }
+.si-down svg { transform: rotate(-90deg); }
+.si-flip svg { transform: rotate(180deg); }
+.si-ins { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 13px; }
+.si-ins-sel { width: auto; min-height: 34px; height: 34px; padding: 0 30px 0 10px; font-size: 13px; background-position: calc(100% - 15px) 15px, calc(100% - 10px) 15px; }
+.si-out { padding: 10px 12px; border-radius: var(--r2); background: var(--panel2); font-size: 14px; line-height: 1.45; white-space: pre-line; }
+.si-more summary { cursor: pointer; min-height: 32px; display: flex; align-items: center; font-size: 13px; font-weight: 600; color: var(--tx2); }
+.si-more[open] summary { margin-bottom: 8px; }
+.si-quote { padding-top: 12px; border-top: 1px solid var(--line); }
+
+/* photos */
+.si-slot { display: flex; flex-direction: column; gap: 8px; }
+.si-slot-ph { position: relative; display: grid; place-items: center; width: 100%; aspect-ratio: 16 / 10; border-radius: var(--r3); overflow: hidden; background: var(--panel2); box-shadow: inset 0 0 0 1.5px var(--line2); color: var(--tx2); }
+.si-slot-ph.tall, .si-slot.tall .si-slot-ph { aspect-ratio: 4 / 5; }
+.si-cols .si-slot.tall { max-width: 300px; }
+.si-slot-ph img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.si-slot-ph:hover { box-shadow: inset 0 0 0 1.5px var(--tx2); }
+.si-slot-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; }
+.si-work { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
+.si-work-i { display: flex; flex-direction: column; gap: 10px; }
+.si-work-add .si-slot-ph { min-height: 200px; }
+.si-pick-device { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding-bottom: 18px; margin-bottom: 18px; border-bottom: 1px solid var(--line); font-size: 13px; }
+.si-wp { display: flex; flex-direction: column; gap: 12px; }
+.si-wp-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; }
+.si-wp-row .field { flex: 1 1 280px; }
+.si-wp-row > .btn { margin-bottom: 22px; }
+.si-wp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 10px; }
+.si-thumb { position: relative; display: block; width: 100%; aspect-ratio: 1; border-radius: var(--r2); overflow: hidden; background: var(--panel2); }
+.si-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.si-thumb span { position: absolute; left: 6px; right: 6px; bottom: 6px; padding: 6px 8px; border-radius: 10px; background: rgba(15, 14, 13, .72); color: #ECE8E0; font: 600 11.5px/1.2 var(--sans); opacity: 0; transition: opacity .15s; }
+.si-thumb:hover span, .si-thumb:focus-visible span { opacity: 1; }
+
+/* the barber's portrait in Équipe */
+.eq-photo { position: relative; flex: none; width: 72px; height: 72px; border-radius: 50%; overflow: hidden; background: var(--panel3); }
+.eq-photo img { width: 100%; height: 100%; object-fit: cover; }
+.eq-site { display: flex; align-items: center; gap: 14px; }
+.eq-site .si-slot { width: 112px; }
+.eq-site .si-slot-ph { aspect-ratio: 1; border-radius: 50%; }
+
+.si-save { position: sticky; bottom: calc(14px + var(--safe-b)); z-index: 5; display: flex; align-items: center; gap: 10px; padding: 10px 10px 10px 18px; border-radius: 18px; background: var(--panel3); box-shadow: var(--shadow), inset 0 0 0 1px var(--line2); font-size: 14px; font-weight: 600; animation: rise .2s var(--ease-out) both; }
+
+@media (max-width: 900px) {
+  .si-cols { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 760px) {
+  .si-top { flex-direction: column; align-items: stretch; gap: 8px; }
+  .si-see { align-self: flex-start; }
+  .si-save { bottom: calc(76px + var(--safe-b)); padding-left: 14px; font-size: 13px; }
+  .si-hero-t { font-size: 44px; }
+  .si-work { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+  .si-wp-row > .btn { margin-bottom: 0; }
+}
+.input.si-todo { border-color: var(--warn); border-style: dashed; }

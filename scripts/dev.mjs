@@ -9,6 +9,7 @@ import { createServer } from 'node:http';
 import { readFileSync, existsSync, statSync } from 'node:fs';
 import { join, extname, resolve } from 'node:path';
 import { Readable } from 'node:stream';
+import { FONTS, fontSource } from './postbuild.mjs';
 
 const args = process.argv.slice(2);
 const flag = (n) => args.includes('--' + n);
@@ -79,6 +80,9 @@ const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; ch
 function findFile(pathname) {
   const p = decodeURIComponent(pathname);
   if (p.includes('..')) return null;
+  // the site's fonts: dist/ has them from postbuild, public/ takes them from node_modules
+  const font = p.startsWith('/fonts/') && !existsSync(join(STATIC, p)) ? FONTS.find(([, f]) => '/fonts/' + f === p) : null;
+  if (font) return fontSource(font[0], font[1]);
   const tries = [p, cfg.cleanUrls ? p + '.html' : null, join(p, 'index.html')].filter(Boolean);
   for (const t of tries) { const f = join(STATIC, t); if (f.startsWith(STATIC) && existsSync(f) && statSync(f).isFile()) return f; }
   return null;

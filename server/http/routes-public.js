@@ -13,6 +13,7 @@ import { ticketNo } from '../domain/cash.js';
 import { smsOptOut } from '../commands/messages.js';
 import { webhookKey, parseSmsWebhook } from '../messaging/sms.js';
 import { maybeTick } from './scheduler.js';
+import { publicSite } from '../settings/site.js';
 import { waitUntil } from '@vercel/functions';
 
 /** The demo, for real: both the configuration and the journal say so (a demo journal opened in production is not one). */
@@ -83,14 +84,17 @@ export function publicRoutes(app) {
     const L = r.local;
     const live = payLive(r);
     // no online payment: no deposit is asked, so the site must not announce one either
-    const services = [...s.services.values()].filter((x) => x.active && x.online !== false).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)).map((x) => (live ? serviceView(x) : { ...serviceView(x), deposit: 0 }));
+    const active = [...s.services.values()].filter((x) => x.active).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    const services = active.filter((x) => x.online !== false).map((x) => (live ? serviceView(x) : { ...serviceView(x), deposit: 0 }));
+    // the whole price list (the CGV show it, the FAQ quotes it): booked at the salon only when online is false
+    const menu = active.map((x) => ({ slug: x.slug || null, name: x.name, category: x.category, price: x.price, from: !!x.from, dur: x.dur, online: x.online !== false }));
     const barbers = [...s.staff.values()].filter((x) => x.active && x.chair && x.bookable).sort((a, b) => (a.order ?? 99) - (b.order ?? 99)).map((x) => staffView(x));
     const b = s.settings.booking;
     return json({
       shop: { ...s.settings.shop }, hours: s.settings.hours, closures: s.settings.closures.filter((c) => c.to >= L.day),
       booking: { enabled: b.enabled, stepMin: b.stepMin, minNoticeMin: b.minNoticeMin, maxDaysAhead: b.maxDaysAhead, holdMin: b.holdMin, pendingPayMin: payWindowMin(s, { stripe: r.rt.pay.name === 'stripe' }), cancelUntilHours: b.cancelUntilHours, waitlist: b.waitlist, walkinWait: b.walkinWait },
       // sms: does a text really leave? payments.live: is a deposit really taken online? (false: the site books without one)
-      deposits: live ? s.settings.deposits : { ...s.settings.deposits, mode: 'none' }, services, barbers, sms: !!r.rt.sms || isDemo(r), payments: { provider: r.rt.pay.name, live }, mode: s.mode, today: L.day, now: r.now
+      deposits: live ? s.settings.deposits : { ...s.settings.deposits, mode: 'none' }, services, menu, barbers, site: publicSite(s.settings, active, L.day), sms: !!r.rt.sms || isDemo(r), payments: { provider: r.rt.pay.name, live }, mode: s.mode, today: L.day, now: r.now
     }, 200, { 'cache-control': 'public, max-age=0, s-maxage=20, stale-while-revalidate=60' });
   });
 

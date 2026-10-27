@@ -89,7 +89,7 @@ test('without LX_INDEX the build stays hidden from search engines', () => {
 test('LX_INDEX=1 opens the public site and keeps the private areas out', () => {
   const b = build({ LX_INDEX: '1' });
   assert.doesNotMatch(b.site, robotsMeta);
-  assert.equal(b.robots, 'User-agent: *\nAllow: /api/public/salon\nAllow: /api/public/live\nDisallow: /comptoir\nDisallow: /r/\nDisallow: /recu/\nDisallow: /paiement/\nDisallow: /api/\nDisallow: /demo\nSitemap: https://barberlarchitecte.com/sitemap.xml\n');
+  assert.equal(b.robots, 'User-agent: *\nAllow: /api/public/salon\nAllow: /api/public/live\nAllow: /api/public/media/\nDisallow: /comptoir\nDisallow: /r/\nDisallow: /recu/\nDisallow: /paiement/\nDisallow: /api/\nDisallow: /demo\nSitemap: https://barberlarchitecte.com/sitemap.xml\n');
   // the demo page, the old-link page and the 404 are never indexed
   assert.match(b.demo, robotsMeta);
   assert.match(b.lost, robotsMeta);

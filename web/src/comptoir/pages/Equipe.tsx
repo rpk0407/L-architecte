@@ -9,7 +9,12 @@ import { Avatar, Button, Chip, Field, Modal, Note, Sheet, Skeleton, Switch, conf
 import { useApp } from '../state';
 import { PageTitle } from '../App';
 import type { Agenda, Staff } from '../types';
+import { PhotoSlot } from './site/media';
 import './equipe.css';
+
+/** The site's profile of a chair (server/http/views.js staffView): a portrait, a video link and its title. */
+type Profiled = Staff & { photo?: string; video?: string; videoTitle?: string };
+const HTTPS = /^(https:\/\/[^\s"'<>]+)?$/;
 
 type TimeOff = { id: string; staffId: string; from: string; to: string; startMin?: number; endMin?: number; reason: string };
 type TeamData = { items: Staff[]; timeoff: TimeOff[] };
@@ -135,7 +140,7 @@ function Team({ data }: { data: TeamData }) {
           return (
             <Link key={s.id} to={'/equipe/' + s.id} className="card eq-card">
               <div className="row" style={{ gap: 14 }}>
-                <Avatar name={s.name} initials={s.initials} color={s.color} size="lg" />
+                {(s as Profiled).photo ? <span className="eq-photo" style={{ width: 52, height: 52 }}><img src={(s as Profiled).photo} alt="" /></span> : <Avatar name={s.name} initials={s.initials} color={s.color} size="lg" />}
                 <div className="grow" style={{ minWidth: 0 }}>
                   <b className="eq-name">{s.name}</b>
                   <small className="muted">{s.roleLabel}{s.chair ? ' · fauteuil' : ''}{!s.bookable && s.chair ? ' · pas en ligne' : ''}</small>
@@ -310,16 +315,19 @@ function Member({ st, timeoff }: { st: Staff; timeoff: TimeOff[] }) {
   );
 }
 
-function Profile({ st }: { st: Staff }) {
+function Profile({ st: s0 }: { st: Staff }) {
   const { boot, reloadBoot } = useApp();
-  const [f, setF] = useState({ name: st.name, initials: st.initials, color: st.color, bio: st.bio, instagram: st.instagram, email: st.email || '', role: st.role, chair: st.chair, bookable: st.bookable });
+  const st = s0 as Profiled;
+  const from = () => ({ name: st.name, initials: st.initials, color: st.color, bio: st.bio, instagram: st.instagram, photo: st.photo || '', video: st.video || '', videoTitle: st.videoTitle || '', email: st.email || '', role: st.role, chair: st.chair, bookable: st.bookable });
+  const [f, setF] = useState(from);
   const [busy, setBusy] = useState(false);
-  const dirty = JSON.stringify(f) !== JSON.stringify({ name: st.name, initials: st.initials, color: st.color, bio: st.bio, instagram: st.instagram, email: st.email || '', role: st.role, chair: st.chair, bookable: st.bookable });
+  const dirty = JSON.stringify(f) !== JSON.stringify(from());
   const save = async () => {
     setBusy(true);
     try {
       const patch: Record<string, unknown> = {};
-      for (const [k, v] of Object.entries(f)) if ((st as any)[k] !== v && !(k === 'email' && (st.email || '') === v)) patch[k] = v;
+      const was = from() as Record<string, unknown>;
+      for (const [k, v] of Object.entries(f)) if (was[k] !== v) patch[k] = v;
       await api.patch('/api/v1/staff/' + st.id, patch);
       toast({ title: 'Fiche enregistrée', icon: 'check' }); refreshAll(); reloadBoot().catch(() => {});
     } catch (e) { toastError(e); } finally { setBusy(false); }
@@ -327,7 +335,7 @@ function Profile({ st }: { st: Staff }) {
   return (
     <section className="card col" style={{ gap: 14 }}>
       <div className="row" style={{ gap: 16 }}>
-        <Avatar name={f.name} initials={f.initials} color={f.color} size="xl" />
+        {f.photo ? <span className="eq-photo"><img src={f.photo} alt="" /></span> : <Avatar name={f.name} initials={f.initials} color={f.color} size="xl" />}
         <div className="grow">
           <p className="section-k">{ROLE_LABEL[f.role]}</p>
           <h2 className="eq-h">{f.name || '—'}</h2>
@@ -343,12 +351,25 @@ function Profile({ st }: { st: Staff }) {
       </Field>
       <Switch on={f.chair} onChange={(v) => setF({ ...f, chair: v, bookable: v ? f.bookable : false })} title="A un fauteuil" hint="Apparaît comme colonne dans l’agenda." />
       <Switch on={f.bookable} disabled={!f.chair} onChange={(v) => setF({ ...f, bookable: v })} title="Réservable en ligne" hint="Les clients peuvent le choisir sur le site." />
+      {f.chair ? (
+        <Field label="Photo sur le site" hint="Un portrait, carré de préférence : il remplace les initiales sur le site et au moment de choisir son barbier.">
+          <div className="eq-site">
+            <PhotoSlot url={f.photo || null} label={'Photo de ' + (f.name || 'ce barbier')} onPick={(p) => setF({ ...f, photo: p.url })} onRemove={() => setF({ ...f, photo: '' })} />
+          </div>
+        </Field>
+      ) : null}
       <Field label="Présentation sur le site" hint={f.bio.length + ' / 280'} htmlFor="pf-b"><textarea id="pf-b" className="input textarea" rows={3} maxLength={280} value={f.bio} onChange={(e) => setF({ ...f, bio: e.target.value })} placeholder="Spécialiste des dégradés, 8 ans de métier…" /></Field>
       <div className="grid2">
         <Field label="Instagram" htmlFor="pf-ig"><input id="pf-ig" className="input" value={f.instagram} onChange={(e) => setF({ ...f, instagram: e.target.value })} placeholder="@pseudo" /></Field>
         <Field label="E-mail" htmlFor="pf-e"><input id="pf-e" className="input" type="email" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} /></Field>
       </div>
-      {dirty ? <div className="row"><span className="grow faint" style={{ fontSize: 13 }}>Modifications non enregistrées</span><Button variant="ghost" onClick={() => setF({ name: st.name, initials: st.initials, color: st.color, bio: st.bio, instagram: st.instagram, email: st.email || '', role: st.role, chair: st.chair, bookable: st.bookable })}>Annuler</Button><Button variant="primary" busy={busy} disabled={f.name.trim().length < 2} onClick={save}>Enregistrer</Button></div> : null}
+      {f.chair ? (
+        <div className="grid2">
+          <Field label="Sa vidéo (lien)" htmlFor="pf-v" hint="YouTube, Instagram… : un lien sur sa fiche du site." error={HTTPS.test(f.video) ? null : 'Une adresse qui commence par https://'}><input id="pf-v" className="input" inputMode="url" value={f.video} onChange={(e) => setF({ ...f, video: e.target.value.trim() })} placeholder="https://www.youtube.com/watch?v=…" /></Field>
+          <Field label="Titre de la vidéo" htmlFor="pf-vt"><input id="pf-vt" className="input" maxLength={60} value={f.videoTitle} disabled={!f.video} onChange={(e) => setF({ ...f, videoTitle: e.target.value })} placeholder="Da JKut’z Therapy" /></Field>
+        </div>
+      ) : null}
+      {dirty ? <div className="row"><span className="grow faint" style={{ fontSize: 13 }}>Modifications non enregistrées</span><Button variant="ghost" onClick={() => setF(from())}>Annuler</Button><Button variant="primary" busy={busy} disabled={f.name.trim().length < 2 || !HTTPS.test(f.video)} onClick={save}>Enregistrer</Button></div> : null}
     </section>
   );
 }

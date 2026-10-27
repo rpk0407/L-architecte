@@ -20,6 +20,7 @@ const Rapports = lazy(() => import('./pages/Rapports'));
 const Equipe = lazy(() => import('./pages/Equipe'));
 const Catalogue = lazy(() => import('./pages/Catalogue'));
 const Reglages = lazy(() => import('./pages/Reglages'));
+const Site = lazy(() => import('./pages/Site'));
 
 // Each page and the capability needed to open it; the server refuses anyway, this only spares an empty or broken screen.
 // A new page is one entry here (an address not listed opens the Agenda). No `cap` opens it for every role:
@@ -36,6 +37,8 @@ const ROUTES: Record<string, Route> = {
   rapports: { C: Rapports, title: 'Rapports', cap: 'report.own' },
   equipe: { C: Equipe, title: 'Équipe' },
   catalogue: { C: Catalogue, title: 'Catalogue' },
+  // what the site says: owner and managers, like the catalogue (`catalog`, checked again by /api/v1/site)
+  site: { C: Site, title: 'Le site', cap: 'catalog' },
   reglages: { C: Reglages, title: 'Réglages', sub: (id) => (OWN_SECTIONS.includes(id) ? undefined : (Object.hasOwn(SECTION_CAP, id) ? SECTION_CAP[id] : 'settings')) }
 };
 
@@ -78,6 +81,7 @@ function useNav(): NavItem[] {
     { to: '/rapports', page: 'rapports', label: can('report.shop') ? 'Rapports' : 'Mes chiffres', icon: 'rapports', cap: 'report.own' },
     { to: '/equipe', page: 'equipe', label: 'Équipe', icon: 'equipe', cap: 'team' },
     { to: '/catalogue', page: 'catalogue', label: 'Catalogue', icon: 'catalogue', cap: 'catalog' },
+    { to: '/site', page: 'site', label: 'Le site', icon: 'globe', cap: 'catalog' },
     { to: '/reglages', page: 'reglages', label: 'Réglages', icon: 'reglages' }
   ];
   void boot;

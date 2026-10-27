@@ -5,10 +5,14 @@
 //   LX_INDEX=1 npm run build    the public pages are indexable; robots.txt keeps the Comptoir, client links and the API out
 //   PUBLIC_URL=https://…        the canonical and sitemap address (default https://barberlarchitecte.com)
 //
+// It also copies the site's fonts (Instrument Sans and Serif, from @fontsource) into <dir>/fonts: site.html loads them
+// from the salon's own domain, so no visitor's address reaches Google Fonts.
+//
 // Options: --dir <build output> (default dist). Also importable: postbuild({ dir, env }).
-import { readFileSync, writeFileSync, readdirSync, existsSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync, copyFileSync } from 'node:fs';
+import { join, resolve, dirname } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { createRequire } from 'node:module';
 
 const DEFAULT_URL = 'https://barberlarchitecte.com';
 // pages that must never be indexed, whatever the switch says (they carry their own robots meta)
@@ -16,8 +20,26 @@ const PRIVATE = new Set(['demo.html', 'ancien-lien.html', '404.html']);
 const ROBOTS_META = /[ \t]*<meta\s+name=["']robots["'][^>]*>[ \t]*\r?\n?/gi;
 const CANONICAL = /[ \t]*<link\s+rel=["']canonical["'][^>]*>[ \t]*\r?\n?/gi;
 const OPEN_PATHS = ['/comptoir', '/r/', '/recu/', '/paiement/', '/api/', '/demo'];
-// the site renders its catalogue, prices and barbers from these: a crawler that cannot fetch them indexes the fallback
-const API_READS = ['/api/public/salon', '/api/public/live'];
+// the site renders its catalogue, prices and barbers from these: a crawler that cannot fetch them indexes the fallback;
+// the owner's photos (hero, work, portraits, the JSON-LD image) are served from /api/public/media/
+const API_READS = ['/api/public/salon', '/api/public/live', '/api/public/media/'];
+
+/** The faces site.html declares (@font-face src: /fonts/<file>), Latin only like the Comptoir's. */
+export const FONTS = [
+  ['instrument-sans', 'instrument-sans-latin-400-normal.woff2'], ['instrument-sans', 'instrument-sans-latin-500-normal.woff2'],
+  ['instrument-sans', 'instrument-sans-latin-600-normal.woff2'], ['instrument-sans', 'instrument-sans-latin-700-normal.woff2'],
+  ['instrument-serif', 'instrument-serif-latin-400-normal.woff2'], ['instrument-serif', 'instrument-serif-latin-400-italic.woff2']
+];
+/** Where a font file sits in node_modules. */
+export function fontSource(pkg, file) {
+  return join(dirname(createRequire(import.meta.url).resolve('@fontsource/' + pkg + '/package.json')), 'files', file);
+}
+/** @param {string} dir */
+export function copyFonts(dir) {
+  mkdirSync(join(dir, 'fonts'), { recursive: true });
+  for (const [pkg, file] of FONTS) copyFileSync(fontSource(pkg, file), join(dir, 'fonts', file));
+  return FONTS.length;
+}
 
 const attr = (s) => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 
@@ -80,6 +102,7 @@ export function postbuild(opt = {}) {
     writeFileSync(p, html);
   }
   writeFileSync(join(dir, 'robots.txt'), robotsTxt(index, base));
+  const fonts = copyFonts(dir);
   const sm = join(dir, 'sitemap.xml');
   let listed = 0;
   if (existsSync(sm)) {
@@ -87,7 +110,7 @@ export function postbuild(opt = {}) {
     listed = (xml.match(/<url>/g) || []).length;
     writeFileSync(sm, xml);
   }
-  return { index, base, pages, listed };
+  return { index, base, pages, listed, fonts };
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
@@ -95,7 +118,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
   const root = resolve(new URL('..', import.meta.url).pathname);
   try {
     const r = postbuild({ dir: i > 0 ? process.argv[i + 1] : join(root, 'dist') });
-    console.log('postbuild: ' + (r.index ? 'indexing ON (LX_INDEX=1)' : 'indexing off (set LX_INDEX=1 at go-live)') + ' · ' + r.pages.length + ' public page(s) · ' + r.listed + ' sitemap page(s) · canonical ' + r.base + '/');
+    console.log('postbuild: ' + (r.index ? 'indexing ON (LX_INDEX=1)' : 'indexing off (set LX_INDEX=1 at go-live)') + ' · ' + r.pages.length + ' public page(s) · ' + r.listed + ' sitemap page(s) · ' + r.fonts + ' font(s) · canonical ' + r.base + '/');
   } catch (e) {
     console.error(e instanceof Error ? e.message : e);
     process.exit(1);

@@ -8,7 +8,7 @@ import { ROLES } from '../domain/permissions.js';
 import { ticketNo, refundNo } from '../domain/cash.js';
 
 export function staffView(st, full = false) {
-  const v = { id: st.id, name: st.name, initials: st.initials, color: st.color, role: st.role, roleLabel: ROLES[st.role], chair: !!st.chair, bookable: !!st.bookable, active: st.active, order: st.order ?? 99, bio: st.bio || '', instagram: st.instagram || '' };
+  const v = { id: st.id, name: st.name, initials: st.initials, color: st.color, role: st.role, roleLabel: ROLES[st.role], chair: !!st.chair, bookable: !!st.bookable, active: st.active, order: st.order ?? 99, bio: st.bio || '', instagram: st.instagram || '', photo: st.photo || '', video: st.video || '', videoTitle: st.videoTitle || '' };
   if (!full) return v;
   return { ...v, email: st.email || '', services: st.services, schedule: st.schedule || {}, commission: st.commission || { service: 0, product: 0 }, hasPwd: !!st.hasPwd, hasPin: !!st.hasPin };
 }

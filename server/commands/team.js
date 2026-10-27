@@ -4,13 +4,16 @@ import { fail } from '../core/engine.js';
 import { str, int, bool, opt, obj, arr, day, oneOf, id, week, either, parse } from '../lib/validate.js';
 import { isEmail as isEmailLike } from '../lib/util.js';
 import { getStaff, checkIntervals, COLORS } from './common.js';
+import { IMAGE } from '../settings/site.js';
 
 const roles = /** @type {const} */ (['owner', 'manager', 'desk', 'barber']);
 const staffShape = {
   name: str({ min: 2, max: 40 }), role: oneOf(roles), color: opt(str({ pattern: /^#[0-9A-Fa-f]{6}$/, max: 7 })), initials: opt(str({ min: 1, max: 3 })),
   bookable: opt(bool()), chair: opt(bool()), services: opt(either([oneOf(/** @type {const} */ (['all'])), arr(id(), { max: 80 })])),
   schedule: opt(week()), commission: opt(obj({ service: int({ min: 0, max: 10000 }), product: int({ min: 0, max: 10000 }) })),
-  bio: opt(str({ max: 280 })), instagram: opt(str({ max: 120 })), order: opt(int({ min: 0, max: 99 })), email: opt(str({ max: 120, lower: true }))
+  bio: opt(str({ max: 280 })), instagram: opt(str({ max: 120 })), order: opt(int({ min: 0, max: 99 })), email: opt(str({ max: 120, lower: true })),
+  // the site's profile: a portrait (uploaded or picked from the old site), a video link and its title; empty removes them
+  photo: opt(str({ max: 400, pattern: new RegExp('^$|' + IMAGE.source) })), video: opt(str({ max: 300, pattern: /^(https:\/\/[^\s"'<>]+)?$/ })), videoTitle: opt(str({ max: 60 }))
 };
 const addSchema = obj(staffShape);
 const patchSchema = obj(Object.fromEntries(Object.entries(staffShape).map(([k, v]) => [k, /** @type {any} */ (opt(v))])));
@@ -46,7 +49,7 @@ export const updateStaff = {
     const st = getStaff(s, input.id);
     const self = ctx.staff && ctx.staff.id === st.id;
     const patch = parse(patchSchema, input.patch || {});
-    const selfOnly = ['bio', 'instagram', 'color'];
+    const selfOnly = ['bio', 'instagram', 'color', 'photo', 'video', 'videoTitle'];
     if (!ctx.can('team') && !(self && Object.keys(patch).every((k) => selfOnly.includes(k)))) fail(403, 'forbidden', 'Seul le gérant modifie l’équipe.');
     if ((patch.role === 'owner' || st.role === 'owner') && ctx.staff?.role !== 'owner' && patch.role !== undefined) fail(403, 'forbidden', 'Seul le gérant change ce rôle.');
     if (st.role === 'owner' && patch.role && patch.role !== 'owner' && owners(s).length <= 1) fail(409, 'last_owner', 'Il faut au moins un gérant.');
