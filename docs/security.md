@@ -89,11 +89,24 @@ The salon's record of processing (RGPD art. 30), kept here and summarised for cl
 | Comptes de l’équipe | Connexion, droits, appareils autorisés | Intérêt légitime (6.1.f) / contrat de travail | Durée de l’activité dans le salon | Vercel, Neon |
 | Journal d’activité et sécurité | Savoir qui a fait quoi, limiter les tentatives de connexion | Intérêt légitime (6.1.f) | Avec le journal (6 ans); compteurs de tentatives en mémoire seulement | Vercel, Neon |
 
-On the client's phone, the site keeps `lx-me` (what they typed and links to their last bookings) and `lx-focus` (the booking just made) in local storage: not a cookie, never sent anywhere, cleared from `/confidentialite`. The public site sets no cookie and runs no analytics; the Comptoir's session cookies are strictly necessary. The site's fonts still come from Google Fonts (the visitor's IP reaches Google), which `/confidentialite` says.
+On the client's phone, the site keeps `lx-me` (what they typed and links to their last bookings) and `lx-focus` (the booking just made) in local storage: not a cookie, never sent anywhere, cleared from `/confidentialite`. The public site sets no cookie and runs no analytics; the Comptoir's session cookies are strictly necessary. The fonts are served from the salon's own domain (`/fonts`, copied from `@fontsource` at build time): no page of the site asks Google Fonts or any other third party. Only the Comptoir's and client pages carry a CSP (`font-src 'self'`, `vercel.json`); the public pages have none, so `tests/unit/public-fonts.test.js` is what keeps them off third-party fonts.
 
 ## Fiscal note (France)
 
-Since 2018, software used to record sales must guarantee **inalterability, security, preservation and archiving** of the data (anti-fraud VAT law, art. 286 CGI), proved by a certificate (NF525 or equivalent) or a publisher's attestation. Le Comptoir implements the mechanisms (chained journal, numbered tickets without gaps, credit notes instead of edits, sealed Z closures with a perpetual grand total, archive export). **The formal certification or attestation is a separate step** to complete with the publisher before the till is used as the salon's official cash register; until then the salon's current certified till stays the legal one.
+**Le Comptoir is a management till (« caisse de gestion »), not the salon's legal cash register.** In production the Caisse page says so on every tab: « Caisse de gestion : le ticket légal sort de ta caisse certifiée. » The demo does not show it.
+
+Since 2018, software that records sales for clients who are not businesses must guarantee **inalterability, security, preservation and archiving** of the data (anti-fraud VAT law, art. 286, I-3° bis CGI). The 2025 finance law (loi n° 2025-127 du 14 février 2025) appears to have ended the publisher's self-certification: the only proof left is a **certificate issued by an accredited body**, in practice NF525 (issued by Infocert) or the LNE's certification. The salon's accountant is to confirm this reading. Until a certificate exists, the salon's current certified till stays the legal one: every sale is also rung up there and the client's legal ticket comes from it. Le Comptoir's tickets are management records: the day's figures, the barbers' commissions, the client's history and follow-ups.
+
+What Le Comptoir already has: a SHA-256 chained journal, numbered tickets without gaps, credit notes instead of edits, a sealed daily Z with a perpetual grand total, and an archive export verifiable offline. What a certification would still need, at least:
+
+- **Signed tickets**: each ticket, and the grand totals, carry an electronic signature, not only a link in the chain.
+- **Monthly and annual closures**, each with its own perpetual totals, on top of the daily Z.
+- **A duplicata counter**: every reprint of a ticket is numbered and marked « duplicata », and the count is kept.
+- **A technical event log (JET)**: start and stop, errors, archives, version changes and data purges, chained like the journal.
+- **Signed archives**: periodic archives (at least yearly) sealed with a signature, kept 6 years.
+- Then the audit itself, by the accredited body, for each published version.
+
+The risk if Le Comptoir is used as the till without a certificate: a **7 500 € fine per system** (art. 1770 duodecies CGI), with 60 days to put a compliant till in place after a tax inspection. Nothing in this repository changes the Z for this; the work above is a separate project, listed in the [roadmap](roadmap.md#before-go-live).
 
 ## Reporting a problem
 

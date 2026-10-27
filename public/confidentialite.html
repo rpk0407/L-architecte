@@ -8,7 +8,8 @@
 <meta name="theme-color" content="#ECE8E0" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0F0E0D" media="(prefers-color-scheme: dark)">
 <link rel="icon" href="/icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400..700&family=Instrument+Serif:ital@0;1&display=swap">
+<link rel="preload" href="/fonts/instrument-serif-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/fonts/instrument-sans-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/pages.css">
 <script src="/pages.js" defer></script>
 </head>
@@ -68,7 +69,7 @@
 <li><b>Brevo</b><span>L’envoi des SMS et des e-mails (confirmation, rappel, annulation). Société française, données en Europe.</span></li>
 <li><b>Stripe</b><span>Le paiement en ligne des acomptes, quand il est demandé. Stripe reçoit directement les données de ta carte.</span></li>
 </ul>
-<p class="mut sm">Les polices de caractères du site viennent de Google Fonts&nbsp;: ton navigateur les télécharge chez Google, qui voit alors ton adresse IP, sans cookie.</p>
+<p class="mut sm">Les polices de caractères viennent du site lui-même&nbsp;: ton navigateur ne contacte aucun autre service pour afficher les pages.</p>
 </section>
 
 <section aria-labelledby="t-phone">

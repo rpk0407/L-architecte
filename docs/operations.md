@@ -39,13 +39,15 @@ The provider's technical reference. The owner's version, day by day, is the next
 11. **Domain and indexing**: point the domain at Vercel (DNS table below). `/` already serves the site (the demo page is at `/demo` and sends production visitors to `/`). Then, in one redeploy: `PUBLIC_URL=https://barberlarchitecte.com`, `SMS_PROVIDER` (item 9), the e-mail sender, Stripe's live keys, and `LX_INDEX=1` so Google indexes the site, with `sitemap.xml` and the canonical address. Check every old address on the live domain with `node scripts/check-redirects.mjs https://barberlarchitecte.com` (the list of the end-to-end test). The build lists in `sitemap.xml` only the pages it has: `/formations`, `/carte-cadeau` and the legal pages join it when their packages ship, and until then the old WordPress links to them land on the 404 page.
 12. **Old WordPress**: Réglages › Reprendre WordPress takes the bookings export (Salon › Calendrier, one CSV per year), optionally the WXR export, the plugin's client CSV and hand-made CSVs of paper gift cards and running subscriptions: client files (merged by phone or e-mail, no promotional SMS), past visits (they count for each client's rhythm, not for the chairs' figures, and never wait at the till), upcoming bookings (no SMS at import; each old barber with upcoming bookings must be matched to an active chair). On the cut-over day, export and drop the files again: only new bookings and what changed on the old site since are taken (cancelled, moved, taken place), unless the booking was already handled in the Comptoir, which is then listed for a look. Keep WordPress read-only for a month at `ancien.barberlarchitecte.com`. Its indexed addresses already redirect to the matching place on the site (`vercel.json`), and the cancel, pay and account links in clients' old e-mails land on `/ancien-lien`, which never acts on them and opens the imported appointment or asks for the client's number.
 13. **Monitoring**: UptimeRobot (free) on `https://<domain>/api/public/live` every 5 minutes, alerts to the owner's phone and to the provider.
-14. **Fiscal**: until the till's certification or publisher's attestation is obtained (see [security](security.md#fiscal-note-france)), keep the current certified till as the legal one.
+14. **Fiscal**: Le Comptoir is a « caisse de gestion » (its Caisse page says so in production): until it is certified by an accredited body (see [security](security.md#fiscal-note-france)), keep the current certified till as the legal one, which prints the client's ticket.
 
 ## Mise en ligne : la liste du gérant
 
 Quatre moments, chacun en deux colonnes : ce que tu fais toi-même (dans le Comptoir, sur ton téléphone, dans tes comptes), et ce que ton prestataire fait (Vercel, DNS, clés). Le jour J est un **lundi** : le salon est fermé, rien ne se perd si la bascule prend une heure. Dans le Comptoir, **Réglages › Mise en route** coche chaque étape toute seule, dans le même ordre ; une ligne rouge se regarde tout de suite.
 
 Rien ici ne demande de modifier le code : tout se règle dans le Comptoir et dans les écrans de Vercel, IONOS, Stripe et Brevo. Une variable changée dans Vercel ne compte qu’après un redéploiement.
+
+**Ta caisse certifiée reste la caisse légale, même après le jour J.** Le Comptoir est une « caisse de gestion » (sa page Caisse le rappelle) : chaque vente passe aussi sur ta caisse certifiée, qui imprime le ticket du client. Son Z est le Z fiscal ; les exports du Comptoir (ventes, TVA, Z, commissions) sont des chiffres de gestion, dis-le à ton comptable. Se servir du Comptoir comme seule caisse sans certificat expose à une amende de 7 500 €.
 
 **Entre le premier passage de Reprendre WordPress (J-7) et la bascule du domaine (jour J), le nouveau salon n’envoie aucun SMS ni e-mail** : WordPress envoie encore ses propres rappels, et les liens du nouveau salon ouvriraient l’ancien site. Le fournisseur SMS, l’expéditeur des e-mails et l’adresse définitive (`PUBLIC_URL`) se branchent le jour J, juste après les DNS. Jusque-là, Mise en route ⑦ et ⑧ restent « à faire » : c’est voulu. Les messages préparés entre-temps attendent ; ceux de plus de 6 h ne partiront jamais.
 
@@ -114,10 +116,10 @@ Si le site ne répond pas ou que les réservations échouent et que ce n’est p
 ## Day to day
 
 - Morning: the agenda is ready; walk-ins go in the queue (Agenda › Passage, key P), the site shows the live wait.
-- At the till: open the drawer with the float, check out each client (the deposit and subscription are already on the ticket), propose the next appointment on the confirmation screen.
+- At the till: open the drawer with the float, check out each client (the deposit and subscription are already on the ticket), propose the next appointment on the confirmation screen. Each sale is also rung up on the salon's certified till, which prints the client's legal ticket: Le Comptoir is a « caisse de gestion » (see [security](security.md#fiscal-note-france)).
 - Evening: Caisse & clôture › count the drawer by denomination, then close the day (Z). A closed day cannot change; mistakes are fixed the next day with a credit note.
 - Weekly: Relances (clients past their rhythm), Rapports (heat map, team), stock alerts in the feed.
-- Monthly: Rapports › Exports (sales, VAT and Z, commissions) for the accountant.
+- Monthly: Rapports › Exports (sales, VAT and Z, commissions) for the accountant, as management figures: the certified till's Z is the fiscal one.
 
 ## Backups and archives
 

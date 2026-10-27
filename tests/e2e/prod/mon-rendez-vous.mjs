@@ -11,7 +11,7 @@ const ANSWER = 'Si un rendez-vous existe à ce numéro, tu reçois un SMS dans u
 function watch(page) {
   const errors = [];
   page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
-  page.on('console', (m) => { if (m.type() === 'error' && !/favicon|404 \(Not Found\)|fonts\.g/.test(m.text())) errors.push('console: ' + m.text()); });
+  page.on('console', (m) => { if (m.type() === 'error' && !/favicon|404 \(Not Found\)/.test(m.text())) errors.push('console: ' + m.text()); });
   return () => { if (errors.length) throw new Error(errors.slice(0, 3).join('\n')); };
 }
 const textOf = (page) => page.evaluate(() => document.body.innerText.replace(/\s+/g, ' '));

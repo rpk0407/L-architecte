@@ -5,7 +5,7 @@ import { Link, navigate, setQuery, useRoute } from '../../lib/router';
 import { dates, eur, time } from '../../lib/format';
 import { useInterval } from '../../lib/hooks';
 import { Icon } from '../../ui/Icon';
-import { Avatar, Button, Empty, Skeleton } from '../../ui/kit';
+import { Avatar, Button, Empty, Note, Sheet, Skeleton } from '../../ui/kit';
 import { useApp } from '../state';
 import { PageTitle } from '../App';
 import { Checkout, qrOff } from './caisse/Checkout';
@@ -14,9 +14,14 @@ import { Closing } from './caisse/Closing';
 import type { Agenda, Appt } from '../types';
 import './caisse.css';
 
+// not NF525-certified: until an accredited body certifies it, the salon's certified till prints the legal ticket.
+// The owner reads why in French here; the full note (docs/security.md, its anchor checked by tests/unit/fiscal-note.test.js) is in English.
+const FISCAL_NOTE = 'https://github.com/rpk0407/L-architecte/blob/main/docs/security.md#fiscal-note-france';
+
 export default function Caisse() {
-  const { can } = useApp();
+  const { boot, can } = useApp();
   const route = useRoute();
+  const [why, setWhy] = useState(false);
   const tab = route.id === 'ventes' ? 'ventes' : route.id === 'cloture' && (can('drawer') || can('closure')) ? 'cloture' : 'encaisser';
   const tabs = [
     { to: '/caisse', id: 'encaisser', label: 'Encaisser', icon: 'caisse' },
@@ -29,8 +34,25 @@ export default function Caisse() {
       <nav className="tabs" aria-label="Caisse">
         {tabs.map((t) => <Link key={t.id} to={t.to} className="tab" aria-current={tab === t.id ? 'page' : undefined}><Icon name={t.icon} size={16} />{t.label}</Link>)}
       </nav>
+      {boot.mode !== 'demo' ? <div style={{ marginBottom: 16 }}><Note icon="info"><b>Caisse de gestion : le ticket légal sort de ta caisse certifiée.</b> <button type="button" className="link" onClick={() => setWhy(true)}>En savoir plus</button></Note></div> : null}
       {tab === 'encaisser' ? <Till /> : tab === 'ventes' ? <Sales /> : <Closing />}
+      <FiscalSheet open={why} onClose={() => setWhy(false)} />
     </>
+  );
+}
+
+function FiscalSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+  return (
+    <Sheet open={open} onClose={onClose} title="Caisse de gestion" kicker="Pas une caisse certifiée"
+      footer={<><a className="link" href={FISCAL_NOTE} target="_blank" rel="noopener noreferrer">La note complète (en anglais)</a><span className="grow" /><Button variant="primary" onClick={onClose}>Compris</Button></>}>
+      <p>Le Comptoir tient tes ventes, ta caisse, tes clôtures et les commissions, mais il n’est pas encore certifié NF525. Tant qu’il ne l’est pas, c’est ta caisse certifiée qui fait foi.</p>
+      <ul className="col" style={{ margin: 0, paddingLeft: 18 }}>
+        <li><b>Chaque vente passe aussi sur ta caisse certifiée</b> : c’est elle qui imprime le ticket légal du client.</li>
+        <li><b>Son Z est le Z fiscal.</b> Les chiffres et exports du Comptoir sont des chiffres de gestion : dis-le à ton comptable.</li>
+        <li><b>Seul un organisme accrédité peut certifier une caisse</b> (NF525 par Infocert, ou le LNE) : une attestation de l’éditeur ne suffit plus, à faire confirmer par ton comptable.</li>
+        <li><b>Se servir du Comptoir comme seule caisse</b>, sans certificat, expose à une amende de {'7\u00a0500\u00a0€'} par caisse.</li>
+      </ul>
+    </Sheet>
   );
 }
 

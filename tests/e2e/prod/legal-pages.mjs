@@ -11,7 +11,7 @@ const PHONE = { width: 390, height: 844 }, DESK = { width: 1440, height: 900 };
 function watch(page) {
   const errors = [];
   page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
-  page.on('console', (m) => { if (m.type() === 'error' && !/favicon|404 \(Not Found\)|fonts\.g/.test(m.text())) errors.push('console: ' + m.text()); });
+  page.on('console', (m) => { if (m.type() === 'error' && !/favicon|404 \(Not Found\)/.test(m.text())) errors.push('console: ' + m.text()); });
   return () => { if (errors.length) throw new Error(errors.slice(0, 3).join('\n')); };
 }
 const toastSaid = (page, title, timeout = 10000) => page.locator('.toast .t', { hasText: new RegExp('^' + title) }).first().waitFor({ timeout });
