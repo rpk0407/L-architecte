@@ -1,0 +1,11 @@
+/* Réglages › Abonnements */
+.ab-plan.off { opacity: .8; }
+.ab-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 220px); gap: 14px; }
+@media (max-width: 560px) { .ab-grid { grid-template-columns: minmax(0, 1fr); } }
+.ab-prev { display: flex; flex-direction: column; gap: 8px; padding-top: 4px; }
+.ab-card { display: flex; flex-direction: column; gap: 6px; padding: 16px 18px; border-radius: 18px; background: var(--panel2); box-shadow: inset 0 0 0 1px var(--line); max-width: 360px; }
+.ab-n { font: 400 28px/1.05 var(--serif); }
+.ab-p { font-size: 14px; color: var(--tx2); }
+.ab-p b { font: 400 26px/1 var(--serif); color: var(--tx); margin-right: 2px; }
+.ab-w { font-size: 14px; color: var(--tx); line-height: 1.4; }
+.ab-b { font-size: 13px; color: var(--tx2); line-height: 1.4; }

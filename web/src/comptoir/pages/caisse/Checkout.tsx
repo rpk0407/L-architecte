@@ -7,17 +7,23 @@ import { useRoute } from '../../../lib/router';
 import { dates, dayShortWord, eur, money, rhythmWords, time } from '../../../lib/format';
 import { useDebounced, buzz } from '../../../lib/hooks';
 import { QR } from '../../../lib/qr';
+import { liveMembers } from '../../../lib/members';
 import { Icon } from '../../../ui/Icon';
 import { Avatar, Button, Chip, Field, Modal, Money, Note, Seg, Sheet, Skeleton, confirm, toast, toastError } from '../../../ui/kit';
 import { useApp } from '../../state';
-import type { Appt, ApptService, Boot, ClientCard, ClientFull, Service } from '../../types';
+import type { Appt, ApptService, Boot, ClientCard, ClientFull, Cover, Service } from '../../types';
 import { GiftCode, Receipt, Voucher, printNow, type VoucherCard } from './Receipt';
+import { TillChips } from './TillChips';
 
 type Kind = 'service' | 'product' | 'giftcard' | 'pack' | 'fee';
 // base: the price the line starts from (the booked one for an appointment), now: today's catalogue price
-type Line = { key: string; kind: Kind; ref: string | null; name: string; qty: number; unit: number; base: number; now: number; booked?: boolean; from: boolean; staffId: string | null; packId: string | null; discount: number; vat: number; recipient?: string };
+type Line = { key: string; kind: Kind; ref: string | null; name: string; qty: number; unit: number; base: number; now: number; booked?: boolean; from: boolean; staffId: string | null; packId: string | null; discount: number; vat: number; recipient?: string;
+  // PAY-05: the membership that pays the cut (0 €, the month is already paid), what the till said of it, and the cuts the person decided himself
+  memberId?: string | null; force?: boolean; memberOff?: boolean; auto?: boolean; cover?: { label: string; note: string; canForce: boolean } };
 type Pay = { key: string; method: 'card' | 'cash' | 'online' | 'giftcard' | 'deposit'; amount: number; given?: number; ref?: string; label: string };
 const k = () => Math.random().toString(36).slice(2, 9);
+/** the badges TillChips shows itself (membership, carnet, loyalty reward) */
+const CHIPPED = ['abonné', 'carnet', 'récompense'];
 const METHOD_ICON: Record<string, string> = { card: 'card', cash: 'cash', online: 'qr', giftcard: 'gift', deposit: 'globe' };
 /** The test checkout takes no real money: outside the demo, a QR needs Stripe (the server refuses it too). */
 export const qrOff = (boot: Pick<Boot, 'mode' | 'providers'>) => boot.mode !== 'demo' && boot.providers.payments === 'simulated';
@@ -63,10 +69,10 @@ export function Checkout({ apptId, drawerOpen, onClose }: { apptId: string | nul
     rid.current = uuid();
     setClient(d.client);
     const ls = d.appt.services.map((s) => svcLine(s, d.appt.staffId));
-    // a subscriber's cut is covered by the pack
+    // a carnet's cut is covered by the carnet, unless the membership pays it (the effect below: the month is already paid)
     for (const l of ls) {
       const pk = d.client?.packs.find((p) => p.used < p.total && (!p.serviceIds.length || p.serviceIds.includes(l.ref!)));
-      if (pk) l.packId = pk.id;
+      if (pk) { l.packId = pk.id; l.auto = true; }
     }
     setLines(ls);
     const dep = d.appt.deposit;
@@ -74,7 +80,44 @@ export function Checkout({ apptId, drawerOpen, onClose }: { apptId: string | nul
     setDisc(null); setTip(null); setDone(null);
   }, [apptId, detail.data]);
 
-  const totals = useMemo(() => money.ticketTotals(lines.map((l) => ({ kind: l.kind, qty: l.qty, unit: l.packId ? 0 : l.unit, discount: l.discount, vat: l.vat })), disc?.amount || 0, tip?.amount || 0), [lines, disc, tip]);
+  // the membership pays a covered cut before any carnet: asked of the server (its rule, not a copy), in the order of the ticket so
+  // the third cut of a plan of two is the one that stays priced. A cut the person decided himself (memberOff, a chosen carnet) is left alone.
+  const [checking, setChecking] = useState(false);
+  const member = liveMembers(client?.memberships)[0] || null;
+  const sig = lines.map((l) => l.key + ':' + l.ref + ':' + (l.kind === 'service' && !l.memberOff && (!l.packId || l.auto) ? '1' : '0')).join(',') + '|' + (member?.id || '');
+  useEffect(() => {
+    if (!member) { setLines((ls) => (ls.some((l) => l.memberId || l.cover) ? ls.map((l) => (l.memberId || l.cover ? { ...l, memberId: null, force: false, cover: undefined } : l)) : ls)); return; }
+    let alive = true;
+    setChecking(true);
+    (async () => {
+      const patches = new Map<string, Partial<Line>>();
+      let covered = 0;
+      for (const l of lines) {
+        if (l.kind !== 'service' || l.memberOff || (l.packId && !l.auto)) continue;
+        // a cut given on purpose stays given; it counts on the plan's month as the server counts it
+        if (l.force && l.memberId) { covered++; continue; }
+        try {
+          const c = await api.get<Cover>('/api/v1/memberships/' + member.id + '/cover' + qs({ serviceId: l.ref, pending: covered }));
+          if (c.ok) { covered++; patches.set(l.key, { memberId: member.id, packId: null, force: false, cover: { label: c.label, note: '', canForce: false } }); }
+          // a service the plan never covers is simply a priced cut; the other refusals say why (quota, one a week, payment)
+          else patches.set(l.key, { memberId: null, force: false, cover: c.why === 'service' || c.why === 'ended' ? undefined : { label: '', note: c.words + ' — encaissée au prix normal', canForce: c.force } });
+        } catch { patches.set(l.key, { memberId: null, cover: undefined }); }
+      }
+      if (!alive) return;
+      setLines((ls) => ls.map((l) => {
+        const p = patches.get(l.key);
+        if (!p || l.memberOff || (l.force && p.cover?.canForce)) return l;
+        // back to the carnet the line was attached to when the membership no longer pays it
+        const pk = p.memberId || !l.auto || l.packId ? null : client?.packs.find((x) => x.used < x.total && (!x.serviceIds.length || x.serviceIds.includes(l.ref!)));
+        return { ...l, ...p, ...(pk ? { packId: pk.id } : {}) };
+      }));
+      setChecking(false);
+    })();
+    return () => { alive = false; setChecking(false); };
+  }, [sig]);
+
+  const paidBy = (l: Line) => !!(l.packId || l.memberId);
+  const totals = useMemo(() => money.ticketTotals(lines.map((l) => ({ kind: l.kind, qty: l.qty, unit: paidBy(l) ? 0 : l.unit, discount: l.discount, vat: l.vat })), disc?.amount || 0, tip?.amount || 0), [lines, disc, tip]);
   const paid = pays.reduce((t, p) => t + p.amount, 0);
   const left = totals.due - paid;
   // someone without a chair (the desk) is never credited by default: the appointment's barber, or she says who
@@ -91,18 +134,18 @@ export function Checkout({ apptId, drawerOpen, onClose }: { apptId: string | nul
     for (const p of client?.packs || []) if (p.used < p.total && (!p.serviceIds.length || p.serviceIds.includes(l.ref!))) out.push({ id: p.id, label: p.name + ' · ' + (p.total - p.used) + ' restante' + (p.total - p.used > 1 ? 's' : '') });
     const sold = lines.find((x) => x.kind === 'pack');
     const svc = sold ? serviceById.get(sold.ref!) : null;
-    if (svc && svc.pack && (!svc.pack.serviceIds?.length || svc.pack.serviceIds.includes(l.ref!))) out.push({ id: 'new', label: 'L’abonnement vendu sur ce ticket' });
+    if (svc && svc.pack && (!svc.pack.serviceIds?.length || svc.pack.serviceIds.includes(l.ref!))) out.push({ id: 'new', label: 'Le carnet vendu sur ce ticket' });
     return out;
   };
 
   const submit = async (ls: Line[] = lines) => {
-    if (left !== 0 || !ls.length) return;
+    if (left !== 0 || !ls.length || checking) return;
     if (ls.some((l) => !l.staffId)) { setModal('who'); return; }
     setBusy(true);
     try {
       const body = {
         apptId: apptId || undefined, clientId: client?.id || undefined,
-        lines: ls.map((l) => ({ kind: l.kind, ref: l.ref || undefined, name: l.kind === 'fee' ? l.name : undefined, qty: l.qty, unit: l.kind === 'giftcard' || l.kind === 'fee' || (l.kind === 'service' && !l.packId) ? l.unit : undefined, discount: l.discount || undefined, staffId: l.staffId || undefined, packId: l.packId || undefined, recipient: l.recipient || undefined })),
+        lines: ls.map((l) => ({ kind: l.kind, ref: l.ref || undefined, name: l.kind === 'fee' ? l.name : undefined, qty: l.qty, unit: l.kind === 'giftcard' || l.kind === 'fee' || (l.kind === 'service' && !l.packId && !l.memberId) ? l.unit : undefined, discount: l.discount || undefined, staffId: l.staffId || undefined, packId: l.packId || undefined, memberId: l.memberId || undefined, force: l.force || undefined, recipient: l.recipient || undefined })),
         discount: disc && disc.amount ? disc : undefined, tip: tip && tip.amount ? tip : undefined,
         payments: pays.length ? pays.map((p) => ({ method: p.method, amount: p.amount, given: p.given, ref: p.ref })) : [{ method: 'card', amount: 0 }]
       };
@@ -133,29 +176,30 @@ export function Checkout({ apptId, drawerOpen, onClose }: { apptId: string | nul
           <Button size="sm" variant="ghost" icon="x" onClick={async () => { if (!lines.length || await confirm({ title: 'Abandonner ce ticket ?', ok: 'Abandonner', danger: true })) onClose(); }}>Fermer</Button>
         </div>
       </div>
-      {client?.badges.length ? <div className="row wrap" style={{ gap: 6, marginTop: -6 }}>{client.badges.map((b) => <span key={b} className={'badge ' + (b === 'abonné' ? 'badge-ok' : b === 'fidèle' ? 'badge-ok' : b === 'nouveau' ? 'badge-info' : '')}>{b}</span>)}{client.visits ? <span className="badge">{client.visits} visite{client.visits > 1 ? 's' : ''} · {rhythmWords(client.cadence)}</span> : null}</div> : null}
+      {client?.badges.length ? <div className="row wrap" style={{ gap: 6, marginTop: -6 }}>{client.badges.filter((b) => !CHIPPED.includes(b)).map((b) => <span key={b} className={'badge ' + (b === 'fidèle' ? 'badge-ok' : b === 'nouveau' ? 'badge-info' : '')}>{b}</span>)}<TillChips client={client} />{client.visits ? <span className="badge">{client.visits} visite{client.visits > 1 ? 's' : ''} · {rhythmWords(client.cadence)}</span> : null}</div> : null}
 
       <div className="tk-lines">
         {!lines.length ? <p className="muted" style={{ padding: '10px 4px' }}>Ajoute une prestation, un produit ou une carte cadeau.</p> : null}
         {lines.map((l) => {
           const opts = l.kind === 'service' ? packOptions(l) : [];
           const st = l.staffId ? staffById.get(l.staffId) : null;
-          const net = l.packId ? 0 : l.unit * l.qty - l.discount;
+          const net = paidBy(l) ? 0 : l.unit * l.qty - l.discount;
           return (
-            <div key={l.key} className="tk-line">
+            <div key={l.key} className="tk-line" data-guide={l.memberId ? 'till-member-line' : undefined}>
               <button type="button" className="tk-main" onClick={() => setOpen(open === l.key ? null : l.key)} aria-expanded={open === l.key}>
                 {st ? <Avatar name={st.name} initials={st.initials} color={st.color} size="sm" /> : <span className="av av-sm" style={{ ['--c' as any]: 'var(--panel3)' }}><Icon name={l.kind === 'giftcard' ? 'gift' : 'box'} size={14} /></span>}
-                <span className="nm"><b>{l.qty > 1 ? l.qty + ' × ' : ''}{l.name}</b><small>{l.packId ? 'Couvert par l’abonnement' : l.kind === 'giftcard' ? (l.recipient || 'Carte cadeau') + ' · valable 1 an' : st ? 'par ' + st.name : 'Qui l’a fait ? À choisir'}{l.discount ? ' · remise ' + eur(l.discount) : ''}</small>{l.booked && !l.packId && l.base !== l.now ? <small style={{ color: 'var(--warn-tx)' }}>Réservé à {eur(l.base, { decimals: l.base % 100 !== 0 })} (prix actuel {eur(l.now, { decimals: l.now % 100 !== 0 })})</small> : null}</span>
+                <span className="nm"><b>{l.qty > 1 ? l.qty + ' × ' : ''}{l.name}</b><small>{l.memberId ? (l.cover?.label || 'Abonnement') + (l.force ? ' · hors forfait' : '') : l.packId ? 'Couvert par le carnet' : l.kind === 'giftcard' ? (l.recipient || 'Carte cadeau') + ' · valable 1 an' : st ? 'par ' + st.name : 'Qui l’a fait ? À choisir'}{l.discount ? ' · remise ' + eur(l.discount) : ''}</small>{l.booked && !paidBy(l) && l.base !== l.now ? <small style={{ color: 'var(--warn-tx)' }}>Réservé à {eur(l.base, { decimals: l.base % 100 !== 0 })} (prix actuel {eur(l.now, { decimals: l.now % 100 !== 0 })})</small> : null}{l.cover?.note ? <small className="tk-refused" role="status">{l.cover.note}</small> : null}</span>
               </button>
-              <span className="pr"><Money cents={net} />{l.packId || l.discount ? <s><Money cents={l.unit * l.qty} /></s> : null}</span>
+              <span className="pr"><Money cents={net} />{paidBy(l) || l.discount ? <s><Money cents={l.unit * l.qty} /></s> : null}</span>
+              {l.cover?.canForce && !l.memberId && can('member.manage') ? <button type="button" className="link tk-force" onClick={() => update(l.key, { memberId: member?.id, force: true, packId: null, cover: { label: l.cover!.note.split(' — ')[0], note: '', canForce: false } })}>L’offrir quand même</button> : null}
               {open === l.key ? (
                 <div className="ed">
                   {l.kind === 'product' ? <div className="row"><span className="muted grow">Quantité</span><span className="qty"><Button size="sm" icon="minus" aria-label="Moins" onClick={() => update(l.key, { qty: Math.max(1, l.qty - 1) })} /><b>{l.qty}</b><Button size="sm" icon="plus" aria-label="Plus" onClick={() => update(l.key, { qty: Math.min(99, l.qty + 1) })} /></span></div> : null}
-                  {l.kind === 'service' && (l.from || isBoss) && !l.packId ? <PriceField l={l} isBoss={isBoss} onUnit={(unit) => update(l.key, { unit })} /> : null}
+                  {l.kind === 'service' && (l.from || isBoss) && !paidBy(l) ? <PriceField l={l} isBoss={isBoss} onUnit={(unit) => update(l.key, { unit })} /> : null}
                   {l.kind !== 'giftcard' || !ownChair ? (
                     <div className="col" style={{ gap: 8 }}><span className="label">{l.kind === 'giftcard' ? 'Vendue par' : 'Réalisé par'}</span><div className="chips">{performers(l).map((s) => <Chip key={s.id} small dot={s.color} on={l.staffId === s.id} onClick={() => update(l.key, { staffId: s.id })}>{s.name}</Chip>)}</div></div>
                   ) : null}
-                  {opts.length ? <div className="col" style={{ gap: 8 }}><span className="label">Abonnement</span><div className="chips"><Chip small on={!l.packId} onClick={() => update(l.key, { packId: null })}>Payer la prestation</Chip>{opts.map((o) => <Chip key={o.id} small on={l.packId === o.id} onClick={() => update(l.key, { packId: o.id })}>{o.label}</Chip>)}</div></div> : null}
+                  {opts.length || l.memberId ? <div className="col" style={{ gap: 8 }}><span className="label">Incluse dans</span><div className="chips"><Chip small on={!l.packId && !l.memberId} onClick={() => update(l.key, { packId: null, memberId: null, force: false, memberOff: true, auto: false })}>Rien : la payer</Chip>{l.memberId && member ? <Chip small on onClick={() => undefined}>Abonnement {member.plan}</Chip> : null}{opts.map((o) => <Chip key={o.id} small on={l.packId === o.id} onClick={() => update(l.key, { packId: o.id, memberId: null, force: false, memberOff: true, auto: false })}>{o.label}</Chip>)}</div></div> : null}
                   <div className="row"><span className="grow" /><Button size="sm" variant="danger" icon="trash" onClick={() => { setLines(lines.filter((x) => x.key !== l.key)); setOpen(null); }}>Retirer</Button></div>
                 </div>
               ) : null}
@@ -193,10 +237,10 @@ export function Checkout({ apptId, drawerOpen, onClose }: { apptId: string | nul
         </>
       ) : left < 0 ? <Note tone="warn" icon="alert">Les paiements dépassent le total de {eur(-left)}. Retire un paiement.</Note> : null}
 
-      <Button variant="primary" size="xl" block busy={busy} disabled={left !== 0 || !lines.length} onClick={() => submit()} icon="check">{left === 0 && lines.length ? 'Valider l’encaissement · ' + eur(totals.due) : 'Encaisser'}</Button>
+      <Button variant="primary" size="xl" block busy={busy || checking} disabled={left !== 0 || !lines.length} onClick={() => submit()} icon="check">{left === 0 && lines.length ? 'Valider l’encaissement · ' + eur(totals.due) : 'Encaisser'}</Button>
 
-      <AddSheet open={modal === 'add'} onClose={() => setModal('')} onAdd={(ls) => { setLines((x) => { const next = [...x, ...ls]; if (ls.some((l) => l.kind === 'pack')) { const svc = serviceById.get(ls.find((l) => l.kind === 'pack')!.ref!); const cut = next.find((l) => l.kind === 'service' && !l.packId && (!svc?.pack?.serviceIds?.length || svc.pack.serviceIds.includes(l.ref!))); if (cut) cut.packId = 'new'; } return next; }); setModal(''); }} performer={performer} />
-      <DiscountModal open={modal === 'discount'} onClose={() => setModal('')} gross={lines.filter((l) => l.kind !== 'giftcard' && !l.packId).reduce((t, l) => t + l.unit * l.qty, 0)} maxPct={maxPct} value={disc} onSet={(d) => { setDisc(d); setModal(''); }} />
+      <AddSheet open={modal === 'add'} onClose={() => setModal('')} onAdd={(ls) => { setLines((x) => { const next = [...x, ...ls]; if (ls.some((l) => l.kind === 'pack')) { const svc = serviceById.get(ls.find((l) => l.kind === 'pack')!.ref!); const cut = next.find((l) => l.kind === 'service' && !l.packId && !l.memberId && (!svc?.pack?.serviceIds?.length || svc.pack.serviceIds.includes(l.ref!))); if (cut) cut.packId = 'new'; } return next; }); setModal(''); }} performer={performer} />
+      <DiscountModal open={modal === 'discount'} onClose={() => setModal('')} gross={lines.filter((l) => l.kind !== 'giftcard' && !paidBy(l)).reduce((t, l) => t + l.unit * l.qty, 0)} maxPct={maxPct} value={disc} onSet={(d) => { setDisc(d); setModal(''); }} />
       <TipModal open={modal === 'tip'} onClose={() => setModal('')} presets={S.tipPresets} staffId={tip?.staffId || performer || ''} value={tip} onSet={(t) => { setTip(t); setModal(''); }} />
       <WhoModal open={modal === 'who'} onClose={() => setModal('')} onPick={(id) => { const next = lines.map((l) => (l.staffId ? l : { ...l, staffId: id })); setLines(next); setModal(''); submit(next); }} />
       <CashModal open={modal === 'cash'} onClose={() => setModal('')} due={left} drawerOpen={drawerOpen} onPay={(amount, given) => { addPay({ method: 'cash', amount, given, label: 'Espèces' }); setModal(''); }} />
@@ -220,7 +264,7 @@ function AddSheet({ open, onClose, onAdd, performer }: { open: boolean; onClose:
   const products = boot.products.filter((p) => p.active);
   return (
     <Sheet open={open} onClose={onClose} title="Ajouter" kicker="Au ticket">
-      <Seg value={tab} onChange={setTab} options={[{ v: 'svc', t: 'Prestation' }, { v: 'prd', t: 'Produit' }, { v: 'gift', t: 'Carte cadeau' }, ...(packs.length ? [{ v: 'pack' as const, t: 'Abonnement' }] : [])]} />
+      <Seg value={tab} onChange={setTab} options={[{ v: 'svc', t: 'Prestation' }, { v: 'prd', t: 'Produit' }, { v: 'gift', t: 'Carte cadeau' }, ...(packs.length ? [{ v: 'pack' as const, t: 'Carnet' }] : [])]} />
       {tab === 'svc' ? <div className="pick">{svc.map((s) => <button key={s.id} type="button" className="pick-r" onClick={() => onAdd([{ key: k(), kind: 'service', ref: s.id, name: s.name, qty: 1, unit: s.price, base: s.price, now: s.price, from: s.from, staffId: performer, packId: null, discount: 0, vat: s.vat }])}><span className="li-main"><b>{s.name}</b><small>{s.category} · {dates.fmtDur(s.dur)}</small></span><b className="money">{s.from ? 'dès ' : ''}{eur(s.price)}</b></button>)}</div> : null}
       {tab === 'prd' ? <div className="pick">{products.map((p) => <button key={p.id} type="button" className="pick-r" onClick={() => onAdd([{ key: k(), kind: 'product', ref: p.id, name: p.name, qty: 1, unit: p.price, base: p.price, now: p.price, from: false, staffId: performer, packId: null, discount: 0, vat: p.vat }])}><span className="li-main"><b>{p.name}</b><small>{p.stock <= 0 ? 'Rupture de stock' : p.stock <= p.low ? 'Plus que ' + p.stock + ' en stock' : p.stock + ' en stock'}</small></span><b className="money">{eur(p.price)}</b></button>)}</div> : null}
       {tab === 'gift' ? (
@@ -231,7 +275,7 @@ function AddSheet({ open, onClose, onAdd, performer }: { open: boolean; onClose:
           <Button variant="primary" onClick={() => onAdd([{ key: k(), kind: 'giftcard', ref: null, name: 'Carte cadeau', qty: 1, unit: amount, base: amount, now: amount, from: false, staffId: performer, packId: null, discount: 0, vat: 0, recipient: to }])}>Ajouter la carte de {eur(amount)}</Button>
         </div>
       ) : null}
-      {tab === 'pack' ? <div className="pick">{packs.map((s) => <button key={s.id} type="button" className="pick-r" onClick={() => onAdd([{ key: k(), kind: 'pack', ref: s.id, name: s.name, qty: 1, unit: s.price, base: s.price, now: s.price, from: false, staffId: performer, packId: null, discount: 0, vat: s.vat }])}><span className="li-main"><b>{s.name}</b><small>{s.pack!.credits} prestations · valable {Math.round(s.pack!.days / 7)} semaines</small></span><b className="money">{eur(s.price)}</b></button>)}<Note icon="info">La coupe d’aujourd’hui est déduite automatiquement de l’abonnement.</Note></div> : null}
+      {tab === 'pack' ? <div className="pick">{packs.map((s) => <button key={s.id} type="button" className="pick-r" onClick={() => onAdd([{ key: k(), kind: 'pack', ref: s.id, name: s.name, qty: 1, unit: s.price, base: s.price, now: s.price, from: false, staffId: performer, packId: null, discount: 0, vat: s.vat }])}><span className="li-main"><b>{s.name}</b><small>{s.pack!.credits} prestations · valable {Math.round(s.pack!.days / 7)} semaines</small></span><b className="money">{eur(s.price)}</b></button>)}<Note icon="info">La coupe d’aujourd’hui est déduite du carnet.</Note></div> : null}
     </Sheet>
   );
 }
@@ -490,7 +534,31 @@ function Done({ done, onNext }: { done: any; onNext: () => void }) {
           {booked ? <p className="muted">Confirmation et rappel partent par SMS.</p> : loading ? <Skeleton h={44} /> : picks.length ? <div className="chips">{picks.map((p) => <Chip key={p.day + p.m} onClick={() => book(p)}>{dayShortWord(p.day, boot.today)} · {time(p.m)} · {staffById.get(p.s)?.name}</Chip>)}</div> : <p className="muted">Pas de créneau le {dates.DAYS_FR[dates.weekday(boot.today)]} dans {weeks} à {weeks + 2} semaines : propose-lui un autre jour depuis l’agenda.</p>}
         </div>
       ) : null}
+      {c ? <OfferMember c={c} lines={done.lines as Line[]} /> : null}
       {voucher ? <Voucher card={voucher} /> : sale.data ? <Receipt sale={sale.data} /> : null}
+    </div>
+  );
+}
+
+/** A quiet line for a client with no membership, when plans are on sale: the subscribe link by SMS in one tap (no form). */
+function OfferMember({ c, lines }: { c: ClientCard; lines: Line[] }) {
+  const { can } = useApp();
+  const [state, setState] = useState<'' | 'busy' | 'sent'>('');
+  // the plans the site sells: public, so the desk and a manager read them too (their settings hold no membership); `live` says money can move
+  const shop = useQuery<{ live: boolean; plans: { id: string; name: string; price: number; services: { id: string }[] }[] }>(can('member.manage') && c.hasPhone && !c.memberships?.length ? '/api/public/memberships' : null);
+  const plans = [...(shop.data?.plans || [])].sort((a, b) => a.price - b.price);
+  // memberships on a card are the ones running or waiting for their checkout
+  if (!shop.data?.live || !plans.length) return null;
+  const done = lines.filter((l) => l.kind === 'service').map((l) => l.ref!);
+  const plan = plans.find((p) => p.services.some((x) => done.includes(x.id))) || plans[0];
+  const send = async () => {
+    setState('busy');
+    try { await api.post('/api/v1/memberships/offer', { clientId: c.id, planId: plan.id, send: 'sms' }, uuid()); setState('sent'); toast({ title: 'Lien envoyé par SMS à ' + c.first, icon: 'sms' }); refreshAll(); }
+    catch (e) { setState(''); toastError(e); }
+  };
+  return (
+    <div className="till-offer" data-guide="till-offer">
+      {state === 'sent' ? <p className="muted" role="status">Lien de l’abonnement {plan.name} envoyé à {c.first}.</p> : <Button variant="ghost" size="sm" icon="sms" busy={state === 'busy'} onClick={send}>Proposer l’abonnement {plan.name} ({eur(plan.price)}/mois)</Button>}
     </div>
   );
 }

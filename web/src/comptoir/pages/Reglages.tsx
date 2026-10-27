@@ -43,6 +43,7 @@ const SECTIONS: Section[] = [
   { id: 'horaires', label: 'Horaires et fermetures', hint: 'Semaine type, jours fériés, congés', icon: 'clock', group: 'Salon', component: salon(() => import('./reglages/sections/Horaires')) },
   { id: 'reservation', label: 'Réservation en ligne', hint: 'Délais, annulation, acomptes', icon: 'globe', group: 'Salon', component: salon(() => import('./reglages/sections/Reservation')) },
   { id: 'paiements', label: 'Paiements', hint: 'Moyens acceptés, pourboires, Stripe', icon: 'card', group: 'Salon', component: salon(() => import('./reglages/sections/Paiements')) },
+  { id: 'abonnements', label: 'Abonnements', hint: 'Formules mensuelles, délai de grâce', icon: 'card', group: 'Salon', component: salon(() => import('./reglages/sections/Abonnements')) },
   { id: 'messages', label: 'Messages', hint: 'SMS, e-mails et leurs textes', icon: 'sms', group: 'Salon', component: salon(() => import('./reglages/sections/Messages')) },
   { id: 'equipe', label: 'Équipe et accès', hint: 'Ce que les barbiers peuvent faire', icon: 'shield', group: 'Salon', component: salon(() => import('./reglages/sections/Equipe')) },
   { id: 'objectifs', label: 'Objectifs', hint: 'Chiffre visé chaque mois', icon: 'target', group: 'Salon', component: salon(() => import('./reglages/sections/Objectifs')) },

@@ -183,7 +183,7 @@ function RefundModal({ open, sale, onClose, onPrint }: { open: boolean; sale: Sa
     } finally { setBusy(false); }
   };
   const lineNote = (l: PlanLine) => {
-    if (l.pack) return l.pack.voided ? 'Abonnement déjà annulé' : l.pack.used ? eur(l.net) + ' − ' + l.pack.used + ' coupe' + (l.pack.used > 1 ? 's' : '') + ' faite' + (l.pack.used > 1 ? 's' : '') + ' × ' + eur(l.pack.unit) + ' = ' + eur(l.pack.suggested) : 'Aucune coupe faite';
+    if (l.pack) return l.pack.voided ? 'Carnet déjà annulé' : l.pack.used ? eur(l.net) + ' − ' + l.pack.used + ' coupe' + (l.pack.used > 1 ? 's' : '') + ' faite' + (l.pack.used > 1 ? 's' : '') + ' × ' + eur(l.pack.unit) + ' = ' + eur(l.pack.suggested) : 'Aucune coupe faite';
     if (l.kind === 'giftcard') return !l.giftcard ? 'Carte introuvable' : l.giftcard.unused ? 'Carte •••• ' + l.giftcard.last4 + (l.giftcard.replaced ? ' (réémise)' : '') + ' jamais utilisée · hors chiffre d’affaires' : l.giftcard.status !== 'active' ? 'Carte annulée' : 'Carte déjà utilisée : elle ne se rembourse plus';
     if (l.net <= 0) return /carnet/i.test(l.name) ? 'Couverte par le carnet' : /abonnement/i.test(l.name) ? 'Couverte par l’abonnement' : 'Rien à rembourser';
     if (!l.left) return 'Déjà remboursé';
@@ -191,7 +191,7 @@ function RefundModal({ open, sale, onClose, onPrint }: { open: boolean; sale: Sa
     return (l.qty > 1 ? l.qty + ' × ' + eur(unit, { decimals: unit % 100 !== 0 }) + ' = ' : '') + eur(l.net, { decimals: l.net % 100 !== 0 }) + (l.left < l.qty ? ' · ' + l.left + ' à rembourser' : '');
   };
   const label = (l: PlanLine) => (l.pack ? l.pack.name + ' · ' + l.pack.left + ' restante' + (l.pack.left > 1 ? 's' : '') : l.name);
-  const action = (l: PlanLine) => (l.pack ? 'Annuler l’abonnement' : l.kind === 'giftcard' ? 'Annuler la carte et rembourser' : '');
+  const action = (l: PlanLine) => (l.pack ? 'Annuler le carnet' : l.kind === 'giftcard' ? 'Annuler la carte et rembourser' : '');
 
   return (
     <Modal open={open} onClose={onClose} label="Remboursement">
@@ -224,9 +224,9 @@ function RefundModal({ open, sale, onClose, onPrint }: { open: boolean; sale: Sa
               })}
             </ul>
           )}
-          {plan && !refundable(plan) ? <Note icon="info">Plus rien à rembourser : ce qui reste sur ce ticket, ce sont les coupes d’abonnement déjà faites.</Note> : null}
+          {plan && !refundable(plan) ? <Note icon="info">Plus rien à rembourser : ce qui reste sur ce ticket, ce sont les coupes de carnet déjà faites.</Note> : null}
           {products.length ? <Switch on={restock} onChange={setRestock} title="Remettre en stock" hint={products.map((l) => pick[l.i] + ' × ' + l.name).join(', ')} /> : null}
-          <Field label={byLine ? 'Montant (calculé, modifiable à la baisse)' : 'Montant'} htmlFor="rf-a" hint={byLine ? undefined : hasPack && !cap ? 'L’abonnement se rembourse en cochant sa ligne (\u00ab\u00a0Annuler l’abonnement\u00a0\u00bb).' : 'Sans ligne cochée, jusqu’à ' + eur(cap, { decimals: true }) + (hasPack ? ', hors abonnement (coche sa ligne)' : plan?.consumed ? ', hors coupes d’abonnement déjà faites' : '')}>
+          <Field label={byLine ? 'Montant (calculé, modifiable à la baisse)' : 'Montant'} htmlFor="rf-a" hint={byLine ? undefined : hasPack && !cap ? 'Le carnet se rembourse en cochant sa ligne (\u00ab\u00a0Annuler le carnet\u00a0\u00bb).' : 'Sans ligne cochée, jusqu’à ' + eur(cap, { decimals: true }) + (hasPack ? ', hors abonnement (coche sa ligne)' : plan?.consumed ? ', hors coupes d’abonnement déjà faites' : '')}>
             <input id="rf-a" className="input input-money" inputMode="decimal" value={txt ?? fmt(cap)} onChange={(e) => setTxt(e.target.value)} onBlur={() => { if (typed != null) setTxt(fmt(amount)); }} />
           </Field>
           {plan?.giftcardPaid ? <Note icon="alert">Payé en partie par carte cadeau ({eur(plan.giftcardPaid, { decimals: true })}) : ce remboursement sort en argent.</Note> : null}

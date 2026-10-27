@@ -6,8 +6,8 @@ import { Empty, Sheet } from '../ui/kit';
 import { useApp } from './state';
 import type { FeedItem } from './types';
 
-const ICON: Record<string, string> = { booking: 'calendar', cancel: 'x', move: 'move', arrived: 'check', noshow: 'alert', sale: 'caisse', refund: 'refund', payment: 'card', wait: 'wait', walkin: 'walk', closure: 'lock', drawer: 'cash', stock: 'box', dispute: 'alert' };
-const TONE: Record<string, string> = { booking: 'var(--ok)', cancel: 'var(--accent)', payment: 'var(--ok)', noshow: 'var(--warn)', stock: 'var(--warn)', refund: 'var(--warn)', dispute: 'var(--danger)' };
+const ICON: Record<string, string> = { booking: 'calendar', cancel: 'x', move: 'move', arrived: 'check', noshow: 'alert', sale: 'caisse', refund: 'refund', payment: 'card', wait: 'wait', walkin: 'walk', closure: 'lock', drawer: 'cash', stock: 'box', dispute: 'alert', member: 'card' };
+const TONE: Record<string, string> = { booking: 'var(--ok)', cancel: 'var(--accent)', payment: 'var(--ok)', noshow: 'var(--warn)', stock: 'var(--warn)', refund: 'var(--warn)', dispute: 'var(--danger)', member: 'var(--ok)' };
 
 export function FeedList({ items, now, onPick, limit }: { items: FeedItem[]; now: number; onPick?: (f: FeedItem) => void; limit?: number }) {
   const list = limit ? items.slice(0, limit) : items;

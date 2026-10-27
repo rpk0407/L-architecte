@@ -1,0 +1,48 @@
+/* the chips row at the top of a file, and the folded blocks under it */
+.cl-chips { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.cl-chip { position: relative; border: 0; cursor: pointer; font: inherit; font-weight: 600; font-size: 12px; height: 26px; padding: 0 10px; }
+/* a small chip, a 44 px target */
+.cl-chip::after { content: ''; position: absolute; inset: -9px -4px; }
+.cl-chip:hover { filter: brightness(.96); }
+.cl-fold { padding: 0; }
+.cl-fold-h { margin: 0; font: inherit; }
+.cl-fold-h button { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 52px; padding: 12px 18px; text-align: left; border-radius: inherit; }
+.cl-fold-h button:hover { background: var(--panel2); }
+.cl-fold-t { font: 600 15px/1.2 var(--sans); }
+.cl-fold-s { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; color: var(--tx2); text-align: right; }
+.cl-fold-c { flex: none; color: var(--tx3); margin-left: auto; }
+.cl-fold-s + .cl-fold-c { margin-left: 0; }
+.cl-fold-b { padding: 0 18px 16px; display: flex; flex-direction: column; gap: 12px; }
+.cl-fold-b[hidden] { display: none; }
+
+/* a membership on the file */
+.mb { display: flex; flex-direction: column; gap: 10px; padding: 12px 0; }
+.mb + .mb { border-top: 1px solid var(--line); }
+.mb-h { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.mb-h b { font: 600 15px/1.2 var(--sans); }
+.mb-kv { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 14px; margin: 0; font-size: 13.5px; }
+.mb-kv dt { color: var(--tx3); }
+.mb-kv dd { margin: 0; color: var(--tx); text-align: right; overflow-wrap: anywhere; }
+.mb-acts { display: flex; flex-wrap: wrap; gap: 8px; }
+.mb-opt { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: 14px; box-shadow: inset 0 0 0 1px var(--line); cursor: pointer; min-height: 44px; }
+.mb-opt:has(input:checked) { box-shadow: inset 0 0 0 1.5px var(--tx); background: var(--panel2); }
+.mb-opt input { flex: none; width: 18px; height: 18px; margin-top: 2px; accent-color: var(--accent); }
+.mb-opt span { display: flex; flex-direction: column; gap: 2px; font-size: 14px; }
+.mb-opt small { color: var(--tx2); font-size: 12.5px; }
+.mb-qr { display: grid; place-items: center; padding: 8px; }
+
+/* Clients › Abonnés */
+.mbs { display: flex; flex-direction: column; gap: 14px; }
+/* the strip in the list's narrow column: two tiles a row, the last one across */
+.mbs .kpis.k5 { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.mbs .kpis.k5 > :last-child { grid-column: span 2; }
+.mbs .kpi { min-width: 0; min-height: 84px; padding: 12px 14px; border-radius: 16px; gap: 4px; }
+.mbs .kpi-v { font-size: 30px; }
+.mbs-h { display: flex; align-items: baseline; gap: 8px; margin: 0; }
+.mbs-h small { color: var(--tx3); font-weight: 500; font-size: 12.5px; }
+.mbs-row { border-radius: 12px; padding-left: 8px; padding-right: 8px; min-height: 52px; }
+.mbs-row:hover { background: var(--panel2); }
+.mbs-row .li-main b { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.mbs-row .badge { font-size: 10.5px; padding: 0 7px; height: 20px; }
+.mbs-row .li-end { text-align: right; }
+.mbs-row[aria-current='true'] { background: var(--panel2); box-shadow: inset 0 0 0 1.5px var(--tx); }
