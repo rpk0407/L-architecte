@@ -1,10 +1,12 @@
 // @ts-check
 // The salon's background work, carried by regular traffic (the Comptoir polls every few seconds while
 // the shop is open) and by /api/cron/tick when a platform cron is available. At most once a minute.
+// It also writes the nightly encrypted backup (core/backup.js), after 03:00 Paris.
 import { tick } from '../commands/system.js';
 import { claimMessage, messageResult } from '../commands/messages.js';
 import { demoTick } from '../domain/seed.js';
 import { startsAt } from '../domain/policy.js';
+import { nightlyBackup } from '../core/backup.js';
 
 const SYSTEM = { actor: /** @type {const} */ ({ t: 'system', id: 'scheduler', n: 'Automatique' }), caps: new Set() };
 
@@ -16,9 +18,14 @@ export function maybeTick(rt, meta, { force = false } = {}) {
   rt.ticking = (async () => {
     const e = rt.engine;
     if (!e.state.version) return;
-    await e.run(tick, {}, { ...SYSTEM, meta });
-    if (e.state.mode === 'demo') await demoTick(e, meta);
-    await dispatch(rt);
+    try {
+      await e.run(tick, {}, { ...SYSTEM, meta });
+      if (e.state.mode === 'demo') await demoTick(e, meta);
+      await dispatch(rt);
+    } finally {
+      // last, so a slow Blob never holds back reminders; but a failing step before it never skips the backup
+      await nightlyBackup(rt);
+    }
   })().catch((err) => console.error('[lx] tick', err && err.stack ? err.stack : err)).finally(() => { rt.ticking = null; });
   return rt.ticking;
 }

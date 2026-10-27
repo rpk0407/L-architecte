@@ -22,6 +22,8 @@ export function readConfig(env = process.env) {
     blob: !!env.BLOB_READ_WRITE_TOKEN,
     blobPrefix: env.LX_BLOB_PREFIX || 'lx2',
     blobAccess: env.LX_BLOB_ACCESS === 'public' ? 'public' : 'private',
+    // encrypts the nightly backups (core/backup.js); kept out of the data so a leaked backup stays unreadable
+    backupKey: env.BACKUP_KEY || '',
     dataFile: env.LX_DATA_FILE || '',
     stripe: env.STRIPE_SECRET_KEY ? { secretKey: env.STRIPE_SECRET_KEY, webhookSecret: env.STRIPE_WEBHOOK_SECRET || '' } : null,
     sms: env.SMS_PROVIDER === 'brevo' && env.BREVO_API_KEY ? { kind: 'brevo', apiKey: env.BREVO_API_KEY, sender: env.SMS_SENDER || 'LArchitecte' }
@@ -29,7 +31,9 @@ export function readConfig(env = process.env) {
         : null,
     // plain-http cookies are for local tests only: a production deployment on Vercel ignores the switch
     secureCookies: env.LX_INSECURE_COOKIES !== '1' || (!!env.VERCEL && mode === 'production'),
-    isVercel: !!env.VERCEL
+    isVercel: !!env.VERCEL,
+    // production, preview or development: only production writes the nightly backups
+    vercelEnv: env.VERCEL_ENV || ''
   };
 }
 

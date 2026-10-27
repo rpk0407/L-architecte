@@ -43,6 +43,15 @@ export function fail(status, code, message, extra) { throw new DomainError(statu
  */
 
 /**
+ * The events whose personal data a client.erased event removes: the client's own events and those about them.
+ * @param {JEvent} erased @returns {(e: JEvent) => boolean}
+ */
+export function erasedMatch(erased) {
+  const ids = new Set(erased.data.ids || [erased.data.id]);
+  return (x) => !!x.data && (ids.has(x.data.cid) || (x.type.startsWith('client.') && ids.has(x.data.id)));
+}
+
+/**
  * @param {Store} store
  * @param {{ clock?: () => number, syncEveryMs?: number, onEvents?: (ev: JEvent[], engine: any) => void }} [opts]
  */
@@ -66,6 +75,8 @@ export function createEngine(store, opts = {}) {
       if (e.v !== state.version + 1) throw new Error('journal gap at ' + e.v);
       evolve(state, e);
       journal.push(e);
+      // an erasure made by another instance reaches this one here: its memory forgets the client too
+      if (e.type === 'client.erased') { const match = erasedMatch(e); for (const x of journal) if (x.pii != null && match(x)) delete x.pii; }
     }
   }
 
@@ -145,12 +156,8 @@ export function createEngine(store, opts = {}) {
   /** @param {JEvent[]} list */
   async function afterAppend(list) {
     for (const e of list) {
-      if (e.type === 'client.erased') {
-        const ids = new Set(e.data.ids || [e.data.id]);
-        const match = (/** @type {JEvent} */ x) => x.data && (ids.has(x.data.cid) || (x.type.startsWith('client.') && ids.has(x.data.id)));
-        await store.redact(match);
-        for (const x of journal) if (x.pii != null && match(x)) delete x.pii;
-      }
+      // memory was cleaned by apply; the store forgets now
+      if (e.type === 'client.erased') await store.redact(erasedMatch(e));
     }
     if (opts.onEvents) { try { opts.onEvents(list, api); } catch { /* hooks never break a write */ } }
   }

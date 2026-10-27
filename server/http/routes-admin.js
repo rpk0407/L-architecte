@@ -17,11 +17,12 @@ import { buildDemoJournal } from '../domain/seed.js';
 import { TEMPLATES } from '../core/state.js';
 import { CAPS, ROLES, capsOf } from '../domain/permissions.js';
 import { maybeTick } from './scheduler.js';
+import { STALE_MS, backupOff, backupStatus, backupsOf, freshBackup, makeBackup, ownBackups, salonOf } from '../core/backup.js';
 
 /* ---------------- the activity log, in plain French ---------------- */
 
 const LABELS = {
-  'shop.initialized': 'Salon créé', 'settings.updated': 'Réglages modifiés', 'staff.added': 'Membre ajouté', 'staff.updated': 'Fiche équipe modifiée',
+  'shop.initialized': 'Salon créé', 'shop.restored': 'Salon restauré', 'settings.updated': 'Réglages modifiés', 'staff.added': 'Membre ajouté', 'staff.updated': 'Fiche équipe modifiée',
   'staff.archived': 'Membre désactivé', 'staff.restored': 'Membre réactivé', 'staff.credentials': 'Accès modifiés', 'staff.revoked': 'Sessions fermées',
   'timeoff.added': 'Absence posée', 'timeoff.removed': 'Absence retirée', 'device.enrolled': 'Appareil enregistré', 'device.revoked': 'Appareil retiré',
   'service.added': 'Prestation créée', 'service.updated': 'Prestation modifiée', 'service.archived': 'Prestation retirée', 'product.added': 'Produit créé',
@@ -53,7 +54,12 @@ function summary(s, e) {
     case 'appt.booked': return d.day + ' ' + Math.floor(d.start / 60) + 'h' + String(d.start % 60).padStart(2, '0') + ' · ' + ((s.staff.get(d.staffId) || {}).name || '') + ' · ' + (d.services || []).map((x) => x.name).join(' + ');
     case 'appt.moved': return 'vers ' + d.day + ' ' + Math.floor(d.start / 60) + 'h' + String(d.start % 60).padStart(2, '0');
     case 'appt.status': return STATUS[d.status] || d.status;
-    case 'appt.cancelled': return (d.by === 'client' ? 'par le client' : d.by === 'system' ? 'automatique' : 'par le salon') + (d.reason ? ' · ' + d.reason : '');
+    case 'shop.restored': return 'depuis ' + (d.from === 'fichier' ? 'un fichier' : d.from) + ' · ' + d.count + ' opérations';
+    case 'appt.cancelled': {
+      // a client's own reason is personal data (pii): shown until the client is erased
+      const why = d.reason || (e.pii && e.pii.reason) || '';
+      return (d.by === 'client' ? 'par le client' : d.by === 'system' ? 'automatique' : 'par le salon') + (why ? ' · ' + why : '');
+    }
     case 'stock.adjusted': return (d.name || '') + ' ' + (d.delta > 0 ? '+' : '') + d.delta + ' · ' + d.reason;
     case 'settings.updated': return Object.keys(d.patch || {}).join(', ');
     case 'staff.added': return d.staff ? d.staff.name : '';
@@ -224,6 +230,30 @@ export function adminRoutes(app) {
     payments: { provider: r.rt.pay.name, live: !!r.rt.pay.live }, sms: r.rt.sms ? r.rt.sms.name : null, warnings: [...r.rt.warnings, ...closingWarnings(r.s, r.local.day)], setupProtected: !!r.rt.cfg.setupToken,
     devices: [...r.s.devices.values()].filter((d) => !d.revoked).length
   }), { cap: 'settings' });
+
+  /* encrypted backups (core/backup.js): the nightly ones in Blob, a download to keep elsewhere, one on demand */
+  app.get('/api/v1/backups', (r) => backupStatus(r.rt), { cap: 'settings' });
+  app.get('/api/v1/backups/latest', async (r) => {
+    guard('backup-dl|' + r.me.id, 10, 10 * 60000);
+    const file = (name, body) => new Response(body, { status: 200, headers: { 'content-type': 'application/octet-stream', 'content-disposition': `attachment; filename="larchitecte-sauvegarde-${name}"`, 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' } });
+    // a demo never reads the Blob store (it may hold the real salon's files)
+    const blob = backupOff(r.rt) ? null : backupsOf(r.rt);
+    if (blob) {
+      try {
+        const last = ownBackups(await blob.listBackups(), salonOf(r.rt.engine.journal))[0];
+        // streamed from Blob as is, unless the nightly ones stopped: then the salon as it is now
+        const stored = last && r.rt.engine.clock() - last.at < STALE_MS ? await blob.getBackup(last.name) : null;
+        if (stored && last) return file(last.name, stored.stream);
+      } catch (err) { console.error('[lx] backup download', err && err.message); }
+    }
+    // nothing stored, too old, or Blob down: one sealed now, so the owner can always keep a copy
+    const f = await freshBackup(r.rt);
+    return file(f.day + '.json.gz.enc', f.body);
+  }, { cap: 'settings' });
+  app.post('/api/v1/backups/now', async (r) => {
+    guard('backup-now|' + r.me.id, 4, 10 * 60000);
+    return { item: await makeBackup(r.rt) };
+  }, { cap: 'settings' });
 
   app.post('/api/v1/demo/reset', async (r) => {
     if (r.s.mode !== 'demo' || r.me.role !== 'owner') throw new HttpError(403, 'forbidden', 'Réservé au gérant, en démo.');

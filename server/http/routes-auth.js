@@ -11,8 +11,12 @@ import { setCredentials, enrollDevice, revokeSessions } from '../commands/team.j
 import { initialize } from '../commands/setup.js';
 import { DEMO } from '../domain/seed.js';
 import { isEmail } from '../lib/util.js';
+import { backupKey, backupsOf, keyProblem, restoreBackup } from '../core/backup.js';
 
 const DAY = 24 * HOUR;
+/** an uploaded backup arrives in parts: the function body limit is 4.5 MB on Vercel */
+const PART_MAX = 3 * 1024 * 1024;
+const PARTS_MAX = 64;
 
 export function meView(s, staff, device, kind) {
   const caps = capsOf(staff, s.settings);
@@ -115,6 +119,87 @@ export function authRoutes(app) {
     await r.run(setCredentials, { id: r.me.id, pinHash: await hashSecret(r.body.next) });
     return { ok: true };
   });
+
+  /* Installing from a backup: only an empty salon, only with SETUP_TOKEN (sent as x-setup-token). */
+  const gate = (r) => {
+    guard('restore|' + r.ip, 120, 15 * 60000);
+    if (r.s.version > 0) throw new HttpError(409, 'initialized', 'Le salon est déjà configuré.');
+    if (r.rt.cfg.mode !== 'production') throw new HttpError(409, 'demo', 'La démo est déjà configurée.');
+    if (!r.rt.cfg.setupToken) throw new HttpError(403, 'no_token', 'SETUP_TOKEN n’est pas défini : ajoute-le dans les variables d’environnement pour installer le salon.');
+    const tries = failureGuard('setup-token|' + r.ip, 8, 15 * 60000, 'Trop d’essais. Réessaie dans un quart d’heure.');
+    if (!safeEqual(String(r.req.headers.get('x-setup-token') || ''), r.rt.cfg.setupToken)) { tries.fail(); throw new HttpError(403, 'bad_token', 'Code d’installation incorrect.'); }
+  };
+  /** @param {string} from the Blob file's name, or 'fichier' for an upload: recorded in the journal (shop.restored) */
+  const restore = async (r, text, from) => {
+    const res = await restoreBackup(r.rt.engine, text, backupKey(r.rt.cfg.backupKey), { mode: r.rt.cfg.mode, from });
+    r.rt.backupState = null;
+    return { ok: true, version: res.version };
+  };
+
+  /** The backups this installation's Blob store holds (a new deployment pointed at the old store), whatever their salon. */
+  app.get('/api/setup/backups', async (r) => {
+    gate(r);
+    const blob = backupsOf(r.rt);
+    const problem = keyProblem(r.rt.cfg.backupKey);
+    /** @type {any[]} */
+    let items = [];
+    let error = '';
+    if (blob) { try { items = await blob.listBackups(); } catch (err) { error = 'Lecture des sauvegardes impossible : ' + String(err && err.message || err); } }
+    return { blob: !!blob, key: !problem, keyProblem: problem, error, items: items.map(({ name, day, at, count, size }) => ({ name, day, at, count, size })) };
+  }, { auth: false });
+
+  app.post('/api/setup/restore', async (r) => {
+    gate(r);
+    backupKey(r.rt.cfg.backupKey);
+    const blob = backupsOf(r.rt);
+    if (!blob) throw new HttpError(409, 'backup_blob', 'Aucun stockage Blob n’est relié (BLOB_READ_WRITE_TOKEN) : envoie le fichier de sauvegarde à la place.');
+    const f = await blob.getBackup(String(r.body.name || ''));
+    if (!f) throw new HttpError(404, 'not_found', 'Sauvegarde introuvable.');
+    return restore(r, await f.text(), String(r.body.name));
+  }, { auth: false });
+
+  /** A file of one part (almost every backup): a single request, nothing kept between instances. */
+  app.post('/api/setup/restore/file', async (r) => {
+    gate(r);
+    backupKey(r.rt.cfg.backupKey);
+    if (!r.raw) throw new HttpError(400, 'invalid', 'Envoi invalide.');
+    if (r.raw.length > PART_MAX) throw new HttpError(413, 'too_large', 'Fichier trop volumineux pour un seul envoi : envoie-le en plusieurs parties.');
+    return restore(r, r.raw, 'fichier');
+  }, { auth: false, raw: true });
+
+  /** A file from the owner's computer, part by part (?i=0..n-1, in order), staged in Blob across instances. */
+  app.post('/api/setup/restore/chunk', async (r) => {
+    gate(r);
+    // say it before the whole upload, not after
+    backupKey(r.rt.cfg.backupKey);
+    const i = Number(r.query.get('i')), n = Number(r.query.get('n'));
+    if (!Number.isInteger(n) || n < 1 || n > PARTS_MAX || !Number.isInteger(i) || i < 0 || i >= n || !r.raw) throw new HttpError(400, 'invalid', 'Envoi invalide.');
+    if (r.raw.length > PART_MAX) throw new HttpError(413, 'too_large', 'Partie trop volumineuse (3 Mo au plus).');
+    const blob = backupsOf(r.rt);
+    // on Vercel, two requests may reach two instances: without Blob, the parts would not meet
+    if (!blob && r.rt.cfg.isVercel) throw new HttpError(409, 'backup_blob', 'Ce fichier dépasse 2,5 Mo : pour l’envoyer en plusieurs parties, relie un stockage Blob (BLOB_READ_WRITE_TOKEN) à cette installation, puis recommence.');
+    if (blob) { if (i === 0) await blob.clearChunks(); await blob.putChunk(i, n, r.raw); }
+    else {
+      // no Blob, one server (local, file store): this instance's memory
+      if (i === 0 || !r.rt.restoreParts) r.rt.restoreParts = new Map();
+      r.rt.restoreParts.set(n + ':' + i, r.raw);
+    }
+    return { ok: true, i, n };
+  }, { auth: false, raw: true });
+
+  app.post('/api/setup/restore/commit', async (r) => {
+    gate(r);
+    backupKey(r.rt.cfg.backupKey);
+    const n = Number(r.body.n);
+    if (!Number.isInteger(n) || n < 1 || n > PARTS_MAX) throw new HttpError(400, 'invalid', 'Envoi invalide.');
+    const blob = backupsOf(r.rt);
+    const mem = r.rt.restoreParts;
+    const parts = blob ? null : Array.from({ length: n }, (_, i) => (mem ? mem.get(n + ':' + i) : undefined));
+    const text = blob ? await blob.readChunks(n) : parts && parts.every((x) => x != null) ? parts.join('') : null;
+    if (text == null) throw new HttpError(409, 'backup_parts', 'Une partie du fichier manque : recommence l’envoi.');
+    try { return await restore(r, text, 'fichier'); }
+    finally { if (blob) await blob.clearChunks().catch(() => {}); else r.rt.restoreParts = null; }
+  }, { auth: false });
 
   /** First start in production: create the owner. Needs SETUP_TOKEN, so nobody else can claim the salon. */
   app.post('/api/setup', async (r) => {

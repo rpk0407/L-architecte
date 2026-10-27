@@ -183,6 +183,108 @@ export function blobStore(o = {}) {
   };
 }
 
+/**
+ * The encrypted backups, as private files under `backups/` (the Blob store must be created Private: Vercel
+ * fixes a store's access at creation and refuses private files in a public one). Separate from the journal store, so they work
+ * whatever the main store is (Postgres included) as long as BLOB_READ_WRITE_TOKEN is set.
+ * `index.json` keeps what a listing shows (time, number of events) without opening each file;
+ * `staging/` holds the parts of a file being uploaded for a restore (the function body limit is 4.5 MB).
+ * @param {{ dir?: string, sdk?: any }} [o]
+ */
+export function blobBackups(o = {}) {
+  const dir = (o.dir || 'backups').replace(/\/+$/, '');
+  const access = 'private';
+  const INDEX = dir + '/index.json';
+  const NAME = /^(\d{4}-\d{2}-\d{2})\.json\.gz\.enc$/;
+  /** @type {any} */
+  let sdk = o.sdk || null;
+  const api = async () => { if (!sdk) sdk = await realSdk(); return sdk; };
+  const notFound = (e) => /not.?found/i.test(String(e && (e.name || e.message)));
+
+  async function text(path) {
+    const s = await api();
+    let r;
+    try { r = await s.get(path, { access, useCache: false }); } catch (e) { if (notFound(e)) return null; throw e; }
+    return r && r.stream ? new Response(r.stream).text() : null;
+  }
+  async function write(path, body, contentType = 'application/octet-stream') {
+    return (await api()).put(path, body, { access, contentType, addRandomSuffix: false, allowOverwrite: true, cacheControlMaxAge: 60 });
+  }
+  /** every file under a prefix, all pages */
+  async function files(prefix) {
+    const s = await api();
+    const out = [];
+    let cursor;
+    do {
+      const r = await s.list({ prefix, limit: 1000, ...(cursor ? { cursor } : {}) });
+      out.push(...r.blobs);
+      cursor = r.hasMore ? r.cursor : undefined;
+    } while (cursor);
+    return out;
+  }
+  /**
+   * Missing or unreadable: empty. A failed read throws when about to rewrite it (strict), so a Blob hiccup
+   * fails the backup (retried later) instead of rewriting the index without the other backups.
+   */
+  async function readIndex(strict = false) {
+    let t = null;
+    try { t = await text(INDEX); } catch (e) { if (strict) throw e; return {}; }
+    try { return JSON.parse(t || '{}').items || {}; } catch { return {}; }
+  }
+
+  return {
+    /** @param {string} name YYYY-MM-DD.json.gz.enc @param {string} body @param {{ at: number, count: number, head: string, salon: string }} meta */
+    async putBackup(name, body, meta) {
+      if (!NAME.test(name)) throw new Error('nom de sauvegarde invalide : ' + name);
+      await write(dir + '/' + name, body);
+      const items = await readIndex(true);
+      items[name] = { ...meta, size: body.length };
+      await write(INDEX, JSON.stringify({ items }), 'application/json');
+    },
+    /** Newest first. A file the index does not know (index lost) still lists, without its count. */
+    async listBackups() {
+      const items = await readIndex();
+      return (await files(dir + '/')).map((b) => {
+        const m = NAME.exec(String(b.pathname).slice(dir.length + 1));
+        if (!m) return null;
+        const meta = items[m[0]] || {};
+        const up = b.uploadedAt ? new Date(b.uploadedAt).getTime() : 0;
+        return { name: m[0], day: m[1], at: meta.at || up, count: meta.count ?? null, head: meta.head || null, salon: meta.salon || null, size: b.size ?? meta.size ?? null };
+      }).filter((x) => x != null).sort((a, b) => (a.day < b.day ? 1 : a.day > b.day ? -1 : b.at - a.at));
+    },
+    /** The file as a stream (download) and as text on demand (restore); null when absent. */
+    async getBackup(name) {
+      if (!NAME.test(name)) return null;
+      const s = await api();
+      let r;
+      try { r = await s.get(dir + '/' + name, { access, useCache: false }); } catch (e) { if (notFound(e)) return null; throw e; }
+      if (!r || !r.stream) return null;
+      return { stream: /** @type {ReadableStream} */ (r.stream), size: r.blob && r.blob.size, text: () => new Response(r.stream).text() };
+    },
+    /** @param {string[]} names */
+    async deleteBackups(names) {
+      if (!names.length) return;
+      await (await api()).del(names.map((n) => dir + '/' + n));
+      const items = await readIndex(true);
+      for (const n of names) delete items[n];
+      await write(INDEX, JSON.stringify({ items }), 'application/json');
+    },
+    /** One part of an uploaded file, staged until all of them are there. */
+    async putChunk(i, n, body) { await write(`${dir}/staging/${n}-${String(i).padStart(4, '0')}.part`, body, 'text/plain'); },
+    /** The n parts joined, or null when one is missing. */
+    async readChunks(n) {
+      const parts = [];
+      for (let i = 0; i < n; i++) { const t = await text(`${dir}/staging/${n}-${String(i).padStart(4, '0')}.part`); if (t == null) return null; parts.push(t); }
+      return parts.join('');
+    },
+    async clearChunks() {
+      const list = (await files(dir + '/staging/')).map((b) => b.pathname);
+      if (list.length) await (await api()).del(list).catch(() => {});
+    }
+  };
+}
+/** @typedef {ReturnType<typeof blobBackups>} BlobBackups */
+
 /** An in-memory stand-in for the Blob SDK, with real ETag semantics (tests). */
 export function fakeBlobSdk() {
   const files = new Map();
@@ -194,18 +296,20 @@ export function fakeBlobSdk() {
       const f = files.get(path);
       if (!f) throw err('BlobNotFoundError', 'not found');
       if (opt && opt.ifNoneMatch && opt.ifNoneMatch === f.etag) return { statusCode: 304, stream: null, blob: { etag: f.etag } };
-      return { statusCode: 200, stream: new Response(f.body).body, blob: { etag: f.etag } };
+      return { statusCode: 200, stream: new Response(f.body).body, blob: { etag: f.etag, size: String(f.body).length } };
     },
     async put(path, body, opt) {
       const f = files.get(path);
       if (opt.ifMatch !== undefined && (!f || f.etag !== opt.ifMatch)) throw err('BlobPreconditionFailedError', 'precondition failed');
       if (f && opt.allowOverwrite === false) throw err('BlobError', 'already exists');
       const etag = '"e' + ++n + '"';
-      files.set(path, { body, etag });
+      files.set(path, { body, etag, at: new Date() });
       return { pathname: path, etag };
     },
     async del(paths) { for (const p of [].concat(paths)) files.delete(p); },
-    async list() { return { blobs: [...files.keys()].map((pathname) => ({ pathname })) }; },
+    async list(opt = {}) {
+      return { hasMore: false, blobs: [...files].filter(([p]) => !opt.prefix || p.startsWith(opt.prefix)).map(([pathname, f]) => ({ pathname, size: String(f.body).length, uploadedAt: f.at })) };
+    },
     isPrecondition: (e) => e && e.name === 'BlobPreconditionFailedError'
   };
 }
