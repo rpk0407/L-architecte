@@ -12,6 +12,8 @@ import { frHoliday } from '../../shared/sms.js';
 import { lastSmsTrouble } from './routes-channels.js';
 import { TEMPLATE_FLAGS } from '../core/templates.js';
 import { addDays, weekday } from '../../shared/dates.js';
+import { cutoverHold, finalSync } from '../projections/bascule.js';
+import { heldQueued } from './routes-bascule.js';
 
 const HOUR = 3600000;
 /** the external scheduler is fine when it called under 15 minutes ago; past 30 during opening hours, held texts are not leaving */
@@ -69,6 +71,21 @@ export function journalFacts(rt) {
 function emailProvider(rt) {
   if (rt.email) return rt.email.name || 'brevo';
   return rt.cfg.email ? rt.cfg.email.kind || 'brevo' : null;
+}
+
+/**
+ * WP-10 · Where the takeover of WordPress stands, from the runs and the Jour J record (no guess from the journal): the
+ * last finished run, whether a run came after the freeze, the switch, and the texts waiting for it.
+ * @param {any} s @param {number} now
+ */
+function jourJ(s, now) {
+  const runs = s.imports.order.map((id) => s.imports.runs.get(id)).filter((r) => r && r.finishedAt && !r.undoneAt);
+  const last = runs[runs.length - 1];
+  const sync = finalSync(s);
+  return {
+    runs: runs.length, lastRun: last ? last.finishedAt : null, frozenAt: s.bascule.frozenAt || null, finalSyncAt: sync ? sync.finishedAt : null,
+    switchedAt: s.bascule.switchedAt || null, hold: { on: cutoverHold(s), queued: heldQueued(s, now) }
+  };
 }
 
 /** The public holidays of the next 12 months on a day the salon opens: those left open, and those closed. Once the
@@ -212,7 +229,7 @@ export async function healthOf(rt, L) {
       services: { active: services.length, online: services.filter((x) => x.online !== false).length },
       team: { chairs: chairs.map((x) => ({ id: x.id, name: x.name, pin: !!x.hasPin })) },
       devices: [...s.devices.values()].filter((d) => !d.revoked).length,
-      import: { clients: [...s.clients.values()].filter((c) => c.source === 'wordpress' && !c.mergedInto).length, appts: s.apptByWp.size, last: j.wp || null },
+      import: { clients: [...s.clients.values()].filter((c) => c.source === 'wordpress' && !c.mergedInto).length, appts: s.apptByWp.size, last: j.wp || null, ...jourJ(s, now) },
       siteBooking: j.site || null
     }
   };

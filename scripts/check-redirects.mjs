@@ -1,8 +1,9 @@
 // The old WordPress addresses on a live domain, for the cut-over day: each must answer with its redirect, query kept.
 //   node scripts/check-redirects.mjs https://barberlarchitecte.com
-// The same list as the end-to-end test (tests/e2e/prod/root-and-redirects.mjs), so the live check is exactly what the
-// tests check before the deploy. Read only: it sends GET requests and follows nothing.
-import { CASES } from '../tests/e2e/prod/root-and-redirects.mjs';
+// The same list as the end-to-end test (shared/redirects.js, read by tests/e2e/prod/root-and-redirects.mjs), so the live
+// check is exactly what the tests check before the deploy. Read only: it sends GET requests and follows nothing.
+// scripts/check-old-urls.mjs is the other way round: it starts from the old site's own address list.
+import { CASES } from '../shared/redirects.js';
 
 const base = String(process.argv[2] || '').replace(/\/+$/, '');
 if (!/^https?:\/\/[^/]+$/.test(base)) {

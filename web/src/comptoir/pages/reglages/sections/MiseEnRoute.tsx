@@ -36,7 +36,8 @@ export type Health = {
     services: { active: number; online: number };
     team: { chairs: { id: string; name: string; pin: boolean }[] };
     devices: number;
-    import: { clients: number; appts: number; last: number | null };
+    // WP-10: where the takeover stands, from the runs and the Jour J record (hold: client texts wait for the switch)
+    import: { clients: number; appts: number; last: number | null; runs: number; lastRun: number | null; frozenAt: number | null; finalSyncAt: number | null; switchedAt: number | null; hold: { on: boolean; queued: number } };
     siteBooking: number | null;
   };
 };
@@ -143,10 +144,16 @@ export function stepsOf(h: Health, robots: boolean | null, countries: string[], 
           : 'Demandé après chaque visite encaissée, une fois par trimestre au plus ; le lien ouvre ' + REVIEW_KIND[kind] + '.',
     extra: review.url && /^https:\/\//.test(review.url) ? <a className="btn btn-ghost btn-sm" style={{ marginTop: 8, alignSelf: 'flex-start' }} href={review.url} target="_blank" rel="noopener">Tester le lien<Icon name="ext" size={14} /></a> : undefined });
 
+  // the takeover of WordPress, from the runs themselves: todo until a first run, then the switch (Reprendre WordPress › Jour J)
   const wp = st.import;
-  out.push({ id: 'wordpress', title: 'Reprise WordPress', tone: wp.clients || wp.appts ? 'ok' : 'todo', to: '/reglages/wordpress', go: 'Reprise',
-    line: wp.clients || wp.appts ? s(wp.clients, 'client') + ', ' + s(wp.appts, 'rendez-vous') + ' repris' + (wp.last ? ' · dernier apport ' + since(wp.last) : '') + '.' : 'Clients, rendez-vous, cartes cadeaux et abonnements de l’ancien site : pas encore repris.',
-    more: 'Le jour J, bloque les réservations sur WordPress, refais l’export et dépose-le : seul ce qui a changé est repris.' });
+  const dm = (ms: number) => { const d = dates.dayParts(dates.localParts(ms).day); return d.d + (d.d === 1 ? 'er ' : ' ') + dates.MONTHS_FR[d.m - 1]; };
+  const took = s(wp.clients, 'client') + ', ' + s(wp.appts, 'rendez-vous') + ' repris' + (wp.lastRun || wp.last ? ' · dernier apport ' + since(wp.lastRun || wp.last || 0) : '');
+  out.push({ id: 'wordpress', title: 'Reprise WordPress', to: '/reglages/wordpress', go: 'Jour J',
+    tone: wp.switchedAt ? 'ok' : wp.runs ? (demo ? 'info' : 'warn') : demo ? 'info' : 'todo',
+    line: wp.switchedAt ? 'Bascule faite le ' + dm(wp.switchedAt) + '. ' + took + '.'
+      : wp.runs ? 'Reprise faite, bascule à faire. ' + took + (wp.hold.on && wp.hold.queued ? ' · ' + s(wp.hold.queued, 'message attend', 'messages attendent') + ' la bascule' : '') + '.'
+        : 'Clients, rendez-vous, cartes cadeaux et abonnements de l’ancien site : pas encore repris.',
+    more: 'Tout se suit dans Reprendre WordPress › Jour J.' });
 
   const b = h.backup;
   const fresh = b.at != null && h.now - b.at < b.staleAfterMs;
@@ -215,6 +222,30 @@ function TestSms({ disabled }: { disabled: boolean }) {
   );
 }
 
+/** WP-10 · Nouveautés: every switch that waits for something (domain/features.js), its state and what it waits for. */
+type Feature = { id: string; label: string; on: boolean; blocker: string; to: string };
+function Nouveautes() {
+  const { data } = useQuery<{ features: Feature[] }>('/api/v1/features');
+  if (!data || !data.features.length) return null;
+  return (
+    <section className="card col mr-feats" aria-label="Nouveautés" style={{ gap: 12 }}>
+      <div className="card-h"><h2><Icon name="sparkle" size={16} />Nouveautés</h2></div>
+      <p className="muted" style={{ fontSize: 13.5 }}>Ce qui s’ouvre plus tard : chaque ligne dit ce qu’elle attend, et mène à son réglage.</p>
+      <ul className="mr-fl" aria-label="Fonctions qui attendent">
+        {data.features.map((f) => (
+          <li key={f.id} className="mr-feat" data-feature={f.id} data-on={f.on ? '1' : '0'}>
+            <div className="mr-main">
+              <div className="mr-t"><b>{f.label}</b><span className={'badge' + (f.on ? ' badge-ok' : '')}>{f.on ? 'en marche' : 'éteint'}</span></div>
+              {f.on ? null : <p>{cap1(f.blocker || 'Éteint pour l’instant.')}</p>}
+            </div>
+            <Link to={'/reglages/' + f.to} className="btn btn-ghost mr-go" aria-label={'Réglage : ' + f.label}>Réglage<Icon name="chevR" size={14} /></Link>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 // the step's number stays unless it is done or needs a look
 const ICON: Record<Tone, string> = { ok: 'check', todo: '', warn: 'alert', err: 'alert', info: '' };
 const WORD: Record<Tone, string> = { ok: 'fait', todo: 'à faire', warn: 'à vérifier', err: 'en panne', info: 'démo' };
@@ -254,6 +285,7 @@ export default function MiseEnRoute() {
           </li>
         ))}
       </ol>
+      <Nouveautes />
       <p className="faint" style={{ fontSize: 12.5 }}>Le passage du domaine, l’indexation et Stripe en réel suivent la liste du jour J, avec ton prestataire. Vérifié {ago(data.now, now())}.</p>
     </div>
   );
