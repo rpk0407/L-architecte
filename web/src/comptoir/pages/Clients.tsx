@@ -11,6 +11,15 @@ import { Avatar, Button, Chip, Empty, Field, Kpi, Menu, Modal, Note, Sheet, Skel
 import { useApp } from '../state';
 import { PageTitle } from '../App';
 import type { ClientCard, ClientFull } from '../types';
+import ClientReview from './avis/ClientReview';
+import AccountCard from './clients/AccountCard';
+import { LoyaltyCard } from './clients/LoyaltyCard';
+import type { CardLine } from '../../lib/loyalty';
+import { ClientChips, Fold, useFolds } from './clients/ClientChips';
+import MemberBlock, { useSellable } from './clients/MemberBlock';
+import Members from './clients/Members';
+import { liveMembers, shortWords } from '../../lib/members';
+import CutNotes from './espace/CutNotes';
 import './clients.css';
 
 type ListData = { total: number; counts: Record<string, number>; excludedNoConsent?: number; retention?: { before: string; other: number } | null; items: ClientCard[] };
@@ -28,6 +37,7 @@ type Pair = { keep: ClientCard; drop: ClientCard; why: Why[] };
 type Open = {
   appts: { id: string; day: string; start: number; staffId: string; services: string[]; deposit: number; passed?: boolean }[];
   packs: { id: string; name: string; left: number; expires: string }[];
+  memberships?: { id: string; plan: string; status: string; until: string | null }[];
   giftcards: { id: string; last4: string; balance: number; expires: string }[];
   sms: boolean; smsLive?: boolean; email?: boolean;
 };
@@ -38,7 +48,7 @@ const SEGMENTS: { v: string; t: string; hint: string; rare?: boolean; cap?: stri
   { v: 'relancer', t: 'À relancer', hint: 'En retard sur leur rythme, d’accord pour les bons plans.' },
   { v: 'fideles', t: 'Fidèles', hint: 'Viennent régulièrement depuis plusieurs mois.' },
   { v: 'nouveaux', t: 'Nouveaux', hint: 'Première visite il y a moins de 30 jours, ou pas encore venus.' },
-  { v: 'abonnes', t: 'Abonnés', hint: 'Ont un abonnement en cours.' },
+  { v: 'abonnes', t: 'Abonnés', hint: 'Ont un abonnement ou un carnet en cours.' },
   { v: 'vip', t: 'VIP', hint: '' },
   { v: 'absents', t: 'Absences', hint: 'Ont déjà manqué un rendez-vous sans prévenir.' },
   { v: 'anniversaires', t: 'Anniversaires', hint: 'Fêtent leur anniversaire ce mois-ci.' },
@@ -50,6 +60,10 @@ const TAGS = ['VIP', 'Barbe', 'Enfant', 'Étudiant', 'Sensible', 'Parle peu'];
 // the tag that spares a client the deposit asked of those who missed (server/domain/policy.js TRUSTED)
 const TRUSTED = 'confiance';
 const MSG: Record<string, string> = { confirm: 'Confirmation', confirmation: 'Confirmation', reminder: 'Rappel la veille', reminder2h: 'Rappel 2 h avant', moved: 'Déplacement', cancelled: 'Annulation', review: 'Demande d’avis', rebook: 'Relance', receipt: 'Reçu', waitlist: 'Créneau libéré', deposit: 'Lien d’acompte', lookup: 'Lien Mon rendez-vous', giftcardCode: 'Code carte cadeau' };
+// AC-01: the client space's texts
+Object.assign(MSG, { otp: 'Code de connexion', accountOpened: 'Espace client ouvert', accesInvite: 'Lien vers son espace', dataExport: 'Copie de ses données' });
+// PAY-05: the monthly membership's texts
+Object.assign(MSG, { memberWelcome: 'Bienvenue abonné', memberFailed: 'Paiement refusé', memberAction: 'Validation bancaire', memberCancelled: 'Résiliation', memberStopped: 'Résiliation', memberWithdrawn: 'Rétractation', memberWithdrawnNone: 'Rétractation', memberPaused: 'Pause', memberEnded: 'Abonnement arrêté', memberOffer: 'Proposition d’abonnement', memberLink: 'Lien abonnement', memberCard: 'Changer la carte', memberLinkMail: 'Lien abonnement (e-mail)' });
 
 export default function Clients() {
   const route = useRoute();
@@ -87,16 +101,16 @@ function ClientList({ active }: { active: string | null }) {
   const shown = SEGMENTS.filter((s) => (!s.cap || can(s.cap)) && (!s.rare || seg === s.v || (data?.counts[s.v] || 0) > 0 || (s.v === 'inactifs' && (data?.retention?.other || 0) > 0)));
   return (
     <section className="card cl-list">
-      <div className="row" style={{ gap: 8 }}>
+      <div className="row" style={{ gap: 8 }} data-guide="cl-search">
         <label className="search grow"><Icon name="search" /><input className="input" type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Nom ou numéro" aria-label="Rechercher un client" autoComplete="off" /></label>
         {can('client.edit') ? <Button variant="primary" icon="plus" aria-label="Nouveau client" onClick={() => setCreating(true)}><span className="hide-phone">Nouveau</span></Button> : null}
       </div>
-      <div ref={segsRef} className="chips cl-segs" role="tablist" aria-label="Segments">
+      <div ref={segsRef} className="chips cl-segs" role="tablist" aria-label="Segments" data-guide="cl-segs">
         {shown.map((s) => <Chip key={s.v} small on={seg === s.v} onClick={() => setQuery({ segment: s.v === 'all' ? null : s.v, tri: null })}>{s.t}{data?.counts[s.v] != null ? <span className="cnt">{data.counts[s.v]}</span> : null}</Chip>)}
       </div>
-      {seg === 'doublons' ? <Duplicates q={dq.trim()} /> : (
+      {seg === 'doublons' ? <Duplicates q={dq.trim()} /> : seg === 'abonnes' ? <Members q={dq.trim()} active={active} /> : (
         <>
-          <div className="row cl-tools">
+          <div className="row cl-tools" data-guide="cl-tools">
             <span className="muted grow" style={{ fontSize: 13 }}>{data ? plural(data.total, 'client') : ''}{hint ? ' · ' + hint : ''}{excluded}</span>
             <select className="input select cl-sort" value={sort} onChange={(e) => setQuery({ tri: e.target.value })} aria-label="Trier">{SORTS.map((s) => <option key={s.v} value={s.v}>{s.t}</option>)}</select>
             {can('client.export') ? <a className="btn btn-ghost btn-sm btn-icon" href="/api/v1/export?kind=clients" download aria-label="Exporter en CSV" title="Exporter en CSV"><Icon name="download" /></a> : null}
@@ -109,10 +123,10 @@ function ClientList({ active }: { active: string | null }) {
             </button>
           ) : null}
           {loading && !data ? <div className="col" style={{ gap: 10 }}>{[0, 1, 2, 3, 4, 5].map((i) => <Skeleton key={i} h={52} />)}</div> : !data?.items.length ? (
-            <Empty icon="clients" title={dq ? 'Personne à ce nom' : 'Aucun client ici'}>{dq ? 'Vérifie l’orthographe ou cherche par les derniers chiffres du numéro.' : 'Ce segment est vide pour le moment.'}</Empty>
+            <div data-tour-empty><Empty icon="clients" title={dq ? 'Personne à ce nom' : 'Aucun client ici'}>{dq ? 'Vérifie l’orthographe ou cherche par les derniers chiffres du numéro.' : 'Ce segment est vide pour le moment.'}</Empty></div>
           ) : (
             <>
-              <ul className="list">
+              <ul className="list" data-guide="cl-rows">
                 {data.items.map((c) => (
                   <li key={c.id}>
                     <button type="button" className="li cl-row" aria-current={active === c.id ? 'true' : undefined} onClick={() => navigate('/clients/' + c.id + location.search)}>
@@ -121,7 +135,7 @@ function ClientList({ active }: { active: string | null }) {
                         <b>{c.first} {c.last}{c.badges.filter((b) => b !== 'nouveau' || !c.visits).slice(0, 2).map((b) => <span key={b} className={'badge ' + badgeTone(b)}>{b}</span>)}</b>
                         <small>{c.next ? 'Prochain RDV ' + dayShortWord(c.next.day, boot.today) + ' ' + time(c.next.start) : c.overdue ? 'Pas revenu ' + sinceWords(c.sinceLast).replace('il y a', 'depuis') + (c.cadence ? ' · venait ' + rhythmWords(c.cadence) : '') : c.lastDay ? 'Venu ' + sinceWords(c.sinceLast) + (c.cadence ? ' · ' + rhythmWords(c.cadence) : '') : 'Pas encore venu'}</small>
                       </span>
-                      <span className="li-end"><b className="money tnum">{c.spend ? eur(c.spend) : ''}</b><small className="faint">{c.visits ? plural(c.visits, 'visite') : ''}</small></span>
+                      <span className="li-end"><b className="money tnum">{c.spend ? eur(c.spend) : ''}</b><small className="faint">{[c.visits ? plural(c.visits, 'visite') : '', cardChip(c)].filter(Boolean).join(' · ')}</small></span>
                     </button>
                   </li>
                 ))}
@@ -215,8 +229,13 @@ function Retention({ files, other, before }: { files: number; other: number; bef
   );
 }
 
+/** « Carte 6/9 »: where his stamp card stands; nothing while the programme is off or he does not take part, and the « récompense » badge says it when one waits */
+export function cardChip(c: ClientCard): string {
+  const l = (c as ClientCard & { loyalty?: CardLine }).loyalty;
+  return l && !l.off && !l.rewards ? 'Carte ' + Math.max(0, l.units) + '/' + l.goal : '';
+}
 export function badgeTone(b: string) {
-  return b === 'fidèle' || b === 'abonné' ? 'badge-ok' : b === 'nouveau' ? 'badge-info' : b === 'absences' ? 'badge-warn' : b === 'VIP' ? 'badge-accent' : '';
+  return b === 'fidèle' || b === 'abonné' ? 'badge-ok' : b === 'nouveau' || b === 'carnet' ? 'badge-info' : b === 'absences' ? 'badge-warn' : b === 'VIP' || b === 'récompense' ? 'badge-accent' : '';
 }
 
 /** Names compared the way the server finds duplicates: no case, no accents, no punctuation. */
@@ -274,6 +293,9 @@ function ClientFile({ id }: { id: string }) {
   const [erase, setErase] = useState(false);
   const [takeover, setTakeover] = useState(false);
   const [menu, setMenu] = useState<DOMRect | null>(null);
+  const folds = useFolds();
+  // the Abonnement block is for a file that has a membership, or for any file once memberships are on sale
+  const sell = useSellable();
   const back = () => navigate('/clients' + location.search);
   if (error) return <section className="card"><Empty icon="alert" title="Fiche introuvable" action={<Button variant="ghost" onClick={back}>Retour</Button>}>Elle a peut-être été fusionnée ou effacée.</Empty></section>;
   if (loading && !data) return <section className="card col" style={{ gap: 14 }}><Skeleton h={60} w={300} /><Skeleton h={110} /><Skeleton h={220} /></section>;
@@ -289,12 +311,13 @@ function ClientFile({ id }: { id: string }) {
   return (
     <section className="cl-file">
       <button type="button" className="cl-back" onClick={back}><Icon name="chevL" size={16} />Clients</button>
-      <div className="card cl-head">
+      <div className="card cl-head" data-guide="file-head">
         <Avatar name={c.first + ' ' + c.last} size="xl" color={c.overdue ? 'var(--warn)' : undefined} />
         <div className="grow" style={{ minWidth: 0 }}>
           <h2>{c.first} {c.last}</h2>
           <div className="row wrap" style={{ gap: 6, marginTop: 8 }}>
             {c.badges.map((b) => <span key={b} className={'badge ' + badgeTone(b)}>{b}</span>)}
+            {cardChip(c) ? <span className="badge">{cardChip(c)}</span> : null}
             {c.tags.filter((t) => t !== 'VIP' && t !== TRUSTED).map((t) => <span key={t} className="badge">{t}</span>)}
             {/* the tag's own word: a trusted client still pays the salon's deposit from the threshold up */}
             {c.tags.includes(TRUSTED) ? <span className="badge badge-ok">confiance</span> : null}
@@ -304,6 +327,7 @@ function ClientFile({ id }: { id: string }) {
             {c.email ? <span><Icon name="globe" size={14} />{c.email}</span> : null}
             <span className="faint">Client depuis {monthYear(c.createdAt)}{c.source === 'site' ? ' · venu par le site' : ''}</span>
           </p>
+          {c.erased ? null : <ClientReview id={c.id} />}
         </div>
         <div className="cl-acts">
           {can('agenda.own') ? <Button variant="primary" icon="calendar" onClick={() => navigate('/agenda?new=1&client=' + c.id)}>Prendre RDV</Button> : null}
@@ -312,7 +336,9 @@ function ClientFile({ id }: { id: string }) {
         </div>
       </div>
 
-      <div className="kpis">
+      {c.erased ? null : <ClientChips c={c} onOpen={folds.show} />}
+
+      <div className="kpis" data-guide="file-kpis">
         <Kpi k="Visites" v={c.visits} s={c.lastDay ? 'dernière ' + sinceWords(c.sinceLast) : 'pas encore venu'} icon="scissors" />
         <Kpi k="Rythme" v={<span className="kpi-v sm">{c.cadence ? 'tous les ' + c.cadence + ' j' : '—'}</span>} s={c.cadence ? rhythmWords(c.cadence) : 'après 2 visites'} icon="clock" />
         <Kpi k="Dépensé" v={eur(c.spend)} s={c.visits ? 'soit ' + eur(Math.round(c.spend / c.visits)) + ' par visite' : ''} icon="euro" />
@@ -328,9 +354,16 @@ function ClientFile({ id }: { id: string }) {
       <div className="cl-cols">
         <div className="col" style={{ gap: 14 }}>
           <TechCard c={c} favStaff={favStaff ? staffById.get(favStaff)?.name || '' : ''} favSvc={favSvc} />
+          {c.erased || !(c.memberships.length || sell.live) ? null : (
+            <Fold id="abo" guide="file-abonnement" title="Abonnement" icon="card" open={folds.isOpen('abo')} onToggle={() => folds.toggle('abo')}
+              summary={liveMembers(c.memberships)[0] ? liveMembers(c.memberships)[0].plan + ' · ' + shortWords(liveMembers(c.memberships)[0], liveMembers(c.memberships)[0]) : 'Aucun'}>
+              <MemberBlock c={c} onEdit={() => setEdit(true)} />
+            </Fold>
+          )}
+          {c.erased ? null : <CutNotes clientId={c.id} />}
           {data.packs.length ? (
-            <div className="card">
-              <div className="card-h"><h2><Icon name="ticket" size={16} />Abonnements</h2></div>
+            <Fold id="carnets" guide="file-carnets" title="Carnets" icon="ticket" open={folds.isOpen('carnets')} onToggle={() => folds.toggle('carnets')}
+              summary={(() => { const n = data.packs.reduce((t, p) => t + Math.max(0, p.total - p.used), 0); return n ? n + ' restante' + (n > 1 ? 's' : '') : 'terminés'; })()}>
               {data.packs.map((p) => (
                 <div key={p.id} className="cl-pack">
                   <div className="row"><b className="grow">{p.name}</b><span className={'badge ' + (p.used >= p.total ? '' : p.expires < boot.today ? 'badge-warn' : 'badge-ok')}>{p.used >= p.total ? 'terminé' : p.expires < boot.today ? 'expiré' : (p.total - p.used) + ' restante' + (p.total - p.used > 1 ? 's' : '')}</span></div>
@@ -338,11 +371,13 @@ function ClientFile({ id }: { id: string }) {
                   <small className="faint">Valable jusqu’au {dates.dayShort(p.expires)}</small>
                 </div>
               ))}
-            </div>
+            </Fold>
           ) : null}
           <Prefs c={c} />
+          <AccountCard c={c} />
+          <LoyaltyCard c={c} />
         </div>
-        <div className="card">
+        <div className="card" data-guide="file-history">
           <div className="tabs" role="tablist" style={{ marginTop: -6 }}>
             <button type="button" role="tab" aria-selected={tab === 'rdv'} onClick={() => setTab('rdv')}>Rendez-vous<span className="count">{data.appts.length}</span></button>
             {data.sales.length ? <button type="button" role="tab" aria-selected={tab === 'tickets'} onClick={() => setTab('tickets')}>Tickets<span className="count">{data.sales.length}</span></button> : null}
@@ -381,7 +416,7 @@ function ClientFile({ id }: { id: string }) {
       {menu ? (
         <Menu anchor={menu} onClose={() => setMenu(null)}>
           {can('agenda.edit') ? <button type="button" role="menuitem" onClick={() => { setMenu(null); setMerge(true); }}><Icon name="copy" />Fusionner un doublon</button> : null}
-          {can('settings') ? <button type="button" role="menuitem" onClick={() => { setMenu(null); setTakeover(true); }}><Icon name="ticket" />Reprendre un abonnement en cours</button> : null}
+          {can('settings') ? <button type="button" role="menuitem" onClick={() => { setMenu(null); setTakeover(true); }}><Icon name="ticket" />Reprendre un carnet en cours</button> : null}
           {can('client.export') ? <a role="menuitem" href={'/api/v1/clients/' + c.id + '/export'} download><Icon name="download" />Exporter ses données</a> : null}
           {can('client.erase') ? <button type="button" role="menuitem" className="danger" onClick={() => { setMenu(null); setErase(true); }}><Icon name="trash" />Effacer (RGPD)</button> : null}
         </Menu>
@@ -428,18 +463,18 @@ function TechCard({ c, favStaff, favSvc }: { c: ClientFull; favStaff: string; fa
   useEffect(() => () => clearTimeout(timer.current), []);
   const ro = !can('client.edit');
   return (
-    <div className="card">
+    <div className="card" data-guide="file-tech">
       <div className="card-h"><h2><Icon name="scissors" size={16} />Fiche technique</h2><small className="faint">{state === 'saving' ? 'Enregistrement…' : state === 'saved' ? 'Enregistré' : ''}</small></div>
       {favStaff || favSvc ? <p className="muted" style={{ fontSize: 13.5, margin: '-4px 0 10px' }}>{favSvc ? 'Prend souvent : ' + favSvc : ''}{favStaff && favSvc ? ' · ' : ''}{favStaff ? 'Habitué de ' + favStaff : ''}</p> : null}
       <textarea className="input textarea" rows={4} value={tech} readOnly={ro} maxLength={500} placeholder="Dégradé, hauteur des côtés, sabot, produit, ce qu’il n’aime pas…" onChange={(e) => { setTech(e.target.value); save({ tech: e.target.value }); }} aria-label="Fiche technique" />
       <label className="section-k" htmlFor="cl-notes" style={{ display: 'block', margin: '14px 0 8px' }}>Notes privées</label>
-      <textarea id="cl-notes" className="input textarea" rows={2} value={notes} readOnly={ro} maxLength={1000} placeholder="Allergies, préférences, sujets de conversation…" onChange={(e) => { setNotes(e.target.value); save({ notes: e.target.value }); }} />
+      <textarea id="cl-notes" className="input textarea" rows={2} value={notes} readOnly={ro} maxLength={1000} placeholder="Allergies, préférences, sujets de conversation… Le client peut demander à lire ses notes." onChange={(e) => { setNotes(e.target.value); save({ notes: e.target.value }); }} />
       <p className="faint" style={{ fontSize: 12, marginTop: 8 }}>Visible par l’équipe ; remis au client s’il demande ses données.</p>
     </div>
   );
 }
 
-const CONSENT_SRC: Record<string, string> = { site: 'site', salon: 'au salon', stop: 'STOP par SMS' };
+const CONSENT_SRC: Record<string, string> = { site: 'site', salon: 'au salon', stop: 'STOP par SMS', wordpress: 'jamais demandé (ancien site)', espace: 'depuis son espace' };
 /** "oui (site, 12/10/2026)", "non (STOP par SMS, 03/11/2026)", or just "oui" / "non" when nobody recorded where. */
 export function consentWords(c: { marketing: boolean; marketingSrc?: string; marketingAt?: number | null }) {
   const src = c.marketingSrc ? CONSENT_SRC[c.marketingSrc] || c.marketingSrc : '';
@@ -465,7 +500,7 @@ function Prefs({ c }: { c: FileClient }) {
     ? rule ? 'Le site ne lui demande plus l’acompte prévu pour les absences. À partir de ' + eur(dep.thresholdCents ?? 5000) + ', la règle du salon reste la même.' : 'Sans effet tant que l’acompte pour les absences est coupé (Réglages › Réservation).'
     : plural(c.noShows, 'absence') + (noOnline ? ' : le site lui demandera un acompte même pour une coupe, dès que Stripe sera branché.' : ' : le site lui demande un acompte même pour une coupe.');
   return (
-    <div className="card col" style={{ gap: 10 }}>
+    <div className="card col" style={{ gap: 10 }} data-guide="file-prefs">
       <div className="card-h"><h2><Icon name="star" size={16} />Préférences</h2></div>
       <div className="chips">{TAGS.map((t) => <Chip key={t} small on={c.tags.includes(t)} disabled={ro} onClick={() => toggleTag(t)}>{t}</Chip>)}</div>
       <Switch on={c.sms} disabled={ro} onChange={(v) => patch({ sms: v })} title="SMS de confirmation et de rappel" hint={c.sms ? 'Activés' : 'Il a demandé à ne plus en recevoir'} />
@@ -629,11 +664,12 @@ function EraseModal({ c, onClose }: { c: FileClient; onClose: () => void }) {
     <Modal open onClose={onClose} label={'Effacer ' + c.first + ' ' + c.last}>
       <h2>Effacer {c.first} {c.last} ?</h2>
       <p>Son nom, son numéro, ses notes et sa fiche technique sont supprimés définitivement (droit à l’effacement, RGPD). Les tickets restent dans la comptabilité, sans son nom.</p>
-      {!data ? <Skeleton h={60} /> : n || data.packs.length || data.giftcards.length ? (
+      {!data ? <Skeleton h={60} /> : n || data.packs.length || data.giftcards.length || data.memberships?.length ? (
         <div className="cl-open">
           <b className="section-k">Encore ouvert sur sa fiche</b>
           <ul>
             {data.appts.map((a) => <li key={a.id}><Icon name="calendar" size={15} /><span>{cap(dayShortWord(a.day, boot.today))} à {time(a.start)} · {a.services.join(' + ')}{staffById.get(a.staffId) ? ' avec ' + staffById.get(a.staffId)!.name : ''}{a.passed ? ' · passé, jamais clôturé' : ''}{a.deposit ? ' · acompte de ' + eur(a.deposit, { decimals: a.deposit % 100 !== 0 }) + ' remboursé' : ''}</span></li>)}
+            {data.memberships?.map((m) => <li key={m.id}><Icon name="card" size={15} /><span>Abonnement {m.plan} en cours : résilie l’abonnement d’abord (sa fiche, bloc Abonnement).</span></li>)}
             {data.packs.map((k) => <li key={k.id}><Icon name="ticket" size={15} /><span>{k.name} : {plural(k.left, 'coupe restante', 'coupes restantes')}, perdue{k.left > 1 ? 's' : ''}</span></li>)}
             {data.giftcards.map((g) => <li key={g.id}><Icon name="gift" size={15} /><span>Carte cadeau •••• {g.last4} : {eur(g.balance, { decimals: g.balance % 100 !== 0 })} de solde, reste valable avec son code</span></li>)}
           </ul>
@@ -650,13 +686,13 @@ function EraseModal({ c, onClose }: { c: FileClient; onClose: () => void }) {
       ) : null}
       <div className="acts">
         <Button variant="ghost" onClick={onClose}>Annuler</Button>
-        <Button variant="danger" busy={busy} disabled={!data || (n > 0 && !cancel)} onClick={go}>Effacer définitivement</Button>
+        <Button variant="danger" busy={busy} disabled={!data || (n > 0 && !cancel) || !!data.memberships?.length} onClick={go}>Effacer définitivement</Button>
       </div>
     </Modal>
   );
 }
 
-/** A subscription started on the old site (paper card, WordPress): the cuts left and until when, on this file. */
+/** A carnet started on the old site (paper card, WordPress): the cuts left and until when, on this file. */
 function PackTakeover({ c, onClose }: { c: FileClient; onClose: () => void }) {
   const { boot } = useApp();
   const packs = boot.services.filter((x) => x.active && x.pack);
@@ -672,21 +708,21 @@ function PackTakeover({ c, onClose }: { c: FileClient; onClose: () => void }) {
     setBusy(true);
     try {
       await api.post('/api/v1/import/pack', { clientId: c.id, left, expires, ...(sid ? { serviceId: sid } : {}) });
-      toast({ title: 'Abonnement repris', sub: plural(left, 'coupe restante', 'coupes restantes') + ' jusqu’au ' + dates.dayShort(expires), icon: 'check' });
+      toast({ title: 'Carnet repris', sub: plural(left, 'coupe restante', 'coupes restantes') + ' jusqu’au ' + dates.dayShort(expires), icon: 'check' });
       refreshAll(); onClose();
     } catch (e) { toastError(e); } finally { setBusy(false); }
   };
   return (
-    <Sheet open onClose={onClose} title="Reprendre un abonnement en cours" kicker={c.first + ' ' + c.last} footer={<><Button variant="ghost" onClick={onClose}>Annuler</Button><span className="grow" /><Button variant="primary" busy={busy} disabled={!ok} onClick={go}>Reprendre l’abonnement</Button></>}>
-      <p className="muted">Pour un abonnement vendu sur l’ancien site ou sur carton : il n’entre pas dans la caisse du jour (déjà payé), seules les coupes restantes sont reprises.</p>
-      {packs.length === 1 ? <p>Abonnement : <b>{packs[0].name}</b> ({plural(credits, 'coupe')})</p> : null}
+    <Sheet open onClose={onClose} title="Reprendre un carnet en cours" kicker={c.first + ' ' + c.last} footer={<><Button variant="ghost" onClick={onClose}>Annuler</Button><span className="grow" /><Button variant="primary" busy={busy} disabled={!ok} onClick={go}>Reprendre le carnet</Button></>}>
+      <p className="muted">Pour un carnet vendu sur l’ancien site ou sur carton : il n’entre pas dans la caisse du jour (déjà payé), seules les coupes restantes sont reprises.</p>
+      {packs.length === 1 ? <p>Carnet : <b>{packs[0].name}</b> ({plural(credits, 'coupe')})</p> : null}
       {packs.length > 1 ? (
-        <Field label="Abonnement" htmlFor="pk-s"><select id="pk-s" className="input select" value={sid} onChange={(e) => { const x = packs.find((p) => p.id === e.target.value); setSid(e.target.value); setLeft(Math.min(left, Math.max(1, (x?.pack?.credits || 5) - 1))); setExpires(dates.addDays(boot.today, x?.pack?.days || 70)); }}>{packs.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>
+        <Field label="Carnet" htmlFor="pk-s"><select id="pk-s" className="input select" value={sid} onChange={(e) => { const x = packs.find((p) => p.id === e.target.value); setSid(e.target.value); setLeft(Math.min(left, Math.max(1, (x?.pack?.credits || 5) - 1))); setExpires(dates.addDays(boot.today, x?.pack?.days || 70)); }}>{packs.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>
       ) : null}
       <Field label="Coupes restantes">
         <div className="chips">{Array.from({ length: Math.max(1, credits - 1) }, (_, i) => i + 1).map((v) => <Chip key={v} on={left === v} onClick={() => setLeft(v)}>{v}</Chip>)}</div>
       </Field>
-      <Field label="Valable jusqu’au" htmlFor="pk-e" error={expires < boot.today ? 'Cet abonnement a déjà expiré.' : null}><input id="pk-e" className="input" type="date" value={expires} min={boot.today} onChange={(e) => setExpires(e.target.value)} /></Field>
+      <Field label="Valable jusqu’au" htmlFor="pk-e" error={expires < boot.today ? 'Ce carnet a déjà expiré.' : null}><input id="pk-e" className="input" type="date" value={expires} min={boot.today} onChange={(e) => setExpires(e.target.value)} /></Field>
     </Sheet>
   );
 }

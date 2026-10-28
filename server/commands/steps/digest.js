@@ -117,7 +117,7 @@ export function weeklyReport(s, ctx) {
   const prev = report(s, { from: p.from, to: p.to, today, now: ctx.now });
   const delta = prev.revenue > 0 ? Math.round(((r.revenue - prev.revenue) / prev.revenue) * 100) : null;
   const vs = delta == null ? '' : ' (' + (delta > 0 ? '+' : delta < 0 ? '−' : '') + Math.abs(delta) + ' % sur la semaine d’avant)';
-  const best = r.staff.find((x) => x.revenue > 0);
+  const best = r.staff.find((x) => x.chair && x.revenue > 0);
   const top = [...r.services].sort((a, b) => b.count - a.count).slice(0, 3);
   const lines = [
     'Bonjour,', '',

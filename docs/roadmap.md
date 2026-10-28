@@ -4,7 +4,7 @@ What exists is listed in the [README](../README.md). These are the next steps, o
 
 ## Before go-live
 
-1. **Import from WordPress**: clients (with consent flags) and upcoming appointments, deduplicated by phone number. A one-off script against the existing API.
+1. **Import from WordPress**: done, in the Comptoir (Réglages › Reprendre WordPress): clients, past and upcoming bookings, paper gift cards and carnets, a run report that adds up, and the cut-over day guided in a « Jour J » card (freeze, final sync after it, texts held until the switch, the old addresses checked, a return plan). What is left is the day itself, with the provider (see [operations](operations.md#mise-en-ligne--la-liste-du-gérant)).
 2. **Stripe and Brevo accounts**, the external cron, the domain, indexing (see [operations](operations.md#going-live-checklist)).
 3. **Till certification**: until then Le Comptoir is a « caisse de gestion » (the Caisse page says so in production) and the salon's certified till prints the legal ticket. The publisher's self-certification appears to be gone since the 2025 finance law (to be confirmed by the salon's accountant), so replacing the certified till means certification by an accredited body (NF525 by Infocert, or LNE) after building what it requires: signed tickets, monthly and annual closures, a duplicata counter, the technical event log (JET) and signed archives. Using the Comptoir as the till without it risks a 7 500 € fine per system. Details in [security](security.md#fiscal-note-france).
 4. **Legal pages** on the site (mentions légales, CGV for deposits and cancellation, privacy policy) from the settings already entered.
@@ -24,7 +24,7 @@ What exists is listed in the [README](../README.md). These are the next steps, o
 
 - **Card terminal integration** (SumUp or Stripe Terminal): the amount is pushed to the terminal from the till, no double entry.
 - **Supplier orders**: the stock alerts turn into a purchase order to send by e-mail; deliveries received in one tap.
-- **Payroll export**: commissions and tips per barber per month, in the format the accountant uses.
+- **Payroll in the provider's format**: the monthly statement per barber and the payroll CSV exist (Rapports › Relevés de paie: réalisé, commission on TTC or HT, tips card and cash, carnet and membership cuts, days); an import file in the payroll provider's own format (Silae, PayFit) remains.
 - **Chair rental** (barbers renting a chair): rent schedule, their own till and figures, the salon's cut.
 - **Several salons**: one owner, several locations, figures side by side, clients shared. The journal per salon already makes this a configuration rather than a rewrite.
 - **Offline till**: tickets queued on the tablet when the internet drops, sent with their idempotency key when it comes back (the server side is already idempotent).

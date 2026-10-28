@@ -11,7 +11,7 @@ import type { ClientCard } from './types';
 type Item = { id: string; group: string; label: string; hint?: string; icon: string; run: () => void };
 
 export function Palette({ onClose }: { onClose: () => void }) {
-  const { can } = useApp();
+  const { can, boot } = useApp();
   const [q, setQ] = useState('');
   const [sel, setSel] = useState(0);
   const [clients, setClients] = useState<ClientCard[]>([]);
@@ -31,11 +31,12 @@ export function Palette({ onClose }: { onClose: () => void }) {
     { id: 'walk', group: 'Actions', label: 'Ajouter un passage (sans rendez-vous)', hint: 'P', icon: 'walk', run: go('/?walkin=1') },
     ...(can('sale.create') ? [{ id: 'sale', group: 'Actions', label: 'Vente libre (produit, carte cadeau)', icon: 'caisse', run: go('/caisse?vente=1') }] : []),
     ...(can('closure') ? [{ id: 'z', group: 'Actions', label: 'Compter la caisse et clôturer', icon: 'lock', run: go('/caisse/cloture') }] : []),
-    { id: 'p-agenda', group: 'Pages', label: 'Agenda', icon: 'agenda', run: go('/') },
+    ...(boot.me.chair ? [{ id: 'p-espace', group: 'Pages', label: 'Mon espace', icon: 'chair', run: go('/espace') }] : []),
+    { id: 'p-agenda', group: 'Pages', label: 'Agenda', icon: 'agenda', run: go('/agenda') },
     ...(can('sale.create') ? [{ id: 'p-caisse', group: 'Pages', label: 'Caisse', icon: 'caisse', run: go('/caisse') }] : []),
     ...(can('client.view') ? [{ id: 'p-clients', group: 'Pages', label: 'Clients', icon: 'clients', run: go('/clients') }] : []),
     ...(can('marketing') ? [{ id: 'p-rel', group: 'Pages', label: 'Relances', icon: 'relances', run: go('/relances') }] : []),
-    ...(can('report.own') ? [{ id: 'p-rap', group: 'Pages', label: 'Rapports', icon: 'rapports', run: go('/rapports') }] : []),
+    ...(can('report.own') && (boot.me.chair || can('report.shop')) ? [{ id: 'p-rap', group: 'Pages', label: 'Rapports', icon: 'rapports', run: go('/rapports') }] : []),
     ...(can('team') ? [{ id: 'p-eq', group: 'Pages', label: 'Équipe', icon: 'equipe', run: go('/equipe') }] : []),
     ...(can('catalog') ? [{ id: 'p-cat', group: 'Pages', label: 'Catalogue', icon: 'catalogue', run: go('/catalogue') }] : []),
     { id: 'p-set', group: 'Pages', label: 'Réglages', icon: 'reglages', run: go('/reglages') },

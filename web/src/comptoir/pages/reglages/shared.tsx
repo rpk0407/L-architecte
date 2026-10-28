@@ -37,7 +37,7 @@ export function useSave() {
   };
   return { busy, save };
 }
-export function Card({ title, icon, children, aside }: { title: string; icon: string; children: ReactNode; aside?: ReactNode }) {
-  return <section className="card col" style={{ gap: 12 }}><div className="card-h"><h2><Icon name={icon} size={16} />{title}</h2>{aside}</div>{children}</section>;
+export function Card({ title, icon, children, aside, guide }: { title: string; icon: string; children: ReactNode; aside?: ReactNode; guide?: string }) {
+  return <section className="card col" style={{ gap: 12 }} data-guide={guide}><div className="card-h"><h2><Icon name={icon} size={16} />{title}</h2>{aside}</div>{children}</section>;
 }
 export const num = (x: string, min: number, max: number) => Math.max(min, Math.min(max, Number(x.replace(/\D/g, '')) || 0));

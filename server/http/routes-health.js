@@ -9,7 +9,11 @@ import { shopIntervals } from '../domain/availability.js';
 import { phoneAllowed, renderTemplate } from '../domain/messages.js';
 import { normPhone, maskPhone } from '../lib/util.js';
 import { frHoliday } from '../../shared/sms.js';
+import { lastSmsTrouble } from './routes-channels.js';
+import { TEMPLATE_FLAGS } from '../core/templates.js';
 import { addDays, weekday } from '../../shared/dates.js';
+import { cutoverHold, cutoverHeld, finalSync } from '../projections/bascule.js';
+import { heldQueued } from './routes-bascule.js';
 
 const HOUR = 3600000;
 /** the external scheduler is fine when it called under 15 minutes ago; past 30 during opening hours, held texts are not leaving */
@@ -18,6 +22,8 @@ export const TICK_LATE_MS = 30 * 60000;
 /** a text that waited this long after its time with no dispatch at all in between: nothing was sending */
 export const LATE_MS = 30 * 60000;
 export const TEST_SMS_PER_HOUR = 3;
+/** FID-01: the salon's phone sends 5 texts a dispatch; with the cron further apart than this, it falls behind */
+export const GATEWAY_CRON_MS = 3 * 60000;
 /** the Blob store is listed at most this often for the health answer (each list is a billed call) */
 const BACKUP_LIST_MS = 5 * 60000;
 
@@ -31,7 +37,9 @@ const get = (o, path) => path.split('.').reduce((x, k) => (x == null ? undefined
 
 /** the whole chain is checked again at most this often: a long journal takes a second or two */
 const VERIFY_EVERY_MS = 10 * 60000;
-const WEBHOOK_TYPES = new Set(['payment.succeeded', 'payment.failed', 'payment.expired']);
+const WEBHOOK_TYPES = new Set(['payment.succeeded', 'payment.failed', 'payment.expired', 'payment.refundedOutside', 'payment.disputed', 'payment.disputeClosed', 'payout.recorded']);
+// PAY-03: Stripe Billing's notices that write no payment (a refused renewal, a cancellation in the portal, an end)
+for (const t of ['member.pastDue', 'member.cancelRequested', 'member.ended']) WEBHOOK_TYPES.add(t);
 
 /** Things only the journal knows. The journal only grows, so each visit reads just the events added since the last one
  *  (from the start again when it was replaced: a demo reset, a restore). */
@@ -39,16 +47,13 @@ const memo = new WeakMap();
 export function journalFacts(rt) {
   const j = rt.engine.journal;
   let m = memo.get(rt);
-  if (!m || m.n > j.length || (m.n && j[m.n - 1].h !== m.last)) m = { n: 0, last: '', stripe: 0, site: 0, wp: 0, integrity: null, checked: 0, checkedHead: '' };
+  if (!m || m.n > j.length || (m.n && j[m.n - 1].h !== m.last)) m = { n: 0, last: '', stripe: 0, site: 0, integrity: null, checked: 0, checkedHead: '' };
   for (; m.n < j.length; m.n++) {
     const x = j[m.n];
     const d = x.data || {};
-    // what /api/stripe/webhook records; a refund is written as 'stripe' too, but by our own server (refundOnline)
-    if (x.actor.t === 'provider' && x.actor.id === 'stripe' && WEBHOOK_TYPES.has(x.type)) m.stripe = x.at;
+    // what a provider's webhook records (routes-payments.js; not the test page); a refund is written as the provider too, but by our own server (refundOnline)
+    if (x.actor.t === 'provider' && x.actor.id !== 'simulated' && WEBHOOK_TYPES.has(x.type)) m.stripe = x.at;
     else if (x.type === 'appt.booked' && d.source === 'site' && !d.demo) m.site = x.at;
-    // the WordPress import: what a run brought or carried over (a delta run that changed nothing leaves no trace)
-    if ((x.type === 'client.added' && d.source === 'wordpress') || (x.type === 'appt.booked' && d.source === 'import') || (x.type === 'appt.moved' && d.by === 'import')
-      || ((x.type === 'giftcard.issued' || x.type === 'pack.sold') && d.legacy) || (x.type === 'appt.cancelled' && d.reason === 'Annulé sur l’ancien site')) m.wp = x.at;
   }
   m.last = j.length ? j[j.length - 1].h : '';
   const now = Date.now();
@@ -65,6 +70,28 @@ export function journalFacts(rt) {
 function emailProvider(rt) {
   if (rt.email) return rt.email.name || 'brevo';
   return rt.cfg.email ? rt.cfg.email.kind || 'brevo' : null;
+}
+
+/**
+ * WP-10 · Where the takeover of WordPress stands, from the runs and the Jour J record (no guess from the journal): the
+ * last finished run, whether a run came after the freeze, the switch, and the texts waiting for it.
+ * @param {any} s @param {number} now
+ */
+function jourJ(s, now) {
+  const runs = s.imports.order.map((id) => s.imports.runs.get(id)).filter((r) => r && r.finishedAt && !r.undoneAt);
+  const last = runs[runs.length - 1];
+  const sync = finalSync(s);
+  // what the runs brought (the report's own counts, not a guess from the journal): files created, bookings made
+  let clients = 0, appts = 0;
+  for (const r of runs) {
+    const c = r.counts || {}, a = c.appts || {};
+    clients += (c.clients && c.clients.added) || 0;
+    appts += (a.done || 0) + (a.noShow || 0) + (a.cancelled || 0) + (a.booked || 0);
+  }
+  return {
+    clients, appts, runs: runs.length, lastRun: last ? last.finishedAt : null, frozenAt: s.bascule.frozenAt || null, finalSyncAt: sync ? sync.finishedAt : null,
+    switchedAt: s.bascule.switchedAt || null, hold: { on: cutoverHold(s), queued: heldQueued(s, now) }
+  };
 }
 
 /** The public holidays of the next 12 months on a day the salon opens: those left open, and those closed. Once the
@@ -84,16 +111,19 @@ function holidaysOf(s, today) {
  * owner's own visits, which tick too): a text due at D whose first dispatch of anything after D came more than LATE_MS
  * later had nobody sending it, typically the 08:00 texts held by quiet hours when no cron calls. A long relance
  * draining 10 texts a tick is not late: dispatches run all along. Texts due before the provider's first attempt
- * (the backlog of the go-live day) do not count.
+ * (the backlog of the go-live day) do not count, nor do the texts the Jour J hold keeps back until the switch.
  */
-function lateness(msgs, now, hasProvider) {
+function lateness(s, msgs, now, hasProvider) {
   const claims = msgs.map((m) => m.claimedAt).filter((t) => t > 0).sort((a, b) => a - b);
   const firstAfter = (t) => { let lo = 0, hi = claims.length; while (lo < hi) { const mid = (lo + hi) >> 1; if (claims[mid] < t) lo = mid + 1; else hi = mid; } return lo < claims.length ? claims[lo] : null; };
   let from = Infinity;
   for (const m of msgs) if ((m.status === 'sent' || m.status === 'failed') && m.sentAt < from) from = m.sentAt;
   let late = 0, overdue = 0, last = null;
+  const switched = (s.bascule && s.bascule.switchedAt) || 0;
   for (const m of msgs) {
     // dispatchable (claimed once, or waiting), on a channel with a provider, due in the last 24 h after the first attempt
+    // held for the switch is not a failure to send (docs/security.md, Jour J); nor is a text that waited for it, claimed once it opened
+    if (cutoverHeld(s, m) || (switched && m.dueAt < switched && (!m.claimedAt || m.claimedAt >= switched))) continue;
     if (!(m.claimedAt || m.status === 'queued') || !hasProvider(m.channel || 'sms') || !(m.dueAt >= from) || m.dueAt < now - 24 * HOUR) continue;
     const next = firstAfter(m.dueAt);
     if (next != null ? next - m.dueAt <= LATE_MS : now - m.dueAt <= LATE_MS) continue;
@@ -102,6 +132,20 @@ function lateness(msgs, now, hasProvider) {
     if (!last || m.dueAt > last.dueAt) last = { dueAt: m.dueAt, ms: next - m.dueAt };
   }
   return { late, overdue, last };
+}
+
+/**
+ * FID-01 · What the owner checks when a client says « je n'ai rien reçu »: how long the oldest text a client asked for
+ * (a code, a link) has been waiting, and when the salon's phone last took a text.
+ */
+function sendFacts(msgs, now) {
+  let oldest = 0, gatewayAt = 0;
+  for (const m of msgs) {
+    if (m.status === 'queued' && (TEMPLATE_FLAGS[m.template] || {}).requested && m.dueAt <= now && (!oldest || m.dueAt < oldest)) oldest = m.dueAt;
+    // by SMS from the phone: not WhatsApp, not the Brevo fallback, not an e-mail
+    if (m.status === 'sent' && m.channel !== 'email' && (m.via || 'sms') === 'sms' && m.sentAt > gatewayAt) gatewayAt = m.sentAt;
+  }
+  return { requestedWaitMs: oldest ? now - oldest : null, lastSentAt: gatewayAt || null };
 }
 
 /** The backup facts without listing Blob on every visit: the list at most every 5 minutes, this instance's newer
@@ -136,7 +180,7 @@ export async function healthOf(rt, L) {
   const open = shopIntervals(s, L.day).some(([a, b]) => L.min >= a && L.min < b);
   const msgs = [...s.messages.values()];
   const sms = !!rt.sms, mail = emailProvider(rt);
-  const late = lateness(msgs, now, (ch) => (ch === 'email' ? !!mail : sms));
+  const late = lateness(s, msgs, now, (ch) => (ch === 'email' ? !!mail : sms));
   const channel = (ch, provider) => {
     const of = msgs.filter((m) => (m.channel || 'sms') === ch);
     return {
@@ -173,7 +217,14 @@ export async function healthOf(rt, L) {
       open, overdue: late.overdue, late24h: late.late, lastLate: late.last, okMs: TICK_OK_MS, lateMs: TICK_LATE_MS
     },
     stripe: { provider: rt.pay.name, live: !!rt.pay.live, lastWebhook: j.stripe || null },
-    sms: channel('sms', sms ? rt.sms.name : null),
+    // MSG-02: the route in use (provider, and WhatsApp in front of it when it is on) and the last text that failed
+    // FID-01: the oldest text a client asked for still waiting, the last text that left by SMS (from the salon's phone when it
+    // is the provider), and whether the cron calls too seldom for the phone (5 texts a dispatch: one call a minute)
+    sms: {
+      ...channel('sms', sms ? rt.sms.name : null), whatsapp: !!rt.whatsapp && !!(s.settings.messages.whatsapp && s.settings.messages.whatsapp.enabled), ...lastSmsTrouble(msgs),
+      ...sendFacts(msgs, now), fallback: !!rt.smsFallback,
+      cronSlow: sms && rt.sms.name === 'gateway' && (!rt.cfg.cronSecret || (rt.cronGap || 0) > GATEWAY_CRON_MS || (cronAge != null && cronAge > GATEWAY_CRON_MS))
+    },
     email: channel('email', mail),
     backup,
     // when the chain was last checked, on the salon's clock; `events` is the journal now (it grew since, maybe)
@@ -187,7 +238,7 @@ export async function healthOf(rt, L) {
       services: { active: services.length, online: services.filter((x) => x.online !== false).length },
       team: { chairs: chairs.map((x) => ({ id: x.id, name: x.name, pin: !!x.hasPin })) },
       devices: [...s.devices.values()].filter((d) => !d.revoked).length,
-      import: { clients: [...s.clients.values()].filter((c) => c.source === 'wordpress' && !c.mergedInto).length, appts: s.apptByWp.size, last: j.wp || null },
+      import: jourJ(s, now),
       siteBooking: j.site || null
     }
   };

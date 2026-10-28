@@ -19,9 +19,10 @@ const DEFAULT_URL = 'https://barberlarchitecte.com';
 const PRIVATE = new Set(['demo.html', 'ancien-lien.html', '404.html']);
 const ROBOTS_META = /[ \t]*<meta\s+name=["']robots["'][^>]*>[ \t]*\r?\n?/gi;
 const CANONICAL = /[ \t]*<link\s+rel=["']canonical["'][^>]*>[ \t]*\r?\n?/gi;
-const OPEN_PATHS = ['/comptoir', '/r/', '/recu/', '/paiement/', '/api/', '/demo'];
+const OPEN_PATHS = ['/comptoir', '/r/', '/recu/', '/paiement/', '/abo/', '/api/', '/demo', '/moi'];
 // the site renders its catalogue, prices and barbers from these: a crawler that cannot fetch them indexes the fallback
-const API_READS = ['/api/public/salon', '/api/public/live'];
+// (the memberships' answer: the « Abonnement & carnet » block and its FAQ answer; $ so no member's own link is ever allowed)
+const API_READS = ['/api/public/salon', '/api/public/live', '/api/public/memberships$'];
 
 /** The faces site.html declares (@font-face src: /fonts/<file>), Latin only like the Comptoir's. */
 export const FONTS = [

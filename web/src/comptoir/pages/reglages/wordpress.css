@@ -31,3 +31,42 @@
   .wp-go { flex-direction: column; align-items: stretch; }
 }
 .wp-row .wp-need { border-color: var(--warn); }
+
+/* The report of a run */
+.wr-files { display: flex; flex-wrap: wrap; gap: 4px 18px; margin: 0; padding: 0; list-style: none; font-size: 13px; }
+.wr-files li { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
+.wr-files b { font-weight: 600; overflow-wrap: anywhere; }
+.wr-files small { color: var(--tx3); font-size: 12px; }
+.wr-table th[scope='row'] { padding: 12px 10px; text-align: left; font: 600 14px/1.2 var(--sans); color: var(--tx); white-space: nowrap; border-bottom: 1px solid var(--line); }
+.wr-table tbody tr:last-child th, .wr-table tbody tr:last-child td { border-bottom: 0; }
+.wr-table td.wr-more { width: 52px; padding: 4px 0 4px 6px; text-align: right; }
+.wr-toggle { display: inline-grid; place-items: center; width: 44px; height: 44px; border-radius: 12px; background: var(--panel2); color: var(--tx2); transition: background-color .15s; }
+.wr-toggle:hover { background: var(--panel3); color: var(--tx); }
+.wr-toggle:focus-visible { outline: 2px solid var(--accent2); outline-offset: 2px; }
+.wr-why td { padding: 0 6px 12px; border-bottom: 1px solid var(--line); }
+.wr-why ul { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 12px 14px; list-style: none; border-radius: 12px; background: var(--panel2); font-size: 13.5px; color: var(--tx2); }
+.wr-why li { display: flex; justify-content: space-between; gap: 12px; }
+.wr-why li b { color: var(--tx); font-variant-numeric: tabular-nums; }
+.wr-acts { flex-wrap: wrap; gap: 8px; }
+.wr-acts .btn { min-height: 44px; }
+.wr-chips { flex-wrap: wrap; gap: 8px; }
+.wr-chips .chip { min-height: 44px; }
+.wr-group { display: flex; flex-direction: column; gap: 6px; padding-top: 6px; border-top: 1px solid var(--line); }
+.wr-gh { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.wr-gh h3 { margin: 0; font: 600 15px/1.3 var(--sans); }
+.wr-list .li { min-height: 48px; padding: 9px 2px; }
+.wr-pick { width: 100%; min-height: 48px; text-align: left; }
+.wr-recent .li { gap: 10px; }
+@media (max-width: 760px) {
+  /* four cards, one per kind of record: the column names become the labels */
+  .wr-table, .wr-table tbody, .wr-table tr, .wr-table th, .wr-table td { display: block; }
+  .wr-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .table-wrap:has(.wr-table) { overflow: visible; margin: 0; padding: 0; }
+  .wr-table tr.wr-row { position: relative; margin-bottom: 10px; padding: 12px 14px 8px; border: 1px solid var(--line); border-radius: 16px; background: var(--panel2); }
+  .wr-table th[scope='row'] { display: flex; align-items: center; min-height: 44px; padding: 0 52px 0 0; border: 0; font-size: 15px; }
+  .wr-table td[data-label] { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 7px 0; border: 0; border-top: 1px solid var(--line); text-align: right; }
+  .wr-table td[data-label]::before { content: attr(data-label); color: var(--tx2); font-weight: 500; text-align: left; }
+  .wr-table td.wr-more { position: absolute; top: 12px; right: 6px; width: auto; padding: 0; }
+  .wr-table tr.wr-why td { padding: 0; border: 0; }
+  .wr-table tr.wr-why { margin: -4px 0 10px; }
+}

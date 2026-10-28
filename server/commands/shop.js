@@ -6,6 +6,7 @@ import { checkIntervals } from './common.js';
 import { normPhone } from '../lib/util.js';
 import { settingsSchema } from '../settings/index.js';
 import { cgvPatch } from '../settings/shop.js';
+import { checkMembership } from '../settings/membership.js';
 
 // Composed from server/settings, one file per section; still exported from here as before.
 export { settingsSchema };
@@ -28,6 +29,7 @@ export const updateSettings = {
     ctx.need('settings');
     let patch = parse(settingsSchema, input);
     if (patch.hours) for (const k of Object.keys(patch.hours)) checkIntervals(patch.hours[k], 'horaires');
+    if (patch.membership) checkMembership(s, patch.membership);
     const pii = contactPii(patch);
     if (!Object.keys(patch).length && !pii) return { settings: s.settings };
     // the CGV version follows the deposit and cancellation rules, dated here rather than by the screen that saved them

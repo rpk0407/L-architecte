@@ -41,6 +41,13 @@
     { "source": "/(2019|2020)/:path*", "destination": "/", "permanent": true },
     { "source": "/(feed|comments/feed)", "destination": "/", "permanent": true },
     { "source": "/(wp-sitemap.xml|sitemap_index.xml)", "destination": "/sitemap.xml", "permanent": true },
+    { "source": "/wp-sitemap-:rest*", "destination": "/sitemap.xml", "permanent": true },
+    { "source": "/wp-sitemap.xsl", "destination": "/sitemap.xml", "permanent": true },
+    { "source": "/author/:slug*", "destination": "/", "permanent": true },
+    { "source": "/tag/:slug*", "destination": "/", "permanent": true },
+    { "source": "/page/:n", "destination": "/", "permanent": true },
+    { "source": "/page/:n/feed", "destination": "/", "permanent": true },
+    { "source": "/:slug/feed", "destination": "/", "permanent": true },
     { "source": "/wp-login.php", "destination": "/comptoir", "permanent": false },
     { "source": "/wp-admin/:path*", "destination": "/comptoir", "permanent": false },
     { "source": "/wp-content/uploads/:path*", "destination": "/", "permanent": true }
@@ -49,10 +56,13 @@
     { "source": "/", "destination": "/site" },
     { "source": "/api/:path*", "destination": "/api/main?route=:path*" },
     { "source": "/comptoir/:path*", "destination": "/comptoir" },
+    { "source": "/moi/:path*", "destination": "/moi" },
     { "source": "/r/:token", "destination": "/client" },
     { "source": "/recu/:token", "destination": "/client" },
     { "source": "/paiement/:id", "destination": "/client" },
-    { "source": "/cadeau/:token", "destination": "/client" }
+    { "source": "/cadeau/:token", "destination": "/client" },
+    { "source": "/abo/:token", "destination": "/client" },
+    { "source": "/avis/:token", "destination": "/api/main?route=avis/:token" }
   ],
   "headers": [
     {
@@ -64,10 +74,10 @@
         { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=(), payment=()" }
       ]
     },
-    { "source": "/(comptoir|r|recu|paiement|cadeau|client|api|demo|ancien-lien)", "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }] },
-    { "source": "/(comptoir|r|recu|paiement|cadeau|client|api|demo|ancien-lien)/(.*)", "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }] },
+    { "source": "/(comptoir|r|recu|paiement|cadeau|abo|client|api|demo|ancien-lien|avis|moi)", "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }] },
+    { "source": "/(comptoir|r|recu|paiement|cadeau|abo|client|api|demo|ancien-lien|avis|moi)/(.*)", "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }] },
     {
-      "source": "/(comptoir|r|recu|paiement|cadeau|client)(.*)",
+      "source": "/(comptoir|r|recu|paiement|cadeau|abo|client|moi)(.*)",
       "headers": [
         { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self' https://checkout.stripe.com; object-src 'none'" },
         { "key": "X-Frame-Options", "value": "DENY" },
@@ -76,6 +86,8 @@
     },
     { "source": "/assets/(.*)", "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }] },
     { "source": "/img/(.*)", "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }] },
-    { "source": "/support.js", "headers": [{ "key": "Cache-Control", "value": "public, max-age=3600" }] }
+    { "source": "/support.js", "headers": [{ "key": "Cache-Control", "value": "public, max-age=3600" }] },
+    { "source": "/guide.js", "headers": [{ "key": "Cache-Control", "value": "public, max-age=3600" }] },
+    { "source": "/guide.css", "headers": [{ "key": "Cache-Control", "value": "public, max-age=3600" }] }
   ]
 }

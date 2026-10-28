@@ -29,6 +29,8 @@ function inquiryView(r, q) {
   return {
     id: q.id, kind: q.kind, kindLabel: KIND_FR[q.kind] || q.kind, module: q.module, moduleTitle: q.module ? moduleTitle(s, q.module) : '', at: q.at,
     status: gone ? 'handled' : q.status, handledAt: q.handledAt || null, handledBy: who(q.handledBy), erased: gone, cid: gone ? null : q.cid,
+    // FID-01: the text an SMS answer replies to (« Réponse à : Demande d’avis du 3 nov. »), and an « ok » filed by itself
+    re: q.re ? { template: q.re.template, at: (s.messages.get(q.re.msgId) || {}).sentAt || null } : null, auto: !!q.auto,
     first: gone ? '' : q.first, message: gone ? '' : q.message, hasPhone: !gone && !!q.phone,
     phone: gone || !q.phone ? '' : full ? fmtPhone(q.phone) : maskPhone(q.phone),
     email: gone || !q.email ? '' : full ? q.email : maskEmail(q.email, { domain: true }),
@@ -45,10 +47,11 @@ export function inquiryRoutes(app) {
     const refused = failureGuard('inq-x|' + r.ip, REFUSED_PER_HOUR, HOUR_MS, SLOW);
     const b = r.body && typeof r.body === 'object' ? r.body : {};
     // the field a person never sees: a robot that fills it is told it worked, and nothing is kept (it counts as sent)
-    if (String(b.website ?? '').trim()) { sent.fail(); return { ok: true }; }
+    if (String(b.website ?? '').trim()) { refused.done(); sent.fail(); return { ok: true }; }
     let out;
     try { out = await r.rt.engine.run(receiveInquiry, { kind: b.kind, first: b.first, phone: b.phone, email: b.email, module: b.module, message: b.message }, CLIENT(r)); }
-    catch (err) { if (err && err.status === 400) refused.fail(); throw err; }
+    catch (err) { sent.done(); if (err && err.status === 400) refused.fail(); else refused.done(); throw err; }
+    refused.done();
     sent.fail();
     background(r);
     return { ok: true, id: out.id };

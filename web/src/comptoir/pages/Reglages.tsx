@@ -43,9 +43,11 @@ const SECTIONS: Section[] = [
   { id: 'horaires', label: 'Horaires et fermetures', hint: 'Semaine type, jours fériés, congés', icon: 'clock', group: 'Salon', component: salon(() => import('./reglages/sections/Horaires')) },
   { id: 'reservation', label: 'Réservation en ligne', hint: 'Délais, annulation, acomptes', icon: 'globe', group: 'Salon', component: salon(() => import('./reglages/sections/Reservation')) },
   { id: 'paiements', label: 'Paiements', hint: 'Moyens acceptés, pourboires, Stripe', icon: 'card', group: 'Salon', component: salon(() => import('./reglages/sections/Paiements')) },
+  { id: 'abonnements', label: 'Abonnements', hint: 'Formules mensuelles, délai de grâce', icon: 'card', group: 'Salon', component: salon(() => import('./reglages/sections/Abonnements')) },
   { id: 'messages', label: 'Messages', hint: 'SMS, e-mails et leurs textes', icon: 'sms', group: 'Salon', component: salon(() => import('./reglages/sections/Messages')) },
   { id: 'equipe', label: 'Équipe et accès', hint: 'Ce que les barbiers peuvent faire', icon: 'shield', group: 'Salon', component: salon(() => import('./reglages/sections/Equipe')) },
   { id: 'objectifs', label: 'Objectifs', hint: 'Chiffre visé chaque mois', icon: 'target', group: 'Salon', component: salon(() => import('./reglages/sections/Objectifs')) },
+  { id: 'fidelite', label: 'Fidélité', hint: 'Carte à tampons et parrainage', icon: 'gift', group: 'Salon', component: salon(() => import('./reglages/sections/Fidelite')) },
   { id: 'appareils', label: 'Appareils', hint: 'Postes autorisés à la connexion par code', icon: 'device', group: 'Sécurité', component: system('appareils') },
   { id: 'donnees', label: 'Données et intégrité', hint: 'Santé, vérification, exports, système', icon: 'shieldOk', group: 'Sécurité', component: system('donnees') },
   { id: 'wordpress', label: 'Reprendre WordPress', hint: 'Clients, rendez-vous, cartes cadeaux', icon: 'download', group: 'Sécurité', component: () => <Wordpress /> },
@@ -64,7 +66,7 @@ export default function Reglages() {
     <>
       <PageTitle><h1>{phone && cur ? cur.label : 'Réglages'}</h1></PageTitle>
       <div className={'rg' + (cur ? ' has-cur' : '')}>
-        <nav className="rg-nav" aria-label="Sections des réglages">
+        <nav className="rg-nav" aria-label="Sections des réglages" data-guide="reglages-nav">
           {groups.map((g) => (
             <div key={g} className="rg-group">
               <p className="section-k">{g}</p>

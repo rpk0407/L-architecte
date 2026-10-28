@@ -64,13 +64,15 @@ export default function Agenda() {
   // after the Z (even an early one) nothing more can be paid today; imported history was paid on the old till
   const toPay = data && day === today && !data.closed ? data.appts.filter((a) => !a.saleId && !a.legacy && (a.status === 'in_chair' || a.status === 'done' || (['booked', 'arrived'].includes(a.status) && a.start + a.dur <= nowMin))) : [];
   const moneyOk = k?.revenue != null;
+  // the desk tablet (no chair, no salon figures): the whole salon's day in counts, never in euros
+  const desk = k ? k.scope === 'desk' : !boot.me.chair && !can('report.shop') && can('agenda.all');
   // a fresh salon has no chair yet: the agenda is not closed, it is waiting for the team
   if (!boot.staff.some((x) => x.active && x.chair)) return <NoTeam />;
   return (
     <>
       <PageTitle><h1>{day === today ? 'Aujourd’hui' : 'Agenda'}</h1></PageTitle>
       <div className="ag-head">
-        <div className="ag-date">
+        <div className="ag-date" data-guide="ag-date">
           <Button icon="chevL" aria-label="Jour précédent" onClick={() => goDay(dates.addDays(day, view === 'semaine' ? -7 : -1))} />
           <label style={{ position: 'relative' }}>
             <h2 className="tnum" style={{ cursor: 'pointer', font: '400 30px/1 var(--serif)', padding: '0 4px', whiteSpace: 'nowrap' }}>{view === 'semaine' ? 'Semaine du ' + dates.dayParts(dates.weekStart(day)).d + ' ' + dates.MONTHS_FR[dates.dayParts(dates.weekStart(day)).m - 1] : cap(dates.dayLong(day))}</h2>
@@ -80,22 +82,23 @@ export default function Agenda() {
           {day !== today ? <Button size="sm" variant="ghost" className="today" onClick={() => goDay(null)}>Aujourd’hui</Button> : null}
         </div>
         <div className="ag-acts">
-          <Seg value={view} onChange={(v) => setQuery({ vue: v === 'jour' ? null : v })} options={[{ v: 'jour', t: 'Jour' }, { v: 'semaine', t: 'Semaine' }]} label="Vue" />
-          <Button variant="ghost" icon="block" className="ph-hide" onClick={() => setBlock({ staffId: boot.me.chair ? boot.me.id : data?.lanes[0]?.id || boot.me.id, day, start: Math.ceil(nowMin / 15) * 15 })}>Bloquer</Button>
-          <Button variant="ghost" icon="walk" onClick={() => setWalkin(true)} kbd="P">Passage</Button>
-          <Button variant="primary" icon="plus" onClick={() => setCreate({ day })} kbd="N">Rendez-vous</Button>
+          <div data-guide="ag-view" style={{ display: 'flex' }}><Seg value={view} onChange={(v) => setQuery({ vue: v === 'jour' ? null : v })} options={[{ v: 'jour', t: 'Jour' }, { v: 'semaine', t: 'Semaine' }]} label="Vue" /></div>
+          <Button variant="ghost" icon="block" className="ph-hide" data-guide="ag-block" onClick={() => setBlock({ staffId: boot.me.chair ? boot.me.id : data?.lanes[0]?.id || boot.me.id, day, start: Math.ceil(nowMin / 15) * 15 })}>Bloquer</Button>
+          <Button variant="ghost" icon="walk" onClick={() => setWalkin(true)} kbd="P" data-guide="ag-walkin">Passage</Button>
+          <Button variant="primary" icon="plus" onClick={() => setCreate({ day })} kbd="N" data-guide="ag-new">Rendez-vous</Button>
         </div>
       </div>
 
       {view === 'semaine' ? <Week day={day} today={today} onPick={(d) => setQuery({ day: d === today ? null : d, vue: null })} /> : (
         <>
           <AbsentBanner data={data} today={today} />
-          {data?.closed ? <div className="note ok"><Icon name="lock" /><div><b>Journée clôturée</b> · {data.closure ? 'Z' + String(data.closure.number).padStart(4, '0') + ' · ' + eur(data.closure.net) : ''}. Les ventes de ce jour ne peuvent plus être modifiées.</div></div> : null}
-          <section className="kpis" aria-label="La journée en chiffres">
-            {moneyOk ? <Kpi k={k!.scope === 'own' ? 'Mon chiffre' : 'Encaissé'} v={<Money cents={k!.revenue} />} s={<>sur <Money cents={k!.planned} /> prévus{k!.tips ? <> · <Money cents={k!.tips} /> de pourboires</> : null}</>} bar={k!.planned ? (k!.revenue || 0) / k!.planned : 0} icon="euro" />
+          {data?.closed ? <div className="note ok"><Icon name="lock" /><div><b>Journée clôturée</b> · {/* the Z's figures only reach whoever closes or reads the salon's money; the others get its number */}{data.closure ? 'Z' + String(data.closure.number).padStart(4, '0') + (typeof data.closure.net === 'number' ? ' · ' + eur(data.closure.net) : '') : ''}. Les ventes de ce jour ne peuvent plus être modifiées.</div></div> : null}
+          <section className="kpis" aria-label="La journée en chiffres" data-guide="ag-kpis">
+            {desk ? null : moneyOk ? <Kpi k={k!.scope === 'own' ? 'Mon chiffre' : 'Encaissé'} v={<Money cents={k!.revenue} />} s={<>sur <Money cents={k!.planned} /> prévus{k!.tips ? <> · <Money cents={k!.tips} /> de pourboires</> : null}</>} bar={k!.planned ? (k!.revenue || 0) / k!.planned : 0} icon="euro" />
               : <Kpi k="Mes rendez-vous" v={k ? k.total : '—'} s={k ? k.upcoming + ' à venir' : ''} icon="calendar" />}
             <Kpi k="Rendez-vous" v={k ? <>{k.done}<small>/ {k.total}</small></> : '—'} s={k ? k.upcoming + ' à venir' + (k.noShows ? ' · ' + k.noShows + ' absent' + (k.noShows > 1 ? 's' : '') : '') : ''} icon="calendar" />
-            <Kpi k="Remplissage" v={k ? pct(k.fill) : '—'} dots={k ? k.fill : 0} s={k ? (k.fill > 0.85 ? 'Presque plein' : k.fill > 0.6 ? 'Belle journée' : 'Il reste de la place') : ''} icon="chair" />
+            <Kpi k={desk ? 'Remplissage salon' : 'Remplissage'} v={k ? pct(k.fill) : '—'} dots={k ? k.fill : 0} s={k ? (k.fill > 0.85 ? 'Presque plein' : k.fill > 0.6 ? 'Belle journée' : 'Il reste de la place') : ''} icon="chair" />
+            {desk ? <Kpi k="À encaisser" v={day === today && !data?.closed ? toPay.length : '—'} s={day !== today ? 'Le jour même' : data?.closed ? 'Journée clôturée' : toPay.length ? 'Prestation' + (toPay.length > 1 ? 's' : '') + ' à passer en caisse' : 'Rien en attente'} icon="caisse" /> : null}
             {day === today && next ? (
               <Kpi hot k={<><i style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent)', animation: 'pulse 1.8s infinite' }} />Prochain client</>} v={<span className="kpi-v sm">{next.name}</span>} s={time(next.start) + ' · ' + (staffById.get(next.staffId)?.name || '') + (next.start <= nowMin ? ' · en retard de ' + (nowMin - next.start) + ' min' : ' · dans ' + Math.max(0, next.start - nowMin) + ' min')} onClick={() => open(next)} />
             ) : (
@@ -116,7 +119,7 @@ export default function Agenda() {
             <aside className="ag-side" aria-label="À côté de l’agenda">
               {day === today ? <Queue data={data} freeNow={freeNow} onAdd={() => setWalkin(true)} /> : null}
               {toPay.length && can('sale.create') ? (
-                <section className="card">
+                <section className="card" data-guide="ag-topay">
                   <div className="card-h"><h2><Icon name="caisse" size={16} />À encaisser</h2><span className="badge badge-accent">{toPay.length}</span></div>
                   <ul className="list">{toPay.map((a) => (
                     <li key={a.id}><button type="button" className="li" onClick={() => navigate('/caisse?rdv=' + a.id)}>
@@ -127,12 +130,12 @@ export default function Agenda() {
                   ))}</ul>
                 </section>
               ) : null}
-              <section className="card">
+              <section className="card" data-guide="ag-feed">
                 <div className="card-h"><h2><i style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--ok)', animation: 'pulseOk 2.2s infinite' }} />Le fil</h2><span className="muted">en direct</span></div>
                 <FeedList items={app.feed} now={pulse?.now || Date.now()} limit={6} onPick={(f) => { if (f.apptId && f.day) setQuery({ day: f.day === today ? null : f.day, rdv: f.apptId }); }} />
               </section>
               {data && data.waitlist.length ? (
-                <section className="card">
+                <section className="card" data-guide="ag-waitlist">
                   <div className="card-h"><h2><Icon name="wait" size={16} />Liste d’attente</h2><span className="muted">{data.waitlist.length}</span></div>
                   <ul className="list">{data.waitlist.map((w) => (
                     <li key={w.id} className="li"><span className="li-main"><b>{w.first}</b><small>{serviceById.get(w.serviceId)?.short || ''} · {w.staffId === 'any' ? 'sans préférence' : staffById.get(w.staffId)?.name} · {hhmm(w.from)}–{hhmm(Math.min(w.to, 1110))}</small></span>{w.status === 'offered' ? <span className="badge badge-ok">place proposée</span> : <span className="badge">en attente</span>}</li>
@@ -195,7 +198,8 @@ function NoTeam() {
   return (
     <>
       <PageTitle><h1>Agenda</h1></PageTitle>
-      <section className="card">
+      {/* the tour passes over the agenda's parts while there is no agenda (GUIDE-01a) */}
+      <section className="card" data-tour-empty data-guide="ag-noteam">
         <Empty icon="equipe" title="Ajoute ton équipe pour ouvrir l’agenda" action={
           <div className="row" style={{ gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
             {can('team') ? <Button variant="primary" icon="plus" onClick={() => navigate('/equipe')}>Ajouter l’équipe</Button> : null}
@@ -231,7 +235,7 @@ function Queue({ data, freeNow, onAdd }: { data: AgendaData | undefined; freeNow
     catch (e) { toastError(e); }
   };
   return (
-    <section className="card">
+    <section className="card" data-guide="ag-queue">
       <div className="card-h"><h2><Icon name="walk" size={16} />La file</h2><Button size="sm" variant="ghost" icon="plus" onClick={onAdd}>Passage</Button></div>
       {data?.walkin?.minutes != null
         ? <div className="est" style={{ marginBottom: q.length ? 6 : 0 }}><b>{data.walkin.minutes < 5 ? 'Tout de suite' : '~' + data.walkin.minutes + ' min'}</b><span className="muted" style={{ fontSize: 13 }}>{data.walkin.minutes < 5 ? 'pour un passage sans rendez-vous' : 'd’attente pour un passage'}</span></div>
@@ -260,7 +264,7 @@ function Week({ day, today, onPick }: { day: string; today: string; onPick: (d: 
   if (loading || !data) return <Skeleton h={420} r={22} />;
   const money = data.days.some((d) => d.kpis.revenue != null);
   return (
-    <section className="card wk">
+    <section className="card wk" data-guide="ag-week">
       <table>
         <thead><tr><th>Jour</th>{data.staff.map((s) => <th key={s.id}><span className="row" style={{ gap: 8 }}><Avatar name={s.name} initials={s.initials} color={s.color} size="sm" />{s.name}</span></th>)}{money ? <th>Chiffre</th> : null}</tr></thead>
         <tbody>

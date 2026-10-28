@@ -82,11 +82,11 @@ export default function Horaires({ s }: SectionProps) {
     : (o.staff === 'all' ? 'Toute l’équipe' : names(o.staff));
   return (
     <div className="col" style={{ gap: 16 }}>
-      <Card title="Semaine type" icon="clock" aside={<span className="faint" style={{ fontSize: 13 }}>{Math.floor(total / 60)} h d’ouverture</span>}>
+      <Card title="Semaine type" guide="horaires-semaine" icon="clock" aside={<span className="faint" style={{ fontSize: 13 }}>{Math.floor(total / 60)} h d’ouverture</span>}>
         <p className="muted" style={{ fontSize: 13.5 }}>Les horaires de chaque barbier restent à l’intérieur de ceux du salon. Le site ne propose jamais un créneau hors de ces heures.</p>
         <WeekEditor value={hours.v} onChange={hours.setV} offLabel={() => 'Fermé'} />
       </Card>
-      <Card title="Fermetures exceptionnelles" icon="lock">
+      <Card title="Fermetures exceptionnelles" guide="horaires-fermetures" icon="lock">
         {upcoming.length ? (
           <ul className="list">{upcoming.map((c) => (
             <li key={c.id} className="li">
@@ -104,7 +104,7 @@ export default function Horaires({ s }: SectionProps) {
         </div>
         <p className="faint" style={{ fontSize: 12.5 }}>Les rendez-vous déjà pris ces jours-là ne sont pas annulés automatiquement : déplace-les depuis l’agenda.</p>
       </Card>
-      <Card title="Ouvertures exceptionnelles" icon="sun">
+      <Card title="Ouvertures exceptionnelles" guide="horaires-ouvertures" icon="sun">
         <p className="muted" style={{ fontSize: 13.5 }}>Un jour où le salon ouvre alors qu’il est fermé d’habitude, ou avec d’autres horaires. Le site l’annonce deux semaines avant et propose ses créneaux.</p>
         {openings.length ? (
           <ul className="list rg-openings">{openings.map((o) => {

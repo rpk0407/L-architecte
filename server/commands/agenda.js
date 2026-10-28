@@ -5,7 +5,9 @@ import { fail } from '../core/engine.js';
 import { str, int, bool, opt, obj, arr, day, id, oneOf, parse } from '../lib/validate.js';
 import { freeSlots, isFree, staffIntervals, canDo, busyIntervals, intersect, subtract } from '../domain/availability.js';
 import { normPhone, capFirst } from '../lib/util.js';
-import { depositFor, clientMayChange, payWindowMin } from '../domain/policy.js';
+import { depositFor, memberCovers, clientMayChange, payWindowMin } from '../domain/policy.js';
+import { bookedWords } from '../../shared/membership-words.js';
+import { rootOf } from '../domain/membership.js';
 import { riskDeposit } from '../domain/risk.js';
 import { queueMessage, apptVars } from '../domain/messages.js';
 import { mailConfirmation, mailCancellation, mailOwner } from '../domain/mails.js';
@@ -110,8 +112,8 @@ export const bookOnline = {
     const existing = client.created ? null : getClient(s, client.id);
     // the proof of consent: when and where the client said yes (an unticked box takes nothing back)
     if (consent && (client.created || !existing.marketing)) ctx.emit('client.updated', { id: client.id, cid: client.id, patch: { marketing: true, marketingAt: ctx.now, marketingSrc: 'site' }, fields: [] });
+    const upcoming = existing ? [...s.appts.values()].filter((a) => a.clientId === existing.id && ACTIVE.has(a.status) && diffDays(ctx.local.day, a.day) >= 0) : [];
     if (existing) {
-      const upcoming = [...s.appts.values()].filter((a) => a.clientId === existing.id && ACTIVE.has(a.status) && diffDays(ctx.local.day, a.day) >= 0);
       if (upcoming.length >= 3) fail(409, 'too_many', 'Tu as déjà 3 rendez-vous à venir. Appelle le salon pour en ajouter.');
       // an address typed on the site never lands on an existing file: the phone alone does not prove who typed it, and
       // the file's address receives every later mail with its links to move or cancel (only the salon sets it there)
@@ -120,13 +122,18 @@ export const bookOnline = {
     // ctx.meta.payLive: the API says whether a deposit can really be paid online (false: production without Stripe);
     // the file found by the phone above brings its history: a client who already missed may owe one below the threshold
     const payLive = ctx.meta.payLive !== false;
-    const deposit = depositFor(s, services, { payLive, risk: payLive && !!existing && riskDeposit(s, existing.id, ctx.local.day) });
+    // PAY-04: a membership only from a path that proved it (ctx.meta.memberId: the member page's signed link), and only
+    // on the file the phone found: a guest typing a member's number gets the usual deposit and no member words
+    const mb = existing && ctx.meta.memberId ? s.members.get(String(ctx.meta.memberId)) : null;
+    const member = mb && rootOf(s, mb.cid) === rootOf(s, existing.id) ? mb : null;
+    const covered = member ? memberCovers(s, member, services, b.day, upcoming) : null;
+    const deposit = depositFor(s, services, { payLive, risk: payLive && !!existing && riskDeposit(s, existing.id, ctx.local.day), ...(covered && covered.ok ? { member, day: b.day, upcoming } : {}) });
     const aid = ctx.id('ap');
     const code = uniqueCode(s, ctx);
     const cgv = cgvVersionOf(s.settings.shop);
     const a = {
       id: aid, code, clientId: client.id, staffId, anyStaff: b.staffId === 'any', day: b.day, start: b.start, dur,
-      services, price, source: 'site', status: deposit > 0 ? 'pending' : 'booked', sms: b.sms !== false,
+      services, price, source: 'site', status: deposit > 0 ? 'pending' : 'booked', sms: b.sms !== false && !(existing && existing.sms === false),
       deposit: deposit > 0 ? { amount: deposit, paid: 0, paymentId: null, until: ctx.now + payWindowMin(s, { stripe: ctx.meta.payProvider === 'stripe' }) * 60000 } : null, holdId: hold ? hold.id : null, cid: client.id,
       // the CGV version in force when the client booked: the later of the owner's last rule change and the text's own date
       cgv,
@@ -142,7 +149,9 @@ export const bookOnline = {
       // a booking waiting for its deposit is told to the owner once paid (commands/payments.js)
       mailOwner(s, ctx, a, 'booked', { first: existing ? existing.first : capFirst(b.first) });
     }
-    return { id: aid, code, status: a.status, staffId, deposit, price };
+    // the till applies the membership when he comes (the booking consumes nothing): the site says it is included
+    const memberLine = covered && covered.ok ? { covered: true, label: 'Inclus dans ton abonnement · ' + bookedWords(member, covered) } : null;
+    return { id: aid, code, status: a.status, staffId, deposit, price, ...(memberLine ? { member: memberLine } : {}) };
   }
 };
 
@@ -168,17 +177,19 @@ export const createAppointment = {
     const free = isFree(s, st.id, x.day, x.start, dur, { now: ctx.now });
     if (!free && !x.force) fail(409, inHours ? 'taken' : 'outside', inHours ? 'Ce créneau n’est pas libre.' : 'C’est en dehors des horaires de ' + st.name + '.', { canForce: ctx.can('agenda.edit') || ctx.staff?.id === st.id });
     if (x.force && !free && !(ctx.can('agenda.edit') || ctx.staff?.id === st.id)) fail(403, 'forbidden', 'Seul le gérant peut forcer un créneau.');
-    let clientId = null, phone = '';
-    if (x.clientId) { const c = getClient(s, x.clientId); clientId = c.id; phone = c.phone; }
+    // fileSms: the client's own « SMS de service » switch, what the booking's switch defaults to when it is not sent
+    let clientId = null, phone = '', fileSms = true;
+    if (x.clientId) { const c = getClient(s, x.clientId); clientId = c.id; phone = c.phone; fileSms = c.sms !== false; }
     else if (x.client) {
       const r = upsertClient(s, ctx, { first: x.client.first, last: x.client.last || '', phone: x.client.phone || '' }, x.source === 'phone' ? 'phone' : 'salon');
       clientId = r.id; phone = r.created ? normPhone(x.client.phone || '') : getClient(s, r.id).phone;
+      if (!r.created) fileSms = getClient(s, r.id).sms !== false;
     }
     if (!clientId && !x.name) fail(400, 'invalid', 'Choisis un client ou indique un prénom.');
     const aid = ctx.id('ap');
     const a = {
       id: aid, code: uniqueCode(s, ctx), clientId, staffId: st.id, anyStaff: false, day: x.day, start: x.start, dur, services,
-      price: totalPrice(services), source: x.source || 'salon', status: x.seat ? 'in_chair' : 'booked', sms: x.sms !== false && !!phone, deposit: null, cid: clientId || undefined,
+      price: totalPrice(services), source: x.source || 'salon', status: x.seat ? 'in_chair' : 'booked', sms: (x.sms ?? fileSms) !== false && !!phone, deposit: null, cid: clientId || undefined,
       ...(x.demo ? { demo: true } : {})
     };
     const pii = {};

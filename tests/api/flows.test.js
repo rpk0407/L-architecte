@@ -38,7 +38,7 @@ test('sign-in: demo hints, wrong password, right password, session cookie', asyn
   assert.ok(b.jar.has('lx_s'));
   const boot = await b.get('/api/v1/bootstrap');
   assert.equal(boot.json.me.role, 'owner');
-  assert.equal(boot.json.staff.length, 5);
+  assert.equal(boot.json.staff.length, 6);
 });
 
 test('every staff route needs a session; changes need our own origin', async () => {
@@ -50,6 +50,18 @@ test('every staff route needs a session; changes need our own origin', async () 
   assert.equal(evil.json.error.code, 'origin');
   const form = await b.raw('POST', '/api/v1/blocks', 'staffId=x', { 'content-type': 'application/x-www-form-urlencoded' });
   assert.equal(form.status, 415, 'only JSON bodies');
+});
+
+test('PIN codes sent all at once count while they are checked: five answers, then « trop d’essais »', async () => {
+  const tab = await salonDevice();
+  const frank = (await tab.get('/api/auth/state')).json.team.find((x) => x.name === 'Frank');
+  const codes = Array.from({ length: 12 }, (_, i) => String(1000 + i));
+  const res = await Promise.all(codes.map((pin) => tab.post('/api/auth/pin', { staffId: frank.id, pin })));
+  const st = res.map((x) => x.status);
+  assert.equal(st.filter((s) => s === 401).length, 5, st.join(' '));
+  assert.equal(st.filter((s) => s === 429).length, 7, st.join(' '));
+  // the right code too waits now: the five wrong ones are on the clock
+  assert.equal((await tab.post('/api/auth/pin', { staffId: frank.id, pin: DEMO.pins.Frank })).status, 429);
 });
 
 test('the salon tablet: PIN sign-in, barbers see their scope only', async () => {
@@ -180,4 +192,11 @@ test('demo reset rebuilds a fresh salon (owner only)', async () => {
   const team = (await tab.get('/api/auth/state')).json.team;
   await tab.post('/api/auth/pin', { staffId: team.find((x) => x.name === 'Frank').id, pin: DEMO.pins.Frank });
   assert.equal((await tab.post('/api/v1/demo/reset')).status, 403);
+});
+
+test('a production salon on a Stripe test key sells no membership: 409 before any call to Stripe (PAY-03)', async () => {
+  const rt = await testRuntime({ env: { LX_MODE: 'production', STRIPE_SECRET_KEY: 'sk_test_x', STRIPE_WEBHOOK_SECRET: 'whsec_x' } });
+  const res = await browser(rt).post('/api/public/memberships', { planId: 'essentiel', first: 'Karim', phone: '06 11 22 33 44', email: 'karim@exemple.fr', startNow: true });
+  assert.deepEqual([res.status, res.json.error.code], [409, 'soon']);
+  assert.equal((await browser(rt).get('/api/public/memberships')).json.live, false);
 });

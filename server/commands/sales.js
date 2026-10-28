@@ -2,23 +2,31 @@
 // The till. A ticket is recorded once, numbered without gaps, and never edited:
 // a mistake is corrected by a credit note (avoir), the day is sealed by a Z closure.
 import { fail } from '../core/engine.js';
-import { str, int, bool, opt, obj, arr, id, oneOf, money, record, parse } from '../lib/validate.js';
+import { str, int, bool, opt, obj, arr, id, oneOf, money, record, day as dayField, parse } from '../lib/validate.js';
 import { ticketTotals } from '../../shared/money.js';
 import { maxDiscountPct } from '../domain/permissions.js';
 import { drawerExpected, dayTotals, zRecord, missedZ, hadTill, dayWords, refundNo, ticketNo } from '../domain/cash.js';
 import { getService, getProduct, getClient, getAppt, getStaff } from './common.js';
 import { giftCode, normGiftCode, normPhone, sha256 } from '../lib/util.js';
-import { addDays, isDay, fmtTime } from '../../shared/dates.js';
+import { addDays, isDay, fmtTime, MONTHS_FR } from '../../shared/dates.js';
 import { shopIntervals } from '../domain/availability.js';
 import { DENOMS, fmtEur } from '../../shared/money.js';
 import { queueMessage } from '../domain/messages.js';
 import { TEMPLATES } from '../core/templates.js';
 import { clientParts } from './clients.js';
+import { cover, coverWords, cutValue, label as memberLabel, rootOf, liveIn } from '../domain/membership.js';
+import { earnOf, receiptWords } from '../domain/loyalty.js';
+import { withReward, loyaltyAfterSale, loyaltyAfterRefund } from './loyalty.js';
 
 const lineSchema = obj({
-  kind: oneOf(/** @type {const} */ (['service', 'product', 'giftcard', 'pack', 'fee'])), ref: opt(id()), name: opt(str({ max: 60 })),
+  kind: oneOf(/** @type {const} */ (['service', 'product', 'giftcard', 'pack', 'fee', 'membership'])), ref: opt(id()), name: opt(str({ max: 60 })),
   qty: opt(int({ min: 1, max: 99 })), unit: opt(money(500000)), discount: opt(money(500000)), staffId: opt(id()), packId: opt(id()),
-  recipient: opt(str({ max: 60 })), code: opt(str({ max: 20 }))
+  recipient: opt(str({ max: 60 })), code: opt(str({ max: 20 })),
+  // PAY-02: a cut the member's plan pays (force: the owner or a manager gives it although the plan does not cover it today),
+  // and the system's own line of a month paid (commands/memberships.js memberPaid)
+  memberId: opt(id()), force: opt(bool()), period: opt(obj({ start: dayField(), end: dayField() })),
+  // FID-02: a reward of the client's loyalty card, taken off this line (commands/loyalty.js withReward)
+  rewardId: opt(id())
 });
 const paySchema = obj({ method: oneOf(/** @type {const} */ (['card', 'cash', 'online', 'giftcard', 'deposit'])), amount: money(1000000), given: opt(money(1000000)), ref: opt(str({ max: 40 })) });
 const checkoutSchema = obj({
@@ -29,6 +37,18 @@ const checkoutSchema = obj({
 });
 
 const PACK_NEW = 'new';
+/**
+ * An online payment the ticket uses: as the state has it, or written earlier in this same command (a membership's
+ * month, paid and rung up in one write: commands/memberships.js memberPaid).
+ */
+function paymentOf(s, ctx, ref) {
+  const py = s.payments.get(ref);
+  if (py) return py;
+  const made = ctx.drafts.find((d) => d.type === 'payment.created' && d.data.id === ref);
+  if (!made) return null;
+  const paid = ctx.drafts.some((d) => d.type === 'payment.succeeded' && d.data.id === ref);
+  return { ...made.data, status: paid ? 'paid' : 'pending', usedBy: null };
+}
 // the Comptoir's reasons (Checkout.tsx). Anything else is typed by staff and may name someone: it is kept in pii,
 // out of the chain (the client can be erased) and off his receipt, which shows "Autre"
 export const DISCOUNT_REASONS = ['Fidélité', 'Ami de la maison', 'Geste commercial', 'Retard du salon', 'Étudiant'];
@@ -39,9 +59,9 @@ export const checkout = {
     const x = parse(checkoutSchema, input);
     // the demo back-fills past days; nobody else can date a ticket
     const backfill = ctx.actor.t === 'system' && typeof input.day === 'string' && input.day < ctx.local.day ? input.day : null;
-    // a card bought online after today's Z (sellGiftcardOnline): the money is in, the sealed day stays as sealed,
-    // the ticket opens tomorrow's till
-    const online = ctx.actor.t === 'system' && input.online === true && !backfill;
+    // a card bought online after today's Z (sellGiftcardOnline), a membership's month (memberPaid, from the provider's
+    // webhook too): the money is in, the sealed day stays as sealed, the ticket opens tomorrow's till
+    const online = (ctx.actor.t === 'system' || ctx.actor.t === 'provider') && input.online === true && !backfill;
     const day = backfill || (online && s.closures.has(ctx.local.day) ? addDays(ctx.local.day, 1) : ctx.local.day);
     if (s.closures.has(day)) fail(409, 'day_closed', 'La journée est clôturée : plus aucun encaissement possible aujourd’hui.');
     const P = s.settings.payments;
@@ -68,7 +88,7 @@ export const checkout = {
     const bookedAt = new Map();
     const low = (v) => { const sv = s.services.get(v.id); return sv ? Math.min(v.price, sv.price) : v.price; };
     const take = (fits) => x.lines.forEach((l, i) => {
-      if (l.kind !== 'service' || l.packId || bookedAt.has(i)) return;
+      if (l.kind !== 'service' || l.packId || l.memberId || bookedAt.has(i)) return;
       const j = pool.findIndex((v) => v.id === l.ref && fits(l, v));
       if (j >= 0) bookedAt.set(i, pool.splice(j, 1)[0].price);
     });
@@ -84,39 +104,67 @@ export const checkout = {
     for (const l of x.lines) {
       if (l.kind !== 'pack') continue;
       const sv = getService(s, l.ref || '');
-      if (!sv.pack) fail(400, 'invalid', `« ${sv.name} » n’est pas un abonnement.`);
-      if (!client) fail(400, 'no_client', 'Un abonnement se vend à un client avec sa fiche.');
-      if (newPack) fail(400, 'invalid', 'Un seul abonnement par ticket.');
+      if (!sv.pack) fail(400, 'invalid', `« ${sv.name} » n’est pas un carnet.`);
+      if (!client) fail(400, 'no_client', 'Un carnet se vend à un client avec sa fiche.');
+      if (newPack) fail(400, 'invalid', 'Un seul carnet par ticket.');
       newPack = { id: ctx.id('pk'), clientId: client.id, name: sv.name, total: sv.pack.credits, serviceIds: sv.pack.serviceIds || [], expires: addDays(day, sv.pack.days), serviceId: sv.id };
     }
     const packUses = new Map();
+    /** member id → the cuts it pays on this ticket: { periodStart, forced } each */
+    const memberUses = new Map();
+    /** the loyalty rewards on this ticket (one at most) */
+    const rewarded = new Set();
     for (const [i, l] of x.lines.entries()) {
       const qty = l.qty || 1;
+      if (l.rewardId && l.kind !== 'service' && l.kind !== 'product') fail(409, 'reward_line', 'Une récompense s’applique à une prestation ou un produit.');
       if (l.kind === 'service') {
         const sv = getService(s, l.ref || '');
         const at = bookedAt.get(i);
         const price = at == null ? sv.price : Math.min(at, sv.price);
         let unit = l.unit ?? price;
-        if (unit !== price && !(sv.from && unit >= price) && !isBoss) fail(403, 'price', `Le prix de « ${sv.name} » est fixé à la carte. Utilise une remise.`);
-        let name = sv.name, packId = null;
+        if (unit !== price && !(sv.from && unit >= price) && !isBoss && !l.memberId) fail(403, 'price', `Le prix de « ${sv.name} » est fixé à la carte. Utilise une remise.`);
+        let name = sv.name, packId = null, member = null;
+        if (l.packId && l.memberId) fail(400, 'invalid', 'Une coupe se paie par le carnet ou par l’abonnement, pas les deux.');
         if (l.packId) {
           const pk = l.packId === PACK_NEW ? newPack : s.packs.get(l.packId);
-          if (!pk) fail(404, 'not_found', 'Abonnement introuvable.');
-          if (!client || pk.clientId !== client.id) fail(409, 'pack_owner', 'Cet abonnement appartient à un autre client.');
-          if (pk.voided) fail(409, 'pack_void', 'Cet abonnement a été annulé et remboursé.');
+          if (!pk) fail(404, 'not_found', 'Carnet introuvable.');
+          if (!client || pk.clientId !== client.id) fail(409, 'pack_owner', 'Ce carnet appartient à un autre client.');
+          if (pk.voided) fail(409, 'pack_void', 'Ce carnet a été annulé et remboursé.');
           const used = (l.packId === PACK_NEW ? 0 : pk.used) + (packUses.get(pk.id) || 0);
-          if (used + qty > pk.total) fail(409, 'pack_empty', 'Il ne reste plus de coupe sur cet abonnement.');
-          if (pk.expires < day) fail(409, 'pack_expired', 'Cet abonnement a expiré.');
-          if (pk.serviceIds.length && !pk.serviceIds.includes(sv.id)) fail(409, 'pack_service', `L’abonnement ne couvre pas « ${sv.name} ».`);
+          if (used + qty > pk.total) fail(409, 'pack_empty', 'Il ne reste plus de coupe sur ce carnet.');
+          if (pk.expires < day) fail(409, 'pack_expired', 'Ce carnet a expiré.');
+          if (pk.serviceIds.length && !pk.serviceIds.includes(sv.id)) fail(409, 'pack_service', `Le carnet ne couvre pas « ${sv.name} ».`);
           packUses.set(pk.id, (packUses.get(pk.id) || 0) + qty);
-          unit = 0; packId = pk.id; name = sv.name + ' · abonnement ' + (used + qty) + '/' + pk.total;
+          unit = 0; packId = pk.id; name = sv.name + ' · carnet ' + (used + qty) + '/' + pk.total;
+        } else if (l.memberId) {
+          // the member's plan pays the cut: 0 € on the ticket, its price kept (listPrice) and its share of the month
+          // (credit) as the barber's commission base (TEAM-03 team.memberCredit)
+          const m = s.members ? s.members.get(l.memberId) : null;
+          if (!m) fail(404, 'not_found', 'Abonnement introuvable.');
+          if (!client || rootOf(s, m.cid) !== client.id) fail(409, 'member_owner', 'Cet abonnement appartient à un autre client.');
+          if (qty !== 1) fail(400, 'invalid', 'Une coupe d’abonnement par ligne.');
+          const mine = memberUses.get(m.id) || [];
+          const c = cover(s, m, sv.id, { day, pending: mine.length });
+          if (!c.ok) {
+            // an ended contract pays for nothing, forced or not (a free cut is a discount); otherwise the owner or a
+            // manager may give the cut anyway (force), recorded as such
+            if (!l.force || c.why === 'ended') fail(409, 'member_' + c.why, coverWords(c, sv.name) + '.', { cover: c });
+            ctx.need('member.manage');
+          }
+          const start = c.start || day;
+          mine.push({ periodStart: start, forced: !c.ok });
+          memberUses.set(m.id, mine);
+          unit = 0; member = m;
+          // a cut given beyond the plan says so on the receipt (« coupe 3/2 · hors forfait »)
+          name = (sv.name + ' · ' + memberLabel(m, c.used + 1, c) + (c.ok ? '' : ' · hors forfait')).slice(0, 80);
         }
-        // a cut paid by a pack keeps its price: a refund of the pack later values the cuts taken at it (refundPlan)
-        lines.push({ kind: 'service', ref: sv.id, name, qty, unit, discount: l.discount || 0, staffId: performer(l), vat: sv.vat ?? P.vat, packId, category: sv.category, ...(packId ? { listPrice: price } : {}) });
+        // a cut paid by a carnet or a membership keeps its price: a refund of the carnet later values the cuts taken at it
+        // (refundPlan); the membership's cut also carries its share of the month (credit)
+        lines.push(withReward(s, client, l.rewardId, { kind: 'service', ref: sv.id, name, qty, unit, discount: member ? 0 : l.discount || 0, staffId: performer(l), vat: sv.vat ?? P.vat, packId, category: sv.category, ...(packId || member ? { listPrice: price } : {}), ...(member ? { memberId: member.id, credit: cutValue(member) } : {}) }, day, rewarded));
       } else if (l.kind === 'product') {
         const p = getProduct(s, l.ref || '');
         if (!p.active) fail(409, 'inactive', `« ${p.name} » n’est plus en vente.`);
-        lines.push({ kind: 'product', ref: p.id, name: p.name, qty, unit: p.price, discount: l.discount || 0, staffId: performer(l), vat: p.vat ?? P.vat, cost: p.cost || 0 });
+        lines.push(withReward(s, client, l.rewardId, { kind: 'product', ref: p.id, name: p.name, qty, unit: p.price, discount: l.discount || 0, staffId: performer(l), vat: p.vat ?? P.vat, cost: p.cost || 0 }, day, rewarded));
       } else if (l.kind === 'giftcard') {
         // a card already paid online is issued even if the owner switched cards off since
         if (!P.giftcard && !online) fail(409, 'off', 'Les cartes cadeaux sont désactivées.');
@@ -126,6 +174,13 @@ export const checkout = {
         const gid = ctx.id('gc');
         issued.push({ id: gid, code, amount, recipient: l.recipient || '' });
         lines.push({ kind: 'giftcard', ref: gid, name: 'Carte cadeau ' + code.slice(-4), qty: 1, unit: amount, discount: 0, staffId: performer(l), vat: 0 });
+      } else if (l.kind === 'membership') {
+        // a month of a membership, paid online: only the system writes it (memberPaid), never a person at the till
+        if (ctx.actor.t === 'staff' || ctx.actor.t === 'client') fail(403, 'forbidden', 'Un abonnement s’encaisse en ligne.');
+        const m = s.members ? s.members.get(l.memberId || '') : null;
+        if (!m || !l.period || !l.unit) fail(400, 'invalid', 'Abonnement, période et montant attendus.');
+        const mon = MONTHS_FR[Number(l.period.start.slice(5, 7)) - 1];
+        lines.push({ kind: 'membership', ref: m.planId, name: ('Abonnement ' + m.name + ' · ' + mon + ' ' + l.period.start.slice(0, 4)).slice(0, 80), qty: 1, unit: l.unit, discount: 0, staffId: null, vat: m.vat ?? P.vat, memberId: m.id, period: { start: l.period.start, end: l.period.end } });
       } else if (l.kind === 'pack') {
         const sv = getService(s, l.ref || '');
         lines.push({ kind: 'pack', ref: sv.id, name: sv.name, qty: 1, unit: sv.price, discount: l.discount || 0, staffId: performer(l), vat: sv.vat ?? P.vat, packId: /** @type {any} */ (newPack).id });
@@ -137,10 +192,11 @@ export const checkout = {
 
     const discount = x.discount ? x.discount.amount : 0;
     const totals = ticketTotals(lines, discount, x.tip && P.tips ? x.tip.amount : 0);
-    const granted = totals.discount;
+    // a loyalty reward is the system's, not the cashier's: the cap counts only what was typed
+    const granted = totals.discount - lines.reduce((t, l) => t + (l.reward ? l.reward.amount : 0), 0);
     if (granted > 0) {
       if (!ctx.can('sale.discount')) fail(403, 'discount', 'Tu ne peux pas faire de remise.');
-      const base = lines.filter((l) => l.kind !== 'giftcard').reduce((t, l) => t + l.unit * l.qty, 0);
+      const base = lines.filter((l) => l.kind !== 'giftcard').reduce((t, l) => t + l.unit * l.qty - (l.reward ? l.reward.amount : 0), 0);
       const pct = base ? (granted * 100) / base : 100;
       if (pct > maxDiscountPct(ctx.staff, s.settings) + 0.001) fail(403, 'discount', `Remise maximale : ${maxDiscountPct(ctx.staff, s.settings)} %.`);
       if (x.discount && x.discount.amount > 0 && !x.discount.reason) fail(400, 'invalid', 'Indique la raison de la remise.');
@@ -167,7 +223,7 @@ export const checkout = {
       } else if (p.method === 'card') {
         if (!P.card) fail(409, 'off', 'Le paiement par carte est désactivé.');
       } else if (p.method === 'online' || p.method === 'deposit') {
-        const py = s.payments.get(p.ref || '');
+        const py = paymentOf(s, ctx, p.ref || '');
         if (!py || py.status !== 'paid') fail(409, 'unpaid', 'Ce paiement en ligne n’est pas encore confirmé.');
         if (py.usedBy || usedOnline.has(py.id)) fail(409, 'used', 'Ce paiement a déjà été utilisé sur un ticket.');
         if (p.method === 'deposit' && (!appt || py.apptId !== appt.id)) fail(409, 'deposit', 'Cet acompte concerne un autre rendez-vous.');
@@ -190,12 +246,15 @@ export const checkout = {
 
     const sid = ctx.id('sa');
     const number = s.saleSeq + 1;
+    // the stamp this ticket earns travels on it (projections/loyalty.js says why)
+    const stamps = earnOf(s, client, lines.map((l, i) => ({ ...l, net: totals.nets[i] })), day);
     ctx.emit('sale.completed', {
       id: sid, number, day, cashierId: ctx.staff ? ctx.staff.id : null, apptId: appt ? appt.id : null, clientId: client ? client.id : null, cid: client ? client.id : undefined,
       lines: lines.map((l, i) => ({ ...l, net: totals.nets[i] })), discount: x.discount ? { amount: discount, reason: typed ? 'Autre' : why } : null,
       tip: totals.tip ? { amount: totals.tip, staffId: /** @type {any} */ (x.tip).staffId } : null, totals: { gross: totals.gross, discount: totals.discount, total: totals.total, tip: totals.tip, due: totals.due, revenue: totals.revenue, revenueHT: totals.revenueHT, liability: totals.liability, vat: totals.vat },
-      payments, note: x.note || '', ...(backfill ? { at: input.at } : {}), ...(ctx.actor.t === 'system' && !online ? { demo: true } : {})
+      payments, note: x.note || '', ...(backfill ? { at: input.at } : {}), ...(ctx.actor.t === 'system' && !online ? { demo: true } : {}), ...(stamps ? { loyalty: { units: stamps } } : {})
     }, typed ? { discountReason: typed } : undefined);
+    loyaltyAfterSale(s, ctx, ctx.drafts.find((d) => d.type === 'sale.completed' && d.data.id === sid).data);
     for (const l of lines) if (l.kind === 'product') ctx.emit('stock.adjusted', { productId: l.ref, delta: -l.qty, reason: 'Vente', saleId: sid, name: l.name });
     // online: the name the buyer typed ("De la part de"), which may not be the one on the file their number found
     const buyer = online && typeof input.buyer === 'string' ? input.buyer.slice(0, 60) : client ? (client.first + ' ' + client.last).trim() : '';
@@ -205,6 +264,7 @@ export const checkout = {
     for (const r of redeem) ctx.emit('giftcard.redeemed', { id: r.id, amount: r.amount, saleId: sid });
     if (newPack) ctx.emit('pack.sold', { ...newPack, saleId: sid, cid: newPack.clientId });
     for (const [pid, n] of packUses) for (let i = 0; i < n; i++) ctx.emit('pack.used', { id: pid, saleId: sid });
+    for (const [mid, list] of memberUses) for (const u of list) ctx.emit('member.used', { id: mid, saleId: sid, periodStart: u.periodStart, day, forced: u.forced, cid: client ? client.id : undefined });
     const change = payments.reduce((t, p) => t + (p.change || 0), 0);
     // the only time the full code is known: the till prints it (voucher) or texts it (sendGiftcode), nothing keeps it
     return { id: sid, number, day, totals, change, giftcards: issued.map((g) => ({ id: g.id, code: g.code, last4: g.code.slice(-4), amount: g.amount, recipient: g.recipient, expires: addDays(day, 365) })) };
@@ -392,6 +452,11 @@ export function checkRefund(s, input, ctx) {
   if (!sale) fail(404, 'not_found', 'Ticket introuvable.');
   if (s.closures.has(ctx.local.day)) fail(409, 'day_closed', 'La journée est clôturée.');
   const plan = refundPlan(s, sale);
+  // a month of a membership that still runs goes back through its withdrawal or cancellation (commands/memberships.js),
+  // which end the contract first: a credit note at the till would leave the member covered and renewing
+  if (ctx.actor.t === 'staff' && sale.lines.some((l) => l.kind === 'membership' && l.memberId && s.members && s.members.get(l.memberId) && liveIn(s, s.members.get(l.memberId), ctx.local.day))) {
+    fail(409, 'member_live', 'Ce ticket paie le mois d’un abonnement en cours : fais d’abord la rétractation ou la résiliation de l’abonnement.');
+  }
   const override = !!x.override;
   if (override && !(ctx.actor.t === 'system' || (ctx.staff && ctx.staff.role === 'owner'))) fail(403, 'override', 'Seul le gérant peut rembourser les coupes déjà faites.');
   const eu = (c) => fmtEur(c, { decimals: true });
@@ -405,7 +470,7 @@ export function checkRefund(s, input, ctx) {
     if (!o || seen.has(r.i)) fail(400, 'invalid', 'Ligne inconnue sur ce ticket.');
     seen.add(r.i);
     if (o.kind === 'giftcard' && !o.left) fail(409, 'giftcard_used', 'Cette carte cadeau a déjà servi (ou est annulée) : elle ne se rembourse plus.');
-    if (o.kind === 'pack' && o.pack && o.pack.voided) fail(409, 'pack_void', 'Cet abonnement est déjà annulé.');
+    if (o.kind === 'pack' && o.pack && o.pack.voided) fail(409, 'pack_void', 'Ce carnet est déjà annulé.');
     if (r.qty > o.left) fail(400, 'invalid', `« ${o.name} » : ${o.left ? 'au plus ' + o.left + ' à rembourser' : o.net > 0 ? 'déjà remboursé' : 'rien à rembourser'}.`);
     // the last ones take what is left of the line, so rounding never leaves a cent behind
     const value = o.kind === 'pack' && o.pack ? (override ? o.value : o.pack.suggested) : r.qty === o.left ? o.value : Math.min(o.value, Math.round((o.net * r.qty) / o.qty));
@@ -413,7 +478,7 @@ export function checkRefund(s, input, ctx) {
     max += value;
     picked.push({ ...o, n: r.qty, amount: value });
   }
-  if (override && !picked.some((o) => o.kind === 'pack')) fail(400, 'override', 'Le remboursement forcé vaut pour un abonnement : coche sa ligne.');
+  if (override && !picked.some((o) => o.kind === 'pack')) fail(400, 'override', 'Le remboursement forcé vaut pour un carnet : coche sa ligne.');
   if (x.amount <= 0) fail(400, 'invalid', 'Indique un montant.');
   const livePack = plan.lines.some((o) => o.kind === 'pack' && o.value > 0 && !(o.pack && o.pack.voided));
   if (picked.length) {
@@ -435,8 +500,8 @@ export function checkRefund(s, input, ctx) {
     }
   } else if (x.amount > plan.free) {
     // a pack's value goes back only through its line, which cancels it: no refund leaves the cuts behind
-    if (livePack) fail(409, 'pack_used', 'Un abonnement se rembourse par sa ligne (« Annuler l’abonnement ») : sans ligne, au plus ' + eu(plan.free) + '.', { max: plan.free });
-    if (plan.free < plan.revenueLeft) fail(409, 'pack_used', 'Le reste du ticket, ce sont les coupes d’abonnement déjà faites : au plus ' + eu(plan.free) + '.', { max: plan.free });
+    if (livePack) fail(409, 'pack_used', 'Un carnet se rembourse en cochant sa ligne : sans ligne, au plus ' + eu(plan.free) + '.', { max: plan.free });
+    if (plan.free < plan.revenueLeft) fail(409, 'pack_used', 'Le reste du ticket, ce sont les coupes de carnet déjà faites : au plus ' + eu(plan.free) + '.', { max: plan.free });
     fail(400, 'invalid', 'Montant remboursable au maximum : ' + eu(plan.free) + '.', { left: plan.free });
   }
   const revenue = x.amount - liability;
@@ -490,6 +555,7 @@ export const refund = {
       ...(liability ? { liability } : {}), ...(picked.length ? { lines: picked.map((o) => ({ i: o.i, qty: o.n, name: o.name, kind: o.kind, amount: o.amount, vat: o.kind === 'giftcard' ? 0 : o.vat })) } : {}),
       drawerId: cash ? s.drawer.id : null, providerRef: x.providerRef || null, ...(override ? { override: true } : {}), cid: sale.clientId || undefined
     });
+    loyaltyAfterRefund(s, ctx, sale, ctx.drafts.find((d) => d.type === 'sale.refunded' && d.data.id === rid).data);
     for (const o of picked) {
       if (o.kind === 'pack' && o.pack) ctx.emit('pack.voided', { id: o.pack.id, saleId: sale.id, refundId: rid, cid: sale.clientId || undefined });
       if (o.kind === 'giftcard' && o.giftcard) {
@@ -577,7 +643,7 @@ export const sendReceipt = {
     if (!to) fail(400, 'invalid', 'Aucun numéro pour envoyer le reçu.');
     const id = queueMessage(s, ctx, {
       key: 'receipt_' + sale.id + '_' + (input.n || 0), template: 'receipt', to, cid: c ? c.id : null,
-      vars: { prenom: c ? c.first : '', ticket: 'T' + String(sale.number).padStart(6, '0'), montant: (sale.totals.due / 100).toFixed(2).replace('.', ',') + ' €', lien: ctx.meta.receiptLink ? ctx.meta.receiptLink(sale) : '' }
+      vars: { prenom: c ? c.first : '', ticket: 'T' + String(sale.number).padStart(6, '0'), montant: (sale.totals.due / 100).toFixed(2).replace('.', ',') + ' €', lien: ctx.meta.receiptLink ? ctx.meta.receiptLink(sale) : '', fidelite: receiptWords(s, sale, ctx.local.day) }
     });
     return { id };
   }

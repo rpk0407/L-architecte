@@ -26,7 +26,17 @@ export function uuid() {
   return 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 12);
 }
 
+/** The requests still on their way, and when the last one came back: a page whose data is loading is not done (the
+ *  guided tour waits for it before it passes over a part the page does not show). */
+let pending = 0, lastBack = 0;
+/** How long nothing has been on its way (0: something still is). */
+export const netIdle = () => (pending ? 0 : Date.now() - lastBack);
+
 async function request<T>(method: string, path: string, body?: unknown, opts: { requestId?: string; signal?: AbortSignal } = {}): Promise<T> {
+  pending++;
+  try { return await send<T>(method, path, body, opts); } finally { pending--; lastBack = Date.now(); }
+}
+async function send<T>(method: string, path: string, body: unknown, opts: { requestId?: string; signal?: AbortSignal }): Promise<T> {
   const headers: Record<string, string> = { accept: 'application/json' };
   if (body !== undefined) headers['content-type'] = 'application/json';
   if (method !== 'GET') headers['x-request-id'] = opts.requestId || uuid();

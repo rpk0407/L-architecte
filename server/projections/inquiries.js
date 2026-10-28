@@ -5,8 +5,8 @@
 // to) takes them out of the journal; inquiry.erased and client.erased blank this copy in memory.
 // No import of the engine or the state here (see core/extensions.js).
 
-/** The words the Comptoir uses for each kind. */
-export const KIND_FR = { contact: 'contact', formation: 'formation' };
+/** The words the Comptoir uses for each kind; 'sms': a client's answer to the salon's phone (MSG-02, commands/sms-inbound.js). */
+export const KIND_FR = { contact: 'contact', formation: 'formation', sms: 'réponse SMS' };
 
 /** @param {any} s @param {string} id */
 const get = (s, id) => (s.inquiries ? s.inquiries.get(id) : null);
@@ -21,14 +21,17 @@ export const inquiriesExtension = {
       s.inquiries.set(d.id, {
         id: d.id, kind: d.kind, module: d.module || '', cid: d.cid || null, at: e.at,
         first: p.first || '', phone: p.phone || '', email: p.email || '', message: p.message || '',
-        status: 'new', handledAt: 0, handledBy: null, replies: [], erased: false
+        status: 'new', handledAt: 0, handledBy: null, replies: [], erased: false,
+        // FID-01: an SMS answer names the text it answers (template and message id: nothing personal)
+        re: d.re && d.re.template ? { template: String(d.re.template), msgId: String(d.re.msgId || '') } : null, auto: false
       });
     },
+    // auto: filed by itself, a mere « ok » or « merci » to a review request, a reminder or a receipt (commands/sms-inbound.js)
     'inquiry.handled': (s, e, d) => {
       const q = get(s, d.id);
       if (!q) return;
-      if (d.undo) Object.assign(q, { status: 'new', handledAt: 0, handledBy: null });
-      else Object.assign(q, { status: 'handled', handledAt: e.at, handledBy: e.actor.id });
+      if (d.undo) Object.assign(q, { status: 'new', handledAt: 0, handledBy: null, auto: false });
+      else Object.assign(q, { status: 'handled', handledAt: e.at, handledBy: e.actor.id, auto: !!d.auto });
     },
     // an SMS answer: the text itself is in its message.queued pii; answering handles the request
     'inquiry.replied': (s, e, d) => {
@@ -55,7 +58,8 @@ export const inquiriesExtension = {
   item(r, f) {
     if (!r.caps.has('marketing')) return null;
     const q = get(r.s, f.data && f.data.id);
-    if (!q) return null;
+    // an acknowledgement filed by itself is no news
+    if (!q || q.auto) return null;
     const out = gone(r.s, q);
     const first = out ? '' : q.first;
     const mod = q.module ? moduleTitle(r.s, q.module) : '';

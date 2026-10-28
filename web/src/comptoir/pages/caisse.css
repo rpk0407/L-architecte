@@ -100,6 +100,10 @@
 .cl-history td:nth-child(2) { white-space: nowrap; }
 .cl-left li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cl-left li small { color: var(--tx3); font-size: 12.5px; }
+/* the month closures (CPT-01a): a 44 px print target; on a phone the ref goes under the month, so the row fits */
+.cl-months .btn-icon { --h: 44px; }
+.cl-ref-in { display: none; }
+@media (max-width: 760px) { .cl-months .cl-ref-col { display: none; } .cl-ref-in { display: inline; } }
 @media (max-width: 760px) {
   .cs-grid.closing { grid-template-columns: minmax(0, 1fr); }
   .cl-big { font-size: 44px; }

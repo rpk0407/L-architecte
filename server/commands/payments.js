@@ -10,6 +10,7 @@ import { queueMessage, apptVars } from '../domain/messages.js';
 import { mailConfirmation, mailOwner } from '../domain/mails.js';
 import { payDeadline } from '../domain/policy.js';
 import { busyIntervals } from '../domain/availability.js';
+import { providerKnown } from '../projections/payments.js';
 
 const KINDS = new Set(['deposit', 'qr', 'guarantee', 'giftcard']);
 
@@ -70,11 +71,15 @@ export const createPayment = {
       const cid = known && s.clients.has(known) ? known : ctx.id('cl');
       gift = { cid, data: { delivery: o.delivery, sendAt: o.sendAt }, pii: { order: { buyer: o.buyer, recipient: o.recipient, message: o.message } } };
     }
+    // the file it is for (PAY-01): the appointment's client, the gift card's buyer, or the member's file a caller names;
+    // a QR at the till has none
+    const appt = input.apptId ? s.appts.get(input.apptId) : null;
+    const cid = gift ? gift.cid : input.cid && s.clients.has(input.cid) ? input.cid : (appt && appt.clientId) || undefined;
     ctx.emit('payment.created', {
       id: input.id, kind: input.kind, amount: input.amount, provider: input.provider, providerRef: input.providerRef || null,
       url: input.url || null, apptId: input.apptId || null, exp: input.exp || ctx.now + 30 * 60000, label: String(input.label || '').slice(0, 80),
       // names and numbers travel in pii (read back from the journal at fulfilment, routes-giftshop.js orderOf)
-      ...(gift ? { cid: gift.cid, gift: gift.data } : {})
+      ...(cid ? { cid } : {}), ...(gift ? { gift: gift.data } : {})
     }, gift ? gift.pii : undefined);
     return { id: input.id, ...(gift ? { cid: gift.cid } : {}) };
   }
@@ -88,7 +93,12 @@ export const paymentSucceeded = {
     if (!py) fail(404, 'not_found', 'Paiement inconnu.');
     if (py.status === 'paid') return { ok: true, already: true };
     if (input.amount != null && input.amount !== py.amount && py.kind !== 'guarantee') fail(409, 'amount', 'Montant reçu différent du montant attendu.');
-    ctx.emit('payment.succeeded', { id: py.id, pm: input.pm || null, customer: input.customer || null, chargeRef: input.chargeRef || null });
+    // the provider's customer and card ids tie a person to a card: in pii under the file, so its erasure takes them;
+    // with no file (a QR at the till) they are not kept at all. The charge ref stays in data: reconciliation needs it
+    const ap = py.apptId ? s.appts.get(py.apptId) : null;
+    const cid = py.cid || (ap && ap.clientId) || undefined;
+    const ids = cid && (input.customer || input.pm) ? { ...(input.customer ? { customer: String(input.customer) } : {}), ...(input.pm ? { pm: String(input.pm) } : {}) } : undefined;
+    ctx.emit('payment.succeeded', { id: py.id, chargeRef: input.chargeRef || null, ...(cid ? { cid } : {}) }, ids);
     if (py.apptId && (py.kind === 'deposit' || py.kind === 'guarantee')) {
       const a = getAppt(s, py.apptId);
       // paid after its deadline (the tick has not run yet): the slot may already belong to someone else
@@ -115,6 +125,7 @@ export const paymentSucceeded = {
   }
 };
 
+/** amount (refunded only): a part given back, which keeps the rest paid; without it the whole payment. */
 export const paymentEnded = {
   run(s, input, ctx) {
     const py = s.payments.get(input.id);
@@ -123,7 +134,85 @@ export const paymentEnded = {
     if (!type) fail(400, 'invalid', 'Statut inconnu.');
     if (py.status === input.status) return { ok: true };
     if (input.status !== 'refunded' && py.status !== 'pending') return { ok: true };
-    ctx.emit(type, { id: py.id, reason: String(input.reason || '').slice(0, 120) });
+    const part = input.status === 'refunded' && input.amount != null ? input.amount : null;
+    if (part != null && (!Number.isInteger(part) || part < 1 || part > py.amount - (py.refunded || 0))) fail(400, 'invalid', 'Montant de remboursement invalide.');
+    ctx.emit(type, { id: py.id, reason: String(input.reason || '').slice(0, 120), ...(part != null && part < py.amount ? { amount: part } : {}) });
     return { ok: true };
+  }
+};
+
+/* ---------------- what the provider says after the checkout (PAY-01, payments/handlers.js) ---------------- */
+
+const PROVIDER_REF = str({ max: 80 });
+
+/**
+ * The provider has given back more of a payment than our records say (a refund from its dashboard, or the till's
+ * credit note that failed after the provider refunded): recorded, so money out is never invisible. total: what the
+ * provider says is refunded in all, so the same notice twice, or one that only repeats our own refund, writes nothing.
+ */
+export const paymentRefundedOutside = {
+  run(s, input, ctx) {
+    const py = s.payments.get(input.id || s.paymentByCharge.get(input.chargeRef || '') || '');
+    if (!py) fail(404, 'not_found', 'Paiement inconnu.');
+    if (!Number.isInteger(input.total) || input.total < 0) fail(400, 'invalid', 'Montant invalide.');
+    const total = Math.min(py.amount, input.total);
+    const known = providerKnown(s, py);
+    if (total <= known) return { ok: true, already: true };
+    ctx.emit('payment.refundedOutside', { id: py.id, amount: total - known, total, providerRefund: input.providerRefund ? PROVIDER_REF.parse(String(input.providerRefund).slice(0, 80), 'providerRefund') : null });
+    return { ok: true, amount: total - known };
+  }
+};
+
+const disputeSchema = obj({ id: str({ min: 1, max: 80 }), amount: int({ min: 0, max: 10000000 }), reason: opt(str({ max: 60 })), status: opt(str({ max: 30 })), dueBy: opt(int({ min: 0, max: 8.64e15 })) });
+/**
+ * A chargeback opened on a payment, or changed (amount, reason, answer date). One per dispute id: the same notice
+ * again writes nothing. A notice of a closed dispute never seen open records it first (paymentDisputeClosed follows).
+ */
+export const paymentDisputed = {
+  run(s, input, ctx) {
+    const py = s.payments.get(input.id || '');
+    if (!py) fail(404, 'not_found', 'Paiement inconnu.');
+    const x = parse(disputeSchema, input.dispute || {});
+    const cur = s.disputes.get(x.id);
+    if (cur && cur.pid !== py.id) fail(409, 'invalid', 'Ce litige concerne un autre paiement.');
+    const dispute = { id: x.id, amount: x.amount, reason: x.reason || '', dueBy: x.dueBy || 0 };
+    if (cur && (cur.status !== 'open' || (cur.amount === dispute.amount && cur.reason === dispute.reason && cur.dueBy === dispute.dueBy))) return { ok: true, already: true };
+    ctx.emit('payment.disputed', { id: py.id, dispute });
+    return { ok: true };
+  }
+};
+export const DISPUTE_ENDS = /** @type {const} */ (['won', 'lost', 'warning_closed']);
+export const paymentDisputeClosed = {
+  run(s, input, ctx) {
+    const x = s.disputes.get(input.disputeId || '');
+    if (!x || x.pid !== input.id) fail(404, 'not_found', 'Litige inconnu.');
+    if (!DISPUTE_ENDS.includes(input.status)) fail(400, 'invalid', 'Issue du litige inconnue.');
+    if (x.status !== 'open') return { ok: true, already: true };
+    ctx.emit('payment.disputeClosed', { id: x.pid, disputeId: x.id, status: input.status });
+    return { ok: true };
+  }
+};
+
+/** A payout's lines, at most this many in its event (a salon's day is a few dozen). */
+export const PAYOUT_ITEMS = 500;
+const payoutItem = obj({ pid: opt(str({ max: 40 })), type: str({ min: 1, max: 40 }), amount: int({ min: -100000000, max: 100000000 }), fee: int({ min: -10000000, max: 10000000 }), net: int({ min: -100000000, max: 100000000 }), ref: opt(str({ max: 80 })) });
+/**
+ * Money sent to the bank, with what it carried: each line's fee is the provider's (CPT-03 books them and the
+ * self-assessed VAT); pid is our payment when the charge is ours, null otherwise. Once per payout id. truncated: the
+ * provider had more lines than were read (5 pages) or kept (PAYOUT_ITEMS): gross and fee then cover only these.
+ */
+export const payoutRecorded = {
+  run(s, input, ctx) {
+    const id = str({ min: 3, max: 80 }).parse(input.id, 'id');
+    if (s.payouts.has(id)) return { ok: true, already: true };
+    const items = (Array.isArray(input.items) ? input.items : []).slice(0, PAYOUT_ITEMS).map((x, i) => {
+      const it = payoutItem.parse(x, 'items.' + i);
+      return { pid: it.pid && s.payments.has(it.pid) ? it.pid : null, type: it.type, amount: it.amount, fee: it.fee, net: it.net, ...(it.ref ? { ref: it.ref } : {}) };
+    });
+    const amount = int({ min: -100000000, max: 100000000 }).parse(input.amount, 'amount');
+    const arrival = int({ min: 0, max: 8.64e15 }).parse(input.arrival || 0, 'arrival');
+    const gross = items.reduce((t, x) => t + x.amount, 0), fee = items.reduce((t, x) => t + x.fee, 0);
+    ctx.emit('payout.recorded', { id, amount, gross, fee, arrival, items, ...(input.truncated === true ? { truncated: true } : {}) });
+    return { ok: true, items: items.length };
   }
 };

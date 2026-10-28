@@ -1,41 +1,17 @@
 // The domain switch on a production salon: / is the site (never the demo page), every old WordPress
 // address and every link from the old booking e-mails lands somewhere useful, unknown pages get the styled 404.
 import { readFileSync } from 'node:fs';
+import { createServer } from 'node:http';
+import { execFile } from 'node:child_process';
 import { join } from 'node:path';
 import { ROOT } from '../harness.mjs';
+import { CASES, PAY } from '../../../shared/redirects.js';
 
 export const name = 'the site at /, WordPress redirects, old e-mail links, 404';
 
-const PAY = 'sln_step_page=summary&submit_summary=next&sln_booking_id=4410-0cc175b9c0f1b6a831c399e269772661&pay_remaining_amount=0';
-// [request, status, Location, the vercel.json rule it exercises]; scripts/check-redirects.mjs runs the same list on the live domain
-export const CASES = [
-  ['/Main.dc', 307, '/', '/Main.dc'], ['/Cockpit.dc', 307, '/comptoir', '/Cockpit.dc'], ['/Parcours.dc', 307, '/demo', '/Parcours.dc'],
-  ['/?sln-api=cancel_booking&booking_id=12-abc', 307, '/ancien-lien?sln-api=cancel_booking&booking_id=12-abc', '/?sln-api'],
-  ['/?sln_customer_login=9f2c41&feedback_id=4410', 307, '/ancien-lien?sln_customer_login=9f2c41&feedback_id=4410', '/?sln_customer_login'],
-  ['/?booking_id=4410&sln_reschedule_booking=1', 307, '/ancien-lien?booking_id=4410&sln_reschedule_booking=1', '/?sln_reschedule_booking'],
-  ['/?' + PAY, 307, '/ancien-lien?' + PAY, '/?sln_booking_id'],
-  ['/?sln_step_page=summary', 307, '/ancien-lien?sln_step_page=summary', '/?sln_step_page'],
-  ['/?page_id=2', 308, '/?reserver&page_id=2', '/?page_id'],
-  ['/rdv-en-ligne', 308, '/?reserver', '/rdv-en-ligne'], ['/booking', 308, '/?reserver', '/booking'],
-  ['/thank-you-for-booking', 308, '/', '/thank-you-for-booking'], ['/salon-de-coiffure', 308, '/', '/salon-de-coiffure'], ['/news', 308, '/', '/news'],
-  ['/mon-compte', 308, '/mon-rendez-vous', '/mon-compte'], ['/booking-my-account', 308, '/mon-rendez-vous', '/booking-my-account'],
-  ['/nos-services', 308, '/#carte', '/nos-services'], ['/creations', 308, '/#coupes', '/creations'],
-  ['/taille-et-entretien-de-la-coupe-et-de-la-barbe', 308, '/formations#barbe', '/taille-et-entretien-de-la-coupe-et-de-la-barbe'],
-  ['/la-coupe-classique-et-ses-subtilites', 308, '/formations#classique', '/la-coupe-classique-et-ses-subtilites'],
-  ['/la-coupe-homme-complexe-et-ses-techniques', 308, '/formations#complexe', '/la-coupe-homme-complexe-et-ses-techniques'],
-  ['/a-toutes-occasions-offrez-un-moment-privilegie-a-vos-proches-en-leur-offrant-une-carte-cadeau', 308, '/carte-cadeau', '/a-toutes-occasions-offrez-un-moment-privilegie-a-vos-proches-en-leur-offrant-une-carte-cadeau'],
-  ...['message-exceptionnel', 'welcome-back-jkut-congrats', 'jblades-welcome-in-da-team', 'brews-redken', 'retrouvez-la-gamme-redken-brews', 'paiements-par-cb-desormais-acceptes', 'nous-serons-exceptionnellement-ouverts-les-lundi-21-28-decembre']
-    .map((p) => ['/' + p, 308, '/', 'posts']),
-  ['/sln_service/coupe-classique', 308, '/#carte', '/sln_service/:slug*'], ['/go_pricing_tables/coupes-barbes', 308, '/#carte', '/go_pricing_tables/:slug*'],
-  ['/sln_attendant/jkut', 308, '/?reserver&barbier=jkut', '/sln_attendant/:slug'], ['/sln_attendant/larchi', 308, '/?reserver&barbier=larchi', '/sln_attendant/:slug'],
-  ['/category/actualites', 308, '/', '/category/:slug*'], ['/2020/10', 308, '/', '/(2019|2020)/:path*'], ['/2019/11/28', 308, '/', '/(2019|2020)/:path*'],
-  ['/feed', 308, '/', '/(feed|comments/feed)'], ['/comments/feed', 308, '/', '/(feed|comments/feed)'],
-  ['/wp-sitemap.xml', 308, '/sitemap.xml', '/(wp-sitemap.xml|sitemap_index.xml)'], ['/sitemap_index.xml', 308, '/sitemap.xml', '/(wp-sitemap.xml|sitemap_index.xml)'],
-  ['/wp-login.php', 307, '/comptoir', '/wp-login.php'], ['/wp-admin', 307, '/comptoir', '/wp-admin/:path*'], ['/wp-admin/edit.php?post_type=sln_booking', 307, '/comptoir?post_type=sln_booking', '/wp-admin/:path*'],
-  ['/wp-content/uploads/2020/11/INFO-COVID.pdf', 308, '/', '/wp-content/uploads/:path*'],
-  // WordPress addresses end with a slash: trailingSlash:false strips it first, keeping the query
-  ['/rdv-en-ligne/', 308, '/rdv-en-ligne', 'trailing'], ['/nos-services/?utm_source=gbp', 308, '/nos-services?utm_source=gbp', 'trailing']
-];
+// [request, status, Location, the vercel.json rule it exercises] live in shared/redirects.js: scripts/check-redirects.mjs and
+// the Jour J card run the same list on the live domain
+export { CASES } from '../../../shared/redirects.js';
 const POSTS = '/(message-exceptionnel|welcome-back-jkut-congrats|jblades-welcome-in-da-team|brews-redken|retrouvez-la-gamme-redken-brews|paiements-par-cb-desormais-acceptes|nous-serons-exceptionnellement-ouverts-les-lundi-21-28-decembre)';
 
 const ruleId = (r) => (r.source === POSTS ? 'posts' : r.source + (r.has ? '?' + r.has[0].key : ''));
@@ -101,6 +77,27 @@ export default async ({ h, page }) => {
     if (r.status !== status || loc !== to) wrong.push(from + ' → ' + r.status + ' ' + loc + ' (expected ' + status + ' ' + to + ')');
   }
   if (wrong.length) throw new Error(wrong.join('\n'));
+
+  // the other way round: the old site's own sitemaps (tests/fixtures/wp-sitemaps, served here as the old site), every address
+  // they list tried on this app by scripts/check-old-urls.mjs: none ends on a 404
+  const fixtures = join(ROOT, 'tests', 'fixtures', 'wp-sitemaps');
+  const old = createServer((req, res) => {
+    const f = { '/wp-sitemap.xml': 'wp-sitemap.xml' }[req.url] || (/^\/wp-sitemap-(.+)\.xml$/.test(req.url) ? 'sm_' + req.url.slice('/wp-sitemap-'.length, -4) + '.xml' : '');
+    let xml = null;
+    try { xml = readFileSync(join(fixtures, f)); } catch { /* not a sitemap: the REST API is closed on this old site */ }
+    if (xml) res.writeHead(200, { 'content-type': 'application/xml' }).end(xml); else res.writeHead(404).end();
+  });
+  await new Promise((r) => old.listen(0, '127.0.0.1', r));
+  try {
+    const out = await new Promise((done, no) => execFile(process.execPath, [join(ROOT, 'scripts', 'check-old-urls.mjs'), 'http://127.0.0.1:' + old.address().port, h.base], { timeout: 60000 }, (err, stdout, stderr) => (err ? no(new Error(stdout + stderr)) : done(stdout))));
+    const listed = (out.match(/^✓ /gm) || []).length;
+    if (listed < 47 || /^✗ /m.test(out)) throw new Error('check-old-urls: ' + listed + ' addresses ok\n' + out);
+  } finally { old.close(); }
+
+  // the Jour J card's own check of the old addresses, on the address this salon is served on (PUBLIC_URL), owner only
+  const card = await h.api('/api/v1/bascule?refresh=1');
+  const redirects = card.json && card.json.steps.find((x) => x.id === 'redirects');
+  if (!redirects || redirects.state !== 'ok') throw new Error('Jour J › anciennes adresses: ' + JSON.stringify(redirects));
 
   // chains end on a real page, never in a loop
   async function follow(from) {

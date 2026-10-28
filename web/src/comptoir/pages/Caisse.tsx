@@ -11,6 +11,7 @@ import { PageTitle } from '../App';
 import { Checkout, qrOff } from './caisse/Checkout';
 import { Sales } from './caisse/Sales';
 import { Closing } from './caisse/Closing';
+import { Online } from './caisse/Online';
 import type { Agenda, Appt } from '../types';
 import './caisse.css';
 
@@ -31,10 +32,11 @@ export default function Caisse() {
   return (
     <>
       <PageTitle><h1>Caisse</h1></PageTitle>
-      <nav className="tabs" aria-label="Caisse">
+      <nav className="tabs" aria-label="Caisse" data-guide="cs-tabs">
         {tabs.map((t) => <Link key={t.id} to={t.to} className="tab" aria-current={tab === t.id ? 'page' : undefined}><Icon name={t.icon} size={16} />{t.label}</Link>)}
       </nav>
       {boot.mode !== 'demo' ? <div style={{ marginBottom: 16 }}><Note icon="info"><b>Caisse de gestion : le ticket légal sort de ta caisse certifiée.</b> <button type="button" className="link" onClick={() => setWhy(true)}>En savoir plus</button></Note></div> : null}
+      <Online />
       {tab === 'encaisser' ? <Till /> : tab === 'ventes' ? <Sales /> : <Closing />}
       <FiscalSheet open={why} onClose={() => setWhy(false)} />
     </>
@@ -83,13 +85,13 @@ function Till() {
   const active = rdv || (free ? null : undefined);
   const showTicket = active !== undefined;
   useEffect(() => {
-    if (data && data.closed && (rdv || free)) setQuery({ rdv: null, vente: null });
+    if (data && data.closed && (rdv || free)) setQuery({ rdv: null, vente: null, paiement: null });
   }, [data?.closed]);
 
   if (loading && !data) return <div className="cs-grid"><Skeleton h={320} r={22} /><Skeleton h={420} r={22} /></div>;
   if (data?.closed) {
     return (
-      <section className="card">
+      <section className="card" data-tour-empty data-guide="cs-closed">
         <Empty icon="lock" title="La journée est clôturée" action={<Button variant="ghost" icon="ticket" onClick={() => navigate('/caisse/ventes')}>Voir les tickets</Button>}>
           Le Z de {dates.dayLong(today)} est scellé. Les ventes reprendront demain ; une erreur se corrige par un avoir.
         </Empty>
@@ -101,7 +103,7 @@ function Till() {
     const st = staffById.get(a.staffId);
     return (
       <li key={a.id}>
-        <button type="button" className="li" aria-pressed={rdv === a.id} onClick={() => setQuery({ rdv: a.id, vente: null })}>
+        <button type="button" className="li" aria-pressed={rdv === a.id} onClick={() => setQuery({ rdv: a.id, vente: null, paiement: null })}>
           {st ? <Avatar name={st.name} initials={st.initials} color={st.color} size="sm" /> : null}
           <span className="li-main"><b>{a.client ? a.client.first + ' ' + a.client.last : a.name}</b><small>{time(a.start)} · {a.services.map((s) => s.name).join(' + ')}{a.deposit?.paid ? ' · acompte ' + eur(a.deposit.paid) : ''}</small></span>
           <span className="li-end">
@@ -116,13 +118,13 @@ function Till() {
   return (
     <div className={'cs-grid' + (showTicket ? ' has-ticket' : '')}>
       <aside className="col cs-side" style={{ gap: 14 }}>
-        <Button variant={free ? 'solid' : 'primary'} size="lg" block icon="plus" onClick={() => setQuery({ vente: '1', rdv: null })}>Vente libre</Button>
-        <section className="card cs-list">
+        <Button variant={free ? 'solid' : 'primary'} size="lg" block icon="plus" data-guide="cs-free" onClick={() => setQuery({ vente: '1', rdv: null, paiement: null })}>Vente libre</Button>
+        <section className="card cs-list" data-guide="cs-topay">
           <div className="card-h"><h2><Icon name="caisse" size={16} />À encaisser</h2>{toPay.length ? <span className="badge badge-accent">{toPay.length}</span> : null}</div>
           {toPay.length ? <ul className="list">{toPay.map((a) => item(a, true))}</ul> : <p className="muted" style={{ padding: '6px 4px 4px' }}>Personne n’attend. {paid ? paid + ' rendez-vous déjà encaissé' + (paid > 1 ? 's' : '') + ' aujourd’hui.' : ''}</p>}
         </section>
         {later.length ? (
-          <section className="card cs-list">
+          <section className="card cs-list" data-guide="cs-later">
             <div className="card-h"><h2><Icon name="clock" size={16} />Plus tard aujourd’hui</h2></div>
             <ul className="list">{later.map((a) => item(a, false))}</ul>
           </section>
@@ -132,8 +134,8 @@ function Till() {
       <div className="cs-main">
         {showTicket ? (
           <>
-            <button type="button" className="cs-back" onClick={() => setQuery({ rdv: null, vente: null })}><Icon name="chevL" size={16} />Liste</button>
-            <Checkout key={rdv || 'free'} apptId={rdv} drawerOpen={!!data?.drawer.open} onClose={() => setQuery({ rdv: null, vente: null })} />
+            <button type="button" className="cs-back" onClick={() => setQuery({ rdv: null, vente: null, paiement: null })}><Icon name="chevL" size={16} />Liste</button>
+            <Checkout key={rdv || 'free'} apptId={rdv} drawerOpen={!!data?.drawer.open} onClose={() => setQuery({ rdv: null, vente: null, paiement: null })} />
           </>
         ) : (
           <section className="card cs-idle">

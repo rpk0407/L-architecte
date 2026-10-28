@@ -109,7 +109,11 @@ export function ApptSheet({ id, onClose }: { id: string | null; onClose: () => v
     const paid = a!.deposit && a!.deposit.paid;
     const yes = await confirm({ title: 'Annuler ce rendez-vous ?', body: `${a!.name} · ${dayShortWord(a!.day, boot.today)} à ${time(a!.start)}. Le créneau redevient libre${boot.settings.booking.waitlist ? ' et la liste d’attente est prévenue' : ''}.${paid ? ' L’acompte de ' + eur(a!.deposit!.paid) + ' sera remboursé.' : ''}`, ok: 'Oui, annuler', danger: true });
     if (!yes) return;
-    run('cancel', () => api.post('/api/v1/appointments/' + a!.id + '/cancel', { reason: 'Annulé par le salon', notify: true, refundDeposit: !!paid && can('sale.refund') }), 'Rendez-vous annulé · le client est prévenu');
+    run('cancel', async () => {
+      const r = await api.post<{ refundError?: string }>('/api/v1/appointments/' + a!.id + '/cancel', { reason: 'Annulé par le salon', notify: true, refundDeposit: !!paid && can('sale.refund') });
+      // the booking is cancelled either way; the deposit that did not go back is said, to be done from the provider
+      if (r.refundError) toast({ kind: 'err', title: 'Acompte non remboursé chez Stripe : ' + r.refundError, icon: 'alert', ttl: 9000 });
+    }, 'Rendez-vous annulé · le client est prévenu');
     onClose();
   };
   const saveTech = () => { if (data?.client && tech !== data.client.tech) run('tech', () => api.patch('/api/v1/clients/' + data.client!.id, { tech }), 'Fiche technique enregistrée'); };
@@ -229,6 +233,8 @@ export function CreateSheet({ open, prefill, onClose, onCreated }: { open: boole
     setClient(null);
     if (prefill?.clientId) api.get<{ client: ClientCard }>('/api/v1/clients/' + prefill.clientId).then((r) => setClient(r.client)).catch(() => {});
   }, [open]);
+  // the booking's switch starts from the client's own « SMS de service » choice: no text to someone who said no
+  useEffect(() => { if (client) setSms(client.sms !== false); }, [client?.id]);
   const fixed = prefill?.day != null && prefill.start != null && when && when.day === prefill.day && when.start === prefill.start;
   const total = svc.reduce((t, id) => t + (boot.services.find((s) => s.id === id)?.price || 0), 0);
   const length = svc.reduce((t, id) => t + (boot.services.find((s) => s.id === id)?.dur || 0), 0);

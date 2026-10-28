@@ -5,12 +5,15 @@ import { staffView, serviceView, productView } from './views.js';
 import { verifyChain, publicEvent } from '../core/journal.js';
 import { hashSecret, passwordProblem, pinProblem } from '../auth/password.js';
 import { report } from '../domain/insights.js';
+import { staffStatement, monthWords } from '../domain/statement.js';
+import { payRulesOf } from '../settings/team.js';
 import { ticketNo, refundNo, closureNo, METHOD_LABEL, METHODS, zFigures, refundParts } from '../domain/cash.js';
 import { closingWarnings } from '../commands/tick-steps.js';
-import { isDay, dayRange, monthStart, addDays } from '../../shared/dates.js';
+import { isDay, dayRange, monthStart, monthEnd, addDays } from '../../shared/dates.js';
 import { staffIntervals } from '../domain/availability.js';
 import { refundOnline } from './routes-public.js';
 import { fmtEur } from '../../shared/money.js';
+import { monthNo, yearNo } from '../domain/fiscal.js';
 import { fmtPhone, safeEqual } from '../lib/util.js';
 import * as T from '../commands/team.js';
 import * as K from '../commands/catalog.js';
@@ -19,16 +22,19 @@ import { refundPlan, sendGiftcode, reissueGiftcard } from '../commands/sales.js'
 import { buildDemoJournal } from '../domain/seed.js';
 import { TEMPLATES } from '../core/state.js';
 import { CAPS, ROLES, capsOf } from '../domain/permissions.js';
+import { changeWords } from '../projections/governance.js';
 import { maybeTick } from './scheduler.js';
 import { STALE_MS, backupOff, backupStatus, backupsOf, freshBackup, makeBackup, ownBackups, salonOf } from '../core/backup.js';
 
 /* ---------------- the activity log, in plain French ---------------- */
 
 const LABELS = {
+  'team.changed': 'Rémunération ou accès modifié',
   'shop.initialized': 'Salon créé', 'shop.restored': 'Salon restauré', 'settings.updated': 'Réglages modifiés', 'staff.added': 'Membre ajouté', 'staff.updated': 'Fiche équipe modifiée',
   'staff.archived': 'Membre désactivé', 'staff.restored': 'Membre réactivé', 'staff.credentials': 'Accès modifiés', 'staff.revoked': 'Sessions fermées',
   'timeoff.added': 'Absence posée', 'timeoff.removed': 'Absence retirée', 'timeoff.requested': 'Absence demandée', 'timeoff.refused': 'Absence refusée',
   'timeoff.withdrawn': 'Demande d’absence retirée', 'device.enrolled': 'Appareil enregistré', 'device.revoked': 'Appareil retiré',
+  'import.started': 'Reprise WordPress commencée', 'import.batch': 'Paquet WordPress repris', 'import.finished': 'Reprise WordPress terminée',
   'service.added': 'Prestation créée', 'service.updated': 'Prestation modifiée', 'service.archived': 'Prestation retirée', 'product.added': 'Produit créé',
   'product.updated': 'Produit modifié', 'product.archived': 'Produit retiré', 'stock.adjusted': 'Stock ajusté', 'client.added': 'Client créé',
   'client.updated': 'Fiche client modifiée', 'client.merged': 'Fiches fusionnées', 'client.erased': 'Client effacé (RGPD)', 'appt.held': 'Créneau gardé',
@@ -37,11 +43,41 @@ const LABELS = {
   'block.removed': 'Créneau rouvert', 'queue.added': 'Passage en file', 'queue.updated': 'File mise à jour', 'waitlist.added': 'Liste d’attente',
   'waitlist.updated': 'Liste d’attente mise à jour', 'sale.completed': 'Vente', 'sale.refunded': 'Remboursement', 'payment.created': 'Paiement en ligne demandé',
   'payment.succeeded': 'Paiement en ligne reçu', 'payment.failed': 'Paiement en ligne échoué', 'payment.expired': 'Paiement en ligne expiré', 'payment.refunded': 'Paiement en ligne remboursé',
+  'payment.refundedOutside': 'Remboursé chez le prestataire', 'payment.disputed': 'Litige ouvert', 'payment.disputeClosed': 'Litige clos', 'payout.recorded': 'Virement reçu',
   'drawer.opened': 'Caisse ouverte', 'drawer.moved': 'Mouvement de caisse', 'drawer.closed': 'Caisse comptée', 'day.closed': 'Clôture journalière',
-  'giftcard.issued': 'Carte cadeau émise', 'giftcard.redeemed': 'Carte cadeau utilisée', 'giftcard.voided': 'Carte cadeau annulée', 'pack.sold': 'Abonnement vendu',
-  'pack.used': 'Coupe d’abonnement', 'pack.voided': 'Abonnement annulé', 'pack.returned': 'Coupe rendue à l’abonnement', 'message.queued': 'Message programmé', 'message.updated': 'Message', 'demo.seeded': 'Démo préparée'
+  'giftcard.issued': 'Carte cadeau émise', 'giftcard.redeemed': 'Carte cadeau utilisée', 'giftcard.voided': 'Carte cadeau annulée', 'pack.sold': 'Carnet vendu',
+  'pack.used': 'Coupe de carnet', 'pack.voided': 'Carnet annulé', 'pack.returned': 'Coupe rendue au carnet',
+  'member.created': 'Abonnement demandé', 'member.activated': 'Abonnement souscrit', 'member.renewed': 'Mois d’abonnement payé', 'member.pastDue': 'Paiement d’abonnement refusé',
+  'member.used': 'Coupe d’abonnement', 'member.cancelRequested': 'Abonnement résilié', 'member.withdrawn': 'Rétractation d’abonnement', 'member.ended': 'Abonnement terminé', 'message.queued': 'Message programmé', 'message.updated': 'Message', 'demo.seeded': 'Démo préparée'
 };
+// CPT-01a: the month and year closures, their signatures, the technical log
+Object.assign(LABELS, { 'period.closed': 'Clôture du mois ou de l’année', 'seal.signed': 'Clôture signée', 'tech.logged': 'Journal technique' });
+// TEAM-02: linked phones, photos, personal prefs
+Object.assign(LABELS, { 'phone.linkIssued': 'Lien de téléphone créé', 'phone.pinMissed': 'Code faux sur un téléphone lié', 'phone.pinCleared': 'Code juste après des erreurs', 'phone.locked': 'Téléphone bloqué (codes faux)', 'staff.photo': 'Photo de l’équipe modifiée', 'prefs.set': 'Réglages personnels modifiés' });
+// PAY-03: the salon confirms a cancellation asked from /resilier without the member's link
+Object.assign(LABELS, { 'member.cancelConfirmed': 'Résiliation confirmée' });
+// TEAM-04: a barber's note about a cut (the text itself is personal data and stays out of the journal's summary)
+Object.assign(LABELS, { 'cut.noted': 'Note de coupe' });
+// AC-01: the client space
+Object.assign(LABELS, { 'account.signedIn': 'Espace client : connexion', 'account.codeMissed': 'Espace client : code erroné', 'account.codeBurned': 'Espace client : code bloqué', 'account.fenceOpened': 'Espace client : ouvert sur une fiche inactive', 'account.revoked': 'Espace client : appareils déconnectés', 'account.closed': 'Espace client supprimé' });
 const STATUS = { arrived: 'arrivé', in_chair: 'au fauteuil', booked: 'remis à venir', no_show: 'absent' };
+
+const END_FR = { cancelled: 'résilié', unpaid: 'faute de paiement', withdrawn: 'rétractation', abandoned: 'paiement jamais fait' };
+const dm = (day) => (typeof day === 'string' ? day.slice(8, 10) + '/' + day.slice(5, 7) : '');
+function memberSummary(s, type, d) {
+  const m = s.members ? s.members.get(d.id) : null;
+  const plan = m ? m.name : '';
+  switch (type) {
+    case 'member.created': return plan + ' · ' + fmtEur(d.price) + '/mois · ' + (d.channel === 'salon' ? 'au salon' : d.channel === 'import' ? 'reprise' : 'en ligne');
+    case 'member.renewed': return plan + ' · ' + dm(d.periodStart) + ' au ' + dm(addDays(d.periodEnd, -1)) + ' · ' + fmtEur(d.amount);
+    case 'member.pastDue': return plan + ' · essai ' + (d.attempt || 1) + (d.action ? ' · validation demandée par la banque' : '');
+    case 'member.used': return plan + (d.forced ? ' · hors forfait' : '');
+    case 'member.cancelRequested': return plan + ' · fin le ' + dm(d.effective) + ' · ' + (d.by === 'salon' ? 'par le salon' : 'par le client');
+    case 'member.withdrawn': return plan + ' · ' + fmtEur(d.refund) + ' à rembourser';
+    case 'member.ended': return plan + ' · ' + (END_FR[d.reason] || 'résilié');
+    default: return plan;
+  }
+}
 
 /** Z CSV columns, written out: a gift card used or a deposit settles a ticket without money coming in that day. */
 const Z_CSV_METHOD = { card: 'Encaissé carte (TPE)', cash: 'Encaissé espèces', online: 'Encaissé paiement en ligne', deposit: 'Réglé par acompte en ligne', giftcard: 'Réglé par carte cadeau' };
@@ -58,6 +94,15 @@ function summary(s, e) {
     case 'appt.booked': return d.day + ' ' + Math.floor(d.start / 60) + 'h' + String(d.start % 60).padStart(2, '0') + ' · ' + ((s.staff.get(d.staffId) || {}).name || '') + ' · ' + (d.services || []).map((x) => x.name).join(' + ');
     case 'appt.moved': return 'vers ' + d.day + ' ' + Math.floor(d.start / 60) + 'h' + String(d.start % 60).padStart(2, '0');
     case 'appt.status': return STATUS[d.status] || d.status;
+    case 'period.closed': return (d.kind === 'year' ? yearNo(d.number) : monthNo(d.number)) + ' · ' + d.period + ' · ' + fmtEur(d.totals ? d.totals.netTtc : 0);
+    case 'seal.signed': return d.ref + (d.late ? ' · en retard' : '') + ' · clé ' + d.kid;
+    case 'tech.logged': return d.kind === 'key' ? 'clé ' + d.kid + (d.backlog && d.backlog.length ? ' · ' + d.backlog.length + ' en attente' : '') : d.kind === 'version' ? 'version ' + d.to : d.kind;
+    case 'import.batch': return d.i != null ? 'Paquet n° ' + (d.i + 1) : '';
+    case 'phone.linkIssued': return 'pour ' + ((s.staff.get(d.staffId) || {}).name || '');
+    case 'device.enrolled': case 'phone.locked': return d.staffId ? 'téléphone de ' + ((s.staff.get(d.staffId) || {}).name || '') + ' · ' + (d.name || '') : '';
+    case 'cut.noted': return ((s.staff.get(d.staffId) || {}).name || '') + ' · ' + d.day + (d.by && d.by !== d.staffId ? ' · écrite par ' + ((s.staff.get(d.by) || {}).name || '') : '');
+    case 'staff.photo': return ((s.staff.get(d.id) || {}).name || '') + (d.v ? '' : ' · retirée');
+    case 'prefs.set': return Object.keys(d.prefs || {}).join(', ');
     case 'shop.restored': return 'depuis ' + (d.from === 'fichier' ? 'un fichier' : d.from) + ' · ' + d.count + ' opérations';
     case 'appt.cancelled': {
       // a client's own reason is personal data (pii): shown until the client is erased
@@ -67,12 +112,16 @@ function summary(s, e) {
     case 'stock.adjusted': return (d.name || '') + ' ' + (d.delta > 0 ? '+' : '') + d.delta + ' · ' + d.reason;
     case 'settings.updated': return Object.keys(d.patch || {}).join(', ');
     case 'staff.added': return d.staff ? d.staff.name : '';
+    case 'team.changed': return changeWords(s, d);
     case 'service.updated': case 'product.updated': return Object.keys(d.patch || {}).join(', ');
     case 'payment.succeeded': { const p = s.payments.get(d.id); return p ? fmtEur(p.amount) + ' · ' + p.label : ''; }
     case 'giftcard.issued': return '•••• ' + d.last4 + ' · ' + fmtEur(d.amount) + (d.reissueOf ? ' · réémise (remplace •••• ' + ((s.giftcards.get(d.reissueOf) || {}).last4 || '') + ')' : d.legacy ? ' · reprise' : '');
     case 'giftcard.voided': return '•••• ' + ((s.giftcards.get(d.id) || {}).last4 || '') + (d.reason === 'reissued' ? ' · remplacée' : d.reason === 'refunded' ? ' · remboursée' : '');
     case 'pack.voided': { const k = s.packs.get(d.id); return k ? k.name + (k.voided ? ' · ' + k.voided.left + ' restante' + (k.voided.left > 1 ? 's' : '') + ' annulée' + (k.voided.left > 1 ? 's' : '') : '') : ''; }
     case 'client.updated': return (d.fields || []).join(', ');
+    // the memberships (PAY-02): the formule and the figures, never the person (pii)
+    case 'member.created': case 'member.activated': case 'member.renewed': case 'member.pastDue': case 'member.used':
+    case 'member.cancelRequested': case 'member.withdrawn': case 'member.ended': return memberSummary(s, e.type, d);
     case 'timeoff.added': case 'timeoff.requested': return ((s.staff.get(d.staffId) || {}).name || '') + ' · ' + T.rangeWords(d) + (d.reason ? ' · ' + d.reason : '') + (d.request ? ' · demande validée' : '');
     default: return '';
   }
@@ -83,7 +132,7 @@ function refundMethods(rf) {
 }
 function actorName(s, a) {
   if (a.t === 'staff') return (s.staff.get(a.id) || {}).name || 'Équipe';
-  if (a.t === 'client') return 'Client (site)';
+  if (a.t === 'client') return a.id === 'moi' ? 'Client (espace)' : 'Client (site)';
   if (a.t === 'provider') return a.id === 'stripe' ? 'Stripe' : 'Paiement';
   return a.n || 'Automatique';
 }
@@ -128,6 +177,16 @@ function csv(rows) {
   return '﻿' + rows.map((r) => r.map(esc).join(';')).join('\r\n') + '\r\n';
 }
 const eu = (c) => (c / 100).toFixed(2).replace('.', ',');
+/** The rules the commission figures follow, as the first row of the payroll and commissions CSV (TEAM-03). */
+function rulesRow(s) {
+  const R = payRulesOf(s.settings);
+  return [
+    'Base : ' + (R.base === 'ht' ? 'HT' : 'TTC'), 'Coupes de carnet : ' + (R.cutCredit === 'seller' ? 'pour qui vend' : 'pour qui coupe'),
+    'Coupes d’abonnement : ' + { split: 'part du mois', zero: 'rien', list: 'prix de la carte' }[R.memberCredit],
+    'Coupes fidélité : ' + (R.rewardCredit === 'net' ? 'ce qui est payé' : 'comme payées'),
+    'Pourboires carte et espèces : estimés selon le paiement du ticket', 'Estimation, la paie fait foi'
+  ];
+}
 
 export function adminRoutes(app) {
   /* team */
@@ -198,7 +257,7 @@ export function adminRoutes(app) {
     const { deposits, ...res } = await T.applyHandover(r.rt.engine, t, r.body, base);
     let refunded = 0;
     // the salon cancels, so a paid deposit goes back (only for whoever may refund, as on the appointment sheet)
-    if (r.caps.has('sale.refund')) for (const d of deposits) if (await refundOnline(r, r.s.payments.get(d.paymentId), 'Barbier absent')) refunded++;
+    if (r.caps.has('sale.refund')) for (const d of deposits) if ((await refundOnline(r, r.s.payments.get(d.paymentId), 'Barbier absent')).ok) refunded++;
     // what is still paid: refused, failed or not ours to refund; said, so it is done from the appointment's sheet
     const unrefunded = deposits.filter((d) => { const p = r.s.payments.get(d.paymentId); return p && p.status === 'paid'; }).length;
     return { ...res, refunded, unrefunded, left: conflictCount(r, t) };
@@ -254,7 +313,7 @@ export function adminRoutes(app) {
   app.patch('/api/v1/settings', (r) => r.run(SH.updateSettings, r.body), { cap: 'settings' });
   app.post('/api/v1/settings/closures', (r) => r.run(SH.addClosure, r.body), { cap: 'settings' });
   app.del('/api/v1/settings/closures/:id', (r) => r.run(SH.removeClosure, { id: r.params.id }), { cap: 'settings' });
-  app.get('/api/v1/devices', (r) => ({ items: [...r.s.devices.values()].filter((d) => !d.revoked).map((d) => ({ id: d.id, name: d.name, at: d.at, by: (r.s.staff.get(d.by) || {}).name || 'Démo', current: r.device && r.device.id === d.id })) }), { cap: 'devices' });
+  app.get('/api/v1/devices', (r) => ({ items: [...r.s.devices.values()].filter((d) => !d.revoked).map((d) => ({ id: d.id, name: d.name, at: d.at, by: (r.s.staff.get(d.by) || {}).name || 'Démo', current: r.device && r.device.id === d.id, personal: d.personal ? (r.s.staff.get(d.staffId) || {}).name || '' : null })) }), { cap: 'devices' });
   app.del('/api/v1/devices/:id', (r) => r.run(T.revokeDevice, { id: r.params.id }), { cap: 'devices' });
 
   /* the journal */
@@ -291,7 +350,7 @@ export function adminRoutes(app) {
     const kind = r.query.get('kind') || 'sales';
     const from = isDay(r.query.get('from') || '') ? /** @type {string} */ (r.query.get('from')) : monthStart(r.local.day);
     const to = isDay(r.query.get('to') || '') ? /** @type {string} */ (r.query.get('to')) : r.local.day;
-    const need = { sales: 'report.shop', vat: 'report.shop', closures: 'closure', clients: 'client.export', journal: 'data', commissions: 'team' }[kind];
+    const need = { sales: 'report.shop', vat: 'report.shop', closures: 'closure', clients: 'client.export', journal: 'data', commissions: 'team', payroll: 'team' }[kind];
     if (!need) throw new HttpError(400, 'invalid', 'Export inconnu.');
     if (!r.caps.has(need)) throw new HttpError(403, 'forbidden', 'Tu n’as pas accès à cet export.');
     let body = '', name = kind + '-' + from + '-' + to, type = 'text/csv; charset=utf-8';
@@ -323,10 +382,30 @@ export function adminRoutes(app) {
       }
       body = csv(rows);
     } else if (kind === 'commissions') {
+      // the Chiffre réalisé of each person (refunds deducted, carnet and membership cuts credited), on the salon's base
       const rep = report(s, { from, to, today: r.local.day, now: r.now });
-      const rows = [['Barbier', 'CA prestations TTC', 'CA produits TTC', 'Taux prestations %', 'Taux produits %', 'Commission', 'Pourboires', 'Clients', 'Panier moyen']];
-      for (const x of rep.staff) rows.push([x.name, eu(x.serviceRevenue), eu(x.productRevenue), x.rates.service / 100, x.rates.product / 100, eu(x.commission), eu(x.tips), x.clients, eu(x.avgTicket)]);
+      const rows = [rulesRow(s), ['Barbier', 'Réalisé TTC', 'Réalisé HT', 'Prestations TTC', 'Produits TTC', 'Taux prestations %', 'Taux produits %', 'Commission', 'Pourboires', 'Clients', 'Panier moyen', 'Passages']];
+      for (const x of rep.staff) rows.push([x.name, eu(x.revenue), eu(x.revenueHT), eu(x.serviceRevenue), eu(x.productRevenue), x.rates.service / 100, x.rates.product / 100, eu(x.commission), eu(x.tips), x.clients, eu(x.avgTicket), x.walkins]);
       body = csv(rows);
+    } else if (kind === 'payroll') {
+      // one row per barber for the payroll provider: the month's statement of each (server/domain/statement.js)
+      const month = r.query.get('month') || r.local.day.slice(0, 7);
+      if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) throw new HttpError(400, 'invalid', 'Mois attendu au format AAAA-MM.');
+      if (month > r.local.day.slice(0, 7)) throw new HttpError(400, 'future', 'Ce mois n’a pas encore commencé.');
+      const ids = [...s.staff.values()].filter((x) => x.chair && x.active).map((x) => x.id);
+      const end = monthEnd(month + '-01');
+      const rep = report(s, { from: month + '-01', to: end < r.local.day ? end : r.local.day, today: r.local.day, now: r.now });
+      // anyone else something is credited to that month (a carnet sold under « pour qui vend », a barber gone since)
+      for (const x of rep.staff) if (!ids.includes(x.id) && (x.revenue || x.tips || x.refunds)) ids.push(x.id);
+      const all = ids.map((id) => staffStatement(s, id, month, r.local.day, r.now));
+      const rows = [[...rulesRow(s), 'Mois : ' + monthWords(month) + (all.some((x) => x.provisional) ? ' (provisoire)' : '')],
+        ['Barbier', 'Réalisé TTC', 'Réalisé HT', 'Commission', 'Pourboires carte', 'Pourboires espèces', 'Coupes carnet', 'Coupes abonnement', 'Remboursements déduits', 'Jours travaillés', 'Jours d’absence', 'Remarques']];
+      for (const x of all) {
+        const notes = [x.cuts.carnet.estimated ? 'dont ' + eu(x.cuts.carnet.estimated) + ' estimé (carnet repris)' : '', x.cuts.carnet.unpriced ? x.cuts.carnet.unpriced + ' coupe(s) de carnet repris sans prix au catalogue' : '', x.rewards.value ? 'coupes fidélité ' + eu(x.rewards.value) : ''].filter(Boolean).join(' · ');
+        rows.push([x.staff.name, eu(x.performed), eu(x.performedHt), eu(x.commission), eu(x.tips.card), eu(x.tips.cash), eu(x.cuts.carnet.value), eu(x.cuts.member.value), eu(x.refunds), x.workedDays, x.absenceDays, notes]);
+      }
+      body = csv(rows);
+      name = 'paie-' + month;
     } else if (kind === 'clients') {
       const rows = [['Prénom', 'Nom', 'Téléphone', 'E-mail', 'SMS', 'Marketing', 'Créé le', 'Notes']];
       for (const c of [...s.clients.values()].filter((c) => !c.erased && !c.mergedInto)) rows.push([c.first, c.last, fmtPhone(c.phone), c.email, c.sms ? 'oui' : 'non', c.marketing ? 'oui' : 'non', new Date(c.createdAt).toISOString().slice(0, 10), c.notes]);
@@ -387,6 +466,8 @@ export function adminRoutes(app) {
     if (!r.rt.cfg.cronSecret || !safeEqual(auth, 'Bearer ' + r.rt.cfg.cronSecret)) throw new HttpError(401, 'unauthorized', 'Non autorisé.');
     await maybeTick(r.rt, r.meta, { force: true });
     // the external scheduler was seen (Réglages › Mise en route): the Comptoir's own pulse ticks too, so lastTick cannot tell
+    // and how far apart its calls are (FID-01: the salon's phone needs one a minute, routes-health.js)
+    if (r.rt.lastCron) r.rt.cronGap = Date.now() - r.rt.lastCron;
     r.rt.lastCron = Date.now();
     return { ok: true, version: r.s.version };
   }, { auth: false, csrf: false });

@@ -11,11 +11,22 @@ import * as A from '../commands/agenda.js';
 import { createPayment, paymentSucceeded, paymentEnded } from '../commands/payments.js';
 import { ticketNo } from '../domain/cash.js';
 import { smsOptOut } from '../commands/messages.js';
+import { smsReply, smsReport } from '../commands/sms-inbound.js';
 import { webhookKey, parseSmsWebhook } from '../messaging/sms.js';
 import { maybeTick } from './scheduler.js';
 import { hoursText, closedText } from '../settings/hours.js';
 import { waitUntil } from '@vercel/functions';
 import { fulfilGiftcard } from './routes-giftshop.js';
+import { providerFor, providerLabel } from '../payments/provider.js';
+import { providerKnown } from '../projections/payments.js';
+import { memberPaid, endMember } from '../commands/memberships.js';
+import { addMonths, abandoned } from '../domain/membership.js';
+import { BILLING } from '../payments/billing.js';
+import { memberScheduled, startDayOf } from '../commands/member-billing.js';
+import { fmtEur } from '../../shared/money.js';
+import { claimFromLink } from './routes-loyalty.js';
+import { receiptLoyalty } from '../domain/loyalty.js';
+import { readMemberToken, MEMBER_BOOK } from '../auth/member-token.js';
 
 /** The demo, for real: both the configuration and the journal say so (a demo journal opened in production is not one). */
 export const isDemo = (r) => r.rt.cfg.mode === 'demo' && r.s.mode === 'demo';
@@ -84,14 +95,38 @@ export async function startPayment(r, { kind, amount, label, apptId, returnPath,
   return { id, url: co.url };
 }
 
-/** Give back an online deposit (timely cancellation, payment after expiry). */
-export async function refundOnline(r, payment, reason) {
-  if (!payment || payment.status !== 'paid') return false;
+/**
+ * Give back an online payment (a timely cancellation, a payment after expiry, a deposit the salon gives back): all of
+ * what is left of it, or `amount`, through the provider it was paid with (never whichever is plugged in now). A
+ * payment recorded before its charge was known asks the provider for it rather than skipping the refund. ok: the
+ * money went back; error: why not, in the provider's words for the Comptoir (« Acompte non remboursé chez Stripe : … »),
+ * and the payment stays paid.
+ * @param {any} r @param {any} payment @param {string} reason @param {number} [amount]
+ * @returns {Promise<{ ok: boolean, error?: string }>}
+ */
+export async function refundOnline(r, payment, reason, amount) {
+  if (!payment || payment.status !== 'paid') return { ok: false, error: 'ce paiement n’est pas réglé' };
+  const done = providerKnown(r.s, payment);
+  const left = payment.amount - done;
+  const amt = amount == null ? left : Math.min(amount, left);
+  if (!(amt > 0)) return { ok: false, error: 'déjà remboursé' };
+  let prov;
   try {
-    if (payment.chargeRef || r.rt.pay.name === 'simulated') await r.rt.pay.refund(payment.chargeRef || payment.providerRef, payment.amount, payment.id);
-    await r.rt.engine.run(paymentEnded, { id: payment.id, status: 'refunded', reason }, PROVIDER(r, r.rt.pay.name));
-    return true;
-  } catch (e) { console.error('[lx] refund failed', e && e.message); return false; }
+    prov = providerFor(r.rt, payment.provider || r.rt.pay.name);
+    let charge = payment.chargeRef || '';
+    if (!charge && prov.name !== 'simulated') charge = (await prov.retrieveCharge(payment.providerRef)).chargeRef || '';
+    if (!charge && prov.name !== 'simulated') throw new Error('paiement introuvable chez ' + providerLabel(prov.name));
+    // the whole payment keeps the key it always had, so a retry never refunds twice; a part is keyed by what went back before
+    await prov.refund(charge || payment.providerRef, amt, payment.id + (amt === payment.amount ? '' : '-' + done));
+  } catch (e) {
+    const why = (e && (/** @type {any} */ (e).detail || /** @type {any} */ (e).message)) || 'erreur';
+    console.error('[lx] refund failed', payment.id, why);
+    return { ok: false, error: why };
+  }
+  // the money is back: if this record fails, the provider's refund notice writes it (payments/handlers.js refunded)
+  try { await r.rt.engine.run(paymentEnded, { id: payment.id, status: 'refunded', reason, ...(amt < payment.amount ? { amount: amt } : {}) }, PROVIDER(r, prov.name)); }
+  catch (e) { console.error('[lx] refund not recorded', payment.id, e && /** @type {any} */ (e).message); }
+  return { ok: true };
 }
 
 /** Client traffic carries the reminders too, so they leave even when no one has the Comptoir open (at most once a minute). */
@@ -108,7 +143,8 @@ export function publicRoutes(app) {
     // the whole price list (the CGV show it, the site's FAQ quotes it): booked at the salon only when online is false
     const menu = active.map((x) => ({ slug: x.slug || null, name: x.name, category: x.category, price: x.price, from: !!x.from, dur: x.dur, online: x.online !== false }));
     const chairs = [...s.staff.values()].filter((x) => x.active && x.chair && x.bookable).sort((a, b) => (a.order ?? 99) - (b.order ?? 99));
-    const barbers = chairs.map((x) => ({ ...staffView(x), away: awayOf(s, x, L.day) }));
+    // the team's photo (TEAM-02) is the Comptoir's, not the site's
+    const barbers = chairs.map((x) => ({ ...staffView(x), photo: undefined, away: awayOf(s, x, L.day) }));
     // the days it opens when it usually doesn't, or with other hours; one a closure covers is closed (it wins, as in
     // availability.js), and one for named barbers nobody can be booked on (archived, all away) is not announced
     const closures = s.settings.closures.filter((c) => c.to >= L.day);
@@ -166,14 +202,20 @@ export function publicRoutes(app) {
   app.post('/api/public/bookings', async (r) => {
     guard('book|' + r.ip, 6, 60000, 'Trop de réservations d’un coup. Patiente une minute.');
     guard('bookh|' + r.ip, 30, 3600000, 'Trop de réservations depuis cet appareil. Appelle le salon.');
-    const res = await r.rt.engine.run(A.bookOnline, { ...r.body, demo: undefined }, CLIENT(r));
+    // PAY-04: « Réserver ma coupe » from the member page carries its booking link (mbr, signed for booking only): the one
+    // way a guest booking is a member's
+    const mt = r.body && typeof r.body.mbr === 'string' ? readMemberToken(r.rt.secret, r.body.mbr.slice(0, 200), r.now, MEMBER_BOOK) : null;
+    const ctx = CLIENT(r);
+    const res = await r.rt.engine.run(A.bookOnline, { ...r.body, demo: undefined }, mt && 'id' in mt ? { ...ctx, meta: { ...ctx.meta, memberId: mt.id } } : ctx);
     const token = signLink(r.rt.secret, 'appt', res.code);
     let payment = null;
     if (res.status === 'pending' && res.deposit > 0) {
       const sv = r.s.appts.get(res.id);
       payment = await startPayment(r, { kind: 'deposit', amount: res.deposit, label: 'Acompte · ' + sv.services.map((x) => x.name).join(' + '), apptId: res.id, returnPath: '/r/' + token, email: r.body.email });
     }
-    return json({ code: res.code, token, manage: r.origin + '/r/' + token, status: res.status, deposit: res.deposit, staffId: res.staffId, payment }, 201);
+    // FID-02: a booking that came through a referrer's link (?parrain=); a refusal never touches the booking
+    const ref = r.body && r.body.parrain ? await claimFromLink(r, res.id, r.body.parrain) : null;
+    return json({ code: res.code, token, manage: r.origin + '/r/' + token, status: res.status, deposit: res.deposit, staffId: res.staffId, payment, ...(res.member ? { member: res.member } : {}), ...(ref ? { referral: { ok: !!ref.ok, why: ref.ok ? null : ref.why } } : {}) }, 201);
   });
 
   app.get('/api/public/bookings/:token', (r) => bookingView(r, apptFromToken(r)));
@@ -219,6 +261,9 @@ export function publicRoutes(app) {
 
   app.get('/api/public/payments/:id', (r) => {
     const p = r.s.payments.get(r.params.id);
+    // a membership's test checkout (PAY-03: simulated.js createSubscription points here with the member's id)
+    const m = !p && r.s.members ? r.s.members.get(r.params.id) : null;
+    if (m) return memberCheckout(r, m);
     if (!p) throw new HttpError(404, 'not_found', 'Paiement introuvable.');
     const a = p.apptId ? r.s.appts.get(p.apptId) : null;
     return { id: p.id, status: p.status, amount: p.amount, label: p.label, kind: p.kind, provider: p.provider, exp: p.exp, shop: r.s.settings.shop.name, back: a ? '/r/' + signLink(r.rt.secret, 'appt', a.code) : null };
@@ -228,6 +273,8 @@ export function publicRoutes(app) {
     guard('sim|' + r.ip, 20, 60000);
     // the test checkout only exists in the demo: in production it would confirm deposits nobody paid
     if (r.rt.pay.name !== 'simulated' || !isDemo(r)) throw new HttpError(404, 'not_found', 'Indisponible.');
+    const m = r.s.members ? r.s.members.get(r.params.id) : null;
+    if (m && m.provider === 'simulated') return simulateMember(r, m);
     const p = r.s.payments.get(r.params.id);
     if (!p || p.status !== 'pending') throw new HttpError(409, 'closed', 'Ce paiement n’est plus en attente.');
     if (r.body && r.body.outcome === 'cancel') { await r.rt.engine.run(paymentEnded, { id: p.id, status: 'failed', reason: 'Annulé par le client' }, PROVIDER(r, 'simulated')); }
@@ -245,32 +292,34 @@ export function publicRoutes(app) {
       ref: ticketNo(x.number), day: x.day, at: x.at, first: c ? c.first : '',
       shop: { name: sh.name, legalName: sh.legalName, address: sh.address + ', ' + sh.zip + ' ' + sh.city, siret: sh.siret, vatNumber: sh.vatNumber },
       lines: x.lines.map((l) => ({ name: l.name, qty: l.qty, net: l.net })), totals: x.totals, discount: x.discount, tip: x.tip,
-      payments: x.payments.map((p) => ({ method: p.method, amount: p.amount })), refunded: x.refunded, footer: r.s.settings.payments.receiptFooter
+      payments: x.payments.map((p) => ({ method: p.method, amount: p.amount })), refunded: x.refunded, footer: r.s.settings.payments.receiptFooter,
+      loyalty: receiptLoyalty(r.s, x, r.local.day)
     };
   });
 
-  app.post('/api/stripe/webhook', async (r) => {
-    const ev = r.rt.pay.parseWebhook(r.raw, r.req.headers.get('stripe-signature'));
-    if (!ev) return { received: true };
-    const pid = r.s.paymentByRef.get(ev.ref);
-    if (!pid) return { received: true, unknown: true };
-    if (ev.kind === 'paid') await afterProviderPaid(r, ev, 'stripe');
-    else await r.rt.engine.run(paymentEnded, { id: pid, status: ev.kind === 'expired' ? 'expired' : 'failed' }, PROVIDER(r, 'stripe'));
-    return { received: true };
-  }, { raw: true, csrf: false });
-
-  /** Brevo (unsubscribe event, reply STOP) or Twilio (inbound STOP): that client gets no more offers. */
+  /**
+   * Brevo (unsubscribe event, reply STOP), Twilio (inbound STOP) or the salon's phone (sms:received STOP): that client
+   * gets no more offers. The salon's phone also brings the clients' other answers (Relances › Demandes) and its
+   * delivery reports (the outbox).
+   */
   app.post('/api/sms/webhook', async (r) => {
     guard('smswh|' + r.ip, 120, 60000);
     const key = webhookKey(r.rt.cfg.cronSecret);
     if (!key) throw new HttpError(404, 'not_found', 'Indisponible.');
     if (!safeEqual(r.query.get('k') || '', key)) throw new HttpError(401, 'unauthorized', 'Non autorisé.');
-    const stops = parseSmsWebhook(r.raw, r.req.headers.get('content-type')).filter((ev) => ev.stop);
-    if (!stops.length) return { received: true };
+    const events = parseSmsWebhook(r.raw, r.req.headers.get('content-type'));
+    const ctx = PROVIDER(r, r.rt.sms ? r.rt.sms.name : 'sms');
+    let replied = 0;
+    for (const ev of events) {
+      if (ev.reply && (await r.rt.engine.run(smsReply, ev.reply, ctx)).ok) replied++;
+      if (ev.report) await r.rt.engine.run(smsReport, ev.report, ctx);
+    }
+    const stops = events.filter((ev) => ev.stop);
+    if (!stops.length) return replied ? { received: true, replied: true } : { received: true };
     let optedOut = 0;
     for (const ev of stops) {
       for (const phone of ev.phones) {
-        const res = await r.rt.engine.run(smsOptOut, { phone }, PROVIDER(r, r.rt.sms ? r.rt.sms.name : 'sms'));
+        const res = await r.rt.engine.run(smsOptOut, { phone }, ctx);
         if (res.found) { optedOut++; break; }
       }
     }
@@ -278,8 +327,46 @@ export function publicRoutes(app) {
   }, { raw: true, csrf: false });
 }
 
-/** A payment went through: record it; if its booking expired meanwhile, give the money back. */
-async function afterProviderPaid(r, ev, provider) {
+/**
+ * What the test checkout page shows of a membership: « Abonnement Hebdo · 80 €/mois », and when it starts (start:
+ * the day of a start not asked for now; scheduled: that start confirmed, nothing paid yet).
+ */
+function memberCheckout(r, m) {
+  const scheduled = !m.activatedAt && !m.ended && !m.startNow && r.s.messages.has('msg_msched_' + m.id);
+  const status = m.activatedAt ? 'paid' : scheduled ? 'scheduled' : m.ended || abandoned(m, r.now) ? 'expired' : 'pending';
+  // the page says the start day under it (start), so the label stays the plan's
+  const label = 'Abonnement ' + m.name + ' · ' + fmtEur(m.price) + '/mois';
+  return { id: m.id, status, amount: m.price, label, kind: 'membership', provider: m.provider, exp: m.exp, shop: r.s.settings.shop.name, back: null, start: m.startNow ? null : startDayOf(m) };
+}
+
+/**
+ * The demo's test checkout of a membership: confirmed, its first month is paid as Stripe's first invoice would be
+ * (invoice sim_<id>_0, the numbering the demo's billing goes on with, steps/sim-billing.js); cancelled, the member
+ * ends unpaid (abandoned). A start in 14 days pays nothing now, as with Stripe: the contract's confirmation leaves by
+ * e-mail (memberScheduled), and the demo's billing pays the first month on the start day.
+ */
+async function simulateMember(r, m) {
+  if (m.activatedAt || m.ended) throw new HttpError(409, 'closed', 'Ce paiement n’est plus en attente.');
+  if (r.body && r.body.outcome === 'cancel') {
+    if (r.s.messages.has('msg_msched_' + m.id)) throw new HttpError(409, 'closed', 'Cet abonnement est déjà enregistré : il s’annule depuis sa page.');
+    await r.rt.engine.run(endMember, { id: m.id, reason: 'abandoned' }, BILLING(r));
+    return { status: 'failed' };
+  }
+  if (!m.startNow) {
+    await r.rt.engine.run(memberScheduled, { id: m.id }, BILLING(r));
+    return { status: 'scheduled', start: startDayOf(m) };
+  }
+  const day = r.local.day;
+  await r.rt.engine.run(memberPaid, {
+    id: m.id, invoice: 'sim_' + m.id + '_0', amount: m.price, periodStart: day, periodEnd: addMonths(day, 1), chargeRef: 'sim_ch_' + m.id + '_0',
+    customer: 'cus_sim_' + m.id, subscription: 'sub_sim_' + m.id, card: 'Visa •• 4242'
+  }, BILLING(r));
+  return { status: 'paid' };
+}
+
+/** A payment went through (the provider's notice, payments/handlers.js, or the test page): record it; if its booking
+ *  expired meanwhile, give the money back. */
+export async function afterProviderPaid(r, ev, provider) {
   const res = await r.rt.engine.run(paymentSucceeded, { providerRef: ev.ref, amount: ev.amount, chargeRef: ev.chargeRef, pm: ev.pm, customer: ev.customer }, PROVIDER(r, provider));
   const p = r.s.payments.get(r.s.paymentByRef.get(ev.ref));
   if (res && res.late) await refundOnline(r, p, 'Réservation expirée avant le paiement');

@@ -2,27 +2,23 @@
 // No account, no password: each link carries a signature the server checks.
 import { StrictMode, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { api, qs } from '../lib/api';
+import { api } from '../lib/api';
 import { cap, dates, eur, time } from '../lib/format';
+import { Move, STATUS_WORDS, icsUrl, type Booking } from './booking';
+import type { AccountState, Me } from '../moi/types';
 import './client.css';
 import './cadeau.css';
-
-type Booking = {
-  code: string; status: 'pending' | 'booked' | 'arrived' | 'in_chair' | 'done' | 'no_show' | 'cancelled'; day: string; start: number; dur: number;
-  services: { id: string; name: string; price: number; from: boolean }[]; price: number;
-  staff: { id: string; name: string; initials: string; color: string } | null; anyStaff: boolean; first: string;
-  deposit: { amount: number; paid: number; url: string | null } | null; canChange: boolean; cancelUntilHours: number;
-  shop: { name: string; address: string; phone: string; mapsUrl: string }; cancelled: { by: string; at: number } | null;
-};
+import Member from './abonnement/Member';
 
 function App() {
   const parts = location.pathname.split('/').filter(Boolean);
   const q = new URLSearchParams(location.search);
   if (parts[0] === 'r' && parts[1]) return <Manage token={parts[1]} back={q.get('paiement')} />;
-  if (parts[0] === 'paiement' && parts[1] === 'merci') return <Thanks ok={q.get('paiement') !== 'annule'} />;
+  if (parts[0] === 'paiement' && parts[1] === 'merci') return <Thanks ok={q.get('paiement') !== 'annule'} member={q.get('abonnement')} />;
   if (parts[0] === 'paiement' && parts[1]) return <Checkout id={parts[1]} />;
   if (parts[0] === 'recu' && parts[1]) return <Receipt token={parts[1]} />;
   if (parts[0] === 'cadeau' && parts[1]) return <Gift token={parts[1]} back={q.get('paiement')} />;
+  if (parts[0] === 'abo' && parts[1]) return <Shell><Member token={parts[1]} /></Shell>;
   return <Shell><Lost /></Shell>;
 }
 
@@ -70,13 +66,7 @@ function Manage({ token, back }: { token: string; back: string | null }) {
   const upcoming = ['pending', 'booked', 'arrived'].includes(b.status) && start + b.dur * 60000 > Date.now();
   const what = b.services.map((s) => s.name).join(' + ');
   const price = b.services.some((s) => s.from) ? 'dès ' + eur(b.price) : eur(b.price);
-  const ics = () => {
-    const d = b.day.replace(/-/g, ''), t1 = dates.hhmm(b.start).replace(':', '') + '00', t2 = dates.hhmm(b.start + b.dur).replace(':', '') + '00';
-    const body = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Barber LArchitecte//RDV//FR', 'BEGIN:VEVENT', 'UID:' + b.code + '@larchitecte', 'DTSTAMP:' + new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z'),
-      'DTSTART;TZID=Europe/Paris:' + d + 'T' + t1, 'DTEND;TZID=Europe/Paris:' + d + 'T' + t2, 'SUMMARY:' + b.shop.name + ' · ' + what, 'LOCATION:' + b.shop.address.replace(/,/g, '\\,'),
-      'DESCRIPTION:' + (b.staff ? 'Avec ' + b.staff.name + '. ' : '') + 'Code ' + b.code + '. ' + location.href, 'URL:' + location.href, 'END:VEVENT', 'END:VCALENDAR'].join('\r\n');
-    return URL.createObjectURL(new Blob([body], { type: 'text/calendar' }));
-  };
+  const ics = () => icsUrl(b);
   const pay = async () => {
     setBusy(true);
     try { const r = await api.post<{ url: string }>('/api/public/bookings/' + encodeURIComponent(token) + '/pay', {}); location.href = r.url; }
@@ -91,10 +81,7 @@ function Manage({ token, back }: { token: string; back: string | null }) {
       setNote({ tone: 'ok', text: 'C’est annulé. Le créneau est libéré tout de suite' + (paid ? ' et ton acompte de ' + eur(paid) + ' est remboursé sur ta carte (quelques jours selon ta banque).' : '.') });
     } catch (e: any) { setNote({ tone: 'warn', text: e.message }); } finally { setBusy(false); }
   };
-  const status = {
-    pending: ['Acompte à régler', 'warn'], booked: ['Confirmé', 'ok'], arrived: ['Tu es arrivé', 'ok'], in_chair: ['C’est parti', 'ok'],
-    done: ['Merci pour ta visite', ''], no_show: ['Rendez-vous manqué', 'warn'], cancelled: ['Annulé', 'warn']
-  }[b.status] as [string, string];
+  const status = STATUS_WORDS[b.status];
 
   return (
     <Shell shop={b.shop.name}>
@@ -143,6 +130,8 @@ function Manage({ token, back }: { token: string; back: string | null }) {
 
       {mode === 'move' ? <Move b={b} token={token} onDone={(nb) => { setB(nb); setMode(''); setNote({ tone: 'ok', text: 'C’est déplacé. Un SMS de confirmation part tout de suite.' }); }} onCancel={() => setMode('')} /> : null}
 
+      {upcoming && mode === '' && (b.status === 'booked' || b.status === 'pending') ? <Espace token={token} /> : null}
+
       {!upcoming && b.status !== 'pending' ? (
         <section className="c-card c-center">
           <p className="c-muted">{b.status === 'done' ? 'Ça t’a plu ? Le prochain se réserve en 30 secondes.' : 'Envie d’un autre créneau ?'}</p>
@@ -153,43 +142,35 @@ function Manage({ token, back }: { token: string; back: string | null }) {
   );
 }
 
-function Move({ b, token, onDone, onCancel }: { b: Booking; token: string; onDone: (b: Booking) => void; onCancel: () => void }) {
-  const [days, setDays] = useState<{ day: string; slots: { m: number; s: string }[] }[] | null>(null);
-  const [day, setDay] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState('');
+/**
+ * « Crée ton espace » under a booking to come (AC-03a): hidden while the salon keeps the space closed. Signed in, « C’est
+ * dans ton espace » only when this booking is among his (booked with another number, it is that number's, not his).
+ */
+function Espace({ token }: { token: string }) {
+  const [acc, setAcc] = useState<AccountState | null>(null);
+  const [mine, setMine] = useState(false);
   useEffect(() => {
-    api.get<{ days: { day: string; open: boolean; slots: { m: number; s: string }[] }[] }>('/api/public/availability' + qs({ services: b.services.map((s) => s.id).join(','), staff: b.anyStaff || !b.staff ? 'any' : b.staff.id, days: 14, move: token }))
-      .then((r) => { const open = r.days.filter((d) => d.open); setDays(open); setDay((open.find((d) => d.slots.length) || open[0])?.day || null); })
-      .catch((e) => setErr(e.message));
+    api.get<AccountState>('/api/public/account').then((a) => {
+      setAcc(a);
+      if (a.enabled && a.signedIn) api.get<Me>('/api/me/home').then((m) => setMine((m.upcoming || []).some((u) => u.token === token))).catch(() => {});
+    }).catch(() => {});
   }, []);
-  const go = async (m: number) => {
-    if (!day) return;
-    setBusy(true); setErr('');
-    try { onDone(await api.post<Booking>('/api/public/bookings/' + encodeURIComponent(token) + '/move', { day, start: m })); }
-    catch (e: any) { setErr(e.message); setBusy(false); }
-  };
-  const cur = days?.find((d) => d.day === day);
+  if (!acc || !acc.enabled) return null;
+  if (acc.signedIn) return !mine ? null : <p className="c-muted c-small c-espace-in" data-guide="r.espace">C’est dans ton espace. <a href="/moi">Ouvrir mon espace</a></p>;
   return (
-    <section className="c-card">
-      <div className="c-row"><h2 className="c-h2">Pour quand ?</h2><button type="button" className="c-link" onClick={onCancel}>Retour</button></div>
-      {err ? <p className="c-note warn">{err}</p> : null}
-      {!days ? <span className="c-spin" /> : (
-        <>
-          <div className="c-days" role="group" aria-label="Choisis un jour">
-            {days.map((d) => { const p = dates.dayParts(d.day); return <button key={d.day} type="button" aria-pressed={d.day === day} className={d.slots.length ? '' : 'full'} onClick={() => setDay(d.day)}><small>{dates.DAYS_SH[p.wd]}</small><b>{p.d}</b><span>{d.slots.length ? d.slots.length + ' libres' : 'complet'}</span></button>; })}
-          </div>
-          {cur && cur.slots.length ? <div className="c-slots">{cur.slots.map((x) => <button key={x.m} type="button" disabled={busy} onClick={() => go(x.m)}>{time(x.m)}</button>)}</div> : <p className="c-muted">Complet ce jour-là. Essaie un autre jour.</p>}
-          <p className="c-muted c-small">Même prestation{b.anyStaff || !b.staff ? '' : ', même barbier'}. Un tap sur l’heure suffit, l’ancien créneau est libéré.</p>
-        </>
-      )}
+    <section className="c-card c-espace" data-guide="r.espace">
+      <p><b>Crée ton espace</b> : tous tes rendez-vous et tes reçus au même endroit.</p>
+      <a className="c-btn ghost" href={'/moi?garder=' + encodeURIComponent(token)}>Créer mon espace</a>
     </section>
   );
 }
 
 /* ---------------- paying (test page, while no real provider is connected) ---------------- */
 
-type Pay = { id: string; status: string; amount: number; label: string; kind: string; provider: string; exp: number; shop: string; back: string | null };
+// start: a membership not started now (PAY-03), the day its first month is charged
+type Pay = { id: string; status: string; amount: number; label: string; kind: string; provider: string; exp: number; shop: string; back: string | null; start?: string | null };
+/** « Ton abonnement commence le lundi 17 novembre », for a start not asked for now */
+const startWords = (day: string) => 'Ton abonnement commence le ' + dates.dayLong(day) + ' : rien n’est prélevé avant.';
 function Checkout({ id }: { id: string }) {
   const [p, setP] = useState<Pay | null>(null);
   const [err, setErr] = useState('');
@@ -198,18 +179,29 @@ function Checkout({ id }: { id: string }) {
   // a gift card bought on /carte-cadeau comes back to its own page (only that kind of address: never an open redirect)
   const retour = new URLSearchParams(location.search).get('retour') || '';
   const gift = /^\/cadeau\/[A-Za-z0-9_.-]{8,120}$/.test(retour) ? retour : null;
-  const after = (ok: boolean) => {
+  // a membership subscribed on the site comes back to its member page (PAY-04), as from Stripe's page
+  const abo = /^\/abo\/[A-Za-z0-9_.~-]{8,160}$/.test(retour) ? retour : null;
+  const after = (ok: boolean, res?: { status?: string; start?: string }) => {
     if (gift) { location.href = ok ? gift + '?paiement=ok' : '/carte-cadeau?paiement=annule'; return; }
+    // a membership says what happened: paid now, or recorded for its start day (nothing charged)
+    if (ok && p!.kind === 'membership' && abo) { location.href = abo + '?paiement=ok'; return; }
+    if (ok && p!.kind === 'membership') { location.href = '/paiement/merci?abonnement=' + encodeURIComponent(res && res.status === 'scheduled' && res.start ? res.start : 'ok'); return; }
+    // a subscription left at the checkout: back to the site's sheet, as Stripe's cancelUrl does (PAY-04)
+    if (p!.kind === 'membership') { location.href = '/?abonnement=annule'; return; }
     location.href = p!.back ? p!.back + '?paiement=' + (ok ? 'ok' : 'annule') : '/paiement/merci' + (ok ? '' : '?paiement=annule');
   };
   const run = async (outcome: 'ok' | 'cancel') => {
     setBusy(outcome);
-    try { await api.post('/api/public/payments/' + encodeURIComponent(id) + '/simulate', { outcome }); await new Promise((r) => setTimeout(r, 700)); after(outcome === 'ok'); }
+    try { const res = await api.post<{ status?: string; start?: string }>('/api/public/payments/' + encodeURIComponent(id) + '/simulate', { outcome }); await new Promise((r) => setTimeout(r, 700)); after(outcome === 'ok', res); }
     catch (e: any) { setErr(e.message); setBusy(''); }
   };
   if (err) return <Shell><Lost msg={err} /></Shell>;
   if (!p) return <Shell><Spinner /></Shell>;
+  // a member's « Changer de carte » in the demo (PAY-03, simulated portalUrl): nothing to change
+  if (p.kind === 'membership' && new URLSearchParams(location.search).has('carte')) return <Shell shop={p.shop}><section className="c-card c-center"><p className="c-k">Carte de paiement</p><h1 className="c-h">Démo : la carte est à jour.</h1><p className="c-muted">Avec Stripe, cette page est celle de Stripe : la nouvelle carte sert dès le prochain prélèvement.</p><button type="button" className="c-btn" onClick={() => { if (history.length > 1) history.back(); else location.href = '/'; }}>Revenir à mon abonnement</button></section></Shell>;
+  if (p.kind === 'membership' && p.status === 'scheduled' && p.start) return <Shell shop={p.shop}><section className="c-card c-center"><p className="c-k">Abonnement enregistré</p><h1 className="c-h">{startWords(p.start)}</h1><p className="c-muted">La confirmation est partie par e-mail.</p></section></Shell>;
   if (p.status !== 'pending') return <Shell shop={p.shop}><section className="c-card c-center"><p className="c-k">Paiement</p><h1 className="c-h">{p.status === 'paid' ? 'Déjà payé. Merci !' : 'Ce paiement n’est plus en attente.'}</h1>{gift ? <a className="c-btn" href={gift}>Voir ma carte cadeau</a> : p.back ? <a className="c-btn" href={p.back}>Voir mon rendez-vous</a> : null}</section></Shell>;
+  const later = p.kind === 'membership' && p.start ? p.start : null;
   return (
     <Shell shop={p.shop}>
       <section className="c-card c-pay">
@@ -218,7 +210,8 @@ function Checkout({ id }: { id: string }) {
         <h1 className="c-amount">{eur(p.amount, { decimals: p.amount % 100 !== 0 })}</h1>
         <p className="c-muted">{p.label}</p>
         <div className="c-cardfield" aria-hidden><span>Carte</span><b>4242 4242 4242 4242</b><small>12 / 34 · 123</small></div>
-        <button type="button" className="c-btn" disabled={!!busy} onClick={() => run('ok')}>{busy === 'ok' ? 'Paiement…' : 'Payer ' + eur(p.amount, { decimals: p.amount % 100 !== 0 })}</button>
+        {later ? <p className="c-muted">{startWords(later)}</p> : null}
+        <button type="button" className="c-btn" disabled={!!busy} onClick={() => run('ok')}>{busy === 'ok' ? (later ? 'Enregistrement…' : 'Paiement…') : later ? 'Confirmer mon abonnement' : 'Payer ' + eur(p.amount, { decimals: p.amount % 100 !== 0 })}</button>
         <button type="button" className="c-link" disabled={!!busy} onClick={() => run('cancel')}>Annuler</button>
         <p className="c-muted c-small">Une fois Stripe branché, cette étape se fait sur la page sécurisée de Stripe (carte, Apple Pay, Google Pay).</p>
       </section>
@@ -226,13 +219,17 @@ function Checkout({ id }: { id: string }) {
   );
 }
 
-function Thanks({ ok }: { ok: boolean }) {
+/** member: a membership's checkout (PAY-03), 'ok' paid now, else the day it starts (nothing charged before) */
+function Thanks({ ok, member }: { ok: boolean; member?: string | null }) {
+  const later = ok && member && /^\d{4}-\d{2}-\d{2}$/.test(member) ? member : null;
+  const title = !ok ? 'Paiement annulé.' : later ? 'Abonnement enregistré.' : member ? 'Merci, ton abonnement est actif.' : 'Merci, c’est payé.';
+  const sub = !ok ? 'Rien n’a été débité. Montre l’écran au barbier pour payer autrement.' : later ? startWords(later) + ' La confirmation est partie par e-mail.' : member ? 'La confirmation part par SMS et par e-mail. Tes coupes sont incluses dès aujourd’hui.' : 'Le salon l’a reçu, tu peux ranger ton téléphone.';
   return (
     <Shell>
       <section className="c-card c-center">
         <span className={'c-check' + (ok ? '' : ' no')} aria-hidden>{ok ? '✓' : '×'}</span>
-        <h1 className="c-h">{ok ? 'Merci, c’est payé.' : 'Paiement annulé.'}</h1>
-        <p className="c-muted">{ok ? 'Le salon l’a reçu, tu peux ranger ton téléphone.' : 'Rien n’a été débité. Montre l’écran au barbier pour payer autrement.'}</p>
+        <h1 className="c-h">{title}</h1>
+        <p className="c-muted">{sub}</p>
       </section>
     </Shell>
   );

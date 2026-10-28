@@ -1,0 +1,23 @@
+/* The loyalty card on a client file (FID-03) */
+.ly { gap: 14px; }
+.ly-top { display: flex; flex-direction: column; gap: 8px; }
+.ly-top b { font: 400 30px/1 var(--serif); font-variant-numeric: tabular-nums; }
+.ly-top p { color: var(--tx2); font-size: 14px; }
+.ly-rw { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 14px; background: var(--accent-bg); }
+.ly-rw > svg { width: 18px; height: 18px; flex: none; color: var(--accent2); }
+.ly-rw .li-main small { color: var(--tx2); }
+.ly-moves { display: flex; flex-direction: column; }
+.ly-moves li { display: flex; align-items: baseline; gap: 10px; min-height: 36px; padding: 6px 0; border-top: 1px solid var(--line); font-size: 14px; }
+.ly-moves li:first-child { border-top: 0; }
+.ly-moves .d { flex: none; width: 68px; color: var(--tx3); font-weight: 600; font-size: 13px; }
+.ly-moves .w { flex: 1; min-width: 0; }
+.ly-moves .u { flex: none; font-variant-numeric: tabular-nums; font-weight: 600; }
+.ly-moves .u.neg { color: var(--tx3); }
+.ly-acts { display: flex; flex-wrap: wrap; gap: 8px; }
+.ly-acts .btn { min-height: var(--tap); }
+.ly-line { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; }
+.ly-line .input { width: 120px; text-align: right; }
+.ly-num { display: inline-flex; align-items: center; gap: 12px; }
+.ly-num b { min-width: 3ch; text-align: center; font: 400 34px/1 var(--serif); font-variant-numeric: tabular-nums; }
+.ly .chip, .ly-form .chip, .ly-form .seg button { min-height: var(--tap); }
+.ly-form { display: flex; flex-direction: column; gap: 14px; }

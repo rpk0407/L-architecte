@@ -1,0 +1,13 @@
+/* StampCard (FID-03): the loyalty card as a row of rings, or a bar. It takes its colours from the page it is on: the
+   Comptoir's --accent / --ink, the client pages' --red / --ink; ring and text follow currentColor. */
+.stampcard { --sc: var(--accent, var(--red, #EB4639)); --sc-ink: var(--ink, #0F0E0D); --sc-d: 22px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; max-width: 100%; }
+.stampcard.sm { --sc-d: 14px; gap: 4px; }
+.stampcard i { display: grid; place-items: center; flex: none; width: var(--sc-d); height: var(--sc-d); border-radius: 50%; box-shadow: inset 0 0 0 1.5px color-mix(in srgb, currentColor 30%, transparent); }
+.stampcard i.on { background: var(--sc); box-shadow: none; color: var(--sc-ink); }
+.stampcard i.rwd { color: var(--sc); box-shadow: inset 0 0 0 1.5px var(--sc); }
+.stampcard i.rwd.on { background: var(--sc); color: var(--sc-ink); }
+.stampcard i svg { width: calc(var(--sc-d) * .62); height: calc(var(--sc-d) * .62); }
+/* many stamps, or points: a bar instead of a crowd of rings */
+.stampcard.bar { display: block; width: 100%; }
+.stampcard.bar b { display: block; height: calc(var(--sc-d) * .45); border-radius: 999px; background: color-mix(in srgb, currentColor 16%, transparent); overflow: hidden; }
+.stampcard.bar b i { display: block; width: var(--w, 0%); height: 100%; border-radius: inherit; background: var(--sc); box-shadow: none; }

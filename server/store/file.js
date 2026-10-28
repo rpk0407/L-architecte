@@ -17,19 +17,24 @@ export function fileStore(path) {
   const rewrite = () => writeFileSync(path, events.map((e) => JSON.stringify(e)).join('\n') + (events.length ? '\n' : ''));
   return {
     kind: 'file',
-    async read(after) { return { epoch, events: events.slice(after) }; },
+    // copies in and out, as the memory store does: an engine that erases a client deletes the pii of its own objects,
+    // and sharing them would leave nothing for redact to find, so the file would keep the personal data (FID-02's test)
+    async read(after) { return { epoch, events: events.slice(after).map((e) => structuredClone(e)) }; },
     async append(list, ep) {
       if (ep !== epoch) return { ok: false };
       if (!list.length) return { ok: true };
       if (list[0].v !== events.length + 1) return { ok: false };
       appendFileSync(path, list.map((e) => JSON.stringify(e)).join('\n') + '\n');
-      events = events.concat(list);
+      events = events.concat(list.map((e) => structuredClone(e)));
       return { ok: true };
     },
     async redact(match) {
       let n = 0;
-      events = events.map((e) => { if (e.pii != null && match(e)) { n++; const { pii, ...rest } = e; return rest; } return e; });
-      if (n) rewrite();
+      // from the disk: the events in memory are the engine's own objects, whose pii it drops before asking, so they
+      // would read as already clean while the file still holds the personal data
+      const disk = existsSync(path) ? readFileSync(path, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l)) : [];
+      const clean = disk.map((e) => { if (e.pii != null && match(e)) { n++; const { pii, ...rest } = e; return rest; } return e; });
+      if (n) { events = clean; rewrite(); }
       return n;
     },
     async reset() { events = []; rewrite(); epoch = 'f' + randomBytes(4).toString('hex'); return epoch; },

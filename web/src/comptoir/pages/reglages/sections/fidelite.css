@@ -1,0 +1,21 @@
+/* Réglages › Fidélité (FID-03) */
+.fd { display: flex; flex-direction: column; gap: 16px; }
+.fd .label { display: block; margin-bottom: 8px; }
+.fd-step { display: inline-flex; align-items: center; gap: 12px; }
+.fd-step .btn { min-width: var(--tap); min-height: var(--tap); }
+.fd-step b { min-width: 2ch; text-align: center; font: 400 34px/1 var(--serif); font-variant-numeric: tabular-nums; }
+.fd-line { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; }
+.fd-line .input { width: 120px; min-height: 44px; text-align: right; font-size: 20px; }
+.fd-sub { display: flex; flex-direction: column; gap: 12px; padding: 14px; border-radius: var(--r3); background: var(--panel2); }
+.fd-sim { font: 400 22px/1.3 var(--serif); }
+.fd-sim.warn { color: var(--warn-tx); }
+.fd-prev { display: flex; flex-direction: column; gap: 12px; padding: 18px; border-radius: var(--r3); background: var(--panel2); }
+.fd-prev p { color: var(--tx2); font-size: 14px; }
+.fd-prev b { font: 400 22px/1.2 var(--serif); color: var(--tx); }
+.fd-terms summary { cursor: pointer; font: 600 14.5px/1.2 var(--sans); min-height: 44px; display: flex; align-items: center; }
+.fd-terms ul { display: flex; flex-direction: column; gap: 10px; padding: 4px 0 8px; }
+.fd-terms li { color: var(--tx2); font-size: 14px; line-height: 1.5; }
+@media (pointer: coarse), (max-width: 760px) {
+  .fd .chip, .fd .seg button, .fd .btn-sm { min-height: var(--tap); }
+  .fd .seg { flex-wrap: wrap; max-width: 100%; }
+}

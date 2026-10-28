@@ -38,6 +38,7 @@
 .saved a::after{content:"→";flex:none;font-size:20px;color:var(--tx2);transition:transform .2s var(--ease)}
 .saved a:hover::after{transform:translateX(3px);color:var(--tx)}
 @media (max-width:520px){.acts .btn{flex:1 1 100%}}
+.espace{margin-top:18px}.espace a{padding:12px 0;color:var(--tx);font-weight:600}
 </style>
 </head>
 <body>
@@ -47,6 +48,7 @@
 <p class="kk">Mon rendez-vous</p>
 <h1>Retrouve ton <em>rendez-vous</em></h1>
 <p class="lead">Plus besoin de mot de passe&nbsp;: on t’envoie le lien par SMS.</p>
+<p class="how"><b>Comment ça marche</b><span>1. Donne ton numéro</span><span>2. Reçois ton lien</span><span>3. Déplace ou annule</span></p>
 
 <form id="lk" class="lk" novalidate>
 <label for="lk-p">Ton numéro</label>
@@ -57,6 +59,7 @@
 <div class="acts"><button id="lk-b" class="btn" type="submit">Recevoir le lien</button><a class="btn ghost" href="/?reserver">Réserver</a></div>
 <noscript><p class="hint">Sans JavaScript, le formulaire ne peut pas partir&nbsp;: appelle le salon, on te redonne ton rendez-vous.</p></noscript>
 </form>
+<p id="lk-espace" class="hint espace" hidden>Tu veux tout retrouver&nbsp;? <a href="/moi">Ouvre ton espace</a>&nbsp;: tes rendez-vous, tes reçus.</p>
 
 <section id="lk-done" class="lk sent" tabindex="-1" aria-labelledby="lk-t" hidden>
 <h2 id="lk-t">C’est noté</h2>
@@ -170,6 +173,8 @@
     });
     document.getElementById('lk-saved').hidden = false;
   }
+  // the client space, once the salon has opened it (AC-03a)
+  fetch('/api/public/account', { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (a) { if (a && a.enabled) document.getElementById('lk-espace').hidden = false; }).catch(function () { /* the line stays hidden */ });
 })();
 </script>
 </body>

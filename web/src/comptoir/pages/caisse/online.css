@@ -1,0 +1,16 @@
+/* Caisse › En ligne */
+.ol-todo { margin-bottom: 16px; box-shadow: inset 0 0 0 1.5px var(--warn-bg); }
+.ol-todo .card-h h2 .badge { margin-left: 2px; }
+.ol-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; padding: 12px 2px; min-height: 56px; }
+.ol-row .li-main b { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.ol-row .btn, .ol-todo .ol-more, .ol-todo .ol-all { flex: none; --h: 44px; }
+.ol-acts { gap: 8px; flex-wrap: wrap; }
+.ol-todo .ol-all { margin-top: 4px; }
+.ol-row[tabindex]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 10px; }
+/* privacy mode: a focused row shows its amounts, so they can be read from the keyboard too */
+:root[data-private='1'] .ol-row:focus-within .money, :root[data-private='1'] .ol-row:focus .money { filter: none; }
+@media (max-width: 560px) {
+  .ol-row .btn, .ol-acts { width: 100%; }
+  .ol-acts .btn { flex: 1 1 0; width: auto; }
+  .ol-todo .card-h .ol-more { width: 100%; }
+}

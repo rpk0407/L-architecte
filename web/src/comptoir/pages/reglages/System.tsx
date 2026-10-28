@@ -8,6 +8,7 @@ import { Icon } from '../../../ui/Icon';
 import { Button, Chip, Empty, Field, Note, Skeleton, confirm, toast, toastError } from '../../../ui/kit';
 import { useApp } from '../../state';
 import { cronStep, useHealth } from './sections/MiseEnRoute';
+import { smsVia } from './sections/messages/Canal';
 
 export default function System({ section }: { section: string }) {
   if (section === 'appareils') return <Devices />;
@@ -19,7 +20,7 @@ export default function System({ section }: { section: string }) {
 
 function Devices() {
   const { boot, reloadBoot, now } = useApp();
-  const { data, loading } = useQuery<{ items: { id: string; name: string; at: number; by: string; current: boolean }[] }>('/api/v1/devices');
+  const { data, loading } = useQuery<{ items: { id: string; name: string; at: number; by: string; current: boolean; personal?: string | null }[] }>('/api/v1/devices');
   const [name, setName] = useState('Comptoir');
   const [busy, setBusy] = useState(false);
   const here = data?.items.find((d) => d.current) || (boot.me.device ? { name: boot.me.device.name } : null);
@@ -34,7 +35,7 @@ function Devices() {
   };
   return (
     <div className="col" style={{ gap: 16 }}>
-      <section className="card col" style={{ gap: 12 }}>
+      <section className="card col" style={{ gap: 12 }} data-guide="appareils-ici">
         <div className="card-h"><h2><Icon name="device" size={16} />Cet appareil</h2>{here ? <span className="badge badge-ok">enregistré</span> : <span className="badge">non enregistré</span>}</div>
         {here ? (
           <p className="muted" style={{ fontSize: 14 }}>« {here.name} » propose la connexion rapide par code PIN à toute l’équipe.</p>
@@ -45,13 +46,13 @@ function Devices() {
           </>
         )}
       </section>
-      <section className="card">
+      <section className="card" data-guide="appareils-liste">
         <div className="card-h"><h2><Icon name="shield" size={16} />Appareils autorisés</h2></div>
         {loading && !data ? <Skeleton h={120} /> : !data?.items.length ? <Empty icon="device" title="Aucun appareil">Sans appareil enregistré, personne ne peut se connecter par code.</Empty> : (
           <ul className="list">{data.items.map((d) => (
             <li key={d.id} className="li">
               <span className="rg-dev"><Icon name="device" size={18} /></span>
-              <span className="li-main"><b>{d.name}{d.current ? <span className="badge badge-info" style={{ marginLeft: 8 }}>cet appareil</span> : null}</b><small>Ajouté {ago(d.at, now())} par {d.by}</small></span>
+              <span className="li-main"><b>{d.name}{d.current ? <span className="badge badge-info" style={{ marginLeft: 8 }}>cet appareil</span> : null}{d.personal != null ? <span className="badge" style={{ marginLeft: 8 }}>téléphone personnel · {d.personal}</span> : null}</b><small>Ajouté {ago(d.at, now())} par {d.by}</small></span>
               <Button size="sm" variant="ghost" icon="trash" onClick={() => revoke(d)}>Retirer</Button>
             </li>
           ))}</ul>
@@ -82,7 +83,7 @@ function Data() {
   return (
     <div className="col" style={{ gap: 16 }}>
       {can('audit') ? (
-        <section className="card col" style={{ gap: 12 }}>
+        <section className="card col" style={{ gap: 12 }} data-guide="donnees-integrite">
           <div className="card-h"><h2><Icon name="shieldOk" size={16} />Intégrité du journal</h2><Button size="sm" variant="ghost" icon="undo" busy={busy} onClick={verify}>Vérifier</Button></div>
           {!chk ? <Skeleton h={80} /> : chk.ok ? (
             <div className="rg-proof ok">
@@ -105,9 +106,9 @@ function Data() {
 
       {can('settings') ? <Health /> : null}
 
-      {can('settings') ? <Backups /> : null}
+      {can('settings') ? <div data-guide="donnees-sauvegardes"><Backups /></div> : null}
 
-      <section className="card col" style={{ gap: 10 }}>
+      <section className="card col" style={{ gap: 10 }} data-guide="donnees-exports">
         <div className="card-h"><h2><Icon name="download" size={16} />Exports</h2></div>
         <div className="rp-exports">
           {can('data') ? <a className="rp-exp" href="/api/v1/export?kind=journal" download><Icon name="shield" /><span><b>Archive complète du journal</b><small>JSON vérifiable hors ligne, sans données personnelles</small></span><Icon name="download" /></a> : null}
@@ -117,7 +118,7 @@ function Data() {
         <p className="muted" style={{ fontSize: 13.5 }}>Tes données t’appartiennent : tout s’exporte, à tout moment, sans demander à personne.</p>
       </section>
 
-      <section className="card col" style={{ gap: 10 }}>
+      <section className="card col" style={{ gap: 10 }} data-guide="donnees-rgpd">
         <div className="card-h"><h2><Icon name="lock" size={16} />Données personnelles (RGPD)</h2></div>
         <p className="muted" style={{ fontSize: 13.5 }}>Les noms, numéros et notes des clients sont stockés à part des opérations comptables. Un client qui demande l’effacement est effacé depuis sa fiche (menu ⋯) : ses tickets restent dans les comptes, sans son nom, et le journal reste vérifiable.</p>
         <p className="muted" style={{ fontSize: 13.5 }}>Les barbiers ne voient que la fin des numéros. Les exports de clients sont réservés au gérant.</p>
@@ -130,14 +131,14 @@ function Data() {
           <div className="kv"><span>Stockage</span><b>{STORE[sys.data.store] || sys.data.store}</b></div>
           <div className="kv"><span>Opérations enregistrées</span><b className="tnum">{sys.data.events.toLocaleString('fr-FR')}</b></div>
           <div className="kv"><span>Paiement en ligne</span><b>{sys.data.payments.provider === 'stripe' ? 'Stripe' + (sys.data.payments.live ? ' (réel)' : ' (test)') : 'Simulé'}</b></div>
-          <div className="kv"><span>SMS</span><b>{sys.data.sms ? cap(sys.data.sms) : sys.data.mode === 'demo' ? 'Simulés' : 'Non branché'}</b></div>
+          <div className="kv"><span>SMS</span><b>{sys.data.sms ? cap(smsVia(sys.data.sms)) : sys.data.mode === 'demo' ? 'Simulés' : 'Non branché'}</b></div>
           <div className="kv"><span>Appareils autorisés</span><b>{sys.data.devices}</b></div>
           {sys.data.warnings.map((w) => <Note key={w} tone="warn" icon="alert">{w}</Note>)}
         </section>
       ) : null}
 
       {boot.mode === 'demo' && boot.me.role === 'owner' ? (
-        <section className="card col" style={{ gap: 10 }}>
+        <section className="card col" style={{ gap: 10 }} data-guide="donnees-demo">
           <div className="card-h"><h2><Icon name="undo" size={16} />Démo</h2></div>
           <p className="muted" style={{ fontSize: 13.5 }}>Remet la démo à zéro : dix semaines d’activité recréées autour d’aujourd’hui, comme au premier jour.</p>
           <div><Button variant="danger" icon="undo" onClick={async () => {
@@ -172,6 +173,16 @@ function Health() {
       : [!t.cron ? 'cron non réglé' : t.cronAt != null ? 'dernier appel du cron ' + since(t.cronAt) : 'aucun appel du cron vu par ce serveur',
         t.overdue ? plural(t.overdue, 'message en attente', 'messages en attente') : '', t.late24h ? plural(t.late24h, 'parti en retard', 'partis en retard') + ' (24 h)' : ''].filter(Boolean).join(' · '), tickBad],
     ['Stripe', h.stripe.provider !== 'stripe' ? 'simulé' : (h.stripe.live ? 'réel' : 'test') + (h.stripe.lastWebhook ? ' · dernier webhook ' + since(h.stripe.lastWebhook) : ' · aucun webhook reçu'), !demo && (h.stripe.provider !== 'stripe' || !h.stripe.live)],
+    // MSG-02: the route the texts take now, and the last one that failed
+    ['Envoi des SMS', demo ? 'simulé' : !h.sms.provider && !h.sms.whatsapp ? 'aucun fournisseur' : (h.sms.whatsapp ? 'WhatsApp + SMS en secours' + (h.sms.provider ? ' (' + smsVia(h.sms.provider) + ')' : '') : cap(smsVia(h.sms.provider)))
+      + (h.setup.import.hold.on && (h.sms.provider || h.sms.whatsapp) ? ' · les SMS aux clients attendent la bascule' : '')
+      + (h.sms.lastFailure ? ' · dernier échec ' + since(h.sms.lastFailure.at) + (h.sms.lastFailure.error ? ' : ' + h.sms.lastFailure.error : '') : ''), !demo && (!h.sms.provider || (!!h.sms.lastFailure && h.now - h.sms.lastFailure.at < 86400000))],
+    // FID-01: the salon's phone, its last text and its pace; a code or a link a client asked for and still waits for
+    ...(!demo && h.sms.provider === 'gateway' ? [['Téléphone du salon', (h.sms.lastSentAt ? 'dernier SMS parti ' + since(h.sms.lastSentAt) : 'aucun SMS parti') + (h.sms.fallback ? ' · Brevo en secours' : '')
+      + (h.sms.cronSlow ? ' · règle le cron toutes les minutes, sinon 5 SMS toutes les 5 minutes au plus.' : ''),
+      // each server sees only its own cron calls: a hint, red only when texts really wait (or there is no cron at all)
+      !!h.sms.cronSlow && (!t.cron || t.overdue > 0 || t.late24h > 0)] as [string, string, boolean]] : []),
+    ...(h.sms.requestedWaitMs != null && h.sms.requestedWaitMs > 60000 ? [['Demandé par un client', 'un code ou un lien attend depuis ' + plural(Math.round(h.sms.requestedWaitMs / 60000), 'minute'), true] as [string, string, boolean]] : []),
     ['SMS échoués (24 h)', String(h.sms.failed24h), h.sms.failed24h > 0],
     ['E-mails échoués (24 h)', String(h.email.failed24h), h.email.failed24h > 0],
     ['En attente d’un fournisseur', waiting ? [h.sms.queuedNoProvider ? plural(h.sms.queuedNoProvider, 'SMS') : '', h.email.queuedNoProvider ? plural(h.email.queuedNoProvider, 'e-mail') : ''].filter(Boolean).join(', ') : 'rien', waiting > 0],
@@ -277,10 +288,12 @@ function Journal() {
   for (const x of items) { const d = dates.localParts(x.at).day; if (!days.has(d)) days.set(d, []); days.get(d)!.push(x); }
   return (
     <div className="col" style={{ gap: 14 }}>
-      <div className="chips rp-periods">{KINDS.map(([k, t]) => <Chip key={k} small on={type === k} onClick={() => setType(k)}>{t}</Chip>)}</div>
-      <Field label="Qui"><select className="input select" value={actor} onChange={(e) => setActor(e.target.value)} style={{ maxWidth: 260 }}><option value="">Tout le monde</option>{boot.staff.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}<option value="web">Clients (site)</option><option value="scheduler">Automatique</option></select></Field>
+      <div className="col" style={{ gap: 14 }} data-guide="journal-filtres">
+        <div className="chips rp-periods">{KINDS.map(([k, t]) => <Chip key={k} small on={type === k} onClick={() => setType(k)}>{t}</Chip>)}</div>
+        <Field label="Qui"><select className="input select" value={actor} onChange={(e) => setActor(e.target.value)} style={{ maxWidth: 260 }}><option value="">Tout le monde</option>{boot.staff.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}<option value="web">Clients (site)</option><option value="scheduler">Automatique</option></select></Field>
+      </div>
       {!items.length && busy ? <Skeleton h={300} r={22} /> : !items.length ? <Empty icon="journal" title="Rien à afficher" /> : (
-        [...days].map(([d, xs]) => (
+        <div className="col" style={{ gap: 14 }} data-guide="journal-jour">{[...days].map(([d, xs]) => (
           <section key={d} className="card">
             <div className="card-h"><h2>{cap(dates.dayLong(d))}</h2><span className="faint" style={{ fontSize: 13 }}>{xs.length}</span></div>
             <ul className="rg-log">{xs.map((x) => (
@@ -290,7 +303,7 @@ function Journal() {
               </li>
             ))}</ul>
           </section>
-        ))
+        ))}</div>
       )}
       {items.length && !end ? <Button variant="ghost" block busy={busy} onClick={() => load(false)}>Plus ancien</Button> : null}
       <p className="faint" style={{ fontSize: 12.5 }}>Le journal ne s’efface pas et ne se modifie pas. Dernière mise à jour {ago(now(), now())}.</p>

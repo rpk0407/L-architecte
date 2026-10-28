@@ -48,11 +48,11 @@ One Vercel Function (`api/main.js`) serves every `/api/*` route through `server/
 4. session and device cookies are verified against the live state (a revoked person or device is out at once);
 5. the route's capability is checked, then the handler runs.
 
-Route families: `/api/public/*` (site and client pages, no account), `/api/auth/*`, `/api/v1/*` (staff), `/api/stripe/webhook`, `/api/cron/tick`.
+Route families: `/api/public/*` (site and client pages, no account), `/api/auth/*`, `/api/v1/*` (staff), `/api/pay/:provider/webhook` (and its older alias `/api/stripe/webhook`), `/api/cron/tick`.
 
 ## Background work
 
-The scheduler (`server/http/scheduler.js`) sends reminders, expires holds and unpaid deposits, offers freed slots to the waiting list, asks for reviews, and delivers queued SMS. It runs at most once a minute, carried by traffic: the Comptoir's pulse (every 4 s while open) and the public site. For quiet hours, point an external cron at `/api/cron/tick` (see [operations](operations.md)). Message ids are deterministic (kind + target), so two instances ticking at once never send the same reminder twice.
+The scheduler (`server/http/scheduler.js`) sends reminders, expires holds and unpaid deposits, offers freed slots to the waiting list, asks for reviews, and delivers queued SMS. It runs at most once a minute, carried by traffic: the Comptoir's pulse (every 4 s while open) and the public site. For quiet hours, point an external cron at `/api/cron/tick` (see [operations](operations.md)). Message ids are deterministic (kind + target), so two instances ticking at once never send the same reminder twice. On a production salon that took over a WordPress run, `dispatch()` also keeps every text to a client queued until the owner opens the sends (Reprendre WordPress › Jour J, `projections/bascule.js` `cutoverHold`): WordPress still sends its own reminders until then. What a client asked for himself, a contract's acknowledgement and the owner's own texts are never held.
 
 ## The Comptoir (web/)
 
@@ -60,7 +60,7 @@ React 19 + TypeScript (strict), built by Vite into `dist/`. No UI library: a sma
 
 - `state.tsx` loads the bootstrap (who is signed in, settings, team, catalogue) and polls `/api/v1/pulse` every 4 s: when the journal version moves, cached queries refresh and new bookings show up in the feed with a toast.
 - Pages are lazy-loaded; the agenda and the till load first. React vendor ≈ 70 KB gzip, each page 5 to 25 KB.
-- Barbers on a salon device sign in with a PIN; the screen locks itself after 4 minutes without a touch, and the server refuses a PIN session after 10 minutes without a request (`pin_idle`), even if the tablet's own lock never ran.
+- Barbers on a salon device sign in with a PIN; the screen locks itself after 4 minutes without a touch, and the server refuses a PIN session after 10 minutes without a request (`pin_idle`), even if the tablet's own lock never ran. On a barber's own linked phone (TEAM-02) the code is typed about once a day: no screen lock, 12 hours of server idle, only that person's code. `/comptoir` opens each person's home (`home.ts`: his choice, else Pilotage for the owner, Mon espace for a chair, the Agenda), and his toasts follow his `prefs.notify` (his own chair by default for a barber).
 
 ## The site (public/site.html)
 

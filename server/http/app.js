@@ -17,11 +17,26 @@ import { clientRoutes } from './routes-client.js';
 import { healthRoutes } from './routes-health.js';
 import { inquiryRoutes } from './routes-inquiries.js';
 import { giftshopRoutes } from './routes-giftshop.js';
+import { channelRoutes } from './routes-channels.js';
+import { reviewRoutes } from './routes-reviews.js';
+import { fiscalRoutes } from './routes-fiscal.js';
+import { paymentRoutes } from './routes-payments.js';
+import { teamMeRoutes } from './routes-team-me.js';
+import { membershipRoutes } from './routes-membership.js';
+import { loyaltyRoutes } from './routes-loyalty.js';
+import { meRoutes } from './routes-me.js';
+import { moiRoutes } from './routes-moi.js';
+import { meLoyaltyRoutes } from './routes-me-loyalty.js';
+import { basculeRoutes } from './routes-bascule.js';
+import { meMembershipRoutes } from './routes-me-membership.js';
+import { espaceRoutes } from './routes-espace.js';
 
 // A REGISTRY: one line per route file
 const app = router();
 publicRoutes(app);
 authRoutes(app);
+// before staffRoutes: /api/v1/payments/online must not be read as GET /api/v1/payments/:id
+paymentRoutes(app);
 staffRoutes(app);
 adminRoutes(app);
 importRoutes(app);
@@ -29,6 +44,18 @@ clientRoutes(app);
 healthRoutes(app);
 inquiryRoutes(app);
 giftshopRoutes(app);
+channelRoutes(app);
+reviewRoutes(app);
+fiscalRoutes(app);
+teamMeRoutes(app);
+membershipRoutes(app);
+loyaltyRoutes(app);
+meRoutes(app);
+moiRoutes(app);
+meLoyaltyRoutes(app);
+basculeRoutes(app);
+meMembershipRoutes(app);
+espaceRoutes(app);
 
 const MUTATING = new Set(['POST', 'PATCH', 'PUT', 'DELETE']);
 const READ_DOWN = 'La base de données ne répond pas. Réessaie dans un instant.';
@@ -130,7 +157,7 @@ export async function handle(req, opt = {}) {
     if (!me && cookies[SESSION_COOKIE]) setCookies.push(cookie(SESSION_COOKIE, '', { maxAge: 0, secure: rt.cfg.secureCookies }));
     const caps = me ? capsOf(me, s.settings) : new Set();
     const needsAuth = opt2.auth !== false && pathname.startsWith('/api/v1/');
-    if (needsAuth && !me) throw idle ? new HttpError(401, 'pin_idle', 'Poste verrouillé après 10 minutes sans activité. Saisis ton code.') : new HttpError(401, 'signed_out', 'Session expirée. Reconnecte-toi.');
+    if (needsAuth && !me) throw idle ? new HttpError(401, 'pin_idle', p && p.ph ? 'Téléphone verrouillé après 12 h sans activité. Saisis ton code.' : 'Poste verrouillé après 10 minutes sans activité. Saisis ton code.') : new HttpError(401, 'signed_out', 'Session expirée. Reconnecte-toi.');
     if (opt2.cap && !caps.has(opt2.cap)) throw new HttpError(403, 'forbidden', 'Tu n’as pas accès à cette page.');
     if (stale) staleWrite(engine, req.method, pathname, me, req.headers.get('x-request-id') || undefined);
 
@@ -139,6 +166,8 @@ export async function handle(req, opt = {}) {
       siteUrl: origin + '/',
       offerLink: (wid) => origin + '/?offre=' + encodeURIComponent(signLink(rt.secret, 'offer', wid)),
       receiptLink: (sale) => origin + '/recu/' + signLink(rt.secret, 'receipt', String(sale.number)),
+      // the review request's tracked link: records the opening, then on to Google (routes-reviews.js)
+      reviewLink: (msgId) => origin + '/avis/' + signLink(rt.secret, 'review', msgId),
       ip
     };
     const requestId = req.headers.get('x-request-id') || undefined;
@@ -167,7 +196,7 @@ export async function handle(req, opt = {}) {
       setCookies.push(cookie(SESSION_COOKIE, signSession(rt.secret, { uid: me.id, did: session.did || null, kind: session.kind, iat: now, exp }), { maxAge: (exp - now) / 1000, secure: rt.cfg.secureCookies }));
     }
     // a PIN session slides with every request (the Comptoir's pulse too: the tablet's own lock handles an untouched
-    // screen), re-signed at most once a minute; its 12-hour expiry stays
+    // screen), re-signed at most once a minute; its expiry stays (12 hours, 30 days on a linked phone)
     const touched = session ? touchSession(rt.secret, session, now) : null;
     if (touched && session) setCookies.push(cookie(SESSION_COOKIE, touched, { maxAge: (session.exp - now) / 1000, secure: rt.cfg.secureCookies }));
 

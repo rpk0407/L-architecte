@@ -19,7 +19,7 @@ export default defineConfig({
     reportCompressedSize: true,
     chunkSizeWarningLimit: 300,
     rollupOptions: {
-      input: { comptoir: here('comptoir/index.html'), client: here('client/index.html') }
+      input: { comptoir: here('comptoir/index.html'), client: here('client/index.html'), moi: here('moi/index.html') }
     }
   },
   server: { port: 5173, proxy: { '/api': 'http://localhost:3000' } }

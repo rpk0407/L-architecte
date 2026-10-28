@@ -40,7 +40,8 @@ const OLD_MENU: (Record<string, unknown> & { slug: string; name: string })[] = [
   { slug: 'de', name: 'Décoloration', category: 'Changer de tête', price: 6000, from: true, dur: 60, includes: ['Décoloration', 'Sans coupe'], description: 'Sous condition de faisabilité.' },
   { slug: 'co', name: 'Coloration', category: 'Changer de tête', price: 3000, from: true, dur: 60, includes: ['Coloration', 'Sans coupe'] },
   { slug: 'si', name: 'Silver', category: 'Changer de tête', price: 10000, dur: 60, tag: 'Blanc ou gris', includes: ['Décoloration jusqu’au blanc', 'Coloration grise', 'Soin', 'Produit d’entretien offert'], description: 'Ne pas laver la tête pendant 4 jours minimum.' },
-  { slug: 'ab', name: 'Abonnement 5 coupes', short: 'Abonnement', category: 'Abonnement', price: 8000, dur: 30, tag: '16 € la coupe', includes: ['5 coupes sur 5 semaines', 'Sans barbe'], description: '16 € la coupe. Tu réserves la première, on fixe les suivantes avec toi.', pack: { credits: 5, days: 70 } }
+  // the WordPress pack, as the « Carnet » (PAY-04: « Abonnement » is the monthly plan): sold at the salon, never booked online
+  { slug: 'ab', name: 'Carnet 5 coupes', short: 'Carnet', category: 'Carnet', price: 8000, dur: 30, online: false, tag: '16 € la coupe', includes: ['5 coupes sur 5 semaines', 'Sans barbe'], description: '16 € la coupe. Il se prend au salon : on fixe tes coupes avec toi.', pack: { credits: 5, days: 70 } }
 ];
 
 /** Swap a service with its neighbour in its category: the order is the site's order. */
@@ -77,7 +78,7 @@ export default function Catalogue() {
   return (
     <>
       <PageTitle><h1>Catalogue</h1></PageTitle>
-      <nav className="tabs" aria-label="Catalogue">
+      <nav className="tabs" aria-label="Catalogue" data-guide="catalogue-tabs">
         {tabs.map((t) => <Link key={t.id} to={t.to} className="tab" aria-current={tab === t.id ? 'page' : undefined}><Icon name={t.icon} size={16} />{t.label}{(t as any).count ? <span className="count">{(t as any).count}</span> : null}</Link>)}
       </nav>
       {tab === 'cartes' ? (can('sale.all') ? <Gifts /> : <Reserved />) : loading && !data ? <Skeleton h={360} r={22} /> : !data ? null
@@ -104,7 +105,7 @@ function PriceList({ items }: { items: Service[] }) {
               {active.filter((s) => s.category === c).map((s) => (
                 <li key={s.id} className="li">
                   <span className="li-main">
-                    <b>{s.name}{s.pack ? <span className="badge badge-ok">{s.pack.credits} passages · {s.pack.days} j</span> : null}{!s.online ? <span className="badge">au salon seulement</span> : null}</b>
+                    <b>{s.name}{s.pack ? <span className="badge badge-ok">Carnet · {s.pack.credits} passages · {s.pack.days} j</span> : null}{!s.online ? <span className="badge">au salon seulement</span> : null}</b>
                     <small>{dur(s.dur)}{s.buffer ? ' + ' + s.buffer + ' min de battement' : ''}{s.description ? ' · ' + s.description : ''}</small>
                   </span>
                   <span className="li-end"><b className="ct-price">{s.from ? <small>dès </small> : null}{eur(s.price)}</b></span>
@@ -164,11 +165,11 @@ function Services({ items }: { items: Service[] }) {
   };
   return (
     <>
-      <div className="row wrap ct-bar">
+      <div className="row wrap ct-bar" data-guide="catalogue-bar">
         <p className="muted grow">{plural(active.length, 'prestation')} · {plural(active.filter(onSite).length, 'visible', 'visibles')} sur le site · l’ordre est celui du site</p>
         <Button variant="primary" icon="plus" onClick={() => setEdit('new')}>Nouvelle prestation</Button>
       </div>
-      <div className="col" style={{ gap: 14 }}>
+      <div className="col" style={{ gap: 14 }} data-guide="catalogue-prestations">
         {!items.length ? (
           <section className="card">
             <Empty icon="scissors" title="Pas encore de prestation" action={<Button variant="primary" icon="download" busy={taking} onClick={takeOver}>Reprendre la carte de l’ancien site</Button>}>
@@ -189,7 +190,7 @@ function Services({ items }: { items: Service[] }) {
                 <li key={s.id} className="ct-row">
                   <button type="button" className="li ct-main" onClick={() => setEdit(s)}>
                     <span className="li-main">
-                      <b>{s.name}{s.pack ? <span className="badge badge-ok">{s.pack.credits} passages · {s.pack.days} j</span> : null}<SiteBadge s={s} />{s.tag ? <span className="badge badge-accent">{s.tag}</span> : null}</b>
+                      <b>{s.name}{s.pack ? <span className="badge badge-ok">Carnet · {s.pack.credits} passages · {s.pack.days} j</span> : null}<SiteBadge s={s} />{s.tag ? <span className="badge badge-accent">{s.tag}</span> : null}</b>
                       <small>{dur(s.dur)}{s.buffer ? ' + ' + s.buffer + ' min de battement' : ''} · TVA {s.vat / 100} %{s.description ? ' · ' + s.description : ''}</small>
                     </span>
                     <span className="ct-flags">
@@ -312,7 +313,7 @@ function ServiceSheet({ sv, all, onClose }: { sv: Service | 'new' | null; all: S
           </div>
         ) : <span className="faint" style={{ fontSize: 13.5 }}>{isNew ? 'En dernier dans sa catégorie ; tu la déplaces ensuite.' : 'Archivée : pas sur le site.'}</span>}</Field>
       </div>
-      <Switch on={f.isPack} onChange={(v) => setF({ ...f, isPack: v })} title="C’est un abonnement" hint="Vendu une fois, puis chaque passage est décompté à la caisse." />
+      <div><Switch on={f.isPack} onChange={(v) => setF({ ...f, isPack: v })} title="C’est un carnet" hint="Vendu une fois, puis chaque passage est décompté à la caisse." /></div>
       {f.isPack ? (
         <div className="card card-tight ct-pack">
           <div className="grid2">
@@ -343,17 +344,17 @@ function Products({ items }: { items: Product[] }) {
   const low = active.filter((p) => p.stock <= p.low);
   return (
     <>
-      <section className="kpis">
+      <section className="kpis" data-guide="catalogue-stock">
         <Kpi k="Références" v={active.length} s={plural(active.reduce((t, p) => t + Math.max(0, p.stock), 0), 'article') + ' en rayon'} icon="box" />
         <Kpi k="Valeur du stock" v={eur(value)} s={'au prix d’achat · ' + eur(retail) + ' en vente'} icon="euro" />
         <Kpi k="À commander" v={low.length} s={low.length ? low.slice(0, 2).map((p) => p.name).join(', ') + (low.length > 2 ? '…' : '') : 'tout est en stock'} icon="alert" hot={low.length > 0} />
       </section>
       <div className="row wrap ct-bar">
         <span className="grow" />
-        <Button variant="ghost" icon="journal" onClick={() => setInv(true)}>Inventaire</Button>
+        <span data-guide="catalogue-inventaire"><Button variant="ghost" icon="journal" onClick={() => setInv(true)}>Inventaire</Button></span>
         <Button variant="primary" icon="plus" onClick={() => setEdit('new')}>Nouveau produit</Button>
       </div>
-      <section className="card">
+      <section className="card" data-guide="catalogue-produits">
         {!active.length ? <Empty icon="box" title="Aucun produit" action={<Button variant="primary" icon="plus" onClick={() => setEdit('new')}>Ajouter un produit</Button>}>Cires, huiles, shampooings : vendus à la caisse, suivis en stock.</Empty> : (
           <div className="table-wrap">
             <table className="table ct-table">
@@ -522,14 +523,14 @@ function Gifts() {
   const off = (g: Gift) => g.status !== 'active';
   return (
     <>
-      <section className="kpis">
+      <section className="kpis" data-guide="catalogue-cartes-kpis">
         <Kpi k="En circulation" v={eur(data.outstanding)} s={plural(live.length, 'carte') + ' encore utilisable' + (live.length > 1 ? 's' : '')} icon="gift" />
         <Kpi k="Vendues" v={sold.length} s={eur(sold.reduce((t, g) => t + g.amount, 0)) + ' au total' + (taken ? ' · ' + plural(taken, 'reprise') : '')} icon="ticket" />
         <Kpi k="Expirent bientôt" v={soon.length} s="dans les 30 jours" icon="clock" hot={soon.length > 0} />
       </section>
       <Note icon="info">Une carte cadeau n’est pas du chiffre d’affaires à la vente : c’est une dette envers le client, comptée au moment où elle paie une prestation. La TVA suit la même règle.</Note>
       <div className="ct-gifts">
-        <section className="card col" style={{ gap: 10 }}>
+        <section className="card col" style={{ gap: 10 }} data-guide="catalogue-code">
           <div className="card-h"><h2><Icon name="search" size={16} />Vérifier un code</h2></div>
           <div className="row" style={{ gap: 8 }}><input className="input tnum" value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="CADO-XXXX-XXXX" onKeyDown={(e) => e.key === 'Enter' && code.trim() && check()} aria-label="Code de la carte" /><Button variant="primary" disabled={code.trim().length < 6} onClick={check}>Vérifier</Button></div>
           {found ? <div className={'note ' + (found.expired || found.status !== 'active' ? 'warn' : found.balance ? 'ok' : '')}><Icon name="gift" /><div><b>{found.status !== 'active' ? (found.replacedBy ? 'Carte remplacée par •••• ' + found.replacedBy : 'Carte annulée') : found.balance ? eur(found.balance, { decimals: true }) + ' disponibles' : 'Carte épuisée'}</b>{found.status === 'active' ? ' sur ' + eur(found.amount) : ''} · •••• {found.last4} · {found.expired ? 'expirée le ' : 'valable jusqu’au '}{dates.dayShort(found.expires)} {found.expires.slice(0, 4)}</div></div> : null}
@@ -537,7 +538,7 @@ function Gifts() {
           {can('settings') ? <Button variant="ghost" icon="gift" onClick={() => setTakeover(true)}>Reprendre une carte existante</Button> : null}
           {fresh ? <><p className="section-k">{fresh.title}</p><GiftCode card={fresh.card} onPrint={() => { setVoucher(fresh.card); printNow(); }} /></> : null}
         </section>
-        <section className="card">
+        <section className="card" data-guide="catalogue-cartes">
           <div className="card-h"><h2><Icon name="gift" size={16} />Toutes les cartes</h2></div>
           {!data.items.length ? <Empty icon="gift" title="Aucune carte vendue">Elles se vendent depuis la caisse, en vente libre.</Empty> : (
             <ul className="list">{data.items.slice(0, 80).map((g) => (

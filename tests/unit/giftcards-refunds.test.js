@@ -270,7 +270,7 @@ test('a pack goes back only through its line: no amount, no override leaves the 
   assert.ok(pk.voided);
   // what is left is the cut taken: kept, with a reason given
   const e = await rejects(refund(t, { saleId: sold.id, amount: 2000 }), 'pack_used');
-  assert.match(e.message, /coupes d’abonnement déjà faites/);
+  assert.match(e.message, /coupes de carnet déjà faites/);
 });
 
 test('a line already paid back without lines is not paid twice; restock follows the lines given back', async () => {

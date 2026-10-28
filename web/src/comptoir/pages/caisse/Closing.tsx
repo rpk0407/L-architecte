@@ -8,7 +8,7 @@ import { ago, cap, clock, dates, eur, money, time } from '../../../lib/format';
 import { Icon } from '../../../ui/Icon';
 import { Button, Empty, Field, Modal, Note, Skeleton, confirm, toast, toastError } from '../../../ui/kit';
 import { useApp } from '../../state';
-import { ZReport, printNow, zRows, zValue, type ZFigures } from './Receipt';
+import { MonthReport, ZReport, printNow, zRows, zValue, type PeriodRecord, type ZFigures } from './Receipt';
 import type { Agenda } from '../../types';
 
 type Remaining = { name: string; start: number; staff: string };
@@ -23,6 +23,12 @@ type Drawer = {
 // open: still before closing time (an early Z); otherwise only clients left to pay hold the Z back
 type Early = { remaining: Remaining[]; closesAt: number; open: boolean };
 type Missed = Drawer['missed'][number];
+// CPT-01a: the month and year closures, signed by the tick
+type Signature = 'signed' | 'late' | 'pending' | 'unsigned';
+type PeriodRow = { ref: string; kind: 'month' | 'year'; period: string; net: number; ticketCount: number | null; monthCount: number | null; signature: Signature; signatureLabel: string };
+type Periods = { items: PeriodRow[]; closable: null | { month: string; label: string; waiting: null | { day: string; uncounted: boolean } }; key: null | { kid: string; source: string; sourceLabel: string } };
+// one document at a time goes to the printer: a Z or a month (or year) closure, never both
+type Printing = null | { z: Closure } | { p: PeriodRecord };
 
 const zNo = (n: number) => 'Z' + String(n).padStart(4, '0');
 // a day the shop does not open, with nothing at the till: a Z would only seal an empty day
@@ -43,7 +49,9 @@ export function Closing() {
   const [early, setEarly] = useState<Early | null>(null);
   const [busy, setBusy] = useState(false);
   const [reopen, setReopen] = useState(false);
-  const [print, setPrint] = useState<any>(null);
+  const [print, setPrint] = useState<Printing>(null);
+  const periods = useQuery<Periods>(can('closure') ? '/api/v1/periods' : null);
+  useEffect(() => { const off = () => setPrint(null); window.addEventListener('afterprint', off); return () => window.removeEventListener('afterprint', off); }, []);
   if (loading || !data) return <Skeleton h={300} r={22} />;
   const t = now();
   const { min: nowMin, day: today } = dates.localParts(t);
@@ -88,7 +96,8 @@ export function Closing() {
 
   return (
     <div className="cs-grid closing">
-      <section className="card col" style={{ gap: 14 }}>
+      {periods.data?.closable ? <MonthNote c={periods.data.closable} /> : null}
+      <section className="card col" style={{ gap: 14 }} data-guide="cl-drawer">
         <div className="card-h"><h2><Icon name="cash" size={16} />Le tiroir</h2>{data.open ? <span className="badge badge-ok">Ouvert {ago(data.open.openedAt, t)}</span> : <span className="badge">Fermé</span>}</div>
         {data.warnings.map((w) => <Note key={w} tone="warn" icon="alert">{w}</Note>)}
         {data.open ? (
@@ -113,7 +122,7 @@ export function Closing() {
         {data.last ? <p className="faint" style={{ fontSize: 12.5 }}>Dernier comptage {ago(data.last.closedAt, t)} : {eur(data.last.counted, { decimals: true })}{data.last.diff ? ', écart ' + eur(data.last.diff, { decimals: true }) + (data.last.note ? ' (' + data.last.note + ')' : '') : ', juste'}.</p> : null}
       </section>
 
-      <section className="card col" style={{ gap: 14 }}>
+      <section className="card col" style={{ gap: 14 }} data-guide="cl-z">
         <div className="card-h"><h2><Icon name="lock" size={16} />Clôture du jour</h2>{data.closure ? <span className="badge badge-ok">{zNo(data.closure.number)}</span> : null}</div>
         {can('closure') ? data.missed.map((m, i) => (
           <Note key={m.day} tone="warn" icon="alert">
@@ -128,7 +137,7 @@ export function Closing() {
           <>
             <Note tone="ok" icon="shieldOk"><b>Journée scellée</b> {ago(data.closure.at, t)}{data.closure.early ? ', en avance' : ''}. Plus aucun ticket ne peut s’ajouter ou changer aujourd’hui, et le site ne prend plus de rendez-vous pour aujourd’hui. Grand total perpétuel : {eur(data.closure.grandTotal, { decimals: true })}.</Note>
             <p className="seal">Sceau {data.closure.seal}</p>
-            <Button variant="ghost" icon="print" onClick={() => { setPrint(data.closure); printNow(); }}>Imprimer le Z</Button>
+            <Button variant="ghost" icon="print" onClick={() => { setPrint(data.closure ? { z: data.closure } : null); printNow(); }}>Imprimer le Z</Button>
           </>
         ) : can('closure') ? (
           <>
@@ -142,7 +151,7 @@ export function Closing() {
       </section>
 
       {can('closure') ? (
-        <section className="card cl-history">
+        <section className="card cl-history" data-guide="cl-history">
           <div className="card-h"><h2>Les dernières clôtures</h2><span className="muted">Grand total perpétuel {z.data ? eur(z.data.grandTotal, { decimals: true }) : ''}</span></div>
           {z.data?.items.length ? (
             <div className="table-wrap"><table className="table">
@@ -157,18 +166,80 @@ export function Closing() {
                   <td className="num money"><b>{eur(x.netTtc, { decimals: true })}</b></td>
                   <td className="num money">{eur(x.vatNet.reduce((s, v) => s + v.tax, 0), { decimals: true })}</td>
                   <td className="muted">{x.by}</td>
-                  <td><Button size="sm" icon="print" aria-label={'Imprimer ' + x.ref} onClick={() => { setPrint(x); printNow(); }} /></td>
+                  <td><Button size="sm" icon="print" aria-label={'Imprimer ' + x.ref} onClick={() => { setPrint({ z: x }); printNow(); }} /></td>
                 </tr>
               ))}</tbody>
             </table></div>
           ) : <Empty icon="lock" title="Pas encore de clôture" />}
         </section>
       ) : null}
+      {can('closure') && periods.data ? <MonthClosures data={periods.data} onPrint={(p) => { setPrint({ p }); printNow(); }} /> : null}
       <CountModal open={count} expected={data.open?.expected || 0} onClose={() => setCount(false)} onCounted={() => counted(data.open?.day || today)} />
       <MoveModal open={mv} onClose={() => setMv(false)} />
       <EarlyModal ask={early} busy={busy} onWait={() => setEarly(null)} onClose={() => submit({ early: true })} />
-      {print ? <ZReport z={print} /> : null}
+      {print && 'z' in print ? <ZReport z={print.z} /> : print ? <MonthReport p={print.p} /> : null}
     </div>
+  );
+}
+
+const SIGN_TONE: Record<Signature, string> = { signed: 'badge-ok', late: 'badge-warn', pending: '', unsigned: 'badge-danger' };
+const periodName = (p: { kind: string; period: string }) => (p.kind === 'year' ? 'Exercice ' + p.period : cap(dates.MONTHS_FR[+p.period.slice(5, 7) - 1]) + ' ' + p.period.slice(0, 4));
+
+/** « mercredi 30 », as the server's warnings say a day (dayShort ends with its own period). */
+const dayWord = (day: string) => dates.DAYS_FR[dates.weekday(day)] + ' ' + Number(day.slice(8));
+
+/**
+ * The month the tick closes next, at the top of the tab: over and closable now (with « Clôturer octobre »), or waiting on a
+ * day without its Z. A month ends, the tick closes it after 05:00 the next morning; the owner may do it sooner, in order.
+ */
+function MonthNote({ c }: { c: NonNullable<Periods['closable']> }) {
+  const { now } = useApp();
+  const [busy, setBusy] = useState(false);
+  const close = async () => {
+    const yes = await confirm({ title: 'Clôturer ' + c.label + '\u202f?', body: 'Le total du mois est scellé, puis signé. Une erreur se corrige ensuite par un avoir, sur le mois en cours.', ok: 'Clôturer' });
+    if (!yes) return;
+    setBusy(true);
+    try { const r = await api.post('/api/v1/periods/close', { month: c.month }); toast({ title: cap(c.label) + ' clôturé · ' + r.ref, icon: 'lock' }); refreshAll(); }
+    // the tick closed it a moment before: what was asked for is done
+    catch (e) { if (!(e instanceof ApiError && e.code === 'closed')) toastError(e); refreshAll(); } finally { setBusy(false); }
+  };
+  return (
+    <div style={{ gridColumn: '1 / -1' }}>
+      {c.waiting ? (
+        <Note tone="warn" icon="alert"><b>{cap(c.label)} attend le Z du {dayWord(c.waiting.day)}.</b> {c.waiting.uncounted ? 'Compte la caisse de ce jour-là, puis clôture la journée\u202f: le mois se clôturera ensuite.' : 'Clôture d’abord cette journée\u202f: le mois se clôturera ensuite.'}</Note>
+      ) : (
+        <Note icon="lock">
+          <b>{cap(c.label)} est fini.</b> Il sera clôturé automatiquement {dates.localParts(now()).min < 300 ? 'à 5\u00a0h' : 'd’ici une minute'}, ou tout de suite{'\u202f'}:
+          <span className="cl-missed"><Button variant="primary" icon="lock" busy={busy} onClick={close}>Clôturer {c.label}</Button></span>
+        </Note>
+      )}
+    </div>
+  );
+}
+
+/** The month and year closures under the Z (CPT-01a): each one the sum of its Z, signed by the next tick. */
+export function MonthClosures({ data, onPrint }: { data: Periods; onPrint: (p: PeriodRecord) => void }) {
+  const printOne = async (ref: string) => {
+    try { onPrint(await api.get<PeriodRecord>('/api/v1/periods/' + ref)); } catch (e) { toastError(e); }
+  };
+  return (
+    <section className="card cl-history" aria-labelledby="cl-months-h" data-guide="cl-months">
+      <div className="card-h"><h2 id="cl-months-h">Clôtures mensuelles</h2>{data.key ? <span className="muted">Clé {data.key.kid.slice(0, 8)} · {data.key.sourceLabel}</span> : null}</div>
+      {data.items.length ? (
+        <div className="table-wrap"><table className="table cl-months">
+          <thead><tr><th>Mois</th><th className="cl-ref-col">Réf</th><th className="num">CA TTC net</th><th>Signature</th><th><span className="vh">Imprimer</span></th></tr></thead>
+          <tbody>{data.items.map((p) => (
+            <tr key={p.ref}>
+              <td><b>{periodName(p)}</b><small className="muted" style={{ display: 'block' }}><span className="cl-ref-in">{p.ref} · </span>{p.ticketCount != null ? p.ticketCount + ' tickets' : p.monthCount != null ? p.monthCount + ' mois' : ''}</small></td>
+              <td className="cl-ref-col"><b>{p.ref}</b></td>
+              <td className="num money"><b>{eur(p.net, { decimals: true })}</b></td>
+              <td><span className={'badge ' + SIGN_TONE[p.signature]}>{p.signatureLabel}</span></td>
+              <td><Button icon="print" aria-label={'Imprimer ' + p.ref} onClick={() => printOne(p.ref)} /></td>
+            </tr>
+          ))}</tbody>
+        </table></div>
+      ) : <Empty icon="lock" title="Pas encore de clôture mensuelle">{data.closable ? null : 'La première se fait le 1er du mois qui suit le premier Z.'}</Empty>}
+    </section>
   );
 }
 

@@ -49,3 +49,21 @@ export async function rejects(p, code) {
   }
   throw new Error('expected rejection with ' + code);
 }
+
+/**
+ * The demo's two monthly formules from before PAY-07 (Essentiel 34 €, 2 coupes classiques a month; Illimité 49 €, one cut
+ * every 7 days), put back beside the salon's own: the tests of the monthly plans read them on the demo salon. rt: a
+ * testRuntime (tests/api/client.js) on the demo.
+ */
+export async function legacyPlans(rt) {
+  const { updateSettings } = await import('../server/commands/shop.js');
+  const s = rt.engine.state;
+  const owner = [...s.staff.values()].find((x) => x.role === 'owner');
+  const slug = (k) => [...s.services.values()].find((x) => x.slug === k).id;
+  const plans = [
+    ...s.settings.membership.plans,
+    { id: 'essentiel', name: 'Essentiel', price: 3400, cuts: 2, minDays: 0, serviceIds: [slug('cl')], blurb: '2 coupes classiques par mois, sans engagement.' },
+    { id: 'illimite', name: 'Illimité', price: 4900, cuts: 0, minDays: 7, serviceIds: [slug('cl'), slug('cc')], blurb: 'Une coupe chaque semaine, contour de barbe compris.' }
+  ];
+  await rt.engine.run(updateSettings, { membership: { enabled: true, plans } }, { actor: { t: 'staff', id: owner.id }, staff: owner, caps: capsOf(owner, s.settings) });
+}

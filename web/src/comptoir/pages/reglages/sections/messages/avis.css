@@ -1,0 +1,11 @@
+/* Réglages › Messages › Avis Google */
+.av-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.av-test { display: flex; gap: 8px; flex: 1 1 280px; justify-content: flex-end; }
+.av-test .input { flex: 0 1 200px; min-width: 0; }
+.av-test .btn { flex: none; }
+.av-tip { font-size: 12.5px; }
+.av-save { display: flex; align-items: center; gap: 8px; padding-top: 12px; border-top: 1px solid var(--line); }
+@media (max-width: 560px) {
+  .av-test { justify-content: stretch; }
+  .av-test .input { flex: 1 1 auto; }
+}

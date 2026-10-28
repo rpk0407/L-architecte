@@ -108,7 +108,8 @@ export function evolve(s, e) {
     case 'timeoff.withdrawn': s.timeoffRequests.delete(d.id); break;
 
     case 'device.enrolled':
-      s.devices.set(d.id, { id: d.id, name: d.name, tokenHash: d.tokenHash, by: e.actor.id, at: e.at, revoked: false });
+      // a barber's own linked phone (TEAM-02): whose it is, and the single-use link that enrolled it
+      s.devices.set(d.id, { id: d.id, name: d.name, tokenHash: d.tokenHash, by: e.actor.id, at: e.at, revoked: false, ...(d.personal ? { staffId: d.staffId, personal: true, link: d.link || null } : {}) });
       s.deviceByHash.set(d.tokenHash, d.id);
       break;
     case 'device.revoked': { const x = s.devices.get(d.id); if (x) { x.revoked = true; s.deviceByHash.delete(x.tokenHash); } break; }
@@ -122,7 +123,7 @@ export function evolve(s, e) {
     case 'stock.adjusted': { const x = s.products.get(d.productId); if (x) x.stock = (x.stock || 0) + d.delta; break; }
 
     case 'client.added': {
-      const c = { id: d.id, first: p.first || '', last: p.last || '', phone: p.phone || '', email: p.email || '', notes: p.notes || '', tech: p.tech || '', birthday: p.birthday || '', tags: d.tags || [], sms: d.sms !== false, marketing: !!d.marketing, source: d.source || 'salon', createdAt: d.createdAt || e.at, erased: false, mergedInto: null, demo: !!d.demo };
+      const c = { id: d.id, first: p.first || '', last: p.last || '', phone: p.phone || '', email: p.email || '', notes: p.notes || '', tech: p.tech || '', birthday: p.birthday || '', tags: d.tags || [], sms: d.sms !== false, marketing: !!d.marketing, source: d.source || 'salon', createdAt: d.createdAt || e.at, erased: false, mergedInto: null, demo: !!d.demo, ...(d.ext ? { ext: d.ext } : {}), ...(d.marketingSrc ? { marketingSrc: d.marketingSrc, marketingAt: d.marketingAt } : {}) };
       s.clients.set(d.id, c);
       if (c.phone) s.clientByPhone.set(c.phone, d.id);
       break;
@@ -153,7 +154,7 @@ export function evolve(s, e) {
         Object.assign(c, { first: 'Client', last: 'effacé', phone: '', email: '', notes: '', tech: '', birthday: '', erased: true, sms: false, marketing: false });
       }
       for (const a of s.appts.values()) if (ids.has(a.clientId)) { a.note = ''; if (a.cancel && a.cancel.by === 'client') a.cancel.reason = ''; }
-      for (const m of s.messages.values()) if (ids.has(m.cid)) { m.to = ''; m.body = ''; if (m.mail) m.mail = null; }
+      for (const m of s.messages.values()) if (ids.has(m.cid)) { m.to = ''; m.body = ''; if (m.mail) m.mail = null; delete m.wa; }
       for (const x of s.sales.values()) if (ids.has(x.clientId)) x.discountNote = '';
       for (const w of s.waitlist.values()) if (ids.has(w.clientId)) { w.first = ''; w.phone = ''; }
       for (const q of s.queue.values()) if (ids.has(q.clientId)) { q.name = 'Client effacé'; q.phone = ''; }
@@ -167,7 +168,7 @@ export function evolve(s, e) {
         const q = s.queue.get(k); if (q) { q.name = 'Passage'; q.phone = ''; }
         const w = s.waitlist.get(k); if (w) { w.first = ''; w.phone = ''; }
         const g = s.giftcards.get(k); if (g) { g.buyer = ''; g.recipient = ''; }
-        const m = s.messages.get(k); if (m) { m.to = ''; m.body = ''; }
+        const m = s.messages.get(k); if (m) { m.to = ''; m.body = ''; delete m.wa; }
       }
       // the extensions' own copies of personal data (a request from the site linked to the file)
       for (const x of EXTENSIONS) if (Object.hasOwn(x.on, e.type)) x.on[e.type](s, e, d, p);
@@ -267,14 +268,20 @@ export function evolve(s, e) {
     case 'payment.succeeded': {
       const py = s.payments.get(d.id);
       if (!py) break;
-      Object.assign(py, { status: 'paid', paidAt: e.at, pm: d.pm || null, customer: d.customer || null, chargeRef: d.chargeRef || py.chargeRef || null });
+      // the provider's customer and card ids travel in pii (PAY-01); older events had them in data, and still replay
+      Object.assign(py, { status: 'paid', paidAt: e.at, pm: p.pm || d.pm || null, customer: p.customer || d.customer || null, chargeRef: d.chargeRef || py.chargeRef || null });
       if (py.apptId && py.kind === 'deposit') { const a = s.appts.get(py.apptId); if (a && a.deposit) a.deposit = { ...a.deposit, paid: py.amount, paymentId: py.id }; }
       if (py.apptId && py.kind === 'guarantee') { const a = s.appts.get(py.apptId); if (a) a.guarantee = { paymentId: py.id }; }
+      // the charge index for refunds, disputes and payouts (projections/payments.js)
+      for (const x of EXTENSIONS) if (Object.hasOwn(x.on, e.type)) x.on[e.type](s, e, d, p);
       break;
     }
     case 'payment.failed': case 'payment.expired': case 'payment.refunded': {
       const py = s.payments.get(d.id);
-      if (py) Object.assign(py, { status: e.type.split('.')[1], endedAt: e.at, reason: d.reason || '' });
+      if (!py) break;
+      // a part given back keeps the rest paid (refundOnline with an amount); an event without one gave back everything
+      if (e.type === 'payment.refunded') { py.refunded = Math.min(py.amount, (py.refunded || 0) + (d.amount ?? py.amount)); if (py.refunded < py.amount) break; }
+      Object.assign(py, { status: e.type.split('.')[1], endedAt: e.at, reason: d.reason || '' });
       break;
     }
 
@@ -310,8 +317,8 @@ export function evolve(s, e) {
 
     case 'demo.seeded': for (const k of d.days || []) s.demoDays.add(k); break;
     case 'message.queued':
-      // an e-mail's subject, button and calendar file (WP-02) travel in pii with its text
-      s.messages.set(d.id, { ...d, to: p.to || '', body: p.body || '', ...(p.mail ? { mail: p.mail } : {}), status: 'queued', at: e.at });
+      // an e-mail's subject, button and calendar file (WP-02) travel in pii with its text; so do a WhatsApp template's variables (MSG-02)
+      s.messages.set(d.id, { ...d, to: p.to || '', body: p.body || '', ...(p.mail ? { mail: p.mail } : {}), ...(p.wa ? { wa: p.wa } : {}), status: 'queued', at: e.at });
       break;
     case 'message.updated': {
       const m = s.messages.get(d.id);
@@ -332,7 +339,7 @@ export function evolve(s, e) {
   s.head = e.h;
   // an import writes hundreds of bookings at once: they are not news, and would push the real ones out of the feed
   const imported = e.type === 'appt.booked' && d.source === 'import';
-  if (!imported && (FEED.has(e.type) || EXTENSIONS.some((x) => x.item && x.feed?.includes(e.type))) && !(e.actor.t === 'system' && (e.type !== 'appt.cancelled' || e.actor.id === 'seed' || e.actor.id === 'demo'))) {
+  if (!imported && (FEED.has(e.type) || EXTENSIONS.some((x) => x.item && x.feed?.includes(e.type))) && !(e.actor.t === 'system' && ((e.type !== 'appt.cancelled' && e.type !== 'phone.locked') || e.actor.id === 'seed' || e.actor.id === 'demo'))) {
     s.feed.push({ v: e.v, type: e.type, at: e.at, actor: e.actor, data: e.data });
     if (s.feed.length > 300) s.feed.splice(0, s.feed.length - 300);
   }

@@ -8,10 +8,14 @@ import { ago, dates, plural } from '../../../../lib/format';
 import { useInterval } from '../../../../lib/hooks';
 import { Icon } from '../../../../ui/Icon';
 import { Button, Empty, Note, Skeleton, toast, toastError } from '../../../../ui/kit';
+import { REVIEW_HOWTO, REVIEW_KIND, reviewLinkKind } from '../../../../lib/reviews';
 import { useApp } from '../../../state';
+import { startTour } from '../../../guide/ComptoirTour';
 import './mise-en-route.css';
 
 type Channel = { provider: string | null; failed24h: number; queuedNoProvider: number };
+// MSG-02: WhatsApp in front of the SMS, and the last text that failed (or that WhatsApp handed to the SMS)
+type Trouble = { at: number; error: string; via?: string } | null;
 export type Health = {
   now: number; mode: 'demo' | 'production';
   // at/ageMs: this server's last tick, from any traffic; cronAt/cronAgeMs: its last call by the external scheduler;
@@ -21,7 +25,9 @@ export type Health = {
     overdue: number; late24h: number; lastLate: { dueAt: number; ms: number } | null; okMs: number; lateMs: number
   };
   stripe: { provider: string; live: boolean; lastWebhook: number | null };
-  sms: Channel; email: Channel;
+  // FID-01: the oldest text a client asked for still waiting, the last text that left by SMS, the Brevo fallback, and a
+  // cron too seldom for the salon's phone
+  sms: Channel & { whatsapp?: boolean; lastFailure?: Trouble; lastFallback?: Trouble; requestedWaitMs?: number | null; lastSentAt?: number | null; fallback?: boolean; cronSlow?: boolean }; email: Channel;
   backup: { at: number | null; off: string; configured: boolean; problem: string; staleAfterMs: number };
   integrity: { ok: boolean; count: number; brokenAt?: number; reason?: string; at: number; events: number };
   publicUrl: string; publicUrlCustom: boolean; indexable: boolean;
@@ -31,7 +37,8 @@ export type Health = {
     services: { active: number; online: number };
     team: { chairs: { id: string; name: string; pin: boolean }[] };
     devices: number;
-    import: { clients: number; appts: number; last: number | null };
+    // WP-10: where the takeover stands, from the runs and the Jour J record (hold: client texts wait for the switch)
+    import: { clients: number; appts: number; runs: number; lastRun: number | null; frozenAt: number | null; finalSyncAt: number | null; switchedAt: number | null; hold: { on: boolean; queued: number } };
     siteBooking: number | null;
   };
 };
@@ -67,8 +74,9 @@ function daysList(days: string[], max = 3) {
   return days.length > max ? shown + ' et ' + s(days.length - max, 'autre') : shown;
 }
 
-/** The thirteen steps, in the order that works: a wrong order (texts before PUBLIC_URL, indexing before the menu) breaks the site. */
-export function stepsOf(h: Health, robots: boolean | null, countries: string[], now = h.now): Step[] {
+/** The fourteen steps, in the order that works: a wrong order (texts before PUBLIC_URL, indexing before the menu) breaks the site.
+ *  review: the review request's switch and Google link (boot settings), checked here like the server checks it. */
+export function stepsOf(h: Health, robots: boolean | null, countries: string[], now = h.now, review: { on: boolean; url: string } = { on: false, url: '' }): Step[] {
   const demo = h.mode === 'demo';
   const st = h.setup;
   const since = (at: number) => ago(at, now);
@@ -115,8 +123,9 @@ export function stepsOf(h: Health, robots: boolean | null, countries: string[], 
     line: demo ? 'Démo : les SMS sont simulés, rien ne part.'
       : !sms.provider ? 'Aucun fournisseur' + (sms.queuedNoProvider ? ' : ' + s(sms.queuedNoProvider, 'SMS attend', 'SMS attendent') + ' dans la boîte d’envoi.' : ' : rien ne part.')
         + ' Il se branche le jour J, juste après le passage du domaine : avant, les clients repris de WordPress recevraient un second rappel, avec un lien vers l’ancien site.'
-        : (sms.provider === 'brevo' ? 'Brevo' : sms.provider === 'twilio' ? 'Twilio' : sms.provider) + ' branché' + (sms.failed24h ? ', mais ' + s(sms.failed24h, 'SMS a échoué', 'SMS ont échoué') + ' en 24 h.' : '.')
-          + (h.publicUrlCustom ? '' : ' Règle PUBLIC_URL avant le premier SMS : les liens partiraient vers ' + (h.publicUrl || 'une adresse provisoire') + '.'),
+        : (sms.provider === 'brevo' ? 'Brevo' : sms.provider === 'twilio' ? 'Twilio' : sms.provider === 'gateway' ? 'Le téléphone du salon' : sms.provider) + (sms.whatsapp ? ' (WhatsApp en premier)' : '') + ' branché' + (sms.failed24h ? ', mais ' + s(sms.failed24h, 'SMS a échoué', 'SMS ont échoué') + ' en 24 h.' : '.')
+          + (h.publicUrlCustom ? '' : ' Règle PUBLIC_URL avant le premier SMS : les liens partiraient vers ' + (h.publicUrl || 'une adresse provisoire') + '.')
+          + (st.import.hold.on ? ' Les SMS aux clients attendent la bascule (Jour J) ; ceux qu’ils demandent eux-mêmes partent.' : ''),
     more: <>À confirmer avec Brevo avant d’ouvrir : le numéro STOP des offres (« STOP au 36173 » par défaut), les champs de son webhook et le nom d’expéditeur. Pays où les SMS partent : {countries.join(' ')}{countries.includes('+377') ? '' : ' (Monaco +377 non compris)'}.</>,
     extra: <TestSms disabled={!demo && !sms.provider} /> });
 
@@ -125,12 +134,28 @@ export function stepsOf(h: Health, robots: boolean | null, countries: string[], 
     tone: demo ? 'info' : !em.provider ? 'todo' : em.failed24h ? 'warn' : 'ok',
     line: demo ? 'Démo : les e-mails sont simulés.'
       : !em.provider ? 'Pas encore branché' + (em.queuedNoProvider ? ' : ' + s(em.queuedNoProvider, 'e-mail attend', 'e-mails attendent') + '.' : ' : aucun e-mail ne part (confirmation, résumé du soir).')
-        : 'Branché' + (em.failed24h ? ', mais ' + s(em.failed24h, 'e-mail a échoué', 'e-mails ont échoué') + ' en 24 h.' : '.') });
+        : 'Branché' + (em.failed24h ? ', mais ' + s(em.failed24h, 'e-mail a échoué', 'e-mails ont échoué') + ' en 24 h.' : '.') + (st.import.hold.on ? ' Les e-mails aux clients attendent la bascule (Jour J).' : '') });
 
+  // REV-02: the link the review request leads to must open the Google review form, not the profile or the map
+  const kind = reviewLinkKind(review.url);
+  out.push({ id: 'reviews', title: 'Avis Google', to: '/reglages/messages', go: 'Messages',
+    tone: !review.url ? 'todo' : !kind || !review.on ? 'warn' : 'ok',
+    line: !review.url ? 'Aucun lien d’avis : ' + REVIEW_HOWTO.charAt(0).toLowerCase() + REVIEW_HOWTO.slice(1) + ', puis colle-le dans Messages › Avis Google.'
+      : !kind ? 'Le lien enregistré n’ouvre pas le formulaire d’avis Google : ' + REVIEW_HOWTO.charAt(0).toLowerCase() + REVIEW_HOWTO.slice(1) + '.'
+        : !review.on ? 'Le lien ouvre bien ' + REVIEW_KIND[kind] + ', mais la demande d’avis est coupée.'
+          : 'Demandé après chaque visite encaissée, une fois par trimestre au plus ; le lien ouvre ' + REVIEW_KIND[kind] + '.',
+    extra: review.url && /^https:\/\//.test(review.url) ? <a className="btn btn-ghost btn-sm" style={{ marginTop: 8, alignSelf: 'flex-start' }} href={review.url} target="_blank" rel="noopener">Tester le lien<Icon name="ext" size={14} /></a> : undefined });
+
+  // the takeover of WordPress, from the runs themselves: todo until a first run, then the switch (Reprendre WordPress › Jour J)
   const wp = st.import;
-  out.push({ id: 'wordpress', title: 'Reprise WordPress', tone: wp.clients || wp.appts ? 'ok' : 'todo', to: '/reglages/wordpress', go: 'Reprise',
-    line: wp.clients || wp.appts ? s(wp.clients, 'client') + ', ' + s(wp.appts, 'rendez-vous') + ' repris' + (wp.last ? ' · dernier apport ' + since(wp.last) : '') + '.' : 'Clients, rendez-vous, cartes cadeaux et abonnements de l’ancien site : pas encore repris.',
-    more: 'Le jour J, bloque les réservations sur WordPress, refais l’export et dépose-le : seul ce qui a changé est repris.' });
+  const dm = (ms: number) => { const d = dates.dayParts(dates.localParts(ms).day); return d.d + (d.d === 1 ? 'er ' : ' ') + dates.MONTHS_FR[d.m - 1]; };
+  const took = s(wp.clients, 'client') + ', ' + s(wp.appts, 'rendez-vous') + ' repris' + (wp.lastRun ? ' · dernier apport ' + since(wp.lastRun) : '');
+  out.push({ id: 'wordpress', title: 'Reprise WordPress', to: '/reglages/wordpress', go: 'Jour J',
+    tone: wp.switchedAt ? 'ok' : wp.runs ? (demo ? 'info' : 'warn') : demo ? 'info' : 'todo',
+    line: wp.switchedAt ? 'Bascule faite le ' + dm(wp.switchedAt) + '. ' + took + '.'
+      : wp.runs ? 'Reprise faite, bascule à faire. ' + took + (wp.hold.on && wp.hold.queued ? ' · ' + s(wp.hold.queued, 'message attend', 'messages attendent') + ' la bascule' : '') + '.'
+        : 'Clients, rendez-vous, cartes cadeaux et carnets de l’ancien site : pas encore repris.',
+    more: 'Tout se suit dans Reprendre WordPress › Jour J.' });
 
   const b = h.backup;
   const fresh = b.at != null && h.now - b.at < b.staleAfterMs;
@@ -199,6 +224,30 @@ function TestSms({ disabled }: { disabled: boolean }) {
   );
 }
 
+/** WP-10 · Nouveautés: every switch that waits for something (domain/features.js), its state and what it waits for. */
+type Feature = { id: string; label: string; on: boolean; blocker: string; to: string };
+function Nouveautes() {
+  const { data } = useQuery<{ features: Feature[] }>('/api/v1/features');
+  if (!data || !data.features.length) return null;
+  return (
+    <section className="card col mr-feats" aria-label="Nouveautés" style={{ gap: 12 }} data-guide="mer-features">
+      <div className="card-h"><h2><Icon name="sparkle" size={16} />Nouveautés</h2></div>
+      <p className="muted" style={{ fontSize: 13.5 }}>Ce qui s’ouvre plus tard : chaque ligne dit ce qu’elle attend, et mène à son réglage.</p>
+      <ul className="mr-fl" aria-label="Fonctions qui attendent">
+        {data.features.map((f) => (
+          <li key={f.id} className="mr-feat" data-feature={f.id} data-on={f.on ? '1' : '0'}>
+            <div className="mr-main">
+              <div className="mr-t"><b>{f.label}</b><span className={'badge' + (f.on ? ' badge-ok' : '')}>{f.on ? 'en marche' : 'éteint'}</span></div>
+              {f.on ? null : <p>{cap1(f.blocker || 'Éteint pour l’instant.')}</p>}
+            </div>
+            <Link to={'/reglages/' + f.to} className="btn btn-ghost mr-go" aria-label={'Réglage : ' + f.label}>Réglage<Icon name="chevR" size={14} /></Link>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 // the step's number stays unless it is done or needs a look
 const ICON: Record<Tone, string> = { ok: 'check', todo: '', warn: 'alert', err: 'alert', info: '' };
 const WORD: Record<Tone, string> = { ok: 'fait', todo: 'à faire', warn: 'à vérifier', err: 'en panne', info: 'démo' };
@@ -209,20 +258,25 @@ export default function MiseEnRoute() {
   const robots = useRobots();
   if (loading && !data) return <Skeleton h={520} r={22} />;
   if (!data) return <section className="card"><Empty icon="alert" title="État du salon indisponible" action={<Button variant="subtle" icon="undo" onClick={() => void refresh()}>Réessayer</Button>}>{error?.message || 'Le serveur ne répond pas.'}</Empty></section>;
-  const steps = stepsOf(data, robots, boot.settings.messages?.countries || [], now());
+  const steps = stepsOf(data, robots, boot.settings.messages?.countries || [], now(), { on: !!boot.settings.messages?.review, url: String(boot.settings.shop?.reviewUrl || '') });
   const done = steps.filter((x) => x.tone === 'ok').length;
   const counted = steps.filter((x) => x.tone !== 'info').length;
   const broken = steps.filter((x) => x.tone === 'err');
   return (
     <div className="col" style={{ gap: 16 }}>
-      <section className="card col mr-head" style={{ gap: 12 }}>
+      <section className="card col mr-head" style={{ gap: 12 }} data-guide="mer-head">
         <div className="card-h"><h2><Icon name="check" size={16} />Mise en route</h2><span className="faint tnum" style={{ fontSize: 13 }}>{done} sur {counted} prêts</span></div>
         <span className="kpi-bar" aria-hidden><i style={{ ['--w' as any]: Math.round((done / Math.max(1, counted)) * 100) + '%' }} /></span>
         <p className="muted" style={{ fontSize: 13.5 }}>Dans cet ordre : chaque étape compte sur les précédentes. Les coches se mettent à jour toutes seules ; chaque ligne mène à son écran.</p>
         {data.mode === 'demo' ? <Note icon="info">Démo : paiements, SMS et e-mails sont simulés et rien n’est sauvegardé. Ces lignes-là ne comptent pas.</Note> : null}
         {broken.length ? <Note tone="err" icon="alert"><b>{broken.map((x) => x.title).join(', ')}</b> : à regarder tout de suite.</Note> : null}
+        {/* GUIDE-01a: the whole guided tour again, from its first step (each page's « ? » replays that page only) */}
+        <div className="mr-tour" data-guide="mer-replay">
+          <span className="grow"><b>Visite guidée</b><small>Chaque écran du Comptoir, partie par partie, en quelques minutes.</small></span>
+          <Button variant="subtle" icon="sparkle" onClick={() => startTour('tour', 'start')}>Revoir la visite</Button>
+        </div>
       </section>
-      <ol className="mr-list" aria-label="Étapes de mise en route">
+      <ol className="mr-list" aria-label="Étapes de mise en route" data-guide="mer-list">
         {steps.map((x, i) => (
           <li key={x.id} className={'mr-step ' + x.tone} data-step={x.id} data-done={x.tone === 'ok' ? '1' : '0'}>
             <span className="mr-n" aria-hidden>{ICON[x.tone] ? <Icon name={ICON[x.tone]} size={16} /> : i + 1}</span>
@@ -238,6 +292,7 @@ export default function MiseEnRoute() {
           </li>
         ))}
       </ol>
+      <Nouveautes />
       <p className="faint" style={{ fontSize: 12.5 }}>Le passage du domaine, l’indexation et Stripe en réel suivent la liste du jour J, avec ton prestataire. Vérifié {ago(data.now, now())}.</p>
     </div>
   );

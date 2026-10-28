@@ -6,9 +6,10 @@ import { Link, navigate, setQuery, useRoute } from '../../lib/router';
 import { cap, dates, eur, hhmm, plural, time } from '../../lib/format';
 import { Icon } from '../../ui/Icon';
 import { Avatar, Button, Chip, Field, Modal, Note, Sheet, Skeleton, Switch, confirm, toast, toastError } from '../../ui/kit';
-import { useApp } from '../state';
+import { photoOf, useApp } from '../state';
 import { PageTitle } from '../App';
 import type { Agenda, Staff } from '../types';
+import { PhoneList, PhoneQR, usePhones } from './reglages/Phone';
 import './equipe.css';
 
 // conflicts: appointments still on it; status: a request (pending, refused); publicNote: what the site may say meanwhile
@@ -49,7 +50,7 @@ function Requests({ items, staff }: { items: TimeOff[]; staff: Staff[] }) {
     try { await decideRequest(t.id, yes, staff.find((s) => s.id === t.staffId)?.name || ''); } finally { setBusy(''); }
   };
   return (
-    <section className="card eq-requests">
+    <section className="card eq-requests" data-guide="equipe-requests">
       <div className="card-h"><h2><Icon name="bell" size={16} />Demandes d’absence</h2><span className="badge badge-accent">{items.length}</span></div>
       <ul className="list">
         {items.map((t) => {
@@ -102,7 +103,7 @@ function MyCard() {
         <div className="col" style={{ gap: 16 }}>
           <section className="card col" style={{ gap: 14 }}>
             <div className="row" style={{ gap: 16 }}>
-              <Avatar name={st.name} initials={st.initials} color={st.color} size="xl" />
+              <Avatar name={st.name} initials={st.initials} color={st.color} photo={photoOf(st)} size="xl" />
               <div className="grow">
                 <p className="section-k">{ROLE_LABEL[st.role]}{st.chair ? ' · fauteuil' : ''}</p>
                 <h2 className="eq-h">{st.name}</h2>
@@ -165,13 +166,13 @@ function Team({ data }: { data: TeamData }) {
   return (
     <>
       <PageTitle><h1>Équipe</h1></PageTitle>
-      <div className="row wrap eq-bar">
+      <div className="row wrap eq-bar" data-guide="equipe-bar">
         <p className="muted grow">{plural(active.filter((x) => x.chair).length, 'fauteuil')} · {plural(active.length, 'personne')}</p>
         <Button variant="ghost" icon="calendar" onClick={() => setOff(true)}>Poser une absence</Button>
         <Button variant="primary" icon="plus" onClick={() => setAdding(true)}>Ajouter</Button>
       </div>
       {requests.length ? <Requests items={requests} staff={data.items} /> : null}
-      <div className="eq-grid">
+      <div className="eq-grid" data-guide="equipe-list">
         {active.map((s) => {
           const stt = status(s);
           const l = load(s);
@@ -179,7 +180,7 @@ function Team({ data }: { data: TeamData }) {
           return (
             <Link key={s.id} to={'/equipe/' + s.id} className="card eq-card">
               <div className="row" style={{ gap: 14 }}>
-                <Avatar name={s.name} initials={s.initials} color={s.color} size="lg" />
+                <Avatar name={s.name} initials={s.initials} color={s.color} photo={photoOf(s)} size="lg" />
                 <div className="grow" style={{ minWidth: 0 }}>
                   <b className="eq-name">{s.name}</b>
                   <small className="muted">{s.roleLabel}{s.chair ? ' · fauteuil' : ''}{!s.bookable && s.chair ? ' · pas en ligne' : ''}</small>
@@ -203,7 +204,7 @@ function Team({ data }: { data: TeamData }) {
         })}
       </div>
 
-      <section className="card" style={{ marginTop: 16 }}>
+      <section className="card" style={{ marginTop: 16 }} data-guide="equipe-absences">
         <div className="card-h"><h2><Icon name="calendar" size={16} />Absences à venir</h2><Button size="sm" variant="ghost" icon="plus" onClick={() => setOff(true)}>Poser</Button></div>
         {upcoming.length ? <TimeOffList items={upcoming} staff={data.items} onPlan={openPlan} /> : <p className="muted">Personne n’est absent dans les jours qui viennent.</p>}
       </section>
@@ -488,7 +489,7 @@ export function MyAbsences({ st }: { st: Staff }) {
   const [off, setOff] = useState(false);
   const list = [...(mine.data?.requests || []), ...(mine.data?.items || [])].sort((a, b) => a.from.localeCompare(b.from));
   return (
-    <section className="card" id="absences">
+    <section className="card" id="absences" data-guide="equipe-mes-absences">
       <div className="card-h"><h2><Icon name="calendar" size={16} />Mes absences</h2><Button size="sm" variant="ghost" icon="plus" onClick={() => setOff(true)}>Poser</Button></div>
       {list.length ? <TimeOffList items={list} staff={[st]} /> : <p className="muted">{mine.data?.approval ? 'Aucune absence prévue. Une absence posée ici part au gérant : tes créneaux restent ouverts jusqu’à sa validation.' : 'Aucune absence prévue. Une absence posée ici retire tes créneaux du site immédiatement.'}</p>}
       <TimeOffSheet open={off} onClose={() => { setOff(false); refreshAll(); }} staff={[st]} fixed={st.id} />
@@ -540,9 +541,9 @@ function Member({ st, timeoff }: { st: Staff; timeoff: TimeOff[] }) {
       <button type="button" className="cl-back eq-back" onClick={() => navigate('/equipe')}><Icon name="chevL" size={16} />Équipe</button>
       <div className="eq-member">
         <div className="col" style={{ gap: 16 }}>
-          <Profile st={st} />
-          {st.chair ? <section className="card"><div className="card-h"><h2><Icon name="clock" size={16} />Horaires de la semaine</h2></div><ScheduleEditor st={st} /></section> : null}
-          {st.chair ? <ServicesCard st={st} /> : null}
+          <div data-guide="equipe-profil"><Profile st={st} /></div>
+          {st.chair ? <section className="card" data-guide="equipe-horaires"><div className="card-h"><h2><Icon name="clock" size={16} />Horaires de la semaine</h2></div><ScheduleEditor st={st} /></section> : null}
+          {st.chair ? <div data-guide="equipe-prestations"><ServicesCard st={st} /></div> : null}
         </div>
         <div className="col" style={{ gap: 16 }}>
           {st.chair ? (
@@ -551,8 +552,8 @@ function Member({ st, timeoff }: { st: Staff; timeoff: TimeOff[] }) {
               {upcoming.length ? <TimeOffList items={upcoming} staff={[st]} onPlan={openPlan} /> : <p className="muted">Aucune absence prévue.</p>}
             </section>
           ) : null}
-          {st.chair ? <Commission st={st} /> : null}
-          <Access st={st} />
+          {st.chair ? <div data-guide="equipe-commission"><Commission st={st} /></div> : null}
+          <div data-guide="equipe-acces"><Access st={st} /></div>
         </div>
       </div>
       <TimeOffSheet open={off} onClose={() => setOff(false)} staff={[st]} fixed={st.id} />
@@ -579,7 +580,7 @@ function Profile({ st }: { st: Staff }) {
   return (
     <section className="card col" style={{ gap: 14 }}>
       <div className="row" style={{ gap: 16 }}>
-        <Avatar name={f.name} initials={f.initials} color={f.color} size="xl" />
+        <Avatar name={f.name} initials={f.initials} color={f.color} photo={photoOf(st)} size="xl" />
         <div className="grow">
           <p className="section-k">{ROLE_LABEL[f.role]}</p>
           <h2 className="eq-h">{f.name || '—'}</h2>
@@ -590,9 +591,10 @@ function Profile({ st }: { st: Staff }) {
         <Field label="Initiales" htmlFor="pf-i"><input id="pf-i" className="input" value={f.initials} maxLength={3} onChange={(e) => setF({ ...f, initials: e.target.value.toUpperCase() })} /></Field>
       </div>
       <Field label="Couleur dans l’agenda"><div className="eq-colors">{COLORS.map((c) => <button key={c} type="button" aria-label={'Couleur ' + c} aria-pressed={f.color === c} style={{ background: c }} onClick={() => setF({ ...f, color: c })} />)}</div></Field>
-      <Field label="Rôle" hint={ROLE_HINT[f.role]}>
+      {/* one's own role is set by another (the server refuses it: self_role) */}
+      {st.id === boot.me.id ? null : <Field label="Rôle" hint={ROLE_HINT[f.role]}>
         <div className="chips">{(['barber', 'desk', 'manager', 'owner'] as Staff['role'][]).filter((r) => r !== 'owner' || boot.me.role === 'owner').map((r) => <Chip key={r} on={f.role === r} onClick={() => setF({ ...f, role: r })}>{ROLE_LABEL[r]}</Chip>)}</div>
-      </Field>
+      </Field>}
       <Switch on={f.chair} onChange={(v) => setF({ ...f, chair: v, bookable: v ? f.bookable : false })} title="A un fauteuil" hint="Apparaît comme colonne dans l’agenda." />
       <Switch on={f.bookable} disabled={!f.chair} onChange={(v) => setF({ ...f, bookable: v })} title="Réservable en ligne" hint="Les clients peuvent le choisir sur le site." />
       <Field label="Présentation sur le site" hint={f.bio.length + ' / 280'} htmlFor="pf-b"><textarea id="pf-b" className="input textarea" rows={3} maxLength={280} value={f.bio} onChange={(e) => setF({ ...f, bio: e.target.value })} placeholder="Spécialiste des dégradés, 8 ans de métier…" /></Field>
@@ -709,6 +711,9 @@ function ServicesCard({ st }: { st: Staff }) {
 }
 
 function Commission({ st }: { st: Staff }) {
+  const { boot } = useApp();
+  // a manager's own rate is the owner's call (the server refuses it: self_commission): shown, not editable
+  const fixed = st.id === boot.me.id && boot.me.role !== 'owner';
   const [svc, setSvc] = useState(String((st.commission?.service ?? 0) / 100));
   const [prd, setPrd] = useState(String((st.commission?.product ?? 0) / 100));
   const [busy, setBusy] = useState(false);
@@ -725,11 +730,11 @@ function Commission({ st }: { st: Staff }) {
     <section className="card col" style={{ gap: 12 }}>
       <div className="card-h"><h2><Icon name="percent" size={16} />Rémunération</h2><Link to={'/rapports?barbier=' + st.id} className="link">Ses chiffres</Link></div>
       <div className="grid2">
-        <Field label="Sur les prestations (%)" htmlFor="cm-s"><input id="cm-s" className="input tnum" inputMode="decimal" value={svc} onChange={(e) => setSvc(e.target.value)} /></Field>
-        <Field label="Sur les produits (%)" htmlFor="cm-p"><input id="cm-p" className="input tnum" inputMode="decimal" value={prd} onChange={(e) => setPrd(e.target.value)} /></Field>
+        <Field label="Sur les prestations (%)" htmlFor="cm-s"><input id="cm-s" className="input tnum" inputMode="decimal" value={svc} readOnly={fixed} onChange={(e) => setSvc(e.target.value)} /></Field>
+        <Field label="Sur les produits (%)" htmlFor="cm-p"><input id="cm-p" className="input tnum" inputMode="decimal" value={prd} readOnly={fixed} onChange={(e) => setPrd(e.target.value)} /></Field>
       </div>
       {row ? <div className="eq-month"><span>Ce mois : <b className="money">{eur(row.revenue)}</b> de chiffre, <b className="money">{eur(row.tips)}</b> de pourboires</span><span>Commission estimée <b className="serif money" style={{ fontSize: 26 }}>{eur(row.commission)}</b></span></div> : <Skeleton h={48} />}
-      {dirty ? <div className="row" style={{ justifyContent: 'flex-end' }}><Button variant="primary" busy={busy} onClick={save}>Enregistrer</Button></div> : null}
+      {fixed ? <p className="faint" style={{ fontSize: 13 }}>Ta commission se règle avec le gérant.</p> : dirty ? <div className="row" style={{ justifyContent: 'flex-end' }}><Button variant="primary" busy={busy} onClick={save}>Enregistrer</Button></div> : null}
     </section>
   );
 }
@@ -750,9 +755,10 @@ function Access({ st }: { st: Staff }) {
   return (
     <section className="card col" style={{ gap: 10 }}>
       <div className="card-h"><h2><Icon name="key" size={16} />Accès</h2></div>
-      <div className="kv"><span>Code PIN (appareils du salon)</span><span className="row" style={{ gap: 8 }}><span className={'badge ' + (st.hasPin ? 'badge-ok' : 'badge-warn')}>{st.hasPin ? 'défini' : 'aucun'}</span><Button size="sm" variant="ghost" onClick={() => setPin(true)}>{st.hasPin ? 'Changer' : 'Définir'}</Button></span></div>
+      <div className="kv"><span>Code PIN (postes du salon et téléphone lié)</span><span className="row" style={{ gap: 8 }}><span className={'badge ' + (st.hasPin ? 'badge-ok' : 'badge-warn')}>{st.hasPin ? 'défini' : 'aucun'}</span><Button size="sm" variant="ghost" onClick={() => setPin(true)}>{st.hasPin ? 'Changer' : 'Définir'}</Button></span></div>
       {['owner', 'manager'].includes(st.role) ? <div className="kv"><span>Mot de passe (connexion de partout)</span><span className="row" style={{ gap: 8 }}><span className={'badge ' + (st.hasPwd ? 'badge-ok' : '')}>{st.hasPwd ? 'défini' : 'aucun'}</span><Button size="sm" variant="ghost" onClick={() => setPwd(true)}>{st.hasPwd ? 'Changer' : 'Définir'}</Button></span></div> : null}
-      <p className="faint" style={{ fontSize: 12.5 }}>Les barbiers et l’accueil se connectent seulement depuis les appareils enregistrés du salon, avec leur code.</p>
+      {boot.settings.team?.personalPhones !== false ? <LinkedPhones st={st} me={me} /> : null}
+      <p className="faint" style={{ fontSize: 12.5 }}>Chacun entre avec son code sur les postes du salon et sur son téléphone lié.</p>
       <div className="row wrap" style={{ gap: 8, marginTop: 4 }}>
         <Button size="sm" variant="ghost" icon="logout" onClick={revoke}>Déconnecter partout</Button>
         {!me ? <Button size="sm" variant="danger" icon="trash" onClick={archive}>Désactiver</Button> : null}
@@ -760,6 +766,19 @@ function Access({ st }: { st: Staff }) {
       <SecretModal open={pin} onClose={() => setPin(false)} st={st} kind="pin" />
       <SecretModal open={pwd} onClose={() => setPwd(false)} st={st} kind="password" />
     </section>
+  );
+}
+
+/** TEAM-02: the member's linked phones (count, Retirer) and the QR that links one more. */
+function LinkedPhones({ st, me }: { st: Staff; me: boolean }) {
+  const phones = usePhones(st.id);
+  const n = phones.data?.items.length ?? 0;
+  return (
+    <>
+      <div className="kv"><span>Téléphones liés</span><span className={'badge ' + (n ? 'badge-ok' : '')}>{n ? plural(n, 'téléphone') : 'aucun'}</span></div>
+      {n ? <PhoneList st={st} self={me} /> : null}
+      <div data-guide="equipe-phones"><PhoneQR st={st} self={me} compact /></div>
+    </>
   );
 }
 

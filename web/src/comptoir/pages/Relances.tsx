@@ -16,13 +16,17 @@ import './relances.css';
 
 type Overdue = ClientCard & { lastText: number | null; lastDue?: number | null };
 type WaitItem = { id: string; first: string; phone: string; day: string; staffId: string; serviceId: string; from: number; to: number; status: string; offer: { start: number; staffId: string; exp: number } | null; at: number };
-type Msg = { id: string; channel?: 'sms' | 'email'; template: string; status: string; at: number; dueAt: number; sentAt: number | null; to: string; body: string; subject?: string; error: string };
+// via, fallback (MSG-02): the way a text really left ('whatsapp' or 'sms'; 'fallback': by Brevo after the salon's phone
+// refused it, FID-01), and why the first way handed it on
+type Msg = { id: string; channel?: 'sms' | 'email'; template: string; status: string; at: number; dueAt: number; sentAt: number | null; to: string; body: string; subject?: string; error: string; via?: 'sms' | 'whatsapp' | 'fallback' | null; fallback?: string; held?: boolean };
 type Back = { sent: number; clientsBack: number; revenueBack: number; rate: number };
 type Quiet = { from: number; to: number; sunday: boolean; holidays?: boolean } | undefined;
 type RebookData = { items: Overdue[]; excludedNoConsent: number; stats: Back; template: string; stop: string; quiet?: Quiet };
 type Inquiry = {
-  id: string; kind: 'contact' | 'formation'; kindLabel: string; module: string; moduleTitle: string; at: number; status: 'new' | 'handled'; handledAt: number | null; handledBy: string;
+  id: string; kind: 'contact' | 'formation' | 'sms'; kindLabel: string; module: string; moduleTitle: string; at: number; status: 'new' | 'handled'; handledAt: number | null; handledBy: string;
   erased: boolean; cid: string | null; first: string; message: string; hasPhone: boolean; phone: string; email: string; replies: { at: number; by: string; text: string; status: string }[];
+  // FID-01: the text an SMS answer replies to, and a mere « ok » filed by itself
+  re?: { template: string; at: number | null } | null; auto?: boolean;
 };
 type InquiryData = { items: Inquiry[]; unread: number; total: number; canErase: boolean; sms: boolean; mode: string };
 
@@ -37,11 +41,18 @@ function leavesWords(t: number, now: number) {
   return (p.day === today ? 'à ' : dayShortWord(p.day, today) + ' à ') + time(p.min);
 }
 
-const LABEL: Record<string, string> = { inquiry_reply: 'Réponse à une demande', owner_inquiry: 'Alerte : demande du site', confirmation: 'Confirmation', reminder: 'Rappel la veille', reminder2h: 'Rappel 2 h avant', review: 'Demande d’avis', rebook: 'Relance', waitlist: 'Place libérée', queue: 'File d’attente', cancelled: 'Annulation', receipt: 'Reçu', moved: 'Déplacement', deposit: 'Lien d’acompte', lookup: 'Lien Mon rendez-vous', giftcardCode: 'Code carte cadeau', owner_booking: 'Alerte : réservation', owner_cancel: 'Alerte : annulation', digest: 'Résumé du soir', weekly: 'Bilan de la semaine' };
+const LABEL: Record<string, string> = { inquiry_reply: 'Réponse à une demande', owner_inquiry: 'Alerte : demande du site', confirmation: 'Confirmation', reminder: 'Rappel la veille', reminder2h: 'Rappel 2 h avant', review: 'Demande d’avis', rebook: 'Relance', waitlist: 'Place libérée', queue: 'File d’attente', cancelled: 'Annulation', receipt: 'Reçu', moved: 'Déplacement', deposit: 'Lien d’acompte', lookup: 'Lien Mon rendez-vous', giftcardCode: 'Code carte cadeau', owner_booking: 'Alerte : réservation', owner_cancel: 'Alerte : annulation', digest: 'Résumé du soir', weekly: 'Bilan de la semaine', reassign: 'Barbier absent, remplacé', reassignAt: 'Barbier absent, autre heure', reschedule: 'Rendez-vous à décaler', giftcard: 'Carte cadeau en ligne',
+  memberWelcome: 'Bienvenue abonné', memberFailed: 'Paiement refusé', memberAction: 'Validation bancaire', memberCancelled: 'Résiliation', memberStopped: 'Résiliation', memberWithdrawn: 'Rétractation', memberWithdrawnNone: 'Rétractation', memberPaused: 'Pause', memberEnded: 'Abonnement arrêté', memberOffer: 'Proposition d’abonnement', memberLink: 'Lien abonnement', owner_member: 'Alerte : abonnement' };
+// PAY-03's member texts and mails
+Object.assign(LABEL, { memberCard: 'Changer la carte', memberLinkMail: 'Lien abonnement (e-mail)' });
+// AC-01: the client space's texts (a code's words stay {code} here: its digits only exist in the text that left)
+Object.assign(LABEL, { otp: 'Code de connexion', accountOpened: 'Espace client ouvert', accesInvite: 'Lien vers son espace', dataExport: 'Copie de ses données', owner_erase: 'Alerte : demande d’effacement', owner_export: 'Alerte : demande de données' });
 const STATUS: Record<string, [string, string]> = { sent: ['envoyé', 'badge-ok'], simulated: ['simulé (démo)', 'badge-info'], failed: ['échec', 'badge-danger'], skipped: ['non envoyé', 'badge-warn'], expired: ['trop tard', 'badge-warn'], claimed: ['en cours', ''], queued: ['en file', ''] };
 /** Outside the demo nothing is simulated: without a provider a message waits for one (and an old 'simulé' never left). */
 function msgStatus(m: Msg, demo: boolean, provider: string | null, now: number): [string, string] {
   const status = m.status;
+  // kept back for the Jour J switch (Réglages › Reprendre WordPress), whatever the provider
+  if (status === 'queued' && m.held) return ['attend la bascule', 'badge-info'];
   // short enough for a phone row: the icon beside it says which channel, the tooltip says it in words
   if (!demo && status === 'queued' && !provider) return ['attend un fournisseur', 'badge-warn'];
   // held back by the quiet hours: it says when it leaves
@@ -75,7 +86,7 @@ export default function Relances() {
   return (
     <>
       <PageTitle><h1>Relances</h1></PageTitle>
-      <nav className="tabs" aria-label="Relances">
+      <nav className="tabs" aria-label="Relances" data-guide="relances-tabs">
         {tabs.map((t) => <Link key={t.id} to={t.to} className="tab" aria-current={tab === t.id ? 'page' : undefined}><Icon name={t.icon} size={16} />{t.label}{t.count ? <span className="count">{t.count}</span> : null}</Link>)}
       </nav>
       {tab === 'relancer' ? (can('marketing') ? <Rebook /> : <Empty icon="lock" title="Réservé à l’accueil et au gérant" />) : tab === 'attente' ? <Waiting /> : tab === 'demandes' ? (can('marketing') ? <Inquiries /> : <Empty icon="lock" title="Réservé à l’accueil et au gérant" />) : <Sent />}
@@ -142,14 +153,14 @@ function Rebook() {
   const st = data.stats;
   return (
     <>
-      <section className="kpis">
+      <section className="kpis" data-guide="relances-kpis">
         <Kpi k="À relancer" v={data.items.length} s="en retard sur leur rythme" icon="clock" hot={data.items.length > 0} />
         <Kpi k="Relancés" v={st.sent} s={(st.sent > 1 ? 'clients' : 'client') + ' ces 60 derniers jours'} icon="sms" />
         {/* distinct clients who booked within 21 days of their text: never more than were texted */}
         <Kpi k="Revenus" v={st.clientsBack} s={st.sent ? (st.clientsBack > 1 ? 'clients' : 'client') + ' sur ' + st.sent + ' (' + st.rate + ' %) · ' + eur(st.revenueBack, { decimals: false }) + ' de rendez-vous' : 'après une relance'} icon="calendar" bar={st.rate / 100} />
       </section>
       <div className="rl-grid">
-        <section className="card">
+        <section className="card" data-guide="relances-list">
           <div className="card-h">
             <h2><Icon name="clients" size={16} />{plural(data.items.length, 'client')} à relancer</h2>
             {data.items.length ? <button type="button" className="link" onClick={() => setSel(allOn ? new Set() : new Set(data.items.map((c) => c.id)))}>{allOn ? 'Tout décocher' : 'Tout cocher'}</button> : null}
@@ -172,7 +183,7 @@ function Rebook() {
           )}
         </section>
         <aside className="col rl-side">
-          <section className="card col" style={{ gap: 12 }}>
+          <section className="card col" style={{ gap: 12 }} data-guide="relances-message">
             <div className="card-h"><h2><Icon name="edit" size={16} />Le message</h2><small className={seg.count > 1 ? 'warn-t' : 'faint'}>{seg.chars} car. · {plural(seg.count, 'SMS')}</small></div>
             <textarea className="input textarea" rows={4} value={text} maxLength={320} onChange={(e) => setText(e.target.value)} aria-label="Texte de la relance" />
             <div className="chips">{['{prenom}', '{jours}', '{lien}'].map((v) => <button key={v} type="button" className="chip chip-sm" onClick={() => setText((t) => (t.endsWith(' ') || !t ? t : t + ' ') + v)}>{v}</button>)}<span className="grow" />{text !== data.template ? <button type="button" className="link" onClick={() => setText(data.template)}>Texte d’origine</button> : null}</div>
@@ -216,7 +227,7 @@ function Automations() {
     [m.rebook, 'Relances', 'proposées ici, envoyées quand tu le décides']
   ];
   return (
-    <section className="card">
+    <section className="card" data-guide="relances-auto">
       <div className="card-h"><h2><Icon name="bolt" size={16} />Messages automatiques</h2>{can('settings') ? <Link to="/reglages/messages" className="link">Régler</Link> : null}</div>
       <ul className="list">{rows.map(([on, t, s]) => <li key={t} className="li" style={{ minHeight: 0, padding: '10px 2px' }}><span className={'dot ' + (on ? 'on' : '')} aria-hidden /><span className="li-main"><b>{t}</b><small>{s}</small></span><span className={'badge ' + (on ? 'badge-ok' : '')}>{on ? 'actif' : 'coupé'}</span></li>)}</ul>
       {boot.mode === 'demo' ? <p className="faint" style={{ fontSize: 12.5, marginTop: 8 }}>Démo : les SMS sont simulés, rien ne part vraiment.</p> : !boot.providers.sms ? <Note tone="warn" icon="alert">Aucun fournisseur SMS n’est branché : les messages attendent dans la boîte d’envoi. Une fois branché, ceux de plus de 6 h ou dont le rendez-vous est passé ne partiront pas.</Note> : null}
@@ -239,14 +250,14 @@ function Waiting() {
   };
   return (
     <>
-      <section className="kpis">
+      <section className="kpis" data-guide="attente-kpis">
         <Kpi k="En attente" v={data.items.length} s="personnes sur la liste" icon="wait" />
         <Kpi k="Inscrits" v={data.stats.added} s="ces 30 derniers jours" icon="plus" />
         <Kpi k="Placés" v={data.stats.booked} s={data.stats.added ? pct(data.stats.booked / data.stats.added) + ' ont obtenu une place' : 'grâce à une annulation'} icon="check" />
       </section>
-      <Note icon="info">Quand un rendez-vous se libère, la place est proposée par SMS au premier inscrit compatible. Il a 30 minutes pour la prendre, sinon elle passe au suivant. Personne n’a rien à faire.</Note>
+      <div data-guide="attente-rule"><Note icon="info">Quand un rendez-vous se libère, la place est proposée par SMS au premier inscrit compatible. Il a 30 minutes pour la prendre, sinon elle passe au suivant. Personne n’a rien à faire.</Note></div>
       {!data.items.length ? <section className="card" style={{ marginTop: 14 }}><Empty icon="wait" title="Personne n’attend">Les clients s’inscrivent depuis le site quand le créneau voulu est complet.</Empty></section> : (
-        <div className="col" style={{ gap: 14, marginTop: 14 }}>
+        <div className="col" style={{ gap: 14, marginTop: 14 }} data-guide="attente-list">
           {[...byDay].map(([day, items]) => (
             <section key={day} className="card">
               <div className="card-h"><h2>{cap(dayShortWord(day, boot.today))}</h2><span className="badge">{items.length}</span></div>
@@ -279,19 +290,21 @@ function Waiting() {
 /** What the WordPress forms used to e-mail: /contact and /formations land here (and in the owner's inbox, Réglages › Messages). */
 function Inquiries() {
   const { data, loading, error } = useQuery<InquiryData>('/api/v1/inquiries');
-  const [show, setShow] = useState<'new' | 'all'>('new');
+  const [show, setShow] = useState<'new' | 'handled' | 'all'>('new');
   if (loading && !data) return <Skeleton h={320} r={22} />;
   if (!data) return error ? <Note tone="err" icon="alert">{error.message}</Note> : null;
-  const list = show === 'new' ? data.items.filter((q) => q.status === 'new') : data.items;
+  const list = show === 'all' ? data.items : data.items.filter((q) => q.status === show);
   return (
     <>
       <div className="row wrap" style={{ gap: 10, marginBottom: 14 }}>
-        <Seg value={show} onChange={setShow} label="Quelles demandes" options={[{ v: 'new', t: 'À traiter', count: data.unread }, { v: 'all', t: 'Toutes' }]} />
+        <span data-guide="demandes-seg"><Seg value={show} onChange={setShow} label="Quelles demandes" options={[{ v: 'new', t: 'À traiter', count: data.unread }, { v: 'handled', t: 'Traitées' }, { v: 'all', t: 'Toutes' }]} /></span>
         <span className="grow" />
         <span className="faint" style={{ fontSize: 13 }}>Depuis les pages <a className="link" href="/contact" target="_blank" rel="noopener">Contact</a> et <a className="link" href="/formations" target="_blank" rel="noopener">Formations</a> du site</span>
       </div>
       {!list.length ? (
-        <section className="card"><Empty icon="mail" title={data.total ? 'Tout est traité' : 'Aucune demande pour l’instant'}>{data.total ? 'Les nouvelles demandes du site arrivent ici, avec un badge sur l’onglet.' : 'Les messages envoyés depuis les pages Contact et Formations du site arrivent ici, et par e-mail au gérant.'}</Empty>{data.total && show === 'new' ? <div className="row" style={{ justifyContent: 'center' }}><Button variant="ghost" onClick={() => setShow('all')}>Voir les {plural(data.total, 'demande')}</Button></div> : null}</section>
+        <section className="card">{data.total && show === 'handled'
+          ? <Empty icon="check" title="Rien n’a encore été classé">Les demandes que tu marques traitées, et les simples « ok » ou « merci » à un SMS, se rangent ici.</Empty>
+          : <Empty icon="mail" title={data.total ? 'Tout est traité' : 'Aucune demande pour l’instant'}>{data.total ? 'Les nouvelles demandes du site arrivent ici, avec un badge sur l’onglet.' : 'Les messages envoyés depuis les pages Contact et Formations du site arrivent ici, et par e-mail au gérant.'}</Empty>}{data.total && show !== 'all' ? <div className="row" style={{ justifyContent: 'center' }}><Button variant="ghost" onClick={() => setShow('all')}>Voir {data.total === 1 ? 'la demande' : 'les ' + plural(data.total, 'demande')}</Button></div> : null}</section>
       ) : <div className="col" style={{ gap: 14 }}>{list.map((q) => <InquiryCard key={q.id} q={q} data={data} />)}</div>}
     </>
   );
@@ -321,9 +334,9 @@ function InquiryCard({ q, data }: { q: Inquiry; data: InquiryData }) {
   };
   const fresh = q.status === 'new';
   return (
-    <section className="card col" style={{ gap: 12 }} aria-label={'Demande de ' + (q.first || 'quelqu’un')}>
+    <section className="card col" style={{ gap: 12 }} data-guide="demandes-card" aria-label={'Demande de ' + (q.first || 'quelqu’un')}>
       <div className="card-h" style={{ marginBottom: 0 }}>
-        <h2><Icon name={q.kind === 'formation' ? 'scissors' : 'mail'} size={16} />{q.erased ? 'Demande effacée' : q.first}{q.moduleTitle ? <span className="faint" style={{ fontWeight: 500 }}>· {q.moduleTitle}</span> : null}</h2>
+        <h2><Icon name={q.kind === 'formation' ? 'scissors' : q.kind === 'sms' ? 'sms' : 'mail'} size={16} />{q.erased ? 'Demande effacée' : q.first}{q.moduleTitle ? <span className="faint" style={{ fontWeight: 500 }}>· {q.moduleTitle}</span> : null}</h2>
         <span className="row" style={{ gap: 6 }}>
           <span className="badge">{cap(q.kindLabel)}</span>
           <span className={'badge ' + (fresh ? 'badge-accent' : 'badge-ok')}>{fresh ? 'à traiter' : q.replies.length ? 'répondu' : 'traité'}</span>
@@ -332,6 +345,7 @@ function InquiryCard({ q, data }: { q: Inquiry; data: InquiryData }) {
       </div>
       {q.erased ? <p className="faint" style={{ fontSize: 13.5 }}>Les données de cette personne ont été effacées (RGPD).</p> : (
         <>
+          {q.re ? <p className="faint" style={{ fontSize: 13 }}>Réponse à : {LABEL[q.re.template] || q.re.template}{q.re.at ? ' du ' + dates.dayShort(dates.localParts(q.re.at).day).replace(/^\S+ /, '') : ''}</p> : null}
           {q.message ? <div className="bubble" style={{ alignSelf: 'stretch' }}><p>{q.message}</p></div> : <p className="faint" style={{ fontSize: 13.5 }}>Pas de message : {q.kind === 'formation' ? 'rappelle pour parler du module.' : 'rappelle pour en savoir plus.'}</p>}
           <div className="row wrap" style={{ gap: '6px 16px', fontSize: 14 }}>
             {q.phone ? <a className="link tnum" style={INLINE} href={'tel:' + q.phone.replace(/[^\d+]/g, '')}><Icon name="phone" size={14} />{q.phone}</a> : null}
@@ -366,7 +380,8 @@ function InquiryCard({ q, data }: { q: Inquiry; data: InquiryData }) {
           {data.canErase ? <Button variant="ghost" size="sm" icon="trash" busy={busy === 'erase'} onClick={erase}>Effacer</Button> : null}
         </div>
       ) : null}
-      {!fresh && q.handledBy && !q.erased ? <small className="faint" style={{ fontSize: 12 }}>Traité par {q.handledBy}{q.handledAt ? ' ' + ago(q.handledAt, now()) : ''}</small> : null}
+      {!fresh && q.auto && !q.erased ? <small className="faint" style={{ fontSize: 12 }}>Classé tout seul : un simple « merci », rien à répondre</small>
+        : !fresh && q.handledBy && !q.erased ? <small className="faint" style={{ fontSize: 12 }}>Traité par {q.handledBy}{q.handledAt ? ' ' + ago(q.handledAt, now()) : ''}</small> : null}
     </section>
   );
 }
@@ -383,7 +398,7 @@ function Sent() {
   const failedMail = data.items.filter((m) => m.status === 'failed' && m.channel === 'email').length;
   const why = failedMail === failed ? 'adresse invalide ou fournisseur e-mail indisponible' : failedMail ? 'numéro ou adresse invalide, ou fournisseur indisponible' : 'numéro invalide ou fournisseur SMS indisponible';
   return (
-    <section className="card">
+    <section className="card" data-guide="envoyes-list">
       <div className="card-h"><h2><Icon name="sms" size={16} />Derniers messages</h2><span className="faint" style={{ fontSize: 13 }}>{data.mode === 'demo' ? 'Démo · envois simulés' : 'SMS : ' + (data.provider ? cap(data.provider) : 'aucun fournisseur') + ' · e-mail : ' + (data.emailProvider ? cap(data.emailProvider) : 'aucun fournisseur')}</span></div>
       {failed ? <Note tone="warn" icon="alert">{plural(failed, 'message')} en échec : {why}. Le détail est dans chaque ligne.</Note> : null}
       {!data.items.length ? <Empty icon="sms" title="Aucun message pour l’instant" /> : (
@@ -398,11 +413,11 @@ function Sent() {
                 <tr key={m.id}>
                   <td className="tnum hide-phone" style={{ whiteSpace: 'nowrap' }}>{dates.dayShort(day)} · {clock(m.at)}</td>
                   {/* on a phone, when and to whom fold under the message so the state stays in view */}
-                  <td><span className="faint" style={{ display: 'inline-flex', verticalAlign: '-2px', marginRight: 6 }}><Icon name={mail ? 'mail' : 'sms'} size={15} title={mail ? 'E-mail' : 'SMS'} /></span>{LABEL[m.template] || m.template}<small className="rl-meta tnum">{dates.dayShort(day)} · {clock(m.at)} · {m.to}</small></td>
+                  <td><span className="faint" style={{ display: 'inline-flex', verticalAlign: '-2px', marginRight: 6 }}><Icon name={mail ? 'mail' : m.via === 'whatsapp' ? 'globe' : 'sms'} size={15} title={mail ? 'E-mail' : m.via === 'whatsapp' ? 'WhatsApp' : 'SMS'} /></span>{LABEL[m.template] || m.template}{m.via === 'whatsapp' ? <span className="faint"> · WhatsApp</span> : m.via === 'fallback' ? <span className="faint"> · par Brevo, en secours</span> : null}<small className="rl-meta tnum">{dates.dayShort(day)} · {clock(m.at)} · {m.to}</small></td>
                   <td className="tnum hide-phone" style={{ whiteSpace: 'nowrap' }}>{m.to}</td>
                   {can('settings') ? <td className="hide-phone rl-body" title={m.body}>{mail && m.subject ? m.subject : m.body}</td> : null}
                   {/* why it did not leave, in words: a tooltip never shows on a phone */}
-                  <td><span className={'badge ' + tone} title={label === 'attend un fournisseur' ? 'En attente d’un fournisseur ' + (mail ? 'e-mail' : 'SMS') : undefined}>{label}</span>{m.error && ['expired', 'failed', 'skipped'].includes(m.status) ? <small className="rl-why">{m.status === 'expired' ? cap(m.error.replace(/^Trop tard : /, '')) : m.error}</small> : null}</td>
+                  <td><span className={'badge ' + tone} title={label === 'attend un fournisseur' ? 'En attente d’un fournisseur ' + (mail ? 'e-mail' : 'SMS') : undefined}>{label}</span>{m.error && ['expired', 'failed', 'skipped'].includes(m.status) ? <small className="rl-why">{m.status === 'expired' ? cap(m.error.replace(/^Trop tard : /, '')) : m.error}</small> : null}{m.fallback ? <small className="rl-why">{m.via === 'fallback' ? 'Téléphone du salon : ' + m.fallback.replace(/^Téléphone du salon : /, '') : 'Par SMS : ' + m.fallback}</small> : null}</td>
                 </tr>
               );
             })}</tbody>

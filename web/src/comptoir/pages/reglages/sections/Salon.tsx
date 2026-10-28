@@ -1,6 +1,7 @@
 // Le salon: contact details, the ticket's legal lines, the site's legal pages and the links sent to clients.
 import { dates } from '../../../../lib/format';
 import { Button, Field, Note, toast } from '../../../../ui/kit';
+import { Link } from '../../../../lib/router';
 import { useApp } from '../../../state';
 import { Card, SaveBar, useSave, useSection, type SectionProps } from '../shared';
 
@@ -52,19 +53,19 @@ export default function Salon({ s }: SectionProps) {
   const cgv = typeof f.cgvVersion === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(f.cgvVersion) ? dates.dayParts(f.cgvVersion) : null;
   return (
     <div className="col" style={{ gap: 16 }}>
-      <Card title="Coordonnées" icon="map">
+      <Card title="Coordonnées" guide="salon-coordonnees" icon="map">
         <div className="grid2">{input('name', 'Nom du salon')}{input('phone', 'Téléphone', { type: 'tel', ph: '04 91 …', hint: 'Obligatoire sur les mentions légales (LCEN) : un portable suffit.' })}</div>
         {input('address', 'Adresse')}
         <div className="grid2">{input('zip', 'Code postal')}{input('city', 'Ville')}</div>
         {input('email', 'E-mail de contact', { type: 'email' })}
       </Card>
-      <Card title="Mentions légales du ticket" icon="ticket">
+      <Card title="Mentions légales du ticket" guide="salon-ticket" icon="ticket">
         <div className="grid2">{input('legalName', 'Raison sociale', { ph: 'Prénom Nom EI' })}{input('siret', 'SIRET', { ph: '14 chiffres', max: 20 })}</div>
         {input('vatNumber', 'N° de TVA intracommunautaire', { ph: 'FR…' })}
         <Field label="Message en bas du ticket" htmlFor="sh-foot"><input id="sh-foot" className="input" maxLength={160} value={foot.v} onChange={(e) => foot.setV(e.target.value)} /></Field>
         {!f.siret ? <Note tone="warn" icon="alert">Le SIRET doit figurer sur les tickets remis aux clients.</Note> : null}
       </Card>
-      <Card title="Site et mentions légales" icon="shield" aside={<span className="row wrap" style={{ gap: 4 }}>{PAGES.map(([href, t]) => <a key={href} className="btn btn-ghost btn-sm" href={href} target="_blank" rel="noopener">{t}</a>)}</span>}>
+      <Card title="Site et mentions légales" guide="salon-legal" icon="shield" aside={<span className="row wrap" style={{ gap: 4 }}>{PAGES.map(([href, t]) => <a key={href} className="btn btn-ghost btn-sm" href={href} target="_blank" rel="noopener">{t}</a>)}</span>}>
         <p className="muted" style={{ fontSize: 13.5 }}>Les pages Mentions légales, Confidentialité et CGV du site se remplissent avec ces infos et celles de Réservation.</p>
         {missing.length ? (
           <div className="note" style={{ flexWrap: 'wrap', alignItems: 'center' }}>
@@ -94,7 +95,7 @@ export default function Salon({ s }: SectionProps) {
         <p className="muted" style={{ fontSize: 13.5 }}>{cgv ? 'CGV en vigueur : version du ' + cgv.d + (cgv.d === 1 ? 'er' : '') + ' ' + dates.MONTHS_FR[cgv.m - 1] + ' ' + cgv.y + '. ' : ''}La version change d’elle-même quand tu modifies l’acompte ou l’annulation dans Réservation.</p>
       </Card>
       <Card title="Liens" icon="link">
-        {input('reviewUrl', 'Lien d’avis Google', { hint: 'Envoyé après la visite quand la demande d’avis est active. Le lien court g.page/r/… (Google Business › Demander des avis) garde le SMS en un seul message.', type: 'url' })}
+        <p className="muted" style={{ fontSize: 13.5 }}>Le lien d’avis Google se règle avec la demande d’avis, dans <Link to="/reglages/messages">Messages › Avis Google</Link>.</p>
         {input('mapsUrl', 'Lien Google Maps', { type: 'url' })}
         {input('instagram', 'Instagram du salon', { type: 'url' })}
       </Card>

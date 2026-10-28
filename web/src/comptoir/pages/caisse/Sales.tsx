@@ -1,11 +1,11 @@
 // Les ventes du jour: every ticket, reprintable, refundable by credit note (line by line, printed as an avoir).
 import { useEffect, useRef, useState } from 'react';
-import { api } from '../../../lib/api';
+import { api, ApiError } from '../../../lib/api';
 import { refreshAll, useQuery } from '../../../lib/query';
 import { setQuery, useRoute } from '../../../lib/router';
 import { cap, clock, dates, dayWord, eur, METHOD, money } from '../../../lib/format';
 import { Icon } from '../../../ui/Icon';
-import { Button, Chip, Empty, Field, Kpi, Modal, Money, Note, Sheet, Skeleton, Switch, toast, toastError } from '../../../ui/kit';
+import { Button, Chip, Empty, Field, Kpi, Modal, Money, Note, Sheet, Skeleton, Switch, confirm, toast, toastError } from '../../../ui/kit';
 import { useApp } from '../../state';
 import type { Sale } from '../../types';
 import { CreditNote, Receipt, printNow, type CreditNoteData } from './Receipt';
@@ -27,7 +27,7 @@ export function Sales() {
   return (
     <>
       <div className="row wrap" style={{ justifyContent: 'space-between' }}>
-        <div className="row">
+        <div className="row" data-guide="sales-day">
           <Button icon="chevL" aria-label="Jour précédent" onClick={() => setQuery({ jour: dates.addDays(day, -1) })} />
           <b className="serif" style={{ fontSize: 26 }}>{cap(dayWord(day, boot.today))}</b>
           <Button icon="chevR" aria-label="Jour suivant" disabled={day >= boot.today} onClick={() => setQuery({ jour: dates.addDays(day, 1) === boot.today ? null : dates.addDays(day, 1) })} />
@@ -35,7 +35,7 @@ export function Sales() {
         {data?.closed ? <span className="badge badge-ok"><Icon name="lock" />Journée clôturée</span> : null}
       </div>
       {t ? (
-        <section className="kpis">
+        <section className="kpis" data-guide="sales-kpis">
           {/* the Z's own figures: net TTC with net HT, and the gross only when refunds made them differ */}
           <Kpi k="Chiffre du jour" v={<Money cents={t.netTtc} />} s={'TTC net · HT ' + eur(t.htNet) + (t.refundsTotal ? ' · brut ' + eur(t.grossTtc) + ', remboursé ' + eur(t.refundsTotal) : '')} icon="euro" />
           <Kpi k="Tickets" v={t.tickets} s={t.tickets ? 'panier moyen ' + eur(Math.round(t.revenue / t.tickets)) : ''} icon="ticket" />
@@ -43,7 +43,7 @@ export function Sales() {
           <Kpi k="Pourboires" v={<Money cents={t.tips} />} s={t.giftcardsSold || t.giftcardsRefunded ? 'cartes cadeaux vendues ' + eur(t.giftcardsSold + (t.giftcardsRefunded || 0)) + (t.giftcardsRefunded ? ', annulées ' + eur(t.giftcardsRefunded) : '') : 'hors chiffre d’affaires'} icon="heart" />
         </section>
       ) : null}
-      <section className="card">
+      <section className="card" data-guide="sales-list">
         {loading ? <Skeleton h={240} /> : !data?.items.length ? <Empty icon="ticket" title="Aucun ticket">Les encaissements de la journée apparaissent ici.</Empty> : (
           <ul className="list">
             {data.items.map((x) => (
@@ -82,7 +82,7 @@ function TicketSheet({ id, onClose, canRefund }: { id: string | null; onClose: (
           {x.client ? <Note icon="user"><b>{x.client}</b></Note> : null}
           <div className="card card-tight">
             {x.lines.map((l, i) => <div key={i} className="kv"><span>{l.qty > 1 ? l.qty + ' × ' : ''}{l.name}{l.staffId ? ' · ' + staffById.get(l.staffId)?.name : ''}</span><b className="money">{eur(l.net, { decimals: true })}</b></div>)}
-            {x.totals.discount ? <div className="kv"><span>Remise · {x.discount?.reason}</span><b className="money">−{eur(x.totals.discount, { decimals: true })}</b></div> : null}
+            {x.totals.discount ? <div className="kv"><span>Remise · {[x.discount?.reason, x.lines.some((l) => (l as { reward?: unknown }).reward) ? 'Fidélité' : ''].filter(Boolean).join(' · ')}</span><b className="money">−{eur(x.totals.discount, { decimals: true })}</b></div> : null}
             {x.totals.vat.map((v) => <div key={v.rate} className="kv"><span>TVA {v.rate / 100} % sur {eur(v.base, { decimals: true })}</span><span className="money">{eur(v.tax, { decimals: true })}</span></div>)}
             {x.tip ? <div className="kv"><span>Pourboire · {staffById.get(x.tip.staffId)?.name}</span><b className="money">{eur(x.tip.amount, { decimals: true })}</b></div> : null}
           </div>
@@ -158,7 +158,7 @@ function RefundModal({ open, sale, onClose, onPrint }: { open: boolean; sale: Sa
 
   const toggle = (l: PlanLine) => { setTxt(null); setPick((p) => { const n = { ...p }; if (n[l.i]) delete n[l.i]; else n[l.i] = l.left; return n; }); };
   const setQty = (l: PlanLine, n: number) => { setTxt(null); setPick((p) => ({ ...p, [l.i]: Math.max(1, Math.min(l.left, n)) })); };
-  const go = async () => {
+  const go = async (outside = false) => {
     setBusy(true);
     try {
       // the larger part names the credit note's method; a part of 0 € is no split at all
@@ -167,23 +167,31 @@ function RefundModal({ open, sale, onClose, onPrint }: { open: boolean; sale: Sa
         amount, reason, method: pay ? pay[0]?.method || 'card' : how, ...(pay && pay.length === 2 ? { split: pay } : {}),
         ...(byLine ? { lines: chosen.map((l) => ({ i: l.i, qty: pick[l.i] })) } : {}),
         ...(restock && products.length ? { restock: products.map((l) => ({ productId: l.ref!, qty: pick[l.i] })) } : {}),
-        ...(full && owner ? { override: true } : {})
+        ...(full && owner ? { override: true } : {}), ...(outside ? { outside: true } : {})
       };
       const r = await api.post<{ id: string; ref: string; amount: number }>('/api/v1/sales/' + sale.id + '/refund', body);
       toast({ title: 'Avoir ' + r.ref + ' · ' + eur(r.amount, { decimals: r.amount % 100 !== 0 }), icon: 'refund' });
       setDone(r); refreshAll();
-    } catch (e) { toastError(e); } finally { setBusy(false); }
+    } catch (e) {
+      // paid through a provider no longer plugged in: refunded from its dashboard, the credit note only records it
+      if (e instanceof ApiError && e.code === 'provider_gone' && !outside) {
+        setBusy(false);
+        if (await confirm({ title: 'Déjà remboursé depuis le tableau de bord ?', body: e.message, ok: 'Faire l’avoir (remboursé hors caisse)', cancel: 'Pas encore' })) return go(true);
+        return;
+      }
+      toastError(e);
+    } finally { setBusy(false); }
   };
   const lineNote = (l: PlanLine) => {
-    if (l.pack) return l.pack.voided ? 'Abonnement déjà annulé' : l.pack.used ? eur(l.net) + ' − ' + l.pack.used + ' coupe' + (l.pack.used > 1 ? 's' : '') + ' faite' + (l.pack.used > 1 ? 's' : '') + ' × ' + eur(l.pack.unit) + ' = ' + eur(l.pack.suggested) : 'Aucune coupe faite';
+    if (l.pack) return l.pack.voided ? 'Carnet déjà annulé' : l.pack.used ? eur(l.net) + ' − ' + l.pack.used + ' coupe' + (l.pack.used > 1 ? 's' : '') + ' faite' + (l.pack.used > 1 ? 's' : '') + ' × ' + eur(l.pack.unit) + ' = ' + eur(l.pack.suggested) : 'Aucune coupe faite';
     if (l.kind === 'giftcard') return !l.giftcard ? 'Carte introuvable' : l.giftcard.unused ? 'Carte •••• ' + l.giftcard.last4 + (l.giftcard.replaced ? ' (réémise)' : '') + ' jamais utilisée · hors chiffre d’affaires' : l.giftcard.status !== 'active' ? 'Carte annulée' : 'Carte déjà utilisée : elle ne se rembourse plus';
-    if (l.net <= 0) return l.name.includes('abonnement') ? 'Couverte par l’abonnement' : 'Rien à rembourser';
+    if (l.net <= 0) return /carnet/i.test(l.name) ? 'Couverte par le carnet' : /abonnement/i.test(l.name) ? 'Couverte par l’abonnement' : 'Rien à rembourser';
     if (!l.left) return 'Déjà remboursé';
     const unit = Math.round(l.net / l.qty);
     return (l.qty > 1 ? l.qty + ' × ' + eur(unit, { decimals: unit % 100 !== 0 }) + ' = ' : '') + eur(l.net, { decimals: l.net % 100 !== 0 }) + (l.left < l.qty ? ' · ' + l.left + ' à rembourser' : '');
   };
   const label = (l: PlanLine) => (l.pack ? l.pack.name + ' · ' + l.pack.left + ' restante' + (l.pack.left > 1 ? 's' : '') : l.name);
-  const action = (l: PlanLine) => (l.pack ? 'Annuler l’abonnement' : l.kind === 'giftcard' ? 'Annuler la carte et rembourser' : '');
+  const action = (l: PlanLine) => (l.pack ? 'Annuler le carnet' : l.kind === 'giftcard' ? 'Annuler la carte et rembourser' : '');
 
   return (
     <Modal open={open} onClose={onClose} label="Remboursement">
@@ -216,9 +224,9 @@ function RefundModal({ open, sale, onClose, onPrint }: { open: boolean; sale: Sa
               })}
             </ul>
           )}
-          {plan && !refundable(plan) ? <Note icon="info">Plus rien à rembourser : ce qui reste sur ce ticket, ce sont les coupes d’abonnement déjà faites.</Note> : null}
+          {plan && !refundable(plan) ? <Note icon="info">Plus rien à rembourser : ce qui reste sur ce ticket, ce sont les coupes de carnet déjà faites.</Note> : null}
           {products.length ? <Switch on={restock} onChange={setRestock} title="Remettre en stock" hint={products.map((l) => pick[l.i] + ' × ' + l.name).join(', ')} /> : null}
-          <Field label={byLine ? 'Montant (calculé, modifiable à la baisse)' : 'Montant'} htmlFor="rf-a" hint={byLine ? undefined : hasPack && !cap ? 'L’abonnement se rembourse en cochant sa ligne (\u00ab\u00a0Annuler l’abonnement\u00a0\u00bb).' : 'Sans ligne cochée, jusqu’à ' + eur(cap, { decimals: true }) + (hasPack ? ', hors abonnement (coche sa ligne)' : plan?.consumed ? ', hors coupes d’abonnement déjà faites' : '')}>
+          <Field label={byLine ? 'Montant (calculé, modifiable à la baisse)' : 'Montant'} htmlFor="rf-a" hint={byLine ? undefined : hasPack && !cap ? 'Le carnet se rembourse en cochant sa ligne (\u00ab\u00a0Annuler le carnet\u00a0\u00bb).' : 'Sans ligne cochée, jusqu’à ' + eur(cap, { decimals: true }) + (hasPack ? ', hors carnet (coche sa ligne)' : plan?.consumed ? ', hors coupes de carnet déjà faites' : '')}>
             <input id="rf-a" className="input input-money" inputMode="decimal" value={txt ?? fmt(cap)} onChange={(e) => setTxt(e.target.value)} onBlur={() => { if (typed != null) setTxt(fmt(amount)); }} />
           </Field>
           {plan?.giftcardPaid ? <Note icon="alert">Payé en partie par carte cadeau ({eur(plan.giftcardPaid, { decimals: true })}) : ce remboursement sort en argent.</Note> : null}
@@ -230,7 +238,7 @@ function RefundModal({ open, sale, onClose, onPrint }: { open: boolean; sale: Sa
           </div>
           <div className="chips">{REASONS.map((r) => <Chip key={r} small on={reason === r} onClick={() => setReason(r)}>{r}</Chip>)}</div>
           <input className="input" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Raison (obligatoire)" aria-label="Raison du remboursement" />
-          <div className="acts"><Button variant="ghost" onClick={onClose}>Annuler</Button><Button variant="danger" busy={busy} disabled={!plan || !amount || short || reason.trim().length < 3} onClick={go}>Rembourser {eur(amount, { decimals: amount % 100 !== 0 })}</Button></div>
+          <div className="acts"><Button variant="ghost" onClick={onClose}>Annuler</Button><Button variant="danger" busy={busy} disabled={!plan || !amount || short || reason.trim().length < 3} onClick={() => go()}>Rembourser {eur(amount, { decimals: amount % 100 !== 0 })}</Button></div>
         </>
       )}
     </Modal>

@@ -1,7 +1,8 @@
 // Going live on the domain without code edits: vercel.json stays deployable, and the build's indexing switch.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, writeFileSync, mkdirSync, mkdtempSync, copyFileSync, rmSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, mkdtempSync, copyFileSync, rmSync, existsSync, readdirSync } from 'node:fs';
+import { CASES } from '../../shared/redirects.js';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -48,7 +49,7 @@ test('/ is the site, the demo page is at /demo, and only private areas carry noi
   for (const f of ['site.html', 'demo.html', 'ancien-lien.html', '404.html', 'sitemap.xml']) assert.ok(existsSync(join(ROOT, 'public', f)), f);
   const robots = cfg.headers.filter((r) => r.headers.some((x) => x.key === 'X-Robots-Tag'));
   // whole first segment only: /robots.txt, /rdv or a future /realisations stay indexable
-  const areas = '(comptoir|r|recu|paiement|cadeau|client|api|demo|ancien-lien)';
+  const areas = '(comptoir|r|recu|paiement|cadeau|abo|client|api|demo|ancien-lien|avis|moi)';
   assert.deepEqual(robots.map((r) => r.source), ['/' + areas, '/' + areas + '/(.*)']);
 });
 
@@ -89,7 +90,7 @@ test('without LX_INDEX the build stays hidden from search engines', () => {
 test('LX_INDEX=1 opens the public site and keeps the private areas out', () => {
   const b = build({ LX_INDEX: '1' });
   assert.doesNotMatch(b.site, robotsMeta);
-  assert.equal(b.robots, 'User-agent: *\nAllow: /api/public/salon\nAllow: /api/public/live\nDisallow: /comptoir\nDisallow: /r/\nDisallow: /recu/\nDisallow: /paiement/\nDisallow: /api/\nDisallow: /demo\nSitemap: https://barberlarchitecte.com/sitemap.xml\n');
+  assert.equal(b.robots, 'User-agent: *\nAllow: /api/public/salon\nAllow: /api/public/live\nAllow: /api/public/memberships$\nDisallow: /comptoir\nDisallow: /r/\nDisallow: /recu/\nDisallow: /paiement/\nDisallow: /abo/\nDisallow: /api/\nDisallow: /demo\nDisallow: /moi\nSitemap: https://barberlarchitecte.com/sitemap.xml\n');
   // the demo page, the old-link page and the 404 are never indexed
   assert.match(b.demo, robotsMeta);
   assert.match(b.lost, robotsMeta);
@@ -127,4 +128,105 @@ test('the built sitemap only lists pages the build has', () => {
   const b = build({ LX_INDEX: '1' }, { 'formations.html': '<!doctype html><title>F</title>', 'cgv/index.html': '<!doctype html><title>CGV</title>' });
   assert.deepEqual(locs(b.sitemap), ['/', '/formations', '/cgv']);
   assert.match(b.sitemap, /^<\?xml[\s\S]*<urlset[^>]*>\n  <url><loc>https:\/\/barberlarchitecte\.com\/<\/loc>[\s\S]*<\/urlset>\n?$/);
+});
+
+/* ---- WP-10 · every address the old site listed lands somewhere ---- */
+
+/** A vercel.json `source` as a regular expression, with the semantics scripts/dev.mjs gives it (and path-to-regexp on Vercel):
+ *  `:name` one segment, `:name*` the rest (the bare prefix too), `(a|b)` a group, `:rest*` right after a literal is the rest of the segment. */
+function sourceRe(source) {
+  let re = '';
+  for (let i = 0; i < source.length; i++) {
+    const ch = source[i];
+    if (ch === ':') {
+      const m = /^:([A-Za-z_]\w*)(\*)?/.exec(source.slice(i));
+      if (m[2] && re.endsWith('/')) re = re.slice(0, -1) + '(?:/.*)?'; else re += m[2] ? '.*' : '[^/]+';
+      i += m[0].length - 1;
+    } else if (ch === '(') { const end = source.indexOf(')', i); re += source.slice(i, end + 1); i = end; }
+    else re += ch.replace(/[.+?^${}|[\]\\]/g, '\\$&');
+  }
+  return new RegExp('^' + re + '$');
+}
+/** The first redirect that takes this path (query conditions ignored: the paths here carry none). */
+const ruleOf = (path) => cfg.redirects.find((r) => !r.has && sourceRe(r.source).test(path));
+const destOf = (path) => { const r = ruleOf(path); return r && { status: r.permanent ? 308 : 307, to: r.destination }; };
+
+test('the sub-sitemaps and the stylesheet the live index lists, and the WordPress archives, are redirected', () => {
+  for (const p of ['/wp-sitemap-posts-page-1.xml', '/wp-sitemap-index.xsl', '/wp-sitemap.xsl', '/wp-sitemap-taxonomies-category-1.xml']) assert.deepEqual(destOf(p), { status: 308, to: '/sitemap.xml' }, p);
+  for (const p of ['/author/admin', '/author/admin/page/2', '/tag/redken', '/tag/redken/feed', '/page/2', '/page/2/feed', '/brews-redken/feed']) assert.deepEqual(destOf(p), { status: 308, to: '/' }, p);
+  // the old rules still answer first, and nothing the app serves is taken by a new one
+  assert.equal(destOf('/wp-sitemap.xml').to, '/sitemap.xml');
+  assert.equal(destOf('/comments/feed').to, '/');
+  for (const p of ['/', '/sitemap.xml', '/comptoir/caisse', '/comptoir/reglages/wordpress', '/r/abc.def', '/recu/abc.def', '/paiement/abc', '/api/v1/feed', '/api/public/salon', '/mon-rendez-vous',
+    '/formations', '/carte-cadeau', '/page', '/pages', '/authors', '/tags', '/wp-sitemaps', '/assets/index.js']) assert.equal(ruleOf(p), undefined, p + ' must not be redirected');
+});
+
+test('every <loc> of the old site’s sitemaps (index and sub-sitemaps) lands somewhere, none on a 404', () => {
+  const dir = join(ROOT, 'tests', 'fixtures', 'wp-sitemaps');
+  const files = readdirSync(dir).filter((f) => f.endsWith('.xml'));
+  assert.ok(files.length >= 7, 'the index and the six sub-sitemaps');
+  const cases = new Set(CASES.map((c) => c[0]));
+  let n = 0;
+  for (const f of files) {
+    for (const [, loc] of readFileSync(join(dir, f), 'utf8').matchAll(/<loc>([^<]+)<\/loc>/g)) {
+      n++;
+      const u = new URL(loc);
+      // WordPress ends its addresses with a slash, which Vercel strips before any rule runs
+      const path = u.pathname.length > 1 ? u.pathname.replace(/\/+$/, '') : u.pathname;
+      const page = path === '/' || existsSync(join(ROOT, 'public', path.slice(1) + '.html'));
+      assert.ok(page || cases.has(path) || ruleOf(path), f + ': ' + loc + ' lands nowhere');
+    }
+  }
+  assert.ok(n >= 53, 'the 47 addresses and the sub-sitemaps of the index: ' + n);
+});
+
+test('every case of shared/redirects.js names a rule of vercel.json and the status that rule gives', () => {
+  const byRule = new Map(cfg.redirects.map((r) => [r.source + (r.has ? '?' + r.has[0].key : ''), r]));
+  const used = new Set();
+  for (const [from, status, , id] of CASES) {
+    if (id === 'trailing') continue;
+    const r = id === 'posts' ? cfg.redirects.find((x) => x.source.startsWith('/(message-exceptionnel|')) : byRule.get(id);
+    assert.ok(r, from + ': no rule ' + id);
+    assert.equal(r.permanent ? 308 : 307, status, from);
+    used.add(r);
+  }
+  assert.equal(used.size, cfg.redirects.length, 'a rule without a case would never be tried on the live domain');
+});
+
+test('scripts/check-old-urls.mjs lists the old site’s addresses from its sitemaps, and flags an address that ends on a 404', async () => {
+  const { listOldUrls, follow, locs, pathOf } = await import('../../scripts/check-old-urls.mjs');
+  const dir = join(ROOT, 'tests', 'fixtures', 'wp-sitemaps');
+  const seen = [];
+  const old = async (url) => {
+    seen.push(String(url));
+    const p = new URL(url).pathname;
+    const f = p === '/wp-sitemap.xml' ? 'wp-sitemap.xml' : /^\/wp-sitemap-(.+)\.xml$/.test(p) ? 'sm_' + p.slice('/wp-sitemap-'.length, -4) + '.xml' : '';
+    return f && existsSync(join(dir, f)) ? new Response(readFileSync(join(dir, f), 'utf8'), { status: 200 }) : new Response('', { status: 404 });
+  };
+  // the old site as a bare address: its sitemap is found, the sub-sitemaps read from that same site, the REST API tried and closed
+  const { paths, notes } = await listOldUrls('https://ancien.barberlarchitecte.com', old);
+  assert.equal(seen[0], 'https://ancien.barberlarchitecte.com/wp-sitemap.xml');
+  assert.ok(seen.includes('https://ancien.barberlarchitecte.com/wp-sitemap-posts-page-1.xml'), 'the index is followed on the site given, not on the address it writes');
+  assert.equal(paths.length, 47, 'the 47 addresses of the six sub-sitemaps');
+  assert.ok(paths.includes('/brews-redken/') && paths.includes('/sln_attendant/jkut/') && paths.includes('/'));
+  assert.deepEqual(notes, [], 'nothing was missing');
+  assert.deepEqual(locs('<a><loc>https://x.fr/a?b=1&amp;c=2</loc></a>'), ['https://x.fr/a?b=1&c=2']);
+  assert.equal(pathOf('https://x.fr/a/?b=1'), '/a/?b=1');
+
+  const origin = 'https://neuf.fr';
+  const site = (script) => async (url) => {
+    const r = script[String(url).slice(origin.length)];
+    if (r instanceof Error) throw r;
+    return r ? new Response(null, { status: r[0], headers: r[1] ? { location: r[1] } : {} }) : new Response('', { status: 404 });
+  };
+  const get = site({ '/ok': [200], '/a/': [308, '/a'], '/a': [308, '/?reserver'], '/?reserver': [200], '/x': [308, '/y'], '/y': [308, '/z'], '/z': [308, '/w'], '/w': [200],
+    '/ext': [308, 'https://www.instagram.com/x'], '/err': [500], '/boom': new Error('ECONNRESET') });
+  assert.deepEqual((await follow(origin, '/ok', get)).problem, '');
+  const chain = await follow(origin, '/a/', get);
+  assert.deepEqual([chain.problem, chain.status, chain.hops.length], ['', 200, 2], 'two hops are allowed');
+  assert.match((await follow(origin, '/x', get)).problem, /plus de 2 redirections/);
+  assert.equal((await follow(origin, '/ext', get)).problem, '', 'another site is the end of what can be checked');
+  assert.equal((await follow(origin, '/nope', get)).problem, 'HTTP 404');
+  assert.equal((await follow(origin, '/err', get)).problem, 'HTTP 500');
+  assert.match((await follow(origin, '/boom', get)).problem, /ECONNRESET/);
 });

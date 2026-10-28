@@ -2,7 +2,7 @@
 
 Two screens: a laptop or tablet with **the Comptoir**, a phone with **the site**. The demo salon is alive: ten weeks of history, today's agenda filling up, clients booking online now and then. Start from a fresh salon: Comptoir › Réglages › Données › Remettre à zéro.
 
-Access: owner `gerant@larchitecte.fr` / `Architecte13` · barbers' PINs JKut 2468, Frank 1357, Le Soldat 8642, Esteban 9753.
+Access: owner `gerant@larchitecte.fr` / `Architecte13` · barbers' PINs JKut 2468, Frank 1357, Le Soldat 8642, Esteban 9753 · accueil Inès 1470.
 
 ## 1. "Your day, on one screen" (3 min) · Comptoir, owner
 
@@ -37,7 +37,7 @@ Access: owner `gerant@larchitecte.fr` / `Architecte13` · barbers' PINs JKut 246
 
 - **Équipe**: who is in the chair right now, who is free, each one's hours with breaks, time off (the site stops offering those slots), services, commission, PIN.
 - **Réglages › Équipe et accès**: what barbers may do (check out, see the whole agenda, see the salon's figures, maximum discount). The table shows exactly who can do what.
-- Sign out, "Faire de ce navigateur un poste du salon", sign in as **JKut with his PIN**: his agenda, his clients, **his own numbers and commission**, nothing else. The session locks itself after 4 minutes.
+- Sign out, "Faire de ce navigateur un poste du salon", sign in as **JKut with his PIN**: he lands on **Mon espace** (best on a phone): his next client with *la dernière fois* and the cut notes his colleagues wrote, his day, his gaps, **his own numbers and commission** toward his goal, nothing else. On the shared tablet the amounts start hidden (the *Montants* button shows them for 30 seconds). In the chair, *Note de coupe* writes what to remember; it shows on the client's file and on his next visit. *Personnaliser* orders the cards. The session locks itself after 4 minutes.
 
 ## 6. "It's yours, and it's safe" (1 min) · Réglages › Données
 

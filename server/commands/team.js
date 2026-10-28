@@ -9,6 +9,8 @@ import { isFree, eligibleStaff, staffIntervals, bookedMinutes, occupies } from '
 import { queueMessage, apptVars } from '../domain/messages.js';
 import { clientMayChange } from '../domain/policy.js';
 import { moveAppointment, cancelAppointment } from './agenda.js';
+import { HOMES, NOTIFY, BLUR, LINK_MS, PHONE_MISSES, calTopOf, linkUsed, prefsOf } from '../projections/staffprefs.js';
+import { capsOf } from '../domain/permissions.js';
 
 const roles = /** @type {const} */ (['owner', 'manager', 'desk', 'barber']);
 const staffShape = {
@@ -27,6 +29,25 @@ function initialsOf(name) {
 function checkSchedule(sc) { if (sc) for (const k of Object.keys(sc)) checkIntervals(sc[k], 'horaires'); }
 function owners(s) { return [...s.staff.values()].filter((x) => x.active && x.role === 'owner'); }
 
+/** What a patch really changes in someone's pay or rank (a field sent with its current value is no change). */
+function govChanges(st, patch) {
+  const out = [];
+  const com = st.commission || { service: 0, product: 0 };
+  if (patch.commission && (patch.commission.service !== com.service || patch.commission.product !== com.product)) out.push({ field: 'commission', from: { service: com.service, product: com.product }, to: { service: patch.commission.service, product: patch.commission.product } });
+  if (patch.role !== undefined && patch.role !== st.role) out.push({ field: 'role', from: st.role, to: patch.role });
+  return out;
+}
+/**
+ * Governance (TEAM-01): a change someone other than the owner makes to a colleague's commission, role or access, or a
+ * colleague he adds (role, and the commission he chose), is told to the owner by a team.changed in the same command
+ * (projections/governance.js). The owner's own changes and a person's own access are no news; nor is the system's (seed,
+ * imports), which has no staff behind it.
+ */
+function told(ctx, st, c) {
+  if (!ctx.staff || ctx.staff.role === 'owner' || ctx.staff.id === st.id) return;
+  ctx.emit('team.changed', { staffId: st.id, field: c.field, from: c.from, to: c.to, by: ctx.staff.id });
+}
+
 export const addStaff = {
   run(s, input, ctx) {
     ctx.need('team');
@@ -42,6 +63,9 @@ export const addStaff = {
       services: 'all', schedule: { ...s.settings.hours }, commission: { service: 4000, product: 1000 }, order: s.staff.size, ...rest
     };
     ctx.emit('staff.added', { id: sid, staff }, email ? { email } : undefined);
+    // a newcomer's rank, and a rate other than the salon's default, are the owner's to know (from null: he is new)
+    told(ctx, { id: sid }, { field: 'role', from: null, to: staff.role });
+    if (x.commission) told(ctx, { id: sid }, { field: 'commission', from: null, to: { service: staff.commission.service, product: staff.commission.product } });
     return { id: sid };
   }
 };
@@ -55,11 +79,16 @@ export const updateStaff = {
     if (!ctx.can('team') && !(self && Object.keys(patch).every((k) => selfOnly.includes(k)))) fail(403, 'forbidden', 'Seul le gérant modifie l’équipe.');
     if ((patch.role === 'owner' || st.role === 'owner') && ctx.staff?.role !== 'owner' && patch.role !== undefined) fail(403, 'forbidden', 'Seul le gérant change ce rôle.');
     if (st.role === 'owner' && patch.role && patch.role !== 'owner' && owners(s).length <= 1) fail(409, 'last_owner', 'Il faut au moins un gérant.');
+    // nobody raises his own pay or rank: a manager's commission is the owner's call, and a role is always set by another
+    const changes = govChanges(st, patch);
+    if (self && changes.some((c) => c.field === 'commission') && ctx.staff.role !== 'owner') fail(403, 'self_commission', 'Ta commission se règle avec le gérant.');
+    if (self && changes.some((c) => c.field === 'role')) fail(403, 'self_role', 'Ton rôle se change par un autre gérant.');
     if (patch.email && !isEmailLike(patch.email)) fail(400, 'invalid', 'E-mail invalide.');
     checkSchedule(patch.schedule);
     const { email, ...rest } = patch;
     if (!Object.keys(rest).length && email === undefined) return { ok: true };
     ctx.emit('staff.updated', { id: st.id, patch: rest }, email !== undefined ? { email } : undefined);
+    for (const c of changes) told(ctx, st, c);
     return { ok: true };
   }
 };
@@ -70,6 +99,13 @@ export const archiveStaff = {
     const st = getStaff(s, input.id);
     if (ctx.staff && ctx.staff.id === st.id) fail(409, 'self', 'Tu ne peux pas désactiver ton propre compte.');
     if (st.role === 'owner' && owners(s).length <= 1) fail(409, 'last_owner', 'Il faut au moins un gérant.');
+    // his photo leaves with him (the removal redacts every copy from the store), and so do his linked phones and his
+    // calendar feed: a later staff.restored brings back neither an old phone nor an old webcal address (TEAM-02)
+    if (!input.restore) {
+      if (s.staffPhotos && s.staffPhotos.has(st.id)) ctx.emit('staff.photo', { id: st.id, v: 0 });
+      for (const d of s.devices.values()) if (d.personal && d.staffId === st.id && !d.revoked) ctx.emit('device.revoked', { id: d.id });
+      if (s.prefs && prefsOf(s, st).cal) ctx.emit('prefs.set', { staffId: st.id, prefs: { cal: 0 } });
+    }
     ctx.emit(input.restore ? 'staff.restored' : 'staff.archived', { id: st.id });
     return { ok: true };
   }
@@ -89,6 +125,8 @@ export const setCredentials = {
     if (!Object.keys(pii).length) return { ok: true };
     // a new password signs out every session of that person, except on a PIN-only change
     ctx.emit('staff.credentials', { id: st.id, revoke: input.pwdHash !== undefined && !self }, pii);
+    // set: from null to 'pin'; removed (an empty hash): from 'pin' to null
+    for (const [k, w] of /** @type {const} */ ([['pwd', 'password'], ['pin', 'pin']])) if (pii[k] !== undefined) told(ctx, st, pii[k] ? { field: 'access', from: null, to: w } : { field: 'access', from: w, to: null });
     return { ok: true };
   }
 };
@@ -402,20 +440,157 @@ export async function applyHandover(engine, t, input, base) {
 
 export const enrollDevice = {
   run(s, input, ctx) {
-    if (!input.demo) ctx.need('devices');
     const name = parse(str({ min: 1, max: 40 }), input.name || 'Poste du salon');
     if (!/^[a-f0-9]{64}$/.test(input.tokenHash)) fail(400, 'invalid', 'Jeton invalide.');
     const did = ctx.id('dv');
+    // a barber's own phone (TEAM-02): no `devices` right, the link he was given vouches for it, once, for 10 minutes
+    if (input.personal) {
+      const l = s.phoneLinks && s.phoneLinks.get(String(input.link || ''));
+      if (!l || l.staffId !== input.staffId) fail(404, 'bad_link', 'Ce lien n’est pas valide. Demande-en un nouveau.');
+      if (linkUsed(s, l.id)) fail(409, 'used', 'Ce lien a déjà servi. Demande-en un nouveau.');
+      if (ctx.now > l.exp) fail(410, 'expired', 'Ce lien a expiré.');
+      if (s.settings.team.personalPhones === false) fail(403, 'phones_off', 'Le salon n’autorise pas les téléphones personnels.');
+      const st = getStaff(s, l.staffId);
+      if (!st.active) fail(404, 'bad_link', 'Ce lien n’est pas valide. Demande-en un nouveau.');
+      // the browser's previous linked phone (scanned again, or handed to a colleague): its cookie is about to be
+      // replaced, so it could never be used again; it leaves the lists instead of staying as a ghost
+      const old = input.replaces ? s.devices.get(String(input.replaces)) : null;
+      if (old && old.personal && !old.revoked) ctx.emit('device.revoked', { id: old.id });
+      ctx.emit('device.enrolled', { id: did, name, tokenHash: input.tokenHash, staffId: st.id, personal: true, link: l.id });
+      return { id: did, staffId: st.id };
+    }
+    if (!input.demo) ctx.need('devices');
     ctx.emit('device.enrolled', { id: did, name, tokenHash: input.tokenHash });
     return { id: did };
   }
 };
 export const revokeDevice = {
   run(s, input, ctx) {
-    ctx.need('devices');
     const d = s.devices.get(input.id);
+    // a linked phone is also its owner's to remove (lost, replaced), and the team manager's
+    const mine = !!d && !!d.personal && !!ctx.staff && (d.staffId === ctx.staff.id || ctx.can('team'));
+    if (!mine) ctx.need('devices');
     if (!d || d.revoked) fail(404, 'not_found', 'Appareil introuvable.');
     ctx.emit('device.revoked', { id: d.id });
     return { ok: true };
+  }
+};
+
+/* ---------------- TEAM-02: my phone, my prefs, my photo ---------------- */
+
+/**
+ * A link that enrolls the person's own phone: 10 minutes, single use, for himself or by `team`, when the salon allows
+ * linked phones. The route signs the token; the nonce here is what makes it single use (enrollDevice).
+ */
+export const issuePhoneLink = {
+  run(s, input, ctx) {
+    const st = getStaff(s, input.staffId);
+    if (!(ctx.staff && ctx.staff.id === st.id)) {
+      if (!ctx.can('team')) fail(403, 'forbidden', 'Seul le gérant lie le téléphone d’un collègue.');
+      // a phone bound to someone who manages the team or the devices carries those rights out of the salon: only a
+      // holder of `devices` links it (a manager never links the owner's phone, nor another manager's)
+      const theirs = capsOf(st, s.settings);
+      if ((theirs.has('team') || theirs.has('devices')) && !ctx.can('devices')) fail(403, 'forbidden', 'Seul le gérant lie le téléphone d’un responsable : chacun peut lier le sien depuis Mon compte.');
+    }
+    if (s.settings.team.personalPhones === false) fail(403, 'phones_off', 'Le salon n’autorise pas les téléphones personnels (Réglages › Équipe et accès).');
+    if (!st.active) fail(404, 'not_found', 'Membre introuvable.');
+    if (!st.hasPin) fail(409, 'no_pin', st.id === ctx.staff?.id ? 'Choisis d’abord ton code (Mon compte › Code PIN).' : st.name + ' n’a pas encore de code : définis-le d’abord.');
+    const nonce = ctx.id('pl');
+    const exp = ctx.now + LINK_MS;
+    ctx.emit('phone.linkIssued', { id: nonce, staffId: st.id, exp });
+    return { id: nonce, staffId: st.id, exp };
+  },
+  replay(events) {
+    const e = events.find((x) => x.type === 'phone.linkIssued');
+    return e ? { id: e.data.id, staffId: e.data.staffId, exp: e.data.exp } : {};
+  }
+};
+
+/** Unknown keys are dropped (an older or newer screen); a list longer than 20 is refused. cal is set by the calendar route:
+ *  'next' takes a generation above any given before, chosen here so a retry or a concurrent write never guesses it. */
+const prefsSchema = obj({
+  home: opt(oneOf(HOMES)), notify: opt(oneOf(NOTIFY)), buzz: opt(bool()), blur: opt(oneOf(BLUR)), calName: opt(bool()),
+  cards: opt(arr(str({ min: 1, max: 40, pattern: /^[A-Za-z0-9_-]+$/ }), { max: 20 })), hidden: opt(arr(str({ min: 1, max: 40, pattern: /^[A-Za-z0-9_-]+$/ }), { max: 20 })),
+  cal: opt(either([int({ min: 0 }), oneOf(['next'])])),
+  // GUIDE-01a: his guided tour, written whole (the version offered, the step id he stopped on, finished or not)
+  tour: opt(obj({ v: int({ min: 0, max: 1000 }), at: str({ max: 80, pattern: /^[A-Za-z0-9_.:-]*$/ }), done: bool() }))
+});
+/** One's own Comptoir, nobody else's: home page, toasts, card order, amounts on the salon post, calendar feed, guided tour. */
+export const setPrefs = {
+  run(s, input, ctx) {
+    const st = getStaff(s, input.staffId);
+    if (!ctx.staff || ctx.staff.id !== st.id) fail(403, 'forbidden', 'Chacun règle son propre Comptoir.');
+    const x = parse(prefsSchema, input.prefs || {});
+    const cur = prefsOf(s, st);
+    if (x.cal === 'next') x.cal = calTopOf(s, st.id) + 1;
+    // a calendar link that was cut never comes back: off (0), the current one, or a generation never given before
+    if (x.cal !== undefined && x.cal !== 0 && x.cal !== cur.cal && x.cal <= calTopOf(s, st.id)) fail(409, 'stale', 'Ce lien d’agenda a été remplacé.');
+    const changed = Object.fromEntries(Object.entries(x).filter(([k, v]) => v !== undefined && JSON.stringify(v) !== JSON.stringify(/** @type {any} */ (cur)[k])));
+    if (Object.keys(changed).length) ctx.emit('prefs.set', { staffId: st.id, prefs: changed });
+    return { prefs: { ...cur, ...changed } };
+  },
+  // a retried request: what was written (the calendar route builds its address from the stored generation)
+  replay(events) {
+    const e = events.find((x) => x.type === 'prefs.set');
+    return { prefs: e ? e.data.prefs : {} };
+  }
+};
+
+/**
+ * A wrong code on a linked phone (TEAM-02). Counted in the journal, so a cold start or another instance never resets
+ * it: PHONE_MISSES in a row and the phone is removed (it must be linked again with a fresh QR), the owner and the
+ * person told in the feed. The in-memory limits of the PIN route slow the guessing; this ends it.
+ */
+export const missPhonePin = {
+  run(s, input, ctx) {
+    const d = s.devices.get(String(input.id || ''));
+    if (!d || !d.personal || d.revoked) return { locked: false };
+    const n = (s.phoneMisses.get(d.id) || 0) + 1;
+    ctx.emit('phone.pinMissed', { id: d.id });
+    if (n < PHONE_MISSES) return { locked: false, left: PHONE_MISSES - n };
+    ctx.emit('phone.locked', { id: d.id, staffId: d.staffId, name: d.name });
+    ctx.emit('device.revoked', { id: d.id });
+    return { locked: true };
+  }
+};
+/** The right code: the count starts again (written only when there was one). */
+export const clearPhonePin = {
+  run(s, input, ctx) {
+    if (s.phoneMisses.get(String(input.id || ''))) ctx.emit('phone.pinCleared', { id: input.id });
+    return { ok: true };
+  }
+};
+
+/** at most 24 KB of image once decoded: the browser sends a 192 px JPEG, a few KB */
+export const PHOTO_MAX = 24 * 1024;
+const PHOTO_RE = /^data:image\/(jpeg|webp);base64,([A-Za-z0-9+/]+={0,2})$/;
+/** Is it really what it says? JPEG starts FF D8 FF; WebP is a RIFF file of type WEBP. */
+function photoKind(b) {
+  if (b.length > 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return 'jpeg';
+  if (b.length > 12 && b.toString('latin1', 0, 4) === 'RIFF' && b.toString('latin1', 8, 12) === 'WEBP') return 'webp';
+  return '';
+}
+/** His own photo, or a colleague's by `team`. Empty data removes it. The bytes go in pii, never in the chain. */
+export const setPhoto = {
+  run(s, input, ctx) {
+    const st = getStaff(s, input.staffId);
+    if (!(ctx.staff && ctx.staff.id === st.id) && !ctx.can('team')) fail(403, 'forbidden', 'Seul le gérant change la photo d’un collègue.');
+    if (!st.active) fail(404, 'not_found', 'Membre introuvable.');
+    const data = typeof input.data === 'string' ? input.data.trim() : '';
+    const cur = s.staffPhotos.get(st.id);
+    if (!data) {
+      if (cur) ctx.emit('staff.photo', { id: st.id, v: 0 });
+      return { photo: null };
+    }
+    const m = PHOTO_RE.exec(data);
+    if (!m) fail(400, 'invalid', 'Photo JPEG ou WebP attendue.');
+    const bytes = Buffer.from(m[2], 'base64');
+    if (bytes.length > PHOTO_MAX) fail(400, 'too_large', 'Photo trop lourde (24 Ko au plus).');
+    if (photoKind(bytes) !== m[1]) fail(400, 'invalid', 'Ce fichier n’est pas une photo JPEG ou WebP.');
+    // a retried upload of the same picture changes nothing
+    if (cur && cur.data === data) return { photo: cur.v };
+    const v = Math.max(ctx.now, (cur ? cur.v : 0) + 1);
+    ctx.emit('staff.photo', { id: st.id, v }, { photo: data });
+    return { photo: v };
   }
 };

@@ -1,0 +1,13 @@
+/* Avis Google: the Rapports card and the client file's line */
+.av-card { display: flex; flex-direction: column; gap: 14px; }
+.av-figs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.av-figs > div { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.av-figs b { font: 400 40px/1 var(--serif); }
+.av-figs span { font-size: 13px; color: var(--tx2); }
+.av-track { display: block; height: 8px; border-radius: 4px; background: var(--panel3); overflow: hidden; }
+.av-track i { display: block; height: 100%; border-radius: 4px; background: var(--accent); }
+.av-staff { margin-top: 4px; }
+.av-staff .nm { align-items: center; }
+.av-none, .av-foot { font-size: 12.5px; }
+.cl-review { display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 13px; color: var(--tx2); }
+.cl-review .badge { margin-left: 2px; }
