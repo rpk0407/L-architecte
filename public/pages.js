@@ -114,7 +114,7 @@
     each(document, '[data-footer]', function (ft) {
       ft.className = 'ft';
       while (ft.firstChild) ft.removeChild(ft.firstChild);
-      var links = [['/', 'Le site'], ['/?reserver', 'Réserver'], ['/mon-rendez-vous', 'Mon rendez-vous'], ['/resilier', 'Résilier mon abonnement'], ['/mentions-legales', 'Mentions légales'], ['/confidentialite', 'Confidentialité'], ['/cgv', 'CGV']];
+      var links = [['/', 'Le site'], ['/?reserver', 'Réserver'], ['/mon-rendez-vous', 'Mon rendez-vous'], ['/resilier', 'Résilier mon abonnement'], ['/?visite', 'Comment ça marche' + NB + '?'], ['/mentions-legales', 'Mentions légales'], ['/confidentialite', 'Confidentialité'], ['/cgv', 'CGV']];
       var here = location.pathname.replace(/\.html$/, '').replace(/\/+$/, '') || '/';
       ft.appendChild(h('div', { class: 'ft-g' }, [
         h('div', {}, [
