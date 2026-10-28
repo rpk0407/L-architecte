@@ -14,6 +14,7 @@ import { staleReason } from './scheduler.js';
 import { CASES } from '../../shared/redirects.js';
 import { localParts, dayParts, MONTHS_FR, hhmm } from '../../shared/dates.js';
 import { fmtPhone } from '../lib/util.js';
+import { csv } from '../lib/csv.js';
 
 const DAY = 86400000;
 /** The addresses Vercel gives an apex domain (the long-standing one and the newer range), and the CNAME of a subdomain, the
@@ -285,11 +286,8 @@ export async function basculeOf(rt, o = {}) {
   return { steps, hold: { on: cutoverHold(s), queued: held }, since: { at: B.frozenAt || B.switchedAt || 0, count: taken.length }, domain, demo };
 }
 
-/** UTF-8 BOM, `;`, CRLF; a text that Excel would read as a formula is prefixed (a foreign phone number, +41 79…, is not one). */
-export function csv(rows) {
-  const esc = (v) => { let t = v == null ? '' : String(v); if (/^[=+\-@\t\r]/.test(t) && !/^\+\d[\d ]*$/.test(t)) t = "'" + t; return /[;"\r\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t; };
-  return '﻿' + rows.map((r) => r.map(esc).join(';')).join('\r\n') + '\r\n';
-}
+// UTF-8 BOM, `;`, CRLF, no formula run in Excel (a foreign phone number, +41 79…, kept as typed): the shared writer
+export { csv };
 const dmy = (day) => day.split('-').reverse().join('/');
 
 /** The return plan's CSV: date;heure;barbier;prestations;client;téléphone;e-mail;état;pris le. @param {any} s */

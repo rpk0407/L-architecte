@@ -7,11 +7,11 @@ import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
 import { salon, DAY, at } from '../helpers.js';
 import * as S from '../../server/commands/sales.js';
-import { addService, updateProduct } from '../../server/commands/catalog.js';
+import { addService, updateProduct, updateService } from '../../server/commands/catalog.js';
 import { createAppointment } from '../../server/commands/agenda.js';
-import { createPayment, paymentSucceeded, payoutRecorded, paymentRefundedOutside } from '../../server/commands/payments.js';
+import { createPayment, paymentSucceeded, paymentEnded, payoutRecorded, paymentRefundedOutside } from '../../server/commands/payments.js';
 import { updateSettings } from '../../server/commands/shop.js';
-import { ledger, vatReturn, fecText, csvText, checkFec, accountOf, comptaOf, spread, openDays, FEC_FIELDS, JOURNALS } from '../../server/domain/ledger.js';
+import { ledger, vatReturn, fecText, csvText, checkFec, accountOf, comptaOf, spread, openDays, openWords, FEC_FIELDS, JOURNALS } from '../../server/domain/ledger.js';
 import { giftcardRoll, packsAt, depositsHeld, stripeBalance } from '../../server/domain/balances.js';
 import { csv } from '../../server/lib/csv.js';
 import compta from '../../server/settings/compta.js';
@@ -142,6 +142,50 @@ test('a deposit: VAT on the day it is paid (BQ), taken back by the ticket that u
   await t.engine.run(updateSettings, { compta: { servicesVat: 'debits' } }, t.asOwner());
   assert.deepEqual(view(one(ledger(t.engine.state, { from: '2026-10-01', to: '2026-10-31' }).entries, 'BQ')), ['C 419100 10,00', 'D 467100 10,00']);
   assert.deepEqual(vatReturn(t.engine.state, '2026-11').rows, [{ rate: 2000, base: 2500, tax: 500 }]);
+});
+
+test('a deposit keeps the VAT rate it was paid at: a later catalogue edit changes neither October’s file nor what November gives back', async () => {
+  const t = await salon({ day: '2026-10-28', hour: 10 });
+  const a = await t.engine.run(createAppointment, { clientId: t.ids.yanis, serviceIds: [t.ids.beard], staffId: t.ids.Ali, day: DAY, start: 600 }, t.asOwner());
+  await t.engine.run(createPayment, { id: 'py_dep', kind: 'deposit', amount: 1000, provider: 'simulated', providerRef: 'sim_dep', apptId: a.id }, SYS);
+  await t.engine.run(paymentSucceeded, { id: 'py_dep', amount: 1000 }, PROVIDER);
+  assert.equal(t.engine.state.payments.get('py_dep').vat, 2000, 'frozen on the payment when the money arrived');
+  const octBefore = view(one(ledger(t.engine.state, { from: '2026-10-01', to: '2026-10-31' }).entries, 'BQ'));
+  const vatBefore = vatReturn(t.engine.state, '2026-10');
+  // the beard goes to 10 % after October was sent
+  await t.engine.run(updateService, { id: t.ids.beard, patch: { vat: 1000 } }, t.asOwner());
+  assert.deepEqual(view(one(ledger(t.engine.state, { from: '2026-10-01', to: '2026-10-31' }).entries, 'BQ')), octBefore);
+  assert.deepEqual(octBefore, ['D 467100 10,00', 'C 419100 8,33', 'C 445710 1,67'].sort());
+  assert.deepEqual(vatReturn(t.engine.state, '2026-10'), vatBefore);
+  // November's ticket (the beard now at 10 %) takes back exactly what October booked: 419100 and 445710 back to zero
+  t.clock.now = at(DAY, 11);
+  await sell(t, { apptId: a.id, lines: [{ kind: 'service', ref: t.ids.beard }], payments: [{ method: 'deposit', amount: 1000, ref: 'py_dep' }, { method: 'card', amount: 2000 }] });
+  await close(t, DAY);
+  const all = ledger(t.engine.state, { from: '2026-10-01', to: '2026-11-30' }).entries;
+  const sum = (acct) => all.reduce((s0, e) => s0 + e.lines.filter((l) => l.account === acct && l.src === 'deposit').reduce((x, l) => x + l.debit - l.credit, 0), 0);
+  assert.equal(sum('419100'), 0);
+  assert.equal(sum('445710'), 0);
+  assert.equal(sum('445712'), 0);
+  // replayed, the same rate
+  const other = createEngine(t.store, { clock: () => t.clock.now, syncEveryMs: 0 });
+  await other.sync(true);
+  assert.equal(other.state.payments.get('py_dep').vat, 2000);
+});
+
+test('a part of an unused deposit given back is booked the day it was given back, not the day it was paid', async () => {
+  const t = await salon({ day: '2026-10-28', hour: 10 });
+  const a = await t.engine.run(createAppointment, { clientId: t.ids.yanis, serviceIds: [t.ids.beard], staffId: t.ids.Ali, day: DAY, start: 600 }, t.asOwner());
+  await t.engine.run(createPayment, { id: 'py_dep', kind: 'deposit', amount: 1000, provider: 'simulated', providerRef: 'sim_dep', apptId: a.id }, SYS);
+  await t.engine.run(paymentSucceeded, { id: 'py_dep', amount: 1000 }, PROVIDER);
+  t.clock.now = at('2026-10-29', 10);
+  await t.engine.run(paymentEnded, { id: 'py_dep', status: 'refunded', amount: 400, reason: 'Geste' }, PROVIDER);
+  const { entries, warnings } = ledger(t.engine.state, { from: '2026-10-01', to: '2026-10-31' });
+  const back = one(entries.filter((e) => /remboursé/.test(e.label)), 'BQ');
+  assert.equal(back.date, '2026-10-29');
+  assert.deepEqual(view(back), ['C 467100 4,00', 'D 419100 3,33', 'D 445710 0,67'].sort());
+  assert.deepEqual(warnings, []);
+  assert.equal(depositsHeld(t.engine.state, '2026-10-28').amount, 1000);
+  assert.equal(depositsHeld(t.engine.state, '2026-10-29').amount, 600);
 });
 
 test('no orphan Stripe money: a payment used the day it is paid goes through the ticket, an unused one waits in 419100', async () => {
@@ -285,7 +329,7 @@ test('a carnet’s cuts left are worth what was paid per cut', async () => {
   const pk = [...t.engine.state.packs.values()].find((k) => k.saleId === sale.id);
   t.clock.now = at(DAY, 15);
   await sell(t, { clientId: t.ids.yanis, lines: [{ kind: 'service', ref: t.ids.cut, packId: pk.id }], payments: [{ method: 'card', amount: 0 }] });
-  assert.deepEqual(packsAt(t.engine.state, DAY), { day: DAY, open: 1, cutsLeft: 3, value: 3 * 1600, legacy: { open: 0, cutsLeft: 0 } });
+  assert.deepEqual(packsAt(t.engine.state, DAY), { day: DAY, open: 1, cutsLeft: 3, value: 3 * 1600, valueHT: 4000, legacy: { open: 0, cutsLeft: 0 } });
   assert.equal(packsAt(t.engine.state, addDays(DAY, -1)).open, 0, 'not sold yet');
   assert.equal(packsAt(t.engine.state, addDays(DAY, 400)).open, 0, 'expired');
 });
@@ -313,6 +357,11 @@ test('the chart of accounts: defaults, the owner’s numbers, an unknown role on
   // Mise en route › Nouveautés
   assert.deepEqual(compta.golive.state(S0), { on: false, blocker: 'régime TVA à confirmer avec ton comptable' });
   assert.equal(compta.golive.label, 'Comptabilité');
+  assert.equal(compta.golive.to, 'compta', 'Nouveautés opens Réglages › Comptabilité');
+  // two journals with one code would merge their entries in the accountant's software: refused, against the codes set
+  await assert.rejects(t.engine.run(updateSettings, { compta: { journals: { bank: 'VE' } } }, t.asOwner()), /Deux journaux ne peuvent pas avoir le même code \(VE\)/);
+  await t.engine.run(updateSettings, { compta: { journals: { sales: 'VT', bank: 'VE' } } }, t.asOwner());
+  assert.deepEqual(comptaOf(t.engine.state).journals, { sales: 'VT', cash: 'CA', bank: 'VE', misc: 'OD' });
   assert.equal(JOURNALS.length, 3);
 });
 
@@ -348,7 +397,9 @@ test('the FEC layout: 18 fields, balanced entries, checked before it is served; 
 
 test('safe CSV: a formula never runs in Excel, an amount stays a number, a line break is quoted', () => {
   assert.equal(csv([['=SUM(A1)']], { bom: false }), "'=SUM(A1)\r\n");
-  assert.equal(csv([['-12,50', '+33 6', '@x', '\tTab']], { bom: false }), "-12,50;'+33 6;'@x;'\tTab\r\n");
+  assert.equal(csv([['-12,50', '+A1', '@x', '\tTab']], { bom: false }), "-12,50;'+A1;'@x;'\tTab\r\n");
+  // a foreign phone number in a client export stays as typed (routes-bascule.js uses the same writer)
+  assert.equal(csv([['+41 79 123 45 67', '+41791234567', '+41 79 cmd']], { bom: false }), "+41 79 123 45 67;+41791234567;'+41 79 cmd\r\n");
   assert.equal(csv([['a\rb']], { bom: false }), '"a\rb"\r\n');
   assert.equal(csv([['un;deux', 'il a dit "oui"']], { bom: false }), '"un;deux";"il a dit ""oui"""\r\n');
   assert.equal(csv([[-5, 20, null]]), '﻿-5;20;\r\n', 'numbers are not text');
@@ -414,11 +465,15 @@ test('the routes: the file of a closed month, 409 while a day has no Z (or the p
   const open = await b.get('/api/v1/compta/entries?month=2026-11&format=fec');
   assert.equal(open.status, 409);
   assert.equal(open.json.error.code, 'open');
-  assert.equal(open.json.error.message, 'Il manque le Z du mardi 3 novembre.');
+  // today: the month is not over yet; a past day without its Z is one missing
+  assert.equal(open.json.error.message, 'Novembre n’est pas terminé (Z du mardi 3 novembre à faire).');
+  assert.equal(openWords('2026-11-02', '2026-11-03'), 'Il manque le Z du lundi 2 novembre');
   const prov = await b.get('/api/v1/compta/entries?month=2026-11&format=csv&provisional=1');
   assert.equal(prov.status, 200);
   assert.match(prov.headers.get('content-disposition'), /ecritures-2026-11-provisoire\.csv/);
   assert.equal(prov.headers.get('x-lx-period'), 'provisoire');
+  // each open day its own entry number, so no software merges two days
+  assert.match(prov.text, /;VE-PROV-20261103;/);
   assert.equal((await b.get('/api/v1/compta/entries?month=2026-11&format=fec&provisional=1')).status, 400);
   assert.equal((await b.get('/api/v1/compta/entries?month=2026-13')).status, 400);
   const vat = await b.get('/api/v1/compta/vat?month=2026-10');
@@ -427,9 +482,12 @@ test('the routes: the file of a closed month, 409 while a day has no Z (or the p
   assert.ok(vat.json.rows.length >= 1);
   const vcsv = await b.get('/api/v1/compta/vat?month=2026-10&csv=1');
   assert.match(vcsv.headers.get('content-disposition'), /tva-2026-10\.csv/);
+  const tot = vcsv.text.split('\r\n').find((l) => l.startsWith('Total;'));
+  assert.match(tot, /^Total;\d+,\d{2};\d+,\d{2}$/, 'the total has its base');
+  assert.ok(vcsv.text.includes('\r\n20;'), 'a rate as a number under « Taux (%) »');
   const bal = await b.get('/api/v1/compta/balances?day=2026-10-31');
   assert.equal(bal.status, 200);
-  assert.deepEqual(Object.keys(bal.json), ['day', 'giftcards', 'packs', 'deposits', 'stripe']);
+  assert.deepEqual(Object.keys(bal.json), ['day', 'giftcards', 'packs', 'deposits', 'stripe', 'payouts']);
   assert.equal(bal.json.giftcards.opening + bal.json.giftcards.issued - bal.json.giftcards.redeemed - bal.json.giftcards.cancelled - bal.json.giftcards.expired, bal.json.giftcards.closing);
 
   // a barber, on the salon tablet

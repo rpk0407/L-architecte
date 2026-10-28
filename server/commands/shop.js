@@ -7,6 +7,9 @@ import { normPhone } from '../lib/util.js';
 import { settingsSchema } from '../settings/index.js';
 import { cgvPatch } from '../settings/shop.js';
 import { checkMembership } from '../settings/membership.js';
+import compta, { journalClash } from '../settings/compta.js';
+
+const comptaJournals = (s) => ({ ...compta.defaults().journals, ...((s.settings.compta && s.settings.compta.journals) || {}) });
 
 // Composed from server/settings, one file per section; still exported from here as before.
 export { settingsSchema };
@@ -34,6 +37,8 @@ export const updateSettings = {
     let patch = parse(settingsSchema, input);
     if (patch.hours) for (const k of Object.keys(patch.hours)) checkIntervals(patch.hours[k], 'horaires');
     if (patch.membership) checkMembership(s, patch.membership);
+    // a journal code given to one journal while another keeps it (CPT-03): checked against the codes already set
+    if (patch.compta && patch.compta.journals) { const dup = journalClash({ ...comptaJournals(s), ...patch.compta.journals }); if (dup) fail(400, 'invalid', 'Deux journaux ne peuvent pas avoir le même code (' + dup + ').'); }
     const pii = contactPii(patch);
     if (!Object.keys(patch).length && !pii) return { settings: s.settings };
     // the CGV version follows the deposit and cancellation rules, dated here rather than by the screen that saved them

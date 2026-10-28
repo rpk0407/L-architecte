@@ -1,13 +1,14 @@
 // @ts-check
 // Month-end figures the accountant asks for (CPT-03), read off the state without replaying the journal:
 //   giftcardRoll   what the gift cards owe, rolled forward over a period (issued, used, cancelled, expired)
-//   packsAt        the cuts still owed on carnets, valued at what was paid per cut: the deferred revenue the accountant
-//                  may book at year end (Débit 706200 / Crédit 487); nothing is posted automatically
+//   packsAt        the cuts still owed on carnets, valued at what was paid per cut (TTC, and HT: the deferred revenue the
+//                  accountant may book at year end, Débit 706200 / Crédit 487); nothing is posted automatically
 //   depositsHeld   money paid online and not yet used or given back (419100)
 //   stripeBalance  what is still at Stripe (467100), from the ledger
 // No import of the engine or the state here.
 import { localParts } from '../../shared/dates.js';
-import { ledger, comptaOf, accountOf } from './ledger.js';
+import { vatSplit } from '../../shared/money.js';
+import { ledger, comptaOf, accountOf, refundsOf } from './ledger.js';
 
 const dayOf = (ms) => localParts(ms).day;
 const saleDay = (s, id) => (id && s.sales.get(id) ? s.sales.get(id).day : null);
@@ -65,7 +66,8 @@ export function giftcardRoll(s, from, to) {
  * @param {any} s @param {string} day
  */
 export function packsAt(s, day) {
-  const r = { day, open: 0, cutsLeft: 0, value: 0, legacy: { open: 0, cutsLeft: 0 } };
+  // value TTC (what the clients paid), valueHT (what VE credited to 706200: the figure of a year-end deferral)
+  const r = { day, open: 0, cutsLeft: 0, value: 0, valueHT: 0, legacy: { open: 0, cutsLeft: 0 } };
   for (const k of s.packs.values()) {
     const sale = k.saleId ? s.sales.get(k.saleId) : null;
     const sold = sale ? sale.day : dayOf(k.soldAt);
@@ -79,7 +81,7 @@ export function packsAt(s, day) {
     if (!left) continue;
     const line = sale ? sale.lines.find((l) => l.kind === 'pack' && l.packId === k.id) : null;
     r.open += 1; r.cutsLeft += left;
-    if (line && total) r.value += Math.round((left * line.net) / total);
+    if (line && total) { const v = Math.round((left * line.net) / total); r.value += v; r.valueHT += vatSplit(v, line.vat || 0).base; }
     else { r.legacy.open += 1; r.legacy.cutsLeft += left; }
   }
   return r;
@@ -97,7 +99,7 @@ export function depositsHeld(s, day) {
     const sale = py.usedBy ? s.sales.get(py.usedBy) : null;
     if (sale && sale.day <= day) continue;
     let back = 0;
-    if (py.refunded && dayOf(py.endedAt || py.paidAt) <= day) back += py.refunded;
+    for (const rf of refundsOf(py)) if (dayOf(rf.at) <= day) back += rf.amount;
     if (py.providerRefunded && !sale && dayOf(py.outsideAt || py.paidAt) <= day) back += Math.max(0, Math.min(py.amount, py.providerRefunded) - (py.refunded || 0));
     const held = Math.max(0, py.amount - back);
     if (held) { r.count += 1; r.amount += held; }

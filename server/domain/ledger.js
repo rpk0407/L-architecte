@@ -10,7 +10,7 @@
 // number; BQ and OD in the order the facts were recorded, over all time). No client name reaches an entry.
 // No import of the engine or the state here.
 import { vatSplit, isRevenue, fmtEur } from '../../shared/money.js';
-import { localParts, addDays, monthEnd, instantOf, dayLong } from '../../shared/dates.js';
+import { localParts, addDays, monthEnd, instantOf, dayLong, MONTHS_FR } from '../../shared/dates.js';
 import { ACCOUNT_ROLES, DEFAULT_ACCOUNTS } from '../../shared/accounts.js';
 import { refundParts, zFigures, closureNo, ticketNo, refundNo, hadTill } from './cash.js';
 import { outsideOpen } from '../projections/payments.js';
@@ -134,17 +134,17 @@ function isAdvance(s, py) {
   return !(sale && sale.day === paidDay(py));
 }
 /**
- * The VAT an advance carries, at collection (CGI 269-2-c): the booked service's rate for a deposit, the plan's for a
- * membership, none for a gift card (multi-purpose), the default rate otherwise. The same split books it in BQ and takes
- * it back in VE when a ticket uses it, so 419100 and the VAT accounts come back to zero.
+ * The VAT rate an online payment carries as an advance, at collection (CGI 269-2-c): the booked service's for a deposit,
+ * the plan's for a membership, none for a gift card (multi-purpose), the default rate otherwise. Frozen on the payment
+ * when the money arrives (payment.succeeded `vat`, commands/payments.js), so a later edit of the catalogue or of the
+ * appointment never changes a month already exported; looked up from the state only for a payment from before that.
+ * @param {any} s @param {any} py @returns {number}
  */
-function advanceVat(L, py, amount) {
-  if (!L.depositVat) return { rate: 0, tax: 0 };
-  const s = L.s;
-  const P = s.settings.payments || {};
-  let rate = P.vat ?? 2000;
-  if (py.kind === 'giftcard') rate = 0;
-  else if (py.kind === 'deposit') {
+export function advanceRate(s, py) {
+  if (py.kind === 'giftcard') return 0;
+  if (Number.isInteger(py.vat)) return py.vat;
+  let rate = (s.settings.payments || {}).vat ?? 2000;
+  if (py.kind === 'deposit') {
     const a = py.apptId ? s.appts.get(py.apptId) : null;
     const sv = a && a.services && a.services[0] ? s.services.get(a.services[0].id) : null;
     if (sv && sv.vat != null) rate = sv.vat;
@@ -152,6 +152,12 @@ function advanceVat(L, py, amount) {
     const m = s.members && py.memberId ? s.members.get(py.memberId) : null;
     if (m && m.vat != null) rate = m.vat;
   }
+  return rate;
+}
+/** The same split books an advance in BQ and takes it back in VE when a ticket uses it: 419100 and VAT come back to 0. */
+function advanceVat(L, py, amount) {
+  if (!L.depositVat) return { rate: 0, tax: 0 };
+  const rate = advanceRate(L.s, py);
   return { rate, tax: rate ? vatSplit(amount, rate).tax : 0 };
 }
 
@@ -193,6 +199,17 @@ function outsideCleared(L, rf, online) {
     budget -= take;
   }
   return 0;
+}
+
+/**
+ * What refundOnline gave back of a payment, refund by refund with its time (core/state.js `refunds`); a payment from
+ * before that has only its total, dated when it ended, else (a part, the time not kept) on its paid day, said.
+ * @param {any} py @returns {{ amount: number, at: number, guessed?: boolean }[]}
+ */
+export function refundsOf(py) {
+  if (!(py.refunded > 0)) return [];
+  if (Array.isArray(py.refunds) && py.refunds.length) return py.refunds;
+  return [{ amount: py.refunded, at: py.endedAt || py.paidAt, ...(py.endedAt ? {} : { guessed: true }) }];
 }
 
 /* ---------------- VE: the day's tickets, one entry per Z ---------------- */
@@ -322,18 +339,18 @@ export function bankJournal(L) {
       entry({ date: day, piece: py.id, pieceDate: day, label: what + ' reçu', valid: py.paidAt }, (acc) => advanceLines(acc, py, py.amount, 1, 'Reçu'));
     }
     // given back with refundOnline: off a ticket, the advance goes back; on a ticket, money left without a credit note
-    if (py.refunded > 0) {
-      const at = py.endedAt || py.paidAt;
-      const day = dayOf(at);
+    // one entry per refund, dated when it was made (py.refunds, core/state.js); an older journal has only the total
+    for (const rf of refundsOf(py)) {
+      const day = dayOf(rf.at);
       if (!sale) {
-        entry({ date: day, piece: py.id, pieceDate: day, label: what + ' remboursé', valid: at }, (acc, warn) => {
-          if (!py.endedAt) warn(py.id + ' : remboursement partiel daté du jour du paiement');
-          advanceLines(acc, py, py.refunded, -1, 'Remboursé');
+        entry({ date: day, piece: py.id, pieceDate: day, label: what + ' remboursé', valid: rf.at }, (acc, warn) => {
+          if (rf.guessed) warn(py.id + ' : remboursement partiel daté du jour du paiement');
+          advanceLines(acc, py, rf.amount, -1, 'Remboursé');
         });
       } else {
-        entry({ date: day, piece: py.id, pieceDate: day, label: what + ' remboursé sans avoir', valid: at }, (acc, warn) => {
+        entry({ date: day, piece: py.id, pieceDate: day, label: what + ' remboursé sans avoir', valid: rf.at }, (acc, warn) => {
           warn(ticketNo(sale.number) + ' : remboursé chez Stripe sans avoir');
-          acc.add('w', 'waiting', py.refunded); acc.add('w', 'method.online', -py.refunded);
+          acc.add('w', 'waiting', rf.amount); acc.add('w', 'method.online', -rf.amount);
         });
       }
     }
@@ -510,7 +527,8 @@ export function fecRows(entries) {
   const rows = [];
   for (const e of entries) {
     const lib = e.journalLib || e.journal;
-    const num = e.num == null ? e.journal + '-PROV' : e.journal + String(e.num).padStart(6, '0');
+    // a provisional day: its own number, so no software merges two days into one entry
+    const num = e.num == null ? e.journal + '-PROV-' + ymd(e.date) : e.journal + String(e.num).padStart(6, '0');
     const valid = e.valid ? ymd(dayOf(e.valid)) : ymd(e.date);
     for (const l of e.lines) {
       rows.push([e.journal, lib, num, ymd(e.date), l.account, l.accountLabel || l.account, l.aux || '', l.auxLabel || '', e.piece, ymd(e.pieceDate || e.date),
@@ -572,5 +590,12 @@ export function openDays(s, month, today) {
   }
   return out;
 }
-/** « Il manque le Z du mardi 3 novembre » */
-export const openWords = (day) => 'Il manque le Z du ' + dayLong(day);
+/**
+ * « Il manque le Z du mardi 3 novembre » for a past day; for today or a day to come the month is simply not over:
+ * « Octobre n’est pas terminé (Z du mercredi 28 octobre à faire) ».
+ * @param {string} day @param {string} [today]
+ */
+export function openWords(day, today) {
+  if (today && day >= today) { const m = MONTHS_FR[Number(day.slice(5, 7)) - 1]; return m.charAt(0).toUpperCase() + m.slice(1) + ' n’est pas terminé (Z du ' + dayLong(day) + ' à faire)'; }
+  return 'Il manque le Z du ' + dayLong(day);
+}

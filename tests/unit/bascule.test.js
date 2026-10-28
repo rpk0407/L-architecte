@@ -520,7 +520,8 @@ test('the routes: owner only, the CSV downloads, ticks and the switch go through
 
 test('csv: a foreign phone number is not quoted, a text that would be read as a formula is', () => {
   const text = csv([['+41 79 123 45 67', '+33612345678', '+cmd|calc', '=1+1', '-5', '@sum', 'a;b']]);
-  assert.equal(text.slice(1), '+41 79 123 45 67;+33612345678;\'+cmd|calc;\'=1+1;\'-5;\'@sum;"a;b"\r\n');
+  // the shared writer (lib/csv.js): a plain amount like -5 is a number in Excel, not a formula
+  assert.equal(text.slice(1), '+41 79 123 45 67;+33612345678;\'+cmd|calc;\'=1+1;-5;\'@sum;"a;b"\r\n');
 });
 
 test('health: texts held for the switch are not a scheduler that stopped, and neither are those that waited for it', async () => {

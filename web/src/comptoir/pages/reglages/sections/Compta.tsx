@@ -20,7 +20,7 @@ type ComptaCfg = {
 type Role = { role: string; account: string; label: string; group: string; alias?: boolean; soon?: boolean };
 type Row = { rate: number; base: number; tax: number };
 type Vat = { month: string; label: string; rows: Row[]; tax: number; adjustments: { deposits: { base: number; tax: number } }; autoliquidation: { label: string; base: number; tax: number }; ticketsVat: Row[]; warnings: string[]; period: 'definitif' | 'provisoire'; open: string[] };
-type Balances = { day: string; giftcards: { closing: number; legacy: { count: number; balance: number } }; packs: { open: number; cutsLeft: number; value: number }; deposits: { count: number; amount: number }; stripe: number };
+type Balances = { day: string; giftcards: { closing: number; legacy: { count: number; balance: number } }; packs: { open: number; cutsLeft: number; value: number; valueHT: number }; deposits: { count: number; amount: number }; stripe: number; payouts: boolean };
 
 const ROLES = (ACCOUNT_ROLES as Role[]).filter((r) => !r.soon);
 const GROUPS = [...new Set(ROLES.map((r) => r.group))];
@@ -40,6 +40,11 @@ const lastMonths = (today: string) => {
   for (let i = 0; i < 12; i++) { out.push(d.slice(0, 7)); d = dates.addDays(dates.monthStart(d), -1); }
   return [today.slice(0, 7), ...out];
 };
+/** The same as the server's 409 (domain/ledger.js openWords): a past day misses its Z, today's month is not over. */
+const openWords = (day: string, today: string) => day >= today
+  ? monthLabel(day.slice(0, 7)).replace(/ \d{4}$/, '') + ' n’est pas terminé (Z du ' + dates.dayLong(day) + ' à faire).'
+  : 'Il manque le Z du ' + dates.dayLong(day) + '.';
+const isEmail = (v: string) => !v || /^[^@\s]{1,64}@[^@\s]{1,190}\.[^@\s]{2,}$/.test(v);
 const monthLabel = (m: string) => { const t = dates.MONTHS_FR[Number(m.slice(5, 7)) - 1]; return t.charAt(0).toUpperCase() + t.slice(1) + ' ' + m.slice(0, 4); };
 
 /** A file from the server: downloaded as is, or its refusal said (a day without Z). */
@@ -65,6 +70,7 @@ export default function Compta({ s }: SectionProps) {
   const { busy, save } = useSave();
   const set = (patch: Partial<ComptaCfg>) => sec.setV({ ...c, ...patch });
   const bad = ROLES.filter((r) => !ACCOUNT_PATTERN.test(c.accounts[r.role] ?? ''));
+  const badMail = !isEmail(c.accountant.email);
   const changed = Object.keys(DEFAULT_ACCOUNTS).some((k) => (c.accounts[k] ?? DEFAULT_ACCOUNTS[k]) !== DEFAULT_ACCOUNTS[k]);
   // the rates the salon sells at: one rate everywhere is the case the BOFiP calls a single-purpose voucher
   const rates = new Set<number>([s.payments.vat, ...boot.services.filter((x) => x.active).map((x) => x.vat), ...boot.products.filter((x) => x.active).map((x) => x.vat)]);
@@ -115,6 +121,7 @@ export default function Compta({ s }: SectionProps) {
               </ul>
             </div>
           ))}
+          <p className="muted cp-foot">Un mois déjà envoyé, téléchargé de nouveau, prend les numéros d’aujourd’hui : change-les plutôt en début d’exercice.</p>
           <div><Button variant="ghost" icon="undo" disabled={!changed} onClick={() => set({ accounts: { ...DEFAULT_ACCOUNTS } })}>Remettre les comptes par défaut</Button></div>
         </div>
       </Card>
@@ -125,16 +132,22 @@ export default function Compta({ s }: SectionProps) {
             <Field label="Nom" htmlFor="cp-acc-name"><input id="cp-acc-name" className="input" autoComplete="off" maxLength={120} value={c.accountant.name} onChange={(e) => set({ accountant: { ...c.accountant, name: e.target.value } })} /></Field>
             <Field label="Cabinet" htmlFor="cp-acc-firm"><input id="cp-acc-firm" className="input" autoComplete="off" maxLength={120} value={c.accountant.firm} onChange={(e) => set({ accountant: { ...c.accountant, firm: e.target.value } })} /></Field>
           </div>
-          <Field label="E-mail" htmlFor="cp-acc-mail"><input id="cp-acc-mail" className="input" type="email" inputMode="email" autoComplete="off" maxLength={120} value={c.accountant.email} onChange={(e) => set({ accountant: { ...c.accountant, email: e.target.value.trim() } })} /></Field>
+          <Field label="E-mail" htmlFor="cp-acc-mail" error={badMail ? 'Adresse e-mail incorrecte' : undefined}><input id="cp-acc-mail" className={'input' + (badMail ? ' err' : '')} type="email" inputMode="email" autoComplete="off" maxLength={120} value={c.accountant.email} aria-invalid={badMail || undefined} onChange={(e) => set({ accountant: { ...c.accountant, email: e.target.value.trim() } })} /></Field>
           <Switch on={c.autoSend} onChange={(autoSend) => set({ autoSend })} title="Lui envoyer le pack chaque mois" hint="Le mois clôturé, ses fichiers partent seuls à cette adresse, avec le pack comptable." />
         </div>
       </Card>
 
       {can('compta') ? <Exports today={boot.today} /> : null}
 
-      <SaveBar dirty={sec.dirty} busy={busy} disabled={bad.length > 0} onReset={sec.reset} onSave={() => save({ compta: c }, 'Comptabilité enregistrée')} />
+      <SaveBar dirty={sec.dirty} busy={busy} disabled={bad.length > 0 || badMail} onReset={sec.reset} onSave={() => save({ compta: c }, 'Comptabilité enregistrée')} />
     </div>
   );
+}
+
+/** The files alone, for a manager (cap `compta`, no settings): Réglages › Comptabilité without its configuration. */
+export function ComptaFiles() {
+  const { boot } = useApp();
+  return <div className="col cp" style={{ gap: 16 }}><Exports today={boot.today} /></div>;
 }
 
 /** The month's files for the accountant, its VAT and its month-end balances. */
@@ -149,7 +162,7 @@ function Exports({ today }: { today: string }) {
   const get = async (key: string, url: string) => {
     // the month still has a day without its Z: said at once, as the server would refuse the file
     const missing = (key === 'fec' || key === 'csv') && vat.data && vat.data.month === month ? vat.data.open[0] : null;
-    if (missing) { setOpen('Il manque le Z du ' + dates.dayLong(missing) + '.'); return; }
+    if (missing) { setOpen(openWords(missing, today)); return; }
     setBusy(key); setOpen(null);
     try { await download(url); }
     catch (e: any) { if (e && e.code === 'open') setOpen(e.message); else toastError(e); }
@@ -174,7 +187,7 @@ function Exports({ today }: { today: string }) {
           {open ? (
             <Note tone="warn" icon="alert">
               <b>{open}</b> Le fichier d’import attend que chaque jour du mois ait son Z.{' '}
-              <Button size="sm" variant="ghost" busy={busy === 'prov'} onClick={() => get('prov', '/api/v1/compta/entries?month=' + month + '&format=csv&provisional=1')}>Version provisoire · Excel</Button>
+              <Button variant="ghost" className="cp-prov" busy={busy === 'prov'} onClick={() => get('prov', '/api/v1/compta/entries?month=' + month + '&format=csv&provisional=1')}>Version provisoire · Excel</Button>
             </Note>
           ) : null}
         </div>
@@ -185,7 +198,7 @@ function Exports({ today }: { today: string }) {
               <thead><tr><th scope="col">Taux</th><th scope="col">Base HT</th><th scope="col">TVA</th></tr></thead>
               <tbody>
                 {v.rows.length ? v.rows.map((r) => <tr key={r.rate}><th scope="row">{pct(r.rate)}</th><td tabIndex={0}><Money cents={r.base} decimals /></td><td tabIndex={0}><Money cents={r.tax} decimals /></td></tr>)
-                  : <tr><td colSpan={3} className="muted">Aucune vente ce mois-ci.</td></tr>}
+                  : <tr><td colSpan={3} className="muted cp-empty">Aucune vente ce mois-ci.</td></tr>}
                 {v.adjustments.deposits.tax ? <tr className="cp-sub"><th scope="row">dont acomptes</th><td tabIndex={0}><Money cents={v.adjustments.deposits.base} decimals /></td><td tabIndex={0}><Money cents={v.adjustments.deposits.tax} decimals /></td></tr> : null}
                 {v.autoliquidation.tax ? <tr className="cp-sub"><th scope="row">{v.autoliquidation.label}</th><td tabIndex={0}><Money cents={v.autoliquidation.base} decimals /></td><td tabIndex={0}><Money cents={v.autoliquidation.tax} decimals /></td></tr> : null}
               </tbody>
@@ -198,9 +211,9 @@ function Exports({ today }: { today: string }) {
           {!b ? <Skeleton h={64} /> : (
             <>
               <div className="cp-fig" tabIndex={0}><span>Cartes cadeaux dues</span><Money cents={b.giftcards.closing} decimals />{b.giftcards.legacy.count ? <small>dont {eur(b.giftcards.legacy.balance)} de l’ancien site</small> : null}</div>
-              <div className="cp-fig" tabIndex={0}><span>Carnets : coupes dues</span><Money cents={b.packs.value} decimals /><small>{b.packs.cutsLeft} coupe{b.packs.cutsLeft > 1 ? 's' : ''}</small></div>
+              <div className="cp-fig" tabIndex={0}><span>Carnets : coupes dues (HT)</span><Money cents={b.packs.valueHT} decimals /><small>{b.packs.cutsLeft} coupe{b.packs.cutsLeft > 1 ? 's' : ''} · {eur(b.packs.value)} TTC</small></div>
               <div className="cp-fig" tabIndex={0}><span>Acomptes en attente</span><Money cents={b.deposits.amount} decimals /><small>{b.deposits.count} paiement{b.deposits.count > 1 ? 's' : ''}</small></div>
-              <div className="cp-fig" tabIndex={0}><span>Payé en ligne, pas encore viré</span><Money cents={b.stripe} decimals /></div>
+              <div className="cp-fig" tabIndex={0}><span>Payé en ligne, pas encore viré</span><Money cents={b.stripe} decimals />{!b.payouts && b.stripe ? <small>Virements Stripe non suivis : ce montant ne baisse pas</small> : null}</div>
             </>
           )}
         </div>

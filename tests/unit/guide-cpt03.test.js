@@ -1,6 +1,6 @@
 // CPT-03 · The guide steps of Réglages › Comptabilité point at parts that exist: every step's target is a data-guide
 // attribute of the screen, ids are unique, every mark has its step, and the copy keeps to the rule (two sentences at
-// most, « tu »). The section is listed in Réglages, behind the owner's capability.
+// most, « tu »). The section is listed in Réglages, behind `compta`: the files for owner and manager, the rest the owner's.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -9,6 +9,7 @@ import { SECTION_CAP } from '../../web/src/comptoir/pages/reglages/caps.ts';
 
 const read = (p) => readFileSync(new URL('../../' + p, import.meta.url), 'utf8');
 const SOURCES = ['web/src/comptoir/pages/reglages/sections/Compta.tsx'];
+const FILES = new Set(['compta.exports', 'compta.vatdue', 'compta.balances']);
 const marks = () => SOURCES.flatMap((p) => [...read(p).matchAll(/data-guide="([^"]+)"/g)].map((m) => m[1]));
 
 test('every step points at a data-guide part of Réglages › Comptabilité and reads as the guide asks', () => {
@@ -21,13 +22,16 @@ test('every step points at a data-guide part of Réglages › Comptabilité and 
     assert.ok(s.target && have.has(s.target), s.id + ': no data-guide="' + s.target + '" in ' + SOURCES.join(', '));
     assert.ok(s.body.split(/(?<=[.!?])\s+/).length <= 2, s.id + ': two sentences at most');
     assert.ok(!/\bvous\b|\bvotre\b|\bvos\b/i.test(s.title + ' ' + s.body), s.id + ': « tu », not « vous »');
-    assert.deepEqual(s.roles, ['owner'], s.id + ': the owner’s screen');
+    // the month's files for a manager too (cap `compta`); the configuration is the owner's
+    assert.deepEqual(s.roles, FILES.has(s.id) ? ['owner', 'manager'] : ['owner'], s.id + ': who sees it');
   }
 });
 
 test('every data-guide mark of the screen has its step, and the section is the owner’s', () => {
   const targets = new Set(steps.map((s) => s.target));
   for (const m of marks()) assert.ok(targets.has(m), 'data-guide="' + m + '" has no step');
-  assert.equal(SECTION_CAP.compta, 'settings');
+  assert.equal(SECTION_CAP.compta, 'compta');
+  // a manager without `settings` gets the files alone
+  assert.match(read('web/src/comptoir/pages/Reglages.tsx'), /can\('settings'\) \? comptaFull\(\) : <ComptaFiles \/>/);
   assert.match(read('web/src/comptoir/pages/Reglages.tsx'), /\{ id: 'compta', label: 'Comptabilité', hint: 'TVA, plan de comptes, ton comptable', icon: 'euro', group: 'Salon'/);
 });

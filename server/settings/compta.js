@@ -17,7 +17,7 @@
 //   autoSend        the month's pack goes by itself once the accountant's e-mail is set (CPT-05)
 //   ereporting      the e-reporting of B2C sales (from 1 September 2027), its cadence (CPT-05)
 // No import of the engine here: the settings registry (index.js) loads this file while the engine is still loading.
-import { str, bool, opt, obj, oneOf, day } from '../lib/validate.js';
+import { str, bool, opt, obj, oneOf, day, InvalidInput } from '../lib/validate.js';
 import { ACCOUNT_ROLES, DEFAULT_ACCOUNTS, ACCOUNT_PATTERN } from '../../shared/accounts.js';
 
 export const REGIMES = /** @type {const} */ (['a-confirmer', 'reel-mensuel', 'reel-trimestriel', 'simplifie', 'franchise']);
@@ -27,10 +27,27 @@ export const CADENCES = /** @type {const} */ (['mensuel', 'decade', 'bimestriel'
 
 const accountsSchema = obj(Object.fromEntries(ACCOUNT_ROLES.map((x) => [x.role, opt(str({ max: 10, pattern: ACCOUNT_PATTERN }))])));
 const code = () => opt(str({ min: 1, max: 6, pattern: /^[A-Z0-9]+$/, lower: false }));
+/** Two journals with one code would share their entries' numbers (VE000001): the accountant's software merges them. */
+export function journalClash(journals) {
+  const seen = new Set();
+  for (const v of Object.values(journals || {})) { if (!v) continue; if (seen.has(v)) return v; seen.add(v); }
+  return null;
+}
+const journalsSchema = obj({ sales: code(), cash: code(), bank: code(), misc: code() });
+const journalsChecked = {
+  parse(x, p) {
+    const v = journalsSchema.parse(x, p);
+    const dup = journalClash(v);
+    if (dup) throw new InvalidInput(p, 'deux journaux ont le même code (' + dup + ')');
+    return v;
+  }
+};
 
 /** Mise en route › Nouveautés (WP-10): the regime is the one thing to settle with the accountant before the first file. */
 const golive = {
   label: 'Comptabilité',
+  // the regime is set in Réglages › Comptabilité (features.js would send it to Données otherwise)
+  to: 'compta',
   /** @param {any} s */
   state(s) {
     const c = s && s.settings && s.settings.compta;
@@ -53,7 +70,7 @@ export default /** @type {const} */ ({
     regime: opt(oneOf(REGIMES)), servicesVat: opt(oneOf(/** @type {const} */ (['encaissements', 'debits']))), giftcards: opt(oneOf(GIFTCARD_VAT)),
     depositVat: opt(bool()), feesReverseCharge: opt(bool()), legalForm: opt(oneOf(LEGAL_FORMS)),
     accounts: opt(accountsSchema),
-    journals: opt(obj({ sales: code(), cash: code(), bank: code(), misc: code() })),
+    journals: opt(journalsChecked),
     accountant: opt(obj({
       name: opt(str({ max: 120 })), firm: opt(str({ max: 120 })),
       email: opt(str({ max: 120, lower: true, pattern: /^([^@\s]{1,64}@[^@\s]{1,190}\.[^@\s]{2,})?$/ }))

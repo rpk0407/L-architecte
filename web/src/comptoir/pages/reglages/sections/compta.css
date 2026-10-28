@@ -29,6 +29,8 @@
 .cp-table th, .cp-table td { padding: 8px 6px; border-bottom: 1px solid var(--line); text-align: right; }
 .cp-table th:first-child { text-align: left; font-weight: 600; }
 .cp-table thead th { font: 600 12px/1.2 var(--sans); color: var(--tx3); }
+.cp-table td.cp-empty { text-align: left; }
+.cp-prov.btn { min-height: 44px; }
 .cp-table .cp-sub th, .cp-table .cp-sub td { color: var(--tx2); font-weight: 400; font-size: 13px; }
 .cp-warn { margin: 4px 0 0; padding-left: 18px; font-size: 13px; }
 .cp-figs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }

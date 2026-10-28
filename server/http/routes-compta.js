@@ -11,7 +11,8 @@ import { csv } from '../lib/csv.js';
 import { isDay, monthStart, monthEnd } from '../../shared/dates.js';
 
 const eu = (c) => (c / 100).toFixed(2).replace('.', ',');
-const pct = (rate) => String(rate / 100).replace('.', ',') + ' %';
+// the rate as a plain number under « Taux (%) »: « 20 % » in a cell, French Excel would read 0,2
+const pct = (rate) => String(rate / 100).replace('.', ',');
 
 /** The month asked, or 400. */
 function monthOf(r) {
@@ -38,7 +39,7 @@ export function comptaRoutes(app) {
     const provisional = r.query.get('provisional') === '1';
     if (provisional && format === 'fec') throw new HttpError(400, 'invalid', 'Le fichier d’import attend que chaque jour ait son Z : prends le CSV provisoire.');
     const open = openDays(r.s, month, r.local.day);
-    if (open.length && !provisional) throw new HttpError(409, 'open', openWords(open[0]) + '.', { days: open });
+    if (open.length && !provisional) throw new HttpError(409, 'open', openWords(open[0], r.local.day) + '.', { days: open });
     const { entries } = ledger(r.s, { from: month + '-01', to: monthEnd(month + '-01'), today: r.local.day, provisional });
     const period = open.length ? 'provisoire' : periodOf(r.s, month);
     if (format === 'csv') return file(csvText(entries), 'ecritures-' + month + (provisional && open.length ? '-provisoire' : '') + '.csv', 'text/csv; charset=utf-8', period);
@@ -55,9 +56,9 @@ export function comptaRoutes(app) {
     const open = openDays(r.s, month, r.local.day);
     const period = open.length ? 'provisoire' : periodOf(r.s, month);
     if (r.query.get('csv') === '1') {
-      const rows = [[VAT_LABEL], ['Mois', month, period === 'definitif' ? 'définitif' : 'provisoire'], ['Taux', 'Base HT', 'TVA']];
+      const rows = [[VAT_LABEL], ['Mois', month, period === 'definitif' ? 'définitif' : 'provisoire'], ['Taux (%)', 'Base HT', 'TVA']];
       for (const x of v.rows) rows.push([pct(x.rate), eu(x.base), eu(x.tax)]);
-      rows.push(['Total', '', eu(v.tax)]);
+      rows.push(['Total', eu(v.rows.reduce((t, x) => t + x.base, 0)), eu(v.tax)]);
       rows.push(['dont acomptes encaissés moins utilisés', eu(v.adjustments.deposits.base), eu(v.adjustments.deposits.tax)]);
       rows.push([REVERSE_LABEL + ' (autoliquidation)', eu(v.autoliquidation.base), eu(v.autoliquidation.tax)]);
       rows.push([]);
@@ -78,7 +79,9 @@ export function comptaRoutes(app) {
       giftcards: giftcardRoll(r.s, monthStart(day), day),
       packs: packsAt(r.s, day),
       deposits: depositsHeld(r.s, day),
-      stripe: stripeBalance(r.s, day, { today: r.local.day })
+      stripe: stripeBalance(r.s, day, { today: r.local.day }),
+      // Stripe's payouts read (webhooks): without them the money « pas encore viré » only grows, and the screen says so
+      payouts: !!(r.s.payouts && r.s.payouts.size)
     };
   }, { cap: 'compta' });
 }

@@ -272,6 +272,8 @@ export function evolve(s, e) {
       if (!py) break;
       // the provider's customer and card ids travel in pii (PAY-01); older events had them in data, and still replay
       Object.assign(py, { status: 'paid', paidAt: e.at, pm: p.pm || d.pm || null, customer: p.customer || d.customer || null, chargeRef: d.chargeRef || py.chargeRef || null });
+      // the VAT rate it carries as an advance, frozen when the money arrives (CPT-03, domain/ledger.js advanceRate)
+      if (Number.isInteger(d.vat)) py.vat = d.vat;
       if (py.apptId && py.kind === 'deposit') { const a = s.appts.get(py.apptId); if (a && a.deposit) a.deposit = { ...a.deposit, paid: py.amount, paymentId: py.id }; }
       if (py.apptId && py.kind === 'guarantee') { const a = s.appts.get(py.apptId); if (a) a.guarantee = { paymentId: py.id }; }
       // the charge index for refunds, disputes and payouts (projections/payments.js)
@@ -282,7 +284,13 @@ export function evolve(s, e) {
       const py = s.payments.get(d.id);
       if (!py) break;
       // a part given back keeps the rest paid (refundOnline with an amount); an event without one gave back everything
-      if (e.type === 'payment.refunded') { py.refunded = Math.min(py.amount, (py.refunded || 0) + (d.amount ?? py.amount)); if (py.refunded < py.amount) break; }
+      if (e.type === 'payment.refunded') {
+        const before = py.refunded || 0;
+        py.refunded = Math.min(py.amount, before + (d.amount ?? py.amount));
+        // each refund with its time: the books date a part given back when it was (CPT-03, domain/ledger.js refundsOf)
+        if (py.refunded > before) py.refunds = [...(py.refunds || []), { amount: py.refunded - before, at: e.at }];
+        if (py.refunded < py.amount) break;
+      }
       Object.assign(py, { status: e.type.split('.')[1], endedAt: e.at, reason: d.reason || '' });
       break;
     }

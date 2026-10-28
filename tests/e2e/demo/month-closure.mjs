@@ -75,7 +75,8 @@ export default async ({ h, page }) => {
   await files.getByLabel('Mois').selectOption('2026-10');
   await files.getByRole('table', { name: /TVA à déclarer, Octobre 2026/ }).getByRole('row', { name: /20 %/ }).waitFor({ timeout: 10000 });
   await files.getByRole('button', { name: 'Écritures · fichier d’import' }).click();
-  await files.getByText(/Il manque le Z du/).waitFor({ timeout: 10000 });
+  // the current month: « Octobre n’est pas terminé (Z du … à faire) », a past day without its Z: « Il manque le Z du … »
+  await files.getByText(/n’est pas terminé \(Z du .+ à faire\)|Il manque le Z du/).waitFor({ timeout: 10000 });
   const [prov] = await Promise.all([page.waitForEvent('download'), files.getByRole('button', { name: 'Version provisoire · Excel' }).click()]);
   if (prov.suggestedFilename() !== 'ecritures-2026-10-provisoire.csv') throw new Error('provisional file name: ' + prov.suggestedFilename());
   await files.getByLabel('Mois').selectOption('2026-09');
@@ -91,5 +92,15 @@ export default async ({ h, page }) => {
   }
   const num = await phone.getByLabel('Prestations de services').boundingBox();
   if (!num || num.height < 44) throw new Error('the account input is under 44 px');
+  // the provisional file, offered while the month runs, is a 44 px target too
+  const pfiles = phone.getByRole('heading', { name: 'Pour ton comptable' }).locator('xpath=ancestor::section[1]');
+  await pfiles.getByLabel('Mois').selectOption('2026-10');
+  await pfiles.getByRole('button', { name: 'Écritures · fichier d’import' }).click();
+  const pbox = await pfiles.getByRole('button', { name: 'Version provisoire · Excel' }).boundingBox();
+  if (!pbox || pbox.height < 44) throw new Error('« Version provisoire · Excel » is under 44 px: ' + JSON.stringify(pbox));
+  // a badly typed e-mail is said next to the field, before saving
+  await phone.getByLabel('E-mail').fill('durand@cabinet');
+  await phone.getByText('Adresse e-mail incorrecte').waitFor();
+  await phone.getByLabel('E-mail').fill('');
   await h.shot(phone, 'compta-phone');
 };

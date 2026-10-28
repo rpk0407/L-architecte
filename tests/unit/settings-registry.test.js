@@ -182,6 +182,7 @@ const REJECTED = [
   [{ compta: { accounts: { 'revenue.service': '70A' } } }, 'compta.accounts.revenue.service : format invalide'],
   [{ compta: { giftcards: 'unique' } }, 'compta.giftcards : valeur non permise'],
   [{ compta: { regime: 'micro' } }, 'compta.regime : valeur non permise'],
+  [{ compta: { journals: { sales: 'VE', bank: 'VE' } } }, 'compta.journals : deux journaux ont le même code (VE)'],
   ['x', 'objet attendu'],
   [[], 'objet attendu']
 ];
