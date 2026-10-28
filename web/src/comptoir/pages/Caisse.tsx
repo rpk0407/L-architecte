@@ -91,7 +91,7 @@ function Till() {
   if (loading && !data) return <div className="cs-grid"><Skeleton h={320} r={22} /><Skeleton h={420} r={22} /></div>;
   if (data?.closed) {
     return (
-      <section className="card" data-tour-empty>
+      <section className="card" data-tour-empty data-guide="cs-closed">
         <Empty icon="lock" title="La journée est clôturée" action={<Button variant="ghost" icon="ticket" onClick={() => navigate('/caisse/ventes')}>Voir les tickets</Button>}>
           Le Z de {dates.dayLong(today)} est scellé. Les ventes reprendront demain ; une erreur se corrige par un avoir.
         </Empty>

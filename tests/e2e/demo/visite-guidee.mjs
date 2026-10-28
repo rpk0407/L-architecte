@@ -25,6 +25,45 @@ async function litOn(page, target) {
   return s;
 }
 const stepOf = (page) => page.locator('.tour-card').getAttribute('data-step');
+
+/**
+ * Walk the open tour to its end with « Suivant » only. Each page's count « 2 / 5 » holds from its first card to its last
+ * and runs 1, 2, 3…; the whole visit's bar only moves forward and ends full. Returns the steps played and those that
+ * point at a part but light nothing (a centered card over a dimmed page). Also used by tests/e2e/prod/visite-guidee.mjs.
+ */
+export async function walkTour(page, shot = async () => {}) {
+  const seen = [], unlit = [];
+  let label = null, total = 0, k = 0, bar = 0;
+  for (let n = 0; n < 250 && (await page.locator('.tour').count()); n++) {
+    await page.locator('.tour-card[data-on="1"]').waitFor({ timeout: 10000 });
+    // the spotlight settles in with the card
+    await page.waitForTimeout(350);
+    const s = await page.evaluate(() => {
+      const c = document.querySelector('.tour-card'), b = document.querySelector('.tour-bar i');
+      return {
+        id: c.getAttribute('data-step'), target: c.getAttribute('data-target'), lit: document.querySelector('.tour-spot')?.getAttribute('data-on') === '1',
+        label: c.querySelector('.tour-k span:first-child')?.textContent || '', n: c.querySelector('.tour-n')?.textContent || '',
+        bar: Number(((b && b.style.transform.match(/scaleX\(([\d.]+)\)/)) || [])[1] || 0), url: location.pathname + location.search
+      };
+    });
+    seen.push(s.id);
+    const [a, b] = s.n.split('/').map((x) => Number(x.trim()));
+    if (s.label !== label) {
+      if (label !== null && k !== total) throw new Error('page « ' + label + ' » ended at ' + k + ' / ' + total);
+      if (a !== 1) throw new Error('page « ' + s.label + ' » starts at ' + s.n);
+      label = s.label; total = b;
+    } else if (b !== total || a !== k + 1) throw new Error('the count of « ' + label + ' » moved: ' + k + ' / ' + total + ' then ' + s.n + ' (' + s.id + ')');
+    k = a;
+    if (s.bar + 1e-6 < bar) throw new Error('the visit’s bar went back at ' + s.id + ': ' + bar + ' → ' + s.bar);
+    bar = s.bar;
+    if (s.target && !s.lit) unlit.push(s.id + ' (' + s.url + ')');
+    await shot(s.id);
+    await page.getByRole('button', { name: /^(Suivant|Terminer)$/ }).click();
+  }
+  if (await page.locator('.tour').count()) throw new Error('the tour did not end after ' + seen.length + ' steps');
+  if (bar < 0.999) throw new Error('the visit’s bar ends at ' + bar);
+  return { seen, unlit };
+}
 /** the app's shortcuts wait while the tour is open: g (Agenda), / (search), n and p (the Agenda's sheets) change nothing */
 async function keysWait(page) {
   const url = page.url(), at = await stepOf(page);
@@ -46,8 +85,10 @@ export default async ({ h, page }) => {
   if (!/\/comptoir\/reglages\/mise-en-route$/.test(page.url())) throw new Error('the tour does not start on Mise en route: ' + page.url());
   if ((await stepOf(page)) !== 'mer.head') throw new Error('first step: ' + (await stepOf(page)));
   const s1 = await litOn(page, 'mer-head');
-  const total = Number((await page.locator('.tour-n').textContent()).split('/')[1]);
-  if (!(total > 40)) throw new Error('the owner’s tour is short: ' + total);
+  // the count is the page's, the bar the whole visit's (a long one: its first step is a sliver)
+  if (!/^1 \/ [3-9]$/.test(await page.locator('.tour-n').textContent())) throw new Error('Mise en route’s count: ' + (await page.locator('.tour-n').textContent()));
+  const sliver = await page.locator('.tour-bar i').evaluate((e) => Number(e.style.transform.match(/scaleX\(([\d.]+)\)/)[1]));
+  if (!(sliver > 0 && sliver < 0.03)) throw new Error('the owner’s tour is short: its bar starts at ' + sliver);
   if ((await dialog.getAttribute('aria-modal')) !== 'true') throw new Error('the card is not a modal dialog');
   if (!(await page.evaluate(() => !!document.activeElement?.closest('.tour-card')))) throw new Error('the focus is not in the card');
   if (await welcome.isVisible()) throw new Error('the welcome stays during the tour');
@@ -108,6 +149,12 @@ export default async ({ h, page }) => {
   await page.getByRole('button', { name: 'Fermer' }).click();
   await page.locator('.tour').waitFor({ state: 'detached' });
   if (await page.getByRole('button', { name: /Visite guidée/ }).count()) throw new Error('the chip stays after the tour was passed');
+
+  /* ---------- the whole visit, « Suivant » after « Suivant »: a part this salon does not show is passed over ---------- */
+  await page.getByRole('button', { name: 'Revoir la visite' }).click();
+  const walk = await walkTour(page, (id) => (['agenda.board', 'caisse.lines', 'clients.file-head', 'clients.abonnes-list'].includes(id) ? h.shot(page, 'tour-walk-' + id) : null));
+  if (walk.seen.length < 40) throw new Error('the owner’s tour is short: ' + walk.seen.length + ' steps');
+  if (walk.unlit.length > 3) throw new Error(walk.unlit.length + ' steps light nothing: ' + walk.unlit.join(', '));
 
   /* ---------- a phone: a bottom card, no sideways scroll ---------- */
   const phone = await h.newPage({ viewport: { width: 390, height: 844 } });

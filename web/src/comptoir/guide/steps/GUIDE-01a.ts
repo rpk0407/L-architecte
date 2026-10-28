@@ -18,6 +18,9 @@ const steps: GuideStep[] = [
     title: 'Nouveautés', body: 'Les fonctions qui attendent un réglage ou un feu vert avant de s’allumer. Chaque ligne dit ce qu’elle attend et mène à son réglage.' },
 
   /* ---------------- Agenda ---------------- */
+  // a salon with no barber yet has no agenda: the tour shows what opens it, its other parts wait for the team
+  { id: 'agenda.noteam', page: '/comptoir/agenda', target: 'ag-noteam', roles: BOSS, order: 5,
+    title: 'Ajoute ton équipe pour ouvrir l’agenda', body: 'L’agenda attend son premier barbier : chacun y aura sa colonne et le site proposera ses créneaux. « Ajouter l’équipe » t’emmène à Équipe.' },
   { id: 'agenda.date', page: '/comptoir/agenda', target: 'ag-date', order: 10,
     title: 'Le jour affiché', body: 'Les flèches passent au jour d’avant ou d’après, et un appui sur la date ouvre le calendrier. « Aujourd’hui » te ramène au jour même.' },
   { id: 'agenda.view', page: '/comptoir/agenda', target: 'ag-view', order: 20,
@@ -44,6 +47,9 @@ const steps: GuideStep[] = [
     title: 'La semaine', body: 'Chaque barbier, chaque jour : ses rendez-vous et son remplissage. Touche un jour pour ouvrir son planning.' },
 
   /* ---------------- Caisse › Encaisser ---------------- */
+  // the day closed: the till waits for tomorrow, its other parts are passed over
+  { id: 'caisse.closed', page: '/comptoir/caisse', target: 'cs-closed', order: 5,
+    title: 'La journée est clôturée', body: 'Le Z du jour est scellé : les ventes reprennent demain. Une erreur se corrige par un avoir, depuis « Voir les tickets ».' },
   { id: 'caisse.tabs', page: '/comptoir/caisse', target: 'cs-tabs', order: 10,
     title: 'Encaisser, Ventes du jour, Caisse & clôture', body: 'Les trois temps de la caisse : encaisser un client, revoir les tickets du jour, puis compter le tiroir et clôturer le soir.' },
   { id: 'caisse.online', page: '/comptoir/caisse', target: 'cs-online', roles: TILL, order: 15,

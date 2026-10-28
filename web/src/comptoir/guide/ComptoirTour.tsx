@@ -76,7 +76,7 @@ export function usePlan(canOpen: (path: string) => boolean): Played[] {
 /* ---------------- the views a step needs: a ticket open, a client's file ---------------- */
 
 /** A client waiting to pay today (his ticket is already filled), the one with the most to show (a membership, a carnet:
- *  their lines and chips), else an empty free sale. */
+ *  their lines and chips), else an empty free sale (the parts it does not show are left out by the tour). */
 async function aTicket(today: string, nowMin: number) {
   const cur = new URLSearchParams(location.search).get('rdv');
   if (location.pathname === '/comptoir/caisse' && cur) return '/comptoir/caisse?rdv=' + encodeURIComponent(cur);

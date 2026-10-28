@@ -123,7 +123,7 @@ function ClientList({ active }: { active: string | null }) {
             </button>
           ) : null}
           {loading && !data ? <div className="col" style={{ gap: 10 }}>{[0, 1, 2, 3, 4, 5].map((i) => <Skeleton key={i} h={52} />)}</div> : !data?.items.length ? (
-            <Empty icon="clients" title={dq ? 'Personne à ce nom' : 'Aucun client ici'}>{dq ? 'Vérifie l’orthographe ou cherche par les derniers chiffres du numéro.' : 'Ce segment est vide pour le moment.'}</Empty>
+            <div data-tour-empty><Empty icon="clients" title={dq ? 'Personne à ce nom' : 'Aucun client ici'}>{dq ? 'Vérifie l’orthographe ou cherche par les derniers chiffres du numéro.' : 'Ce segment est vide pour le moment.'}</Empty></div>
           ) : (
             <>
               <ul className="list" data-guide="cl-rows">

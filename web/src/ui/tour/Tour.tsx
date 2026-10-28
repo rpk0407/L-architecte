@@ -2,11 +2,13 @@
 // a step points at (its data-guide mark), the explanation card beside it with an arrow, « Suivant » / « Retour », the
 // progress and a dot per step of the page. The spotlight glides from part to part, the card follows and fades, a page
 // change fades the two out and in; under prefers-reduced-motion everything is instant (tour.css).
-// It goes to each step's page with the app's own router (`go`), waits for the part (up to 3 s after a page change),
-// scrolls it into view, and never gets stuck: a part that is not there gets a centered card ('center', the Comptoir),
-// or is left out ('skip', /moi: a client is only told about what he has). Either way a part the page has but hides at
-// this width (a desktop-only button on a phone), or a page showing its empty state (data-tour-empty: no team yet, the
-// day closed), is passed over: no card explains what is not there to tap. What to play and in what order: order.ts.
+// It goes to each step's page with the app's own router (`go`) and lets the page settle (its parts up to 3 s after a
+// page change, less once the page is done: its empty state, data-tour-empty, or nothing new for a moment). The parts the
+// page does not show then (an empty salon, a client with no carnet, a ticket with no member, a button hidden at this
+// width) are left out all at once, before the page's first card: no card explains what is not there to tap, and the
+// page's count « 2 / 5 » holds from its first card to its last. The `:param` places (a ticket, a file) are found before
+// the first card, so a whole page is never dropped mid-way. It never gets stuck: a part gone later (the data changed)
+// gets a centered card ('center', the Comptoir) or is left out ('skip', /moi). What to play and in what order: order.ts.
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from '../Icon';
@@ -37,6 +39,8 @@ export type TourProps = {
 const WAIT_MS = 3000;
 /** on a page already open, a part that is not there by now is not coming */
 const SETTLE_MS = 500;
+/** a page with some of its parts in and nothing new on it for this long is done loading */
+const QUIET_MS = 700;
 /** spotlight padding around the part, room between it and the card (the arrow), distance kept from the screen's edges */
 const PAD = 8, GAP = 16, EDGE = 12;
 /** below this width the card is a bottom card */
@@ -102,6 +106,8 @@ export function Tour({ steps, start = 0, skin, mode = 'tour', missing = 'center'
   const nextBtn = useRef<HTMLButtonElement>(null);
   const token = useRef(0);
   const urls = useRef(new Map<string, string | null>());
+  /** the places whose page has settled: their missing parts are already left out */
+  const settled = useRef(new Set<string>());
   /** where the page is being scrolled to: the card is placed for the page as it will stand */
   const aim = useRef<{ top: number; left: number } | null>(null);
   const cardH = useRef(200);
@@ -179,17 +185,35 @@ export function Tour({ steps, start = 0, skin, mode = 'tour', missing = 'center'
     window.scrollTo({ top, behavior: smooth });
   };
 
+  /** Wait for this place's page to settle: every part in, or the page done without some (its empty state, parts hidden
+   *  at this width, or some parts in and nothing new for QUIET_MS), or `long` ms (3 s after a page change). false: the
+   *  visitor moved on meanwhile. */
+  const settle = async (place: string, my: number, long: boolean) => {
+    const targets = [...new Set(listRef.current.filter((x) => x.place === place && x.target).map((x) => x.target!))];
+    if (!targets.length) return true;
+    let last = Date.now();
+    const mo = typeof MutationObserver === 'function' ? new MutationObserver((ms) => {
+      if (ms.some((m) => { const n = m.target.nodeType === 1 ? (m.target as Element) : m.target.parentElement; return !n?.closest('.tour'); })) last = Date.now();
+    }) : null;
+    mo?.observe(document.body, { childList: true, subtree: true, characterData: true });
+    const t0 = Date.now(), until = t0 + (long ? WAIT_MS : SETTLE_MS);
+    try {
+      for (;;) {
+        const out = targets.filter((t) => !findPart(t)), now = Date.now();
+        if (!out.length || now >= until) return true;
+        if (now - t0 >= SETTLE_MS && (out.every(notHere) || (out.length < targets.length && now - last >= QUIET_MS))) return true;
+        await sleep(80);
+        if (my !== token.current) return false;
+      }
+    } finally { mo?.disconnect(); }
+  };
+
   /** Show step i (dir: the way the visitor is going, for steps left out on the way). */
   const show = async (i: number, dir = 1) => {
     const my = ++token.current;
     const s = listRef.current[i];
     if (!s) return finish('done');
-    let url: string | null = s.place;
-    if (s.place.includes(':')) {
-      if (!urls.current.has(s.place)) urls.current.set(s.place, resolve ? await resolve(s.place).catch(() => null) : null);
-      if (my !== token.current) return;
-      url = urls.current.get(s.place) ?? null;
-    }
+    const url = s.place.includes(':') ? urls.current.get(s.place) ?? null : s.place;
     if (url == null) return drop((x) => x.place === s.place, i, dir);
     const moving = !sameUrl(url, location.pathname + location.search);
     if (moving) {
@@ -198,24 +222,31 @@ export function Tour({ steps, start = 0, skin, mode = 'tour', missing = 'center'
       if (my !== token.current) return;
       go(url);
     }
+    const fresh = !settled.current.has(s.place);
+    if (fresh) {
+      if (!(await settle(s.place, my, moving || !curRef.current))) return;
+      settled.current.add(s.place);
+      // what the page does not show now is not coming: all left out at once, before its first card (one wait, and the
+      // page's count holds)
+      const gone = new Set(listRef.current.filter((x) => x.place === s.place && x.target && !findPart(x.target)).map((x) => x.id));
+      if (gone.has(s.id)) return drop((x) => gone.has(x.id), i, dir);
+      if (gone.size) {
+        const nl = listRef.current.filter((x) => !gone.has(x.id));
+        listRef.current = nl;
+        setList(nl);
+        i = nl.indexOf(s);
+      }
+    }
     let el: HTMLElement | null = null;
     if (s.target) {
-      const t0 = Date.now(), until = t0 + (moving || !curRef.current ? WAIT_MS : SETTLE_MS);
-      // a page that settled on its empty state, or that hides the part at this width, has no reason to be waited for
-      const settled = moving || !curRef.current ? SETTLE_MS : 0;
-      while (!(el = findPart(s.target)) && Date.now() < until && !(Date.now() - t0 >= settled && notHere(s.target))) {
+      // a settled page met again (« Retour » from the next page): its part, as long as the page may take
+      const until = Date.now() + (fresh ? 0 : moving ? WAIT_MS : SETTLE_MS);
+      while (!(el = findPart(s.target)) && Date.now() < until && !notHere(s.target)) {
         await sleep(80);
         if (my !== token.current) return;
       }
-      if (my !== token.current) return;
     }
-    if (!el && s.target && (missing === 'skip' || notHere(s.target))) {
-      // the page has settled: the other parts of this place still missing are not coming either, all left out at once
-      // (one wait, not one per part)
-      const gone = new Set([s.id]);
-      if (missing === 'skip') for (const x of listRef.current.slice(i + 1)) if (x.place === s.place && x.target && !findPart(x.target)) gone.add(x.id);
-      return drop((x) => gone.has(x.id), i, dir);
-    }
+    if (!el && s.target && (missing === 'skip' || notHere(s.target))) return drop((x) => x.id === s.id, i, dir);
     // going forward, the rest of this place in the page's order (a step that moves ahead is shown in its turn)
     if (dir > 0 && reorder(i)) return show(i, dir);
     if (el) scrollTo(el); else aim.current = { top: scrollY, left: scrollX };
@@ -226,9 +257,24 @@ export function Tour({ steps, start = 0, skin, mode = 'tour', missing = 'center'
     onStep?.(listRef.current[i], i);
   };
 
+  // the views a place needs (a ticket, a file) are found first: a place with nothing to show is left out before the
+  // first card, not when the tour gets there
   useEffect(() => {
     const prev = document.activeElement as HTMLElement | null;
-    void show(clamp(start, 0, Math.max(0, steps.length - 1)));
+    const my = token.current;
+    void (async () => {
+      const want = clamp(start, 0, Math.max(0, steps.length - 1));
+      const ps = [...new Set(steps.map((s) => s.place).filter((p) => p.includes(':')))];
+      await Promise.all(ps.map(async (p) => { urls.current.set(p, resolve ? await resolve(p).catch(() => null) : null); }));
+      if (my !== token.current) return;
+      const l = steps.filter((s) => !s.place.includes(':') || urls.current.get(s.place) != null);
+      listRef.current = l;
+      setList(l);
+      // the step he stopped on, or the first one after it that is left
+      const k = l.findIndex((s) => steps.indexOf(s) >= want);
+      if (k < 0) return finish('done');
+      void show(k);
+    })();
     return () => { token.current++; if (prev && prev.isConnected) prev.focus?.(); };
   }, []);
 
@@ -327,6 +373,10 @@ export function Tour({ steps, start = 0, skin, mode = 'tour', missing = 'center'
 
   const s = cur ? list[cur.i] : null;
   const group = s ? list.filter((x) => x.place === s.place) : [];
+  // the count is the page's (settled before its first card, so it holds); the bar under it is the whole visit's, and
+  // only ever moves forward when a page further on has less to show
+  const k = s ? group.indexOf(s) + 1 : 0;
+  const done = cur ? (cur.i + 1) / Math.max(1, list.length) : 0;
   const last = !!cur && cur.i >= list.length - 1;
   const g = geo;
   const lit = !!(s && g && g.spot && !away);
@@ -344,9 +394,10 @@ export function Tour({ steps, start = 0, skin, mode = 'tour', missing = 'center'
           {/* one live region for the dialog's whole life (a new one at each step, already filled, is not read out) */}
           <p className="tour-live" aria-live="polite" aria-atomic="true">{nb(s.title) + '. ' + nb(s.body)}</p>
           {g?.arrow ? <i className="tour-arrow" data-side={g.arrow.side} style={g.arrow.side === 'top' || g.arrow.side === 'bottom' ? { left: g.arrow.at } : { top: g.arrow.at }} aria-hidden /> : null}
+          <span className="tour-bar" aria-hidden><i style={{ transform: 'scaleX(' + done.toFixed(4) + ')' }} /></span>
           <div className="tour-in" key={s.id}>
             <div className="tour-head">
-              <p className="tour-k">{s.label ? <span>{s.label}</span> : null}<span className="tour-n">{cur!.i + 1} / {list.length}</span></p>
+              <p className="tour-k">{s.label ? <span>{s.label}</span> : null}<span className="tour-n" aria-label={'Étape ' + k + ' sur ' + group.length + ' de cette page'}>{k} / {group.length}</span></p>
               <button type="button" className="tour-skip" onClick={() => finish(mode === 'page' ? 'done' : 'skip')}>{mode === 'page' ? 'Fermer' : 'Passer la visite'}</button>
             </div>
             <h2 id="tour-t" className="tour-t">{nb(s.title)}</h2>
