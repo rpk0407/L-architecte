@@ -35,7 +35,7 @@ function Devices() {
   };
   return (
     <div className="col" style={{ gap: 16 }}>
-      <section className="card col" style={{ gap: 12 }}>
+      <section className="card col" style={{ gap: 12 }} data-guide="appareils-ici">
         <div className="card-h"><h2><Icon name="device" size={16} />Cet appareil</h2>{here ? <span className="badge badge-ok">enregistré</span> : <span className="badge">non enregistré</span>}</div>
         {here ? (
           <p className="muted" style={{ fontSize: 14 }}>« {here.name} » propose la connexion rapide par code PIN à toute l’équipe.</p>
@@ -46,7 +46,7 @@ function Devices() {
           </>
         )}
       </section>
-      <section className="card">
+      <section className="card" data-guide="appareils-liste">
         <div className="card-h"><h2><Icon name="shield" size={16} />Appareils autorisés</h2></div>
         {loading && !data ? <Skeleton h={120} /> : !data?.items.length ? <Empty icon="device" title="Aucun appareil">Sans appareil enregistré, personne ne peut se connecter par code.</Empty> : (
           <ul className="list">{data.items.map((d) => (
@@ -83,7 +83,7 @@ function Data() {
   return (
     <div className="col" style={{ gap: 16 }}>
       {can('audit') ? (
-        <section className="card col" style={{ gap: 12 }}>
+        <section className="card col" style={{ gap: 12 }} data-guide="donnees-integrite">
           <div className="card-h"><h2><Icon name="shieldOk" size={16} />Intégrité du journal</h2><Button size="sm" variant="ghost" icon="undo" busy={busy} onClick={verify}>Vérifier</Button></div>
           {!chk ? <Skeleton h={80} /> : chk.ok ? (
             <div className="rg-proof ok">
@@ -106,9 +106,9 @@ function Data() {
 
       {can('settings') ? <Health /> : null}
 
-      {can('settings') ? <Backups /> : null}
+      {can('settings') ? <div data-guide="donnees-sauvegardes"><Backups /></div> : null}
 
-      <section className="card col" style={{ gap: 10 }}>
+      <section className="card col" style={{ gap: 10 }} data-guide="donnees-exports">
         <div className="card-h"><h2><Icon name="download" size={16} />Exports</h2></div>
         <div className="rp-exports">
           {can('data') ? <a className="rp-exp" href="/api/v1/export?kind=journal" download><Icon name="shield" /><span><b>Archive complète du journal</b><small>JSON vérifiable hors ligne, sans données personnelles</small></span><Icon name="download" /></a> : null}
@@ -118,7 +118,7 @@ function Data() {
         <p className="muted" style={{ fontSize: 13.5 }}>Tes données t’appartiennent : tout s’exporte, à tout moment, sans demander à personne.</p>
       </section>
 
-      <section className="card col" style={{ gap: 10 }}>
+      <section className="card col" style={{ gap: 10 }} data-guide="donnees-rgpd">
         <div className="card-h"><h2><Icon name="lock" size={16} />Données personnelles (RGPD)</h2></div>
         <p className="muted" style={{ fontSize: 13.5 }}>Les noms, numéros et notes des clients sont stockés à part des opérations comptables. Un client qui demande l’effacement est effacé depuis sa fiche (menu ⋯) : ses tickets restent dans les comptes, sans son nom, et le journal reste vérifiable.</p>
         <p className="muted" style={{ fontSize: 13.5 }}>Les barbiers ne voient que la fin des numéros. Les exports de clients sont réservés au gérant.</p>
@@ -138,7 +138,7 @@ function Data() {
       ) : null}
 
       {boot.mode === 'demo' && boot.me.role === 'owner' ? (
-        <section className="card col" style={{ gap: 10 }}>
+        <section className="card col" style={{ gap: 10 }} data-guide="donnees-demo">
           <div className="card-h"><h2><Icon name="undo" size={16} />Démo</h2></div>
           <p className="muted" style={{ fontSize: 13.5 }}>Remet la démo à zéro : dix semaines d’activité recréées autour d’aujourd’hui, comme au premier jour.</p>
           <div><Button variant="danger" icon="undo" onClick={async () => {
@@ -288,11 +288,11 @@ function Journal() {
   for (const x of items) { const d = dates.localParts(x.at).day; if (!days.has(d)) days.set(d, []); days.get(d)!.push(x); }
   return (
     <div className="col" style={{ gap: 14 }}>
-      <div className="chips rp-periods">{KINDS.map(([k, t]) => <Chip key={k} small on={type === k} onClick={() => setType(k)}>{t}</Chip>)}</div>
+      <div className="chips rp-periods" data-guide="journal-filtres">{KINDS.map(([k, t]) => <Chip key={k} small on={type === k} onClick={() => setType(k)}>{t}</Chip>)}</div>
       <Field label="Qui"><select className="input select" value={actor} onChange={(e) => setActor(e.target.value)} style={{ maxWidth: 260 }}><option value="">Tout le monde</option>{boot.staff.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}<option value="web">Clients (site)</option><option value="scheduler">Automatique</option></select></Field>
       {!items.length && busy ? <Skeleton h={300} r={22} /> : !items.length ? <Empty icon="journal" title="Rien à afficher" /> : (
         [...days].map(([d, xs]) => (
-          <section key={d} className="card">
+          <section key={d} className="card" data-guide="journal-jour">
             <div className="card-h"><h2>{cap(dates.dayLong(d))}</h2><span className="faint" style={{ fontSize: 13 }}>{xs.length}</span></div>
             <ul className="rg-log">{xs.map((x) => (
               <li key={x.v}>

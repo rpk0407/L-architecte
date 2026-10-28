@@ -171,7 +171,7 @@ export default function Wordpress() {
   return (
     <div className="col wp" style={{ gap: 16 }}>
       {reports.length > 0 ? <Bascule /> : null}
-      <Card title="1 · Exporte depuis WordPress" icon="globe">
+      <Card title="1 · Exporte depuis WordPress" guide="wp-export" icon="globe">
         <ol className="wp-steps">
           <li><b>Salon › Calendrier</b>, tout en bas : remplis l’encadré <b>de / à</b> une année à la fois, puis <b>Exporter dans un fichier CSV</b>. Un fichier par année : l’hébergement coupe les gros exports. Exporte depuis le <b>{cutoffWords}</b>. Plus ancien ne sert à rien : la loi demande d’effacer les clients sans visite depuis 3 ans.</li>
           <li>Facultatif : <b>Outils › Exporter › Tout le contenu</b> (fichier XML). Il ajoute les absences, les notes, la durée réelle et le code des liens des anciens e-mails.</li>
@@ -180,7 +180,7 @@ export default function Wordpress() {
         <p className="faint" style={{ fontSize: 12.5 }}>Le jour de la bascule, refais l’export sur la même période et dépose-le à nouveau : seuls les nouveaux rendez-vous et ce qui a changé depuis (annulés, déplacés, passés, supprimés) sont repris. Un rendez-vous encore à venir qui n’est plus dans l’export est annulé ici, sans SMS.</p>
       </Card>
 
-      <Card title="2 · Dépose les fichiers" icon="download" aside={files.length ? <Button size="sm" variant="ghost" icon="x" onClick={clear}>Tout retirer</Button> : undefined}>
+      <Card title="2 · Dépose les fichiers" guide="wp-fichiers" icon="download" aside={files.length ? <Button size="sm" variant="ghost" icon="x" onClick={clear}>Tout retirer</Button> : undefined}>
         <label className={'wp-drop' + (over ? ' over' : '')} onDragOver={(e) => { e.preventDefault(); setOver(true); }} onDragLeave={() => setOver(false)} onDrop={drop}>
           <input ref={input} type="file" multiple accept=".csv,.xml,.txt,text/csv,text/xml,application/xml" onChange={(e) => void add(e.target.files)} aria-label="Fichiers exportés de WordPress" />
           <Icon name="download" size={22} />
@@ -203,7 +203,7 @@ export default function Wordpress() {
       {/* once imported, the report replaces the preview; dropping files again starts a new (delta) run */}
       {parsed && pv && c && !(done && !done.failed) ? (
         <>
-          <section className="col" style={{ gap: 10 }} aria-label="Aperçu">
+          <section className="col" style={{ gap: 10 }} aria-label="Aperçu" data-guide="wp-apercu">
             <div className="card-h" style={{ margin: 0 }}><h2><Icon name="eye" size={16} />3 · Ce qui va être repris</h2>{checking ? <span className="faint" style={{ fontSize: 13 }}>Vérification des fiches…</span> : null}</div>
             <div className="kpis k5 wp-kpis">
               <Kpi k="Nouveaux clients" v={c.newClients} s="fiches créées" icon="user" />
@@ -229,7 +229,7 @@ export default function Wordpress() {
 
           {pv.review.length ? <Review title="À regarder" rows={pv.review} /> : null}
 
-          <Card title="4 · Fais correspondre" icon="link">
+          <Card title="4 · Fais correspondre" guide="wp-correspondance" icon="link">
             {seen.services.length ? (
               <div className="wp-map">
                 <p className="section-k">Prestations</p>

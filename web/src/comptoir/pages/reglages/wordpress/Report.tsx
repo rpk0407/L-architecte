@@ -23,7 +23,7 @@ export function Report({ runs, runId, onPick, next }: { runs: Summary[]; runId: 
   const { data, loading, error } = useQuery<Detail>(id ? '/api/v1/import/runs/' + id : null);
   if (!id) return null;
   return (
-    <section className="col wr" style={{ gap: 16 }} aria-label="Rapport de la reprise">
+    <section className="col wr" style={{ gap: 16 }} aria-label="Rapport de la reprise" data-guide="wp-rapport">
       {loading || !data ? <Card title="Rapport de la reprise" icon="journal">{error ? <Note tone="err" icon="alert">{error.message}</Note> : <><Skeleton h={22} w="60%" /><Skeleton h={120} /></>}</Card> : <Body d={data} next={next} />}
       <Recent runs={runs} id={id} onPick={onPick} />
     </section>

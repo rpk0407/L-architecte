@@ -55,7 +55,7 @@ export default function Avis({ s, data }: SectionProps) {
   };
 
   return (
-    <Card title="Avis Google" icon="star" aside={<span className={'badge ' + (v.review && kind ? 'badge-ok' : v.review ? 'badge-warn' : '')}>{v.review ? (kind ? 'actif' : 'lien à vérifier') : 'coupé'}</span>}>
+    <Card title="Avis Google" guide="messages-avis" icon="star" aside={<span className={'badge ' + (v.review && kind ? 'badge-ok' : v.review ? 'badge-warn' : '')}>{v.review ? (kind ? 'actif' : 'lien à vérifier') : 'coupé'}</span>}>
       <Switch on={v.review} onChange={(x) => f.setV({ ...v, review: x })} title="Demander un avis après chaque visite" hint="Une fois la visite terminée et encaissée, une fois par trimestre au plus par client. Par SMS, ou par e-mail s’il n’a pas laissé de numéro. Un client qui a répondu STOP ou refusé les SMS n’en reçoit pas." />
       <div className="grid2 stack">
         <Field label="Envoyé après la visite" htmlFor="av-delay" hint="La nuit, le dimanche et les jours fériés, il part le matin suivant.">

@@ -64,7 +64,7 @@ export default function Messages({ s, data }: SectionProps) {
   const bad = TPL.find((t) => (M.templates[t.k] || '').trim().length < 10);
   return (
     <div className="col" style={{ gap: 16 }}>
-      <Card title="Envois automatiques" icon="bolt" aside={<span className={'badge ' + (boot.providers.sms ? 'badge-ok' : boot.mode === 'demo' ? 'badge-info' : 'badge-warn')}>{boot.providers.sms ? 'SMS via ' + smsVia(boot.providers.sms) : boot.mode === 'demo' ? 'Démo · simulé' : 'Aucun fournisseur'}</span>}>
+      <Card title="Envois automatiques" guide="messages-auto" icon="bolt" aside={<span className={'badge ' + (boot.providers.sms ? 'badge-ok' : boot.mode === 'demo' ? 'badge-info' : 'badge-warn')}>{boot.providers.sms ? 'SMS via ' + smsVia(boot.providers.sms) : boot.mode === 'demo' ? 'Démo · simulé' : 'Aucun fournisseur'}</span>}>
         {toggles.map(([k, t, h]) => <Switch key={k} on={!!M[k]} onChange={(v) => m.setV({ ...M, [k]: v })} title={t} hint={h} />)}
         <div className="grid2">
           <Field label="Heure du rappel de la veille"><select className="input select" value={M.reminderHour} onChange={(e) => m.setV({ ...M, reminderHour: Number(e.target.value) })}>{Array.from({ length: 14 }, (_, i) => i + 8).map((h) => <option key={h} value={h}>{h} h</option>)}</select></Field>
@@ -93,12 +93,12 @@ export default function Messages({ s, data }: SectionProps) {
         ) : null}
         <Switch on={N.weekly} onChange={(v) => n.setV({ ...N, weekly: v })} title="Le bilan de la semaine" hint="Le lundi à 8 h : chiffre d’affaires, visites, absences, meilleur barbier, prestations les plus demandées." />
       </Card>
-      <Card title="Bons plans et STOP" icon="shield">
+      <Card title="Bons plans et STOP" guide="messages-stop" icon="shield">
         <p className="muted" style={{ fontSize: 13.5 }}>Les relances ne partent qu’aux clients qui ont coché « Les bons plans du salon par SMS » sur le site (ou dont la fiche le dit), avec la mention « {(M.stopSuffix || '').trim()} » à la fin. Un client qui répond STOP est retiré tout seul. Aucun SMS ne part vers un numéro hors des indicatifs autorisés{Array.isArray(M.countries) && M.countries.length ? ' (' + M.countries.join(', ') + ')' : ''}.</p>
         {hook.data?.url ? <Field label="Adresse des désinscriptions (webhook Brevo)" hint="Envoyée avec chaque SMS. À renseigner aussi dans les webhooks SMS de Brevo, pour les réponses STOP."><input className="input" readOnly value={hook.data.url} onFocus={(e) => e.currentTarget.select()} /></Field>
           : hook.data && boot.mode !== 'demo' ? <Note tone="warn" icon="alert">Définis <code>CRON_SECRET</code> pour que les réponses STOP reviennent dans les fiches clients.</Note> : null}
       </Card>
-      <Card title="Les textes" icon="edit">
+      <Card title="Les textes" guide="messages-textes" icon="edit">
         <p className="muted" style={{ fontSize: 13.5 }}>Les mots entre accolades sont remplacés pour chaque client. Un SMS fait 160 caractères ; un « ç », un « ê » ou un « ô » le fait passer à 70 (les apostrophes courbes sont corrigées automatiquement).</p>
         <ul className="list">
           {TPL.map((t) => {

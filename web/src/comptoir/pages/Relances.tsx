@@ -86,7 +86,7 @@ export default function Relances() {
   return (
     <>
       <PageTitle><h1>Relances</h1></PageTitle>
-      <nav className="tabs" aria-label="Relances">
+      <nav className="tabs" aria-label="Relances" data-guide="relances-tabs">
         {tabs.map((t) => <Link key={t.id} to={t.to} className="tab" aria-current={tab === t.id ? 'page' : undefined}><Icon name={t.icon} size={16} />{t.label}{t.count ? <span className="count">{t.count}</span> : null}</Link>)}
       </nav>
       {tab === 'relancer' ? (can('marketing') ? <Rebook /> : <Empty icon="lock" title="Réservé à l’accueil et au gérant" />) : tab === 'attente' ? <Waiting /> : tab === 'demandes' ? (can('marketing') ? <Inquiries /> : <Empty icon="lock" title="Réservé à l’accueil et au gérant" />) : <Sent />}
@@ -153,14 +153,14 @@ function Rebook() {
   const st = data.stats;
   return (
     <>
-      <section className="kpis">
+      <section className="kpis" data-guide="relances-kpis">
         <Kpi k="À relancer" v={data.items.length} s="en retard sur leur rythme" icon="clock" hot={data.items.length > 0} />
         <Kpi k="Relancés" v={st.sent} s={(st.sent > 1 ? 'clients' : 'client') + ' ces 60 derniers jours'} icon="sms" />
         {/* distinct clients who booked within 21 days of their text: never more than were texted */}
         <Kpi k="Revenus" v={st.clientsBack} s={st.sent ? (st.clientsBack > 1 ? 'clients' : 'client') + ' sur ' + st.sent + ' (' + st.rate + ' %) · ' + eur(st.revenueBack, { decimals: false }) + ' de rendez-vous' : 'après une relance'} icon="calendar" bar={st.rate / 100} />
       </section>
       <div className="rl-grid">
-        <section className="card">
+        <section className="card" data-guide="relances-list">
           <div className="card-h">
             <h2><Icon name="clients" size={16} />{plural(data.items.length, 'client')} à relancer</h2>
             {data.items.length ? <button type="button" className="link" onClick={() => setSel(allOn ? new Set() : new Set(data.items.map((c) => c.id)))}>{allOn ? 'Tout décocher' : 'Tout cocher'}</button> : null}
@@ -183,7 +183,7 @@ function Rebook() {
           )}
         </section>
         <aside className="col rl-side">
-          <section className="card col" style={{ gap: 12 }}>
+          <section className="card col" style={{ gap: 12 }} data-guide="relances-message">
             <div className="card-h"><h2><Icon name="edit" size={16} />Le message</h2><small className={seg.count > 1 ? 'warn-t' : 'faint'}>{seg.chars} car. · {plural(seg.count, 'SMS')}</small></div>
             <textarea className="input textarea" rows={4} value={text} maxLength={320} onChange={(e) => setText(e.target.value)} aria-label="Texte de la relance" />
             <div className="chips">{['{prenom}', '{jours}', '{lien}'].map((v) => <button key={v} type="button" className="chip chip-sm" onClick={() => setText((t) => (t.endsWith(' ') || !t ? t : t + ' ') + v)}>{v}</button>)}<span className="grow" />{text !== data.template ? <button type="button" className="link" onClick={() => setText(data.template)}>Texte d’origine</button> : null}</div>
@@ -227,7 +227,7 @@ function Automations() {
     [m.rebook, 'Relances', 'proposées ici, envoyées quand tu le décides']
   ];
   return (
-    <section className="card">
+    <section className="card" data-guide="relances-auto">
       <div className="card-h"><h2><Icon name="bolt" size={16} />Messages automatiques</h2>{can('settings') ? <Link to="/reglages/messages" className="link">Régler</Link> : null}</div>
       <ul className="list">{rows.map(([on, t, s]) => <li key={t} className="li" style={{ minHeight: 0, padding: '10px 2px' }}><span className={'dot ' + (on ? 'on' : '')} aria-hidden /><span className="li-main"><b>{t}</b><small>{s}</small></span><span className={'badge ' + (on ? 'badge-ok' : '')}>{on ? 'actif' : 'coupé'}</span></li>)}</ul>
       {boot.mode === 'demo' ? <p className="faint" style={{ fontSize: 12.5, marginTop: 8 }}>Démo : les SMS sont simulés, rien ne part vraiment.</p> : !boot.providers.sms ? <Note tone="warn" icon="alert">Aucun fournisseur SMS n’est branché : les messages attendent dans la boîte d’envoi. Une fois branché, ceux de plus de 6 h ou dont le rendez-vous est passé ne partiront pas.</Note> : null}
@@ -250,14 +250,14 @@ function Waiting() {
   };
   return (
     <>
-      <section className="kpis">
+      <section className="kpis" data-guide="attente-kpis">
         <Kpi k="En attente" v={data.items.length} s="personnes sur la liste" icon="wait" />
         <Kpi k="Inscrits" v={data.stats.added} s="ces 30 derniers jours" icon="plus" />
         <Kpi k="Placés" v={data.stats.booked} s={data.stats.added ? pct(data.stats.booked / data.stats.added) + ' ont obtenu une place' : 'grâce à une annulation'} icon="check" />
       </section>
-      <Note icon="info">Quand un rendez-vous se libère, la place est proposée par SMS au premier inscrit compatible. Il a 30 minutes pour la prendre, sinon elle passe au suivant. Personne n’a rien à faire.</Note>
+      <div data-guide="attente-rule"><Note icon="info">Quand un rendez-vous se libère, la place est proposée par SMS au premier inscrit compatible. Il a 30 minutes pour la prendre, sinon elle passe au suivant. Personne n’a rien à faire.</Note></div>
       {!data.items.length ? <section className="card" style={{ marginTop: 14 }}><Empty icon="wait" title="Personne n’attend">Les clients s’inscrivent depuis le site quand le créneau voulu est complet.</Empty></section> : (
-        <div className="col" style={{ gap: 14, marginTop: 14 }}>
+        <div className="col" style={{ gap: 14, marginTop: 14 }} data-guide="attente-list">
           {[...byDay].map(([day, items]) => (
             <section key={day} className="card">
               <div className="card-h"><h2>{cap(dayShortWord(day, boot.today))}</h2><span className="badge">{items.length}</span></div>
@@ -297,7 +297,7 @@ function Inquiries() {
   return (
     <>
       <div className="row wrap" style={{ gap: 10, marginBottom: 14 }}>
-        <Seg value={show} onChange={setShow} label="Quelles demandes" options={[{ v: 'new', t: 'À traiter', count: data.unread }, { v: 'handled', t: 'Traitées' }, { v: 'all', t: 'Toutes' }]} />
+        <span data-guide="demandes-seg"><Seg value={show} onChange={setShow} label="Quelles demandes" options={[{ v: 'new', t: 'À traiter', count: data.unread }, { v: 'handled', t: 'Traitées' }, { v: 'all', t: 'Toutes' }]} /></span>
         <span className="grow" />
         <span className="faint" style={{ fontSize: 13 }}>Depuis les pages <a className="link" href="/contact" target="_blank" rel="noopener">Contact</a> et <a className="link" href="/formations" target="_blank" rel="noopener">Formations</a> du site</span>
       </div>
@@ -334,7 +334,7 @@ function InquiryCard({ q, data }: { q: Inquiry; data: InquiryData }) {
   };
   const fresh = q.status === 'new';
   return (
-    <section className="card col" style={{ gap: 12 }} aria-label={'Demande de ' + (q.first || 'quelqu’un')}>
+    <section className="card col" style={{ gap: 12 }} data-guide="demandes-card" aria-label={'Demande de ' + (q.first || 'quelqu’un')}>
       <div className="card-h" style={{ marginBottom: 0 }}>
         <h2><Icon name={q.kind === 'formation' ? 'scissors' : q.kind === 'sms' ? 'sms' : 'mail'} size={16} />{q.erased ? 'Demande effacée' : q.first}{q.moduleTitle ? <span className="faint" style={{ fontWeight: 500 }}>· {q.moduleTitle}</span> : null}</h2>
         <span className="row" style={{ gap: 6 }}>
@@ -398,7 +398,7 @@ function Sent() {
   const failedMail = data.items.filter((m) => m.status === 'failed' && m.channel === 'email').length;
   const why = failedMail === failed ? 'adresse invalide ou fournisseur e-mail indisponible' : failedMail ? 'numéro ou adresse invalide, ou fournisseur indisponible' : 'numéro invalide ou fournisseur SMS indisponible';
   return (
-    <section className="card">
+    <section className="card" data-guide="envoyes-list">
       <div className="card-h"><h2><Icon name="sms" size={16} />Derniers messages</h2><span className="faint" style={{ fontSize: 13 }}>{data.mode === 'demo' ? 'Démo · envois simulés' : 'SMS : ' + (data.provider ? cap(data.provider) : 'aucun fournisseur') + ' · e-mail : ' + (data.emailProvider ? cap(data.emailProvider) : 'aucun fournisseur')}</span></div>
       {failed ? <Note tone="warn" icon="alert">{plural(failed, 'message')} en échec : {why}. Le détail est dans chaque ligne.</Note> : null}
       {!data.items.length ? <Empty icon="sms" title="Aucun message pour l’instant" /> : (

@@ -28,7 +28,7 @@ export function Account() {
   };
   return (
     <div className="col" style={{ gap: 16 }}>
-      <section className="card col" style={{ gap: 14 }}>
+      <section className="card col" style={{ gap: 14 }} data-guide="compte-profil">
         <div className="row" style={{ gap: 16 }}>
           <Avatar name={me.name} initials={me.initials} color={f.color} photo={photoOf(me)} size="xl" />
           <div style={{ minWidth: 0 }}>
@@ -58,7 +58,7 @@ export function Account() {
 
       {me.chair ? <MyAbsences st={boot.staff.find((s) => s.id === me.id) || me} /> : null}
 
-      <section className="card col" style={{ gap: 10 }}>
+      <section className="card col" style={{ gap: 10 }} data-guide="compte-sessions">
         <div className="card-h"><h2><Icon name="lock" size={16} />Sessions</h2></div>
         <p className="muted" style={{ fontSize: 13.5 }}>Un téléphone perdu ? Ferme toutes tes sessions d’un coup : il faudra se reconnecter partout, ici compris.</p>
         <div className="row wrap" style={{ gap: 8 }}>
@@ -138,7 +138,7 @@ function PhoneCard() {
   const me = boot.me;
   const here = !!me.device?.personal;
   return (
-    <section className="card col touch44" style={{ gap: 12 }} aria-labelledby="ac-phone">
+    <section className="card col touch44" style={{ gap: 12 }} aria-labelledby="ac-phone" data-guide="compte-telephone">
       <div className="card-h"><h2 id="ac-phone"><Icon name="phone" size={16} />Mon téléphone</h2></div>
       {here ? <Note tone="ok" icon="check">Ce téléphone est lié. Ton code l’ouvre, une fois par jour.</Note> : (
         <>
@@ -171,7 +171,7 @@ function PrefsCard() {
   if (pages.includes('pilotage') && can('report.shop')) homes.push({ v: 'pilotage', t: 'Pilotage' });
   const home = homes.some((h) => h.v === p.home) ? p.home : 'auto';
   return (
-    <section className="card col touch44" style={{ gap: 14 }} aria-labelledby="ac-prefs" aria-busy={busy || undefined}>
+    <section className="card col touch44" style={{ gap: 14 }} aria-labelledby="ac-prefs" aria-busy={busy || undefined} data-guide="compte-comptoir">
       <div className="card-h"><h2 id="ac-prefs"><Icon name="sparkle" size={16} />Mon Comptoir</h2></div>
       <Field label="Ma page d’accueil" hint="Ce qui s’ouvre quand tu arrives sur le Comptoir.">
         <Seg label="Ma page d’accueil" value={home} options={homes} onChange={(v) => save({ home: v })} />
@@ -216,7 +216,7 @@ function CalendarCard() {
     try { await api.patch('/api/v1/prefs', { calName: v }); await reloadBoot(); } catch (e) { toastError(e); }
   };
   return (
-    <section className="card col" style={{ gap: 12 }} aria-labelledby="ac-cal">
+    <section className="card col" style={{ gap: 12 }} aria-labelledby="ac-cal" data-guide="compte-agenda">
       <div className="card-h"><h2 id="ac-cal"><Icon name="calendar" size={16} />Mon agenda dans mon téléphone</h2></div>
       <Switch on={!!c?.on} disabled={busy || !c} onChange={turn} title="Mes rendez-vous dans mon agenda" hint="Apple ou Google Agenda le met à jour tout seul." />
       {c?.on && c.url ? (
@@ -250,7 +250,7 @@ function PinCard() {
   };
   useEffect(() => { setAgain(''); }, [next.length < 4]);
   return (
-    <section className="card col" style={{ gap: 12 }}>
+    <section className="card col" style={{ gap: 12 }} data-guide="compte-pin">
       <div className="card-h"><h2><Icon name="key" size={16} />Code PIN</h2><span className={'badge ' + (boot.me.hasPin ? 'badge-ok' : 'badge-warn')}>{boot.me.hasPin ? 'défini' : 'aucun'}</span></div>
       <p className="muted" style={{ fontSize: 13.5 }}>Pour se connecter en deux secondes sur les appareils du salon. 4 à 6 chiffres, ni 0000 ni 1234 : il protège la caisse.</p>
       <div className="grid3 stack">
@@ -275,7 +275,7 @@ function PasswordCard() {
     catch (e) { toastError(e); } finally { setBusy(false); }
   };
   return (
-    <section className="card col" style={{ gap: 12 }}>
+    <section className="card col" style={{ gap: 12 }} data-guide="compte-mdp">
       <div className="card-h"><h2><Icon name="lock" size={16} />Mot de passe</h2><span className="faint" style={{ fontSize: 13 }}>{boot.me.email || ''}</span></div>
       <p className="muted" style={{ fontSize: 13.5 }}>Pour se connecter depuis n’importe où (chez toi, en déplacement). Changer le mot de passe ferme tes autres sessions.</p>
       <div className="grid2 stack">
