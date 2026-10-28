@@ -76,7 +76,7 @@ export default function Members({ q, active }: { q: string; active: string | nul
   // renewal notice never came (nothing else does in production)
   const rows = useQuery<{ members: MemberRow[] }>(can('client.view') ? '/api/v1/memberships' : null);
   const [only, setOnly] = useState(false);
-  const [write, setWrite] = useState<ClientCard | null>(null);
+  const [write, setWrite] = useState<{ c: ClientCard; member: boolean } | null>(null);
   const today = boot.today;
   const [members, carnets] = useMemo(() => {
     const items = data?.items || [];
@@ -100,6 +100,7 @@ export default function Members({ q, active }: { q: string; active: string | nul
   if (!members.length && !carnets.length) return <Empty icon="clients" title={q ? 'Personne à ce nom' : 'Aucun abonné ni carnet'}>{q ? 'Vérifie l’orthographe.' : 'Les abonnements et les carnets en cours apparaissent ici.'}</Empty>;
   const canWrite = can('marketing');
   const canCall = can('client.contact');
+  const firstWrite = canWrite ? filtered.find(({ c }) => c.hasPhone && c.sms && c.marketing)?.c.id : undefined;
   return (
     <div className="mbs">
       <MembersKpis />
@@ -118,7 +119,8 @@ export default function Members({ q, active }: { q: string; active: string | nul
               const weekly = m.rhythm === 'week';
               const came = !!m.week && m.week.used > 0;
               const phone = canCall && c.hasPhone && c.phone ? c.phone.replace(/[^\d+]/g, '') : '';
-              const writable = canWrite && c.hasPhone && c.sms;
+              // the Relances rules: only to a file that said yes to the salon's texts (Clients.tsx « Relancer » the same)
+              const writable = canWrite && c.hasPhone && c.sms && !!c.marketing;
               return (
                 <li key={m.id} className="mbs-item">
                   <button type="button" className="li mbs-row" aria-current={active === c.id ? 'true' : undefined} onClick={() => open(c.id)}>
@@ -131,13 +133,13 @@ export default function Members({ q, active }: { q: string; active: string | nul
                           {m.weeks.length ? <WeekDots weeks={m.weeks} today={today} guide={i === 0} /> : null}
                           <span className={'mbs-now' + (came ? ' ok' : '')} data-guide={i === 0 ? 'members-thisweek' : undefined}><span aria-hidden="true">{came ? '✓ ' : '· '}</span><span className="vh">{useWords(m, m)}</span><span aria-hidden="true">{came ? 'venu cette semaine' : 'pas encore cette semaine'}</span></span>
                         </span>
-                      ) : m.weeks.length ? <span className="mbs-line"><WeekDots weeks={m.weeks} today={today} guide={i === 0} /></span> : null}
+                      ) : null}
                     </span>
                     {weekly && m.week ? null : <span className="li-end"><b className="money tnum">{m.of ? m.used + '/' + m.of : m.used}</b><small className="faint">ce mois-ci</small></span>}
                   </button>
                   {writable || phone ? (
                     <span className="mbs-acts">
-                      {writable ? <Button size="sm" variant="ghost" icon="sms" aria-label={'Écrire à ' + c.first} onClick={() => setWrite(c)}>Écrire</Button> : null}
+                      {writable ? <span data-guide={c.id === firstWrite ? 'members-write' : undefined}><Button size="sm" variant="ghost" icon="sms" aria-label={'Écrire à ' + c.first} onClick={() => setWrite({ c, member: notYet(m) })}>Écrire</Button></span> : null}
                       {phone ? <a className="btn btn-ghost btn-sm" href={'tel:' + phone} aria-label={'Appeler ' + c.first + ' au ' + c.phone}><Icon name="phone" size={14} />Appeler</a> : null}
                     </span>
                   ) : null}
@@ -168,7 +170,7 @@ export default function Members({ q, active }: { q: string; active: string | nul
         </section>
       ) : null}
       {data && data.total > data.items.length ? <p className="muted" style={{ fontSize: 13 }}><Icon name="info" size={14} /> Les {data.items.length} premiers sur {data.total} : cherche un nom pour les autres.</p> : null}
-      {write ? <WriteSheet c={write} onClose={() => setWrite(null)} /> : null}
+      {write ? <WriteSheet c={write.c} member={write.member} onClose={() => setWrite(null)} /> : null}
     </div>
   );
 }
@@ -179,9 +181,10 @@ export const NUDGE = '{prenom}, on te garde ta place cette semaine ? Réserve ta
 /**
  * « Écrire à Karim »: one relance through the Relances path (/api/v1/relances/send), prefilled « On te garde ta place
  * cette semaine ? ». The server sends it only to a file that said yes to the salon's texts, with the STOP mention, once a
- * day at most and not within a week of his last visit; the answer says when it did not.
+ * day at most; member: a weekly member not come this week, so the week-since-last-visit rule gives way (he often came
+ * last week). The answer says when it did not leave.
  */
-function WriteSheet({ c, onClose }: { c: ClientCard; onClose: () => void }) {
+function WriteSheet({ c, member, onClose }: { c: ClientCard; member: boolean; onClose: () => void }) {
   const { boot } = useApp();
   const [text, setText] = useState(NUDGE);
   const [busy, setBusy] = useState(false);
@@ -190,9 +193,9 @@ function WriteSheet({ c, onClose }: { c: ClientCard; onClose: () => void }) {
   const send = async () => {
     setBusy(true);
     try {
-      const r = await api.post<{ sent: number; skipped: number }>('/api/v1/relances/send', { clientIds: [c.id], text: text.trim() });
+      const r = await api.post<{ sent: number; skipped: number }>('/api/v1/relances/send', { clientIds: [c.id], text: text.trim(), ...(member ? { member: true } : {}) });
       toast(r.sent ? { title: 'Message envoyé à ' + c.first, sub: 'Il part tout de suite, ou à la fin des heures calmes.', icon: 'sms' }
-        : { title: 'Message non envoyé', sub: c.first + ' n’a pas dit oui aux SMS du salon, est venu il y a moins de 7 jours ou a déjà eu un message aujourd’hui.', icon: 'sms' });
+        : { title: 'Message non envoyé', sub: member ? c.first + ' a déjà eu un message du salon aujourd’hui.' : c.first + ' est venu il y a moins de 7 jours ou a déjà eu un message aujourd’hui.', icon: 'sms' });
       if (r.sent) { refreshAll(); onClose(); }
     } catch (e) { toastError(e); } finally { setBusy(false); }
   };

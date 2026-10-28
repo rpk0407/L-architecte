@@ -192,7 +192,8 @@ const sums = new WeakMap();
  * Abonnés at a glance (PAY-05's strip, TEAM's cockpit): who runs, MRR, who joined and who left over 30 days, churn,
  * payments in trouble, and this month's covered cuts worth at list price against what the months brought in. PAY-07:
  * the weekly members' attendance over their billing month: weeks attended of the weeks gone by (the current one counts
- * once he came), the weeks missed, and who has not come this week yet.
+ * once he came), the weeks missed, and who has not come this week yet. A past week the month covers less than four days of
+ * counts only if he came in it.
  * @param {any} s @param {number} now
  */
 export function membershipSummary(s, now) {
@@ -210,7 +211,11 @@ export function membershipSummary(s, now) {
     if (st !== 'ended') count[st] = (count[st] || 0) + 1;
     if (rhythmOf(m) === 'week' && (st === 'active' || st === 'grace' || st === 'ending')) {
       weeks.members++;
+      const p = periodIn(s, m, day);
       for (const w of weeksOf(s, m, day)) {
+        // a week his month covers less than half of (joined on a Saturday, renewed on a Friday) is no week he missed
+        const inside = p ? diffDays(w.start < p.start ? p.start : w.start, addDays(w.end, 1) < p.end ? addDays(w.end, 1) : p.end) : 7;
+        if (!w.came && inside < 4 && w.end < day) continue;
         const past = w.end < day, current = !past && !w.future;
         if (past || (current && w.came)) weeks.elapsed++;
         if (w.came && !w.future) weeks.attended++;

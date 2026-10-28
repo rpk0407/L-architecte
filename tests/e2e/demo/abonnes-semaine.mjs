@@ -42,7 +42,8 @@ export default async ({ h, page }) => {
   const list = page.locator('[data-guide="members-list"] .mbs-item');
   await page.waitForFunction(() => document.querySelectorAll('[data-guide="members-list"] .mbs-item').length === 3, null, { timeout: 5000 }).catch(() => fail('the filter does not keep the three'));
   if (await list.locator('.mbs-now.ok').count()) fail('a member who came is in « Pas venu cette semaine »');
-  // the longest since his last visit first
+  // « Écrire » only where the text can leave (he said yes to the salon's offers): the demo's Nassim, of the three
+  if ((await page.getByRole('button', { name: /^Écrire à / }).count()) !== 1) fail('« Écrire » shows for a member who cannot be texted');
   await page.getByRole('button', { name: /^Écrire à / }).first().click();
   const sheet = page.getByRole('dialog', { name: /^Écrire à / });
   await sheet.waitFor({ timeout: 5000 });
@@ -51,7 +52,7 @@ export default async ({ h, page }) => {
   await sheet.getByText(/STOP/).first().waitFor();
   await h.shot(page, 'pay07-write');
   await sheet.getByRole('button', { name: 'Envoyer' }).click();
-  await page.getByText(/^(Message envoyé à |Message non envoyé)/).first().waitFor({ timeout: 8000 });
+  await page.getByText(/^Message envoyé à /).first().waitFor({ timeout: 8000 }).catch(() => fail('the nudge did not leave'));
   await page.keyboard.press('Escape');
 
   /* ---------- 3 · the till: a second covered cut in the week is refused, in French ---------- */
@@ -107,11 +108,11 @@ export default async ({ h, page }) => {
   const card = page.getByRole('region', { name: 'Formule Hebdo' });
   await card.waitFor({ timeout: 10000 });
   const line = card.locator('[data-guide="abo-offer-line"]');
-  if (!/80\s€\/mois · 1 coupe par semaine · semaine manquée perdue/.test(await line.textContent())) fail('preview: ' + (await line.textContent()));
+  if (!/80\s€\/mois · 1 coupe par semaine · semaine manquée : perdue/.test(await line.textContent())) fail('preview: ' + (await line.textContent()));
   await h.shot(page, 'pay07-settings-desktop');
   await card.getByRole('radio', { name: /Il la rattrape dans le mois/ }).check();
   await line.scrollIntoViewIfNeeded();
-  await page.waitForFunction(() => /4 coupes par mois · semaine manquée rattrapable dans le mois/.test(document.querySelector('[data-guide="abo-offer-line"]')?.textContent || ''), null, { timeout: 3000 }).catch(() => fail('the preview line did not follow the rule'));
+  await page.waitForFunction(() => /4 coupes par mois · semaine manquée : rattrapable dans le mois/.test(document.querySelector('[data-guide="abo-offer-line"]')?.textContent || ''), null, { timeout: 3000 }).catch(() => fail('the preview line did not follow the rule'));
   await card.getByText(/abonnés gardent l’ancienne règle/).waitFor();
   await h.shot(page, 'pay07-settings-rule');
   await page.getByRole('button', { name: 'Enregistrer' }).click();

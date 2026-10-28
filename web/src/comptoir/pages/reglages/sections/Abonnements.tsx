@@ -125,7 +125,7 @@ function PlanCard({ p, i, set, remove, known, problem, holders, saved, services 
         </span>
       </div>
       <div className="ab-grid">
-        <Field label="Nom" htmlFor={idl + '-n'}><input id={idl + '-n'} className="input" value={p.name} maxLength={40} onChange={(e) => set({ name: e.target.value })} placeholder="Ex. : Essentiel" /></Field>
+        <Field label="Nom" htmlFor={idl + '-n'}><input id={idl + '-n'} className="input" value={p.name} maxLength={40} onChange={(e) => set({ name: e.target.value })} placeholder="Ex. : Hebdo" /></Field>
         <Field label="Prix par mois" htmlFor={idl + '-p'}>
           <div className="row" style={{ gap: 8 }}>
             <input id={idl + '-p'} className="input input-money" inputMode="decimal" value={txt} onChange={(e) => { setTxt(e.target.value); const v = money.parseEur(e.target.value); if (v != null) set({ price: v }); }} onBlur={() => setTxt(p.price % 100 ? (p.price / 100).toFixed(2).replace('.', ',') : String(p.price / 100))} />
@@ -169,7 +169,7 @@ function PlanCard({ p, i, set, remove, known, problem, holders, saved, services 
       <Field label="Prestations couvertes" hint="Ce que l’abonnement paie : une coupe à 0 € à la caisse.">
         <div className="chips" role="group" aria-label="Prestations couvertes">{services.map((x) => <Chip key={x.id} small on={p.serviceIds.includes(x.id)} onClick={() => set({ serviceIds: p.serviceIds.includes(x.id) ? p.serviceIds.filter((y) => y !== x.id) : [...p.serviceIds, x.id] })}>{x.name}</Chip>)}</div>
       </Field>
-      <Field label="Phrase d’accroche (facultatif)" htmlFor={idl + '-b'}><input id={idl + '-b'} className="input" value={p.blurb} maxLength={120} onChange={(e) => set({ blurb: e.target.value })} placeholder="Ex. : 2 coupes par mois, sans engagement." /></Field>
+      <Field label="Phrase d’accroche (facultatif)" htmlFor={idl + '-b'}><input id={idl + '-b'} className="input" value={p.blurb} maxLength={120} onChange={(e) => set({ blurb: e.target.value })} placeholder="Ex. : Une coupe par semaine, sans engagement." /></Field>
       <Switch on={p.online !== false} onChange={(v) => set({ online: v })} title="En vente sur le site" hint="Sinon, tu ne la proposes qu’au salon, depuis la fiche du client." />
       {problem ? <Note tone="warn" icon="alert">{problem}</Note> : null}
       {saved && saved.price !== p.price ? <Note icon="info">Les abonnés en cours gardent leur prix.</Note> : null}

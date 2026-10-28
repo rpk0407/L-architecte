@@ -176,6 +176,15 @@ test('settings: a weekly plan stores its derived cuts and gap; 4 a week and an u
   const p = t.s().settings.membership.plans[0];
   assert.deepEqual([p.cuts, p.minDays], [8, 1]);
   assert.deepEqual(derivedCuts({ rhythm: 'week', perWeek: 3, missed: 'free' }), { cuts: 0, minDays: 1 });
+  // 3 a week caught up in the month stores 12 cuts: the plan as stored saves again unchanged
+  await t.e.run(updateSettings, { membership: { plans: [{ ...base, missed: 'month', perWeek: 3 }] } }, t.owner());
+  const stored = structuredClone(t.s().settings.membership.plans);
+  assert.equal(stored[0].cuts, 12);
+  await t.e.run(updateSettings, { membership: { plans: stored } }, t.owner());
+  assert.deepEqual(t.s().settings.membership.plans, stored);
+  // « Abonnement Abonnement »: the server refuses the name as the screen does
+  const e5 = await rejects(t.e.run(updateSettings, { membership: { plans: [{ ...base, name: 'Abonnement' }] } }, t.owner()), 'invalid');
+  assert.match(e5.message, /^membership\.plans\[0\]\.name : /);
 });
 
 test('the words, for every rhythm, from one file', () => {
@@ -187,8 +196,8 @@ test('the words, for every rhythm, from one file', () => {
   assert.deepEqual([lost, two, month, free, essentiel, illimite].map((p) => planWords(p)), ['1 coupe par semaine', '2 coupes par semaine', '4 coupes par mois', 'coupes illimitées, une par jour au plus', '2 coupes par mois', '1 coupe tous les 7 jours']);
   assert.equal(planWords(illimite, { detail: true }), 'coupes illimitées, une tous les 7 jours au plus');
   assert.deepEqual([lost, month, free, essentiel].map(missedWords), ['Semaine manquée : perdue', 'Semaine manquée : rattrapable dans le mois', 'Semaine manquée : pas de limite', '']);
-  assert.equal(offerWords({ ...lost, price: 8000 }), '80 €/mois · 1 coupe par semaine · semaine manquée perdue');
-  assert.equal(offerWords({ ...month, price: 8000 }), '80 €/mois · 4 coupes par mois · semaine manquée rattrapable dans le mois');
+  assert.equal(offerWords({ ...lost, price: 8000 }), '80 €/mois · 1 coupe par semaine · semaine manquée : perdue');
+  assert.equal(offerWords({ ...month, price: 8000 }), '80 €/mois · 4 coupes par mois · semaine manquée : rattrapable dans le mois');
   assert.equal(useWords(lost, { used: 1, of: 0, week: { used: 1 } }), 'Cette semaine : prise');
   assert.equal(useWords(lost, { used: 0, of: 0, week: { used: 0 } }), 'Cette semaine : à prendre');
   assert.equal(useWords(two, { used: 1, of: 0, week: { used: 1 } }), 'Cette semaine : 1/2');
@@ -256,4 +265,30 @@ test('the Abonnés board: this week, the weeks of the month and the last visit; 
   }
   assert.ok(his.members.some((m) => m.week && m.weeks.length), 'he reads the weeks');
   assert.equal((await barber.get('/api/v1/memberships/summary')).status, 403);
+});
+
+test('« Écrire » to a weekly member not come this week: the week since his last visit gives way, consent and once a day stay', async () => {
+  const now = instantOf('2026-10-27', 15 * 60 + 10);
+  const rt = await testRuntime({ clock: () => now });
+  const owner = browser(rt);
+  assert.equal((await owner.post('/api/auth/login', { email: DEMO.email, password: DEMO.password })).status, 200);
+  assert.equal((await owner.post('/api/auth/device', { name: 'Poste 1' })).status, 200);
+  const live = (await owner.get('/api/v1/memberships')).json.members.filter((m) => ['active', 'grace', 'ending'].includes(m.status));
+  const cards = new Map((await owner.get('/api/v1/clients?segment=abonnes&limit=200')).json.items.map((c) => [c.id, c]));
+  const recent = (c) => c && c.sms && c.hasPhone && c.sinceLast != null && c.sinceLast < 7;
+  const idle = live.filter((m) => !m.week.came).map((m) => cards.get(m.clientId)).find((c) => recent(c) && !c.marketing);
+  assert.ok(idle, 'the demo has a member not come this week who came within a week (no to the offers)');
+  const send = (cid, member) => owner.post('/api/v1/relances/send', { clientIds: [cid], ...(member ? { member: true } : {}) });
+  assert.deepEqual([(await send(idle.id, true)).json.sent], [0], 'no consent, no text');
+  assert.equal((await owner.patch('/api/v1/clients/' + idle.id, { marketing: true })).status, 200);
+  assert.deepEqual([(await send(idle.id)).json.sent], [0], 'the plain relance still waits a week');
+  assert.deepEqual([(await send(idle.id, true)).json.sent], [1]);
+  const msg = [...rt.engine.state.messages.values()].find((m) => m.cid === idle.id && m.template === 'rebook');
+  assert.ok(msg && msg.marketing && /on te garde ta place cette semaine/.test(msg.text || msg.body || JSON.stringify(msg)), 'an offer in the nudge\'s words: STOP mention and quiet hours');
+  assert.deepEqual([(await send(idle.id, true)).json.sent], [0], 'once a day');
+  // one who came this week gets nothing from the flag
+  const came = live.filter((m) => m.week.came).map((m) => cards.get(m.clientId)).find((c) => recent(c) && c.marketing);
+  if (came) assert.deepEqual([(await send(came.id, true)).json.sent], [0]);
+  // the cards say the consent, so « Écrire » shows only where it can leave
+  assert.ok([...cards.values()].every((c) => typeof c.marketing === 'boolean'));
 });

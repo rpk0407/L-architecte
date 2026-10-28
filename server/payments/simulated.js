@@ -19,7 +19,7 @@ export function simulatedProvider({ baseUrl }) {
     async retrieveCharge(ref) { return { chargeRef: String(ref || '').startsWith('sim_') ? 'sim_ch_' + String(ref).slice(4) : null }; },
     async listRefunds() { return []; },
     async listPayout() { return { amount: 0, arrival: 0, items: [] }; },
-    // the membership (PAY-03): the test page shows « Abonnement Essentiel · 34 €/mois » and its confirmation pays the
+    // the membership (PAY-03): the test page shows « Abonnement Hebdo · 80 €/mois » and its confirmation pays the
     // first month (POST /api/public/payments/:id/simulate); the demo's billing renews it (commands/steps/sim-billing.js)
     async ensurePrice(plan, price) { return 'sim_price_' + plan.id + '_' + price; },
     async createSubscription(o) {

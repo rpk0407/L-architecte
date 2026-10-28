@@ -22,8 +22,9 @@ const planSchema = () => obj({
   id: str({ min: 2, max: 24, pattern: PLAN_ID }),
   name: str({ min: 2, max: 40 }),
   price: int({ min: 500, max: 50000 }),
-  // a monthly plan says its cuts; a weekly one has them derived
-  cuts: opt(int({ min: 0, max: 8 })),
+  // a monthly plan says its cuts (0 to 8, below); a weekly one has them derived, up to perWeek × 4 caught up in the
+  // month: the stored plan must come back through here as it is
+  cuts: opt(int({ min: 0, max: PER_WEEK_MAX * 4 })),
   minDays: opt(int({ min: 0, max: 30 })),
   rhythm: opt(oneOf(RHYTHMS)),
   perWeek: opt(int({ min: 1, max: PER_WEEK_MAX })),
@@ -46,7 +47,10 @@ const membershipSchema = (() => {
       v.plans.forEach((pl, i) => {
         if (seen.has(pl.id)) throw new InvalidInput(at('plans[' + i + '].id'), 'deux formules ont le même code');
         seen.add(pl.id);
+        // every screen and text says « Abonnement {formule} »: a formule called « Abonnement » would read twice
+        if (/^abonnements?$/i.test(pl.name.trim())) throw new InvalidInput(at('plans[' + i + '].name'), 'le mot « Abonnement » est déjà devant son nom partout');
         if (new Set(pl.serviceIds).size !== pl.serviceIds.length) throw new InvalidInput(at('plans[' + i + '].serviceIds'), 'prestation en double');
+        if (pl.rhythm !== 'week' && pl.cuts !== undefined && pl.cuts > 8) throw new InvalidInput(at('plans[' + i + '].cuts'), 'entre 0 et 8');
         if (pl.rhythm === 'week') {
           // how often and what a missed week does say it all: the till's quota and gap follow from them
           pl.perWeek = pl.perWeek ?? 1; pl.missed = pl.missed ?? 'lost';

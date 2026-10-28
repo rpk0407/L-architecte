@@ -366,7 +366,9 @@ export async function buildDemoJournal(nowReal, opt = {}) {
       if (!sv) continue;
       const dur = sv.dur + (sv.buffer || 0), nowMin = isToday ? localParts(nowReal).min : 1440;
       const times = [570, 600, 630, 660, 690, 720, 810, 840, 870, 900, 930, 960, 990, 1020];
-      // his usual hour; the key keeps, on the tests' fixed clock, the days the other demo scenarios look for
+      // his usual hour. The key was picked on the tests' fixed clock (2026-10-27 15:10) so the members' visits leave the
+      // slots and clients the other demo scenarios look for (tests/unit/timeoff.test.js's counts, tests/e2e/demo/*): a new
+      // key, or a member more or less, means running both again
       const k = spread('t20|' + i, times.length);
       const all = [...times.slice(k), ...times.slice(0, k)];
       // a slot already over first (with any barber, his own first), so today's visit is done by now

@@ -65,6 +65,7 @@
 .mbs-now.ok { color: var(--ok-tx); }
 /* « Écrire », « Appeler »: beside the row, one above the other */
 .mbs-acts { display: flex; flex-direction: column; gap: 6px; padding-right: 4px; }
+.mbs-acts > span { display: flex; flex-direction: column; }
 .mbs-acts .btn { height: 32px; min-height: 32px; padding: 0 10px; font-size: 13px; justify-content: flex-start; }
 @media (max-width: 760px) { .mbs-acts .btn { height: 44px; min-height: 44px; } }
 .wk-dots { display: inline-flex; gap: 5px; align-items: center; }

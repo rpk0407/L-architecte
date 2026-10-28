@@ -1,10 +1,12 @@
 // @ts-check
 // Delivery bookkeeping for queued messages, the "on recoupe ?" campaign, and the STOP replies.
 import { fail } from '../core/engine.js';
-import { str, arr, id, opt, obj, parse } from '../lib/validate.js';
+import { str, arr, id, opt, obj, bool, parse } from '../lib/validate.js';
 import { normPhone } from '../lib/util.js';
 import { queueMessage, consentGone, fileOf } from '../domain/messages.js';
 import { clientStats } from '../domain/insights.js';
+import { membersOf, liveIn, weekUse } from '../domain/membership.js';
+import { rhythmOf } from '../../shared/membership-words.js';
 import { SECRET_TEMPLATES, SECRET_ERROR } from '../core/templates.js';
 
 // a client seen less than a week ago is not drifting away ("déjà 0 jours depuis ta dernière coupe")
@@ -45,7 +47,11 @@ export const messageResult = {
   }
 };
 
-const campaignSchema = obj({ clientIds: arr(id(), { min: 1, max: 200 }), text: opt(str({ min: 10, max: 320 })) });
+const campaignSchema = obj({ clientIds: arr(id(), { min: 1, max: 200 }), text: opt(str({ min: 10, max: 320 })), member: opt(bool()) });
+/** PAY-07: the nudge's words when the screen sends none (a relance: the rebook text says « déjà N jours », wrong here) */
+const NUDGE = "{prenom}, on te garde ta place cette semaine ? Réserve ta coupe : {lien}";
+/** PAY-07: a member on a weekly plan with no covered cut yet this calendar week (Clients › Abonnés, « Écrire »). */
+const weekIdle = (s, cid, day) => membersOf(s, cid).some((m) => rhythmOf(m) === 'week' && liveIn(s, m, day) && !weekUse(m, day).used);
 export const sendRebook = {
   run(s, input, ctx) {
     ctx.need('marketing');
@@ -58,10 +64,13 @@ export const sendRebook = {
       const st = stats.get(cid);
       // a promotional text: only to clients who said yes to the salon's offers
       if (!c || c.erased || c.mergedInto || !c.sms || !c.phone || !c.marketing) { skipped++; continue; }
-      if (!st || st.sinceLast == null || st.sinceLast < MIN_DAYS) { skipped++; continue; }
+      // a weekly member not come this week often came last week: the week-since-last-visit rule gives way for him
+      // (consent, STOP, quiet hours and one offer a day stay: the same template and key as the relance)
+      const nudge = !!x.member && weekIdle(s, cid, ctx.local.day);
+      if (!nudge && (!st || st.sinceLast == null || st.sinceLast < MIN_DAYS)) { skipped++; continue; }
       const id = queueMessage(s, ctx, {
-        key: 'rebook_' + cid + '_' + ctx.local.day, template: 'rebook', text: x.text, to: c.phone, cid,
-        vars: { prenom: c.first, jours: st.sinceLast, lien: ctx.meta.siteUrl || '' }
+        key: 'rebook_' + cid + '_' + ctx.local.day, template: 'rebook', text: x.text || (nudge ? NUDGE : undefined), to: c.phone, cid,
+        vars: { prenom: c.first, jours: st && st.sinceLast != null ? st.sinceLast : '', lien: ctx.meta.siteUrl || '' }
       });
       if (id) { sent++; ids.push(cid); } else skipped++;
     }

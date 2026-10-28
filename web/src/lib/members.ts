@@ -28,7 +28,7 @@ export const derivedCuts = W.derivedCuts;
 export const planWords = W.planWords;
 /** « Semaine manquée : perdue » ('' for a monthly plan) */
 export const missedWords = W.missedWords;
-/** « 80 €/mois · 1 coupe par semaine · semaine manquée perdue » */
+/** « 80 €/mois · 1 coupe par semaine · semaine manquée : perdue » */
 export const offerWords = W.offerWords;
 /** « Cette semaine : prise » / « à prendre », « 1/2 ce mois-ci » */
 export const useWords = W.useWords;

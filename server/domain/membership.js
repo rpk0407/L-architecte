@@ -196,7 +196,7 @@ export function cover(s, m, serviceId, o = {}) {
 export function coverWords(c, service = '') {
   switch (c.why) {
     case 'quota': return 'Coupe déjà prise ce mois-ci (' + c.used + '/' + c.of + ')';
-    case 'week': return (c.of > 1 ? 'Coupes de la semaine déjà prises' : 'Coupe de la semaine déjà prise') + ' (' + c.used + '/' + c.of + ')' + (c.next ? ' · prochaine lundi ' + ddmm(c.next) : '');
+    case 'week': return (c.of > 1 ? 'Coupes de la semaine déjà prises' : 'Coupe de la semaine déjà prise') + ' (' + Math.min(c.used, c.of) + '/' + c.of + ')' + (c.next ? ' · prochaine lundi ' + ddmm(c.next) : '');
     case 'soon': return 'Prochaine coupe incluse le ' + ddmm(c.next);
     case 'unpaid': return 'Paiement de l’abonnement en attente';
     case 'paused': return 'Abonnement en pause';

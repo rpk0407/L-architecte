@@ -66,13 +66,13 @@ export function missedWords(p) {
 }
 
 /**
- * The offer as the client reads it, the line Réglages previews: « 80 €/mois · 1 coupe par semaine · semaine manquée
- * perdue ». A rule with no ceiling says nothing more than its words.
+ * The offer as the client reads it, the line Réglages previews: « 80 €/mois · 1 coupe par semaine · semaine manquée :
+ * perdue », the same tail as the site's card (public/site.html aboWords, from missedWords).
  * @param {Rhythm & { price: number }} p
  */
 export function offerWords(p) {
-  const rule = missedOf(p);
-  const tail = rule === 'lost' ? ' · semaine manquée perdue' : rule === 'month' ? ' · semaine manquée rattrapable dans le mois' : '';
+  const rule = missedWords(p);
+  const tail = rule ? ' · ' + rule.charAt(0).toLowerCase() + rule.slice(1) : '';
   return fmtEur(p.price, { decimals: p.price % 100 !== 0 }) + '/mois · ' + planWords(p) + tail;
 }
 

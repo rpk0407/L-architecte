@@ -328,7 +328,7 @@ export function publicRoutes(app) {
 }
 
 /**
- * What the test checkout page shows of a membership: « Abonnement Essentiel · 34 €/mois », and when it starts (start:
+ * What the test checkout page shows of a membership: « Abonnement Hebdo · 80 €/mois », and when it starts (start:
  * the day of a start not asked for now; scheduled: that start confirmed, nothing paid yet).
  */
 function memberCheckout(r, m) {
