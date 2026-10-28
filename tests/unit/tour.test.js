@@ -10,8 +10,9 @@ import { testRuntime, browser } from '../api/client.js';
 import { DEMO } from '../../server/domain/seed.js';
 import { capsOf } from '../../server/domain/permissions.js';
 import { prefsDefaults } from '../../server/projections/staffprefs.js';
-import { COMPTOIR_PLACES, MOI_PLACES, TOUR_V, collect, plan, placeOf, matchPath, pageSteps, resumeAt, firstName, welcomeOf } from '../../web/src/ui/tour/order.ts';
-import { SECTION_CAP, OPEN_SECTIONS } from '../../web/src/comptoir/pages/reglages/caps.ts';
+import { COMPTOIR_PLACES, MOI_PLACES, TOUR_V, collect, plan, placeOf, playOrder, matchPath, pageSteps, resumeAt, firstName, welcomeOf } from '../../web/src/ui/tour/order.ts';
+import { SECTION_CAP, GUARD_OPEN } from '../../web/src/comptoir/pages/reglages/caps.ts';
+import { canOpenPath, navShows, sectionNeed } from '../../web/src/comptoir/access.ts';
 
 const ROOT = resolve(new URL('../..', import.meta.url).pathname);
 const read = (f) => readFileSync(join(ROOT, f), 'utf8');
@@ -69,21 +70,17 @@ test('ids are unique, bodies are two short sentences at most, in « tu », with 
   }
 });
 
-/* ---------------- who can open what: the shell's own rules, read from App.tsx ---------------- */
+/* ---------------- who can open what: the shell's own rules (access.ts), on App.tsx's own tables ---------------- */
 
 const APP = read('web/src/comptoir/App.tsx');
-const ROUTE_CAP = Object.fromEntries([...APP.slice(APP.indexOf('const ROUTES'), APP.indexOf('};', APP.indexOf('const ROUTES'))).matchAll(/^\s+(\w+): \{ C: \w+, title: '[^']*'(?:, cap: '([^']+)')?/gm)].map((m) => [m[1], m[2] || null]));
-const NAV = APP.slice(APP.indexOf('function useNav'), APP.indexOf('function Shell')).split('\n').filter((l) => /page: '\w+'/.test(l)).map((l) => ({ page: l.match(/page: '(\w+)'/)[1], cap: (l.match(/cap: '([^']+)'/) || [])[1] || null }));
-/** App.tsx useCanOpen, for one person */
+const ROUTE_CAP = Object.fromEntries([...APP.slice(APP.indexOf('const ROUTES'), APP.indexOf('};', APP.indexOf('const ROUTES'))).matchAll(/^\s+(\w+): \{ C: \w+, title: '[^']*'(?:, cap: '([^']+)')?/gm)].map((m) => [m[1], m[2] || undefined]));
+const NAV = APP.slice(APP.indexOf('function useNav'), APP.indexOf('function Shell')).split('\n').filter((l) => /page: '\w+'/.test(l)).map((l) => ({ page: l.match(/page: '(\w+)'/)[1], cap: (l.match(/cap: '([^']+)'/) || [])[1] }));
+const ROUTES = Object.fromEntries(Object.entries(ROUTE_CAP).map(([k, cap]) => [k, k === 'reglages' ? { sub: (id) => sectionNeed(id, { GUARD_OPEN, SECTION_CAP }) } : { cap }]));
+/** App.tsx useCanOpen, for one person: the same functions, App.tsx's tables */
 function opener(caps, chair) {
   const can = (c) => caps.has(c);
-  const nav = NAV.filter((x) => (!x.cap || can(x.cap)) && !(x.page === 'rapports' && !chair && !can('report.shop')) && !(x.page === 'espace' && !chair));
-  return (path) => {
-    const [page = 'agenda', id] = path.split('?')[0].replace(/^\/comptoir/, '').split('/').filter(Boolean);
-    if (!Object.hasOwn(ROUTE_CAP, page) || !nav.some((x) => x.page === page)) return false;
-    const need = page === 'reglages' && id && !id.startsWith(':') ? (OPEN_SECTIONS.includes(id) ? null : SECTION_CAP[id] || null) : ROUTE_CAP[page];
-    return !need || can(need);
-  };
+  const nav = NAV.filter((x) => navShows(x, can, chair));
+  return (path) => canOpenPath(path, ROUTES, nav, can);
 }
 
 let rt, ids;
@@ -96,6 +93,14 @@ const planFor = (st) => plan(COMPTOIR, { places: COMPTOIR_PLACES, role: st.role,
 
 test('the role filter: a barber never gets a step on a page he cannot open, nor one written for others', () => {
   assert.ok(ROUTE_CAP.caisse === 'sale.create' && NAV.length >= 8, 'App.tsx rules are read');
+  // the shell uses the very functions tested here
+  assert.match(APP, /sub: \(id\) => sectionNeed\(id, \{ GUARD_OPEN, SECTION_CAP \}\)/);
+  assert.match(APP, /canOpenPath\(path, ROUTES, nav, can\)/);
+  assert.match(APP, /items\.filter\(\(x\) => navShows\(x, can, boot\.me\.chair\)\)/);
+  // a Réglages section the table forgets is the owner's, Mon compte everyone's
+  assert.equal(sectionNeed('nouvelle', { GUARD_OPEN, SECTION_CAP: { ...SECTION_CAP } }), undefined, 'an unknown id: Réglages decides');
+  assert.equal(sectionNeed('journal', { GUARD_OPEN, SECTION_CAP }), 'audit');
+  assert.equal(sectionNeed('compte', { GUARD_OPEN, SECTION_CAP }), undefined);
   const barber = staffNamed('JKut');
   const mine = planFor(barber);
   assert.ok(mine.length > 0, 'a barber has a tour');
@@ -161,8 +166,21 @@ test('places: listed order, unlisted pages after their parent, and /moi keeps it
   assert.equal(plan(MOI, { places: MOI_PLACES, role: 'owner' }).length, 0);
   assert.equal(firstName('Le Soldat'), 'Le Soldat');
   assert.equal(firstName('JKut'), 'JKut');
-  assert.match(welcomeOf('barber', 'Frank', 12).title, /^Bienvenue dans ton Comptoir, Frank\. On fait le tour/);
-  assert.match(welcomeOf('owner', '', 82).line, /82 étapes, environ 14 min\.$/);
+  assert.equal(firstName('Le gérant'), '', 'a role is not a name');
+  assert.equal(firstName('Karim Benali'), 'Karim');
+  assert.match(welcomeOf('barber', 'Frank').title, /^Bienvenue dans ton Comptoir, Frank\. On fait le tour/);
+  assert.equal(welcomeOf('owner', '').title, 'Bienvenue dans ton Comptoir. On fait le tour en quelques minutes ?');
+  assert.doesNotMatch(welcomeOf('owner', '').line, /\d/, 'no count that would not hold');
+});
+
+test('a page open plays its parts top to bottom (`order` for ties), then those it does not show, in `order`', () => {
+  const st = (id, order, y) => ({ id, page: '/p', title: id, body: id, order, y });
+  // y: where the part stands on the page (null: not on screen); the group comes in plan order (by `order`)
+  const g = [st('b', 10, 50), st('a', 20, 10), st('c', 30, null), st('d', 30, 5), st('f', 30, 40), st('g', 40, 40), st('h', 50, null), st('e', undefined, 1)];
+  const out = playOrder(g, (s) => s.y != null, (a, b) => a.y - b.y).map((s) => s.id);
+  assert.deepEqual(out, ['e', 'd', 'a', 'f', 'g', 'b', 'c', 'h']);
+  // the contract says so, for every package that writes steps
+  assert.match(read('web/src/lib/guide.ts'), /`order` breaks ties and places the parts it does not show/);
 });
 
 /* ---------------- prefs.tour: his own, checked, stored ---------------- */

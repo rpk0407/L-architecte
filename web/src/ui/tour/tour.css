@@ -39,6 +39,12 @@
   transform: translateY(14px); transition: transform .3s var(--t-ease), opacity .24s var(--t-ease);
 }
 .tour-card[data-where='bottom'][data-on='1'] { transform: none; }
+/* the same card at the top of a phone, for a part fixed at the bottom of the screen (a tab bar) */
+.tour-card[data-where='top'] {
+  position: fixed; top: 12px; left: 12px; right: 12px; width: auto; max-width: none;
+  transform: translateY(-14px); transition: transform .3s var(--t-ease), opacity .24s var(--t-ease);
+}
+.tour-card[data-where='top'][data-on='1'] { transform: none; }
 .tour-jump, .tour-jump.tour-card { transition: opacity .24s var(--t-ease); }
 
 .tour-arrow { position: absolute; width: 14px; height: 14px; background: var(--t-card); border: 1px solid var(--t-line); transform: rotate(45deg); pointer-events: none; }
@@ -50,9 +56,10 @@
 
 /* each step's words fade in; the card around them glides */
 .tour-in { animation: tour-rise .26s var(--t-ease); }
+.tour-live { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .tour-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
 .tour-k { flex: 1; min-width: 0; display: flex; gap: 8px; align-items: baseline; margin: 0; font: 600 11.5px/1.3 var(--sans, system-ui); letter-spacing: .08em; text-transform: uppercase; color: var(--t-tx3); }
-.tour-k span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tour-k span:first-child { overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .tour-n { flex: none; font-variant-numeric: tabular-nums; letter-spacing: .02em; }
 .tour-skip { flex: none; min-height: 44px; margin: -12px -8px -12px 0; padding: 0 8px; border: 0; background: none; color: var(--t-tx2); font: 500 13px/1 var(--sans, system-ui); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; border-radius: 8px; }
 .tour-skip:hover { color: var(--t-tx); }
@@ -80,6 +87,6 @@
 @keyframes tour-rise { from { opacity: 0; transform: translateY(4px); } }
 
 @media (prefers-reduced-motion: reduce) {
-  .tour-dim, .tour-spot, .tour-card, .tour-card[data-where='bottom'], .tour-in, .tour-dots i { transition: none !important; animation: none !important; }
-  .tour-card[data-where='bottom'] { transform: none; }
+  .tour-dim, .tour-spot, .tour-card, .tour-card[data-where='bottom'], .tour-card[data-where='top'], .tour-in, .tour-dots i { transition: none !important; animation: none !important; }
+  .tour-card[data-where='bottom'], .tour-card[data-where='top'] { transform: none; }
 }

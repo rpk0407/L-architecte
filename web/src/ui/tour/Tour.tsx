@@ -4,11 +4,13 @@
 // change fades the two out and in; under prefers-reduced-motion everything is instant (tour.css).
 // It goes to each step's page with the app's own router (`go`), waits for the part (up to 3 s after a page change),
 // scrolls it into view, and never gets stuck: a part that is not there gets a centered card ('center', the Comptoir),
-// or is left out ('skip', /moi: a client is only told about what he has). What to play and in what order: order.ts.
+// or is left out ('skip', /moi: a client is only told about what he has). Either way a part the page has but hides at
+// this width (a desktop-only button on a phone), or a page showing its empty state (data-tour-empty: no team yet, the
+// day closed), is passed over: no card explains what is not there to tap. What to play and in what order: order.ts.
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from '../Icon';
-import type { Played } from './order';
+import { playOrder, type Played } from './order';
 import './tour.css';
 
 export type TourEnd = 'done' | 'skip' | 'pause';
@@ -40,11 +42,13 @@ const PAD = 8, GAP = 16, EDGE = 12;
 /** below this width the card is a bottom card */
 const PHONE = 640;
 const CARD_W = 340;
+/** what the phone's bottom card takes at most, and its margin */
+const ROOM = 290;
 
 type Box = { x: number; y: number; w: number; h: number };
 type Side = 'top' | 'bottom' | 'left' | 'right';
 /** the spotlight in page coordinates (it scrolls with the page); the card in page coordinates, or the phone's bottom card */
-type Geo = { spot: Box | null; card: { x: number; y: number } | 'bottom' | 'center'; arrow: { side: Side; at: number } | null; jump: boolean };
+type Geo = { spot: Box | null; card: { x: number; y: number } | 'bottom' | 'top' | 'center'; arrow: { side: Side; at: number } | null; jump: boolean; top?: number };
 
 /** French spacing that never breaks: « x », and the space before : ; ? ! */
 const nb = (t: string) => t.replace(/« /g, '«\u00a0').replace(/ »/g, '\u00a0»').replace(/ ([:;?!])/g, '\u00a0$1');
@@ -60,15 +64,17 @@ export function sameUrl(a: string, b: string) {
   return qa === qb;
 }
 
+const marked = (target: string) => [...document.querySelectorAll<HTMLElement>('[data-guide="' + CSS.escape(target) + '"]')].filter((el) => !el.closest('.tour'));
 /** The first part on screen marked with this data-guide (a hidden copy, a phone-only or desktop-only one, is passed over). */
 export function findPart(target: string): HTMLElement | null {
-  for (const el of document.querySelectorAll<HTMLElement>('[data-guide="' + CSS.escape(target) + '"]')) {
-    if (el.closest('.tour')) continue;
+  for (const el of marked(target)) {
     const r = el.getBoundingClientRect();
     if (r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden') return el;
   }
   return null;
 }
+/** Nothing to show for this part here: the page has it but hides it at this width, or the page is in its empty state. */
+const notHere = (target: string) => !!document.querySelector('[data-tour-empty]') || marked(target).length > 0;
 
 export function Tour({ steps, start = 0, skin, mode = 'tour', missing = 'center', go, resolve, insets, onStep, onEnd }: TourProps) {
   const [list, setList] = useState(steps);
@@ -80,8 +86,18 @@ export function Tour({ steps, start = 0, skin, mode = 'tour', missing = 'center'
   const [geo, setGeoState] = useState<Geo | null>(null);
   const geoRef = useRef(geo);
   /** a new placement only when something moved (a ResizeObserver or a scroll would otherwise re-render for nothing) */
-  const setGeo = (g: Geo) => { if (JSON.stringify(g) === JSON.stringify(geoRef.current)) return; geoRef.current = g; setGeoState(g); };
+  const setGeo = (g: Geo) => {
+    // beside ↔ centered ↔ bottom are different positionings: gliding from one to the other would fly across the screen
+    const kind = (x: Geo | null) => (!x ? '' : typeof x.card === 'string' ? x.card : 'beside');
+    if (geoRef.current && kind(geoRef.current) !== kind(g)) g = { ...g, jump: true };
+    if (JSON.stringify(g) === JSON.stringify(geoRef.current)) return;
+    geoRef.current = g;
+    setGeoState(g);
+  };
   const [away, setAway] = useState(true);
+  /** on a phone, room under the page for the bottom card (the tour's own block, after the app), so the last part of a
+   *  page can be scrolled above the card */
+  const [room] = useState(() => innerWidth < PHONE);
   const card = useRef<HTMLDivElement>(null);
   const nextBtn = useRef<HTMLButtonElement>(null);
   const token = useRef(0);
@@ -113,16 +129,15 @@ export function Tour({ steps, start = 0, skin, mode = 'tour', missing = 'center'
     void show(Math.max(0, ni), ni < 0 ? 1 : dir);
   };
 
-  /** The page's own order, top to bottom, for what is left of this place: the parts on screen first (a part whose data
-   *  came late joins in its turn), then those it does not show, each with its centered card. */
+  /** What is left of this place in its play order (order.ts playOrder: the page's own order for the parts on screen,
+   *  then `order` for the rest); a part whose data came late joins in its turn. */
   const reorder = (i: number): boolean => {
     const l = listRef.current, place = l[i].place;
     let end = i;
     while (end < l.length && l[end].place === place) end++;
     const group = l.slice(i, end);
     const at = new Map(group.map((s) => [s.id, s.target ? findPart(s.target) : null]));
-    const byPage = group.filter((s) => at.get(s.id)).sort((a, b) => { const p = at.get(a.id)!.compareDocumentPosition(at.get(b.id)!); return p & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : p & Node.DOCUMENT_POSITION_PRECEDING ? 1 : 0; });
-    const next = [...byPage, ...group.filter((s) => !at.get(s.id))];
+    const next = playOrder(group, (s) => !!at.get(s.id), (a, b) => { const p = at.get(a.id)!.compareDocumentPosition(at.get(b.id)!); return p & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : p & Node.DOCUMENT_POSITION_PRECEDING ? 1 : 0; });
     if (next.every((s, k) => s === group[k])) return false;
     const nl = [...l.slice(0, i), ...next, ...l.slice(end)];
     listRef.current = nl;
@@ -133,7 +148,7 @@ export function Tour({ steps, start = 0, skin, mode = 'tour', missing = 'center'
   /** Bring the part into view: centered in what the page and the card leave free, and only when it is not in view already. */
   const scrollTo = (el: HTMLElement) => {
     const smooth: ScrollBehavior = reduced() ? 'auto' : 'smooth';
-    const r = el.getBoundingClientRect();
+    let r = el.getBoundingClientRect();
     // a row that scrolls sideways (the segments): the part to its middle
     for (let p = el.parentElement; p && p !== document.body; p = p.parentElement) {
       const cs = getComputedStyle(p);
@@ -143,6 +158,15 @@ export function Tour({ steps, start = 0, skin, mode = 'tour', missing = 'center'
         break;
       }
     }
+    // a list that scrolls on its own (the Clients list): the part into its view first, at once, so that the window's
+    // scroll and the card's place below are worked out from where the part really is
+    for (let p = el.parentElement; p && p !== document.body && p !== document.documentElement; p = p.parentElement) {
+      if (!/(auto|scroll)/.test(getComputedStyle(p).overflowY) || p.scrollHeight <= p.clientHeight + 1) continue;
+      const pr = p.getBoundingClientRect(), er = el.getBoundingClientRect();
+      if (er.top >= pr.top + PAD && er.bottom <= pr.bottom - PAD) continue;
+      p.scrollTop += er.top - pr.top - Math.max(PAD, (pr.height - er.height) / 2);
+    }
+    r = el.getBoundingClientRect();
     const { top: it, bottom: ib } = inset();
     const vh = innerHeight;
     const low = phone() ? vh - cardH.current - 24 : vh - ib;
@@ -176,14 +200,22 @@ export function Tour({ steps, start = 0, skin, mode = 'tour', missing = 'center'
     }
     let el: HTMLElement | null = null;
     if (s.target) {
-      const until = Date.now() + (moving || !curRef.current ? WAIT_MS : SETTLE_MS);
-      while (!(el = findPart(s.target)) && Date.now() < until) {
+      const t0 = Date.now(), until = t0 + (moving || !curRef.current ? WAIT_MS : SETTLE_MS);
+      // a page that settled on its empty state, or that hides the part at this width, has no reason to be waited for
+      const settled = moving || !curRef.current ? SETTLE_MS : 0;
+      while (!(el = findPart(s.target)) && Date.now() < until && !(Date.now() - t0 >= settled && notHere(s.target))) {
         await sleep(80);
         if (my !== token.current) return;
       }
       if (my !== token.current) return;
     }
-    if (!el && s.target && missing === 'skip') return drop((x) => x.id === s.id, i, dir);
+    if (!el && s.target && (missing === 'skip' || notHere(s.target))) {
+      // the page has settled: the other parts of this place still missing are not coming either, all left out at once
+      // (one wait, not one per part)
+      const gone = new Set([s.id]);
+      if (missing === 'skip') for (const x of listRef.current.slice(i + 1)) if (x.place === s.place && x.target && !findPart(x.target)) gone.add(x.id);
+      return drop((x) => gone.has(x.id), i, dir);
+    }
     // going forward, the rest of this place in the page's order (a step that moves ahead is shown in its turn)
     if (dir > 0 && reorder(i)) return show(i, dir);
     if (el) scrollTo(el); else aim.current = { top: scrollY, left: scrollX };
@@ -210,18 +242,30 @@ export function Tour({ steps, start = 0, skin, mode = 'tour', missing = 'center'
     if (el && !el.isConnected && s?.target) el = findPart(s.target);
     if (!el) { setGeo({ spot: null, card: phone() ? 'bottom' : 'center', arrow: null, jump }); return; }
     const r = el.getBoundingClientRect();
-    const spot = { x: r.left + scrollX - PAD, y: r.top + scrollY - PAD, w: r.width + 2 * PAD, h: r.height + 2 * PAD };
+    const vw = document.documentElement.clientWidth, vh = innerHeight;
+    // never wider than the screen (a tab bar edge to edge would widen the page and push the card off it); a part fixed
+    // to the screen (the tab bar) stays within it, or the page would grow under it at every scroll
+    const fixed = (() => { for (let p: HTMLElement | null = el; p; p = p.parentElement) if (getComputedStyle(p).position === 'fixed') return true; return false; })();
+    const x0 = Math.max(r.left - PAD, 0), x1 = Math.min(r.right + PAD, vw);
+    const y0 = fixed ? Math.max(r.top - PAD, 0) : r.top - PAD, y1 = fixed ? Math.min(r.bottom + PAD, vh) : r.bottom + PAD;
+    const spot = { x: x0 + scrollX, y: y0 + scrollY, w: Math.max(0, x1 - x0), h: Math.max(0, y1 - y0) };
     const g0 = geoRef.current;
     if (!full && g0) { if (g0.spot && Math.abs(g0.spot.x - spot.x) + Math.abs(g0.spot.y - spot.y) + Math.abs(g0.spot.w - spot.w) + Math.abs(g0.spot.h - spot.h) < 1) return; setGeo({ ...g0, spot, jump: false }); return; }
     const a = aim.current || { top: scrollY, left: scrollX };
     // the part as it will stand on screen once the page has scrolled
     const v = { x: spot.x - a.left, y: spot.y - a.top, w: spot.w, h: spot.h };
-    const vw = document.documentElement.clientWidth, vh = innerHeight, H = cardH.current, W = c ? c.offsetWidth : CARD_W;
+    const H = cardH.current, W = c ? c.offsetWidth : CARD_W;
     const { top: it, bottom: ib } = inset();
+    // a part the page could not bring into view: the card in sight all the same
+    if (v.y >= vh || v.y + v.h <= 0) { setGeo({ spot, card: phone() ? 'bottom' : 'center', arrow: null, jump }); return; }
     if (phone()) {
       const cardTop = vh - H - EDGE;
       const above = v.y + v.h <= cardTop - 6;
-      setGeo({ spot, card: 'bottom', arrow: above ? { side: 'top', at: clamp(v.x + v.w / 2 - EDGE, 24, vw - 2 * EDGE - 24) } : null, jump });
+      const at = clamp(v.x + v.w / 2 - EDGE, 24, vw - 2 * EDGE - 24);
+      // a part the page cannot lift above the card (the tab bar, fixed at the bottom): the card at the top instead
+      // (its arrow only when the part is right under it: from afar it would point at something else)
+      if (!above && v.y - GAP - H >= it + EDGE) { setGeo({ spot, card: 'top', top: it + EDGE, arrow: v.y - (it + EDGE + H) <= 48 ? { side: 'bottom', at } : null, jump }); return; }
+      setGeo({ spot, card: 'bottom', arrow: above ? { side: 'top', at } : null, jump });
       return;
     }
     const cx = clamp(v.x + v.w / 2 - W / 2, EDGE, vw - W - EDGE), cy = clamp(v.y + v.h / 2 - H / 2, it + EDGE, vh - ib - H - EDGE);
@@ -260,10 +304,10 @@ export function Tour({ steps, start = 0, skin, mode = 'tour', missing = 'center'
   const next = () => { if (!cur) return; if (cur.i >= listRef.current.length - 1) finish('done'); else void show(cur.i + 1, 1); };
   const back = () => { if (cur && cur.i > 0) void show(cur.i - 1, -1); };
 
-  // the tour's keys come first: the app's shortcuts (g, /, ⌘K) wait, Tab stays in the card
+  // the tour's keys come first (a capture listener on window runs before the app's): the app's shortcuts (g, /, ⌘K, n,
+  // p) wait, Tab stays in the card, Enter and Space press the card's buttons
   useEffect(() => {
     const on = (e: KeyboardEvent) => {
-      const inCard = !!card.current && card.current.contains(e.target as Node);
       if (e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); finish('pause'); return; }
       if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); e.stopImmediatePropagation(); if (e.key === 'ArrowRight') next(); else back(); return; }
       if (e.key === 'Tab' && card.current) {
@@ -274,7 +318,8 @@ export function Tour({ steps, start = 0, skin, mode = 'tour', missing = 'center'
         f[(at + (e.shiftKey ? -1 : 1) + f.length) % f.length].focus();
         return;
       }
-      if (!inCard) e.stopImmediatePropagation();
+      // any other key goes no further: its default stays (Enter and Space on a card button press it)
+      e.stopImmediatePropagation();
     };
     addEventListener('keydown', on, true);
     return () => removeEventListener('keydown', on, true);
@@ -285,24 +330,26 @@ export function Tour({ steps, start = 0, skin, mode = 'tour', missing = 'center'
   const last = !!cur && cur.i >= list.length - 1;
   const g = geo;
   const lit = !!(s && g && g.spot && !away);
-  const cardStyle = !g || g.card === 'bottom' || g.card === 'center' ? undefined : { transform: 'translate3d(' + Math.round(g.card.x) + 'px,' + Math.round(g.card.y) + 'px,0)' };
-  const where = !g ? 'center' : g.card === 'bottom' ? 'bottom' : g.card === 'center' ? 'center' : 'beside';
+  const cardStyle = !g || g.card === 'bottom' || g.card === 'center' ? undefined : g.card === 'top' ? { top: g.top } : { transform: 'translate3d(' + Math.round(g.card.x) + 'px,' + Math.round(g.card.y) + 'px,0)' };
+  const where = !g ? 'center' : typeof g.card === 'string' ? g.card : 'beside';
 
   return createPortal(
-    <div className="tour" data-skin={skin}>
+    <div className="tour" data-skin={skin} style={room ? { height: ROOM } : undefined}>
       <div className="tour-dim" data-on={lit ? '0' : '1'} aria-hidden onClick={(e) => e.stopPropagation()} />
       <div className={'tour-spot' + (g?.jump ? ' tour-jump' : '')} data-on={lit ? '1' : '0'} aria-hidden
         style={g && g.spot ? { transform: 'translate3d(' + Math.round(g.spot.x) + 'px,' + Math.round(g.spot.y) + 'px,0)', width: Math.round(g.spot.w), height: Math.round(g.spot.h) } : undefined} />
       {s ? (
         <div ref={card} className={'tour-card' + (g?.jump ? ' tour-jump' : '')} data-where={where} data-on={away || !g ? '0' : '1'} style={cardStyle}
           role="dialog" aria-modal="true" aria-labelledby="tour-t" aria-describedby="tour-b" data-step={s.id} data-target={s.target || ''}>
+          {/* one live region for the dialog's whole life (a new one at each step, already filled, is not read out) */}
+          <p className="tour-live" aria-live="polite" aria-atomic="true">{nb(s.title) + '. ' + nb(s.body)}</p>
           {g?.arrow ? <i className="tour-arrow" data-side={g.arrow.side} style={g.arrow.side === 'top' || g.arrow.side === 'bottom' ? { left: g.arrow.at } : { top: g.arrow.at }} aria-hidden /> : null}
           <div className="tour-in" key={s.id}>
             <div className="tour-head">
               <p className="tour-k">{s.label ? <span>{s.label}</span> : null}<span className="tour-n">{cur!.i + 1} / {list.length}</span></p>
               <button type="button" className="tour-skip" onClick={() => finish(mode === 'page' ? 'done' : 'skip')}>{mode === 'page' ? 'Fermer' : 'Passer la visite'}</button>
             </div>
-            <h2 id="tour-t" className="tour-t" aria-live="polite">{nb(s.title)}</h2>
+            <h2 id="tour-t" className="tour-t">{nb(s.title)}</h2>
             <p id="tour-b" className="tour-b">{nb(s.body)}</p>
           </div>
           <div className="tour-foot">

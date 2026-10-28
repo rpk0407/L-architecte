@@ -2,7 +2,7 @@
 // PAY-04, PAY-07…) that live in the signed-in space, « Bienvenue dans ton espace » once at the first visit, and « Comment
 // ça marche ? » in Profil (startMoiTour). Where he stands stays on this phone (localStorage, never required: a private
 // window only sees the welcome again). A part he does not have (no carnet, no membership) is simply not shown.
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Tour } from '../../ui/tour/Tour';
 import { MOI_PLACES, TOUR_V, collect, plan } from '../../ui/tour/order';
 import './welcome.css';
@@ -27,8 +27,10 @@ export const moiPlan = () => plan(STEPS, { places: MOI_PLACES, role: 'client', k
 export function MoiTour({ go }: { go: (path: string) => void }) {
   const [run, setRun] = useState(0);
   const steps = useMemo(moiPlan, []);
+  /** the tab he started from: the tour ends where he was */
+  const from = useRef('/moi');
   useEffect(() => {
-    const on = () => setRun((n) => n + 1);
+    const on = () => { from.current = location.pathname; setRun((n) => n + 1); };
     addEventListener(EVENT, on);
     return () => removeEventListener(EVENT, on);
   }, []);
@@ -37,7 +39,11 @@ export function MoiTour({ go }: { go: (path: string) => void }) {
     <Tour key={run} steps={steps} skin="site" missing="skip"
       go={(p) => { go(p); window.scrollTo(0, 0); }}
       insets={() => ({ top: 0, bottom: (document.querySelector('.m-tabs') as HTMLElement | null)?.offsetHeight || 0 })}
-      onEnd={(how, at) => { write({ v: TOUR_V, at: how === 'pause' && at ? at.id : '', done: how !== 'pause' }); setRun(0); }} />
+      onEnd={(how, at) => {
+        write({ v: TOUR_V, at: how === 'pause' && at ? at.id : '', done: how !== 'pause' });
+        setRun(0);
+        if (location.pathname !== from.current) { go(from.current); window.scrollTo(0, 0); }
+      }} />
   );
 }
 

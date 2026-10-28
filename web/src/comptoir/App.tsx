@@ -12,7 +12,8 @@ import { Login, linkToken, type AuthState } from './Login';
 import { Palette } from './Palette';
 import { FeedSheet } from './Feed';
 import type { Boot, FeedItem } from './types';
-import { GUARD_OPEN as OWN_SECTIONS, SECTION_CAP } from './pages/reglages/caps';
+import { GUARD_OPEN, SECTION_CAP } from './pages/reglages/caps';
+import { canOpenPath, navShows, sectionNeed } from './access';
 import { ComptoirTour, GLANCE_PAGES, TourButtons, TourWelcome, startTour } from './guide/ComptoirTour';
 
 const Espace = lazy(() => import('./pages/Espace'));
@@ -38,7 +39,7 @@ const ROUTES: Record<string, Route> = {
   rapports: { C: Rapports, title: 'Rapports', cap: 'report.own' },
   equipe: { C: Equipe, title: 'Équipe' },
   catalogue: { C: Catalogue, title: 'Catalogue' },
-  reglages: { C: Reglages, title: 'Réglages', sub: (id) => (OWN_SECTIONS.includes(id) ? undefined : (Object.hasOwn(SECTION_CAP, id) ? SECTION_CAP[id] : 'settings')) }
+  reglages: { C: Reglages, title: 'Réglages', sub: (id) => sectionNeed(id, { GUARD_OPEN, SECTION_CAP }) }
 };
 
 /** The pages this person may open (a new page in ROUTES joins by itself: Mon espace, Pilotage), for homeOf. */
@@ -79,13 +80,7 @@ export function Root() {
  *  and its capability, as the shell decides them, so a barber's tour never shows a page he cannot open. */
 export function useCanOpen(nav: NavItem[]) {
   const { can } = useApp();
-  return (path: string) => {
-    const [page = 'agenda', id] = path.split('?')[0].replace(/^\/comptoir/, '').split('/').filter(Boolean);
-    if (!Object.hasOwn(ROUTES, page) || !nav.some((x) => x.page === page)) return false;
-    const r = ROUTES[page];
-    const need = id && !id.startsWith(':') && r.sub ? r.sub(id) : r.cap;
-    return !need || can(need);
-  };
+  return (path: string) => canOpenPath(path, ROUTES, nav, can);
 }
 
 const PHONE_TABS = ['pilotage', 'espace', 'agenda', 'caisse', 'clients', 'rapports'];
@@ -107,8 +102,7 @@ function useNav(): NavItem[] {
     { to: '/reglages', page: 'reglages', label: 'Réglages', icon: 'reglages' }
   ];
   // the desk has no chair: no figures of its own, so no page of zeros (the agenda gives it the salon's counts)
-  const noFigures = !boot.me.chair && !can('report.shop');
-  return items.filter((x) => (!x.cap || can(x.cap)) && !(x.page === 'rapports' && noFigures) && !(x.page === 'espace' && !boot.me.chair));
+  return items.filter((x) => navShows(x, can, boot.me.chair));
 }
 
 function Shell() {
@@ -203,9 +197,9 @@ function Shell() {
           </div>
         </header>
         <main className="page" key={page} id="main">
-          {GLANCE_PAGES.includes(page) ? null : <TourWelcome canOpen={canOpen} />}
+          {phone && GLANCE_PAGES.includes(page) ? null : <TourWelcome canOpen={canOpen} />}
           {allowed ? <Suspense fallback={<PageSkeleton />}><Page /></Suspense> : <Reserved title={r.title} back={page === 'reglages' ? 'compte' : 'agenda'} />}
-          {GLANCE_PAGES.includes(page) ? <TourWelcome canOpen={canOpen} /> : null}
+          {phone && GLANCE_PAGES.includes(page) ? <TourWelcome canOpen={canOpen} /> : null}
         </main>
       </div>
 

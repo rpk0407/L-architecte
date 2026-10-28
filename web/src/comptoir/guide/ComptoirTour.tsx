@@ -2,7 +2,10 @@
 // (his role, the pages he can open), the welcome card at his first sign-in, the « Visite guidée » chip after « Plus
 // tard », the « ? » of each page, and « Revoir la visite » (Réglages › Mise en route, the account menu: startTour()).
 // Where he stands is in his prefs (prefs.tour, server/commands/team.js), so the tour follows him from the salon's
-// tablet to his phone; a page's « ? » replays that page only and writes nothing.
+// tablet to his phone: written when he starts, pauses or ends it, and when he leaves the page mid-visit (not at every
+// page: the activity journal is for real changes). A page's « ? » replays that page only and writes nothing.
+// The public demo signs everyone in as the same owner: there the welcome's « vu » is also this browser tab's own, so
+// one visitor's « Plus tard » does not take the welcome away from the next one (the salon's owner among them).
 import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import { api } from '../../lib/api';
 import { navigate, useRoute } from '../../lib/router';
@@ -36,17 +39,31 @@ export function startTour(scope: 'tour' | 'page' = 'tour', from: 'start' | 'resu
   emit();
 }
 
+const NEVER: TourPrefs = { v: 0, at: '', done: false };
+const DEMO_SEEN = 'lx-tour-seen';
+const seenHere = () => { try { return sessionStorage.getItem(DEMO_SEEN) === '1'; } catch { return true; } };
+
 /** His tour as he left it: what he just chose on this screen, else his prefs (an older server sends none: never seen). */
 function useTourPrefs(): TourPrefs {
   const { boot } = useApp();
   const m = useSyncExternalStore(listen, () => mine);
-  return (m && m.staffId === boot.me.id ? m.t : null) || boot.me.prefs?.tour || { v: 0, at: '', done: false };
+  if (m && m.staffId === boot.me.id) return m.t;
+  if (boot.mode === 'demo' && !seenHere()) return NEVER;
+  return boot.me.prefs?.tour || NEVER;
 }
 function save(staffId: string, t: TourPrefs, reload: () => Promise<void>) {
   mine = { staffId, t };
   emit();
+  try { sessionStorage.setItem(DEMO_SEEN, '1'); } catch { /* private mode: the server's prefs decide */ }
   // the next screen he opens (his phone) picks it up; a failed write only means the welcome may come back there
   api.patch('/api/v1/prefs', { tour: t }).then(() => reload()).catch(() => {});
+}
+/** Leaving the page mid-visit (a reload, the tab closed): where he stands, best effort, without waiting for an answer. */
+function saveOnLeave(t: TourPrefs) {
+  try {
+    void fetch('/api/v1/prefs', { method: 'PATCH', keepalive: true, credentials: 'same-origin', body: JSON.stringify({ tour: t }),
+      headers: { accept: 'application/json', 'content-type': 'application/json', 'x-request-id': 'tour-' + Date.now().toString(36) + Math.random().toString(36).slice(2) } }).catch(() => {});
+  } catch { /* nothing kept: he picks up from the last page he paused on */ }
 }
 
 /** This person's whole tour, in order. */
@@ -58,12 +75,15 @@ export function usePlan(canOpen: (path: string) => boolean): Played[] {
 
 /* ---------------- the views a step needs: a ticket open, a client's file ---------------- */
 
-/** The first client waiting to pay today (his ticket is already filled), else an empty free sale. */
+/** A client waiting to pay today (his ticket is already filled), the one with the most to show (a membership, a carnet:
+ *  their lines and chips), else an empty free sale. */
 async function aTicket(today: string, nowMin: number) {
   const cur = new URLSearchParams(location.search).get('rdv');
   if (location.pathname === '/comptoir/caisse' && cur) return '/comptoir/caisse?rdv=' + encodeURIComponent(cur);
   const a = await api.get<Agenda>('/api/v1/agenda?day=' + today).catch(() => null);
-  const due = (a?.appts || []).find((x) => !x.saleId && !x.legacy && !a!.closed && (x.status === 'in_chair' || x.status === 'done' || (['booked', 'arrived'].includes(x.status) && x.start + x.dur <= nowMin)));
+  const waiting = (a?.appts || []).filter((x) => !x.saleId && !x.legacy && !a!.closed && (x.status === 'in_chair' || x.status === 'done' || (['booked', 'arrived'].includes(x.status) && x.start + x.dur <= nowMin)));
+  const score = (x: Agenda['appts'][number]) => (x.client?.memberships?.length ? 2 : 0) + (x.client?.packs?.length ? 1 : 0);
+  const due = waiting.reduce<(typeof waiting)[number] | null>((b, x) => (!b || score(x) > score(b) ? x : b), null);
   return due ? '/comptoir/caisse?rdv=' + encodeURIComponent(due.id) : a && !a.closed ? '/comptoir/caisse?vente=1' : null;
 }
 /** The file open now, else a regular with the most to show: a membership, a carnet, a few visits. */
@@ -88,26 +108,29 @@ export function ComptoirTour({ canOpen }: { canOpen: (path: string) => boolean }
   const a = useAsk();
   const all = usePlan(canOpen);
   const t = useTourPrefs();
-  const lastPlace = useRef('');
+  /** the step he is on, for a page left mid-visit */
+  const at = useRef('');
   // signed out or locked mid-visit: the next person on this tablet starts from his own welcome
   useEffect(() => () => { ask = null; }, []);
   // the steps of the page in sight when « ? » was tapped, kept while the tour moves between its views
   const steps = !a ? [] : a.scope === 'page' ? pageSteps(all, a.path) : all;
   useEffect(() => { if (a && !steps.length) { ask = null; emit(); } }, [a, steps.length]);
+  const whole = a?.scope === 'tour';
+  useEffect(() => {
+    if (!whole) return;
+    const leave = () => { if (at.current) saveOnLeave({ v: TOUR_V, at: at.current, done: false }); };
+    addEventListener('pagehide', leave);
+    return () => removeEventListener('pagehide', leave);
+  }, [whole, a?.n]);
   if (!a || !steps.length) return null;
-  const whole = a.scope === 'tour';
-  const onStep = (s: Played) => {
-    // where he stands, written when he reaches a new page (not at every step: one event per page at most)
-    if (!whole || s.place === lastPlace.current) return;
-    lastPlace.current = s.place;
-    save(app.boot.me.id, { v: TOUR_V, at: s.id, done: false }, app.reloadBoot);
-  };
-  const onEnd = (how: TourEnd, at: Played | null) => {
+  const onStep = (s: Played) => { at.current = s.id; };
+  const onEnd = (how: TourEnd, stop: Played | null) => {
     ask = null;
+    at.current = '';
     emit();
     if (!whole) return;
     if (how === 'pause') {
-      save(app.boot.me.id, { v: TOUR_V, at: at?.id || '', done: false }, app.reloadBoot);
+      save(app.boot.me.id, { v: TOUR_V, at: stop?.id || '', done: false }, app.reloadBoot);
       toast({ title: 'Visite en pause', sub: 'Reprends-la quand tu veux avec « Visite guidée », en haut.', icon: 'sparkle' });
       return;
     }
@@ -132,8 +155,8 @@ export function TourWelcome({ canOpen }: { canOpen: (path: string) => boolean })
   const t = useTourPrefs();
   const a = useAsk();
   const all = usePlan(canOpen);
-  if (t.v > 0 || a || !all.length) return null;
-  const w = welcomeOf(app.boot.me.role as GuideRole, firstName(app.boot.me.name), all.length);
+  if (t.v >= TOUR_V || a || !all.length) return null;
+  const w = welcomeOf(app.boot.me.role as GuideRole, firstName(app.boot.me.name));
   return (
     // an aside: an invitation next to the page, not one of its sections
     <aside className="card tour-welcome" aria-labelledby="tw-t">
@@ -159,16 +182,16 @@ export function TourButtons({ canOpen }: { canOpen: (path: string) => boolean })
   const route = useRoute();
   if (a || !all.length) return null;
   const here = pageSteps(all, location.pathname);
-  const chip = (t.v > 0 && !t.done) || (t.v === 0 && GLANCE_PAGES.includes(route.page));
+  const chip = (t.v > 0 && !t.done) || (t.v < TOUR_V && GLANCE_PAGES.includes(route.page));
   return (
     <>
       {chip ? (
-        <button type="button" className="chip tour-chip" onClick={() => startTour('tour', 'resume')} title={t.at ? 'Reprendre la visite où tu l’as laissée' : 'Faire la visite guidée'}>
-          <Icon name="sparkle" size={14} /><span className="tour-chip-t">Visite guidée</span>
+        <button type="button" className="chip tour-chip" onClick={() => startTour('tour', 'resume')} aria-label="Visite guidée" title={t.at ? 'Reprendre la visite où tu l’as laissée' : 'Faire la visite guidée'}>
+          <Icon name="sparkle" size={14} /><span aria-hidden>Visite<span className="tour-chip-more"> guidée</span></span>
         </button>
       ) : null}
       {here.length ? (
-        <button type="button" className={'btn btn-subtle btn-icon tour-help' + (chip ? ' hide-phone' : '')} aria-label="Comment marche cette page ?" title="Comment marche cette page ?" onClick={() => startTour('page')}>
+        <button type="button" className="btn btn-subtle btn-icon tour-help" aria-label="Comment marche cette page ?" title="Comment marche cette page ?" onClick={() => startTour('page')}>
           <span aria-hidden>?</span>
         </button>
       ) : null}

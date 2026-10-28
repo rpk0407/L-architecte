@@ -4,7 +4,7 @@
 // a view of that page (a client's file, a ticket, the Abonnés segment), the place that lists its target.
 import type { GuideRole, GuideStep } from '../../lib/guide';
 
-/** The tour's version: raised when the tour changes enough to be offered again (prefs.tour.v below it). */
+/** The tour's version: raised when the tour changes enough to be offered again (the welcome shows while prefs.tour.v is below it). */
 export const TOUR_V = 1;
 /** A step that gives no `order` sits after those that do, in its file's order. */
 export const DEFAULT_ORDER = 100;
@@ -29,7 +29,7 @@ export const COMPTOIR_PLACES: readonly Place[] = [
   // a ticket open: the first client waiting to pay, or a free sale (ComptoirTour resolves it)
   { path: '/comptoir/caisse?rdv=:rdv', label: 'Caisse · Le ticket', targets: ['tk-head', 'till-chips', 'caisse.reward', 'tk-lines', 'till-member-line', 'tk-add', 'till-offer', 'tk-methods', 'tk-validate'] },
   { path: '/comptoir/caisse/ventes', label: 'Caisse · Ventes du jour' },
-  { path: '/comptoir/caisse/cloture', label: 'Caisse · Caisse & clôture' },
+  { path: '/comptoir/caisse/cloture', label: 'Caisse · Clôture' },
   { path: '/comptoir/clients', label: 'Clients' },
   { path: '/comptoir/clients?segment=abonnes', label: 'Clients · Abonnés', targets: ['members-kpis', 'members-presence', 'members-missed', 'members-list', 'members-notyet', 'members-weeks', 'members-thisweek', 'members-write', 'members-carnets'] },
   // one client's file: a regular with the most to show (ComptoirTour resolves it)
@@ -129,6 +129,18 @@ export function plan(steps: readonly GuideStep[], o: PlanOpts): Played[] {
   return rows.map((r) => r.s);
 }
 
+/**
+ * A place's steps as they play, once its page is on screen: the parts on screen in the page's own order, top to bottom
+ * (`dom`: below 0 when a's part comes first), so that the steps several files wrote for one page follow the page as it
+ * shows them; then the parts it does not show, in `order` (as planned). `order` thus ranks a place's steps before its
+ * page is open (plan), breaks ties between parts at the same spot, and places the parts not on screen (lib/guide.ts).
+ */
+export function playOrder<T extends GuideStep>(group: readonly T[], shown: (s: T) => boolean, dom: (a: T, b: T) => number): T[] {
+  const pos = new Map(group.map((s, k) => [s, k]));
+  const on = group.filter(shown).sort((a, b) => dom(a, b) || (a.order ?? DEFAULT_ORDER) - (b.order ?? DEFAULT_ORDER) || pos.get(a)! - pos.get(b)!);
+  return [...on, ...group.filter((s) => !shown(s))];
+}
+
 /** The steps of the page this address shows (« ? » in its header), in the tour's order. */
 export function pageSteps(played: readonly Played[], path: string): Played[] {
   return played.filter((s) => matchPath(s.place, path));
@@ -140,24 +152,25 @@ export function resumeAt(played: readonly Played[], at: string | null | undefine
   return i < 0 ? 0 : i;
 }
 
-/** « environ 6 min »: about ten seconds a step, never less than a minute. */
-export function minutesOf(n: number): number {
-  return Math.max(1, Math.round((n * 10) / 60));
-}
 
-/** How the welcome calls him: his first name, or his whole name when it starts with an article (« Le Soldat »). */
+/** A name that is a role, not a name (the demo's « Le gérant »): the welcome then calls nobody by it. */
+const ROLE_NAME = /^(l[ea]\s+)?(gérante?|patronne?|propriétaire|manager|accueil|admin(istrateur|istratrice)?)$/i;
+/** How the welcome calls him: his first name, his whole name when it starts with an article (« Le Soldat »), nothing
+ *  when his name is his role. */
 export function firstName(name: string): string {
   const n = name.trim();
+  if (ROLE_NAME.test(n)) return '';
   return /^(le|la|les|l’|l')\s*/i.test(n) ? n : n.split(/\s+/)[0] || '';
 }
 
-/** The welcome card's words for this person (owner and manager: everything; the desk; a barber: what his rights open). */
-export function welcomeOf(role: GuideRole, first: string, n: number): { title: string; line: string } {
+/** The welcome card's words for this person (owner and manager: everything; the desk; a barber: what his rights open).
+ *  No count of steps: a part with nothing to show yet is passed over, so the number would not hold. */
+export function welcomeOf(role: GuideRole, first: string): { title: string; line: string } {
   const title = 'Bienvenue dans ton Comptoir' + (first ? ', ' + first : '') + '. On fait le tour en quelques minutes ?';
   const what = role === 'owner' || role === 'manager'
-    ? 'L’agenda, la caisse, les clients, les relances, les chiffres et les réglages : chaque partie t’est montrée et expliquée.'
+    ? 'L’agenda, la caisse, les clients, les chiffres et les réglages, partie par partie.'
     : role === 'desk'
-      ? 'L’agenda, la caisse et les clients : tout ce que tu fais à l’accueil, partie par partie.'
+      ? 'L’agenda, la caisse et les clients : ce que tu fais à l’accueil, partie par partie.'
       : 'Ton espace, ton agenda et ce que le salon t’a ouvert, partie par partie.';
-  return { title, line: what + ' ' + n + ' étapes, environ ' + minutesOf(n) + ' min.' };
+  return { title, line: what + ' Tu t’arrêtes quand tu veux, la visite reprend là où tu l’as laissée.' };
 }

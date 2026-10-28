@@ -25,6 +25,14 @@ async function litOn(page, target) {
   return s;
 }
 const stepOf = (page) => page.locator('.tour-card').getAttribute('data-step');
+/** the app's shortcuts wait while the tour is open: g (Agenda), / (search), n and p (the Agenda's sheets) change nothing */
+async function keysWait(page) {
+  const url = page.url(), at = await stepOf(page);
+  for (const k of ['g', '/', 'n', 'p']) { await page.keyboard.press(k); await page.waitForTimeout(120); }
+  if (page.url() !== url) throw new Error('a shortcut moved the page behind the tour: ' + page.url());
+  if ((await page.getByRole('dialog').count()) !== 1 || (await page.locator('.palette').count())) throw new Error('a shortcut opened something over the tour');
+  if ((await stepOf(page)) !== at) throw new Error('a shortcut moved the tour');
+}
 
 export default async ({ h, page }) => {
   /* ---------- the owner's first sign-in: the welcome, then the first part lit ---------- */
@@ -44,6 +52,7 @@ export default async ({ h, page }) => {
   if (!(await page.evaluate(() => !!document.activeElement?.closest('.tour-card')))) throw new Error('the focus is not in the card');
   if (await welcome.isVisible()) throw new Error('the welcome stays during the tour');
   await h.shot(page, 'tour-step1');
+  await keysWait(page);
 
   /* ---------- « Suivant »: the next part (the rect changes), then the next page ---------- */
   await page.getByRole('button', { name: 'Suivant' }).click();
@@ -63,6 +72,7 @@ export default async ({ h, page }) => {
   await page.waitForFunction(() => /^agenda\./.test(document.querySelector('.tour-card[data-on="1"]')?.getAttribute('data-step') || ''), null, { timeout: 8000 });
   await litOn(page, await page.locator('.tour-card').getAttribute('data-target'));
   await h.shot(page, 'tour-agenda');
+  await keysWait(page);
 
   /* ---------- Escape: closed, kept for later ---------- */
   const at = await stepOf(page);
@@ -154,4 +164,25 @@ export default async ({ h, page }) => {
   await moi.locator('.tour-card[data-on="1"]').waitFor();
   await moi.keyboard.press('Escape');
   await moi.locator('.tour').waitFor({ state: 'detached' });
+
+  /* ---------- /moi on a touch phone, every step to the last: never wider than the screen, the card's buttons in reach ---------- */
+  const touch = await h.newPage({ viewport: { width: 390, height: 844 }, mobile: true });
+  await touch.goto(h.base + '/moi');
+  await touch.getByRole('button', { name: 'Essayer avec un client de démo' }).click();
+  await touch.getByRole('button', { name: 'Voir comment ça marche' }).click({ timeout: 10000 });
+  let n = 0;
+  for (; n < 40 && (await touch.locator('.tour').count()); n++) {
+    await touch.locator('.tour-card[data-on="1"]').waitFor();
+    await touch.waitForTimeout(450);
+    const w = await touch.evaluate(() => ({ sw: document.documentElement.scrollWidth, iw: innerWidth }));
+    if (w.sw > w.iw) throw new Error('/moi step ' + (await stepOf(touch)) + ': the page is wider than the screen ' + JSON.stringify(w));
+    const b = await touch.locator('.tour-card .tour-btn:not(.ghost)').boundingBox();
+    if (!b || b.x < 0 || b.x + b.width > 390 || b.y + b.height > 844) throw new Error('/moi step ' + (await stepOf(touch)) + ': « Suivant » out of reach ' + JSON.stringify(b));
+    if ((await stepOf(touch)) === 'moi.tabs') await h.shot(touch, 'moi-touch-tabs');
+    await touch.locator('.tour-card .tour-btn:not(.ghost)').tap();
+    await touch.waitForTimeout(150);
+  }
+  if (n < 5 || (await touch.locator('.tour').count())) throw new Error('/moi: the tour did not reach its end (' + n + ' steps)');
+  // it ends where it started
+  await touch.waitForFunction(() => location.pathname === '/moi');
 };

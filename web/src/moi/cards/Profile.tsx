@@ -6,7 +6,6 @@ import { useEffect, useRef, useState } from 'react';
 import { api } from '../../lib/api';
 import type { CardProps, MoiCardMeta } from '../types';
 import { Section, short } from '../profile/kit';
-import { startMoiTour } from '../guide/MoiTour';
 import './profile.css';
 
 export const meta = { id: 'profile', tab: 'profile', order: 10 } satisfies MoiCardMeta;
@@ -73,8 +72,6 @@ export default function Profile({ me, reload }: CardProps) {
       <Infos key={'i' + gen} me={me} info={info} write={write} />
       <Messages key={'m' + gen} me={me} write={write} />
       <Data info={info} failed={failed} write={write} say={say} refresh={loadInfo} />
-      {/* GUIDE-01a: the space's guided tour again */}
-      <button type="button" className="c-link mp-link" onClick={startMoiTour}>Comment ça marche ?</button>
       <p className={'mp-say c-note' + (bad ? ' warn' : ' ok')} role="status" aria-live="polite">{text}</p>
     </div>
   );

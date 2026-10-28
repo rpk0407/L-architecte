@@ -16,10 +16,13 @@
   .tw-acts { grid-column: 1 / -1; }
   .tw-acts .btn { flex: 1; }
 }
-.tour-chip { min-height: 40px; gap: 6px; font-size: 13.5px; color: var(--tx); box-shadow: inset 0 0 0 1px var(--accent-line); background: var(--accent-bg); }
+.tour-chip { position: relative; min-height: 40px; gap: 6px; font-size: 13.5px; color: var(--tx); box-shadow: inset 0 0 0 1px var(--accent-line); background: var(--accent-bg); }
 .tour-chip svg { color: var(--accent); }
+/* 44 px to the finger, 40 px to the eye: the top bar keeps its height (Mon espace's four rows above the fold) */
+.tour-chip::after { content: ''; position: absolute; inset: -2px 0; }
 .tour-help span { font: 600 17px/1 var(--sans); }
-@media (max-width: 420px) { .tour-chip .tour-chip-t { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; } .tour-chip { padding: 0 11px; } }
+/* a phone's top bar: « Visite » alone, next to the page's « ? » */
+@media (max-width: 420px) { .tour-chip .tour-chip-more { display: none; } .tour-chip { padding: 0 12px; } }
 @media (prefers-reduced-motion: reduce) { .tour-welcome { animation: none; } }
 /* Réglages › Mise en route: « Revoir la visite », the last line of its header card */
 .mr-tour { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; padding-top: 12px; border-top: 1px solid var(--line); }

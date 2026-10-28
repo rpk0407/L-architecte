@@ -198,7 +198,8 @@ function NoTeam() {
   return (
     <>
       <PageTitle><h1>Agenda</h1></PageTitle>
-      <section className="card">
+      {/* the tour passes over the agenda's parts while there is no agenda (GUIDE-01a) */}
+      <section className="card" data-tour-empty>
         <Empty icon="equipe" title="Ajoute ton équipe pour ouvrir l’agenda" action={
           <div className="row" style={{ gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
             {can('team') ? <Button variant="primary" icon="plus" onClick={() => navigate('/equipe')}>Ajouter l’équipe</Button> : null}

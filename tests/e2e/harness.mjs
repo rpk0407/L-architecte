@@ -6,7 +6,7 @@
 //   export const viewport = { width: 390, height: 844 };   optional, for `page` (default 1440×900)
 //   export const env = { LX_FAKE_NOW: '…' };                optional, extra server environment (demo clock, …)
 // Each file gets its own server and its own data, so files never see each other's changes.
-// h: { base, mode, owner, setup(), loginOwner(page), api(path, opts), newPage(opts), expectText(page, text), shot(page, name) }.
+// h: { base, mode, owner, setup(), loginOwner(page), api(path, opts), newPage({ viewport, mobile }), expectText(page, text), shot(page, name) }.
 // Any JavaScript error on `page` or on a page from h.newPage() fails the scenario.
 import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
@@ -71,8 +71,8 @@ export function runner(browser) {
   const results = [];
   async function scenario(name, fn, { viewport = DESKTOP } = {}) {
     const errors = [], contexts = [];
-    const newPage = async ({ viewport: vp = viewport } = {}) => {
-      const ctx = await browser.newContext({ viewport: vp, locale: 'fr-FR', timezoneId: 'Europe/Paris', deviceScaleFactor: 1 });
+    const newPage = async ({ viewport: vp = viewport, mobile = false } = {}) => {
+      const ctx = await browser.newContext({ viewport: vp, locale: 'fr-FR', timezoneId: 'Europe/Paris', deviceScaleFactor: 1, ...(mobile ? { isMobile: true, hasTouch: true } : {}) });
       contexts.push(ctx);
       const page = await ctx.newPage();
       page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
