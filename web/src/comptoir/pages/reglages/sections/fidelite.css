@@ -2,6 +2,7 @@
 .fd { display: flex; flex-direction: column; gap: 16px; }
 .fd .label { display: block; margin-bottom: 8px; }
 .fd-step { display: inline-flex; align-items: center; gap: 12px; }
+.fd-step .btn { min-width: var(--tap); min-height: var(--tap); }
 .fd-step b { min-width: 2ch; text-align: center; font: 400 34px/1 var(--serif); font-variant-numeric: tabular-nums; }
 .fd-line { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; }
 .fd-line .input { width: 120px; min-height: 44px; text-align: right; font-size: 20px; }

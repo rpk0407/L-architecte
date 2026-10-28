@@ -44,14 +44,14 @@ export function rewardWords(reward, nameOf = () => '') {
 }
 
 /**
- * The card in a few words: « 6/9 tampons », « 180/250 points », « Prochaine coupe offerte », « Ne participe pas ».
+ * The card in a few words: « 6/9 tampons », « 180/250 points », « Prochaine prestation offerte », « Ne participe pas ».
  * @param {{ units: number, goal: number, model?: string, off?: boolean, rewards?: { reward?: Reward }[] }} card
  */
 export function cardWords(card) {
   if (!card) return '';
   if (card.off) return 'Ne participe pas';
   const r = card.rewards && card.rewards.length ? card.rewards[0].reward : null;
-  if (r) return r.kind === 'amount' ? fmtEur(r.amount || 0) + ' offerts au prochain passage' : 'Prochaine coupe offerte';
+  if (r) return r.kind === 'amount' ? fmtEur(r.amount || 0) + ' offerts au prochain passage' : 'Prochaine prestation offerte';
   return card.units + '/' + card.goal + (card.model === 'points' ? ' points' : ' tampons');
 }
 
@@ -62,16 +62,18 @@ export function dayWords(day) {
   const p = dayParts(day);
   return (p.d === 1 ? '1er' : String(p.d)) + ' ' + MONTHS_FR[p.m - 1];
 }
-/** « 6 mois », « 12 mois », « 45 jours »: a length of time kept as the salon set it. @param {number} days */
+/** « 6 mois », « 12 mois », « 24 mois », « 45 jours »: a length of time kept as the salon set it. @param {number} days */
 export function lapseWords(days) {
-  if (days >= 360 && days <= 370) return '12 mois';
+  const years = Math.round(days / 365);
+  if (years >= 1 && Math.abs(days - years * 365) <= 5) return years * 12 + ' mois';
   return days >= 60 && days % 30 === 0 ? days / 30 + ' mois' : days + ' jours';
 }
 const lcFirst = (t) => (t ? t.charAt(0).toLowerCase() + t.slice(1) : t);
 
 /**
- * The card's rule in one line: « 9 passages = la 10e coupe offerte ». A reward that names one service says « prestation
- * offerte : Barbe » (the name's gender is not ours to guess); an amount « 9 passages = 5 € offerts au 10e passage ».
+ * The card's rule in one line: « 9 passages = la 10e prestation offerte ». A reward that names one service says « prestation
+ * offerte : Barbe » (the name's gender is not ours to guess), any other service « prestation offerte » (it pays any
+ * service, as the reward's own label says); an amount « 9 passages = 5 € offerts au 10e passage ».
  * @param {{ goal: number, reward: Reward }} cfg @param {(id: string) => string} [nameOf]
  */
 export function ruleWords(cfg, nameOf = () => '') {
@@ -80,15 +82,15 @@ export function ruleWords(cfg, nameOf = () => '') {
   if (r.kind === 'amount') return g + ' passages = ' + fmtEur(r.amount || 0) + ' offerts au ' + nth + ' passage';
   const refs = r.refs || [];
   const one = refs.length === 1 ? nameOf(refs[0]) : '';
-  return g + ' passages = la ' + nth + (one ? ' prestation offerte : ' + one : refs.length ? ' prestation offerte' : ' coupe offerte');
+  return g + ' passages = la ' + nth + (one ? ' prestation offerte : ' + one : ' prestation offerte');
 }
-/** What the full card wins, as a client says it: « ta coupe offerte », « tes 5 € offerts ». @param {Reward} reward */
+/** What the full card wins, as a client says it: « ta prestation offerte », « tes 5 € offerts ». @param {Reward} reward */
 function wonWords(reward) {
   if (reward && reward.kind === 'amount') return 'tes ' + fmtEur(reward.amount || 0) + ' offerts';
-  return reward && reward.refs && reward.refs.length ? 'ta prestation offerte' : 'ta coupe offerte';
+  return 'ta prestation offerte';
 }
 /**
- * The card's headline for its holder: « Encore 3 passages avant ta coupe offerte », or, when a reward waits, « Ta coupe
+ * The card's headline for its holder: « Encore 3 passages avant ta prestation offerte », or, when a reward waits, « Ta prestation
  * offerte t’attend jusqu’au 12 mai » (« · et 1 autre » for the rest).
  * @param {{ units: number, goal: number, rewards?: { reward: Reward, expires: string }[] }} card @param {{ reward: Reward }} cfg
  */

@@ -27,7 +27,7 @@ export type MeLoyalty =
   | { enabled: false }
   | {
     enabled: true; off: boolean; card: { units: number; goal: number; model: 'stamps' }; rule: string; headline: string; terms: string[];
-    rewards: { id: string; label: string; expires: string }[]; referral: { link: string; offer: string; count: number } | null; birthdayMissing: boolean;
+    rewards: { id: string; label: string; expires: string }[]; referral: { link: string; offer: string; gift: string; count: number } | null; birthdayMissing: boolean;
   };
 /** GET /api/v1/loyalty/launch: what launching now would give, or what it gave. */
 export type LaunchView = { launched: { day: string; headStart: string; clients: number; stamps: number } | null; plan: { headStart: string; cap: number; clients: number; stamps: number } | null };
@@ -46,11 +46,11 @@ const W = L as {
 export const rewardWords = W.rewardWords;
 /** What a reward takes off a line, in cents: the till applies exactly this, the server checks it. */
 export const rewardValue = W.rewardValue;
-/** « 9 passages = la 10e coupe offerte » */
+/** « 9 passages = la 10e prestation offerte » */
 export const ruleWords = W.ruleWords;
 /** The règlement, one paragraph per entry (Réglages shows the same text /moi shows). */
 export const termsText = W.termsText;
-/** « Encore 3 passages avant ta coupe offerte » or « Ta coupe offerte t’attend jusqu’au 12 mai » */
+/** « Encore 3 passages avant ta prestation offerte » or « Ta prestation offerte t’attend jusqu’au 12 mai » */
 export const headlineWords = W.headlineWords;
 /** « 12 mai », « 1er mars » */
 export const dayWords = W.dayWords;
@@ -61,7 +61,7 @@ export const lapseWords = W.lapseWords;
 export const stampsLabel = (units: number, goal: number, model: 'stamps' | 'points' = 'stamps') =>
   Math.max(0, units) + (model === 'points' ? ' point' : ' tampon') + (units > 1 ? 's' : '') + ' sur ' + goal;
 
-/** 'Visite' → « passage », a reward used → « coupe offerte »: the card's movements as the client file lists them. */
+/** 'Visite' → « passage », a reward used → « prestation offerte »: the card's movements as the client file lists them. */
 export function moveWords(what: string): string {
   if (what === 'Visite') return 'passage';
   if (what === 'Remboursement du ticket') return 'remboursement';
@@ -71,7 +71,7 @@ export function moveWords(what: string): string {
   if (what.startsWith('Récompense utilisée')) {
     const r = what.split(' · ')[1] || '';
     // a reward that names no service pays "a cut" for the salon's clients
-    return !r || r.startsWith('Une prestation') ? 'coupe offerte' : r.charAt(0).toLowerCase() + r.slice(1);
+    return !r || r.startsWith('Une prestation') ? 'prestation offerte' : r.charAt(0).toLowerCase() + r.slice(1);
   }
   return what.charAt(0).toLowerCase() + what.slice(1);
 }

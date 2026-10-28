@@ -6,6 +6,7 @@ import { HttpError, guard } from './kit.js';
 import { signLink, checkLink } from '../auth/session.js';
 import { addDays, isDay, diffDays } from '../../shared/dates.js';
 import { rewardWords } from '../../shared/loyalty.js';
+import { fmtEur } from '../../shared/money.js';
 import { cardOf, cfgOf, rootOf, referralOf, simulate, programStats, liability, launchView } from '../domain/loyalty.js';
 import { HEAD_STARTS } from '../settings/loyalty.js';
 import { adjustLoyalty, giftReward, voidReward, restoreReward, claimReferral, launchLoyalty, setLoyaltyOff } from '../commands/loyalty.js';
@@ -140,7 +141,10 @@ export function loyaltyRoutes(app) {
     guard('parrain|' + r.ip, 30, 60000);
     const c = referrerOf(r, r.params.token);
     if (!c) throw new HttpError(404, 'not_found', 'Ce lien de parrainage n’est pas (ou plus) valable.');
-    const words = rewardWords(cfgOf(r.s).referral.referee, (id) => (r.s.services.get(id) || {}).name || '');
-    return { first: c.first, offer: words + ' sur ta première visite' };
+    const ref = cfgOf(r.s).referral.referee;
+    const words = rewardWords(ref, (id) => (r.s.services.get(id) || {}).name || '');
+    // give / line are ready for a sentence (« Karim t’offre 5 € sur ta première visite »): offer already says « offerts »
+    const give = ref.kind === 'amount' ? fmtEur(ref.amount || 0) : words.replace(' offerte', '').replace(/^./, (x) => x.toLowerCase());
+    return { first: c.first, offer: words + ' sur ta première visite', give, line: c.first + ' t’offre ' + give + ' sur ta première visite' };
   });
 }

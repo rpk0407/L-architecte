@@ -9,7 +9,7 @@ import { useDebounced } from '../../../../lib/hooks';
 import { Link } from '../../../../lib/router';
 import { headlineWords, ruleWords, termsText, type LaunchView, type LoyaltyCfg, type Reward, type Simulation } from '../../../../lib/loyalty';
 import { StampCard } from '../../../../ui/StampCard';
-import { Button, Chip, Modal, Note, Seg, Skeleton, Switch, toast, toastError } from '../../../../ui/kit';
+import { Button, Chip, Modal, Money, Note, Seg, Skeleton, Switch, toast, toastError } from '../../../../ui/kit';
 import { useApp } from '../../../state';
 import { Card, SaveBar, num, useSave, useSection, type SectionProps } from '../shared';
 import './fidelite.css';
@@ -142,7 +142,7 @@ export default function Fidelite({ s }: SectionProps) {
       <Card title="Ce que ça coûte" icon="euro">
         <div data-guide="fidelite.simulator" aria-live="polite">
           {!sim.data ? <Skeleton h={64} /> : sim.data.clients ? (
-            <p className={'fd-sim' + (warm ? ' warn' : '')}>Sur les 12 derniers mois, ces règles {sim.data.rewards ? 'auraient offert ' + plural(sim.data.rewards, 'récompense') + ' à ' + plural(sim.data.winners, 'client') : 'n’auraient offert aucune récompense'} : {eur(sim.data.value)}, soit {pct(sim.data.share, 1)} du chiffre des prestations.</p>
+            <p className={'fd-sim' + (warm ? ' warn' : '')}>Sur les 12 derniers mois, ces règles {sim.data.rewards ? 'auraient offert ' + plural(sim.data.rewards, 'récompense') + ' à ' + plural(sim.data.winners, 'client') : 'n’auraient offert aucune récompense'} : <Money cents={sim.data.value} />, soit <span className="money">{pct(sim.data.share, 1)}</span> du chiffre des prestations.</p>
           ) : <p className="fd-sim">Pas encore assez de tickets pour estimer.</p>}
         </div>
         {warm ? <Note tone="warn" icon="alert">C’est généreux : un passage de plus ou une récompense plus petite ?</Note> : null}
@@ -185,10 +185,12 @@ export default function Fidelite({ s }: SectionProps) {
         <div><span className="label" id="fd-head">Départ</span><Seg<Head> label="Départ" value={head} onChange={setHead} options={HEADS} /></div>
         {!plan || plan.headStart !== head ? <Skeleton h={48} /> : plan.cap <= 0 ? (
           <p>Toutes les cartes commencent à zéro. Tu ne pourras pas relancer.</p>
+        ) : !plan.clients ? (
+          <p>Aucun client n’a encore de passages : attends la reprise de l’ancien site. Le lancement ne se fait qu’une fois.</p>
         ) : (
           <p>{plural(plan.clients, 'client démarre', 'clients démarrent')} avec leurs passages des 12 derniers mois ({plan.cap} tampons au plus). Tu ne pourras pas relancer.</p>
         )}
-        <div className="acts"><Button variant="ghost" onClick={() => setAsking(false)}>Annuler</Button><Button variant="primary" busy={launching} disabled={!plan || plan.headStart !== head} onClick={go}>Départ</Button></div>
+        <div className="acts"><Button variant="ghost" onClick={() => setAsking(false)}>Annuler</Button><Button variant="primary" busy={launching} disabled={!plan || plan.headStart !== head || (plan.cap > 0 && !plan.clients)} onClick={go}>Départ</Button></div>
       </Modal>
     </div>
   );

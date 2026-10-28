@@ -5,7 +5,7 @@
 import { useEffect, useState, type Dispatch, type SetStateAction } from 'react';
 import { api, qs } from '../../../lib/api';
 import { refreshAll, useQuery } from '../../../lib/query';
-import { dayWords, rewardValue, type CardLine, type CardReward, type ClientLoyalty } from '../../../lib/loyalty';
+import { dayWords, rewardValue, rewardWords, type CardLine, type CardReward, type ClientLoyalty } from '../../../lib/loyalty';
 import { useDebounced } from '../../../lib/hooks';
 import { Icon } from '../../../ui/Icon';
 import { StampCard } from '../../../ui/StampCard';
@@ -68,7 +68,7 @@ export function RewardChip<L extends TillLine>({ client, lines, setLines }: { cl
         <>
           <button type="button" className={'chip rw-chip' + (applied ? ' on' : '')} disabled={!applied && !fits} onClick={applied ? remove : () => apply(current)}>
             <Icon name="gift" />
-            {applied ? <><b>Offerte</b> · Retirer</> : <><b>{short(current.label)}</b> · Appliquer</>}
+            {applied ? <><b>{current.reward.kind === 'amount' ? '−' + eur(applied.discount) : 'Offerte'}</b><span className="rw-sep" aria-hidden>·</span>Retirer</> : <><b>{short(current.label)}</b><span className="rw-sep" aria-hidden>·</span>Appliquer</>}
           </button>
           {!applied && !fits ? <span className="rw-note">Ajoute la prestation pour l’offrir</span> : null}
           {applied ? null : <span className="rw-note">jusqu’au {dayWords(current.expires)}</span>}
@@ -116,17 +116,27 @@ function Referrer({ open, onClose, client, onDone }: { open: boolean; onClose: (
       <div className="search"><Icon name="search" /><input className="input" aria-label="Chercher le parrain par prénom ou nom" placeholder="Prénom ou nom du parrain" value={text} onChange={(e) => setText(e.target.value)} data-autofocus /></div>
       <div aria-live="polite">{err ? <Note tone="err" icon="alert">{err}</Note> : null}</div>
       <div className="rw-who">
+        {dq.trim().length < 2 ? <p className="rw-note">Tape au moins 2 lettres.</p> : found.data && !found.data.items.some((c) => c.id !== client.id) ? <p className="rw-note">Aucun client trouvé.</p> : null}
         <div className="pick">{found.data?.items.filter((c) => c.id !== client.id).map((c) => <button key={c.id} type="button" className="pick-r" disabled={busy} onClick={() => pick(c)}><Avatar name={c.name} size="sm" /><span className="li-main"><b>{c.first} {c.last}</b><small>{c.phone}</small></span></button>)}</div>
       </div>
     </Sheet>
   );
 }
 
-/** The done screen's line about the card: the stamp just added, the full card, or why there is none. */
+/** Why a ticket earned no stamp, in the words of the case (server/domain/loyalty.js saleLoyalty). */
+const WHY: Record<string, (min: number) => string> = {
+  covered: () => 'Pas de tampon : la coupe est payée par un carnet ou un abonnement.',
+  today: () => 'Pas de tampon : il a déjà été tamponné aujourd’hui (un seul par jour).',
+  min: (min) => 'Pas de tampon sur ce passage : il faut au moins ' + eur(min) + ' de prestations payées.',
+  off: () => 'Ne participe pas à la carte fidélité.'
+};
+type SaleLoyalty = { units: number; rewards: { reward: CardReward['reward'] }[]; why: string | null };
+
+/** The done screen's line about the card: the stamp just added, the card this ticket completed, or why there is none. */
 export function LoyaltyDone({ client, saleId }: { client: Client | null; saleId: string }) {
   const { boot } = useApp();
   const live = !!client?.loyalty;
-  const sale = useQuery<{ loyalty: { units: number } | null }>(live ? '/api/v1/sales/' + saleId : null);
+  const sale = useQuery<{ loyalty: SaleLoyalty | null }>(live ? '/api/v1/sales/' + saleId : null);
   const q = useQuery<ClientLoyalty>(live ? '/api/v1/loyalty/client/' + client!.id : null);
   // a ticket without a client is told so only while the programme runs (a barber's settings carry just that flag)
   if (!client) return boot.settings.loyalty?.enabled ? <div className="rw-done faint"><p>Pas de fiche client, pas de tampon.</p></div> : null;
@@ -134,9 +144,13 @@ export function LoyaltyDone({ client, saleId }: { client: Client | null; saleId:
   if (!live || !card || !sale.data || q.refreshing || sale.refreshing) return null;
   if (card.off) return <div className="rw-done faint"><p>Ne participe pas à la carte fidélité.</p></div>;
   const units = Math.max(0, card.units);
-  // a full card is a reward earned today: « Carte complète » is among today's movements
-  const full = card.last.some((m) => m.day === boot.today && m.units < 0 && m.what.startsWith('Carte complète'));
-  if (full) return <div className="rw-done"><StampCard units={card.goal} goal={card.goal} size="sm" /><p>Carte complète : sa prochaine coupe est offerte.</p></div>;
-  if (sale.data.loyalty && sale.data.loyalty.units > 0) return <div className="rw-done"><StampCard units={units} goal={card.goal} size="sm" /><p>Tampon ajouté · {units}/{card.goal}</p></div>;
-  return <div className="rw-done faint"><p>Pas de tampon sur ce passage : il faut au moins {eur(card.minNet)} de prestations payées.</p></div>;
+  const did = sale.data.loyalty;
+  // the card this very ticket completed: its reward was granted with the ticket
+  const won = did && did.rewards[0];
+  if (won) {
+    const w = rewardWords(won.reward);
+    return <div className="rw-done"><StampCard units={card.goal} goal={card.goal} size="sm" /><p>Carte complète : {w.charAt(0).toLowerCase() + w.slice(1)} à son prochain passage.</p></div>;
+  }
+  if (did && did.units > 0) return <div className="rw-done"><StampCard units={units} goal={card.goal} size="sm" /><p>Tampon ajouté · {units}/{card.goal}</p></div>;
+  return <div className="rw-done faint"><p>{did && did.why && WHY[did.why] ? WHY[did.why](card.minNet) : 'Pas de tampon sur ce passage.'}</p></div>;
 }

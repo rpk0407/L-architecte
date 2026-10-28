@@ -81,6 +81,31 @@ export function earnOf(s, client, lines, day) {
   return units;
 }
 
+/**
+ * What a ticket did for its client's card (the till's done screen): the stamp it earned, the full cards it completed (their
+ * rewards), and, when it earned none, why: 'covered' (a carnet or the membership paid the cut), 'min' (less than the
+ * minimum paid), 'today' (already stamped that day), 'off' (he does not take part). null while the programme is off or the
+ * ticket has no client.
+ * @param {any} s @param {any} x a sale
+ * @returns {{ units: number, rewards: { reward: any }[], why: 'covered'|'min'|'today'|'off'|null }|null}
+ */
+export function saleLoyalty(s, x) {
+  const cfg = cfgOf(s);
+  if (!cfg.enabled || !x.clientId) return null;
+  const units = x.loyalty ? x.loyalty.units : 0;
+  const rewards = [...L(s).rewards.values()].filter((r) => r.saleId === x.id && r.source === 'card' && !r.voided).map((r) => ({ reward: r.reward }));
+  /** @type {'covered'|'min'|'today'|'off'|null} */
+  let why = null;
+  if (!units) {
+    const c = s.clients.get(rootOf(s, x.clientId) || x.clientId);
+    const net = qualifyingNet(x.lines);
+    if (!c || c.loyaltyOff || c.erased) why = 'off';
+    else if (net <= 0) why = x.lines.some((l) => l.kind === 'service' && (l.packId || l.memberId)) ? 'covered' : 'min';
+    else why = net < (cfg.minNet || 0) ? 'min' : 'today';
+  }
+  return { units, rewards, why };
+}
+
 /* ---------------- the card's timeline ---------------- */
 
 /** @typedef {{ day: string, k: number[], units: number, kind: string, what: string, id: string, saleId: string|null }} Item */
@@ -227,15 +252,18 @@ function historyOf(s, g) {
 /**
  * A client's card on a day: { root, model, enabled, off, units, goal, rewards [{ id, source, reward, label, expires }],
  * last (10 movements, newest first: { day, what, units }), lastEarn, referredBy }.
- * @param {any} s @param {string} cid @param {string} day
+ * from: a fenced account's historyFrom (domain/me.js): only the stamps and rewards of that day on, what came before is
+ * the number's previous holder's.
+ * @param {any} s @param {string} cid @param {string} day @param {string|null} [from]
  */
-export function cardOf(s, cid, day) {
+export function cardOf(s, cid, day, from = null) {
   const root = rootOf(s, cid) || cid;
-  return memo(s, 'card|' + root + '|' + day, () => {
+  return memo(s, 'card|' + root + '|' + day + '|' + (from || ''), () => {
     const cfg = cfgOf(s);
     const c = s.clients.get(root);
     // a read: every file's timeline at once, the lists ask for many cards
-    const g = index(s).get(root) || { items: [], rewards: [] };
+    const all = index(s).get(root) || { items: [], rewards: [] };
+    const g = from ? { items: all.items.filter((x) => x.day >= from), rewards: all.rewards.filter((r) => r.day >= from) } : all;
     const f = fold(g.items, cfg, day);
     const words = nameOf(s);
     const rewards = g.rewards.filter((r) => usable(r, day)).sort((a, b) => (a.expires < b.expires ? -1 : 1))

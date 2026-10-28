@@ -6,6 +6,7 @@
 .rw-chip b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
 .rw-chip svg { width: 16px; height: 16px; flex: none; }
 .rw-chip.on { background: var(--accent); color: var(--ink); box-shadow: none; }
+.rw-sep { margin: 0 2px; }
 .rw-chip:disabled { opacity: .5; }
 .rw-note { font-size: 13px; color: var(--tx3); }
 .rw-link { min-height: var(--tap); padding: 0 6px; font: 600 13px/1 var(--sans); color: var(--tx2); text-decoration: underline; text-underline-offset: 3px; }

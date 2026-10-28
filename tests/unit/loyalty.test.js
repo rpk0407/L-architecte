@@ -68,7 +68,7 @@ test('shared words and values: what a reward takes off a line, and how a card re
   assert.equal(sp(rewardWords({ kind: 'amount', amount: 500 })), '5 € offerts');
   assert.equal(cardWords({ units: 6, goal: 9 }), '6/9 tampons');
   assert.equal(cardWords({ units: 180, goal: 250, model: 'points' }), '180/250 points');
-  assert.equal(cardWords({ units: 0, goal: 9, rewards: [{ reward: svc }] }), 'Prochaine coupe offerte');
+  assert.equal(cardWords({ units: 0, goal: 9, rewards: [{ reward: svc }] }), 'Prochaine prestation offerte');
   assert.equal(cardWords({ units: 2, goal: 9, off: true }), 'Ne participe pas');
 });
 
@@ -826,7 +826,7 @@ test('the demo: cards and rewards from its history, the routes for each role, th
   const token = tokenOf(rt, referrer.id);
   const p = await site.get('/api/public/parrain/' + encodeURIComponent(token));
   assert.equal(p.status, 200, p.text);
-  assert.deepEqual({ ...p.json, offer: sp(p.json.offer) }, { first: referrer.first, offer: '5 € offerts sur ta première visite' });
+  assert.deepEqual({ ...p.json, offer: sp(p.json.offer), give: sp(p.json.give), line: sp(p.json.line) }, { first: referrer.first, offer: '5 € offerts sur ta première visite', give: '5 €', line: referrer.first + ' t’offre 5 € sur ta première visite' });
   assert.equal((await site.get('/api/public/parrain/' + referrer.id + '.forged')).status, 404);
   const svc = [...s.services.values()].find((x) => x.active && x.online !== false && !x.pack && x.price < 4000);
   const av = (await site.get('/api/public/availability?services=' + svc.id + '&days=7')).json;

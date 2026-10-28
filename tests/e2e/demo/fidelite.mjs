@@ -62,7 +62,7 @@ export default async ({ h, page }) => {
   // 3. the file shows the movement
   await page.goto(h.base + '/comptoir/clients/' + a.client.id);
   const card = page.locator('[data-guide="clients.loyalty"]');
-  await card.getByText('coupe offerte').first().waitFor({ timeout: 8000 });
+  await card.getByText(/prestation offerte|coupe offerte/).first().waitFor({ timeout: 8000 });
   await card.getByRole('button', { name: '+ 1 tampon' }).waitFor();
   await h.shot(page, 'fidelite-fiche');
 
@@ -96,7 +96,7 @@ export default async ({ h, page }) => {
   const signed = await call(me, '/api/public/account/demo', {});
   if (signed.status !== 200) throw new Error('demo sign-in: ' + signed.status);
   const mine = (await call(me, '/api/me/loyalty')).json;
-  if (!mine.enabled || mine.card.goal !== 9 || mine.rule !== '9 passages = la 10e coupe offerte') throw new Error('/api/me/loyalty: ' + JSON.stringify(mine));
+  if (!mine.enabled || mine.card.goal !== 9 || mine.rule !== '9 passages = la 10e prestation offerte') throw new Error('/api/me/loyalty: ' + JSON.stringify(mine));
   const token = new URL(mine.referral.link).searchParams.get('parrain');
   const friend = await call(me, '/api/public/parrain/' + encodeURIComponent(token));
   if (friend.status !== 200 || !/offerts/.test(friend.json.offer) || !friend.json.first) throw new Error('the referral link says: ' + JSON.stringify(friend));

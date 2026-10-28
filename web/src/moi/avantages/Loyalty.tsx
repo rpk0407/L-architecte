@@ -49,6 +49,8 @@ export default function Loyalty({ me }: CardProps) {
   const { data: l } = useMeLoyalty();
   const [open, setOpen] = useState(false);
   const [said, setSaid] = useState('');
+  // neither the share sheet nor the clipboard worked: the link itself, to copy by hand
+  const [manual, setManual] = useState(false);
   if (!l) return null;
   const { units, goal } = l.card;
 
@@ -62,7 +64,7 @@ export default function Loyalty({ me }: CardProps) {
       setSaid('Lien copié');
     } catch (e) {
       if ((e as Error)?.name === 'AbortError') return;
-      try { await copyText(l.referral.link); setSaid('Lien copié'); } catch (err) { setSaid((err as Error).message); }
+      try { await copyText(l.referral.link); setSaid('Lien copié'); } catch { setManual(true); }
     }
   };
   const waiting = l.rewards[0];
@@ -70,21 +72,21 @@ export default function Loyalty({ me }: CardProps) {
   return (
     <div data-guide="moi.loyalty">
       <button type="button" className="lyr" onClick={() => setOpen(true)} aria-haspopup="dialog">
-        <span className="lyr-t"><b>Ma carte fidélité</b><StampCard units={waiting ? goal : units} goal={goal} size="sm" /></span>
-        <span className="lyr-n">{waiting ? 'Offerte' : units + '/' + goal}</span>
+        <span className="lyr-t"><span className="lyr-tt"><b>Ma carte fidélité</b>{waiting ? <em className="lyr-chip">Récompense</em> : null}</span><StampCard units={units} goal={goal} size="sm" /></span>
+        {l.off ? <span className="lyr-n s">Ne participe pas</span> : <span className="lyr-n">{units + '/' + goal}</span>}
         <Icon name="chevR" size={18} />
       </button>
       {open ? (
-        <Sheet onClose={() => { setOpen(false); setSaid(''); }} title="Ma carte fidélité">
-          <StampCard units={waiting ? goal : units} goal={goal} />
+        <Sheet onClose={() => { setOpen(false); setSaid(''); setManual(false); }} title="Ma carte fidélité">
+          <StampCard units={units} goal={goal} />
           <p className="lyr-head">{l.headline}</p>
-          <p className="lyr-small">{l.rule}</p>
+          {l.off ? <p className="lyr-small">Tu peux changer ça à tout moment dans ton Profil.</p> : <p className="lyr-small">{l.rule}</p>}
           {l.rewards.map((r) => <div key={r.id} className="lyr-rw"><b>{r.label}</b><span>À utiliser avant le {dayWords(r.expires)}</span></div>)}
           {waiting ? <a className="lyr-btn" href="/?reserver">Réserver</a> : null}
           {l.referral ? (
             <div className="lyr-ref" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               <button type="button" className="lyr-btn ghost" onClick={share}><Icon name="heart" size={20} />Parrainer un ami</button>
-              <p className="lyr-small" role="status">{said || (l.referral.count ? l.referral.count + (l.referral.count > 1 ? ' amis venus grâce à toi' : ' ami venu grâce à toi') : 'Ton ami reçoit ' + l.referral.offer + '.')}</p>
+              <p className="lyr-small" role="status">{manual ? <>Copie ce lien : <span className="lyr-link">{l.referral.link}</span></> : said || (l.referral.count ? l.referral.count + (l.referral.count > 1 ? ' amis venus grâce à toi' : ' ami venu grâce à toi') : 'Ton ami reçoit ' + l.referral.gift + ' sur sa première visite.')}</p>
             </div>
           ) : null}
           <details className="lyr-terms"><summary>Règlement</summary><div>{l.terms.map((t, i) => <p key={i}>{t}</p>)}</div></details>

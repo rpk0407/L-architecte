@@ -60,7 +60,7 @@ export function LoyaltyCard({ c }: { c: { id: string; first: string; erased: boo
       </div>
       {can('client.edit') ? <Switch on={!card.off} onChange={(on) => setOff(!on)} title="Participe à la carte fidélité" hint={card.off ? 'Il ne cumule plus de tampons. Ses récompenses déjà gagnées restent valables.' : card.goal + ' passages payés, le ' + (card.goal + 1) + 'e offert.'} /> : null}
 
-      <StampModal open={modal === 'stamp'} onClose={() => setModal('')} cid={c.id} first={c.first} onDone={done} />
+      <StampModal open={modal === 'stamp'} onClose={() => setModal('')} cid={c.id} first={c.first} onDone={done} oncePerDay={!can('loyalty.manage')} />
       <AdjustModal open={modal === 'adjust'} onClose={() => setModal('')} cid={c.id} first={c.first} onDone={done} />
       <GiftModal open={modal === 'gift'} onClose={() => setModal('')} cid={c.id} first={c.first} onDone={done} />
     </div>
@@ -68,7 +68,7 @@ export function LoyaltyCard({ c }: { c: { id: string; first: string; erased: boo
 }
 
 /** « + 1 tampon »: the two reasons anyone at the till may give, one stamp a day. */
-function StampModal({ open, onClose, cid, first, onDone }: { open: boolean; onClose: () => void; cid: string; first: string; onDone: () => void }) {
+function StampModal({ open, onClose, cid, first, onDone, oncePerDay }: { open: boolean; onClose: () => void; cid: string; first: string; onDone: () => void; oncePerDay: boolean }) {
   const [busy, setBusy] = useState('');
   const give = async (reason: string) => {
     setBusy(reason);
@@ -77,7 +77,7 @@ function StampModal({ open, onClose, cid, first, onDone }: { open: boolean; onCl
   return (
     <Modal open={open} onClose={onClose} label="Ajouter un tampon">
       <h2>Ajouter un tampon</h2>
-      <p>Pour {first}, un seul par jour. Pourquoi ?</p>
+      <p>Pour {first}{oncePerDay ? ', un seul par jour' : ''}. Pourquoi ?</p>
       <div className="chips">{FORGOTTEN.map((r) => <Chip key={r} disabled={!!busy} onClick={() => give(r)}>{r}</Chip>)}</div>
       <div className="acts"><Button variant="ghost" onClick={onClose}>Annuler</Button></div>
     </Modal>
@@ -126,7 +126,7 @@ function GiftModal({ open, onClose, cid, first, onDone }: { open: boolean; onClo
       <h2>Offrir une récompense</h2>
       <div className="ly-form">
         <Seg<'service' | 'amount'> label="Récompense" value={kind} onChange={(k) => { setKind(k); setEuro(k === 'amount' ? '5' : '25'); }} options={[{ v: 'service', t: 'Une prestation offerte' }, { v: 'amount', t: 'Une remise' }]} />
-        <div className="ly-line"><label htmlFor="ly-eur">{kind === 'amount' ? 'Remise de' : 'Jusqu’à'}</label><input id="ly-eur" className="input" inputMode="numeric" value={euro} onChange={(e) => setEuro(e.target.value.replace(/\D/g, '').slice(0, 3))} /><span className="serif" style={{ fontSize: 24 }}>€</span></div>
+        <div className="ly-line"><label htmlFor="ly-eur">{kind === 'amount' ? 'Remise de' : 'Jusqu’à'}</label><input id="ly-eur" className="input" inputMode="numeric" value={euro} onChange={(e) => setEuro(e.target.value.replace(/\D/g, '').slice(0, 3))} /><span className="serif" style={{ fontSize: 24 }}>€</span>{kind === 'service' && !cents ? <span className="faint" style={{ fontSize: 12.5 }}>Le prix entier.</span> : null}</div>
         <div><span className="label" id="ly-d">Valable</span><div className="chips" role="group" aria-labelledby="ly-d">{[{ d: 30, t: '1 mois' }, { d: 90, t: '3 mois' }, { d: 180, t: '6 mois' }].map((x) => <Chip key={x.d} on={days === x.d} onClick={() => setDays(x.d)}>{x.t}</Chip>)}</div></div>
       </div>
       <div className="acts"><Button variant="ghost" onClick={onClose}>Annuler</Button><Button variant="primary" busy={busy} disabled={kind === 'amount' ? cents < 100 : false} onClick={go}>Offrir {kind === 'amount' ? eur(cents) : cents ? 'jusqu’à ' + eur(cents) : 'la prestation'}</Button></div>
