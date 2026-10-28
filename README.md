@@ -9,6 +9,7 @@ The salon's own system, replacing the WordPress setup: the public site where cli
 | `/comptoir` | Le Comptoir, the back office | owner, managers, front desk, barbers |
 | `/r/:token` | "Mon rendez-vous": confirm, pay the deposit, move, cancel | a client, from the SMS link |
 | `/mon-rendez-vous` (also `/mon-compte`) | Find an appointment without an account: a phone number in, the `/r/` links by SMS to that number | a client without the SMS at hand |
+| `/moi` | "Mon espace", optional (off in production until the salon opens it): next appointment to move or cancel, visits and receipts, carnets and gift cards; sign-in with a code by SMS | a client, on his phone |
 | `/paiement/:id`, `/recu/:token` | Test checkout (until Stripe is connected), receipt | clients |
 
 ## Run it

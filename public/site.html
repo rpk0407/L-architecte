@@ -912,6 +912,10 @@ position:relative;font:400 17px/1.5 var(--f-sans);color:var(--os);background:var
 .to-ck>span{display:flex;flex-direction:column;gap:4px}
 .to-ck small{font:600 11px/1 var(--f-sans);letter-spacing:.09em;text-transform:uppercase;color:var(--rouge)}
 .to-ck svg{flex:none;width:20px;height:20px}
+.espace{display:flex;flex-direction:column;align-items:flex-start;gap:8px;margin-top:20px;padding:18px;border-radius:20px;background:var(--blanc);box-shadow:inset 0 0 0 1px var(--iligne)}
+.espace h3{font:600 16px/1.3 var(--f-sans)}
+.espace p{font:500 14.5px/1.45 var(--f-sans);color:var(--cendre2)}
+.espace .btn{margin-top:6px;min-height:50px;padding:0 22px;font-size:15.5px}
 .cx{margin-top:8px;font:400 28px/1.15 var(--f-serif)}
 .cx-s{margin-top:12px;font:500 15px/1.45 var(--f-sans);color:var(--cendre2)}
 
@@ -1256,6 +1260,7 @@ html{scroll-behavior:auto}
 <li><a href="/formations">Formations</a></li>
 <li><a href="/carte-cadeau">Carte cadeau</a></li>
 <li><a href="/mon-rendez-vous">Mon rendez-vous</a></li>
+<sc-if value="{{espaceOn}}" hint-placeholder-val="{{ false }}"><li><a href="/moi">Mon espace</a></li></sc-if>
 <li><a href="/mentions-legales">Mentions légales</a></li>
 <li><a href="/confidentialite">Confidentialité</a></li>
 <li><a href="/cgv">CGV</a></li>
@@ -1380,6 +1385,7 @@ html{scroll-behavior:auto}
 <sc-if value="{{asking}}" hint-placeholder-val="{{ false }}"><p class="ask">Annuler ce rendez-vous&nbsp;?</p><button type="button" class="btn small" onClick="{{doCancel}}">Oui, annuler</button><button type="button" class="tl" onClick="{{keep}}">Non, je garde</button></sc-if>
 </div>
 <a class="mg-l" href="{{manageUrl}}">Ton rendez-vous a sa page&nbsp;: déplacer, annuler, itinéraire</a>
+<sc-if value="{{espaceNew}}" hint-placeholder-val="{{ false }}"><div class="card espace" data-guide="site.espace"><h3>Crée ton espace</h3><p>Tous tes rendez-vous et tes reçus au même endroit, sur ce téléphone.</p><a class="btn" href="{{espaceUrl}}">Créer mon espace</a></div></sc-if><sc-if value="{{espaceIn}}" hint-placeholder-val="{{ false }}"><a class="mg-l" href="/moi">C’est dans ton espace.</a></sc-if>
 <sc-if value="{{isDemo}}" hint-placeholder-val="{{ true }}"><a class="to-ck" href="/comptoir" target="_blank" rel="noopener" onClick="{{toCockpit}}"><span><small>Démo</small>Le voir arriver dans le Comptoir</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h15M13 6l6 6-6 6"/></svg></a></sc-if>
 </div>
 </sc-if>
@@ -2146,6 +2152,20 @@ class Component extends DCLogic {
     this._t2 = setTimeout(() => this.measure(false), 700);
     this._t3 = setTimeout(() => this.setupReveal(), 60);
     this.bkInit();
+    this.acctInit();
+  }
+
+  /* the client space (AC-03a): opened by the salon? this phone signed in? for « Mon espace » and the done step */
+  acctInit() {
+    fetch('/api/public/account', { headers: { accept: 'application/json' }, credentials: 'same-origin', cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null)).then((a) => { if (this._mounted && a) this.setState({ acct: a }); }).catch(() => { /* the entry points stay hidden */ });
+  }
+  /* signed in: is the booking just made among his? (made with another number, it is that number's file, not his) */
+  acctOwn(token) {
+    const a = this.state.acct;
+    if (!a || !a.enabled || !a.signedIn || !token) return;
+    fetch('/api/me/home', { headers: { accept: 'application/json' }, credentials: 'same-origin', cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null)).then((m) => { if (this._mounted && m && (m.upcoming || []).some((u) => u.token === token)) this.setState({ ownTok: token }); }).catch(() => { /* nothing said */ });
   }
 
   /* the old WordPress pages (/nos-services, /creations) land on #carte or #coupes: go there once the page is laid out */
@@ -2705,6 +2725,13 @@ class Component extends DCLogic {
       meForgot: !!s.forgot,
       forgetMe: () => { clearMe(); this.setState({ forgot: true, fFirst: '', fLast: '', fPhone: '', fEmail: '', fNote: '', fMkt: false }); },
 
+      // the client space: the footer's « Mon espace », « Crée ton espace » under a booking just made (under the deposit's
+      // block when one waits, which keeps the lead), « C’est dans ton espace » only when that booking is his
+      espaceOn: !!(s.acct && s.acct.enabled),
+      espaceNew: !!(s.acct && s.acct.enabled && !s.acct.signedIn && s.bk.result && s.bk.result.token),
+      espaceIn: !!(s.acct && s.acct.enabled && s.acct.signedIn && s.bk.result && s.ownTok === s.bk.result.token),
+      espaceUrl: '/moi?garder=' + encodeURIComponent((s.bk.result && s.bk.result.token) || ''),
+
       mapsUrl: mapsOf()
     }, bv);
   }
@@ -2986,6 +3013,7 @@ const BookingMixin = {
       this.remember({ first: String(s0.fFirst).trim(), last: String(s0.fLast || '').trim(), phone: s0.fPhone, email: String(s0.fEmail || '').trim(), lastF: b.f, lastBarber: r.barber }, result);
       clearInterval(this._holdT);
       this.setState({ bk: Object.assign(this.bkEmpty(), { step: 'done', result: result, f: b.f }), icsUrl: this.bkIcs(result), fNote: '' });
+      this.acctOwn(result.token);
       buzz([16, 40, 16]);
     } catch (e) {
       if (e.code === 'taken') this.bkConflict(e.message);
@@ -3034,6 +3062,7 @@ const BookingMixin = {
       const result = Object.assign({}, bk.result, { day: v.day, time: v.start, barber: v.staff ? (Object.keys(LXE.BMAP).filter((k) => LXE.BMAP[k].sid === v.staff.id)[0] || bk.result.barber) : bk.result.barber });
       this.remember(null, result);
       this.setState({ bk: Object.assign(this.bkEmpty(), { step: 'done', result: result, f: result.f, moved: true }), icsUrl: this.bkIcs(result) });
+      this.acctOwn(result.token);
       buzz([16, 40, 16]);
     } catch (e) {
       this.setState({ bk: Object.assign({}, bk, { busy: false, step: 'when', time: null, err: e.message }) });

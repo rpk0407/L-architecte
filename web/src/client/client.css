@@ -98,3 +98,7 @@ button:disabled { opacity: .5; cursor: default; }
 .c-legal { font-size: 12.5px; color: var(--ink3); }
 @media print { .c-noprint, .c-foot { display: none; } .c-card { box-shadow: none; } body { background: #fff; } }
 .c-actions .c-btn { min-height: 52px; padding: 0 14px; font-size: 15.5px; text-align: center; }
+.c-espace p { font-size: 15.5px; }
+.c-espace .c-btn { align-self: flex-start; min-height: 50px; padding: 0 22px; font-size: 15.5px; }
+.c-espace-in { text-align: center; }
+.c-espace-in a { padding: 12px 2px; font-weight: 600; text-underline-offset: 4px; }

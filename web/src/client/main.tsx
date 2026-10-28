@@ -2,18 +2,12 @@
 // No account, no password: each link carries a signature the server checks.
 import { StrictMode, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { api, qs } from '../lib/api';
+import { api } from '../lib/api';
 import { cap, dates, eur, time } from '../lib/format';
+import { Move, STATUS_WORDS, icsUrl, type Booking } from './booking';
+import type { AccountState, Me } from '../moi/types';
 import './client.css';
 import './cadeau.css';
-
-type Booking = {
-  code: string; status: 'pending' | 'booked' | 'arrived' | 'in_chair' | 'done' | 'no_show' | 'cancelled'; day: string; start: number; dur: number;
-  services: { id: string; name: string; price: number; from: boolean }[]; price: number;
-  staff: { id: string; name: string; initials: string; color: string } | null; anyStaff: boolean; first: string;
-  deposit: { amount: number; paid: number; url: string | null } | null; canChange: boolean; cancelUntilHours: number;
-  shop: { name: string; address: string; phone: string; mapsUrl: string }; cancelled: { by: string; at: number } | null;
-};
 
 function App() {
   const parts = location.pathname.split('/').filter(Boolean);
@@ -70,13 +64,7 @@ function Manage({ token, back }: { token: string; back: string | null }) {
   const upcoming = ['pending', 'booked', 'arrived'].includes(b.status) && start + b.dur * 60000 > Date.now();
   const what = b.services.map((s) => s.name).join(' + ');
   const price = b.services.some((s) => s.from) ? 'dès ' + eur(b.price) : eur(b.price);
-  const ics = () => {
-    const d = b.day.replace(/-/g, ''), t1 = dates.hhmm(b.start).replace(':', '') + '00', t2 = dates.hhmm(b.start + b.dur).replace(':', '') + '00';
-    const body = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Barber LArchitecte//RDV//FR', 'BEGIN:VEVENT', 'UID:' + b.code + '@larchitecte', 'DTSTAMP:' + new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z'),
-      'DTSTART;TZID=Europe/Paris:' + d + 'T' + t1, 'DTEND;TZID=Europe/Paris:' + d + 'T' + t2, 'SUMMARY:' + b.shop.name + ' · ' + what, 'LOCATION:' + b.shop.address.replace(/,/g, '\\,'),
-      'DESCRIPTION:' + (b.staff ? 'Avec ' + b.staff.name + '. ' : '') + 'Code ' + b.code + '. ' + location.href, 'URL:' + location.href, 'END:VEVENT', 'END:VCALENDAR'].join('\r\n');
-    return URL.createObjectURL(new Blob([body], { type: 'text/calendar' }));
-  };
+  const ics = () => icsUrl(b);
   const pay = async () => {
     setBusy(true);
     try { const r = await api.post<{ url: string }>('/api/public/bookings/' + encodeURIComponent(token) + '/pay', {}); location.href = r.url; }
@@ -91,10 +79,7 @@ function Manage({ token, back }: { token: string; back: string | null }) {
       setNote({ tone: 'ok', text: 'C’est annulé. Le créneau est libéré tout de suite' + (paid ? ' et ton acompte de ' + eur(paid) + ' est remboursé sur ta carte (quelques jours selon ta banque).' : '.') });
     } catch (e: any) { setNote({ tone: 'warn', text: e.message }); } finally { setBusy(false); }
   };
-  const status = {
-    pending: ['Acompte à régler', 'warn'], booked: ['Confirmé', 'ok'], arrived: ['Tu es arrivé', 'ok'], in_chair: ['C’est parti', 'ok'],
-    done: ['Merci pour ta visite', ''], no_show: ['Rendez-vous manqué', 'warn'], cancelled: ['Annulé', 'warn']
-  }[b.status] as [string, string];
+  const status = STATUS_WORDS[b.status];
 
   return (
     <Shell shop={b.shop.name}>
@@ -143,6 +128,8 @@ function Manage({ token, back }: { token: string; back: string | null }) {
 
       {mode === 'move' ? <Move b={b} token={token} onDone={(nb) => { setB(nb); setMode(''); setNote({ tone: 'ok', text: 'C’est déplacé. Un SMS de confirmation part tout de suite.' }); }} onCancel={() => setMode('')} /> : null}
 
+      {upcoming && mode === '' && (b.status === 'booked' || b.status === 'pending') ? <Espace token={token} /> : null}
+
       {!upcoming && b.status !== 'pending' ? (
         <section className="c-card c-center">
           <p className="c-muted">{b.status === 'done' ? 'Ça t’a plu ? Le prochain se réserve en 30 secondes.' : 'Envie d’un autre créneau ?'}</p>
@@ -153,36 +140,25 @@ function Manage({ token, back }: { token: string; back: string | null }) {
   );
 }
 
-function Move({ b, token, onDone, onCancel }: { b: Booking; token: string; onDone: (b: Booking) => void; onCancel: () => void }) {
-  const [days, setDays] = useState<{ day: string; slots: { m: number; s: string }[] }[] | null>(null);
-  const [day, setDay] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState('');
+/**
+ * « Crée ton espace » under a booking to come (AC-03a): hidden while the salon keeps the space closed. Signed in, « C’est
+ * dans ton espace » only when this booking is among his (booked with another number, it is that number's, not his).
+ */
+function Espace({ token }: { token: string }) {
+  const [acc, setAcc] = useState<AccountState | null>(null);
+  const [mine, setMine] = useState(false);
   useEffect(() => {
-    api.get<{ days: { day: string; open: boolean; slots: { m: number; s: string }[] }[] }>('/api/public/availability' + qs({ services: b.services.map((s) => s.id).join(','), staff: b.anyStaff || !b.staff ? 'any' : b.staff.id, days: 14, move: token }))
-      .then((r) => { const open = r.days.filter((d) => d.open); setDays(open); setDay((open.find((d) => d.slots.length) || open[0])?.day || null); })
-      .catch((e) => setErr(e.message));
+    api.get<AccountState>('/api/public/account').then((a) => {
+      setAcc(a);
+      if (a.enabled && a.signedIn) api.get<Me>('/api/me/home').then((m) => setMine((m.upcoming || []).some((u) => u.token === token))).catch(() => {});
+    }).catch(() => {});
   }, []);
-  const go = async (m: number) => {
-    if (!day) return;
-    setBusy(true); setErr('');
-    try { onDone(await api.post<Booking>('/api/public/bookings/' + encodeURIComponent(token) + '/move', { day, start: m })); }
-    catch (e: any) { setErr(e.message); setBusy(false); }
-  };
-  const cur = days?.find((d) => d.day === day);
+  if (!acc || !acc.enabled) return null;
+  if (acc.signedIn) return !mine ? null : <p className="c-muted c-small c-espace-in" data-guide="r.espace">C’est dans ton espace. <a href="/moi">Ouvrir mon espace</a></p>;
   return (
-    <section className="c-card">
-      <div className="c-row"><h2 className="c-h2">Pour quand ?</h2><button type="button" className="c-link" onClick={onCancel}>Retour</button></div>
-      {err ? <p className="c-note warn">{err}</p> : null}
-      {!days ? <span className="c-spin" /> : (
-        <>
-          <div className="c-days" role="group" aria-label="Choisis un jour">
-            {days.map((d) => { const p = dates.dayParts(d.day); return <button key={d.day} type="button" aria-pressed={d.day === day} className={d.slots.length ? '' : 'full'} onClick={() => setDay(d.day)}><small>{dates.DAYS_SH[p.wd]}</small><b>{p.d}</b><span>{d.slots.length ? d.slots.length + ' libres' : 'complet'}</span></button>; })}
-          </div>
-          {cur && cur.slots.length ? <div className="c-slots">{cur.slots.map((x) => <button key={x.m} type="button" disabled={busy} onClick={() => go(x.m)}>{time(x.m)}</button>)}</div> : <p className="c-muted">Complet ce jour-là. Essaie un autre jour.</p>}
-          <p className="c-muted c-small">Même prestation{b.anyStaff || !b.staff ? '' : ', même barbier'}. Un tap sur l’heure suffit, l’ancien créneau est libéré.</p>
-        </>
-      )}
+    <section className="c-card c-espace" data-guide="r.espace">
+      <p><b>Crée ton espace</b> : tous tes rendez-vous et tes reçus au même endroit.</p>
+      <a className="c-btn ghost" href={'/moi?garder=' + encodeURIComponent(token)}>Créer mon espace</a>
     </section>
   );
 }
