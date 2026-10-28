@@ -40,7 +40,7 @@ test('« Mes avantages » rows come in the shared order: membership, carnet, loy
 test('the registries read whole folders, and every file in them is a card or a row', () => {
   assert.match(read('web/src/moi/registry.ts'), /import\.meta\.glob\('\.\/cards\/\*\.tsx', \{ eager: true \}\)/);
   assert.match(read('web/src/moi/cards/Avantages.tsx'), /import\.meta\.glob\('\.\.\/avantages\/\*\.tsx', \{ eager: true \}\)/);
-  const metas = { 'Next.tsx': ['next', 'home', 10], 'History.tsx': ['history', 'history', 10], 'Avantages.tsx': ['avantages', 'home', 30], 'Session.tsx': ['session', 'profile', 100] };
+  const metas = { 'Next.tsx': ['next', 'home', 10], 'History.tsx': ['history', 'history', 10], 'Avantages.tsx': ['avantages', 'home', 30] };
   // other areas' files (AC-02, FID-03, AC-03b…) only need the two exports; this package's own are checked to the letter
   const has = (src, f) => { assert.match(src, /export const meta\b/, f + ' has no meta'); assert.match(src, /export default\b/, f + ' has no default export'); };
   for (const f of readdirSync(join(ROOT, 'web/src/moi/cards'))) {

@@ -12,6 +12,7 @@ import { useApp } from '../state';
 import { PageTitle } from '../App';
 import type { ClientCard, ClientFull } from '../types';
 import ClientReview from './avis/ClientReview';
+import AccountCard from './clients/AccountCard';
 import './clients.css';
 
 type ListData = { total: number; counts: Record<string, number>; excludedNoConsent?: number; retention?: { before: string; other: number } | null; items: ClientCard[] };
@@ -52,7 +53,7 @@ const TAGS = ['VIP', 'Barbe', 'Enfant', 'Étudiant', 'Sensible', 'Parle peu'];
 const TRUSTED = 'confiance';
 const MSG: Record<string, string> = { confirm: 'Confirmation', confirmation: 'Confirmation', reminder: 'Rappel la veille', reminder2h: 'Rappel 2 h avant', moved: 'Déplacement', cancelled: 'Annulation', review: 'Demande d’avis', rebook: 'Relance', receipt: 'Reçu', waitlist: 'Créneau libéré', deposit: 'Lien d’acompte', lookup: 'Lien Mon rendez-vous', giftcardCode: 'Code carte cadeau' };
 // AC-01: the client space's texts
-Object.assign(MSG, { otp: 'Code de connexion', accountOpened: 'Espace client ouvert', accesInvite: 'Lien vers son espace' });
+Object.assign(MSG, { otp: 'Code de connexion', accountOpened: 'Espace client ouvert', accesInvite: 'Lien vers son espace', dataExport: 'Copie de ses données' });
 
 export default function Clients() {
   const route = useRoute();
@@ -345,6 +346,7 @@ function ClientFile({ id }: { id: string }) {
             </div>
           ) : null}
           <Prefs c={c} />
+          <AccountCard c={c} />
         </div>
         <div className="card">
           <div className="tabs" role="tablist" style={{ marginTop: -6 }}>
@@ -437,13 +439,13 @@ function TechCard({ c, favStaff, favSvc }: { c: ClientFull; favStaff: string; fa
       {favStaff || favSvc ? <p className="muted" style={{ fontSize: 13.5, margin: '-4px 0 10px' }}>{favSvc ? 'Prend souvent : ' + favSvc : ''}{favStaff && favSvc ? ' · ' : ''}{favStaff ? 'Habitué de ' + favStaff : ''}</p> : null}
       <textarea className="input textarea" rows={4} value={tech} readOnly={ro} maxLength={500} placeholder="Dégradé, hauteur des côtés, sabot, produit, ce qu’il n’aime pas…" onChange={(e) => { setTech(e.target.value); save({ tech: e.target.value }); }} aria-label="Fiche technique" />
       <label className="section-k" htmlFor="cl-notes" style={{ display: 'block', margin: '14px 0 8px' }}>Notes privées</label>
-      <textarea id="cl-notes" className="input textarea" rows={2} value={notes} readOnly={ro} maxLength={1000} placeholder="Allergies, préférences, sujets de conversation…" onChange={(e) => { setNotes(e.target.value); save({ notes: e.target.value }); }} />
+      <textarea id="cl-notes" className="input textarea" rows={2} value={notes} readOnly={ro} maxLength={1000} placeholder="Allergies, préférences, sujets de conversation… Le client peut demander à lire ses notes." onChange={(e) => { setNotes(e.target.value); save({ notes: e.target.value }); }} />
       <p className="faint" style={{ fontSize: 12, marginTop: 8 }}>Visible par l’équipe ; remis au client s’il demande ses données.</p>
     </div>
   );
 }
 
-const CONSENT_SRC: Record<string, string> = { site: 'site', salon: 'au salon', stop: 'STOP par SMS', wordpress: 'jamais demandé (ancien site)' };
+const CONSENT_SRC: Record<string, string> = { site: 'site', salon: 'au salon', stop: 'STOP par SMS', wordpress: 'jamais demandé (ancien site)', espace: 'depuis son espace' };
 /** "oui (site, 12/10/2026)", "non (STOP par SMS, 03/11/2026)", or just "oui" / "non" when nobody recorded where. */
 export function consentWords(c: { marketing: boolean; marketingSrc?: string; marketingAt?: number | null }) {
   const src = c.marketingSrc ? CONSENT_SRC[c.marketingSrc] || c.marketingSrc : '';

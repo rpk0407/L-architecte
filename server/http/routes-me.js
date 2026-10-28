@@ -10,7 +10,7 @@ import { normPhone, maskPhone } from '../lib/util.js';
 import { LINK_IP_PER_HOUR, LINK_PER_DAY, linkIpKey, linkPhoneKey } from '../domain/linkcap.js';
 import { otpCode } from '../domain/otp.js';
 import { meHome, meHistory, shownIdentity } from '../domain/me.js';
-import { accountOf } from '../projections/accounts.js';
+import { accountOf, accountPastOf } from '../projections/accounts.js';
 import { accountsOn } from '../settings/accounts.js';
 import { isDay } from '../../shared/dates.js';
 import { fileIds } from '../commands/clients.js';
@@ -223,7 +223,9 @@ export function meRoutes(app) {
 
   app.get('/api/v1/clients/:id/account', (r) => {
     const c = fileOf(r);
-    return accountView(accountOf(r.s, fileIds(r.s, c)));
+    const ids = fileIds(r.s, c), account = accountOf(r.s, ids);
+    // no space now: a request to erase made before he closed it still stands
+    return account ? accountView(account) : { has: false, eraseAt: (accountPastOf(r.s, ids) || { eraseAt: 0 }).eraseAt || 0 };
   }, { cap: 'client.view' });
 
   app.post('/api/v1/clients/:id/account/revoke', (r) => r.run(revokeAccount, { cid: fileOf(r).id }), { cap: 'client.edit' });

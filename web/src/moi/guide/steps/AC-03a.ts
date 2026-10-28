@@ -18,7 +18,6 @@ const steps: GuideStep[] = [
   { id: 'moi.giftcard', page: '/moi', target: 'moi.giftcard', roles: ['client'], order: 120, title: 'Carte cadeau', body: 'Ce qu’il reste sur ta carte et jusqu’à quand. Présente-la au salon pour payer.' },
   { id: 'moi.tabs', page: '/moi', target: 'moi.tabs', roles: ['client'], order: 130, title: 'Rendez-vous · Historique · Profil', body: 'Les trois pages de ton espace, toujours en bas de l’écran.' },
   { id: 'moi.history', page: '/moi/historique', target: 'moi.history', roles: ['client'], order: 10, title: 'Tes visites', body: 'Tes passages au salon, du plus récent au plus ancien. « Reçu » ouvre le ticket de la visite.' },
-  { id: 'moi.session', page: '/moi/profil', target: 'moi.session', roles: ['client'], order: 100, title: 'Se déconnecter', body: 'Ferme ton espace sur ce téléphone, par exemple s’il est partagé. Pour revenir, un code par SMS suffit.' },
   { id: 'site.espace', page: '/', target: 'site.espace', roles: ['client'], order: 900, title: 'Crée ton espace', body: 'Après une réservation, garde tous tes rendez-vous et tes reçus au même endroit. Un code arrive par SMS au numéro donné, sans mot de passe.' },
   { id: 'r.espace', page: '/r', target: 'r.espace', roles: ['client'], order: 900, title: 'Créer mon espace', body: 'Depuis la page de ton rendez-vous, ouvre ton espace en un geste : un code arrive par SMS. Déjà ouvert, le lien t’y emmène.' }
 ];
