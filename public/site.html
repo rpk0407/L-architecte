@@ -287,10 +287,10 @@
     },
     {
      "@type": "Question",
-     "name": "Existe-t-il un abonnement ?",
+     "name": "Existe-t-il un abonnement ou un carnet ?",
      "acceptedAnswer": {
       "@type": "Answer",
-      "text": "Oui : le carnet de 5 coupes pour 80 €, soit 16 € la coupe, hors barbe, à prendre au salon. On fixe tes coupes avec toi."
+      "text": "Oui, le carnet : 5 coupes pour 80 €, soit 16 € la coupe, hors barbe, à prendre au salon. On fixe tes coupes avec toi."
      }
     },
     {
@@ -1423,8 +1423,8 @@ html{scroll-behavior:auto}
 <button type="button" class="{{smsCls}}" role="switch" aria-checked="{{smsOn}}" onClick="{{toggleSms}}"><span class="sw-t"><b>Rappel par SMS la veille</b><small>Avec un lien pour déplacer ou annuler.</small></span><span class="sw-k" aria-hidden="true"><i></i></span></button>
 <button type="button" id="f-mkt" class="{{mktCls}}" role="switch" aria-checked="{{mktOn}}" onClick="{{toggleMkt}}"><span class="sw-t"><b>Les bons plans du salon par SMS</b><small>Places de dernière minute, rappel de coupe. Tu arrêtes quand tu veux : STOP, comme indiqué dans chaque SMS.</small></span><span class="sw-k" aria-hidden="true"><i></i></span></button>
 <p class="priv">Tes coordonnées servent à ce rendez-vous, et aux bons plans seulement si tu coches. <a href="{{dataHref}}" target="_blank" rel="noopener">Comment elles sont traitées</a></p>
-<sc-if value="{{hasDeposit}}" hint-placeholder-val="{{ false }}"><p class="dep">{{depLine}}</p></sc-if>
 <sc-if value="{{bkMbr}}" hint-placeholder-val="{{ false }}"><p class="dep">Réservé avec ton abonnement&nbsp;: si la coupe tombe dans ton mois, elle est incluse, et rien n’est demandé en ligne.</p></sc-if>
+<sc-if value="{{hasDeposit}}" hint-placeholder-val="{{ false }}"><p class="dep">{{depLine}}</p></sc-if>
 <sc-if value="{{isDemo}}" hint-placeholder-val="{{ true }}"><p class="demo">Démo&nbsp;: n’entre pas tes vraies coordonnées, tout est visible. Aucun SMS n’est envoyé, aucun paiement n’est débité. La réservation apparaît tout de suite dans le Comptoir.</p></sc-if>
 </div>
 </sc-if>
@@ -1907,7 +1907,7 @@ const FAQ = [
   { q: 'Comment réserver ?', a: () => 'En ligne, en moins d’une minute et sans créer de compte : tu choisis ta prestation, ton barbier et ton créneau.' },
   { q: 'Faites-vous les décolorations et le silver ?', a: (x) => 'Oui. Décoloration dès ' + x.p('de') + ', coloration dès ' + x.p('co') + ', silver (blanc ou gris) à ' + x.p('si') + ', toujours après un avis sur la faisabilité.' },
   // the monthly membership while it is sold online (PAY-04), the carnet always
-  { q: 'Existe-t-il un abonnement ?', a: (x) => { const lo = aboLow(); return lo ? 'Oui, deux formules : l’abonnement mensuel (dès ' + num(lo / 100) + NB + '€/mois, sans engagement) et le carnet de 5 coupes (' + x.p('ab') + ').' : 'Oui : le carnet de 5 coupes pour ' + x.p('ab') + perCut(x.c('ab'), 5) + ', hors barbe, à prendre au salon. On fixe tes coupes avec toi.'; } },
+  { q: 'Existe-t-il un abonnement ou un carnet ?', a: (x) => { const lo = aboLow(); return lo ? 'Oui, deux formules : l’abonnement mensuel (dès ' + num(lo / 100) + NB + '€/mois, sans engagement) et le carnet de 5 coupes (' + x.p('ab') + ').' : 'Oui, le carnet : 5 coupes pour ' + x.p('ab') + perCut(x.c('ab'), 5) + ', hors barbe, à prendre au salon. On fixe tes coupes avec toi.'; } },
   { q: 'Le salon forme-t-il des barbiers ?', a: () => 'Oui. L’Architecte est titulaire d’un agrément de formateur en coiffure et propose des stages, de l’entretien de la barbe à la coupe homme complexe.', link: '/formations', linkLabel: 'Les formations de L’Archi' },
   { q: 'Peut-on payer par carte ?', a: () => 'Oui, la carte bancaire est acceptée au salon.' }
 ];
@@ -2949,8 +2949,9 @@ const BookingMixin = {
     LXE.init().then(() => {
       const sal = LXE.salon();
       if (!this._mounted || !sal || sal.mode !== 'demo' || readMe() || this.state.fFirst || this.state.fPhone) return;
-      const n = String(Math.floor(Math.random() * 9000) + 1000);
-      this.setState({ fFirst: 'Démo', fLast: 'Visiteur', fPhone: '06 00 00 ' + n.slice(0, 2) + ' ' + n.slice(2), fEmail: 'demo+' + n.slice(0, 2) + '@exemple.fr' });
+      // 06 00 xx xx xx: a million numbers, so two visitors at once never land on the same file (nor the same mailbox)
+      const n = String(Math.floor(Math.random() * 1000000)).padStart(6, '0');
+      this.setState({ fFirst: 'Démo', fLast: 'Visiteur', fPhone: '06 00 ' + n.slice(0, 2) + ' ' + n.slice(2, 4) + ' ' + n.slice(4), fEmail: 'demo+' + n + '@exemple.fr' });
     });
     this._bkOff = LXE.on(() => {
       if (!this._mounted) return;
@@ -3391,7 +3392,8 @@ const BookingMixin = {
     const dep = F && sal && !(sal.payments && sal.payments.live === false) ? depositOf(F, sal.deposits) : 0;
     v.hasDeposit = dep > 0 && step === 'info';
     v.bkMbr = !!b.mbr && step === 'info';
-    v.depLine = dep > 0 ? 'Un acompte de ' + LXE.eur(dep / 100) + ' est demandé pour cette prestation, déduit au salon. Annulé plus de ' + (sal ? sal.booking.cancelUntilHours : 12) + ' h avant, il est remboursé.' : '';
+    // from the member page: the server says whether the cut is included; the deposit is only for one that is not
+    v.depLine = dep > 0 ? (b.mbr ? 'Si la coupe n’est pas incluse dans ton abonnement, un acompte de ' + LXE.eur(dep / 100) + ' est demandé, déduit au salon.' : 'Un acompte de ' + LXE.eur(dep / 100) + ' est demandé pour cette prestation, déduit au salon.') + ' Annulé plus de ' + (sal ? sal.booking.cancelUntilHours : 12) + ' h avant, il est remboursé.' : '';
     v.fFirst = s.fFirst; v.fLast = s.fLast; v.fPhone = s.fPhone; v.fEmail = s.fEmail; v.fNote = s.fNote;
     v.setFirst = (e) => this.setState({ fFirst: e.target.value });
     v.setLast = (e) => this.setState({ fLast: e.target.value });
@@ -3453,7 +3455,7 @@ const BookingMixin = {
     else if (step === 'svc') { off = !b.f; go = () => this.bkPick({}); }
     else if (step === 'who') { off = !b.barber; go = () => this.bkPick({}); }
     else if (step === 'when') { cta = b.busy ? 'Un instant…' : (b.moving ? 'Déplacer ici' : 'Continuer'); off = b.busy || !(b.day && b.time != null); go = () => this.bkPick({}); }
-    else if (step === 'info') { cta = b.busy ? 'Vérification…' : (dep > 0 ? 'Réserver et régler l’acompte' : 'Confirmer'); off = b.busy || !this.bkValid(); go = () => this.bkConfirm(); }
+    else if (step === 'info') { cta = b.busy ? 'Vérification…' : (dep > 0 && !b.mbr ? 'Réserver et régler l’acompte' : 'Confirmer'); off = b.busy || !this.bkValid(); go = () => this.bkConfirm(); }
     else if (step === 'done' && v.needPay) { cta = 'Régler l’acompte'; off = false; go = () => { window.location.href = r.payUrl; }; }
     else if (step === 'done' || step === 'manage') { cta = 'Fermer'; off = false; go = () => this.setState({ sheet: false }); }
     else if (step === 'cancelled') { cta = 'Choisir un autre créneau'; off = false; go = () => this.openWith({ formula: b.f, fresh: true }); }
@@ -3495,7 +3497,8 @@ const SubscribeMixin = {
     if (!LXE.account()) LXE.loadAccount();
   },
   abClose() { if (this.state.ab && !this.state.ab.busy) this.setState({ ab: null }); },
-  abSignedIn() { const a = LXE.account(); return !!(a && a.enabled && a.signedIn && !a.demo); },
+  /* own: signed in on his own file (the demo's shared persona is not: its sheet asks for a number like a guest's) */
+  abSignedIn() { const a = LXE.account(); return !!(a && a.enabled && a.signedIn && (a.own != null ? a.own : !a.demo)); },
   abValid() {
     const s = this.state;
     const ph = String(s.fPhone || '').replace(/\D/g, '');
@@ -3522,6 +3525,8 @@ const SubscribeMixin = {
     } catch (e) {
       if (e.code === 'already') this.setState({ ab: Object.assign({}, this.state.ab, { busy: false, step: 'already', err: '', already: e.message }) });
       else this.setState({ ab: Object.assign({}, this.state.ab, { busy: false, err: e.message }) });
+      // the busy button had the focus: back into the sheet (its title), so Escape and Tab stay in the dialog
+      setTimeout(() => { const t = document.getElementById('ab-t'); if (t) { try { t.focus({ preventScroll: true }); } catch (x) { /* ignore */ } } }, 30);
     }
   },
   abKey(e) {

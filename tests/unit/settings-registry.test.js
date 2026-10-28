@@ -24,7 +24,7 @@ const BEFORE = () => {
       instagram: 'https://www.instagram.com/barbershoplarchitecte/',
       // added since the split: the legal pages' fields
       legalForm: 'Entrepreneur individuel', registration: '', ape: '', publicationDirector: '', mediator: { name: '', url: '' },
-      host: { name: 'Vercel Inc.', address: '440 N Barranca Ave #4133, Covina, CA 91723, USA', phone: '+1 559 288 7060' }, dataHost: 'Neon (Union européenne)', cgvVersion: '2026-10-27'
+      host: { name: 'Vercel Inc.', address: '440 N Barranca Ave #4133, Covina, CA 91723, USA', phone: '+1 559 288 7060' }, dataHost: 'Neon (Union européenne)', cgvVersion: '2026-10-28'
     },
     hours: { 0: [], 1: [], 2: day, 3: day, 4: day, 5: day, 6: day },
     closures: [],

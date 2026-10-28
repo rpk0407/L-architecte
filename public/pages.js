@@ -50,7 +50,8 @@
       noShowFee: live && s.payments.cardOnFile === true && d.noShowFeeCents > 0 ? eur(d.noShowFeeCents) : '',
       pack: pack ? { name: pack.name, credits: pack.pack.credits, days: pack.pack.days, price: eur(pack.price) } : null,
       // the monthly membership's clauses show only while it is really sold online (live: on, a real or demo payment, plans)
-      membership: { live: !!(mb && mb.live && (mb.plans || []).length), cgv: mb && mb.cgv ? dayLong(mb.cgv) : '' }
+      // terms: they stay while it is on or a contract still runs (its members' pages and mails link to them)
+      membership: { live: !!(mb && mb.live && (mb.plans || []).length), terms: !!(mb && (mb.terms || mb.live)), cgv: mb && mb.cgv ? dayLong(mb.cgv) : '' }
     };
   }
 
@@ -101,7 +102,7 @@
   function plans(mb) {
     each(document, '[data-list="plans"]', function (ul) {
       while (ul.firstChild) ul.removeChild(ul.firstChild);
-      ((mb && mb.live && mb.plans) || []).forEach(function (p) {
+      ((mb && (mb.live || mb.terms) && mb.plans) || []).forEach(function (p) {
         var gap = p.cuts && p.minDays ? ', au moins ' + p.minDays + NB + 'jours entre deux coupes' : '';
         ul.appendChild(h('li', {}, [h('b', {}, [p.name]), ' : ' + eur(p.price) + ' par mois, ' + p.words + gap + '.']));
       });

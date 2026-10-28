@@ -25,8 +25,10 @@ export type MemberView = {
   actions: { cancel: boolean; withdraw: boolean; card: boolean };
   acks: { kind: AckKind; at: number; sent: boolean; sentAt: number | null }[];
   shop: { name: string; phone: string };
+  /** « Réserver ma coupe »'s signed link: it books a covered cut and nothing else (it rides in the site's URL) */
+  book?: string | null;
 };
-export type MemberPage = { member: MemberView | null; mbr: string | null; reasons?: string[]; demo?: boolean };
+export type MemberPage = { member: MemberView | null; reasons?: string[]; demo?: boolean };
 type Done = { cancelled?: { at: number; effective: string; last: string; ended: boolean }; withdrawn?: { at: number; refund: number; refunded: boolean }; member: MemberView; demo?: boolean };
 
 /** Where the page reads and writes: the signed link's routes, or the client session's. */
@@ -37,11 +39,11 @@ export type MemberSource = {
   card(): Promise<{ url: string }>;
   ackUrl(kind: AckKind): string;
 };
-/** /abo/:token: PAY-03's token routes; « Réserver ma coupe » carries that same signed link. */
+/** /abo/:token: PAY-03's token routes; « Réserver ma coupe » carries the view's booking link, never this one. */
 export function tokenSource(token: string): MemberSource {
   const base = '/api/public/memberships/' + encodeURIComponent(token);
   return {
-    load: () => api.get<MemberView>(base).then((member) => ({ member, mbr: token })),
+    load: () => api.get<MemberView>(base).then((member) => ({ member })),
     cancel: (reason) => api.post<Done>(base + '/cancel', reason ? { reason } : {}),
     withdraw: () => api.post<Done>(base + '/withdraw', {}),
     card: () => api.post<{ url: string }>(base + '/card', {}),
@@ -91,6 +93,8 @@ function chargeWords(m: MemberView, day: string) {
 
 /** Under the counter: until when this month runs, or when the next covered cut comes. */
 function counterSub(m: MemberView, included: boolean | null | '') {
+  // past the grace days the till includes nothing until the card goes through: never « incluse » then
+  if (m.status === 'unpaid') return 'Coupes en attente : elles sont de nouveau incluses dès que le paiement passe.';
   const until = m.period ? 'jusqu’au ' + ddmm(m.period.last) : '';
   if (!m.of) return [included || !m.nextCut ? 'Ta prochaine coupe est incluse' : 'Prochaine coupe incluse dès le ' + ddmm(m.nextCut), until].filter(Boolean).join(' · ');
   if (m.used >= m.of && m.nextCut) return 'Tes coupes du mois sont prises : la prochaine est incluse dès le ' + ddmm(m.nextCut) + '.';
@@ -109,7 +113,9 @@ function Ack({ m, kind, source }: { m: MemberView; kind: AckKind; source: Member
   );
 }
 
-type Mode = 'home' | 'cancel' | 'withdraw' | 'cancelled' | 'withdrawn';
+type Mode = 'home' | 'cancel' | 'withdraw' | 'calloff' | 'cancelled' | 'withdrawn';
+/** A start not begun yet (the 14 days not over): renouncing is calling it off, nothing has been paid. */
+const callOff = (m: MemberView) => m.status === 'pending' && !!m.startDay && m.actions.cancel;
 
 /**
  * The page itself, from a source. initial: the screen the link asks for (?resilier: the cancellation's recap, ?renoncer:
@@ -119,6 +125,7 @@ type Mode = 'home' | 'cancel' | 'withdraw' | 'cancelled' | 'withdrawn';
 export function MemberPanel({ source, initial, back, onChange }: { source: MemberSource; initial?: 'cancel' | 'withdraw' | null; back?: string | null; onChange?: () => void }) {
   const [page, setPage] = useState<MemberPage | null>(null);
   const [err, setErr] = useState('');
+  const [failed, setFailed] = useState(0);
   const [mode, setMode] = useState<Mode>('home');
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<{ tone: string; text: string } | null>(back === 'ok' ? { tone: 'ok', text: 'Paiement reçu. On active ton abonnement…' } : null);
@@ -128,36 +135,42 @@ export function MemberPanel({ source, initial, back, onChange }: { source: Membe
   const head = useRef<HTMLHeadingElement>(null);
   const opened = useRef(false);
 
-  const load = () => source.load().then((p) => { setPage(p); return p; }).catch((e) => { setErr(e.message); return null; });
-  useEffect(() => {
-    load().then((p) => {
-      const m = p && p.member;
-      if (!m || opened.current) return;
-      opened.current = true;
-      if (initial === 'cancel' && m.actions.cancel) setMode('cancel');
-      else if (initial === 'withdraw' && m.actions.withdraw) setMode('withdraw');
-    });
-  }, []);
+  const load = () => source.load().then((p) => { setPage(p); setErr(''); return p; }).catch((e) => { setErr(e.message); setFailed(e.status || 0); return null; });
+  const first = () => load().then((p) => {
+    const m = p && p.member;
+    if (!m || opened.current) return;
+    opened.current = true;
+    if (initial === 'cancel' && m.actions.cancel) setMode('cancel');
+    else if (initial === 'withdraw' && m.actions.withdraw) setMode('withdraw');
+    else if (initial === 'withdraw' && callOff(m)) setMode('calloff');
+  });
+  useEffect(() => { first(); }, []);
   // after the checkout: ask again until the payment is recorded, then say so
   useEffect(() => {
     const m = page && page.member;
     if (back !== 'ok' || !m) return;
-    if (m.status !== 'pending' || m.startDay) { setNote({ tone: 'ok', text: m.startDay && m.status === 'pending' ? 'C’est enregistré. Ton abonnement démarre le ' + ddmm(m.startDay) + ' : rien n’est prélevé avant.' : 'Merci, ton abonnement est actif. La confirmation part par e-mail et par SMS.' }); return; }
+    if (m.status !== 'pending' || m.startDay) { setNote({ tone: 'ok', text: m.startDay && m.status === 'pending' ? 'C’est enregistré. Ton abonnement démarre le ' + ddmm(m.startDay) + ' : rien n’est prélevé avant.' : 'Merci, ton abonnement est actif. Sa confirmation t’est envoyée.' }); return; }
     if (tries >= 15) { setNote({ tone: 'warn', text: 'La confirmation de la banque tarde. Reviens sur ce lien dans quelques minutes.' }); return; }
     const t = setTimeout(() => { setTries((n) => n + 1); load(); }, 2000);
     return () => clearTimeout(t);
   }, [page]);
-  // an acknowledgement on its way: the page says when it left
+  // an acknowledgement on its way (on a done screen, or on the page itself): the page says when it left
   useEffect(() => {
-    const m = done ? done.member : null;
-    if (!m || !m.acks.some((a) => !a.sent) || tries > 20) return;
-    const t = setTimeout(() => { setTries((n) => n + 1); source.load().then((p) => { if (p.member) setDone((d) => (d ? { ...d, member: p.member! } : d)); }).catch(() => {}); }, 4000);
+    const m = done ? done.member : page ? page.member : null;
+    if (!m || !m.acks.some((a) => !a.sent) || tries > 20 || (back === 'ok' && m.status === 'pending' && !m.startDay)) return;
+    const t = setTimeout(() => {
+      setTries((n) => n + 1);
+      source.load().then((p) => { if (!p.member) return; if (done) setDone((d) => (d ? { ...d, member: p.member! } : d)); else setPage((x) => (x ? { ...x, member: p.member } : x)); }).catch(() => {});
+    }, done ? 4000 : 10000);
     return () => clearTimeout(t);
-  }, [done, tries]);
+  }, [done, page, tries]);
   // each screen starts at its title: a screen reader hears where it is
   useEffect(() => { if (opened.current && head.current) head.current.focus({ preventScroll: false }); }, [mode]);
 
-  if (err && !page) return <section className="c-card c-center"><p className="c-k">Abonnement</p><h1 className="c-h">{err}</h1><p className="c-muted">Demande un nouveau lien : il arrive par SMS et par e-mail.</p><a className="c-btn" href="/resilier">Recevoir un nouveau lien</a></section>;
+  // a link that is not (or no longer) valid needs a new one; a network hiccup or a busy server only needs another try
+  if (err && !page) return failed === 404 || failed === 410 || failed === 401
+    ? <section className="c-card c-center"><p className="c-k">Abonnement</p><h1 className="c-h">{err}</h1><p className="c-muted">Demande un nouveau lien : il arrive par SMS et par e-mail.</p><a className="c-btn" href="/resilier">Recevoir un nouveau lien</a></section>
+    : <section className="c-card c-center"><p className="c-k">Abonnement</p><h1 className="c-h2">La page n’a pas pu s’ouvrir.</h1><p className="c-muted">{failed ? 'Le salon est très demandé en ce moment. ' : 'Vérifie ta connexion. '}Ton lien reste valable.</p><button type="button" className="c-btn" onClick={() => { setErr(''); setFailed(0); first(); }}>Réessayer</button></section>;
   if (!page) return <div className="c-card c-center" aria-busy="true"><span className="c-spin" /><p className="c-muted">Un instant…</p></div>;
   const m = page.member;
   if (!m) return <section className="c-card c-center"><p className="c-k">Abonnement</p><h1 className="c-h">Pas d’abonnement en cours.</h1><a className="c-btn" href="/#abonnement">Voir les formules</a></section>;
@@ -166,7 +179,7 @@ export function MemberPanel({ source, initial, back, onChange }: { source: Membe
   const live = m.status !== 'ended';
   const day = today();
   const slug = m.plan.services.find((x) => x.slug)?.slug || '';
-  const book = '/?reserver' + (slug ? '&prestation=' + encodeURIComponent(slug) : '') + (page.mbr && live && m.status !== 'pending' ? '&mbr=' + encodeURIComponent(page.mbr) : '');
+  const book = '/?reserver' + (slug ? '&prestation=' + encodeURIComponent(slug) : '') + (m.book && live && m.status !== 'pending' ? '&mbr=' + encodeURIComponent(m.book) : '');
   const run = async (fn: () => Promise<Done>, next: Mode) => {
     setBusy(true); setErr('');
     try {
@@ -214,7 +227,7 @@ export function MemberPanel({ source, initial, back, onChange }: { source: Membe
         <span className="c-check" aria-hidden>✓</span>
         {demoLine}
         <h1 className="c-h2" id="mb-cxd-t" ref={head} tabIndex={-1}>Résiliation enregistrée{c ? ' le ' + atWords(c.at) : ''}.</h1>
-        <p className="c-muted">{c ? (c.ended || c.effective <= day ? 'Ton abonnement s’arrête aujourd’hui.' : 'Fin le ' + ddmm(c.last) + '.') : ''} Confirmation envoyée par e-mail et SMS.</p>
+        <p className="c-muted">{c ? (!done.member.period && done.member.startDay ? 'Ton abonnement ne commencera pas : rien n’est prélevé.' : c.ended || c.effective <= day ? 'Ton abonnement s’arrête aujourd’hui.' : 'Fin le ' + ddmm(c.last) + '.') : ''}</p>
         <Ack m={done.member} kind="cancel" source={source} />
         <a className="c-link mb-back" href="/">Retour au site</a>
       </section>
@@ -245,10 +258,28 @@ export function MemberPanel({ source, initial, back, onChange }: { source: Membe
       <section className="c-card c-center mb-done" aria-labelledby="mb-wdd-t">
         <span className="c-check" aria-hidden>✓</span>
         {demoLine}
-        <h1 className="c-h2" id="mb-wdd-t" ref={head} tabIndex={-1}>Rétractation enregistrée{w ? ' le ' + atWords(w.at) : ''}.</h1>
-        <p className="c-muted">{w && w.refund ? 'Remboursement de ' + eur(w.refund, { decimals: w.refund % 100 !== 0 }) + ' sous 14 jours, sur ta carte.' : 'Rien à rembourser : tes coupes valent le mois payé.'} Confirmation envoyée par e-mail et SMS.</p>
-        <Ack m={done.member} kind="withdraw" source={source} />
+        <h1 className="c-h2" id="mb-wdd-t" ref={head} tabIndex={-1}>Rétractation enregistrée{w ? ' le ' + atWords(w.at) : done.cancelled ? ' le ' + atWords(done.cancelled.at) : ''}.</h1>
+        <p className="c-muted">{w ? (w.refund ? 'Remboursement de ' + eur(w.refund, { decimals: w.refund % 100 !== 0 }) + ' sous 14 jours, sur ta carte.' : 'Rien à rembourser : tes coupes valent le mois payé.') : done.cancelled ? 'Ton abonnement ne commencera pas : rien n’est prélevé.' : ''}</p>
+        <Ack m={done.member} kind={w ? 'withdraw' : 'cancel'} source={source} />
         <a className="c-link mb-back" href="/">Retour au site</a>
+      </section>
+    );
+  }
+
+  /* ---------- a start not begun: renouncing is calling it off (recap, then the final button) ---------- */
+  if (mode === 'calloff' && callOff(m)) {
+    return (
+      <section className="c-card mb-recap" aria-labelledby="mb-co-t">
+        <p className="c-k">Rétractation · jusqu’au {ddmm(dates.addDays(m.startDay!, -1))}</p>
+        <h1 className="c-h2" id="mb-co-t" ref={head} tabIndex={-1}>Renoncer au contrat</h1>
+        <dl className="mb-dl-list">
+          <div><dt>Formule</dt><dd>{m.plan.name} · {eur(m.plan.price)}/mois</dd></div>
+          <div><dt>Remboursement</dt><dd>Rien n’a été prélevé : il n’y a rien à rembourser.</dd></div>
+          <div><dt>Fin</dt><dd>Aujourd’hui : ton abonnement ne commencera pas.</dd></div>
+        </dl>
+        {errLine}
+        <button type="button" className="c-btn mb-final" data-guide="member-withdraw-confirm" disabled={busy} onClick={() => run(() => source.cancel(''), 'withdrawn')}>{busy ? 'Un instant…' : 'Confirmer la rétractation'}</button>
+        <button type="button" className="c-link mb-back" disabled={busy} onClick={() => { setErr(''); setMode('home'); }}>Garder mon abonnement</button>
       </section>
     );
   }
@@ -256,6 +287,7 @@ export function MemberPanel({ source, initial, back, onChange }: { source: Membe
   /* ---------- the page ---------- */
   // the contract's confirmation matters while it can still be withdrawn; afterwards, the latest acknowledgement only
   const lastAck: AckKind | null = m.withdrawn ? 'withdraw' : m.cancel ? 'cancel' : m.withdraw ? 'welcome' : null;
+  const graceNow = m.status === 'grace';
   const unlimited = !m.of;
   const included = m.nextCut && m.nextCut <= day;
   return (
@@ -265,13 +297,13 @@ export function MemberPanel({ source, initial, back, onChange }: { source: Membe
       {m.pastDue && live ? (
         <section className="c-card mb-due" aria-labelledby="mb-due-t" data-guide="member-due">
           <h2 className="c-h2" id="mb-due-t">Le paiement de {eur(m.plan.price)} n’est pas passé</h2>
-          <p className="c-muted">{m.pastDue.action ? 'Ta banque demande de valider le paiement.' : 'Mets ta carte à jour : tes coupes restent incluses en attendant.'}</p>
+          <p className="c-muted">{(m.pastDue.action ? 'Ta banque demande de valider le paiement. ' : 'Mets ta carte à jour. ') + (graceNow ? 'Tes coupes restent incluses en attendant.' : 'Tes coupes sont en pause jusqu’à ce que le paiement passe.')}</p>
           {m.actions.card ? <button type="button" className="c-btn" disabled={busy} onClick={card}>Mettre ma carte à jour</button> : null}
         </section>
       ) : null}
       <section className="c-card c-ticket mb-card" aria-labelledby="mb-t">
         <div className="c-row"><span className={'c-pill ' + st.tone} data-guide="member-status">{st.text}</span>{m.first ? <span className="c-code">{m.first}</span> : null}</div>
-        <h1 className="mb-plan" id="mb-t">Abonnement {m.plan.name}</h1>
+        <h1 className="mb-plan" id="mb-t" ref={head} tabIndex={-1}>Abonnement {m.plan.name}</h1>
         {m.status === 'pending' ? (
           <p className="mb-sub">{m.startDay ? 'Il démarre le ' + ddmm(m.startDay) + ' : rien n’est prélevé avant, et d’ici là tes coupes sont au prix normal.' : 'On attend la confirmation du paiement.'}</p>
         ) : live ? (
@@ -299,6 +331,11 @@ export function MemberPanel({ source, initial, back, onChange }: { source: Membe
             <div className="mb-wd" data-guide="member-withdraw">
               <button type="button" className="c-btn ghost mb-act" onClick={() => { setErr(''); setMode('withdraw'); }}>Renoncer au contrat ici</button>
               <p className="c-muted c-small">Pendant 14 jours, jusqu’au {ddmm(m.withdraw.until)} : on te rembourse le mois, moins les coupes déjà faites.</p>
+            </div>
+          ) : callOff(m) ? (
+            <div className="mb-wd" data-guide="member-withdraw">
+              <button type="button" className="c-btn ghost mb-act" onClick={() => { setErr(''); setMode('calloff'); }}>Renoncer au contrat ici</button>
+              <p className="c-muted c-small">Jusqu’au {ddmm(dates.addDays(m.startDay!, -1))} : ton abonnement ne commence pas, rien n’est prélevé.</p>
             </div>
           ) : null}
         </section>

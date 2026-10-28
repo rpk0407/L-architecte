@@ -24,9 +24,9 @@ const MENU = [
   { slug: 'cc', name: 'Coupe + contour de barbe', category: 'Coupes', price: 2500, dur: 30 },
   { slug: 'ct', name: 'Coupe + taille de barbe', category: 'Coupes', price: 3000, dur: 30 },
   { slug: 'tr', name: 'Transformation', category: 'Changer de tête', price: 5000, dur: 60 },
-  { slug: 'ab', name: 'Abonnement 5 coupes', category: 'Abonnement', price: 8000, dur: 30 }
+  { slug: 'ab', name: 'Carnet 5 coupes', category: 'Carnet', price: 8000, dur: 30, online: false }
 ];
-const PRICE_Q = 'Combien coûte une coupe chez L’Architecte ?', SUB_Q = 'Existe-t-il un abonnement ?';
+const PRICE_Q = 'Combien coûte une coupe chez L’Architecte ?', SUB_Q = 'Existe-t-il un abonnement ou un carnet ?';
 
 export default async ({ browser, h }) => {
   const base = h.base.replace(/\/$/, '');
@@ -80,7 +80,7 @@ export default async ({ browser, h }) => {
   let a = await answer(PRICE_Q);
   if (!a || !a.startsWith('La coupe classique est à 20 €. Avec le contour de barbe, 25 €. Avec la taille de barbe, 30 €. La transformation complète est à 50 €.')) throw new Error('the price answer says ' + a);
   a = await answer(SUB_Q);
-  if (!a || !a.startsWith('Oui : le carnet de 5 coupes pour 80 €, soit 16 € la coupe, hors barbe, à prendre au salon.')) throw new Error('the subscription answer says ' + a);
+  if (!a || !a.startsWith('Oui, le carnet : 5 coupes pour 80 €, soit 16 € la coupe, hors barbe, à prendre au salon.')) throw new Error('the subscription answer says ' + a);
   await h.shot(site, 'site-live-faq');
   errs();
 
@@ -92,12 +92,12 @@ export default async ({ browser, h }) => {
   if (!a || !a.startsWith('La coupe classique est à 22 €.')) throw new Error('after the change, the price answer says ' + a);
   let f = await ldFaq();
   if (!(f[PRICE_Q] || '').startsWith('La coupe classique est à 22 €.')) throw new Error('the JSON-LD FAQ says ' + f[PRICE_Q]);
-  if (!(f[SUB_Q] || '').startsWith('Oui : le carnet de 5 coupes pour 85 €, soit 17 € la coupe, hors barbe, à prendre au salon.')) throw new Error('the JSON-LD subscription says ' + f[SUB_Q]);
+  if (!(f[SUB_Q] || '').startsWith('Oui, le carnet : 5 coupes pour 85 €, soit 17 € la coupe, hors barbe, à prendre au salon.')) throw new Error('the JSON-LD subscription says ' + f[SUB_Q]);
   // a price that does not fall on whole cents per cut: the clause goes rather than round
   ok(await h.api('/api/v1/services/' + ids.ab, { method: 'PATCH', body: { price: 8001 } }), 'ab at 80,01 €');
   await open();
   a = await answer(SUB_Q);
-  if (!a || !a.startsWith('Oui : le carnet de 5 coupes pour 80,01 €, hors barbe, à prendre au salon.')) throw new Error('the subscription answer at 80,01 € says ' + a);
+  if (!a || !a.startsWith('Oui, le carnet : 5 coupes pour 80,01 €, hors barbe, à prendre au salon.')) throw new Error('the subscription answer at 80,01 € says ' + a);
 
   /* the subscription taken off the Catalogue: its question leaves the page and the JSON-LD */
   ok(await h.api('/api/v1/services/' + ids.ab + '/archive', { body: {} }), 'archive ab');

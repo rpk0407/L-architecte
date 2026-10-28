@@ -11,12 +11,16 @@ import { billingAlert, memberScheduled } from '../commands/member-billing.js';
 import { disputeHeld } from '../domain/membership.js';
 import { memberToken, MEMBER_TEXT_TTL } from '../auth/member-token.js';
 import { providerLabel } from './labels.js';
+import { instantOf, addDays } from '../../shared/dates.js';
 
 const UNKNOWN = { ignored: 'unknown' };
 
-/** The member's page, signed for ttl: what {lien} says in the texts and mails of every member command (ctx.meta.memberLink). */
+/**
+ * The member's page, signed for ttl: what {lien} says in the texts and mails of every member command (ctx.meta.memberLink).
+ * o.until (a day): at least until that day's end, Paris time (the welcome mail's « Renoncer au contrat ici » lives 14 days).
+ */
 export function memberMeta(r, ttl = MEMBER_TEXT_TTL) {
-  return { ...r.meta, memberLink: (m) => r.origin + '/abo/' + memberToken(r.rt.secret, m.id, r.now + ttl) };
+  return { ...r.meta, memberLink: (m, o) => r.origin + '/abo/' + memberToken(r.rt.secret, m.id, Math.max(r.now + ttl, o && o.until ? instantOf(addDays(o.until, 1), 0) : 0)) };
 }
 /** our record of what the provider said, with the member's link for the texts it sends */
 export const BILLING = (r, ttl) => ({ actor: /** @type {const} */ ({ t: 'provider', id: r.rt.pay.name }), caps: new Set(), meta: memberMeta(r, ttl) });

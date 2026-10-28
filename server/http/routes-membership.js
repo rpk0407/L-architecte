@@ -15,7 +15,7 @@ import { newId, normPhone, isEmail, sha256 } from '../lib/util.js';
 import { addDays, diffDays, instantOf, localParts, fmtTime, dayParts, pad2 } from '../../shared/dates.js';
 import { moneyMode, providerFor, providerLabel } from '../payments/provider.js';
 import { memberMeta, billingOf, cancelAtProvider, syncMember } from '../payments/billing.js';
-import { readMemberToken, memberToken, MEMBER_TEXT_TTL, MEMBER_ASK_TTL } from '../auth/member-token.js';
+import { readMemberToken, memberToken, MEMBER_TEXT_TTL, MEMBER_ASK_TTL, MEMBER_BOOK } from '../auth/member-token.js';
 import { planOf } from '../settings/membership.js';
 import { cgvVersionOf } from '../settings/shop.js';
 import { startMembership, requestCancel, withdrawMember, endMember } from '../commands/memberships.js';
@@ -91,8 +91,10 @@ function memberFromToken(r) {
 
 /** What a message became, for « Confirmation envoyée le … » or « Envoi en cours » (PAY-04). */
 const SENT = new Set(['sent', 'simulated', 'delivered']);
-function acksOf(s, m) {
-  return m.acks.map((a) => {
+export function acksOf(s, m) {
+  // a start called off before it began is acknowledged by one e-mail (ackScheduledCancel): that message stands for it
+  const off = !m.activatedAt && m.cancel && !m.acks.some((a) => a.kind === 'cancel') ? s.messages.get('msg_mschx_' + m.id) : null;
+  return (off ? [...m.acks, { kind: 'cancel', at: off.at || m.cancel.at, msgIds: [off.id] }] : m.acks).map((a) => {
     const list = a.msgIds.map((id) => s.messages.get(id)).filter(Boolean);
     const left = list.filter((x) => SENT.has(x.status));
     return { kind: a.kind, at: a.at, sent: list.length > 0 && left.length === list.length, sentAt: left.reduce((t, x) => Math.max(t, x.updatedAt || x.at || 0), 0) || null };
@@ -127,7 +129,9 @@ export function memberView(r, m) {
     withdrawn: m.withdrawn ? { at: m.withdrawn.at, refund: m.withdrawn.refund } : null,
     ended: status === 'ended' ? { reason: m.withdrawn ? 'withdrawn' : m.ended ? m.ended.reason : 'cancelled' } : null,
     actions: { cancel: live && !m.cancel, withdraw: wd, card: live && !!m.activatedAt && !!caps.portal && (m.provider === 'simulated' || !!m.customer) },
-    acks: acksOf(s, m), shop: { name: s.settings.shop.name, phone: s.settings.shop.phone }
+    acks: acksOf(s, m), shop: { name: s.settings.shop.name, phone: s.settings.shop.phone },
+    // PAY-04: « Réserver ma coupe »'s link: books a covered cut, never cancels (it ends up in a URL)
+    book: live && status !== 'pending' ? memberToken(r.rt.secret, m.id, r.now + MEMBER_ASK_TTL, MEMBER_BOOK) : null
   };
 }
 
@@ -268,7 +272,9 @@ export function membershipRoutes(app, o = {}) {
     const pk = [...s.services.values()].filter((x) => x.active && x.pack && x.pack.credits).sort((a, b) => (a.order ?? 0) - (b.order ?? 0))[0];
     const carnet = pk ? { name: pk.name, price: pk.price, credits: pk.pack.credits, days: pk.pack.days || 0 } : null;
     // live: the site shows the block and its button; sepa: no SEPA in v1; startDay: the day a start not asked for now begins
-    return json({ live: !!M.enabled && open(r) && plans.length > 0, sepa: false, plans, carnet, startDay: addDays(r.local.day, START_DAYS), cgv: cgvVersionOf(s.settings.shop) }, 200, { 'cache-control': 'public, max-age=0, s-maxage=20, stale-while-revalidate=60' });
+    // terms: the CGV keep the membership's clauses while it is on or any contract still runs (its members link to them)
+    const terms = !!M.enabled || [...s.members.values()].some((x) => liveIn(s, x, r.local.day));
+    return json({ live: !!M.enabled && open(r) && plans.length > 0, terms, sepa: false, plans, carnet, startDay: addDays(r.local.day, START_DAYS), cgv: cgvVersionOf(s.settings.shop) }, 200, { 'cache-control': 'public, max-age=0, s-maxage=20, stale-while-revalidate=60' });
   });
 
   /**

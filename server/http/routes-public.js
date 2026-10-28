@@ -26,7 +26,7 @@ import { memberScheduled, startDayOf } from '../commands/member-billing.js';
 import { fmtEur } from '../../shared/money.js';
 import { claimFromLink } from './routes-loyalty.js';
 import { receiptLoyalty } from '../domain/loyalty.js';
-import { readMemberToken } from '../auth/member-token.js';
+import { readMemberToken, MEMBER_BOOK } from '../auth/member-token.js';
 
 /** The demo, for real: both the configuration and the journal say so (a demo journal opened in production is not one). */
 export const isDemo = (r) => r.rt.cfg.mode === 'demo' && r.s.mode === 'demo';
@@ -202,8 +202,9 @@ export function publicRoutes(app) {
   app.post('/api/public/bookings', async (r) => {
     guard('book|' + r.ip, 6, 60000, 'Trop de réservations d’un coup. Patiente une minute.');
     guard('bookh|' + r.ip, 30, 3600000, 'Trop de réservations depuis cet appareil. Appelle le salon.');
-    // PAY-04: « Réserver ma coupe » from the member page carries its signed link (mbr): the one way a guest booking is a member's
-    const mt = r.body && typeof r.body.mbr === 'string' ? readMemberToken(r.rt.secret, r.body.mbr.slice(0, 200), r.now) : null;
+    // PAY-04: « Réserver ma coupe » from the member page carries its booking link (mbr, signed for booking only): the one
+    // way a guest booking is a member's
+    const mt = r.body && typeof r.body.mbr === 'string' ? readMemberToken(r.rt.secret, r.body.mbr.slice(0, 200), r.now, MEMBER_BOOK) : null;
     const ctx = CLIENT(r);
     const res = await r.rt.engine.run(A.bookOnline, { ...r.body, demo: undefined }, mt && 'id' in mt ? { ...ctx, meta: { ...ctx.meta, memberId: mt.id } } : ctx);
     const token = signLink(r.rt.secret, 'appt', res.code);

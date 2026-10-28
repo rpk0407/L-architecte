@@ -74,6 +74,10 @@
     var d = document.querySelector('[data-demo]');
     if (a && a.demo && d) d.hidden = false;
     // the demo never asks for real details: an identity of its own, as the site's sheets do (erased 2 h after use)
-    if (a && a.demo && !input.value) { var n = String(Math.floor(Math.random() * 9000) + 1000); input.value = 'demo+' + n.slice(0, 2) + '@exemple.fr'; }
+    if (a && a.demo && !input.value) { var n = String(Math.floor(Math.random() * 1000000)); while (n.length < 6) n = '0' + n; input.value = 'demo+' + n + '@exemple.fr'; }
   }).catch(function () { /* the forms work without it */ });
+  // the CGV's membership section shows while a contract can run (terms): otherwise the link opens the CGV at the top
+  fetch('/api/public/memberships', { credentials: 'same-origin' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (m) {
+    if (m && !m.terms) Array.prototype.forEach.call(document.querySelectorAll('[data-terms]'), function (l) { l.setAttribute('href', '/cgv'); });
+  }).catch(function () { /* the anchor stays */ });
 })();

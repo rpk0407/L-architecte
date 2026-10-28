@@ -3,8 +3,10 @@
 // (/api/me/membership*). Nothing shows without a membership.
 import { useEffect, useRef, useState } from 'react';
 import type { AvantageMeta, CardProps } from '../types';
+// first: the client pages' kit scoped to the sheet (client.css's globals, body, h1, button…, never reach /moi's own
+// screens), then the member page's own rules (member.css, through Member) override it as on /abo/:token
+import '../../client/abonnement/member-kit.css';
 import { MemberPanel, meSource, counterWords, statusWords, type MemberPage } from '../../client/abonnement/Member';
-import '../../client/client.css';
 
 export const meta: AvantageMeta = { id: 'membership', order: 10 };
 

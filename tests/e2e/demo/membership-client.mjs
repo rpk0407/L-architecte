@@ -8,7 +8,7 @@ export const viewport = { width: 390, height: 844 };
 
 const PHONE = { width: 390, height: 844 }, DESKTOP = { width: 1440, height: 900 };
 
-export default async ({ h, page }) => {
+export default async ({ browser, h, page }) => {
   await h.setup();
   // deposits on every online booking, so « no deposit » means the membership
   const set = await h.api('/api/v1/settings', { method: 'PATCH', body: { deposits: { mode: 'all', percent: 30 } }, headers: { 'x-request-id': 'e2e-pay04-deposits' } });
@@ -25,9 +25,16 @@ export default async ({ h, page }) => {
   const messages = async () => (await h.api('/api/v1/messages?limit=300')).json.items;
   const linkIn = (body) => { const m = /(\/abo\/[^\s"]+)/.exec(body || ''); return m ? m[1] : null; };
 
+  // the site allows 5 subscriptions a minute from one address (all of this run's visitors share localhost's)
+  const posts = [];
+  const pace = async () => {
+    const recent = posts.filter((x) => Date.now() - x < 61000);
+    if (recent.length >= 5) await new Promise((r) => setTimeout(r, 61000 - (Date.now() - recent[recent.length - 5])));
+    posts.push(Date.now());
+  };
   /** One visitor (his own browser: his own demo identity) subscribes to a plan and lands on his member page. */
   let k = 0;
-  async function subscribe(p, plan = 'Essentiel') {
+  async function subscribe(p, plan = 'Essentiel', now = true) {
     k++;
     const email = 'e2e+' + k + '-' + Date.now().toString(36) + '@exemple.fr';
     await p.goto(h.base + '/');
@@ -39,19 +46,22 @@ export default async ({ h, page }) => {
     await sheet.waitFor();
     // the demo hands an identity of its own, under its warning
     await h.expectText(p, 'Démo : n’entre pas tes vraies coordonnées, tout est visible.');
-    if (!(await p.locator('#a-phone').inputValue()).startsWith('06 00 00')) throw new Error('no demo identity in the subscribe sheet');
+    if (!/^06 00 \d\d \d\d \d\d$/.test(await p.locator('#a-phone').inputValue())) throw new Error('no demo identity in the subscribe sheet');
     await p.getByLabel('E-mail').fill(email);
     const box = p.getByRole('checkbox', { name: /Commencer tout de suite/ });
     if (await box.isChecked()) throw new Error('the express request must start unticked');
     await h.expectText(p, 'Ton abonnement démarre le');
-    await box.check();
-    await h.expectText(p, 'Il démarre aujourd’hui');
+    if (now) {
+      await box.check();
+      await h.expectText(p, 'Il démarre aujourd’hui');
+    }
     const cta = p.getByRole('button', { name: /Continuer vers le paiement · \d+\s€\/mois/ });
     await tall(cta, '« Continuer vers le paiement »');
     await narrow(p, 'subscribe sheet');
+    await pace();
     await cta.click();
     await p.waitForURL(/\/paiement\/mb_/, { timeout: 10000 });
-    await p.getByRole('button', { name: /^Payer/ }).click();
+    await p.getByRole('button', { name: now ? /^Payer/ : 'Confirmer mon abonnement' }).click();
     await p.waitForURL(/\/abo\//, { timeout: 15000 });
     await p.locator('.mb-card').waitFor({ timeout: 15000 });
     const phone = await p.evaluate(() => JSON.parse(localStorage.getItem('lx-me') || '{}').phone);
@@ -67,6 +77,11 @@ export default async ({ h, page }) => {
   await h.expectText(page, 'Prochain prélèvement : 34');
   await narrow(page, 'member page');
   await h.shot(page, 'pay04-member-active');
+  // « Réserver ma coupe » carries a booking-only link, never the page's own (that one cancels)
+  const href = await page.getByRole('link', { name: 'Réserver ma coupe' }).getAttribute('href');
+  const mbr = new URL(href, h.base).searchParams.get('mbr');
+  if (!mbr || page.url().includes(mbr)) throw new Error('the booking link is the member page’s: ' + href);
+  if ((await h.api('/api/public/memberships/' + encodeURIComponent(mbr), { session: false })).status !== 404) throw new Error('the booking link opens the member page');
   await page.getByRole('link', { name: 'Réserver ma coupe' }).click();
   await page.locator('.bk.open button.wh').first().waitFor({ timeout: 15000 });
   if (/mbr=/.test(page.url())) throw new Error('the member link stays in the address bar');
@@ -91,7 +106,7 @@ export default async ({ h, page }) => {
   await narrow(page, 'cancel recap');
   await confirm.click(); taps++;
   await page.getByRole('heading', { name: /^Résiliation enregistrée le \d{2}\/\d{2} à/ }).waitFor({ timeout: 10000 });
-  await h.expectText(page, 'Confirmation envoyée par e-mail et SMS.');
+  await page.getByText(/^(Confirmation envoyée le \d{2}\/\d{2} à|Envoi en cours)/).waitFor();
   await h.expectText(page, 'Fin le ');
   await page.getByRole('link', { name: 'Télécharger la confirmation' }).waitFor();
   if (taps > 3) throw new Error('cancelling took ' + taps + ' taps');
@@ -99,6 +114,23 @@ export default async ({ h, page }) => {
   await page.goto(a.url);
   await page.getByText(/^s’arrête le \d{2}\/\d{2}$/).waitFor({ timeout: 10000 });
   await h.shot(page, 'pay04-member-ending');
+  await page.goto(h.base + '/');
+  /* ---------- 2b · the default start (in 14 days) called off: the acknowledgement on its done screen ---------- */
+  const pz = await h.newPage({ viewport: PHONE });
+  await subscribe(pz, 'Essentiel', false);
+  await pz.getByText(/^démarre le \d{2}\/\d{2}$/).waitFor({ timeout: 10000 });
+  await pz.getByRole('button', { name: 'Renoncer au contrat ici' }).waitFor();
+  await h.shot(pz, 'pay04-member-scheduled');
+  await pz.getByRole('button', { name: 'Résilier mon abonnement' }).click();
+  await h.expectText(pz, 'Ton abonnement ne commencera pas : rien n’est prélevé.');
+  await pz.getByRole('button', { name: 'Confirmer la résiliation' }).click();
+  await pz.getByRole('heading', { name: /^Résiliation enregistrée le/ }).waitFor({ timeout: 10000 });
+  await pz.getByText(/^(Confirmation envoyée le \d{2}\/\d{2} à|Envoi en cours)/).waitFor();
+  await pz.getByRole('link', { name: 'Télécharger la confirmation' }).waitFor();
+  await narrow(pz, 'call-off done');
+  await h.shot(pz, 'pay04-calloff-done');
+  // a page left open asks for its acknowledgement's status: close the ones done with (one address for all of them)
+  await pz.close();
 
   /* ---------- 3 · /resilier by number: the link opens on the recap, one tap ---------- */
   const pb = await h.newPage({ viewport: PHONE });
@@ -119,6 +151,26 @@ export default async ({ h, page }) => {
   await pb.getByRole('heading', { name: /^Résiliation enregistrée le/ }).waitFor({ timeout: 10000 });
   await h.expectText(pb, 'Fin le ');
   if (taps > 3) throw new Error('/resilier took ' + taps + ' taps after the link');
+  await pb.close();
+
+  // someone tries again with that number: « Déjà abonné » (a 409, so a page of its own, outside the console watch),
+  // and the keyboard stays in the sheet after the answer (Escape closes it)
+  const raw = await browser.newContext({ viewport: PHONE });
+  const px = await raw.newPage();
+  await px.goto(h.base + '/');
+  await px.locator('#abonnement').waitFor({ timeout: 15000 });
+  await px.getByRole('button', { name: /formule Essentiel/ }).click();
+  await px.getByRole('dialog', { name: 'Je m’abonne' }).waitFor();
+  await px.locator('#a-phone').fill(b.phone);
+  await px.getByLabel('E-mail').fill(b.email);
+  await px.getByRole('button', { name: /Continuer vers le paiement/ }).focus();
+  await pace();
+  await px.keyboard.press('Enter');
+  await px.getByRole('dialog', { name: 'Déjà abonné' }).waitFor({ timeout: 10000 });
+  await px.waitForFunction(() => !!document.activeElement && !!document.activeElement.closest('[role="dialog"]'), null, { timeout: 3000 }).catch(() => { throw new Error('the focus left the sheet after its answer'); });
+  await px.keyboard.press('Escape');
+  await px.getByRole('dialog', { name: 'Déjà abonné' }).waitFor({ state: 'detached', timeout: 3000 });
+  await raw.close();
 
   /* ---------- 4 · by e-mail only ---------- */
   const pc = await h.newPage({ viewport: PHONE });
@@ -133,6 +185,7 @@ export default async ({ h, page }) => {
   await pc.goto(h.base + linkIn(mine.body));
   await pc.getByRole('button', { name: 'Confirmer la résiliation' }).click();
   await pc.getByRole('heading', { name: /^Résiliation enregistrée le/ }).waitFor({ timeout: 10000 });
+  await pc.close();
 
   /* ---------- 5 · neither the phone nor the mailbox: the fallback ---------- */
   const pd = await h.newPage({ viewport: PHONE });
@@ -147,6 +200,7 @@ export default async ({ h, page }) => {
   await pd.getByText(/^Demande de résiliation reçue le \d{2}\/\d{2} à/).waitFor({ timeout: 10000 });
   const list = (await h.api('/api/v1/memberships')).json.members;
   if (!list.some((m) => m.cancelVerified === false)) throw new Error('the fallback did not record a cancellation to confirm');
+  await pd.close();
 
   /* ---------- 6 · a second member renounces on day 1 ---------- */
   const pe = await h.newPage({ viewport: PHONE });
@@ -160,10 +214,13 @@ export default async ({ h, page }) => {
   await wd.click();
   await pe.getByRole('heading', { name: /^Rétractation enregistrée le/ }).waitFor({ timeout: 10000 });
   await h.expectText(pe, 'Remboursement de 49');
+  await pe.close();
 
   /* ---------- 7 · a member whose renewal failed: the card first ---------- */
+  // the seed always has one (server/domain/seed.js graceStart): the salon must be able to show this page any day
   const grace = (await h.api('/api/v1/memberships')).json.members.find((m) => m.status === 'grace');
-  if (grace) {
+  if (!grace) throw new Error('no member in grace in the demo: the past-due page cannot be shown');
+  {
     const sent = await h.api('/api/v1/memberships/' + grace.id + '/card-link', { body: {}, headers: { 'x-request-id': 'e2e-pay04-card' } });
     if (!sent.ok) throw new Error('card link: ' + sent.text);
     const card = (await messages()).find((m) => m.template === 'memberCard' && linkIn(m.body));
@@ -172,6 +229,7 @@ export default async ({ h, page }) => {
     await pf.getByRole('heading', { name: /^Le paiement de \d+\s€ n’est pas passé$/ }).waitFor({ timeout: 10000 });
     await pf.getByRole('button', { name: 'Mettre ma carte à jour' }).waitFor();
     await pf.getByText('paiement à régulariser', { exact: true }).waitFor();
+    await h.expectText(pf, 'Tes coupes restent incluses en attendant.');
     await narrow(pf, 'member page past due');
     await h.shot(pf, 'pay04-member-past-due');
   }

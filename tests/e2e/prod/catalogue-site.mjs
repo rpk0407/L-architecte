@@ -56,7 +56,10 @@ export default async ({ browser, h }) => {
     const ab = cat.json.services.find((x) => x.slug === 'ab');
     const cl = cat.json.services.find((x) => x.slug === 'cl');
     if (!ab.pack || ab.pack.credits !== 5 || ab.pack.days !== 70 || String(ab.pack.serviceIds) !== cl.id) throw new Error('the subscription is not 5 cuts / 70 days on the classic cut');
-    if ((await page.locator('.badge', { hasText: 'visible sur le site' }).count()) !== 11) throw new Error('every taken-over service should say it is visible on the site');
+    // the carnet is sold at the salon, never booked online (PAY-04: « Abonnement » is the monthly plan only)
+    if (ab.name !== 'Carnet 5 coupes' || ab.category !== 'Carnet' || ab.online !== false) throw new Error('the pack is not the « Carnet », off the site: ' + JSON.stringify([ab.name, ab.category, ab.online]));
+    if ((await page.locator('.badge', { hasText: 'visible sur le site' }).count()) !== 10) throw new Error('every taken-over service but the carnet should say it is visible on the site');
+    if ((await page.locator('.badge', { hasText: 'pas sur le site (hors ligne)' }).count()) !== 1) throw new Error('the carnet should say it is off the site');
   }
   // a second run on the same journal (a retry, a shared server) adds its own junior cut, deduplicated by name
   const before = (await call(page, '/api/v1/catalog')).json.services;

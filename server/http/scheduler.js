@@ -115,7 +115,9 @@ export function sendRank(m) {
   const c = m.marketing ? 'marketing' : classOf(m.template);
   return c === 'service' ? 1 : c === 'relation' ? 2 : 3;
 }
-const byRank = (a, b) => sendRank(a) - sendRank(b) || a.dueAt - b.dueAt;
+// within the service texts a contract's acknowledgement goes first (PAY-04: « Envoi en cours » must not wait for a backlog)
+const legal = (m) => ((TEMPLATE_FLAGS[m.template] || {}).legal ? 1 : 0);
+const byRank = (a, b) => sendRank(a) - sendRank(b) || legal(b) - legal(a) || a.dueAt - b.dueAt;
 
 /** The address could not be reached at all: nothing left, unlike a timeout (its cloud may have taken the text already). */
 const UNREACHED = new Set(['ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN', 'EHOSTUNREACH', 'ENETUNREACH']);

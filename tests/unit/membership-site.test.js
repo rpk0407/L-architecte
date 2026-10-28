@@ -19,7 +19,7 @@ import * as A from '../../server/commands/agenda.js';
 import { startMembership, memberPaid, memberFailed, requestCancel } from '../../server/commands/memberships.js';
 import { addMonths, memberOf } from '../../server/domain/membership.js';
 import { depositFor, memberCovers } from '../../server/domain/policy.js';
-import { memberToken } from '../../server/auth/member-token.js';
+import { memberToken, readMemberToken, MEMBER_BOOK } from '../../server/auth/member-token.js';
 import { CGV_TEXT } from '../../server/settings/shop.js';
 import { otpCode } from '../../server/domain/otp.js';
 import { ACCOUNT_TIMING, settled } from '../../server/http/routes-me.js';
@@ -124,7 +124,7 @@ test('bookOnline: the member words and no deposit only on the verified path, on 
   assert.deepEqual([third.deposit, third.member], [600, undefined]);
 });
 
-test('the site’s booking carries the member page’s signed link (mbr); a forged or expired one is ignored', async () => {
+test('the site’s booking carries the member page’s booking link (mbr); a forged, expired or cancelling one is ignored', async () => {
   const clock = { now: instantOf('2026-11-24', 15 * 60) };
   const rt = await testRuntime({ clock: () => clock.now });
   const owner = [...rt.engine.state.staff.values()].find((x) => x.role === 'owner');
@@ -142,16 +142,23 @@ test('the site’s booking carries the member page’s signed link (mbr); a forg
   const day = '2026-11-26';
   const slots = (await site.get('/api/public/availability?from=' + day + '&days=1&services=' + cut.id)).json.days[0].slots;
   const book = (slot, mbr) => site.post('/api/public/bookings', { serviceIds: [cut.id], staffId: slot.s, day, start: slot.m, first: 'Démo', phone, ...(mbr ? { mbr } : {}) });
-  const ok = await book(slots[0], token);
+  // « Réserver ma coupe » carries a link that books and does nothing else: it never cancels, withdraws or changes the card
+  assert.ok(page.book && page.book !== token);
+  for (const act of ['cancel', 'withdraw', 'card']) assert.equal((await site.post('/api/public/memberships/' + page.book + '/' + act, {})).status, 404, act);
+  assert.equal((await site.get('/api/public/memberships/' + page.book)).status, 404);
+  const ok = await book(slots[0], page.book);
   assert.equal(ok.status, 201, ok.text);
   assert.deepEqual([ok.json.status, ok.json.deposit, ok.json.payment, ok.json.member], ['booked', 0, null, { covered: true, label: 'Inclus dans ton abonnement · 1/2 ce mois' }]);
-  const forged = await book(slots[1], token.slice(0, -2) + (token.endsWith('aa') ? 'bb' : 'aa'));
+  const forged = await book(slots[1], page.book.slice(0, -2) + (page.book.endsWith('aa') ? 'bb' : 'aa'));
   assert.equal(forged.status, 201, forged.text);
   assert.equal(forged.json.member, undefined);
   assert.ok(forged.json.deposit > 0, 'the usual deposit');
-  const expired = memberToken(rt.secret, id, clock.now - 1000);
+  const expired = memberToken(rt.secret, id, clock.now - 1000, MEMBER_BOOK);
   const late = await book(slots[2], expired);
   assert.equal(late.json.member, undefined);
+  // the page's own link (it cancels) is not a booking's, nor the other way round
+  assert.deepEqual(readMemberToken(rt.secret, token, clock.now, MEMBER_BOOK), { error: 'invalid' });
+  assert.deepEqual(readMemberToken(rt.secret, page.book, clock.now), { error: 'invalid' });
 });
 
 /** A client's space on this file: the code by SMS (read from the outbox), then the first name. */
@@ -174,7 +181,11 @@ test('/api/me/membership: the session’s own member, cancelled from the space, 
   const b = await signIn(t.rt, m.cid);
   const page = (await b.get('/api/me/membership')).json;
   assert.deepEqual([page.member.id, page.member.status, page.member.used, page.member.of, page.member.card], [m.id, 'active', 0, 2, 'Visa •• 4242']);
-  assert.ok(page.mbr && page.mbr.startsWith(m.id + '~'), 'a signed link for « Réserver ma coupe »');
+  assert.ok(page.member.book && page.member.book.startsWith(m.id + '~'), 'a signed link for « Réserver ma coupe »');
+  // nothing the space answers (the demo's persona shares this answer with every visitor) cancels at the token routes
+  const strings = JSON.stringify(page).match(/"[^"]{20,}"/g) || [];
+  for (const x of strings) assert.notEqual((await browser(t.rt).post('/api/public/memberships/' + encodeURIComponent(x.slice(1, -1)) + '/cancel', {})).status, 200, x);
+  assert.equal(t.s().members.get(m.id).cancel, null);
   assert.ok(!JSON.stringify(page).includes('06 11'), 'no number in the page');
   // a member id in the body names nothing: the session's file decides
   t.go(addDays(DAY, 7));
@@ -242,6 +253,9 @@ test('the e-mail provider down for 8 hours, then up: the acknowledgement leaves,
   await dispatch(rtOf(down), 50);
   assert.equal(t.s().messages.get('msg_mcxm_' + m.id).status, 'queued', 'legal: back in the queue');
   assert.deepEqual([(await ackOf()).sent], [false], '« Envoi en cours »');
+  // the file to keep never claims a send that has not happened
+  const file = async () => (await browser(t.rt).get('/api/public/memberships/' + token + '/ack/cancel')).text;
+  assert.match(await file(), /Son envoi par message est en cours\./);
   // the scheduler ticks every half hour: down for 8 hours, then up; the retries never give it up
   const down8 = t.clock.now + 8 * 3600000;
   while (t.clock.now < down8) { t.clock.now += 1800000; await dispatch(rtOf(down), 50); }
@@ -252,6 +266,59 @@ test('the e-mail provider down for 8 hours, then up: the acknowledgement leaves,
   const ack = await ackOf();
   assert.equal(ack.sent, true);
   assert.ok(ack.sentAt >= down8, '« Confirmation envoyée le … » says when it really left');
+  assert.match(await file(), /Il t’a aussi été envoyé le 3 novembre 2026 à 2\d\sh/);
+});
+
+/** A visitor subscribes on the demo's site and goes through the test checkout: the member and his page's link. */
+async function siteMember(startNow) {
+  const clock = { now: instantOf('2026-11-24', 15 * 60) };
+  const rt = await testRuntime({ clock: () => clock.now });
+  const site = browser(rt);
+  const sub = await site.post('/api/public/memberships', { planId: 'essentiel', first: 'Démo', phone: '06 00 12 34 56', email: 'demo+123456@exemple.fr', startNow, cgv: CGV_TEXT });
+  assert.equal(sub.status, 201, sub.text);
+  const id = sub.json.url.split('/paiement/')[1].split('?')[0];
+  assert.equal((await site.post('/api/public/payments/' + id + '/simulate', { outcome: 'ok' })).json.status, startNow ? 'paid' : 'scheduled');
+  return { rt, clock, site, id, token: sub.json.page.split('/abo/')[1] };
+}
+
+test('the welcome e-mail’s « Renoncer au contrat ici » still opens the page on the 13th day (texts’ links live a week)', async () => {
+  const t = await siteMember(true);
+  const mail = t.rt.engine.state.messages.get('msg_mwelm_' + t.id);
+  const line = mail.body.split('\n').find((x) => x.startsWith('Renoncer au contrat ici'));
+  assert.match(line, /jusqu’au 8 décembre/);
+  const renounce = /\/abo\/([^\s?]+)\?renoncer/.exec(line)[1];
+  t.clock.now += 13 * 86400000;
+  const page = await t.site.get('/api/public/memberships/' + renounce);
+  assert.equal(page.status, 200, page.text);
+  assert.equal(page.json.actions.withdraw, true, 'the withdrawal is still open, and so is its link');
+  // the welcome SMS keeps the usual week
+  const sms = t.rt.engine.state.messages.get('msg_mwel_' + t.id);
+  const smsToken = /\/abo\/([^\s?]+)/.exec(sms.body)[1];
+  assert.equal((await t.site.get('/api/public/memberships/' + smsToken)).status, 410);
+});
+
+test('a start called off before it began: the cancel acknowledgement shows on the page, its file says it never began', async () => {
+  const t = await siteMember(false);
+  const before = (await t.site.get('/api/public/memberships/' + t.token)).json;
+  assert.deepEqual([before.status, before.actions.cancel, before.actions.withdraw, before.book], ['pending', true, false, null]);
+  const cx = await t.site.post('/api/public/memberships/' + t.token + '/cancel', {});
+  assert.equal(cx.status, 200, cx.text);
+  const ack = cx.json.member.acks.find((a) => a.kind === 'cancel');
+  assert.ok(ack, 'the call-off’s e-mail stands for its acknowledgement');
+  assert.equal(t.rt.engine.state.messages.get('msg_mschx_' + t.id).channel, 'email');
+  const file = await t.site.get('/api/public/memberships/' + t.token + '/ack/cancel');
+  assert.equal(file.status, 200, file.text);
+  assert.match(file.text, /Ton abonnement Essentiel ne commencera pas : rien n’est prélevé\./);
+});
+
+test('/api/public/memberships says whether the CGV keep the membership’s clauses (terms): on, or a contract running', async () => {
+  const t = await club();
+  const site = browser(t.rt);
+  assert.equal((await site.get('/api/public/memberships')).json.terms, true);
+  await t.join('essentiel', '06 11 22 33 21');
+  await t.e.run(updateSettings, { membership: { enabled: false } }, t.owner());
+  const j = (await site.get('/api/public/memberships')).json;
+  assert.deepEqual([j.live, j.terms], [false, true], 'sales stopped, a member still runs');
 });
 
 test('a signed-in client subscribes on his own file, whatever number is typed', async () => {
@@ -283,7 +350,7 @@ function cgvPage(memberships) {
       get firstChild() { return el.children[0] || null; }, querySelectorAll: () => [], closest: () => null };
     return el;
   };
-  const section = make('section', { id: 'abonnement', 'data-if': 'membership.live', hidden: '' });
+  const section = make('section', { id: 'abonnement', 'data-if': 'membership.terms', hidden: '' });
   const list = make('ul', { 'data-list': 'plans' });
   const all = [section, list];
   const match = (sel) => all.filter((el) => sel.split(',').some((one) => {
@@ -305,15 +372,17 @@ function cgvPage(memberships) {
   return ready.then(() => ({ hidden: section.hidden, plans: list.children.length }));
 }
 
-test('the CGV generator shows #abonnement only while the membership is live', async () => {
+test('the CGV generator shows #abonnement while the membership is live, or on, or a contract still runs', async () => {
   const plans = [{ id: 'essentiel', name: 'Essentiel', price: 3400, cuts: 2, minDays: 0, words: '2 coupes par mois · Coupe classique' }];
-  assert.deepEqual(await cgvPage({ live: true, plans, carnet: null, cgv: '2026-10-27' }), { hidden: false, plans: 1 });
-  assert.deepEqual(await cgvPage({ live: false, plans, carnet: null }), { hidden: true, plans: 0 });
+  assert.deepEqual(await cgvPage({ live: true, terms: true, plans, carnet: null, cgv: '2026-10-27' }), { hidden: false, plans: 1 });
+  assert.deepEqual(await cgvPage({ live: false, terms: false, plans, carnet: null }), { hidden: true, plans: 0 });
+  // online sales stopped (or Stripe unplugged) while members still run: their contract's terms stay readable
+  assert.deepEqual(await cgvPage({ live: false, terms: true, plans, carnet: null }), { hidden: false, plans: 1 });
   assert.deepEqual(await cgvPage(null), { hidden: true, plans: 0 }, 'no answer: the clauses stay hidden');
   const html = read('public/cgv.html');
   assert.equal(/data-cgv-text="(\d{4}-\d{2}-\d{2})"/.exec(html)?.[1], CGV_TEXT, 'CGV_TEXT equals cgv.html’s data-cgv-text');
   const sec = html.slice(html.indexOf('id="abonnement"'), html.indexOf('</section>', html.indexOf('id="abonnement"')));
-  assert.match(sec, /data-if="membership.live" hidden/);
+  assert.match(sec, /data-if="membership.terms" hidden/);
   for (const w of ['durée indéterminée', 'date anniversaire', 'ne se reportent pas', 'Résilier mon abonnement', 'fin du mois déjà payé', 'Le prix de ta formule est garanti', '14&nbsp;jours', 'Renoncer au contrat ici', 'Formulaire de rétractation', 'moins les coupes déjà faites']) assert.ok(sec.includes(w), w);
   assert.match(html, /<h2 id="t-sub">Carnet<\/h2>/, 'the pack is the « Carnet »');
 });
@@ -325,6 +394,11 @@ test('« Résilier mon abonnement » on the site’s footer and every legal page
   for (const f of ['cgv', 'mentions-legales', 'confidentialite', 'resilier', 'mon-rendez-vous']) assert.ok(read('public/' + f + '.html').includes('<footer data-footer></footer>'), f);
   assert.ok(site.includes('l’abonnement mensuel (dès ') && site.includes('et le carnet de 5 coupes ('));
   assert.ok(!/Abonnement 5 coupes/.test(site), 'the pack is « Carnet 5 coupes » everywhere on the site');
+  // the WordPress menu the owner imports at go-live, and the demo's fixture: the carnet, never a bookable « Abonnement »
+  const preset = /\{ slug: 'ab',[^\n]*\}/.exec(read('web/src/comptoir/pages/Catalogue.tsx'))?.[0] || '';
+  assert.ok(preset.includes("name: 'Carnet 5 coupes'") && preset.includes("category: 'Carnet'") && preset.includes('online: false'), preset);
+  assert.ok(!/Abonnement 5 coupes/.test(read('public/demo.html')));
+  assert.ok(site.includes("q: 'Existe-t-il un abonnement ou un carnet ?'") && !site.includes('"Existe-t-il un abonnement ?"'));
   const res = read('public/resilier.html');
   for (const w of ['Résilier ou gérer mon', 'Ton numéro ou ton e-mail', 'Recevoir mon lien', 'Je n’ai plus accès à ce numéro ni à cet e-mail', 'Ouvrir mon espace', 'Démo&nbsp;: n’entre pas tes vraies coordonnées, tout est visible.']) assert.ok(res.includes(w), w);
 });

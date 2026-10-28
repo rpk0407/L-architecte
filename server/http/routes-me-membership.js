@@ -11,10 +11,10 @@
 // the route vouches for that member in meta (memberId), as PAY-03's link does.
 import { HttpError, guard } from './kit.js';
 import { requireMe, runAs, isPersona } from './me-kit.js';
-import { memberView, refundMonth } from './routes-membership.js';
+import { memberView, refundMonth, acksOf } from './routes-membership.js';
 import { memberMeta, billingOf, cancelAtProvider } from '../payments/billing.js';
 import { providerFor } from '../payments/provider.js';
-import { readMemberToken, memberToken, MEMBER_ASK_TTL } from '../auth/member-token.js';
+import { readMemberToken } from '../auth/member-token.js';
 import { requestCancel, withdrawMember } from '../commands/memberships.js';
 import { ackScheduledCancel, billingAlert, contactOf } from '../commands/member-billing.js';
 import { memberOf, membersOf, statusIn, abandoned } from '../domain/membership.js';
@@ -53,7 +53,8 @@ export function ackFile(r, m, kind) {
     const now = m.cancel.effective <= localParts(m.cancel.at).day;
     title = 'Accusé de réception de ta résiliation';
     L.push('Résiliation reçue le ' + atWords(m.cancel.at) + '.');
-    L.push(now ? 'Ton abonnement ' + m.name + ' a pris fin le jour même : plus rien n’est prélevé.'
+    L.push(!m.activatedAt ? 'Ton abonnement ' + m.name + ' ne commencera pas : rien n’est prélevé.'
+      : now ? 'Ton abonnement ' + m.name + ' a pris fin le jour même : plus rien n’est prélevé.'
       : 'Ton abonnement ' + m.name + ' prend fin le ' + dayWords(addDays(m.cancel.effective, -1)) + ' au soir : plus rien n’est prélevé ensuite.');
     if (!now) L.push('Jusque-là, tes coupes restent incluses : ' + coverage(s, m) + '.');
     if (m.cancel.verified === false) L.push('Demandée sans ton lien : le salon la confirme, sans rien changer à ces dates.');
@@ -66,12 +67,13 @@ export function ackFile(r, m, kind) {
     const first = m.periods[0];
     title = 'Confirmation de ton abonnement';
     L.push('Abonnement ' + m.name + ' actif depuis le ' + atWords(m.activatedAt) + '.');
-    L.push(fmtEur(m.price) + ' par mois, prélevés chaque mois à la date anniversaire. Inclus : ' + coverage(s, m) + '.');
+    L.push(fmtEur(m.price, { decimals: m.price % 100 !== 0 }) + ' par mois, prélevés chaque mois à la date anniversaire. Inclus : ' + coverage(s, m) + '.');
     L.push('Sans engagement : tu résilies quand tu veux, l’abonnement s’arrête à la fin du mois payé.');
-    L.push('Droit de rétractation de 14 jours, jusqu’au ' + dayWords(addDays(localParts(m.activatedAt).day, 14)) + ' : on te rembourse ce mois, moins les coupes déjà faites' + (first ? ' (' + fmtEur(first.amount) + ' payés)' : '') + '.');
-    if (m.cgv) L.push('Conditions générales de vente acceptées : version du ' + m.cgv + '.');
+    L.push('Droit de rétractation de 14 jours, jusqu’au ' + dayWords(addDays(localParts(m.activatedAt).day, 14)) + ' : on te rembourse ce mois, moins les coupes déjà faites' + (first ? ' (' + fmtEur(first.amount, { decimals: first.amount % 100 !== 0 }) + ' payés)' : '') + '.');
+    if (m.cgv) L.push('Conditions générales de vente acceptées : version du ' + (/^\d{4}-\d{2}-\d{2}/.test(m.cgv) ? dayWords(m.cgv.slice(0, 10)) + m.cgv.slice(10) : m.cgv) + '.');
   } else throw new HttpError(404, 'not_found', 'Confirmation introuvable.');
-  const ack = m.acks.find((a) => a.kind === kind);
+  // what the message became, not when the acknowledgement was recorded: with the provider down it has not left yet
+  const ack = acksOf(s, m).reverse().find((a) => a.kind === kind);
   const html = '<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex">'
     + '<title>' + esc(title + ' · ' + shop.name) + '</title>'
     + '<style>body{margin:0;background:#ECE8E0;color:#0F0E0D;font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}main{max-width:560px;margin:0 auto;padding:32px 20px}'
@@ -79,7 +81,7 @@ export function ackFile(r, m, kind) {
     + '<p class="k">' + esc(shop.name) + '</p><h1>' + esc(title) + '</h1>'
     + '<p>' + esc('Bonjour' + (k.first ? ' ' + k.first : '') + ',') + '</p>'
     + L.map((x) => '<p>' + esc(x) + '</p>').join('')
-    + '<p>Ce document vaut accusé de réception.' + (ack ? ' Il t’a aussi été envoyé le ' + esc(atWords(ack.at)) + '.' : '') + '</p>'
+    + '<p>Ce document vaut accusé de réception.' + (ack ? ack.sent ? ' Il t’a aussi été envoyé le ' + esc(atWords(ack.sentAt || ack.at)) + '.' : ' Son envoi par message est en cours.' : '') + '</p>'
     + '<p class="f">' + esc([shop.name, [shop.address, [shop.zip, shop.city].filter(Boolean).join(' ')].filter(Boolean).join(', '), shop.phone, shop.email].filter(Boolean).join(' · ')) + '</p>'
     + '</main></body></html>';
   const name = { welcome: 'confirmation-abonnement', cancel: 'confirmation-resiliation', withdraw: 'confirmation-retractation' }[kind];
@@ -114,18 +116,14 @@ function asMember(r, me, m) {
 /** the system's own command after a client's (the owner's mail about a withdrawal), as PAY-03's routes run it */
 const SYSTEM = (r) => ({ actor: /** @type {const} */ ({ t: 'system', id: 'memberships' }), caps: new Set(), meta: memberMeta(r) });
 
-/** What the page reads: PAY-03's member view, and a signed link for « Réserver ma coupe » (the site's verified path). */
-function pageOf(r, m) {
-  const view = memberView(r, m);
-  const live = view.status !== 'ended' && view.status !== 'pending';
-  return { member: view, mbr: live ? memberToken(r.rt.secret, m.id, r.now + MEMBER_ASK_TTL) : null, reasons: CANCEL_REASONS };
-}
+/** What the page reads: PAY-03's member view (its « Réserver ma coupe » link books, never cancels: view.book). */
+const pageOf = (r, m) => ({ member: memberView(r, m), reasons: CANCEL_REASONS });
 
 export function meMembershipRoutes(app) {
   app.get('/api/me/membership', (r) => {
     const me = requireMe(r);
     const m = mine(r, me);
-    return m ? { ...pageOf(r, m), demo: isPersona(me) } : { member: null, mbr: null, reasons: CANCEL_REASONS, demo: isPersona(me) };
+    return m ? { ...pageOf(r, m), demo: isPersona(me) } : { member: null, reasons: CANCEL_REASONS, demo: isPersona(me) };
   });
 
   /** Résilier: recorded first (its moment is the law's), then at Stripe (a retry tries Stripe again: its calls are keyed). */

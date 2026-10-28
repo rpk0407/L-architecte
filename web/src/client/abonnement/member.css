@@ -25,9 +25,9 @@
 .mb-wd { display: flex; flex-direction: column; gap: 6px; }
 .mb-wd .c-small { padding: 0 6px; text-align: center; }
 .mb-help { padding: 4px 6px; text-align: center; }
-.mb-help a { text-decoration: underline; text-underline-offset: 3px; }
+.mb-help a { display: inline-block; padding: 12px 0; text-decoration: underline; text-underline-offset: 3px; }
 .mb-recap { gap: 16px; }
-.mb-recap .c-h2:focus, .mb-done .c-h2:focus { outline: none; }
+.mb-recap .c-h2:focus, .mb-done .c-h2:focus, .mb-plan:focus { outline: none; }
 .mb-dl-list { display: flex; flex-direction: column; margin: 0; border-radius: 18px; background: var(--paper); }
 .mb-dl-list > div { display: flex; flex-direction: column; gap: 3px; padding: 12px 16px; border-top: 1px solid var(--line); }
 .mb-dl-list > div:first-child { border-top: 0; }
@@ -43,7 +43,7 @@
 .c-ticket .c-btn:focus-visible { outline-color: var(--paper); }
 
 /* /moi « Mes avantages »: the row, and the sheet that opens the same page */
-.mb-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 64px; padding: 12px 16px; border-radius: 18px; background: var(--card, #F6F3EE); box-shadow: inset 0 0 0 1.5px var(--line, rgba(15, 14, 13, .1)); text-align: left; }
+.mb-row { font: inherit; color: var(--ink, #0F0E0D); border: 0; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 64px; padding: 12px 16px; border-radius: 18px; background: var(--card, #F6F3EE); box-shadow: inset 0 0 0 1.5px var(--line, rgba(15, 14, 13, .1)); text-align: left; }
 .mb-row > span { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .mb-row b { font: 600 16px/1.25 var(--sans); }
 .mb-row small { font: 500 14px/1.3 var(--sans); color: var(--ink2); }
@@ -53,4 +53,4 @@
 .mb-sheet-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .mb-x { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; background: rgba(15, 14, 13, .07); font-size: 22px; line-height: 1; }
 @media (min-width: 700px) { .mb-sheet { left: auto; top: 0; width: min(520px, 100%); max-height: none; border-radius: 28px 0 0 28px; } }
-@media (prefers-reduced-motion: reduce) { .c-spin { animation-duration: 2s; } }
+@media (prefers-reduced-motion: reduce) { .c-spin { animation-duration: 2s !important; } }

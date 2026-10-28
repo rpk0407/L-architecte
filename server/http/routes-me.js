@@ -96,7 +96,8 @@ export function meRoutes(app) {
   // what the site and /moi show: the entry points hide when the space is closed
   app.get('/api/public/account', (r) => {
     const me = accountsOn(r.s) ? readMe(r) : null;
-    return { enabled: accountsOn(r.s), signedIn: !!me, ...(me ? { first: shownIdentity(me.c, me.account).first } : {}), demo: isDemo(r) };
+    // own (PAY-04): signed in on his own file, not the demo's shared persona (the subscribe sheet binds to it)
+    return { enabled: accountsOn(r.s), signedIn: !!me, ...(me ? { first: shownIdentity(me.c, me.account).first, own: !isPersona(me) } : {}), demo: isDemo(r) };
   });
 
   app.post('/api/public/account/start', async (r) => {
