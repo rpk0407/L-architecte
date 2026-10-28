@@ -584,6 +584,7 @@ test('the Comptoir: the list (a barber sees no payment in trouble), the owner’
   assert.equal(list.status, 200);
   const row = list.json.members.find((x) => x.id === a.id);
   assert.deepEqual([row.status, row.first, row.plan, row.of, !!row.pastDueSince, row.card], ['grace', 'Karim', 'Essentiel', 2, true, 'Visa •• 4242']);
+  assert.equal(row.next, null, 'a refused charge has no « next charge » date: its due date is already past');
   assert.equal(list.json.mrr, 6800);
   const sum = await t.owner.get('/api/v1/memberships/summary');
   assert.deepEqual([sum.json.live, sum.json.active, sum.json.grace, sum.json.troubled, sum.json.mrr, sum.json.days30.joined], [2, 1, 1, 1, 6800, 2]);

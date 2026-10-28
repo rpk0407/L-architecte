@@ -16,12 +16,13 @@ import type { ClientCard } from '../../types';
 import './reward.css';
 
 /** What the chip needs to know of a ticket line (Checkout's own Line carries more). rewardId: set once a reward is applied; discount then holds its value. */
-export type TillLine = { key: string; kind: string; ref: string | null; qty: number; unit: number; packId: string | null; discount: number; rewardId?: string };
+export type TillLine = { key: string; kind: string; ref: string | null; qty: number; unit: number; packId: string | null; memberId?: string | null; discount: number; rewardId?: string };
 type Client = ClientCard & { loyalty?: CardLine };
 
 const worth = (r: CardReward, l: TillLine) => rewardValue(r.reward, { kind: l.kind, ref: l.ref, unit: l.unit, qty: l.qty });
 /** a line this reward can take off: a service or product, not covered by a carnet or a membership, with no reward yet */
-const takes = (r: CardReward, l: TillLine) => !l.rewardId && !l.packId && worth(r, l) > 0;
+// a cut the membership or a carnet already pays (0 € at the till) has nothing for a reward to take off
+const takes = (r: CardReward, l: TillLine) => !l.rewardId && !l.packId && !l.memberId && worth(r, l) > 0;
 /** « Une prestation offerte (jusqu’à 25 €) » → « Une prestation offerte »: the cap is on the card, not in the chip */
 const short = (label: string) => label.replace(/ \(jusqu’à [^)]*\)/, '');
 
@@ -38,7 +39,7 @@ export function RewardChip<L extends TillLine>({ client, lines, setLines }: { cl
   useEffect(() => {
     if (!applied || !card || q.refreshing) return;
     const r = card.rewards.find((x) => x.id === applied.rewardId);
-    const v = r && !applied.packId ? worth(r, applied) : 0;
+    const v = r && !applied.packId && !applied.memberId ? worth(r, applied) : 0;
     if (!v) {
       setLines((ls) => ls.map((l) => (l.rewardId ? { ...l, rewardId: undefined, discount: 0 } : l)));
       toast({ kind: 'info', title: 'Récompense retirée du ticket', sub: 'Elle ne s’applique plus à cette ligne.', icon: 'gift' });

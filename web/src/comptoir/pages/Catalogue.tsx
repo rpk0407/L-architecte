@@ -40,7 +40,7 @@ const OLD_MENU: (Record<string, unknown> & { slug: string; name: string })[] = [
   { slug: 'de', name: 'Décoloration', category: 'Changer de tête', price: 6000, from: true, dur: 60, includes: ['Décoloration', 'Sans coupe'], description: 'Sous condition de faisabilité.' },
   { slug: 'co', name: 'Coloration', category: 'Changer de tête', price: 3000, from: true, dur: 60, includes: ['Coloration', 'Sans coupe'] },
   { slug: 'si', name: 'Silver', category: 'Changer de tête', price: 10000, dur: 60, tag: 'Blanc ou gris', includes: ['Décoloration jusqu’au blanc', 'Coloration grise', 'Soin', 'Produit d’entretien offert'], description: 'Ne pas laver la tête pendant 4 jours minimum.' },
-  { slug: 'ab', name: 'Abonnement 5 coupes', short: 'Abonnement', category: 'Abonnement', price: 8000, dur: 30, tag: '16 € la coupe', includes: ['5 coupes sur 5 semaines', 'Sans barbe'], description: '16 € la coupe. Tu réserves la première, on fixe les suivantes avec toi.', pack: { credits: 5, days: 70 } }
+  { slug: 'ab', name: 'Carnet 5 coupes', short: 'Carnet', category: 'Carnet', price: 8000, dur: 30, tag: '16 € la coupe', includes: ['5 coupes sur 5 semaines', 'Sans barbe'], description: '16 € la coupe. Tu réserves la première, on fixe les suivantes avec toi.', pack: { credits: 5, days: 70 } }
 ];
 
 /** Swap a service with its neighbour in its category: the order is the site's order. */
@@ -104,7 +104,7 @@ function PriceList({ items }: { items: Service[] }) {
               {active.filter((s) => s.category === c).map((s) => (
                 <li key={s.id} className="li">
                   <span className="li-main">
-                    <b>{s.name}{s.pack ? <span className="badge badge-ok">{s.pack.credits} passages · {s.pack.days} j</span> : null}{!s.online ? <span className="badge">au salon seulement</span> : null}</b>
+                    <b>{s.name}{s.pack ? <span className="badge badge-ok">Carnet · {s.pack.credits} passages · {s.pack.days} j</span> : null}{!s.online ? <span className="badge">au salon seulement</span> : null}</b>
                     <small>{dur(s.dur)}{s.buffer ? ' + ' + s.buffer + ' min de battement' : ''}{s.description ? ' · ' + s.description : ''}</small>
                   </span>
                   <span className="li-end"><b className="ct-price">{s.from ? <small>dès </small> : null}{eur(s.price)}</b></span>
@@ -189,7 +189,7 @@ function Services({ items }: { items: Service[] }) {
                 <li key={s.id} className="ct-row">
                   <button type="button" className="li ct-main" onClick={() => setEdit(s)}>
                     <span className="li-main">
-                      <b>{s.name}{s.pack ? <span className="badge badge-ok">{s.pack.credits} passages · {s.pack.days} j</span> : null}<SiteBadge s={s} />{s.tag ? <span className="badge badge-accent">{s.tag}</span> : null}</b>
+                      <b>{s.name}{s.pack ? <span className="badge badge-ok">Carnet · {s.pack.credits} passages · {s.pack.days} j</span> : null}<SiteBadge s={s} />{s.tag ? <span className="badge badge-accent">{s.tag}</span> : null}</b>
                       <small>{dur(s.dur)}{s.buffer ? ' + ' + s.buffer + ' min de battement' : ''} · TVA {s.vat / 100} %{s.description ? ' · ' + s.description : ''}</small>
                     </span>
                     <span className="ct-flags">
@@ -312,7 +312,7 @@ function ServiceSheet({ sv, all, onClose }: { sv: Service | 'new' | null; all: S
           </div>
         ) : <span className="faint" style={{ fontSize: 13.5 }}>{isNew ? 'En dernier dans sa catégorie ; tu la déplaces ensuite.' : 'Archivée : pas sur le site.'}</span>}</Field>
       </div>
-      <Switch on={f.isPack} onChange={(v) => setF({ ...f, isPack: v })} title="C’est un abonnement" hint="Vendu une fois, puis chaque passage est décompté à la caisse." />
+      <Switch on={f.isPack} onChange={(v) => setF({ ...f, isPack: v })} title="C’est un carnet" hint="Vendu une fois, puis chaque passage est décompté à la caisse." />
       {f.isPack ? (
         <div className="card card-tight ct-pack">
           <div className="grid2">

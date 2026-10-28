@@ -67,7 +67,7 @@ export function clientCard(s, c, caps, stats, now = Date.now()) {
   if (loyalty && loyalty.rewards) badges.unshift('récompense');
   return {
     id: c.id, first: c.first, last: c.last, name: (c.first + ' ' + (c.last ? c.last.charAt(0) + '.' : '')).trim(),
-    phone: caps.has('client.contact') ? fmtPhone(c.phone) : maskPhone(c.phone), hasPhone: !!c.phone,
+    phone: caps.has('client.contact') ? fmtPhone(c.phone) : maskPhone(c.phone), hasPhone: !!c.phone, hasEmail: !!c.email,
     badges, visits: st ? st.visits : 0, lastDay: st ? st.lastDay : null, sinceLast: st ? st.sinceLast : null, cadence: st ? st.cadence : null,
     spend: st ? st.spend : 0, noShows: st ? st.noShows : 0, next: st ? st.next : null, overdue: st ? st.overdue : false, dueIn: st ? st.dueIn : null,
     tech: c.tech || '', sms: c.sms, packs: packs.map((k) => ({ id: k.id, name: k.name, used: k.used, total: k.total, expires: k.expires, serviceIds: k.serviceIds || [] })), memberships, ...(loyalty ? { loyalty } : {})

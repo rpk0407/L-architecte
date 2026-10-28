@@ -9,6 +9,7 @@ export const SECTION_CAP: Record<string, string> = {
   horaires: 'settings',
   reservation: 'settings',
   paiements: 'settings',
+  abonnements: 'settings',
   messages: 'settings',
   equipe: 'settings',
   objectifs: 'settings',

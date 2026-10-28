@@ -9,8 +9,25 @@ export type Product = { id: string; name: string; price: number; cost: number; s
 export type Settings = any;
 export type Boot = { me: Me; mode: 'demo' | 'production'; today: string; now: number; version: number; cfg: number; settings: Settings; staff: Staff[]; services: Service[]; products: Product[]; providers: { payments: string; paymentsLive: boolean; sms: string | null; store: string }; warnings: string[] };
 
-export type ClientCard = { id: string; first: string; last: string; name: string; phone: string; hasPhone: boolean; badges: string[]; visits: number; lastDay: string | null; sinceLast: number | null; cadence: number | null; spend: number; noShows: number; next: { id: string; day: string; start: number; staffId: string } | null; overdue: boolean; dueIn: number | null; tech: string; sms: boolean; packs: { id: string; name: string; used: number; total: number; expires: string; serviceIds: string[] }[] };
+export type ClientCard = { id: string; first: string; last: string; name: string; phone: string; hasPhone: boolean; hasEmail: boolean; badges: string[]; visits: number; lastDay: string | null; sinceLast: number | null; cadence: number | null; spend: number; noShows: number; next: { id: string; day: string; start: number; staffId: string } | null; overdue: boolean; dueIn: number | null; tech: string; sms: boolean; packs: { id: string; name: string; used: number; total: number; expires: string; serviceIds: string[] }[]; memberships: MemberCard[] };
 export type ClientFull = ClientCard & { email: string; notes: string; birthday: string; tags: string[]; marketing: boolean; source: string; createdAt: number; erased: boolean };
+// PAY-02/05: the monthly membership. MemberCard rides on a client's card (views.js memberCards); MemberRow is a line of
+// Clients › Abonnés (routes-membership.js rowOf); a barber's rows never carry a payment in trouble, the card or the refund.
+export type MemberStatus = 'pending' | 'active' | 'grace' | 'unpaid' | 'paused' | 'ending' | 'ended';
+export type MemberCard = { id: string; plan: string; planId: string; status: MemberStatus; used: number; of: number; until: string | null; cancelAt: string | null; card: string };
+export type MemberRow = {
+  id: string; clientId: string | null; first: string; plan: string; planId: string; price: number; status: MemberStatus; channel: string; used: number; of: number; until: string | null;
+  cancelAt: string | null; cancelVerified: boolean | null; pastDueSince: number | null; card: string; disputed: boolean; since: number | null; endedAt: number | null; endReason: string;
+  next: string | null; refund: number;
+};
+export type MemberSummary = {
+  day: string; pending: number; active: number; grace: number; unpaid: number; ending: number; paused: number; disputed: number; live: number; mrr: number; graceDays: number;
+  days30: { joined: number; left: number; churn: number }; troubled: number; month: { month: string; cuts: number; value: number; collected: number };
+};
+/** GET /api/v1/memberships/:id/cover: the till's dry check (routes-membership.js). */
+export type Cover = { ok: boolean; why: 'ended' | 'paused' | 'unpaid' | 'service' | 'quota' | 'soon' | null; used: number; of: number; until: string | null; next: string | null; label: string; words: string; force: boolean; plan: string };
+/** settings.membership.plans (server/settings/membership.js) */
+export type Plan = { id: string; name: string; price: number; cuts: number; minDays: number; serviceIds: string[]; vat?: number; online: boolean; blurb: string; active: boolean };
 export type ApptService = { id: string; name: string; price: number; from: boolean; dur: number };
 export type Appt = { id: string; code: string; staffId: string; anyStaff: boolean; day: string; start: number; dur: number; services: ApptService[]; price: number; status: 'pending' | 'booked' | 'arrived' | 'in_chair' | 'done' | 'no_show' | 'cancelled'; source: string; note: string; name: string; client: ClientCard | null; deposit: { amount: number; paid: number; paymentId: string | null } | null; saleId: string | null; createdAt: number; statusAt: Record<string, number>; cancel: any; moves: number; demo: boolean; legacy?: boolean };
 export type Lane = Staff & { work: [number, number][] };
@@ -24,7 +41,7 @@ export type Agenda = { day: string; lanes: Lane[]; appts: Appt[]; blocks: Block[
 // its subject in aboutStaffId (an absence told to the team holders)
 export type FeedItem = { v: number; at: number; by: string; kind: string; title: string; sub: string; apptId?: string; saleId?: string; day?: string; money?: boolean; staffId?: string | null; aboutStaffId?: string };
 export type Pulse = { version: number; cfg: number; now: number; today: string; min: number; feed: FeedItem[]; badges: { toPay: number; queue: number; relances: number; waitlist: number; retention?: number } };
-export type SaleLine = { kind: 'service' | 'product' | 'giftcard' | 'pack' | 'fee'; ref: string | null; name: string; qty: number; unit: number; discount: number; net: number; staffId: string | null; vat: number; packId: string | null };
+export type SaleLine = { kind: 'service' | 'product' | 'giftcard' | 'pack' | 'fee' | 'membership'; ref: string | null; name: string; qty: number; unit: number; discount: number; net: number; staffId: string | null; vat: number; packId: string | null; memberId?: string | null };
 export type Sale = { id: string; number: number; ref: string; day: string; at: number; apptId: string | null; clientId: string | null; client: string | null; cashier: string; lines: SaleLine[]; discount: { amount: number; reason: string } | null; tip: { amount: number; staffId: string } | null; totals: { gross: number; discount: number; total: number; tip: number; due: number; revenue: number; revenueHT: number; liability: number; vat: { rate: number; base: number; tax: number }[] }; payments: { method: string; amount: number; given?: number; change?: number; last4?: string }[]; refunded: number; refunds: { id: string; ref: string; amount: number; method: string; reason: string; at: number }[]; note: string };
 // GET /api/v1/reports in own scope (TEAM-01): the salon's progress (goalPct a whole %, null without a goal; fill 0..1),
 // and each barber's figures with report.team, never commission, rates or tips.

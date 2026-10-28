@@ -1,0 +1,12 @@
+/* the client's chips beside the name at the till */
+.till-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.till-chip { display: inline-flex; }
+.till-more { position: relative; border: 0; cursor: pointer; font: inherit; font-weight: 600; font-size: 11.5px; }
+/* the visible chip stays small, its target is 44 px */
+.till-more::after { content: ''; position: absolute; inset: -11px -8px; }
+.till-more:hover { background: var(--panel2); }
+/* a cut the plan refused stays priced, and says why in the line */
+.tk-line .nm small.tk-refused { color: var(--warn-tx); }
+.tk-force { grid-column: 1 / -1; justify-self: start; display: inline-flex; align-items: center; min-height: 44px; padding: 0 4px; font: 600 13px/1 var(--sans); color: var(--tx); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.till-offer { display: flex; justify-content: center; }
+@media (max-width: 760px) { .till-offer .btn { min-height: 44px; } }

@@ -23,7 +23,7 @@ import { sendMemberLink, offerMember, sendCardLink, requestCancelUnverified, con
 import { paymentRefundedOutside } from '../commands/payments.js';
 import { refund as refundSale } from '../commands/sales.js';
 import { providerKnown, outsideOpen } from '../projections/payments.js';
-import { statusIn, periodIn, membersOf, liveIn, canWithdraw, withdrawRefund, abandoned, mrr, graceOf, disputeHeld, dateWords } from '../domain/membership.js';
+import { statusIn, periodIn, membersOf, liveIn, canWithdraw, withdrawRefund, abandoned, mrr, graceOf, disputeHeld, dateWords, cover, coverWords, label as coverLabel, rootOf } from '../domain/membership.js';
 import { LINK_IP_PER_HOUR, LINK_PER_DAY, linkIpKey, linkPhoneKey } from '../domain/linkcap.js';
 
 const HOUR = 3600000, DAY = 86400000;
@@ -136,6 +136,8 @@ function rowOf(s, m, now, full) {
   const hide = !full && (status === 'grace' || status === 'unpaid');
   // stopped before the end it had been given (« Résilier tout de suite » after a cancellation at the month's end): its last day is that day
   const endDay = m.ended ? localParts(m.ended.at).day : '';
+  const live = status !== 'ended';
+  const period = paidPeriodOf(m, p);
   return {
     id: m.id, clientId: k.cid, first: k.first, plan: m.name, planId: m.planId, price: m.price, status: hide ? 'active' : status, channel: m.channel,
     used: p ? m.uses.filter((u) => u.periodStart === p.start).length : 0, of: m.cuts, until: p ? addDays(p.grace && p.until ? p.until : p.end, -1) : null,
@@ -143,8 +145,20 @@ function rowOf(s, m, now, full) {
     pastDueSince: full && m.pastDue && status !== 'ended' ? m.pastDue.at : null, card: full ? m.card || '' : '',
     disputed: full ? (m.disputes || []).some((x) => x.status === 'open' || x.status === 'lost') : false,
     // a barber never reads a payment in trouble: an end for want of payment is an end to him
-    since: m.activatedAt || null, endedAt: m.ended ? m.ended.at : null, endReason: m.withdrawn ? 'withdrawn' : m.ended ? (!full && m.ended.reason === 'unpaid' ? 'ended' : m.ended.reason) : ''
+    since: m.activatedAt || null, endedAt: m.ended ? m.ended.at : null, endReason: m.withdrawn ? 'withdrawn' : m.ended ? (!full && m.ended.reason === 'unpaid' ? 'ended' : m.ended.reason) : '',
+    // PAY-05: the next charge (as memberView says it) and what « Résilier tout de suite » would give back (0: nothing to)
+    next: !live || m.cancel || hide || status === 'grace' || status === 'unpaid' ? null : p && p.paid ? p.end : p ? p.start : null, refund: full && live ? unusedRefund(period, day) : 0
   };
+}
+
+/** The paid month a period is, as the member holds it (its amount and ticket), or null. @param {any} m @param {any} p */
+const paidPeriodOf = (m, p) => (p && p.paid ? m.periods.find((x) => x.start === p.start) || null : null);
+/** « Résilier tout de suite » with the switch on: the month's unused days, pro rata, of what it cost (the owner's goodwill). */
+function unusedRefund(period, day) {
+  if (!period) return 0;
+  const total = Math.max(1, diffDays(period.start, period.end));
+  const unused = Math.max(0, diffDays(day, period.end) - 1);
+  return Math.min(period.amount, Math.round((period.amount * unused) / total));
 }
 
 /* ---------------- the owner's figures, memoised per journal version and day ---------------- */
@@ -423,7 +437,9 @@ export function membershipRoutes(app, o = {}) {
    */
   app.get('/api/v1/memberships', async (r) => {
     const s = r.s, day = r.local.day, full = r.caps.has('member.manage');
-    if (full) {
+    // PAY-05: one file's memberships (the client file's block); the catch-up is the board's, not every file's
+    const only = r.query.get('clientId');
+    if (full && !only) {
       const late = [...s.members.values()].filter((m) => m.activatedAt && !m.ended && !m.withdrawn && billingOf(r, m) && m.periods.length && m.periods[m.periods.length - 1].end < addDays(day, -1) && !(m.cancel && m.cancel.effective <= day) && !recently(m.id, r.now)).slice(0, 5);
       const until = Date.now() + CATCH_UP_MS;
       for (const m of late) {
@@ -432,11 +448,44 @@ export function membershipRoutes(app, o = {}) {
         try { await syncMember(r, m); } catch (e) { console.error('[lx] membership catch-up', m.id, e && /** @type {any} */ (e).message); }
       }
     }
-    const rows = [...r.s.members.values()].filter((m) => m.activatedAt || !abandoned(m, r.now)).sort((a, b) => b.createdAt - a.createdAt).map((m) => rowOf(r.s, m, r.now, full));
+    const rows = [...r.s.members.values()].filter((m) => (m.activatedAt || !abandoned(m, r.now)) && (!only || rootOf(s, m.cid) === rootOf(s, only))).sort((a, b) => b.createdAt - a.createdAt).map((m) => rowOf(r.s, m, r.now, full));
     return { members: rows, mrr: full ? mrr(r.s, day) : null };
   }, { cap: 'client.view' });
 
+  /**
+   * What the counter can sell (PAY-05): every formule on sale, the ones kept for the salon too (online: false), which the
+   * site's list leaves out. live: money can move (the switch on, Stripe or the demo, at least one formule).
+   */
+  app.get('/api/v1/memberships/plans', (r) => {
+    const s = r.s, M = s.settings.membership || {};
+    const plans = (M.plans || []).filter((p) => p.active !== false).map((p) => ({ id: p.id, name: p.name, price: p.price, words: coverWordsOf(s, p), online: p.online !== false, serviceIds: p.serviceIds || [] }));
+    return { live: !!M.enabled && open(r) && plans.length > 0, plans };
+  }, { cap: 'client.edit' });
+
   app.get('/api/v1/memberships/summary', (r) => membershipSummary(r.s, r.now), { cap: 'report.shop' });
+
+  /**
+   * The till's dry check (PAY-05): would this member's plan pay for that service today? The same rule as the checkout's
+   * (domain/membership.js cover), asked before ringing up so the line can say « Abonnement · coupe 1/2 » at 0 € or why it
+   * stays priced. pending: the member's covered cuts already on the ticket. force: the owner or a manager may give a refused
+   * cut anyway (never an ended contract), which the checkout asks of member.manage again.
+   */
+  app.get('/api/v1/memberships/:id/cover', (r) => {
+    const s = r.s, m = s.members.get(r.params.id);
+    if (!m) throw new HttpError(404, 'not_found', 'Abonnement introuvable.');
+    const sv = s.services.get(String(r.query.get('serviceId') || ''));
+    if (!sv) throw new HttpError(404, 'not_found', 'Prestation introuvable.');
+    const pending = Math.max(0, Math.min(9, Number(r.query.get('pending')) || 0));
+    const c = cover(s, m, sv.id, { day: r.local.day, pending });
+    // a barber never reads a payment in trouble (as rowOf and memberCards): to him it is a cut the plan does not cover today
+    const mask = !c.ok && c.why === 'unpaid' && !r.caps.has('member.manage');
+    const words = c.ok ? '' : mask ? 'L’abonnement ne couvre pas cette coupe aujourd’hui' : coverWords(c, sv.name);
+    return {
+      ok: c.ok, why: c.ok ? null : mask ? 'quota' : c.why, used: c.used, of: c.of, until: c.until, next: c.next || null,
+      label: c.ok ? coverLabel(m, c.used + 1, c) : '', words, force: !c.ok && c.why !== 'ended' && r.caps.has('member.manage'),
+      plan: m.name
+    };
+  }, { cap: 'sale.create' });
 
   /**
    * The counter offers a membership to a client's file: the same checkout (channel 'salon'), then { send: 'sms' } texts
@@ -463,7 +512,6 @@ export function membershipRoutes(app, o = {}) {
       const url = done.url || (done.provider === 'simulated' ? r.origin + '/paiement/' + encodeURIComponent(done.id) : '');
       return { id, link: r.origin + '/api/public/memberships/' + memberToken(r.rt.secret, id, Math.max(done.exp || 0, r.now + DAY)) + '/pay', url, sent: s.messages.has('msg_moffer_' + id) };
     }
-    if (send === 'sms' && !c.phone) throw new HttpError(409, 'no_phone', 'Pas de numéro sur cette fiche : montre le QR code.');
     if (!c.phone) throw new HttpError(409, 'no_phone', 'Ajoute le numéro du client d’abord : l’abonnement le demande.');
     if (!c.email || !isEmail(c.email)) throw new HttpError(409, 'no_email', 'Ajoute l’e-mail du client d’abord : il reçoit la confirmation de son abonnement.');
     if (liveOf(s, c.id, r.local.day)) throw new HttpError(409, 'already', 'Ce client a déjà un abonnement en cours.');
@@ -499,8 +547,7 @@ export function membershipRoutes(app, o = {}) {
     // unverified even once ended: a start not begun is called off at once, and only this confirmation tells Stripe
     const unverified = !!(m.cancel && m.cancel.verified === false);
     // the paid month as it stands before the end, for the goodwill refund
-    const p = periodIn(r.s, m, day);
-    const period = p && p.paid ? m.periods.find((x) => x.start === p.start) || null : null;
+    const period = paidPeriodOf(m, periodIn(r.s, m, day));
     // cancelled at the month's end, now stopped today: the client is told the new end
     const sooner = !!(m.cancel && !m.ended && now && m.activatedAt);
     let res;
@@ -513,9 +560,7 @@ export function membershipRoutes(app, o = {}) {
     if (sooner && cur.ended) await run(ackStoppedNow, { id: cur.id });
     let refunded = null;
     if (now && b.refund === true && period && cur.ended) {
-      const total = Math.max(1, diffDays(period.start, period.end));
-      const unused = Math.max(0, diffDays(day, period.end) - 1);
-      const amount = Math.min(period.amount, Math.round((period.amount * unused) / total));
+      const amount = unusedRefund(period, day);
       if (amount > 0) {
         const done = await refundMonth(r, { paymentId: period.paymentId, saleId: period.saleId, amount, key: 'mbcx-' + m.id + '-' + period.invoice, reason: 'Résiliation : jours non utilisés', as: run });
         refunded = { amount, ok: done.ok, ...(done.error ? { error: done.error } : {}) };

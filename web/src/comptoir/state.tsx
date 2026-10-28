@@ -98,7 +98,7 @@ export function AppProvider({ initial, onOut, children }: { initial: Boot; onOut
             if (live.length) {
               setUnread((n) => n + live.length);
               const last = live[live.length - 1];
-              toast({ kind: 'info', title: last.title, sub: last.sub, icon: last.kind === 'booking' ? 'calendar' : last.kind === 'cancel' ? 'x' : last.kind === 'payment' ? 'card' : last.kind === 'dispute' ? 'alert' : 'bell' });
+              toast({ kind: 'info', title: last.title, sub: last.sub, icon: last.kind === 'booking' ? 'calendar' : last.kind === 'cancel' ? 'x' : last.kind === 'payment' ? 'card' : last.kind === 'dispute' ? 'alert' : last.kind === 'member' ? 'card' : 'bell' });
               if (me.prefs?.buzz !== false) buzz([12, 50, 12]);
             }
           }
