@@ -9,8 +9,15 @@ import { defaultSettings, emptyState, TEMPLATES } from '../../server/core/state.
 import { TEMPLATES as REGISTRY } from '../../server/core/templates.js';
 import { SECTIONS, settingsSchema } from '../../server/settings/index.js';
 import trainings from '../../server/settings/trainings.js';
+import { DEFAULT_ACCOUNTS } from '../../shared/accounts.js';
 import { EXTENSIONS } from '../../server/core/extensions.js';
 import { settingsSchema as fromShop, updateSettings } from '../../server/commands/shop.js';
+
+const comptaDefaults = () => ({
+  regime: 'a-confirmer', servicesVat: 'encaissements', giftcards: 'multiple', depositVat: true, feesReverseCharge: true, legalForm: 'a-confirmer',
+  accounts: { ...DEFAULT_ACCOUNTS }, journals: { sales: 'VE', cash: 'CA', bank: 'BQ', misc: 'OD' },
+  accountant: { name: '', firm: '', email: '' }, autoSend: true, ereporting: { from: '2027-09-01', cadence: 'mensuel' }
+});
 
 // The settings as they were written in state.js before the split, key order included.
 const BEFORE = () => {
@@ -95,7 +102,9 @@ const BEFORE = () => {
     // FID-02: the stamp card, off until the owner launches it
     loyalty: { enabled: false, goal: 9, minNet: 1000, reward: { kind: 'service', refs: [], cap: 2500 }, rewardDays: 180, resetDays: 365, headStart: 'half', referral: { enabled: false, referrer: { kind: 'amount', amount: 500 }, referee: { kind: 'amount', amount: 500 }, perYear: 5 } },
     // AC-01: the client space, off until the SMS route is tested (on in the demo, by the seed)
-    accounts: { enabled: false, sessionDays: 180, fenceDays: 180 }
+    accounts: { enabled: false, sessionDays: 180, fenceDays: 180 },
+    // CPT-03: the books, every choice to confirm once with the accountant
+    compta: comptaDefaults()
   };
 };
 
@@ -126,6 +135,8 @@ const ACCEPTED = [
   [{ goals: { monthCents: 3000000 } }, { goals: { monthCents: 3000000 } }],
   [{ fiscal: { yearEndMonth: '6' } }, { fiscal: { yearEndMonth: 6 } }],
   [{ accounts: { enabled: true, sessionDays: 30, fenceDays: 1095 } }, { accounts: { enabled: true, sessionDays: 30, fenceDays: 1095 } }],
+  // CPT-03: a role's number, a journal code; an unknown role is dropped
+  [{ compta: { regime: 'reel-mensuel', accounts: { 'method.card': '5115', mystery: '1' }, journals: { sales: 'VT' } } }, { compta: { regime: 'reel-mensuel', accounts: { 'method.card': '5115' }, journals: { sales: 'VT' } } }],
   // closures have their own commands, and unknown sections are dropped
   [{ closures: [{ id: 'x', from: '2026-12-24', to: '2026-12-26', label: 'Noël' }], mystery: 1 }, {}],
   // PAY-02: a plan's fair use and flags filled in (a week between two cuts for illimité)
@@ -168,6 +179,10 @@ const REJECTED = [
   [{ accounts: { sessionDays: 29 } }, 'accounts.sessionDays : entre 30 et 400'],
   [{ accounts: { fenceDays: 60 } }, 'accounts.fenceDays : entre 90 et 1095'],
   [{ accounts: { enabled: 'oui' } }, 'accounts.enabled : vrai/faux attendu'],
+  [{ compta: { accounts: { 'revenue.service': '70A' } } }, 'compta.accounts.revenue.service : format invalide'],
+  [{ compta: { giftcards: 'unique' } }, 'compta.giftcards : valeur non permise'],
+  [{ compta: { regime: 'micro' } }, 'compta.regime : valeur non permise'],
+  [{ compta: { journals: { sales: 'VE', bank: 'VE' } } }, 'compta.journals : deux journaux ont le même code (VE)'],
   ['x', 'objet attendu'],
   [[], 'objet attendu']
 ];
