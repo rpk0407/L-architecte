@@ -29,7 +29,7 @@ const steps: GuideStep[] = [
   step(R + '/attente', 'attente.rule', 'attente-rule', DESK, 20, 'Comment une place est proposée', 'Un rendez-vous annulé est proposé par SMS au premier inscrit compatible, qui a 30 minutes pour répondre. Sinon la place passe au suivant, sans que personne ait rien à faire.'),
   step(R + '/attente', 'attente.list', 'attente-list', DESK, 30, 'Liste d’attente', 'Les inscrits du site, jour par jour, avec le créneau qu’ils veulent. L’accueil et le gérant peuvent retirer quelqu’un avec la croix.'),
   step(R + '/demandes', 'demandes.seg', 'demandes-seg', DESK, 10, 'À traiter, Traitées', 'À traiter garde les nouvelles demandes du site, Traitées celles que tu as rangées, Toutes les deux ensemble.'),
-  step(R + '/demandes', 'demandes.card', 'demandes-card', DESK, 20, 'Une demande', 'Quand quelqu’un écrit depuis les pages Contact ou Formations du site, ou répond par SMS, sa demande arrive ici. Réponds par SMS : elle passe alors en traitée ; si tu as appelé ou écrit un e-mail, touche Marquer traité.'),
+  step(R + '/demandes', 'demandes.card', 'demandes-card', DESK, 20, 'Une demande', 'Un message du site (Contact, Formations) ou une réponse par SMS arrive ici. Réponds par SMS et elle passe en traitée ; après un appel ou un e-mail, touche Marquer traité.'),
   step(R + '/envoyes', 'envoyes.list', 'envoyes-list', DESK, 10, 'Derniers messages', 'Chaque SMS ou e-mail parti du salon, avec son état : envoyé, prévu ou en échec. Le motif de chaque échec est dans sa ligne.'),
 
   // ---- Rapports (the owner's and manager's figures of the salon; a barber's are his own)
