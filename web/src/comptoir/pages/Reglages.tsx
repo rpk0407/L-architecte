@@ -66,7 +66,7 @@ export default function Reglages() {
     <>
       <PageTitle><h1>{phone && cur ? cur.label : 'Réglages'}</h1></PageTitle>
       <div className={'rg' + (cur ? ' has-cur' : '')}>
-        <nav className="rg-nav" aria-label="Sections des réglages">
+        <nav className="rg-nav" aria-label="Sections des réglages" data-guide="reglages-nav">
           {groups.map((g) => (
             <div key={g} className="rg-group">
               <p className="section-k">{g}</p>

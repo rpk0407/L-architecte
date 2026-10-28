@@ -19,7 +19,7 @@ export default function ReviewsCard({ from, to }: { from: string; to: string }) 
   const staff = useRoute().query.get('barbier');
   const { data } = useQuery<Stats>('/api/v1/reviews/stats' + qs({ from, to, staff }));
   return (
-    <section className="card av-card" aria-label="Avis Google">
+    <section className="card av-card" aria-label="Avis Google" data-guide="rapports-avis">
       <div className="card-h">
         <h2><Icon name="star" size={16} />Avis Google</h2>
         {can('settings') ? <Link to="/reglages/messages" className="btn btn-ghost btn-sm">Réglages<Icon name="chevR" size={14} /></Link> : null}

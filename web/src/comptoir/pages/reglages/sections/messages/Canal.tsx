@@ -99,7 +99,7 @@ export default function Canal({ s }: { s: any }) {
   );
   const fail = d.lastFailure && now() - d.lastFailure.at < 7 * 86400000 ? d.lastFailure : null;
   return (
-    <Card title="Canal d’envoi" icon="sms" aside={<span className={'badge ' + tone}>{inUse}</span>}>
+    <Card title="Canal d’envoi" icon="sms" guide="messages-canal" aside={<span className={'badge ' + tone}>{inUse}</span>}>
       <p className="muted" style={{ fontSize: 13.5 }}>Par où partent les messages automatiques. Le téléphone du salon envoie depuis le vrai numéro du salon, au prix de son forfait, et les clients peuvent y répondre. WhatsApp passe en premier pour les messages qui ont un modèle approuvé ; s’il refuse, le SMS part à la place.</p>
       <Field label="Ton portable, pour les tests" htmlFor="cn-phone" hint="Vide : le numéro de « Me prévenir », ou celui du salon si c’est un portable.">
         <input id="cn-phone" className="input" type="tel" inputMode="tel" autoComplete="tel" maxLength={24} placeholder="06 12 34 56 78" value={phone} onChange={(e) => setPhone(e.target.value.replace(/[^\d +().-]/g, ''))} />

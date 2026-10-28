@@ -174,7 +174,7 @@ export function Bascule() {
   };
 
   return (
-    <section className="card col jj" style={{ gap: 14 }} aria-label="Jour J">
+    <section className="card col jj" style={{ gap: 14 }} aria-label="Jour J" data-guide="wp-jourj">
       <div className="card-h"><h2><Icon name="bolt" size={16} />Jour J</h2>{data.demo ? <span className="badge badge-info">démo</span> : null}</div>
       <p className="muted jj-intro">Les dix étapes du jour de la bascule, dans l’ordre. Les coches viennent de ce que le Comptoir peut vérifier ; le reste, c’est toi qui le dis. Rien ici ne touche à WordPress ni aux DNS.</p>
       {data.hold.on ? <Note icon="lock">Avant la bascule, le salon n’envoie aucun SMS ni e-mail à un client : WordPress envoie encore les siens.{data.hold.queued ? ' ' + data.hold.queued + (data.hold.queued > 1 ? ' messages attendent' : ' message attend') + ' la bascule.' : ''}</Note> : null}

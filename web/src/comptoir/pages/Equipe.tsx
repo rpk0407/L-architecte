@@ -50,7 +50,7 @@ function Requests({ items, staff }: { items: TimeOff[]; staff: Staff[] }) {
     try { await decideRequest(t.id, yes, staff.find((s) => s.id === t.staffId)?.name || ''); } finally { setBusy(''); }
   };
   return (
-    <section className="card eq-requests">
+    <section className="card eq-requests" data-guide="equipe-requests">
       <div className="card-h"><h2><Icon name="bell" size={16} />Demandes d’absence</h2><span className="badge badge-accent">{items.length}</span></div>
       <ul className="list">
         {items.map((t) => {
@@ -166,13 +166,13 @@ function Team({ data }: { data: TeamData }) {
   return (
     <>
       <PageTitle><h1>Équipe</h1></PageTitle>
-      <div className="row wrap eq-bar">
+      <div className="row wrap eq-bar" data-guide="equipe-bar">
         <p className="muted grow">{plural(active.filter((x) => x.chair).length, 'fauteuil')} · {plural(active.length, 'personne')}</p>
         <Button variant="ghost" icon="calendar" onClick={() => setOff(true)}>Poser une absence</Button>
         <Button variant="primary" icon="plus" onClick={() => setAdding(true)}>Ajouter</Button>
       </div>
       {requests.length ? <Requests items={requests} staff={data.items} /> : null}
-      <div className="eq-grid">
+      <div className="eq-grid" data-guide="equipe-list">
         {active.map((s) => {
           const stt = status(s);
           const l = load(s);
@@ -204,7 +204,7 @@ function Team({ data }: { data: TeamData }) {
         })}
       </div>
 
-      <section className="card" style={{ marginTop: 16 }}>
+      <section className="card" style={{ marginTop: 16 }} data-guide="equipe-absences">
         <div className="card-h"><h2><Icon name="calendar" size={16} />Absences à venir</h2><Button size="sm" variant="ghost" icon="plus" onClick={() => setOff(true)}>Poser</Button></div>
         {upcoming.length ? <TimeOffList items={upcoming} staff={data.items} onPlan={openPlan} /> : <p className="muted">Personne n’est absent dans les jours qui viennent.</p>}
       </section>
@@ -489,7 +489,7 @@ export function MyAbsences({ st }: { st: Staff }) {
   const [off, setOff] = useState(false);
   const list = [...(mine.data?.requests || []), ...(mine.data?.items || [])].sort((a, b) => a.from.localeCompare(b.from));
   return (
-    <section className="card" id="absences">
+    <section className="card" id="absences" data-guide="equipe-mes-absences">
       <div className="card-h"><h2><Icon name="calendar" size={16} />Mes absences</h2><Button size="sm" variant="ghost" icon="plus" onClick={() => setOff(true)}>Poser</Button></div>
       {list.length ? <TimeOffList items={list} staff={[st]} /> : <p className="muted">{mine.data?.approval ? 'Aucune absence prévue. Une absence posée ici part au gérant : tes créneaux restent ouverts jusqu’à sa validation.' : 'Aucune absence prévue. Une absence posée ici retire tes créneaux du site immédiatement.'}</p>}
       <TimeOffSheet open={off} onClose={() => { setOff(false); refreshAll(); }} staff={[st]} fixed={st.id} />
@@ -541,9 +541,9 @@ function Member({ st, timeoff }: { st: Staff; timeoff: TimeOff[] }) {
       <button type="button" className="cl-back eq-back" onClick={() => navigate('/equipe')}><Icon name="chevL" size={16} />Équipe</button>
       <div className="eq-member">
         <div className="col" style={{ gap: 16 }}>
-          <Profile st={st} />
-          {st.chair ? <section className="card"><div className="card-h"><h2><Icon name="clock" size={16} />Horaires de la semaine</h2></div><ScheduleEditor st={st} /></section> : null}
-          {st.chair ? <ServicesCard st={st} /> : null}
+          <div data-guide="equipe-profil"><Profile st={st} /></div>
+          {st.chair ? <section className="card" data-guide="equipe-horaires"><div className="card-h"><h2><Icon name="clock" size={16} />Horaires de la semaine</h2></div><ScheduleEditor st={st} /></section> : null}
+          {st.chair ? <div data-guide="equipe-prestations"><ServicesCard st={st} /></div> : null}
         </div>
         <div className="col" style={{ gap: 16 }}>
           {st.chair ? (
@@ -552,8 +552,8 @@ function Member({ st, timeoff }: { st: Staff; timeoff: TimeOff[] }) {
               {upcoming.length ? <TimeOffList items={upcoming} staff={[st]} onPlan={openPlan} /> : <p className="muted">Aucune absence prévue.</p>}
             </section>
           ) : null}
-          {st.chair ? <Commission st={st} /> : null}
-          <Access st={st} />
+          {st.chair ? <div data-guide="equipe-commission"><Commission st={st} /></div> : null}
+          <div data-guide="equipe-acces"><Access st={st} /></div>
         </div>
       </div>
       <TimeOffSheet open={off} onClose={() => setOff(false)} staff={[st]} fixed={st.id} />
@@ -777,7 +777,7 @@ function LinkedPhones({ st, me }: { st: Staff; me: boolean }) {
     <>
       <div className="kv"><span>Téléphones liés</span><span className={'badge ' + (n ? 'badge-ok' : '')}>{n ? plural(n, 'téléphone') : 'aucun'}</span></div>
       {n ? <PhoneList st={st} self={me} /> : null}
-      <PhoneQR st={st} self={me} compact />
+      <div data-guide="equipe-phones"><PhoneQR st={st} self={me} compact /></div>
     </>
   );
 }

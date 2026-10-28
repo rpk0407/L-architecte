@@ -38,7 +38,7 @@ export default function Equipe({ s, data }: SectionProps) {
   const view = viewOf(T);
   return (
     <div className="col" style={{ gap: 16 }}>
-      <Card title="Ce que les barbiers peuvent faire" icon="shield">
+      <Card title="Ce que les barbiers peuvent faire" guide="equipe-droits" icon="shield">
         <Switch on={T.barberCheckout} onChange={(v) => t.setV({ ...T, barberCheckout: v })} title="Encaisser" hint="Sinon, seuls l’accueil et le gérant encaissent." />
         <Switch on={T.barberAllAgenda} onChange={(v) => t.setV({ ...T, barberAllAgenda: v })} title="Voir l’agenda de tout le salon" hint="Utile pour prendre un client au vol quand un collègue est plein. Il y voit aussi les prestations et leurs prix." />
         <Switch on={T.timeoffApproval !== false} onChange={(v) => t.setV({ ...T, timeoffApproval: v })} title="Valider leurs absences" hint="Une absence posée par un barbier t’attend : ses créneaux restent ouverts jusqu’à ce que tu la valides, et tu replaces ses clients en un geste." />
@@ -47,13 +47,13 @@ export default function Equipe({ s, data }: SectionProps) {
         <Switch on={T.staffCalendar !== false} onChange={(v) => t.setV({ ...T, staffCalendar: v })} title="Leur agenda dans leur téléphone" hint="Prénom du client et prestation, jamais le numéro." />
         <Field label="Remise maximale qu’un barbier peut accorder"><div className="chips">{[0, 5, 10, 15, 20].map((n) => <Chip key={n} small on={T.barberMaxDiscountPct === n} onClick={() => t.setV({ ...T, barberMaxDiscountPct: n })}>{n ? n + ' %' : 'aucune'}</Chip>)}</div></Field>
       </Card>
-      <Card title="Ce que chacun voit des autres" icon="eye">
+      <Card title="Ce que chacun voit des autres" guide="equipe-vue" icon="eye">
         {/* choosing retires the old switch: the server would otherwise keep reading it as « Toute l’équipe » */}
         <Field label="Les chiffres des collègues" hint={<span aria-live="polite">{VIEWS.find((x) => x.v === view)!.hint}</span>}>
           <div className="rg-view"><Seg value={view} onChange={(v) => t.setV({ ...T, teamView: v, barberSeeRevenue: false })} options={VIEWS.map(({ v, t: l }) => ({ v, t: l }))} label="Ce que chacun voit des autres" /></div>
         </Field>
       </Card>
-      <Card title="Rémunération" icon="percent" aside={<span className="faint" style={{ fontSize: 13 }}>Commission estimée, Mes chiffres et relevés de paie</span>}>
+      <Card title="Rémunération" guide="equipe-remuneration" icon="percent" aside={<span className="faint" style={{ fontSize: 13 }}>Commission estimée, Mes chiffres et relevés de paie</span>}>
         <Field label="Commission calculée sur" hint="Change la commission estimée, pas le chiffre.">
           <div className="rg-view"><Seg value={T.commissionBase === 'ht' ? 'ht' : 'ttc'} onChange={(v) => t.setV({ ...T, commissionBase: v })} options={BASES.map((x) => ({ ...x }))} label="Commission calculée sur" /></div>
         </Field>
@@ -68,7 +68,7 @@ export default function Equipe({ s, data }: SectionProps) {
         </Field>
         <p className="faint" style={{ fontSize: 12.5 }}>Le taux de chacun se règle sur sa fiche (Équipe). Le chiffre encaissé, la TVA et les clôtures ne changent pas : ces règles ne touchent que les chiffres de l’équipe.</p>
       </Card>
-      <Card title="Qui peut quoi" icon="key" aside={<span className="faint" style={{ fontSize: 13 }}>Selon les réglages enregistrés</span>}>
+      <Card title="Qui peut quoi" guide="equipe-matrice" icon="key" aside={<span className="faint" style={{ fontSize: 13 }}>Selon les réglages enregistrés</span>}>
         <div className="table-wrap">
           <table className="table rg-matrix">
             <thead><tr><th scope="col"><span className="vh">Droit</span></th>{ROLE_ORDER.map(([r, l, short]) => <th key={r} scope="col" title={l}><span className="rg-l">{l}</span><span className="rg-s" aria-hidden>{short}</span><span className="rg-s vh">{l}</span></th>)}</tr></thead>

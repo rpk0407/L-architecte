@@ -18,7 +18,7 @@ export default function Reservation({ s }: SectionProps) {
   const notice = [[0, 'Aucun'], [30, '30 min'], [60, '1 h'], [120, '2 h'], [720, 'La veille (12 h)'], [1440, '24 h']] as [number, string][];
   return (
     <div className="col" style={{ gap: 16 }}>
-      <Card title="Prise de rendez-vous" icon="globe">
+      <Card title="Prise de rendez-vous" guide="reservation-prise" icon="globe">
         <Switch on={B.enabled} onChange={(v) => b.setV({ ...B, enabled: v })} title="Réservation en ligne ouverte" hint={B.enabled ? 'Les clients réservent sur le site, 24 h sur 24.' : 'Le site invite à appeler le salon.'} />
         <Field label="Intervalle des créneaux proposés"><div className="chips">{[15, 20, 30].map((m) => <Chip key={m} small on={B.stepMin === m} onClick={() => b.setV({ ...B, stepMin: m })}>{m} min</Chip>)}</div></Field>
         <Field label="Délai minimum avant un rendez-vous"><div className="chips">{notice.map(([m, t]) => <Chip key={m} small on={B.minNoticeMin === m} onClick={() => b.setV({ ...B, minNoticeMin: m })}>{t}</Chip>)}</div></Field>
@@ -28,7 +28,7 @@ export default function Reservation({ s }: SectionProps) {
         <Switch on={B.walkinWait} onChange={(v) => b.setV({ ...B, walkinWait: v })} title="Afficher l’attente sans rendez-vous" hint="Le site montre en direct « environ 20 min d’attente »." />
       </Card>
       <EspaceClient s={s} />
-      <Card title="Acomptes et absences" icon="card">
+      <Card title="Acomptes et absences" guide="reservation-acomptes" icon="card">
         {noOnline ? <Note icon="info">Les acomptes s’activeront dès que Stripe sera branché. En attendant, les clients réservent sans payer.</Note> : null}
         <Field label="Demander un acompte">
           <div className="chips">

@@ -34,18 +34,18 @@ export default function Paiements({ s }: SectionProps) {
   const off = boot.mode !== 'demo' && prov.payments === 'simulated';
   return (
     <div className="col" style={{ gap: 16 }}>
-      <Card title="Moyens acceptés à la caisse" icon="caisse">
+      <Card title="Moyens acceptés à la caisse" guide="paiements-moyens" icon="caisse">
         <Switch on={P.card} onChange={(v) => p.setV({ ...P, card: v })} title="Carte bancaire (terminal)" hint="Le montant est saisi sur ton terminal ; la caisse l’enregistre." />
         <Switch on={P.cash} onChange={(v) => p.setV({ ...P, cash: v })} title="Espèces" hint="Rendu de monnaie calculé, tiroir compté le soir." />
         <Switch on={P.qr} onChange={(v) => p.setV({ ...P, qr: v })} title="QR code" hint={off ? 'Nécessite Stripe : désactivé tant qu’il n’est pas branché.' : 'Le client scanne et paie sur son téléphone (Apple Pay, carte). Sans terminal.'} />
         <Switch on={P.giftcard} onChange={(v) => p.setV({ ...P, giftcard: v })} title="Cartes cadeaux" />
       </Card>
-      <Card title="Pourboires et TVA" icon="heart">
+      <Card title="Pourboires et TVA" guide="paiements-pourboires" icon="heart">
         <Switch on={P.tips} onChange={(v) => p.setV({ ...P, tips: v })} title="Proposer un pourboire" hint="Versé au barbier, hors chiffre d’affaires et hors TVA." />
         {P.tips ? <Field label="Montants proposés (€)"><div className="chips">{P.tipPresets.map((t: number, i: number) => <input key={i} className="input ct-num" inputMode="decimal" value={(t / 100).toString().replace('.', ',')} onChange={(e) => p.setV({ ...P, tipPresets: P.tipPresets.map((x: number, j: number) => (j === i ? money.parseEur(e.target.value) ?? 0 : x)) })} aria-label={'Pourboire ' + (i + 1)} />)}</div></Field> : null}
         <Field label="TVA par défaut des nouvelles prestations"><div className="chips">{[2000, 1000, 550].map((v) => <Chip key={v} small on={P.vat === v} onClick={() => p.setV({ ...P, vat: v })}>{v / 100} %</Chip>)}</div></Field>
       </Card>
-      <Card title="Paiement en ligne" icon="globe" aside={<span className={'badge ' + (prov.paymentsLive ? 'badge-ok' : prov.payments === 'stripe' ? 'badge-info' : 'badge-warn')}>{prov.paymentsLive ? 'Stripe · réel' : prov.payments === 'stripe' ? 'Stripe · test' : off ? 'Non branché' : 'Simulé'}</span>}>
+      <Card title="Paiement en ligne" guide="paiements-stripe" icon="globe" aside={<span className={'badge ' + (prov.paymentsLive ? 'badge-ok' : prov.payments === 'stripe' ? 'badge-info' : 'badge-warn')}>{prov.paymentsLive ? 'Stripe · réel' : prov.payments === 'stripe' ? 'Stripe · test' : off ? 'Non branché' : 'Simulé'}</span>}>
         {prov.payments === 'stripe' ? (
           <p className="muted" style={{ fontSize: 13.5 }}>Les acomptes et les QR codes passent par Stripe. L’argent arrive sur ton compte Stripe puis sur ton compte bancaire ; les remboursements se font depuis le ticket.</p>
         ) : (

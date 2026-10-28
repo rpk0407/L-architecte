@@ -65,7 +65,7 @@ export default function Rapports() {
   return (
     <>
       <PageTitle><h1>{title}</h1></PageTitle>
-      <div className="rp-filters">
+      <div className="rp-filters" data-guide="rapports-filters">
         <div className="chips rp-periods" role="group" aria-label="Période">
           {PERIODS.map((x) => <Chip key={x.v} small on={p === x.v} onClick={() => setQuery({ p: x.v === 'mois' ? null : x.v, du: null, au: null })}>{x.t}</Chip>)}
           <Chip small on={custom} onClick={() => setQuery({ p: 'perso', du: from, au: to })}>Dates…</Chip>
@@ -108,7 +108,7 @@ function Body({ r, shop, who }: { r: Report; shop: boolean; who: string }) {
       {r.goal && r.scope !== 'own' ? <Goal g={r.goal} who={r.scope === 'staff' ? who : ''} /> : null}
       {r.goal && own ? <MyGoal g={r.goal} /> : null}
       {own ? (
-        <section className="kpis k6" aria-label="Mes chiffres">
+        <section className="kpis k6" aria-label="Mes chiffres" data-guide="rapports-kpis">
           <Kpi k="Mon chiffre" v={<M c={r.revenue} />} s={<>HT <M c={r.revenueHT} />{r.refunds ? <> · remboursé <M c={r.refunds} /></> : null}</>} delta={rel(r.revenue, r.prev.revenue)} icon="euro" />
           <Kpi k="Commission estimée" v={mine ? <M c={mine.commission} /> : '—'} s={mine ? 'prestations ' + mine.rates.service / 100 + ' % · produits ' + mine.rates.product / 100 + ' % · sur le ' + (mine.base === 'ht' ? 'HT' : 'TTC') : ''} icon="percent" />
           <Kpi k="Pourboires" v={<M c={r.tips} />} s={mine ? <>carte <M c={mine.tipsCard} /> · espèces <M c={mine.tipsCash} /></> : 'hors chiffre'} delta={rel(r.tips, r.prev.tips)} icon="heart" />
@@ -117,7 +117,7 @@ function Body({ r, shop, who }: { r: Report; shop: boolean; who: string }) {
           <Kpi k="Revenus sous 60 j" v={mine && mine.returned60Base ? pct(mine.returned60) : '—'} s={mine && mine.returned60Base ? pct(mine.returned60Mine) + ' avec toi · ' + plural(mine.returned60Base, 'visite') + ' d’il y a 2 à 5 mois' : 'pas encore assez de recul'} icon="clients" />
         </section>
       ) : (
-        <section className="kpis k5">
+        <section className="kpis k5" data-guide="rapports-kpis">
           {mine ? (
             // one barber: his Chiffre réalisé, not the money taken (the salon's « Chiffre d’affaires » is Encaissé)
             <Kpi k="Chiffre réalisé" v={<M c={r.revenue} />} s={<>avoirs déduits, coupes de carnet comprises · HT <M c={r.revenueHT} /></>} delta={rel(r.revenue, r.prev.revenue)} icon="euro" />
@@ -130,14 +130,14 @@ function Body({ r, shop, who }: { r: Report; shop: boolean; who: string }) {
       )}
       {own && r.salon ? <p className="rp-salon"><Icon name="target" size={15} />Le salon : {r.salon.goalPct != null ? r.salon.goalPct + ' % de l’objectif du mois · ' : ''}remplissage {pct(r.salon.fill)}</p> : null}
       {own || (r.scope === 'staff' && can('team')) ? (
-        <div className="rp-statement-cta">
+        <div className="rp-statement-cta" data-guide="rapports-statement">
           <Button variant="solid" icon="ticket" onClick={() => setSheet({ staffId: own ? null : r.staff[0]?.id || null })}>{own ? 'Mon relevé du mois' : 'Relevé du mois'}</Button>
           <span className="faint">{cap(dates.MONTHS_FR[Number(month.slice(5, 7)) - 1])} {month.slice(0, 4)} · réalisé, commission, pourboires, coupes de carnet et d’abonnement</span>
         </div>
       ) : null}
       {nothing ? <section className="card"><Empty icon="rapports" title="Rien sur cette période">Choisis une autre période : les chiffres se remplissent à chaque encaissement.</Empty></section> : (
         <>
-          <section className="card">
+          <section className="card" data-guide="rapports-days">
             <div className="card-h">
               <h2><Icon name="rapports" size={16} />{own ? 'Mon chiffre par jour' : 'Chiffre par jour'}</h2>
               <span className="rp-legend"><i className="sw cur" />Cette période<i className="sw prev" />Période précédente</span>
@@ -147,7 +147,7 @@ function Body({ r, shop, who }: { r: Report; shop: boolean; who: string }) {
           <Insights r={r} />
           <div className="rp-two">
             <div className="col" style={{ gap: 16 }}>
-              <section className="card">
+              <section className="card" data-guide="rapports-heat">
                 <div className="card-h"><h2><Icon name="clock" size={16} />Quand les fauteuils sont pleins</h2></div>
                 <Heat map={r.heatmap} />
               </section>
@@ -157,12 +157,12 @@ function Body({ r, shop, who }: { r: Report; shop: boolean; who: string }) {
                   <Split parts={Object.entries(r.methods).filter(([k]) => !k.startsWith('refund_')).map(([k, v]) => ({ k, label: METHOD[k] || k, v }))} money />
                 </section>
               ) : null}
-              <section className="card">
+              <section className="card" data-guide="rapports-sources">
                 <div className="card-h"><h2><Icon name="calendar" size={16} />D’où viennent les rendez-vous</h2></div>
                 <Split parts={Object.entries(r.sources).filter(([, v]) => v > 0).map(([k, v]) => ({ k, label: k === 'site' ? 'Site' : SOURCE[k] || k, v }))} />
               </section>
             </div>
-            <section className="card">
+            <section className="card" data-guide="rapports-services">
               <div className="card-h"><h2><Icon name="scissors" size={16} />Prestations</h2><span className="faint" style={{ fontSize: 13 }}>{plural(r.services.reduce((t, x) => t + x.count, 0), 'prestation')}</span></div>
               <Ranked rows={r.services.slice(0, 8).map((x) => ({ k: x.id, name: x.name, sub: x.count + ' ×', v: x.revenue }))} />
               {r.products.length ? (
@@ -202,7 +202,7 @@ function Goal({ g, who }: { g: GoalView; who: string }) {
   const left = Math.max(0, g.target - g.done);
   const ahead = proj >= g.target;
   return (
-    <section className="card rp-goal">
+    <section className="card rp-goal" data-guide="rapports-goal">
       <div className="grow">
         <p className="section-k">Objectif du mois · {monthName(g.month)}{who ? ' · ' + who : ''}{g.staffId && g.auto ? ' · automatique' : ''}</p>
         <p className="rp-goal-v"><b className="money">{whole(g.done)}</b> <span>sur <span className="money">{whole(g.target)}</span></span></p>
@@ -235,7 +235,7 @@ function MyGoal({ g }: { g: GoalView }) {
   const over = g.elapsed >= g.days;
   if (!g.target) return null;
   return (
-    <section className="card rp-goal rp-mygoal" aria-label="Mon objectif">
+    <section className="card rp-goal rp-mygoal" aria-label="Mon objectif" data-guide="rapports-goal">
       <div className="grow">
         <p className="rp-goal-line"><b>Mon objectif {ofMonth(g.month)} :</b> <span className="money">{whole(g.done)}</span> sur <span className="money">{whole(g.target)}</span>
           {left && g.openDaysLeft && !over ? <> · il te faut <b className="money">{whole(g.perDay)}</b> par jour ouvré</> : !left ? <> · <b>atteint</b>, bravo</> : null}</p>
@@ -463,7 +463,7 @@ function Team({ rows, r, onStatement }: { rows: StaffRow[]; r: Report; onStateme
   const R = r.rules || { base: T.commissionBase === 'ht' ? 'ht' : 'ttc', cutCredit: T.cutCredit === 'seller' ? 'seller' : 'performer' };
   const gap = gapParts(r);
   return (
-    <section className="card">
+    <section className="card" data-guide="rapports-team">
       <div className="card-h"><h2><Icon name="equipe" size={16} />L’équipe</h2><span className="faint rp-rules">{rulesWords(R)}</span></div>
       {gap.length ? <p className="rp-gap">{gap.map(([k, v], i) => <Fragment key={i}>{k}<M c={v} d /></Fragment>)}</p> : null}
       <div className="table-wrap">
@@ -533,7 +533,7 @@ function RowSheet({ x, r, onClose, onStatement }: { x: StaffRow | null; r: Repor
 function TeamView({ rows }: { rows: TeamRow[] }) {
   const max = Math.max(1, ...rows.map((x) => x.revenue));
   return (
-    <section className="card">
+    <section className="card" data-guide="rapports-teamview">
       <div className="card-h"><h2><Icon name="equipe" size={16} />L’équipe</h2><span className="faint" style={{ fontSize: 13 }}>Commissions et pourboires restent privés</span></div>
       <div className="table-wrap">
         <table className="table rp-team">
@@ -588,7 +588,7 @@ function Insights({ r }: { r: Report }) {
   if (all >= 10 && !own) out.push({ icon: 'globe', tone: '', title: pct(site / all) + ' des rendez-vous sont pris en ligne', body: site / all < 0.4 ? 'Mets le lien de réservation en bio Instagram et sur la fiche Google : chaque réservation en ligne, c’est un appel de moins pendant une coupe.' : 'Autant d’appels en moins pendant les coupes, et des confirmations envoyées toutes seules.' });
   if (!out.length) return null;
   return (
-    <section className="rp-insights" aria-label="Ce que disent les chiffres">
+    <section className="rp-insights" aria-label="Ce que disent les chiffres" data-guide="rapports-insights">
       {out.slice(0, 4).map((x) => <div key={x.title} className={'rp-ins ' + x.tone}><Icon name={x.icon} /><div><b>{x.title}</b><p>{x.body}</p></div></div>)}
     </section>
   );
@@ -605,7 +605,7 @@ function Exports({ from, to, month, shop, canTeam, canClosure, canData, mode }: 
   ].filter(Boolean) as { href: string; t: string; s: string; icon: string }[];
   if (!items.length) return null;
   return (
-    <section className="card">
+    <section className="card" data-guide="rapports-exports">
       <div className="card-h"><h2><Icon name="download" size={16} />Exports</h2><span className="faint" style={{ fontSize: 13 }}>Période affichée · CSV compatible Excel</span></div>
       <div className="rp-exports">{items.map((x) => <a key={x.t} className="rp-exp" href={x.href} download><Icon name={x.icon} /><span><b>{x.t}</b><small>{x.s}</small></span><Icon name="download" /></a>)}</div>
       {canClosure && mode === 'production' ? <p className="faint" style={{ fontSize: 12.5, marginTop: 10 }}>Les tickets et les Z ne se modifient jamais : l’export est la copie fidèle du journal.</p> : null}

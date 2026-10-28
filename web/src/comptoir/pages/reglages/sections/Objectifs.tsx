@@ -29,13 +29,13 @@ export default function Objectifs({ s }: SectionProps) {
   const month = dates.MONTHS_FR[dates.dayParts(boot.today).m - 1];
   return (
     <div className="col" style={{ gap: 16 }}>
-      <Card title="Objectif de chiffre mensuel" icon="target">
+      <Card title="Objectif de chiffre mensuel" guide="objectifs-mois" icon="target">
         <p className="muted" style={{ fontSize: 13.5 }}>Affiché dans Rapports avec la projection de fin de mois. Visible par le gérant et les responsables uniquement.</p>
         <div className="row" style={{ gap: 10 }}><input className="input input-money" inputMode="numeric" value={txt} onChange={(e) => { setTxt(e.target.value.replace(/\D/g, '')); g.setV({ ...g.v, monthCents: (Number(e.target.value.replace(/\D/g, '')) || 0) * 100 }); }} aria-label="Objectif en euros" style={{ maxWidth: 220 }} /><span className="serif" style={{ fontSize: 28 }}>€ / mois</span></div>
         {prevRev != null ? <p className="muted" style={{ fontSize: 13.5 }}>Le mois dernier : <b className="money">{eur(prevRev)}</b>. {ideas.length ? 'Quelques cibles réalistes :' : ''}</p> : <Skeleton h={18} w={260} />}
         {ideas.length ? <div className="chips">{ideas.map((v, i) => <Chip key={v} small on={g.v.monthCents === v} onClick={() => g.setV({ ...g.v, monthCents: v })}>{eur(v)} · {['+5 %', '+10 %', '+20 %'][i]}</Chip>)}</div> : null}
       </Card>
-      <Card title="L’objectif de chaque barbier" icon="equipe">
+      <Card title="L’objectif de chaque barbier" guide="objectifs-barbiers" icon="equipe">
         <p className="muted" style={{ fontSize: 13.5 }}>Mesuré sur ce que chacun réalise (coupes de carnet et d’abonnement comprises, remboursements déduits). Laisse vide : il suit l’objectif du salon au prorata de ses heures au fauteuil en {month}.</p>
         {!shares.data ? <Skeleton h={120} /> : (
           <ul className="og-list">
