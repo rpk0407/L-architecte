@@ -59,7 +59,7 @@ export function accountPastOf(s, ids) {
   if (!s.accountPast) return null;
   const rows = ids.map((id) => s.accountPast.get(id)).filter(Boolean);
   if (!rows.length) return null;
-  return { ...group(rows.map((x) => ({ ...x, count: 0, revokedAt: x.closedAt || 0, eraseAt: 0 }))), closedAt: Math.max(...rows.map((x) => x.closedAt || 0)) };
+  return { ...group(rows.map((x) => ({ ...x, count: 0, revokedAt: x.closedAt || 0, eraseAt: x.eraseAt || 0 }))), closedAt: Math.max(...rows.map((x) => x.closedAt || 0)) };
 }
 
 /** @type {import('../core/extensions.js').Extension} */
@@ -81,7 +81,7 @@ export const accountsExtension = {
         const keep = past && !d.refenced ? past : fresh;
         row = {
           cid: d.cid, since: e.at, lastAt: e.at, count: 1, revokedAt: past ? past.closedAt || 0 : 0,
-          fenced: keep.fenced, historyFrom: keep.historyFrom, named: keep.named, prefs: { staffId: null }, eraseAt: 0
+          fenced: keep.fenced, historyFrom: keep.historyFrom, named: keep.named, prefs: { staffId: null }, eraseAt: past ? past.eraseAt || 0 : 0
         };
         s.accounts.set(d.cid, row);
       }
@@ -98,14 +98,18 @@ export const accountsExtension = {
     'account.codeBurned': (s, e, d) => { for (const id of (d && d.ids) || []) s.otpUsed.add(id); },
     'account.revoked': (s, e, d) => { const row = d && s.accounts.get(d.cid); if (row) row.revokedAt = e.at; },
     'account.closed': (s, e, d) => {
-      if (!d || !s.accounts.has(d.cid)) return;
+      const row = d && s.accounts.get(d.cid);
+      if (!row) return;
       s.accounts.delete(d.cid);
       const past = s.accountPast.get(d.cid);
-      if (past) past.closedAt = e.at;
+      // a request to erase the file outlives « Supprimer mon espace »: it is still the owner's to treat
+      if (past) { past.closedAt = e.at; if (row.eraseAt) past.eraseAt = row.eraseAt; }
     },
     // AC-02's writes, folded here so that package adds no projection code
     'account.prefs': (s, e, d) => { const row = d && s.accounts.get(d.cid); if (row) row.prefs = { ...row.prefs, ...(d.patch || {}) }; },
     'account.eraseRequested': (s, e, d) => { const row = d && s.accounts.get(d.cid); if (row && !row.eraseAt) row.eraseAt = e.at; },
+    // a copy of his data the e-mail could not carry: the salon has to send it (the last ask, so one a day reaches the feed)
+    'account.exportAsked': (s, e, d) => { const row = d && s.accounts.get(d.cid); if (row) row.exportAskAt = e.at; },
     // the file is gone: so is its account, what its codes counted, and the memory of its fence
     'client.erased': (s, e, d) => {
       const ids = new Set(d.ids || [d.id]);
@@ -114,7 +118,7 @@ export const accountsExtension = {
     }
   },
   // a sign-in is not news (it would push the bookings out of the feed's 300 lines): only a fenced opening is
-  feed: ['account.fenceOpened', 'account.eraseRequested'],
+  feed: ['account.fenceOpened', 'account.eraseRequested', 'account.exportAsked'],
   item(r, f) {
     const d = f.data || {};
     const base = { v: f.v, at: f.at, by: f.actor.t, kind: 'account', clientId: d.cid, staffId: null };
@@ -126,6 +130,11 @@ export const accountsExtension = {
     if (f.type === 'account.eraseRequested') {
       if (!r.caps.has('client.erase')) return null;
       return { ...base, title: 'Demande d’effacement · ' + firstOf(r.s, d.cid), sub: 'À traiter sous un mois : Clients › fiche › Effacer' };
+    }
+    if (f.type === 'account.exportAsked') {
+      if (!r.caps.has('client.export')) return null;
+      const why = { noEmail: 'pas d’e-mail sur la fiche', emailOff: 'les e-mails sont coupés', tooBig: 'fichier trop gros pour un e-mail' }[d.reason] || 'à envoyer à la main';
+      return { ...base, title: 'Demande de ses données · ' + firstOf(r.s, d.cid), sub: why + ' : Clients › fiche › Exporter' };
     }
     return null;
   }

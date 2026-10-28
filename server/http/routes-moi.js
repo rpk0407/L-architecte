@@ -49,7 +49,9 @@ export function moiRoutes(app) {
   // ask for the file (a space opened on a file that may have changed hands sends the person to the salon)
   app.get('/api/me/profile', (r) => {
     const me = requireMe(r);
-    return { email: me.c.email && isEmail(me.c.email) ? maskEmail(me.c.email) : '', phone: maskPhone(me.c.phone), canAsk: !me.account.fenced && !!me.account.named, eraseAt: me.account.eraseAt || 0, demo: isPersona(me) };
+    // a space that may be on someone else's file learns nothing of its e-mail, not even the initial or the domain
+    const canAsk = !me.account.fenced && !!me.account.named;
+    return { email: canAsk && me.c.email && isEmail(me.c.email) ? maskEmail(me.c.email) : '', phone: maskPhone(me.c.phone), canAsk, eraseAt: me.account.eraseAt || 0, demo: isPersona(me) };
   });
 
   app.patch('/api/me/profile', async (r) => {
@@ -85,7 +87,7 @@ export function moiRoutes(app) {
     guard('mexp|' + me.cid, 5, HOUR, 'Tu as déjà demandé tes données plusieurs fois. Réessaie dans une heure.');
     const res = await runAs(r, me)(requestExport, { json: exportOf(r, me) });
     if (res.limit) throw new HttpError(429, 'slow_down', 'Tes données sont déjà parties plusieurs fois aujourd’hui. Regarde tes e-mails, ou réessaie demain.');
-    if (!res.sent) return { ok: true, sent: false, message: 'Demande-le au salon' };
+    if (!res.sent) return { ok: true, sent: false, reason: res.reason, message: res.reason === 'noEmail' ? 'Pas d’e-mail sur ta fiche : demande-le au salon.' : 'Ta demande est notée : le salon te l’envoie.' };
     await leaveNow(r, res.id);
     return { ok: true, sent: true, message: 'Envoyé à ' + maskEmail(me.c.email) };
   });
@@ -105,7 +107,7 @@ export function moiRoutes(app) {
     if (!c) throw new HttpError(404, 'not_found', 'Client introuvable.');
     const token = signLink(r.rt.secret, 'acc', c.id + '~' + (r.now + ACC_TTL_MS).toString(36));
     const res = await r.run(sendSpaceInvite, { cid: c.id, link: r.origin + '/moi?garder=' + encodeURIComponent(token) });
-    if (res.limit) throw new HttpError(429, 'slow_down', 'Déjà 3 liens envoyés aujourd’hui à ce client.');
+    if (res.limit) throw new HttpError(429, 'slow_down', 'Ce client a déjà reçu 3 liens ou codes aujourd’hui. Réessaie demain.');
     await leaveNow(r, res.id);
     return { ok: true, sent: !!res.sent };
   }, { cap: 'client.edit' });

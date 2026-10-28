@@ -3,6 +3,9 @@
 .ac-h { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 48px; padding: 8px 18px; border-radius: var(--r4); text-align: left; font: inherit; font-size: 14.5px; color: var(--tx); }
 .ac-h:hover { background: var(--panel2); }
 .ac-h .faint { font-size: 13px; }
+/* the title never wraps under a badge */
+.ac-h b { white-space: nowrap; }
+.ac-h .badge { white-space: nowrap; }
 .ac-b { padding: 0 18px 16px; }
 .ac-line { margin: 0; font-size: 13.5px; color: var(--tx2); }
 .ac-acts { display: flex; flex-wrap: wrap; gap: 8px; }

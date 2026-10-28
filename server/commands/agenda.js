@@ -126,7 +126,7 @@ export const bookOnline = {
     const cgv = cgvVersionOf(s.settings.shop);
     const a = {
       id: aid, code, clientId: client.id, staffId, anyStaff: b.staffId === 'any', day: b.day, start: b.start, dur,
-      services, price, source: 'site', status: deposit > 0 ? 'pending' : 'booked', sms: b.sms !== false,
+      services, price, source: 'site', status: deposit > 0 ? 'pending' : 'booked', sms: b.sms !== false && !(existing && existing.sms === false),
       deposit: deposit > 0 ? { amount: deposit, paid: 0, paymentId: null, until: ctx.now + payWindowMin(s, { stripe: ctx.meta.payProvider === 'stripe' }) * 60000 } : null, holdId: hold ? hold.id : null, cid: client.id,
       // the CGV version in force when the client booked: the later of the owner's last rule change and the text's own date
       cgv,

@@ -12,7 +12,7 @@ const steps = (p) => new Function(read(p).replace(/^import type .*$/m, '').repla
 
 const SOURCES = {
   comptoir: ['web/src/comptoir/pages/clients/AccountCard.tsx', 'web/src/comptoir/pages/reglages/sections/EspaceClient.tsx'],
-  moi: ['web/src/moi/cards/Profile.tsx']
+  moi: ['web/src/moi/cards/Profile.tsx', 'web/src/moi/cards/Session.tsx']
 };
 const FILES = { comptoir: 'web/src/comptoir/guide/steps/AC-02.ts', moi: 'web/src/moi/guide/steps/AC-02.ts' };
 const ROLES = new Set(['owner', 'manager', 'desk', 'barber', 'client']);

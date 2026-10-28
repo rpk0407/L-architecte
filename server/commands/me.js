@@ -9,7 +9,7 @@ import { fail } from '../core/engine.js';
 import { str, bool, opt, nullable, obj, parse } from '../lib/validate.js';
 import { isEmail } from '../lib/util.js';
 import { queueMessage, messageId } from '../domain/messages.js';
-import { ownerEmail } from '../domain/mails.js';
+import { ownerAlert, originOf } from '../domain/notices.js';
 import { linkAllowed } from '../domain/linkcap.js';
 import { accountOf } from '../projections/accounts.js';
 import { accountsOn } from '../settings/accounts.js';
@@ -39,6 +39,7 @@ function own(s, ctx, strict = false) {
 
 // a real day and month, « jj-mm » like the file keeps it (the salon's own form is looser: this one is the client's)
 const BIRTHDAY = /^((0[1-9]|[12]\d|3[01])-(0[1-9]|1[0-2]))?$/;
+const DAYS_IN = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
 const profileSchema = obj({ first: opt(str({ min: 1, max: 40 })), last: opt(str({ max: 40 })), birthday: opt(str({ max: 5, pattern: BIRTHDAY })) });
 
 /**
@@ -49,7 +50,10 @@ const profileSchema = obj({ first: opt(str({ min: 1, max: 40 })), last: opt(str(
 export const updateOwnProfile = {
   run(s, input, ctx) {
     const { c } = own(s, ctx, true);
-    const { pii } = clientParts(parse(profileSchema, input || {}));
+    const x = parse(profileSchema, input || {});
+    // the pattern lets 31-02 through: a day that exists in that month (29-02 counts, he may be born on it)
+    if (x.birthday && Number(x.birthday.slice(0, 2)) > DAYS_IN[Number(x.birthday.slice(3)) - 1]) fail(400, 'invalid', 'Ce jour n’existe pas ce mois-là.');
+    const { pii } = clientParts(x);
     /** @type {Record<string, string>} */
     const changed = {};
     for (const [k, v] of Object.entries(pii)) if (v !== (c[k] || '')) changed[k] = v;
@@ -96,15 +100,17 @@ export const setOwnPrefs = {
   }
 };
 
-/** The owner's mail about a client's request: the file's first name only, and its id so that erasing the file blanks it. */
+/**
+ * The owner's mail about a client's request (domain/notices.js ownerAlert): the file's first name only, and its id so that
+ * erasing the file blanks it. Nothing leaves when the e-mails are off in Réglages: the caller then says it elsewhere.
+ * @returns {string|null} the mail's id, or null if none was queued
+ */
 function mailOwner(s, ctx, c, o) {
-  const to = ownerEmail(s);
-  if (!s.settings.messages.email || !isEmail(to)) return null;
-  const site = String((ctx.meta && ctx.meta.siteUrl) || '').replace(/\/+$/, '');
-  return queueMessage(s, ctx, {
-    key: o.key, channel: 'email', template: o.template, to, cid: c.id, vars: {}, subject: o.subject + (c.first || 'Client'),
-    text: [o.subject + (c.first || 'Client') + ' — ' + o.what, ...(site ? ['', 'Le Comptoir : ' + site + '/comptoir/clients/' + c.id] : [])].join('\n'),
-    links: site ? [site + '/comptoir/clients/' + c.id] : []
+  if (!s.settings.messages.email) return null;
+  const site = originOf(ctx);
+  return ownerAlert(s, ctx, {
+    key: o.key, template: o.template, cid: c.id, subject: o.subject + (c.first || 'Client'),
+    lines: [o.subject + (c.first || 'Client') + ' — ' + o.what, ...(site ? ['', 'Sa fiche : ' + site + '/comptoir/clients/' + c.id] : [])]
   });
 }
 
@@ -117,25 +123,35 @@ export const requestErasure = {
     const { c, account } = own(s, ctx, true);
     if (account.eraseAt) return { ok: true, already: true, at: account.eraseAt };
     ctx.emit('account.eraseRequested', { id: account.cid, cid: account.cid });
-    mailOwner(s, ctx, c, { key: 'oera_' + c.id, template: 'owner_erase', subject: 'Demande d’effacement · ', what: 'à traiter sous un mois (Clients › fiche › Effacer).' });
+    mailOwner(s, ctx, c, { key: 'oera_' + c.id + '_' + ctx.local.day, template: 'owner_erase', subject: 'Demande d’effacement · ', what: 'à traiter sous un mois (Clients › fiche › Effacer).' });
     return { ok: true, already: false, at: ctx.now };
   }
 };
 
+const WHY = {
+  noEmail: 'pas d’e-mail sur la fiche : à envoyer depuis Clients › fiche › Exporter.',
+  emailOff: 'les e-mails sont coupés dans Réglages : à envoyer depuis Clients › fiche › Exporter.',
+  tooBig: 'sa fiche est trop grosse pour un e-mail : à envoyer depuis Clients › fiche › Exporter.'
+};
 /**
  * « Télécharger mes données »: a copy of the file by e-mail, at the address the salon holds (the JSON is built by the
  * route, from the same words as the salon's own export, and travels as the mail's attachment, in pii like the mail).
- * No e-mail on file: nothing is sent, the owner is told by mail, the client is asked to call the salon.
- * @returns {{ ok: true, sent: boolean, id?: string, limit?: boolean, noEmail?: boolean }}
+ * Nothing can be sent (no e-mail on file, e-mails off, a file too big to attach): the owner is told by mail, and in the
+ * feed when no mail can leave, so the request is never lost; the client is told which of the three it is.
+ * @returns {{ ok: true, sent: boolean, id?: string, limit?: boolean, reason?: 'noEmail'|'emailOff'|'tooBig' }}
  */
 export const requestExport = {
   run(s, input, ctx) {
-    const { c } = own(s, ctx, true);
+    const { c, account } = own(s, ctx, true);
     const day = ctx.local.day;
     const json = input && typeof input.json === 'string' ? input.json : '';
-    if (!c.email || !isEmail(c.email) || !s.settings.messages.email || !json) {
-      mailOwner(s, ctx, c, { key: 'oexp_' + c.id + '_' + day, template: 'owner_export', subject: 'Demande de données · ', what: 'pas d’e-mail sur la fiche : à envoyer depuis Clients › fiche › Exporter.' });
-      return { ok: true, sent: false, noEmail: true };
+    const reason = !c.email || !isEmail(c.email) ? 'noEmail' : !s.settings.messages.email ? 'emailOff' : !json ? 'tooBig' : null;
+    if (reason) {
+      const key = 'oexp_' + c.id + '_' + day;
+      const told = s.messages.has(messageId(key)) || !!mailOwner(s, ctx, c, { key, template: 'owner_export', subject: 'Demande de données · ', what: WHY[reason] });
+      // no mail left for the owner (e-mails off, no address for him): the feed carries it, once a day
+      if (!told && !(account.exportAskAt && ctx.now - account.exportAskAt < 86400000)) ctx.emit('account.exportAsked', { id: account.cid, cid: account.cid, reason });
+      return { ok: true, sent: false, reason };
     }
     let n = 0;
     while (n < EXPORTS_PER_DAY && s.messages.has(messageId('dexp_' + c.id + '_' + day + '_' + n))) n++;
@@ -144,9 +160,9 @@ export const requestExport = {
     const id = queueMessage(s, ctx, {
       key: 'dexp_' + c.id + '_' + day + '_' + n, channel: 'email', template: 'dataExport', to: c.email, cid: c.id, vars: {},
       subject: 'Tes données chez ' + shop.name,
-      text: ['Bonjour' + (c.first ? ' ' + c.first : '') + ',', '', 'Tu as demandé une copie de tes données depuis ton espace : elle est en pièce jointe (un fichier JSON, lisible dans un éditeur de texte).',
+      text: ['Bonjour' + (c.first ? ' ' + c.first : '') + ',', '', 'Tu as demandé une copie de tes données depuis ton espace : elle est en pièce jointe (un fichier texte, lisible dans n’importe quel éditeur).',
         'Ce n’est pas toi ? Préviens le salon' + (shop.phone ? ' au ' + shop.phone : '') + ', et ne transfère pas ce message.', '', shop.name].join('\n'),
-      attachments: [{ name: 'mes-donnees-larchitecte.json', type: 'application/json', content: json }]
+      attachments: [{ name: 'mes-donnees-larchitecte.txt', type: 'text/plain', content: json }]
     });
     return { ok: true, sent: !!id, ...(id ? { id } : {}) };
   }

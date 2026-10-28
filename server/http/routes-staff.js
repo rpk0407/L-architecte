@@ -275,7 +275,8 @@ export function clientExport(s, c, now) {
     // FID-02: the loyalty card, its movements and rewards, the reasons of adjustments made by hand
     fidelite: loyaltyExport(s, c.id, localParts(now).day),
     listeAttente: [...s.waitlist.values()].filter((w) => ids.has(w.clientId)).map((w) => ({ jour: w.day, statut: fr(WAIT_FR, w.status), inscritLe: iso(w.at) })),
-    sms: [...s.messages.values()].filter((m) => ids.has(m.cid)).sort((a, b) => a.at - b.at).map((m) => ({ le: iso(m.at), type: fr(SMS_FR, m.template), statut: fr(SMS_STATUS_FR, m.status), numero: fmtPhone(m.to), texte: m.body }))
+    // the owner's own alerts about him are not his to read (nor the address they went to)
+    sms: [...s.messages.values()].filter((m) => ids.has(m.cid) && !m.template.startsWith('owner_')).sort((a, b) => a.at - b.at).map((m) => ({ le: iso(m.at), type: fr(SMS_FR, m.template), statut: fr(SMS_STATUS_FR, m.status), numero: fmtPhone(m.to), texte: m.body }))
   };
 }
 
@@ -344,6 +345,8 @@ export function staffRoutes(app) {
     const settings = r.caps.has('settings') ? s.settings : {
       shop: s.settings.shop, hours: s.settings.hours, closures: s.settings.closures, booking: s.settings.booking, deposits: s.settings.deposits,
       // the month's goal is the owner's and the managers' (Objectifs): a barber gets none
+      // whether the client space is open (AC-02): the desk offers its invite, the file says « fermé » only when it is
+      accounts: { enabled: !!(s.settings.accounts && s.settings.accounts.enabled) },
       payments: s.settings.payments, team: s.settings.team, goals: r.caps.has('report.shop') ? s.settings.goals : {},
       messages: { ...s.settings.messages, templates: r.caps.has('marketing') ? s.settings.messages.templates : {} }
     };

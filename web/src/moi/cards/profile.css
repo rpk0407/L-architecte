@@ -33,5 +33,7 @@
 .mp-row .mp-btn { flex: 1 1 140px; width: auto; }
 /* « Enregistré » floats above the tab bar so it is seen wherever the switch was; nothing shows when there is nothing to say */
 .mp-say { position: fixed; left: 16px; right: 16px; bottom: calc(76px + env(safe-area-inset-bottom)); z-index: 20; max-width: 528px; margin: 0 auto; text-align: center; box-shadow: 0 10px 30px -12px rgba(15, 14, 13, .4); background: var(--card); }
-.mp-say.ok { background: #E4EFE7; }
+.mp .mp-say.ok { background: #E4EFE7; }
+/* solid like the other: the warning must not show the page scrolling under it (.c-note.warn is see-through) */
+.mp .mp-say.warn { background: linear-gradient(var(--warn-bg), var(--warn-bg)), var(--card); }
 .mp-say:empty { display: block; height: 0; padding: 0; overflow: hidden; box-shadow: none; }

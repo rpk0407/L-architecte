@@ -208,7 +208,7 @@ test('a space opened on a file that may have changed hands reads and writes noth
     assert.equal(r.status, 403, method + ' ' + path);
     assert.equal(r.json.error.message, SALON_ONLY);
   }
-  assert.deepEqual((await b.get('/api/me/profile')).json, { email: 'm•••@exemple.fr', phone: (await b.get('/api/me/profile')).json.phone, canAsk: false, eraseAt: 0, demo: false });
+  assert.deepEqual((await b.get('/api/me/profile')).json, { email: '', phone: (await b.get('/api/me/profile')).json.phone, canAsk: false, eraseAt: 0, demo: false });
   assert.equal(rt.engine.journal.length, w, 'nothing written');
   assert.equal(messages(rt, 'dataExport').length + messages(rt, 'owner_erase').length, 0);
   // the switches and the barber are about this phone, not about the file’s past: they work
@@ -241,7 +241,7 @@ test('export: the file by e-mail, in the salon’s words plus the space’s own 
   assert.equal(mail.cid, y.id);
   assert.match(mail.mail.subject, /^Tes données chez /);
   assert.equal(mail.mail.attachments.length, 1);
-  assert.equal(mail.mail.attachments[0].name, 'mes-donnees-larchitecte.json');
+  assert.equal(mail.mail.attachments[0].name, 'mes-donnees-larchitecte.txt');
   const data = JSON.parse(mail.mail.attachments[0].content);
   assert.equal(data.fiche.prenom, 'Yanis');
   assert.equal(data.fiche.email, 'karim@gmail.com');
@@ -283,15 +283,78 @@ test('export: no e-mail on the file, nothing is sent; the owner is asked to do i
   const { rt, me } = await setup();
   const y = await me();
   const res = await y.b.post('/api/me/export');
-  assert.deepEqual(res.json, { ok: true, sent: false, message: 'Demande-le au salon' });
+  assert.deepEqual(res.json, { ok: true, sent: false, reason: 'noEmail', message: 'Pas d’e-mail sur ta fiche : demande-le au salon.' });
   assert.equal(messages(rt, 'dataExport').length, 0);
   const [owner] = messages(rt, 'owner_export');
   assert.equal(owner.to, 'patron@test.fr');
   assert.equal(owner.cid, y.id, 'it names the file, so erasing the file blanks it');
   assert.match(owner.mail.subject, /^Demande de données · Yanis$/);
+  assert.match(owner.body, /pas d’e-mail sur la fiche/);
+  assert.equal(events(rt, 'account.exportAsked').length, 0, 'the owner has his mail: nothing more in the feed');
   // asking again the same day does not mail the owner twice
   await y.b.post('/api/me/export');
   assert.equal(messages(rt, 'owner_export').length, 1);
+});
+
+test('export: e-mails off in Réglages, or a file too big to attach: the client is told which, and the owner finds it in the feed (once a day)', async () => {
+  const { t, rt, me } = await setup();
+  const y = await me({ email: 'karim@gmail.com' });
+  await t.engine.run(updateSettings, { messages: { email: false } }, t.asOwner());
+  await rt.engine.sync(true);
+  const res = await y.b.post('/api/me/export');
+  assert.deepEqual(res.json, { ok: true, sent: false, reason: 'emailOff', message: 'Ta demande est notée : le salon te l’envoie.' });
+  assert.equal(messages(rt, 'dataExport').length + messages(rt, 'owner_export').length, 0, 'no mail can leave');
+  const [asked] = events(rt, 'account.exportAsked');
+  assert.deepEqual([asked.data.cid, asked.data.reason], [y.id, 'emailOff']);
+  assert.deepEqual(asked.actor, CLIENT_ACTOR);
+  const s = rt.engine.state, f = s.feed.find((x) => x.type === 'account.exportAsked');
+  const ownerCaps = capsOf(s.staff.get(t.ownerId), s.settings), barberCaps = capsOf(s.staff.get(t.ids.Ali), s.settings);
+  assert.equal(accountsExtension.item({ s, caps: ownerCaps }, f).title, 'Demande de ses données · Yanis');
+  assert.match(accountsExtension.item({ s, caps: ownerCaps }, f).sub, /^les e-mails sont coupés/);
+  assert.equal(accountsExtension.item({ s, caps: barberCaps }, f), null);
+  await y.b.post('/api/me/export');
+  assert.equal(events(rt, 'account.exportAsked').length, 1, 'once a day');
+  t.clock.now += 25 * 3600000;
+  await y.b.post('/api/me/export');
+  assert.equal(events(rt, 'account.exportAsked').length, 2);
+  // e-mails back on, a file over what an e-mail takes: the same, with its own reason, and the owner's mail says so
+  await t.engine.run(updateSettings, { messages: { email: true } }, t.asOwner());
+  await rt.engine.sync(true);
+  const { requestExport } = await import('../../server/commands/me.js');
+  const ctx = { actor: CLIENT_ACTOR, caps: new Set(), meta: { me: { cid: y.id } } };
+  assert.deepEqual(await t.engine.run(requestExport, { json: '' }, ctx), { ok: true, sent: false, reason: 'tooBig' });
+  await rt.engine.sync(true);
+  assert.match(messages(rt, 'owner_export').at(-1).body, /trop grosse/);
+});
+
+test('the owner’s alert mails about a client never reach that client’s own export', async () => {
+  const { rt, me } = await setup();
+  const y = await me({ email: 'karim@gmail.com' });
+  await y.b.post('/api/me/erase-request');
+  assert.equal(messages(rt, 'owner_erase').length, 1);
+  await y.b.post('/api/me/export');
+  const [mail] = messages(rt, 'dataExport');
+  const data = JSON.parse(mail.mail.attachments[0].content);
+  assert.ok(data.sms.length >= 1);
+  assert.ok(!JSON.stringify(data).includes('patron@test.fr'), 'the owner’s address stays his');
+  assert.ok(!data.sms.some((x) => /alerte/.test(x.type)));
+});
+
+test('a request to erase outlives « Supprimer mon espace »: the file still shows it, and a new space does not ask twice', async () => {
+  const { t, rt, me, signIn } = await setup();
+  const y = await me();
+  await y.b.post('/api/me/erase-request');
+  assert.equal((await y.b.post('/api/me/close')).status, 200);
+  await rt.engine.sync(true);
+  const s = rt.engine.state;
+  assert.equal(accountOf(s, [y.id]), null);
+  assert.ok(s.accountPast.get(y.id).eraseAt > 0, 'the past remembers the request');
+  // a day later he opens a space again: the request is still there, and a second one is told so
+  t.clock.now += 86400000;
+  const again = await signIn({ id: y.id, phone: y.phone });
+  assert.ok((await again.get('/api/me/profile')).json.eraseAt > 0);
+  assert.equal((await again.post('/api/me/erase-request')).json.already, true);
+  assert.equal(events(rt, 'account.eraseRequested').length, 1);
 });
 
 test('erase request: one event and one owner mail per space; the second tap is told it is already there; the owner’s feed shows it, a barber’s does not', async () => {
@@ -412,7 +475,7 @@ function describe_demo() {
     assert.equal(again.status, 200);
     const fourth = await o.post('/api/v1/clients/' + target.id + '/account/invite');
     assert.equal(fourth.status, 429, fourth.text);
-    assert.equal(fourth.json.error.message, 'Déjà 3 liens envoyés aujourd’hui à ce client.');
+    assert.equal(fourth.json.error.message, 'Ce client a déjà reçu 3 liens ou codes aujourd’hui. Réessaie demain.');
     // 48 h later the link is dead
     clock.now += 49 * 3600000;
     assert.equal((await browser(rt).post('/api/public/account/keep', { token })).status, 404);
@@ -423,6 +486,20 @@ function describe_demo() {
     assert.equal((await browser(rt).post('/api/public/account/keep', { token: forged })).status, 404);
     // an unknown file
     assert.equal((await o.post('/api/v1/clients/cl_nobody/account/invite')).status, 404);
+  });
+
+  test('bootstrap: a barber on the salon post knows whether the client space is open (the invite is offered), without the rest of the setting', async () => {
+    const o = await owner();
+    assert.equal((await o.post('/api/auth/device', { name: 'Tablette comptoir' })).status, 200);
+    await o.post('/api/auth/logout');
+    const jkut = (await o.get('/api/auth/state')).json.team.find((x) => x.name === 'JKut');
+    assert.equal((await o.post('/api/auth/pin', { staffId: jkut.id, pin: DEMO.pins.JKut })).status, 200);
+    const boot = (await o.get('/api/v1/bootstrap')).json;
+    assert.deepEqual(boot.settings.accounts, { enabled: true });
+    assert.equal(boot.settings.messages.templates && Object.keys(boot.settings.messages.templates).length, 0, 'still the reduced setting');
+    // and the card behind it answers him, for a file with no space
+    const target = [...rt.engine.state.clients.values()].find((c) => c.phone && !c.erased && !c.mergedInto);
+    assert.equal((await o.get('/api/v1/clients/' + target.id + '/account')).status, 200);
   });
 
   test('demo: the persona’s writes say « Démo : rien n’est changé » and write nothing, so the next visitor finds the showcase as it was', async () => {
@@ -441,4 +518,33 @@ function describe_demo() {
     const pf = (await b.get('/api/me/profile')).json;
     assert.equal(pf.demo, true);
   });
+}
+
+test('profile: a birthday must exist in its month (29 February counts)', async () => {
+  const { rt, me } = await setup();
+  const y = await me();
+  for (const bad of ['31-02', '31-04', '30-02', '00-01']) assert.equal((await y.b.patch('/api/me/profile', { birthday: bad })).status, 400, bad);
+  assert.equal((await y.b.patch('/api/me/profile', { birthday: '29-02' })).status, 200);
+  assert.equal(rt.engine.state.clients.get(y.id).birthday, '29-02');
+});
+
+test('a client who switched SMS off gets no confirmation of a booking made on the site, whatever the booking box says', async () => {
+  const { t, rt, me } = await setup();
+  const y = await me();
+  assert.equal((await y.b.patch('/api/me/consent', { sms: false })).status, 200);
+  await rt.engine.sync(true);
+  t.clock.now = at(DAY, 9);
+  const book = { serviceIds: [t.ids.cut], staffId: t.ids.Ali, day: addDays(DAY, 3), start: 600, first: 'Yanis', last: 'Martin', phone: y.phone, sms: true };
+  await t.engine.run(A.bookOnline, book, t.asClient);
+  await rt.engine.sync(true);
+  assert.equal(messages(rt, 'confirmation').filter((m) => m.cid === y.id).length, 0);
+  // a client who kept them gets his
+  const keep = await file2(t);
+  await t.engine.run(A.bookOnline, { ...book, start: 660, first: 'Omar', phone: keep.phone }, t.asClient);
+  await rt.engine.sync(true);
+  assert.equal(messages(rt, 'confirmation').filter((m) => m.cid === keep.id).length, 1);
+});
+async function file2(t) {
+  const phone = '0611002233';
+  return { phone, id: (await t.engine.run(addClient, { first: 'Omar', last: 'B', phone }, t.asOwner())).id };
 }

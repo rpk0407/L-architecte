@@ -5,6 +5,17 @@ export const name = 'espace client: the card in the client file, the invite, the
 
 const PHONE = { width: 390, height: 844 };
 
+/** A barber on the salon post, as barber-guards.mjs does it (the demo enrolls the browser, then the team keypad). */
+async function barber(page, base, who = 'JKut', pin = '2468') {
+  await page.goto(base + '/comptoir');
+  await page.getByRole('button', { name: /poste du salon/ }).click();
+  await page.locator('.team button', { hasText: who }).click();
+  await page.locator('.keypad').waitFor();
+  await page.keyboard.type(pin);
+  await page.keyboard.press('Enter');
+  await page.locator('#page-title h1').waitFor({ timeout: 10000 });
+}
+
 export default async ({ h, page, ctx }) => {
   await h.setup();
   await h.loginOwner(page);
@@ -73,4 +84,17 @@ export default async ({ h, page, ctx }) => {
   await h.expectText(phone, 'Ouvert le');
   if (await phone.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)) throw new Error('sideways scroll on the phone');
   await h.shot(phone, 'client-account-phone');
+
+  // a barber has client.edit but not the settings: the card still knows the space is open (invite offered, no « fermé »)
+  const chair = await h.newPage({ viewport: PHONE });
+  await barber(chair, h.base);
+  await chair.goto(h.base + '/comptoir/clients/' + hit.id);
+  await chair.getByRole('button', { name: /Espace client/ }).click();
+  await h.expectText(chair, 'Ouvert le');
+  await chair.getByRole('button', { name: 'Envoyer le lien de son espace' }).waitFor();
+  if (await chair.getByText('fermé pour le moment').count()) throw new Error('a barber is told the open space is closed');
+  await chair.goto(h.base + '/comptoir/clients/' + plain.json.id);
+  await chair.getByRole('button', { name: /Espace client/ }).click();
+  await chair.getByRole('button', { name: 'Envoyer le lien de son espace' }).waitFor();
+  await h.shot(chair, 'client-account-barber');
 };

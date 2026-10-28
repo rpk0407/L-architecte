@@ -1,11 +1,11 @@
 // AC-02 · /moi › Profil: what a client changes of himself. His barber, his name and birthday, his two kinds of SMS, a copy
-// of his data by e-mail, the request to erase his file, and the way out (this phone, every phone, close the space). Each
-// choice saves as it is made. Found by the folder registry (web/src/moi/registry.ts), no line to add anywhere else.
+// of his data by e-mail and the request to erase his file. Each choice saves as it is made. The way out (this phone, every
+// phone, close the space) is the last card of the tab: Session.tsx. Found by the folder registry (web/src/moi/registry.ts), no line to add anywhere else.
 // Same paper, ink and red as the site's pages (client.css): c-card, c-btn, c-note; only what they lack is in profile.css.
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from '../../lib/api';
-import { dates } from '../../lib/format';
 import type { CardProps, MoiCardMeta } from '../types';
+import { Section, short } from '../profile/kit';
 import './profile.css';
 
 export const meta = { id: 'profile', tab: 'profile', order: 10 } satisfies MoiCardMeta;
@@ -13,14 +13,16 @@ export const meta = { id: 'profile', tab: 'profile', order: 10 } satisfies MoiCa
 /** GET /api/me/profile (server/http/routes-moi.js) */
 type ProfileInfo = { email: string; phone: string; canAsk: boolean; eraseAt: number; demo: boolean };
 /** What a write answers: the demo's persona gets `demo: true` and a message, nothing is written. */
-type Answer = { ok: boolean; demo?: boolean; message?: string; sent?: boolean; already?: boolean };
+type Answer = { ok: boolean; demo?: boolean; message?: string; sent?: boolean; already?: boolean; reason?: 'noEmail' | 'emailOff' | 'tooBig' };
 
 const SALON_ONLY = 'Pour ça, passe au salon.';
 /** « 14-03 » (the file's form) ⇄ « 14/03 » (what he types) */
 const birthdayIn = (v: string) => (v ? v.replace('-', '/') : '');
 const birthdayOut = (v: string) => v.trim().replace(/[./ ]/g, '-').replace(/^(\d)-/, '0$1-').replace(/-(\d)$/, '-0$1');
-const BIRTHDAY_OK = /^((0[1-9]|[12]\d|3[01])-(0[1-9]|1[0-2]))?$/;
-const short = (ms: number) => { const p = dates.localParts(ms); return p.d + ' ' + dates.MONTHS_SH[p.m - 1]; };
+const BIRTHDAY_FORM = /^((0[1-9]|[12]\d|3[01])-(0[1-9]|1[0-2]))?$/;
+const DAYS_IN = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+/** A real day of that month (29 February counts: he may have been born on it). */
+const birthdayOk = (v: string) => BIRTHDAY_FORM.test(v) && (!v || Number(v.slice(0, 2)) <= DAYS_IN[Number(v.slice(3)) - 1]);
 
 /** A line that says « Enregistré » (or what went wrong) for a few seconds, read out by screen readers. */
 function useSaying() {
@@ -45,34 +47,31 @@ function Switch({ on, onChange, title, hint, disabled }: { on: boolean; onChange
   );
 }
 
-function Section({ k, guide, children }: { k: string; guide: string; children: ReactNode }) {
-  const id = 'mp-h-' + guide;
-  return <section className="c-card mp-sec" data-guide={guide} aria-labelledby={id}><h2 id={id} className="c-k">{k}</h2>{children}</section>;
-}
-
 export default function Profile({ me, reload }: CardProps) {
   const [info, setInfo] = useState<ProfileInfo | null>(null);
+  const [failed, setFailed] = useState(false);
+  // bumped when what is on screen may no longer be what the server holds: the fields start again from `me`
+  const [gen, setGen] = useState(0);
   const { text, bad, say } = useSaying();
-  const loadInfo = () => api.get<ProfileInfo>('/api/me/profile').then(setInfo).catch(() => {});
+  const loadInfo = () => { setFailed(false); api.get<ProfileInfo>('/api/me/profile').then(setInfo).catch(() => setFailed(true)); };
   useEffect(() => { loadInfo(); }, []);
 
-  /** One write. The demo's persona changes nothing: say so, and read the server's truth again so the screen does not lie. */
+  /** One write. The demo's persona changes nothing, and a refused write changes nothing: either way the fields are read again from the server's truth, so the screen does not lie. */
   async function write(call: () => Promise<Answer>, ok = 'Enregistré') {
     try {
       const r = await call();
-      if (r.demo) { say(r.message || 'Démo : rien n’est changé'); reload(); return r; }
+      if (r.demo) { say(r.message || 'Démo : rien n’est changé'); setGen((g) => g + 1); reload(); return r; }
       say(ok); reload();
       return r;
-    } catch (e: any) { say(e.message || 'Une erreur est survenue.', true); reload(); return null; }
+    } catch (e: any) { say(e.message || 'Une erreur est survenue.', true); setGen((g) => g + 1); reload(); return null; }
   }
 
   return (
     <div className="mp">
-      <Barber me={me} write={write} />
-      <Infos me={me} info={info} write={write} />
-      <Messages me={me} write={write} />
-      <Data info={info} write={write} say={say} refresh={loadInfo} />
-      <Session say={say} />
+      <Barber key={'b' + gen} me={me} write={write} />
+      <Infos key={'i' + gen} me={me} info={info} write={write} />
+      <Messages key={'m' + gen} me={me} write={write} />
+      <Data info={info} failed={failed} write={write} say={say} refresh={loadInfo} />
       <p className={'mp-say c-note' + (bad ? ' warn' : ' ok')} role="status" aria-live="polite">{text}</p>
     </div>
   );
@@ -105,14 +104,15 @@ function Infos({ me, info, write }: { me: CardProps['me']; info: ProfileInfo | n
   const [f, setF] = useState({ first: me.first, last: me.last, birthday: birthdayIn(me.birthday) });
   useEffect(() => setF({ first: me.first, last: me.last, birthday: birthdayIn(me.birthday) }), [me.first, me.last, me.birthday]);
   const bday = birthdayOut(f.birthday);
-  const bdayOk = BIRTHDAY_OK.test(bday);
+  const bdayOk = birthdayOk(bday);
   // a space opened on a file that may have changed hands writes nothing of it (the server says the same)
   const locked = !!info && !info.canAsk;
   const save = (patch: Record<string, string>) => write(() => api.patch('/api/me/profile', patch));
   const blur = {
     first: () => { const v = f.first.trim(); if (v && v !== me.first) save({ first: v }); else setF((x) => ({ ...x, first: me.first })); },
     last: () => { const v = f.last.trim(); if (v !== me.last) save({ last: v }); },
-    birthday: () => { if (bdayOk && bday !== me.birthday) save({ birthday: bday }); }
+    // « 14.03 » typed is kept as « 14/03 » once saved (and when it was already the file's)
+    birthday: () => { if (!bdayOk) return; setF((x) => ({ ...x, birthday: birthdayIn(bday) })); if (bday !== me.birthday) save({ birthday: bday }); }
   };
   return (
     <Section k="Mes infos" guide="profile-infos">
@@ -132,7 +132,7 @@ function Infos({ me, info, write }: { me: CardProps['me']; info: ProfileInfo | n
       )}
       <dl className="mp-known">
         {info?.phone ? <div><dt>Téléphone</dt><dd>{info.phone}</dd></div> : null}
-        {info ? <div><dt>E-mail</dt><dd>{info.email || 'aucun'}</dd></div> : null}
+        {info && !locked ? <div><dt>E-mail</dt><dd>{info.email || 'aucun'}</dd></div> : null}
       </dl>
       <p className="c-muted c-small">Changer de numéro ou d’e-mail ? Dis-le au salon.</p>
     </Section>
@@ -146,23 +146,26 @@ function Messages({ me, write }: { me: CardProps['me']; write: Write }) {
   useEffect(() => { setSms(me.consent.sms); setMarketing(me.consent.marketing); }, [me.consent.sms, me.consent.marketing]);
   return (
     <Section k="Messages" guide="profile-messages">
-      <Switch on={sms} title="Confirmations et rappels par SMS" hint="Un SMS pour confirmer, un autre la veille pour te rappeler." onChange={(v) => { setSms(v); write(() => api.patch('/api/me/consent', { sms: v })); }} />
+      <Switch on={sms} title="Confirmations et rappels par SMS" hint="Un SMS pour confirmer, un autre la veille pour te rappeler. Coupés, tu ne reçois pas non plus ceux du salon quand il déplace ou annule ton rendez-vous." onChange={(v) => { setSms(v); write(() => api.patch('/api/me/consent', { sms: v })); }} />
       <Switch on={marketing} title="Bons plans par SMS (15 ans et plus)" hint={'Jamais imposé. STOP à tout moment.' + (marketing && me.consent.marketingAt ? ' Accord donné le ' + short(me.consent.marketingAt) : '')} onChange={(v) => { setMarketing(v); write(() => api.patch('/api/me/consent', { marketing: v })); }} />
     </Section>
   );
 }
 
 /** « Mes données »: a copy by e-mail, and the request to erase the file. */
-function Data({ info, write, say, refresh }: { info: ProfileInfo | null; write: Write; say: (t: string, bad?: boolean) => void; refresh: () => void }) {
+function Data({ info, failed, write, say, refresh }: { info: ProfileInfo | null; failed: boolean; write: Write; say: (t: string, bad?: boolean) => void; refresh: () => void }) {
   const [busy, setBusy] = useState('');
   const [asking, setAsking] = useState(false);
   const head = useRef<HTMLParagraphElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
   useEffect(() => { if (asking) head.current?.focus(); }, [asking]);
+  // « Annuler » removes the group the focus was in: it goes back to the link that opened it
+  const cancel = () => { setAsking(false); requestAnimationFrame(() => trigger.current?.focus()); };
   const send = async () => {
     setBusy('export');
     const r = await write(() => api.post('/api/me/export'), 'Envoyé');
-    // the answer says where it went (« Envoyé à k•••@gmail.com ») or to ask the salon
-    if (r && r.message && !r.demo) say(r.message, r.sent === false);
+    // the answer says where it went (« Envoyé à k•••@gmail.com »), or why nothing left and that the salon is told
+    if (r && r.message && !r.demo) say(r.message, r.reason === 'noEmail');
     setBusy('');
   };
   const erase = async () => {
@@ -173,59 +176,30 @@ function Data({ info, write, say, refresh }: { info: ProfileInfo | null; write: 
   };
   return (
     <Section k="Mes données" guide="profile-data">
-      {info && !info.canAsk ? <p className="c-note">{SALON_ONLY}</p> : (
+      {failed ? (
+        <>
+          <p className="c-note warn">Je n’arrive pas à charger cette partie. Vérifie ta connexion.</p>
+          <button type="button" className="c-btn ghost mp-btn" onClick={refresh}>Réessayer</button>
+        </>
+      ) : info && !info.canAsk ? <p className="c-note">{SALON_ONLY}</p> : (
         <>
           <p className="c-muted c-small">{info?.email ? 'Tout ce que le salon garde de toi, dans un fichier envoyé à ' + info.email + '.' : 'Tout ce que le salon garde de toi, sur demande.'}</p>
           <button type="button" className="c-btn ghost mp-btn" disabled={busy === 'export' || !info} onClick={send}>Recevoir mes données par e-mail</button>
           {info?.eraseAt ? (
-            <p className="c-note ok">Demande d’effacement envoyée le {short(info.eraseAt)}. Le salon efface ta fiche sous un mois.</p>
+            <p className="c-note ok">Demande d’effacement envoyée le {short(info.eraseAt)} : le salon efface ta fiche sous un mois.</p>
           ) : asking ? (
             <div className="mp-ask" role="group" aria-labelledby="mp-ask-t">
               <p id="mp-ask-t" ref={head} tabIndex={-1} className="mp-ask-t">Effacer ma fiche ?</p>
-              <p className="c-muted c-small">Le salon efface ta fiche sous un mois. Tes rendez-vous à venir seront annulés.</p>
+              <p className="c-muted c-small">Le salon efface ta fiche sous un mois. Tes rendez-vous à venir seront annulés, et ce qui reste sur un carnet ou une carte cadeau sera perdu. Un abonnement en cours se règle d’abord avec le salon.</p>
               <div className="mp-row">
                 <button type="button" className="c-btn mp-btn" disabled={busy === 'erase'} onClick={erase}>Envoyer la demande</button>
-                <button type="button" className="c-btn ghost mp-btn" onClick={() => setAsking(false)}>Annuler</button>
+                <button type="button" className="c-btn ghost mp-btn" onClick={cancel}>Annuler</button>
               </div>
             </div>
           ) : (
-            <button type="button" className="c-link mp-link" disabled={!info} onClick={() => setAsking(true)}>Demander l’effacement</button>
+            <button ref={trigger} type="button" className="c-link mp-link" disabled={!info} onClick={() => setAsking(true)}>Demander l’effacement</button>
           )}
         </>
-      )}
-    </Section>
-  );
-}
-
-/** Leaving: this phone, every phone, or closing the space (the file and its bookings stay at the salon). */
-function Session({ say }: { say: (t: string, bad?: boolean) => void }) {
-  const [ask, setAsk] = useState<'' | 'all' | 'close'>('');
-  const [busy, setBusy] = useState(false);
-  const head = useRef<HTMLParagraphElement>(null);
-  useEffect(() => { if (ask) head.current?.focus(); }, [ask]);
-  // the cookie is gone: start again from the sign-in
-  const leave = async (path: string) => {
-    setBusy(true);
-    try { await api.post(path); location.assign('/moi'); } catch (e: any) { say(e.message || 'Une erreur est survenue.', true); setBusy(false); }
-  };
-  return (
-    <Section k="Mon espace" guide="profile-session">
-      <button type="button" className="c-btn ghost mp-btn" disabled={busy} onClick={() => leave('/api/me/signout')}>Se déconnecter</button>
-      {ask ? (
-        <div className="mp-ask" role="group" aria-labelledby="mp-out-t">
-          <p id="mp-out-t" ref={head} tabIndex={-1} className="mp-ask-t">{ask === 'all' ? 'Déconnecter tous mes appareils ?' : 'Supprimer mon espace ?'}</p>
-          <p className="c-muted c-small">{ask === 'all' ? 'Ton espace se ferme sur tous tes téléphones, celui-ci compris. Tu te reconnectes avec un code par SMS.' : 'Ton espace disparaît. Ta fiche au salon reste, avec tes rendez-vous : tu peux en rouvrir un quand tu veux.'}</p>
-          <div className="mp-row">
-            <button type="button" className="c-btn mp-btn" disabled={busy} onClick={() => leave(ask === 'all' ? '/api/me/signout-all' : '/api/me/close')}>{ask === 'all' ? 'Déconnecter' : 'Supprimer mon espace'}</button>
-            <button type="button" className="c-btn ghost mp-btn" onClick={() => setAsk('')}>Annuler</button>
-          </div>
-        </div>
-      ) : (
-        <div className="mp-links">
-          <button type="button" className="c-link mp-link" onClick={() => setAsk('all')}>Déconnecter tous mes appareils</button>
-          <button type="button" className="c-link mp-link" onClick={() => setAsk('close')}>Supprimer mon espace</button>
-          <small className="c-muted">Supprimer ton espace garde ta fiche au salon, avec tes rendez-vous.</small>
-        </div>
       )}
     </Section>
   );
