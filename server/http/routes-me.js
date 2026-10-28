@@ -12,6 +12,7 @@ import { otpCode } from '../domain/otp.js';
 import { meHome, meHistory, shownIdentity } from '../domain/me.js';
 import { accountOf, accountPastOf } from '../projections/accounts.js';
 import { accountsOn } from '../settings/accounts.js';
+import { cfgOf } from '../domain/loyalty.js';
 import { isDay } from '../../shared/dates.js';
 import { fileIds } from '../commands/clients.js';
 import { DEMO_PURGE_MS, sendCode, verifyCode, burnCodes, revokeAccount, closeAccount, detachPhone, personaOf, personaSignIn, rootFile } from '../commands/accounts.js';
@@ -97,7 +98,9 @@ export function meRoutes(app) {
   app.get('/api/public/account', (r) => {
     const me = accountsOn(r.s) ? readMe(r) : null;
     // own (PAY-04): signed in on his own file, not the demo's shared persona (the subscribe sheet binds to it)
-    return { enabled: accountsOn(r.s), signedIn: !!me, ...(me ? { first: shownIdentity(me.c, me.account).first, own: !isPersona(me) } : {}), demo: isDemo(r) };
+    // loyalty (on, goal): the site's guide may only promise a card the salon really runs (it has its own switch)
+    const fid = accountsOn(r.s) ? cfgOf(r.s) : null;
+    return { enabled: accountsOn(r.s), signedIn: !!me, ...(me ? { first: shownIdentity(me.c, me.account).first, own: !isPersona(me) } : {}), demo: isDemo(r), ...(fid ? { loyalty: { on: !!fid.enabled, goal: fid.goal } } : {}) };
   });
 
   app.post('/api/public/account/start', async (r) => {

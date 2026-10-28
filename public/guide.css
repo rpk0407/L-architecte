@@ -1,0 +1,58 @@
+/* The site's first-visit guide (public/guide.js): a bubble that offers it, then a dimmed page with a spotlight on one
+   part and a card that says what it does. Same ink, bone and red as the site (guide.js hands over the page's own accent and fonts); every move is transform/opacity (the
+   spotlight's size aside) and stops under prefers-reduced-motion. */
+.gd-root,.gd-bub{--encre:#0F0E0D;--os:#ECE8E0;--cendre2:#58534C;--rouge:#EB4639;--ease:cubic-bezier(.2,.7,.2,1);--f-serif:'Times New Roman',Times,serif;--f-sans:system-ui,-apple-system,'Segoe UI',sans-serif;font:400 15.5px/1.45 var(--f-sans);-webkit-font-smoothing:antialiased;box-sizing:border-box}
+.gd-root *,.gd-root *::before,.gd-root *::after,.gd-bub *,.gd-bub *::before,.gd-bub *::after{box-sizing:border-box}
+.gd-root button,.gd-bub button{font:inherit;color:inherit;background:none;border:0;padding:0;margin:0;cursor:pointer;-webkit-tap-highlight-color:transparent;text-align:inherit}
+.gd-root :focus-visible,.gd-bub :focus-visible{outline:2.5px solid currentColor;outline-offset:3px}
+.gd-vh{position:absolute!important;width:1px!important;height:1px!important;overflow:hidden!important;clip:rect(0 0 0 0)!important;clip-path:inset(50%)!important;white-space:nowrap!important;margin:-1px!important;padding:0!important;border:0!important}
+
+/* the invitation: above the booking button on a phone, bottom-left on a screen */
+.gd-bub{position:fixed;z-index:80;left:14px;bottom:calc(176px + env(safe-area-inset-bottom,0px));display:flex;align-items:center;gap:6px;max-width:min(330px,calc(100vw - 28px));padding:8px 8px 8px 20px;border-radius:999px;background:var(--encre);color:var(--os);box-shadow:0 0 0 1px rgba(236,232,224,.16) inset,0 14px 40px rgba(0,0,0,.34);animation:gd-rise .5s var(--ease) both}
+.gd-bub.out{opacity:0;transform:translateY(10px);transition:opacity .28s,transform .28s var(--ease);pointer-events:none}
+.gd-bub p{margin:0;min-width:0;font:500 14.5px/1.25 var(--f-sans)}
+.gd-bub p b{display:block;font:italic 400 19px/1.1 var(--f-serif);letter-spacing:0}
+.gd-bub .gd-go{flex:none;min-height:44px;padding:0 20px;border-radius:999px;background:var(--rouge);color:var(--encre);font:600 15px/1 var(--f-sans);transition:background-color .25s,color .25s}
+.gd-bub .gd-go:hover{background:var(--os)}
+.gd-bub .gd-x{flex:none;display:grid;place-items:center;width:44px;height:44px;border-radius:50%;opacity:.7}
+.gd-bub .gd-x:hover{opacity:1;background:rgba(236,232,224,.12)}
+.gd-bub .gd-x svg{width:18px;height:18px}
+@media (min-width:1000px){.gd-bub{left:auto;right:24px;bottom:auto;top:92px}}
+
+/* the tour: the root swallows taps (the page stays put), the spotlight cuts a hole with its own shadow */
+.gd-root{position:fixed;inset:0;z-index:95;overflow:hidden}
+.gd-spot{position:absolute;left:0;top:0;width:0;height:0;border-radius:16px;box-shadow:0 0 0 100vmax rgba(15,14,13,.66),0 0 0 2px rgba(236,232,224,.5) inset;pointer-events:none;transition:transform .3s var(--ease),width .3s var(--ease),height .3s var(--ease)}
+.gd-spot.gd-mv{transition:none}
+.gd-card{position:absolute;left:0;top:0;width:340px;max-width:calc(100vw - 24px);padding:20px 20px 16px;border-radius:24px;background:var(--os);color:var(--encre);box-shadow:0 24px 70px rgba(0,0,0,.4);transition:transform .3s var(--ease),opacity .2s;outline:none}
+.gd-card.gd-pre{opacity:0}
+.gd-ar{position:absolute;width:16px;height:16px;border-radius:3px;background:var(--os);transform:rotate(45deg);pointer-events:none}
+.gd-card[data-side="b"] .gd-ar{top:-6px;left:var(--ax,40px);margin-left:-8px}
+.gd-card[data-side="t"] .gd-ar{bottom:-6px;left:var(--ax,40px);margin-left:-8px}
+.gd-card[data-side="r"] .gd-ar{left:-6px;top:var(--ax,40px);margin-top:-8px}
+.gd-card[data-side="l"] .gd-ar{right:-6px;top:var(--ax,40px);margin-top:-8px}
+.gd-card[data-side="c"] .gd-ar,.gd-card[data-side="f"] .gd-ar{display:none}
+.gd-in{animation:gd-fade .26s var(--ease) both}
+.gd-k{margin:0;font:600 11.5px/1 var(--f-sans);letter-spacing:.09em;text-transform:uppercase;color:var(--cendre2)}
+.gd-t{margin:8px 0 0;font:400 28px/1.05 var(--f-serif);letter-spacing:-.01em}
+.gd-b{margin:10px 0 0;font:400 15.5px/1.45 var(--f-sans)}
+.gd-dots{display:flex;align-items:center;gap:5px;margin-top:16px}
+.gd-dots i{display:block;width:6px;height:6px;border-radius:50%;background:rgba(15,14,13,.2);transition:width .28s var(--ease),background-color .28s}
+.gd-dots i.on{width:20px;border-radius:3px;background:var(--rouge)}
+.gd-dots i.done{background:rgba(15,14,13,.5)}
+.gd-nav{display:flex;align-items:center;gap:8px;margin-top:14px}
+.gd-card .gd-pass{min-height:44px;margin-right:auto;padding:0 6px;font:500 15px/1.2 var(--f-sans);text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:5px}
+.gd-card .gd-pass:hover{text-decoration-thickness:2px}
+.gd-card .gd-prev,.gd-card .gd-next{min-height:44px;padding:0 20px;border-radius:999px;font:600 15px/1 var(--f-sans);transition:background-color .25s,color .25s,transform .25s var(--ease)}
+.gd-card .gd-prev{box-shadow:inset 0 0 0 1.5px currentColor}
+.gd-card .gd-prev:hover{background:rgba(15,14,13,.08)}
+.gd-card .gd-prev[hidden]{display:none}
+.gd-card .gd-next{background:var(--rouge);color:var(--encre)}
+.gd-card .gd-next:hover{background:var(--encre);color:var(--os)}
+.gd-card .gd-next:active,.gd-bub .gd-go:active{transform:scale(.97)}
+
+/* a phone: the card is a bottom (or top) card the width of the screen */
+@media (max-width:599px){.gd-card{width:calc(100vw - 24px);padding:18px 18px 12px;border-radius:22px}.gd-t{font-size:25px}.gd-card .gd-ar{display:none}}
+
+@keyframes gd-rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+@keyframes gd-fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.gd-bub,.gd-in{animation:none}.gd-bub.out,.gd-spot,.gd-card,.gd-dots i,.gd-card .gd-prev,.gd-card .gd-next,.gd-go{transition:none}}

@@ -83,7 +83,7 @@ const r_ = () => read('web/src/client/main.tsx');
 test('the site, /r/ and /mon-rendez-vous lead to the space, only while the salon has it open', () => {
   const site = read('public/site.html');
   assert.match(site, /<sc-if value="\{\{espaceNew\}\}"[^>]*><div class="card espace" data-guide="site.espace"><h3>Crée ton espace<\/h3><p>Tous tes rendez-vous et tes reçus au même endroit, sur ce téléphone\.<\/p><a class="btn" href="\{\{espaceUrl\}\}">Créer mon espace<\/a><\/div><\/sc-if>/);
-  assert.match(site, /<sc-if value="\{\{espaceOn\}\}"[^>]*><li><a href="\/moi">Mon espace<\/a><\/li><\/sc-if>/);
+  assert.match(site, /<sc-if value="\{\{espaceOn\}\}"[^>]*><li><a href="\/moi"[^>]*>Mon espace<\/a><\/li><\/sc-if>/);
   assert.match(site, /espaceUrl: '\/moi\?garder=' \+ encodeURIComponent\(/);
   // « C’est dans ton espace » only for a booking that is his (booked with another number, it is not)
   assert.match(site, /espaceIn: !!\(s\.acct && s\.acct\.enabled && s\.acct\.signedIn && s\.bk\.result && s\.ownTok === s\.bk\.result\.token\)/);
