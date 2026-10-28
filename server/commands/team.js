@@ -511,9 +511,11 @@ export const issuePhoneLink = {
 const prefsSchema = obj({
   home: opt(oneOf(HOMES)), notify: opt(oneOf(NOTIFY)), buzz: opt(bool()), blur: opt(oneOf(BLUR)), calName: opt(bool()),
   cards: opt(arr(str({ min: 1, max: 40, pattern: /^[A-Za-z0-9_-]+$/ }), { max: 20 })), hidden: opt(arr(str({ min: 1, max: 40, pattern: /^[A-Za-z0-9_-]+$/ }), { max: 20 })),
-  cal: opt(either([int({ min: 0 }), oneOf(['next'])]))
+  cal: opt(either([int({ min: 0 }), oneOf(['next'])])),
+  // GUIDE-01a: his guided tour, written whole (the version offered, the step id he stopped on, finished or not)
+  tour: opt(obj({ v: int({ min: 0, max: 1000 }), at: str({ max: 80, pattern: /^[A-Za-z0-9_.:-]*$/ }), done: bool() }))
 });
-/** One's own Comptoir, nobody else's: home page, toasts, card order, amounts on the salon post, calendar feed. */
+/** One's own Comptoir, nobody else's: home page, toasts, card order, amounts on the salon post, calendar feed, guided tour. */
 export const setPrefs = {
   run(s, input, ctx) {
     const st = getStaff(s, input.staffId);

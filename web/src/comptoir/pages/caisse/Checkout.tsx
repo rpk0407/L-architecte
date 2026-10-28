@@ -169,7 +169,7 @@ export function Checkout({ apptId, drawerOpen, onClose }: { apptId: string | nul
 
   return (
     <div className="card ticket">
-      <div className="tk-head">
+      <div className="tk-head" data-guide="tk-head">
         <div>
           <p className="section-k">{appt ? 'Rendez-vous de ' + time(appt.start) + ' · ' + staffById.get(appt.staffId)?.name : 'Vente libre'}</p>
           <h2>{client ? client.first + ' ' + client.last : appt ? appt.name : 'Nouveau ticket'}</h2>
@@ -182,7 +182,7 @@ export function Checkout({ apptId, drawerOpen, onClose }: { apptId: string | nul
       {client?.badges.length ? <div className="row wrap" style={{ gap: 6, marginTop: -6 }}>{client.badges.filter((b) => !CHIPPED.includes(b)).map((b) => <span key={b} className={'badge ' + (b === 'fidèle' ? 'badge-ok' : b === 'nouveau' ? 'badge-info' : '')}>{b}</span>)}<TillChips client={client} />{client.visits ? <span className="badge">{client.visits} visite{client.visits > 1 ? 's' : ''} · {rhythmWords(client.cadence)}</span> : null}</div> : null}
       <RewardChip client={client} lines={lines} setLines={setLines} />
 
-      <div className="tk-lines">
+      <div className="tk-lines" data-guide="tk-lines">
         {!lines.length ? <p className="muted" style={{ padding: '10px 4px' }}>Ajoute une prestation, un produit ou une carte cadeau.</p> : null}
         {lines.map((l) => {
           const opts = l.kind === 'service' ? packOptions(l) : [];
@@ -212,7 +212,7 @@ export function Checkout({ apptId, drawerOpen, onClose }: { apptId: string | nul
           );
         })}
       </div>
-      <div className="tk-add">
+      <div className="tk-add" data-guide="tk-add">
         <Button size="sm" variant="ghost" icon="plus" onClick={() => setModal('add')}>Ajouter</Button>
         {can('sale.discount') ? <Button size="sm" variant="ghost" icon="percent" onClick={() => setModal('discount')} disabled={!lines.length}>{disc ? 'Remise ' + eur(disc.amount) : 'Remise'}</Button> : null}
         {S.tips ? <Button size="sm" variant="ghost" icon="heart" onClick={() => setModal('tip')} disabled={!lines.length}>{tip ? 'Pourboire ' + eur(tip.amount) : 'Pourboire'}</Button> : null}
@@ -233,7 +233,7 @@ export function Checkout({ apptId, drawerOpen, onClose }: { apptId: string | nul
       {left > 0 ? (
         <>
           <div className="remaining"><span>{pays.length ? 'Reste à payer' : 'Comment paie-t-il ?'}</span><b className="money tnum">{eur(left, { decimals: left % 100 !== 0 })}</b></div>
-          <div className="methods">
+          <div className="methods" data-guide="tk-methods">
             <button type="button" className="method" disabled={!S.card} onClick={() => addPay({ method: 'card', amount: left, label: 'Carte · terminal' })}><Icon name="card" /><span><b>Carte</b><small>Terminal de paiement</small></span></button>
             <button type="button" className="method" disabled={!S.cash} onClick={() => setModal('cash')}><Icon name="cash" /><span><b>Espèces</b><small>{drawerOpen ? 'Calcule la monnaie' : 'Caisse fermée'}</small></span></button>
             <button type="button" className="method" disabled={!S.qr || noQr} onClick={() => setModal('qr')}><Icon name="qr" /><span><b>QR code</b><small>{noQr ? 'Branche Stripe pour le QR' : 'Apple Pay, carte'}</small></span></button>
@@ -242,7 +242,7 @@ export function Checkout({ apptId, drawerOpen, onClose }: { apptId: string | nul
         </>
       ) : left < 0 ? <Note tone="warn" icon="alert">Les paiements dépassent le total de {eur(-left)}. Retire un paiement.</Note> : null}
 
-      <Button variant="primary" size="xl" block busy={busy || checking} disabled={left !== 0 || !lines.length || lines.some((l) => l.cover?.retry)} onClick={() => submit()} icon="check">{left === 0 && lines.length ? 'Valider l’encaissement · ' + eur(totals.due) : 'Encaisser'}</Button>
+      <Button variant="primary" size="xl" block data-guide="tk-validate" busy={busy || checking} disabled={left !== 0 || !lines.length || lines.some((l) => l.cover?.retry)} onClick={() => submit()} icon="check">{left === 0 && lines.length ? 'Valider l’encaissement · ' + eur(totals.due) : 'Encaisser'}</Button>
 
       <AddSheet open={modal === 'add'} onClose={() => setModal('')} onAdd={(ls) => { setLines((x) => { const next = [...x, ...ls]; if (ls.some((l) => l.kind === 'pack')) { const svc = serviceById.get(ls.find((l) => l.kind === 'pack')!.ref!); const cut = next.find((l) => l.kind === 'service' && !l.packId && !l.memberId && (!svc?.pack?.serviceIds?.length || svc.pack.serviceIds.includes(l.ref!))); if (cut) cut.packId = 'new'; } return next; }); setModal(''); }} performer={performer} />
       <DiscountModal open={modal === 'discount'} onClose={() => setModal('')} gross={lines.filter((l) => l.kind !== 'giftcard' && !paidBy(l)).reduce((t, l) => t + l.unit * l.qty - l.discount, 0)} maxPct={maxPct} value={disc} onSet={(d) => { setDisc(d); setModal(''); }} />

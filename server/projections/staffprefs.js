@@ -2,6 +2,8 @@
 // TEAM-02: each person's own Comptoir, his photo and the phone links he issued.
 // - prefs.set { staffId, prefs }: his home page, toasts, card order, blur and calendar feed (commands/team.js setPrefs).
 //   The `prefs.` prefix is not one of state.js's CFG prefixes: one person's choice never reloads everyone's boot.
+//   GUIDE-01a: tour { v, at, done } is his guided tour of the Comptoir, so it follows him from the tablet to his phone:
+//   v the tour's version he was offered (0: never, the welcome card shows), at the step he stopped on, done finished or skipped.
 // - staff.photo { id, v } with pii { photo } (a data URL, at most 24 KB): v 0 removes it. The `staff.` prefix bumps
 //   cfgVersion, so the faces refresh on every screen. Replacing or removing a photo redacts the earlier copies from the
 //   store (core/engine.js staffRedact), so a team member's face is erasable like a client's file.
@@ -12,7 +14,8 @@
 // - device.enrolled is shown in the feed (« JKut a lié un téléphone (iPhone de JKut) ») to `team` and to the person.
 // Registered in core/extensions.js. No import of the engine or the state here.
 
-/** @typedef {{ home: 'auto'|'espace'|'agenda'|'pilotage', notify: 'mine'|'all'|'none', buzz: boolean, cards: string[], hidden: string[], blur: 'auto'|'on'|'off', cal: number, calName: boolean }} Prefs */
+/** @typedef {{ v: number, at: string, done: boolean }} TourPrefs */
+/** @typedef {{ home: 'auto'|'espace'|'agenda'|'pilotage', notify: 'mine'|'all'|'none', buzz: boolean, cards: string[], hidden: string[], blur: 'auto'|'on'|'off', cal: number, calName: boolean, tour: TourPrefs }} Prefs */
 
 export const HOMES = /** @type {const} */ (['auto', 'espace', 'agenda', 'pilotage']);
 export const NOTIFY = /** @type {const} */ (['mine', 'all', 'none']);
@@ -29,7 +32,7 @@ const LINK_KEEP = 24 * 3600000;
  * @param {string} role @returns {Prefs}
  */
 export function prefsDefaults(role) {
-  return { home: 'auto', notify: role === 'barber' ? 'mine' : 'all', buzz: true, cards: [], hidden: [], blur: 'auto', cal: 0, calName: false };
+  return { home: 'auto', notify: role === 'barber' ? 'mine' : 'all', buzz: true, cards: [], hidden: [], blur: 'auto', cal: 0, calName: false, tour: { v: 0, at: '', done: false } };
 }
 /** What this person chose, over his role's defaults. @returns {Prefs} */
 export function prefsOf(s, st) {

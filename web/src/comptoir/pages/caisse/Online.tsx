@@ -55,7 +55,7 @@ function OnlineBlock() {
   return (
     <>
       {todo.length && !ticket ? (
-        <section className="card ol-todo" aria-labelledby="ol-h">
+        <section className="card ol-todo" aria-labelledby="ol-h" data-guide="cs-online">
           <div className="card-h">
             <h2 id="ol-h"><Icon name="globe" size={16} />En ligne · à traiter <span className="badge badge-warn">{todo.length}</span></h2>
             <Button size="sm" variant="ghost" className="ol-more" onClick={() => setQuery({ enligne: '1' })}>Paiements et virements</Button>

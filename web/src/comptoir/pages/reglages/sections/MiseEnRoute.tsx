@@ -10,6 +10,7 @@ import { Icon } from '../../../../ui/Icon';
 import { Button, Empty, Note, Skeleton, toast, toastError } from '../../../../ui/kit';
 import { REVIEW_HOWTO, REVIEW_KIND, reviewLinkKind } from '../../../../lib/reviews';
 import { useApp } from '../../../state';
+import { startTour } from '../../../guide/ComptoirTour';
 import './mise-en-route.css';
 
 type Channel = { provider: string | null; failed24h: number; queuedNoProvider: number };
@@ -229,7 +230,7 @@ function Nouveautes() {
   const { data } = useQuery<{ features: Feature[] }>('/api/v1/features');
   if (!data || !data.features.length) return null;
   return (
-    <section className="card col mr-feats" aria-label="Nouveautés" style={{ gap: 12 }}>
+    <section className="card col mr-feats" aria-label="Nouveautés" style={{ gap: 12 }} data-guide="mer-features">
       <div className="card-h"><h2><Icon name="sparkle" size={16} />Nouveautés</h2></div>
       <p className="muted" style={{ fontSize: 13.5 }}>Ce qui s’ouvre plus tard : chaque ligne dit ce qu’elle attend, et mène à son réglage.</p>
       <ul className="mr-fl" aria-label="Fonctions qui attendent">
@@ -263,14 +264,19 @@ export default function MiseEnRoute() {
   const broken = steps.filter((x) => x.tone === 'err');
   return (
     <div className="col" style={{ gap: 16 }}>
-      <section className="card col mr-head" style={{ gap: 12 }}>
+      <section className="card col mr-head" style={{ gap: 12 }} data-guide="mer-head">
         <div className="card-h"><h2><Icon name="check" size={16} />Mise en route</h2><span className="faint tnum" style={{ fontSize: 13 }}>{done} sur {counted} prêts</span></div>
         <span className="kpi-bar" aria-hidden><i style={{ ['--w' as any]: Math.round((done / Math.max(1, counted)) * 100) + '%' }} /></span>
         <p className="muted" style={{ fontSize: 13.5 }}>Dans cet ordre : chaque étape compte sur les précédentes. Les coches se mettent à jour toutes seules ; chaque ligne mène à son écran.</p>
         {data.mode === 'demo' ? <Note icon="info">Démo : paiements, SMS et e-mails sont simulés et rien n’est sauvegardé. Ces lignes-là ne comptent pas.</Note> : null}
         {broken.length ? <Note tone="err" icon="alert"><b>{broken.map((x) => x.title).join(', ')}</b> : à regarder tout de suite.</Note> : null}
+        {/* GUIDE-01a: the whole guided tour again, from its first step (each page's « ? » replays that page only) */}
+        <div className="mr-tour" data-guide="mer-replay">
+          <span className="grow"><b>Visite guidée</b><small>Chaque écran du Comptoir, partie par partie, en quelques minutes.</small></span>
+          <Button variant="subtle" icon="sparkle" onClick={() => startTour('tour', 'start')}>Revoir la visite</Button>
+        </div>
       </section>
-      <ol className="mr-list" aria-label="Étapes de mise en route">
+      <ol className="mr-list" aria-label="Étapes de mise en route" data-guide="mer-list">
         {steps.map((x, i) => (
           <li key={x.id} className={'mr-step ' + x.tone} data-step={x.id} data-done={x.tone === 'ok' ? '1' : '0'}>
             <span className="mr-n" aria-hidden>{ICON[x.tone] ? <Icon name={ICON[x.tone]} size={16} /> : i + 1}</span>
