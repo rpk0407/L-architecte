@@ -501,7 +501,7 @@ test('a recycled number after 120 days: three wrong first names open the space f
   for (const first of ['Karim', 'Sofiane']) {
     const r = await b.post('/api/public/account/verify', { phone: who.phone, code, first });
     assert.equal(r.status, 200);
-    assert.deepEqual(r.json, { ok: false, ask: 'first', message: 'Ce n’est pas le prénom de la fiche. Réessaie.' });
+    assert.deepEqual(r.json, { ok: false, ask: 'first', message: 'Ce n’est pas le prénom qu’on a pour ce numéro. Réessaie.' });
   }
   assert.equal(events(rt, 'account.signedIn').length, 0);
   const third = await b.post('/api/public/account/verify', { phone: who.phone, code, first: 'Nordine' });
@@ -546,7 +546,7 @@ test('wrong first names count over days: two one day, one the next, and the spac
     const m = [...rt.engine.state.messages.values()].filter((x) => x.template === 'otp' && x.cid === id).at(-1);
     return b.post('/api/public/account/verify', { phone: who.phone, code: otpCode(rt.secret, m.id), first });
   };
-  const WRONG = { ok: false, ask: 'first', message: 'Ce n’est pas le prénom de la fiche. Réessaie.' };
+  const WRONG = { ok: false, ask: 'first', message: 'Ce n’est pas le prénom qu’on a pour ce numéro. Réessaie.' };
   for (const first of ['Karim', 'Sofiane']) assert.deepEqual((await ask(first)).json, WRONG, first);
   // the next day: the count goes on
   t.clock.now = at(addDays(DAY, 1), 10);
@@ -587,7 +587,7 @@ test('a space unused for longer than the fence, on a file not seen since: the qu
   const code = otpCode(rt.secret, m.id);
   const r0 = await b.post('/api/public/account/verify', { phone: who.phone, code });
   assert.deepEqual({ ok: r0.json.ok, ask: r0.json.ask }, { ok: false, ask: 'first' });
-  for (const first of ['Karim', 'Sofiane']) assert.equal((await b.post('/api/public/account/verify', { phone: who.phone, code, first })).json.message, 'Ce n’est pas le prénom de la fiche. Réessaie.');
+  for (const first of ['Karim', 'Sofiane']) assert.equal((await b.post('/api/public/account/verify', { phone: who.phone, code, first })).json.message, 'Ce n’est pas le prénom qu’on a pour ce numéro. Réessaie.');
   const r3 = await b.post('/api/public/account/verify', { phone: who.phone, code, first: 'Nordine' });
   assert.deepEqual(r3.json, { ok: true, first: '' });
   const row = accountOf(rt.engine.state, [id]);

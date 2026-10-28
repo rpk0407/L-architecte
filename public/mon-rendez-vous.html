@@ -38,7 +38,10 @@
 .saved a::after{content:"→";flex:none;font-size:20px;color:var(--tx2);transition:transform .2s var(--ease)}
 .saved a:hover::after{transform:translateX(3px);color:var(--tx)}
 @media (max-width:520px){.acts .btn{flex:1 1 100%}}
-.espace{margin-top:18px}.espace a{padding:12px 0;color:var(--tx);font-weight:600}
+.espace{display:flex;flex-direction:column;align-items:flex-start;gap:10px;margin-top:18px;padding:clamp(18px,3vw,24px);border-radius:20px;background:var(--sf);box-shadow:inset 0 0 0 1px var(--ln)}
+.espace h2{margin:0;font:400 26px/1.1 var(--f-serif)}
+.espace p{margin:0;color:var(--tx2);font-size:15.5px}
+.espace .btn{min-height:50px;margin-top:4px}
 </style>
 </head>
 <body>
@@ -59,7 +62,11 @@
 <div class="acts"><button id="lk-b" class="btn" type="submit">Recevoir le lien</button><a class="btn ghost" href="/?reserver">Réserver</a></div>
 <noscript><p class="hint">Sans JavaScript, le formulaire ne peut pas partir&nbsp;: appelle le salon, on te redonne ton rendez-vous.</p></noscript>
 </form>
-<p id="lk-espace" class="hint espace" hidden>Tu veux tout retrouver&nbsp;? <a href="/moi">Ouvre ton espace</a>&nbsp;: tes rendez-vous, tes reçus.</p>
+<div id="lk-espace" class="espace" role="group" aria-labelledby="lk-et" hidden>
+<h2 id="lk-et">Tu reviens souvent&nbsp;?</h2>
+<p>Ouvre ton espace&nbsp;: tes rendez-vous et tes reçus restent à portée, sans lien à redemander.</p>
+<a class="btn ghost" href="/moi">Ouvrir mon espace</a>
+</div>
 
 <section id="lk-done" class="lk sent" tabindex="-1" aria-labelledby="lk-t" hidden>
 <h2 id="lk-t">C’est noté</h2>

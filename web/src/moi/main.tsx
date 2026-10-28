@@ -9,6 +9,7 @@ import { Icon } from '../ui/Icon';
 import { tabCards } from './registry';
 import { PATHS, safeNext, tabOf, type Tab } from './paths';
 import { SignIn } from './SignIn';
+import { SitePage } from './SitePage';
 import { Guard, dayWords, todayKey } from './kit';
 import { MoiTour, MoiWelcome } from './guide/MoiTour';
 import type { AccountState, Me } from './types';
@@ -43,6 +44,21 @@ function Shell({ children, tab, onTab }: { children: ReactNode; tab?: Tab; onTab
   );
 }
 
+/** « C'est bon, Yanis. »: the moment between the right code and the home, so that the opening is seen. */
+function Opened({ first }: { first: string }) {
+  const head = useRef<HTMLHeadingElement>(null);
+  useEffect(() => { head.current?.focus(); }, []);
+  return (
+    <SitePage solo>
+      <section className="ms-ok" aria-labelledby="m-ok-t">
+        <span className="ms-ok-c" aria-hidden="true"><Icon name="check" size={36} /></span>
+        <h1 id="m-ok-t" ref={head} tabIndex={-1}>C’est bon{first ? <>, <em>{first}.</em></> : <em>.</em>}</h1>
+        <p>On ouvre ton espace…</p>
+      </section>
+    </SitePage>
+  );
+}
+
 /** « Salut Hamza », and when nothing is booked, when the next cut is due (never a made-up date: no rhythm below 2 visits). */
 function Hello({ me }: { me: Me }) {
   const today = todayKey();
@@ -74,13 +90,16 @@ function TabHead({ tab, me }: { tab: Tab; me: Me }) {
 }
 
 function App() {
-  // read once: where the visitor came from (a booking's « Créer mon espace », a deep link)
+  // read once: where the visitor came from (a booking's « Ouvrir mon espace », a deep link)
   const start = useRef(new URLSearchParams(location.search));
   const [acc, setAcc] = useState<AccountState | null>(null);
   const [me, setMe] = useState<Me | null>(null);
   const [err, setErr] = useState('');
   const [path, setPath] = useState(location.pathname);
   const moved = useRef(false);
+  // just signed in: « C'est bon, Yanis. » stays up a moment (and until the space is read), then the home
+  const [just, setJust] = useState<{ first: string } | null>(null);
+  const [holding, setHolding] = useState(false);
 
   const go = useCallback((to: string, replace = false) => {
     if (to !== location.pathname + location.search) history[replace ? 'replaceState' : 'pushState'](null, '', to);
@@ -124,6 +143,11 @@ function App() {
     // a tab chosen by hand: the reader starts at its title
     if (moved.current) (document.querySelector('.m-hello h1') as HTMLElement | null)?.focus();
   }, [tab, acc && acc.signedIn, !!me]);
+  const signedIn = (first: string) => {
+    setJust({ first }); setHolding(true);
+    setTimeout(() => setHolding(false), 800);
+    loadAccount().then(enter).catch((e: ApiError) => setErr(e.message));
+  };
   const onTab = (t: Tab) => { moved.current = true; go(PATHS[t]); window.scrollTo(0, 0); };
 
   if (err && !acc) {
@@ -133,13 +157,10 @@ function App() {
       </Shell>
     );
   }
-  if (!acc) return <Shell><div className="c-card c-center" aria-busy="true"><span className="c-spin" /><p className="c-muted">Un instant…</p></div></Shell>;
+  if (!acc) return <div className="ms-boot" aria-busy="true"><span className="c-spin" /><span className="m-live" role="status">Un instant…</span></div>;
+  if (just && (holding || (!me && !err))) return <Opened first={just.first} />;
   if (!acc.signedIn) {
-    return (
-      <Shell>
-        <SignIn demo={acc.demo} enabled={acc.enabled} garder={acc.enabled ? start.current.get('garder') : null} onIn={() => loadAccount().then(enter).catch((e: ApiError) => setErr(e.message))} />
-      </Shell>
-    );
+    return <SignIn demo={acc.demo} enabled={acc.enabled} loyalty={!!(acc.loyalty && acc.loyalty.on)} garder={acc.enabled ? start.current.get('garder') : null} onIn={signedIn} />;
   }
   if (!me) {
     // the space did not open (the salon did not answer): say so and offer to try again, no spinner left turning
@@ -155,7 +176,7 @@ function App() {
     <Shell tab={tab} onTab={onTab}>
       <TabHead tab={tab} me={me} />
       {/* GUIDE-01a: the first visit's welcome, then the tour it opens (replayed from Profil) */}
-      {tab === 'home' ? <MoiWelcome /> : null}
+      {tab === 'home' ? <MoiWelcome me={me} loyalty={!!(acc.loyalty && acc.loyalty.on)} /> : null}
       {err ? <p className="c-note warn" role="alert">{err}</p> : null}
       {tabCards(tab).map((c) => { const Card = c.default; return <Guard key={c.meta.id}><Card me={me} reload={reload} /></Guard>; })}
       <MoiTour go={go} />

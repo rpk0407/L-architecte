@@ -45,7 +45,7 @@ export type MeHistory = { items: MeHistoryItem[]; more: boolean };
 export type MeSession = { first: string; last: string; phone: string; since: number; fenced: boolean; historyFrom: string | null; named: boolean; demo: boolean };
 
 /** GET /api/public/account: the entry points hide when enabled is false. */
-export type AccountState = { enabled: boolean; signedIn: boolean; first?: string; demo: boolean };
+export type AccountState = { enabled: boolean; signedIn: boolean; first?: string; demo: boolean; loyalty?: { on: boolean; goal: number } };
 /** POST /api/public/account/start | keep | verify. demoCode: the demo only (the persona, or a visitor's own fresh booking). */
 export type StartAnswer = { ok: true; message: string; demoCode?: string };
 export type KeepAnswer = { ok: true; sentTo: string; demoCode?: string };

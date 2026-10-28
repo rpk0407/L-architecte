@@ -423,6 +423,12 @@ position:relative;font:400 17px/1.5 var(--f-sans);color:var(--os);background:var
 .tb-ch[aria-expanded="true"] .tb-ic i:first-child{transform:rotate(45deg)}
 .tb-ch[aria-expanded="true"] .tb-ic i:last-child{transform:rotate(-45deg)}
 .tb-ch:hover .tb-ic{transform:rotate(90deg)}
+.tb-r{display:flex;align-items:center;gap:8px;min-width:0}
+.tb-me{display:none;place-items:center;flex:none;width:46px;height:46px;border-radius:50%;background:rgba(236,232,224,.74);color:var(--encre);-webkit-backdrop-filter:blur(16px) saturate(1.4);backdrop-filter:blur(16px) saturate(1.4);box-shadow:0 1px 0 rgba(255,255,255,.5) inset,0 8px 28px rgba(15,14,13,.1);transition:background-color .4s,color .4s,box-shadow .4s}
+.tb-me svg{width:22px;height:22px}
+.tb.dark .tb-me{background:rgba(30,28,26,.66);color:var(--os);box-shadow:0 0 0 1px rgba(236,232,224,.12) inset,0 8px 28px rgba(0,0,0,.25)}
+.tb.mo .tb-me{display:none}
+@media (min-width:560px){.tb-me{display:grid}.tb.mo .tb-me{display:none}}
 
 /* the index */
 .mn{position:fixed;inset:0;z-index:85;overflow:auto;overscroll-behavior:contain;background:var(--encre);color:var(--os);animation:mnIn .6s var(--ease) both}
@@ -439,6 +445,14 @@ position:relative;font:400 17px/1.5 var(--f-sans);color:var(--os);background:var
 .mn-l a:hover .mn-t{transform:translateX(8px)}
 .mn-l a.cur .mn-t{color:var(--rouge)}
 .mn-l a.cur .mn-n{color:var(--os)}
+.mn-top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px 14px}
+.mn-me{display:inline-flex;align-items:center;gap:10px;min-height:48px;padding:0 18px 0 6px;border-radius:999px;background:rgba(236,232,224,.09);box-shadow:inset 0 0 0 1px var(--ligne);transition:background-color .25s;animation:fadeIn .6s .25s both}
+.mn-me:hover{background:rgba(236,232,224,.16)}
+.mn-me-i{flex:none;display:grid;place-items:center;width:36px;height:36px;border-radius:50%;background:var(--os);color:var(--encre)}
+.mn-me-i svg{width:20px;height:20px}
+.mn-me-t{display:flex;flex-direction:column;gap:2px;min-width:0}
+.mn-me-t b{font:600 15px/1.2 var(--f-sans);white-space:nowrap}
+.mn-me-t small{font:500 12.5px/1.2 var(--f-sans);color:var(--cendre)}
 .mn-foot{display:flex;flex-direction:column;gap:12px;margin-top:auto;padding-top:26px;animation:fadeIn .6s .45s both}
 .mn-st{display:flex;align-items:center;gap:10px;font:600 15px/1.2 var(--f-sans)}
 .mn-st i{flex:none;width:9px;height:9px;border-radius:50%;background:var(--cendre2)}
@@ -915,10 +929,11 @@ position:relative;font:400 17px/1.5 var(--f-sans);color:var(--os);background:var
 .to-ck>span{display:flex;flex-direction:column;gap:4px}
 .to-ck small{font:600 11px/1 var(--f-sans);letter-spacing:.09em;text-transform:uppercase;color:var(--rouge)}
 .to-ck svg{flex:none;width:20px;height:20px}
-.espace{display:flex;flex-direction:column;align-items:flex-start;gap:8px;margin-top:20px;padding:18px;border-radius:20px;background:var(--blanc);box-shadow:inset 0 0 0 1px var(--iligne)}
+.espace{display:flex;flex-direction:column;align-items:flex-start;gap:8px;margin-top:16px;padding:18px;border-radius:20px;background:var(--blanc);box-shadow:inset 0 0 0 1px var(--iligne)}
 .espace h3{font:600 16px/1.3 var(--f-sans)}
 .espace p{font:500 14.5px/1.45 var(--f-sans);color:var(--cendre2)}
 .espace .btn{margin-top:6px;min-height:50px;padding:0 22px;font-size:15.5px}
+.espace small{font:500 13px/1.4 var(--f-sans);color:var(--cendre2)}
 .cx{margin-top:8px;font:400 28px/1.15 var(--f-serif)}
 .cx-s{margin-top:12px;font:500 15px/1.45 var(--f-sans);color:var(--cendre2)}
 
@@ -1030,6 +1045,8 @@ html{scroll-behavior:auto}
 .ab-c.carnet .ab-s{color:var(--cendre2)}
 .ab-c.carnet .ab-s i{background:var(--rouge)}
 .ab-p .btn{margin-top:18px}
+.ab-esp{max-width:40ch;margin-top:24px;font:500 15px/1.5 var(--f-sans);color:var(--cendre)}
+.ab-esp a{padding:12px 0;color:var(--os);text-decoration:underline;text-underline-offset:5px}
 .ab-foot{display:flex;flex-wrap:wrap;gap:0 24px;margin-top:26px}
 .ab-foot a{display:inline-flex;align-items:center;min-height:44px;font:500 15px/1.3 var(--f-sans);color:var(--cendre);text-decoration:underline;text-underline-offset:5px}
 .ab-foot a:hover{color:var(--os)}
@@ -1056,15 +1073,19 @@ html{scroll-behavior:auto}
 <a class="skip" href="#main">Aller au contenu</a>
 <header class="{{tbCls}}">
 <a class="wm" href="#frais" aria-label="L’Architecte, retour en haut"><span class="wm-a">L’Architecte</span><span class="wm-b">Barber · Marseille</span></a>
+<div class="tb-r">
+<sc-if value="{{espaceOn}}" hint-placeholder-val="{{ false }}"><a class="tb-me" href="/moi" aria-label="{{meAria}}" title="{{meName}}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM5 20c.9-3.5 3.6-5 7-5s6.1 1.5 7 5"/></svg></a></sc-if>
 <button type="button" class="tb-ch" ref="{{r.chBtn}}" aria-label="{{chAria}}" aria-expanded="{{menu}}" aria-controls="menu" onClick="{{toggleMenu}}">
 <span class="tb-cw" ref="{{r.chTxt}}" aria-hidden="true"><span class="{{chNumCls}}">{{chNum}}</span><span class="tb-ct">{{chName}}</span></span>
 <span class="tb-ic" aria-hidden="true"><i></i><i></i></span>
 </button>
+</div>
 </header>
 <sc-if value="{{menu}}" hint-placeholder-val="{{ false }}">
 <nav class="mn" id="menu" aria-label="Sommaire" onKeyDown="{{menuKey}}">
 <div class="mn-in">
-<p class="mn-k">Sommaire</p>
+<div class="mn-top"><p class="mn-k">Sommaire</p>
+<sc-if value="{{espaceOn}}" hint-placeholder-val="{{ false }}"><a class="mn-me" href="/moi"><span class="mn-me-i" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM5 20c.9-3.5 3.6-5 7-5s6.1 1.5 7 5"/></svg></span><span class="mn-me-t"><b>{{meName}}</b><small>{{meSub}}</small></span></a></sc-if></div>
 <ol class="mn-l">
 <sc-for list="{{nav}}" as="n" hint-placeholder-count="7"><li style="--i: {{n.i}}"><a class="{{n.cls}}" href="{{n.href}}" aria-current="{{n.cur}}" onClick="{{n.go}}"><span class="mn-n">{{n.num}}</span><span class="mn-t">{{n.t}}</span><span class="mn-d">{{n.d}}</span></a></li></sc-for>
 </ol>
@@ -1294,6 +1315,7 @@ html{scroll-behavior:auto}
 </div>
 </article></sc-if>
 </div>
+<sc-if value="{{espaceOn}}" hint-placeholder-val="{{ false }}"><p class="ab-esp">Ton abonnement, ton carnet et tes coupes restantes se suivent dans <a href="/moi">Mon espace</a>.</p></sc-if>
 <p class="ab-foot"><a href="/cgv#abonnement">Conditions de l’abonnement</a><a href="/resilier">Résilier mon abonnement</a></p>
 </div>
 </section>
@@ -1332,7 +1354,7 @@ html{scroll-behavior:auto}
 <li><a href="/formations">Formations</a></li>
 <li><a href="/carte-cadeau" data-guide="site.cadeau" data-guide-n="60" data-guide-title="Carte cadeau" data-guide-body="Offre une coupe&nbsp;: tu choisis le montant, on envoie le code par SMS à qui tu veux. Elle se dépense au salon, en une ou plusieurs fois.">Carte cadeau</a></li>
 <li><a href="/mon-rendez-vous" data-guide="site.rdv" data-guide-n="70" data-guide-title="Mon rendez-vous" data-guide-body="Tu as réservé sans compte&nbsp;? Donne ton numéro&nbsp;: on t’envoie le lien pour déplacer ou annuler.">Mon rendez-vous</a></li>
-<sc-if value="{{espaceOn}}" hint-placeholder-val="{{ false }}"><li><a href="/moi" data-guide="site.espace-lien" data-guide-n="30" data-guide-title="Mon espace" data-guide-body="Crée ton espace avec ton numéro&nbsp;: tes rendez-vous et tes reçus au même endroit. C’est facultatif, tu peux toujours réserver sans." data-guide-n-2="50" data-guide-title-2="{{fidTitle}}" data-guide-body-2="{{fidBody}}">Mon espace</a></li></sc-if>
+<sc-if value="{{espaceOn}}" hint-placeholder-val="{{ false }}"><li><a href="/moi" data-guide="site.espace-lien" data-guide-n="30" data-guide-title="Mon espace" data-guide-body="Ouvre ton espace avec ton numéro&nbsp;: tes rendez-vous et tes reçus au même endroit, avec un code par SMS. C’est facultatif, tu peux toujours réserver sans." data-guide-n-2="50" data-guide-title-2="{{fidTitle}}" data-guide-body-2="{{fidBody}}">Mon espace</a></li></sc-if>
 <li><a href="/resilier">Résilier mon abonnement</a></li>
 <li><a href="/?visite" data-guide-replay>Comment ça marche&nbsp;?</a></li>
 <li><a href="/mentions-legales">Mentions légales</a></li>
@@ -1450,6 +1472,7 @@ html{scroll-behavior:auto}
 <sc-if value="{{hasMemberLine}}" hint-placeholder-val="{{ false }}"><p class="tk-m">{{memberLine}}</p></sc-if>
 </div>
 <sc-if value="{{needPay}}" hint-placeholder-val="{{ false }}"><div class="pay-b"><p>{{payLine}}</p><a class="btn" href="{{payUrl}}">Régler l’acompte</a></div></sc-if>
+<sc-if value="{{espaceNew}}" hint-placeholder-val="{{ false }}"><div class="card espace" data-guide="site.espace"><h3>Garde tout au même endroit</h3><p>{{espaceText}}</p><a class="btn" href="{{espaceUrl}}">Ouvrir mon espace</a><small>Facultatif&nbsp;: ton rendez-vous est déjà confirmé.</small></div></sc-if>
 <sc-if value="{{showSms}}" hint-placeholder-val="{{ true }}"><p class="sms-k">Le SMS que tu reçois</p>
 <div class="sms"><p>{{smsText}}</p><small>À l’instant</small></div></sc-if>
 <div class="done-act">
@@ -1461,7 +1484,7 @@ html{scroll-behavior:auto}
 <sc-if value="{{asking}}" hint-placeholder-val="{{ false }}"><p class="ask">Annuler ce rendez-vous&nbsp;?</p><button type="button" class="btn small" onClick="{{doCancel}}">Oui, annuler</button><button type="button" class="tl" onClick="{{keep}}">Non, je garde</button></sc-if>
 </div>
 <a class="mg-l" href="{{manageUrl}}">Ton rendez-vous a sa page&nbsp;: déplacer, annuler, itinéraire</a>
-<sc-if value="{{espaceNew}}" hint-placeholder-val="{{ false }}"><div class="card espace" data-guide="site.espace"><h3>Crée ton espace</h3><p>Tous tes rendez-vous et tes reçus au même endroit, sur ce téléphone.</p><a class="btn" href="{{espaceUrl}}">Créer mon espace</a></div></sc-if><sc-if value="{{espaceIn}}" hint-placeholder-val="{{ false }}"><a class="mg-l" href="/moi">C’est dans ton espace.</a></sc-if>
+<sc-if value="{{espaceIn}}" hint-placeholder-val="{{ false }}"><a class="mg-l" href="/moi">C’est dans ton espace.</a></sc-if>
 <sc-if value="{{isDemo}}" hint-placeholder-val="{{ true }}"><a class="to-ck" href="/comptoir" target="_blank" rel="noopener" onClick="{{toCockpit}}"><span><small>Démo</small>Le voir arriver dans le Comptoir</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h15M13 6l6 6-6 6"/></svg></a></sc-if>
 </div>
 </sc-if>
@@ -2864,7 +2887,7 @@ class Component extends DCLogic {
       meForgot: !!s.forgot,
       forgetMe: () => { clearMe(); this.setState({ forgot: true, fFirst: '', fLast: '', fPhone: '', fEmail: '', fNote: '', fMkt: false }); },
 
-      // the client space: the footer's « Mon espace », « Crée ton espace » under a booking just made (under the deposit's
+      // the client space: the footer's « Mon espace », « Garde tout au même endroit » under a booking just made (under the deposit's
       // block when one waits, which keeps the lead), « C’est dans ton espace » only when that booking is his
       espaceOn: !!(s.acct && s.acct.enabled),
       // the guide's loyalty step only when the salon runs the card (own switch), with its real goal; no title: no step
@@ -2872,6 +2895,11 @@ class Component extends DCLogic {
       fidBody: s.acct && s.acct.loyalty && s.acct.loyalty.on ? 'Chaque coupe payée remplit ta carte, dans ton espace. À la ' + ((Number(s.acct.loyalty.goal) || 9) + 1) + 'ᵉ coupe, ta récompense t’attend.' : '',
       espaceNew: !!(s.acct && s.acct.enabled && !s.acct.signedIn && s.bk.result && s.bk.result.token),
       espaceIn: !!(s.acct && s.acct.enabled && s.acct.signedIn && s.bk.result && s.ownTok === s.bk.result.token),
+      espaceText: s.acct && s.acct.loyalty && s.acct.loyalty.on ? 'Ton prochain rendez-vous, tes reçus et ta carte fidélité. Un code par SMS, pas de mot de passe.' : 'Ton prochain rendez-vous et tes reçus. Un code par SMS, pas de mot de passe.',
+      // the Sommaire's and the top bar's way in: « Salut Yanis » once this phone is signed in
+      meName: s.acct && s.acct.signedIn && s.acct.first ? 'Salut ' + s.acct.first : 'Mon espace',
+      meSub: s.acct && s.acct.signedIn ? 'Ouvre ton espace' : 'Tes rendez-vous et tes reçus',
+      meAria: s.acct && s.acct.signedIn && s.acct.first ? 'Mon espace, connecté : ' + s.acct.first : 'Mon espace',
       espaceUrl: '/moi?garder=' + encodeURIComponent((s.bk.result && s.bk.result.token) || ''),
 
       mapsUrl: mapsOf()

@@ -143,7 +143,7 @@ function Manage({ token, back }: { token: string; back: string | null }) {
 }
 
 /**
- * « Crée ton espace » under a booking to come (AC-03a): hidden while the salon keeps the space closed. Signed in, « C’est
+ * « Ouvre ton espace » under a booking to come (AC-03a): hidden while the salon keeps the space closed. Signed in, « C’est
  * dans ton espace » only when this booking is among his (booked with another number, it is that number's, not his).
  */
 function Espace({ token }: { token: string }) {
@@ -158,9 +158,10 @@ function Espace({ token }: { token: string }) {
   if (!acc || !acc.enabled) return null;
   if (acc.signedIn) return !mine ? null : <p className="c-muted c-small c-espace-in" data-guide="r.espace">C’est dans ton espace. <a href="/moi">Ouvrir mon espace</a></p>;
   return (
-    <section className="c-card c-espace" data-guide="r.espace">
-      <p><b>Crée ton espace</b> : tous tes rendez-vous et tes reçus au même endroit.</p>
-      <a className="c-btn ghost" href={'/moi?garder=' + encodeURIComponent(token)}>Créer mon espace</a>
+    <section className="c-card c-espace" aria-labelledby="c-espace-t" data-guide="r.espace">
+      <h2 className="c-h2" id="c-espace-t">Ouvre ton espace</h2>
+      <p className="c-muted">Retrouve ce rendez-vous, tes reçus et tes avantages. Un code par SMS, pas de mot de passe.</p>
+      <a className="c-btn" href={'/moi?garder=' + encodeURIComponent(token)}>Ouvrir mon espace</a>
     </section>
   );
 }

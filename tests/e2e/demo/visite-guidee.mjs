@@ -2,7 +2,7 @@
 // lights the first part of Mise en route; « Suivant » moves the spotlight to the next part, then to another page;
 // Escape closes it and « Visite guidée » stays in the top bar; « Revoir la visite » in Mise en route starts it again.
 // Every answer 1.2 s late (a cold server): the same visit, every part lit. On a phone the card is a bottom card; with
-// reduced motion nothing moves. The demo's client sees « Bienvenue dans ton espace » once on /moi, and its tour opens
+// reduced motion nothing moves. The demo's client sees « Bienvenue, … » once on /moi, and its tour opens
 // from it.
 export const name = 'guided tour: welcome, spotlight, next part, next page, Escape, « Revoir la visite », slow connection, phone, reduced motion, /moi welcome';
 
@@ -203,12 +203,12 @@ export default async ({ h, page }) => {
   await litOn(still, 'mer-replay');
   await still.keyboard.press('Escape');
 
-  /* ---------- /moi: « Bienvenue dans ton espace », once ---------- */
+  /* ---------- /moi: « Bienvenue, … », once ---------- */
   const moi = await h.newPage({ viewport: { width: 390, height: 844 } });
   await moi.goto(h.base + '/moi');
   await moi.getByRole('button', { name: 'Essayer avec un client de démo' }).click();
   await moi.getByRole('heading', { name: /^Salut / }).waitFor({ timeout: 10000 });
-  await moi.getByRole('heading', { name: 'Bienvenue dans ton espace' }).waitFor();
+  await moi.getByRole('heading', { name: /^Bienvenue/ }).waitFor();
   await h.shot(moi, 'moi-welcome');
   await moi.getByRole('button', { name: 'Voir comment ça marche' }).click();
   await moi.locator('.tour[data-skin="site"] .tour-card[data-on="1"]').waitFor();
@@ -220,7 +220,7 @@ export default async ({ h, page }) => {
   await moi.reload();
   await moi.getByRole('heading', { name: /^Salut / }).waitFor({ timeout: 10000 });
   await moi.waitForTimeout(400);
-  if (await moi.getByRole('heading', { name: 'Bienvenue dans ton espace' }).count()) throw new Error('/moi: the welcome comes back');
+  if (await moi.getByRole('heading', { name: /^Bienvenue/ }).count()) throw new Error('/moi: the welcome comes back');
   // Profil › « Comment ça marche ? » replays it
   await moi.getByRole('link', { name: 'Profil' }).click();
   await moi.getByRole('button', { name: 'Comment ça marche ?' }).click();
