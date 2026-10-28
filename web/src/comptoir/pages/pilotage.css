@@ -17,9 +17,13 @@
 .pl-eye:hover { box-shadow: inset 0 0 0 1.5px var(--tx2); }
 
 /* amounts hidden on a screen others can see (a salon post): the button shows them for 30 seconds */
-.pl[data-masked='1'] .money { filter: blur(7px); transition: filter .2s; }
+:root[data-pl-masked='1'] .money { filter: blur(7px); transition: filter .2s; }
 .pl .money { transition: filter .2s; }
-:root .pl[data-shown='1'] .money { filter: none; }
+.pl-bs > .pl-eye { align-self: flex-start; }
+.pl-fail { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 16px; border-radius: 14px; background: var(--warn-bg); color: var(--warn-tx); font-size: 13.5px; }
+.pl-fail span { flex: 1 1 200px; }
+.pl-fail .btn { min-height: 44px; }
+.pl-team .empty { padding: 18px 8px; }
 
 /* the till */
 .pl-cash { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 16px; border-radius: 18px; background: var(--panel); }

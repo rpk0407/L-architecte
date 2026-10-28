@@ -10,16 +10,17 @@ export const rel = (cur: number, prev: number): number | null => (prev ? (cur - 
  * « ↑ 12 % » against the period before. Said in words too (« contre mardi dernier »), so colour is never the only sign;
  * `inverse` for what is worse when it grows (no-shows, discounts). Nothing without a base to compare with.
  */
-export function Dlt({ cur, prev, against, inverse }: { cur: number; prev: number; against: string; inverse?: boolean }) {
+export function Dlt({ cur, prev, against, inverse, soft }: { cur: number; prev: number; against: string; inverse?: boolean; soft?: boolean }) {
   const d = rel(cur, prev);
   if (d == null || !Number.isFinite(d)) return null;
   const flat = Math.abs(d) < 0.005;
   const up = d > 0;
-  const good = flat ? 'flat' : up !== !!inverse ? 'good' : 'bad';
+  // soft: a part of a day against a whole one, which proves nothing yet: no alarm colours
+  const good = flat || soft ? 'flat' : up !== !!inverse ? 'good' : 'bad';
   return (
     <span className={'pl-d ' + good}>
       <span aria-hidden>{flat ? '=' : (up ? '↑ ' : '↓ ') + Math.abs(Math.round(d * 100)) + ' %'}</span>
-      <span className="vh">{flat ? 'comme' : (up ? 'en hausse de ' : 'en baisse de ') + Math.abs(Math.round(d * 100)) + ' % par rapport à'} {against}</span>
+      <span className="vh">{flat ? 'comme' : (up ? 'en hausse de ' : 'en baisse de ') + Math.abs(Math.round(d * 100)) + ' % par rapport'} {against}</span>
     </span>
   );
 }

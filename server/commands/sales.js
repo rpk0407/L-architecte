@@ -704,6 +704,12 @@ export function remainingAppts(s, day, min) {
       return { name: c ? c.first + (c.last ? ' ' + c.last.charAt(0) + '.' : '') : a.name || 'Client', start: a.start, staff: (s.staff.get(a.staffId) || {}).name || '' };
     });
 }
+/** The appointments waiting for their payment on `day` at minute `min` (the Caisse badge and Pilotage's till say the same). A sealed day takes no more payments. */
+export function toPayAppts(s, day, min) {
+  if (s.closures.has(day)) return [];
+  return [...(s.apptsByDay.get(day) || [])].map((id) => s.appts.get(id)).filter((a) => a && !a.saleId && !a.legacy // legacy: paid on the old site's till
+    && (a.status === 'in_chair' || a.status === 'done' || ((a.status === 'booked' || a.status === 'arrived') && a.start + a.dur <= min)));
+}
 /** End of the day's last opening interval, in minutes (0 when the shop is closed that day). */
 export function closingMin(s, day) { return Math.max(0, ...shopIntervals(s, day).map((x) => x[1])); }
 

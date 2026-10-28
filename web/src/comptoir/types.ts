@@ -131,7 +131,7 @@ export type CockpitCash = {
 };
 export type Cockpit = {
   asOf: number;
-  range: { kind: CockpitRange; day: string; from: string; to: string; upTo: string; label: string; prevLabel: string; prev: { from: string; to: string }; today: string; live: boolean };
+  range: { kind: CockpitRange; day: string; from: string; to: string; upTo: string; label: string; prevLabel: string; prev: { from: string; to: string }; today: string; live: boolean; partial: boolean; closed: boolean };
   kpis: {
     cashed: { value: number; prev: number; tickets: number; goal: CockpitGoal | null; series: number[] };
     performed: number; gap: Gap;

@@ -64,6 +64,27 @@ export default async ({ h, page }) => {
   await page.getByText('Détail du chiffre réalisé', { exact: false }).first().waitFor({ state: 'attached', timeout: 8000 });
   await page.keyboard.press('Escape');
 
+  // amounts hidden (a shared screen): the barber's sheet and the statement are portalled outside the page, and are blurred too
+  const blurred = (sel) => page.locator(sel).first().evaluate((e) => /blur/.test(getComputedStyle(e).filter));
+  await page.evaluate(() => fetch('/api/v1/prefs', { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ blur: 'on' }) }));
+  await page.reload();
+  await page.getByRole('group', { name: 'Encaissé' }).waitFor();
+  must(await blurred('.pl .money'), 'the page amounts are not blurred when hidden');
+  await page.getByRole('button', { name: 'Le détail de Frank' }).click();
+  await page.getByRole('dialog').getByText('Commission estimée').waitFor();
+  must(await blurred('[role="dialog"] .pl-bs-top .money'), 'the barber sheet shows his amounts in the clear on a hidden screen');
+  must(await blurred('[role="dialog"] .pl-dl .money'), 'the barber sheet lists amounts in the clear on a hidden screen');
+  await page.getByRole('dialog').getByRole('button', { name: 'Afficher 30 s' }).click();
+  must(!(await blurred('[role="dialog"] .pl-bs-top .money')), 'the reveal inside the sheet does not show the amounts');
+  await page.getByRole('dialog').getByRole('button', { name: 'Remasquer' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Relevé du mois' }).click();
+  await page.getByText('Détail du chiffre réalisé', { exact: false }).first().waitFor({ state: 'attached', timeout: 8000 });
+  must(await blurred('[role="dialog"] .money'), 'the statement shows amounts in the clear on a hidden screen');
+  await page.keyboard.press('Escape');
+  await page.evaluate(() => fetch('/api/v1/prefs', { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ blur: 'auto' }) }));
+  await page.reload();
+  await page.getByRole('group', { name: 'Encaissé' }).waitFor();
+
   // the abonnés' income is the demo members' MRR
   const summary = await page.evaluate(async () => (await fetch('/api/v1/memberships/summary')).json());
   must(summary.mrr > 0, 'the demo has no MRR');
@@ -71,9 +92,10 @@ export default async ({ h, page }) => {
   const section = flat(await page.locator('[data-guide="pilotage.abonnes"]').innerText());
   must(section.includes(flat(String(summary.mrr / 100)) + '€'), 'the MRR ' + summary.mrr / 100 + ' € is not on the page: ' + section + abo);
 
-  // a tile whose route is refused or missing is hidden, the others stay (a 404: the harness counts any other failed load as an
-  // error; a 403 takes the same path, a tile shows nothing without an answer: tests/unit/guide-team05a.test.js)
-  await page.route('**/api/v1/accounts/stats', (r) => r.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ error: { code: 'not_found', message: 'Introuvable.' } }) }));
+  // a tile whose route is refused (403) or missing (404) is hidden, the others stay; the harness counts failed loads as errors,
+  // so the 403 that is staged here is the one it is told to expect
+  page.expect.push(/403 \(Forbidden\)/);
+  await page.route('**/api/v1/accounts/stats', (r) => r.fulfill({ status: 403, contentType: 'application/json', body: JSON.stringify({ error: { code: 'forbidden', message: 'Interdit.' } }) }));
   await page.route('**/api/v1/memberships/summary', (r) => r.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ error: { code: 'not_found', message: 'Introuvable.' } }) }));
   await page.reload();
   await page.getByRole('group', { name: 'Encaissé' }).waitFor();
@@ -88,7 +110,7 @@ export default async ({ h, page }) => {
   await page.getByRole('group', { name: 'Encaissé' }).waitFor();
   must(!(await wide(page)), 'the page scrolls sideways at 1440×900');
   await page.getByRole('button', { name: 'Mois', exact: true }).click();
-  await page.waitForFunction(() => /le mois dernier/.test(document.querySelector('.pl-label')?.textContent || ''), null, { timeout: 5000 });
+  await page.waitForFunction(() => /au mois dernier/.test(document.querySelector('.pl-label')?.textContent || ''), null, { timeout: 5000 });
   must(!(await wide(page)), 'the month scrolls sideways at 1440×900');
   const cols = await page.locator('.pl-tiles').evaluate((el) => getComputedStyle(el).gridTemplateColumns.split(' ').length);
   must(cols === 4, 'the tiles are on ' + cols + ' columns on a desktop');

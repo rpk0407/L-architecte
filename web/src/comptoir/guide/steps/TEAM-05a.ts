@@ -7,7 +7,7 @@ const SHOP: GuideStep['roles'] = ['owner', 'manager'];
 
 const steps: GuideStep[] = [
   { id: 'pilotage.periode', page: PAGE, target: 'pilotage.periode', roles: SHOP, order: 10, title: 'Période', body: 'Choisis Aujourd’hui, Semaine ou Mois, puis les flèches pour revenir en arrière. Tous les chiffres de la page suivent, comparés à la période d’avant.' },
-  { id: 'pilotage.montants', page: PAGE, target: 'pilotage.montants', roles: SHOP, order: 15, title: 'Montants', body: 'Sur un écran que d’autres voient, les montants sont floutés. Touche ce bouton pour les voir 30 secondes.' },
+  { id: 'pilotage.montants', page: PAGE, target: 'pilotage.montants', roles: SHOP, order: 15, title: 'Montants', body: 'Sur un écran que d’autres voient, les montants sont floutés. Touche « Afficher 30 s » pour les voir 30 secondes.' },
   { id: 'pilotage.caisse', page: PAGE, target: 'pilotage.caisse', roles: SHOP, order: 20, title: 'La caisse', body: 'Le tiroir, le Z du jour et les encaissements qui attendent, à l’instant. Un Z manquant ou une alerte passe en couleur : « Ouvrir la caisse » mène à la clôture.' },
   { id: 'pilotage.encaisse', page: PAGE, target: 'pilotage.encaisse', roles: SHOP, order: 30, title: 'Encaissé', body: 'L’argent entré sur la période, avec l’objectif du mois, ce qu’il reste à faire par jour ouvré et où tu arrives à ce rythme. La barre marque où tu devrais en être aujourd’hui.' },
   { id: 'pilotage.remplissage', page: PAGE, target: 'pilotage.remplissage', roles: SHOP, order: 40, title: 'Remplissage', body: 'La part des heures ouvertes qui est réservée, salon puis fauteuil par fauteuil. Une barre courte, c’est de la place à vendre.' },

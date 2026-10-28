@@ -13,7 +13,8 @@ import { Bar, hoursOf } from './shared';
 const span = (from: string, to: string) => (from === to ? dates.dayShort(from) : dates.dayShort(from) + ' → ' + dates.dayShort(to));
 
 /** onStatement: the page opens Rapports' statement sheet (loaded when asked for) once this one is closed. */
-export function BarberSheet({ x, d, onClose, onStatement }: { x: CockpitTeamRow | null; d: Cockpit; onClose: () => void; onStatement: (id: string) => void }) {
+/** reveal: the page hides the amounts on a shared screen; the sheet carries the same way to show them for a moment. */
+export function BarberSheet({ x, d, reveal, onClose, onStatement }: { x: CockpitTeamRow | null; d: Cockpit; reveal: { shown: boolean; toggle: () => void } | null; onClose: () => void; onStatement: (id: string) => void }) {
   const { can } = useApp();
   if (!x) return null;
   const cuts = x.cutsCarnet.n + x.cutsMember.n;
@@ -36,12 +37,13 @@ export function BarberSheet({ x, d, onClose, onStatement }: { x: CockpitTeamRow 
     <Sheet open onClose={onClose} kicker={d.range.label} title={<span className="row" style={{ gap: 10 }}><Avatar name={x.name} color={x.color} photo={photoOf(x)} size="sm" />{x.name}</span>}
       footer={(
         <div className="pl-foot">
-          <Link to={'/agenda?barbier=' + x.id} className="btn btn-subtle"><Icon name="agenda" size={16} />Son agenda</Link>
-          <Link to={'/rapports?barbier=' + x.id} className="btn btn-subtle"><Icon name="rapports" size={16} />Ses chiffres</Link>
+          <Link to={'/agenda?day=' + d.range.upTo} className="btn btn-subtle"><Icon name="agenda" size={16} />L’agenda</Link>
+          <Link to={'/rapports?p=perso&du=' + d.range.from + '&au=' + d.range.upTo + '&barbier=' + x.id} className="btn btn-subtle"><Icon name="rapports" size={16} />Ses chiffres</Link>
           {can('team') ? <Button variant="primary" icon="ticket" onClick={() => onStatement(x.id)}>Relevé du mois</Button> : null}
         </div>
       )}>
       <div className="pl-bs">
+        {reveal ? <button type="button" className="pl-eye" aria-pressed={reveal.shown} onClick={reveal.toggle}><Icon name={reveal.shown ? 'eyeOff' : 'eye'} size={16} />{reveal.shown ? 'Remasquer' : 'Afficher 30 s'}</button> : null}
         <div className="pl-bs-top"><span className="faint">Chiffre réalisé</span><b className="kpi-v"><Money cents={x.revenue} /></b><small className="faint">HT <Money cents={x.revenueHT} /></small></div>
         {x.goal ? (
           <div className="pl-bs-goal">

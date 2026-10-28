@@ -44,6 +44,12 @@ export default async ({ browser, h, page }) => {
 
   /* right after setup: no chair yet */
   await h.loginOwner(page);
+  // the owner lands on Pilotage: its team card says what to do first, as the agenda does
+  await page.goto(h.base + '/comptoir');
+  await h.expectText(page, 'Ajoute ton équipe pour voir ses chiffres');
+  await page.getByRole('button', { name: 'Ajouter l’équipe' }).waitFor();
+  await page.getByRole('button', { name: 'Voir la mise en route' }).waitFor();
+  await h.shot(page, 'pilotage-no-team');
   await page.goto(h.base + '/comptoir/agenda');
   await h.expectText(page, 'Ajoute ton équipe pour ouvrir l’agenda');
   if (await page.getByText(/Fermé/).locator('visible=true').count()) throw new Error('the agenda says « Fermé » while the salon only lacks its team');

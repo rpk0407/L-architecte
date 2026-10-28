@@ -8,7 +8,7 @@ import { carnetCutValue, goalOf, openDays, report } from './insights.js';
 import { staffIntervals } from './availability.js';
 import { hadTill, missedZ } from './cash.js';
 import { closingWarnings } from '../commands/tick-steps.js';
-import { closingMin, remainingAppts } from '../commands/sales.js';
+import { closingMin, remainingAppts, toPayAppts } from '../commands/sales.js';
 
 export const RANGES = /** @type {const} */ (['day', 'week', 'month']);
 /** an equity hint needs this many events in the last 30 days, or it says nothing (a quiet month proves nothing) */
@@ -41,7 +41,9 @@ const NB = ' ';
  * The period a range names and the one it is compared with. A period still running is read up to today (`upTo`) and
  * compared with the same number of days at the start of the one before (Monday to Wednesday against last Monday to
  * Wednesday), so a delta never sets a part of a week against a whole one. A day is compared with the same weekday a
- * week earlier: Monday against Sunday would say nothing.
+ * week earlier (Monday against Sunday would say nothing), not « the same length before » as the plan words it. While
+ * only today is read (`partial`), the comparison is with a whole day: the screen shows it without alarm colours.
+ * prevLabel carries its own preposition (« à la semaine dernière »).
  * @param {'day'|'week'|'month'} range @param {string} day any day of the period @param {string} today
  */
 export function periodOf(range, day, today) {
@@ -52,21 +54,23 @@ export function periodOf(range, day, today) {
     from = weekStart(d); to = addDays(from, 6); prevFrom = addDays(from, -7); prevEnd = addDays(prevFrom, 6);
     const a = dayParts(from), b = dayParts(to);
     label = 'Semaine du ' + nth(a.d) + (a.m !== b.m ? ' ' + MONTHS_SH[a.m - 1] : '') + ' au ' + nth(b.d) + ' ' + MONTHS_SH[b.m - 1];
-    prevLabel = 'la semaine dernière';
+    prevLabel = 'à la semaine dernière';
   } else if (range === 'month') {
     from = monthStart(d); to = monthEnd(d); prevFrom = monthStart(addDays(from, -1)); prevEnd = monthEnd(prevFrom);
     label = cap(MONTHS_FR[p.m - 1]) + ' ' + p.y;
-    prevLabel = 'le mois dernier';
+    prevLabel = 'au mois dernier';
   } else {
     from = to = d; prevFrom = prevEnd = addDays(d, -7);
     label = cap(DAYS_FR[p.wd] + ' ' + nth(p.d) + ' ' + MONTHS_FR[p.m - 1]);
     // a day still running is set against a whole one: it says so
-    prevLabel = DAYS_FR[p.wd] + ' dernier' + (d === today ? ' en entier' : '');
+    prevLabel = 'à ' + DAYS_FR[p.wd] + ' dernier' + (d === today ? ' en entier' : '');
   }
   const upTo = to < today ? to : today;
   const n = diffDays(from, upTo) + 1;
   const pt = addDays(prevFrom, n - 1);
-  return { range, day: d, from, to, upTo, prev: { from: prevFrom, to: pt < prevEnd ? pt : prevEnd }, label, prevLabel, live: upTo >= today && to >= today };
+  const live = upTo >= today && to >= today;
+  // partial: only today's unfinished hours are read, against a whole day: the delta says nothing yet (shown without alarm colours)
+  return { range, day: d, from, to, upTo, prev: { from: prevFrom, to: pt < prevEnd ? pt : prevEnd }, label, prevLabel, live, partial: live && n === 1 };
 }
 
 /** « 6 h », « 6 h 30 » */
@@ -83,12 +87,12 @@ function discountsOf(s, days) {
   return given;
 }
 
-/** The price of the no-shows nobody paid for: no fee rung up, no deposit kept. */
+/** The price of the no-shows nobody paid for: no deposit kept (a no-show fee rung up as a stand-alone line is not linked to the appointment, so it is not seen here). */
 function lostOf(s, days) {
   let lost = 0;
   for (const d of days) for (const id of s.apptsByDay.get(d) || []) {
     const a = s.appts.get(id);
-    if (!a || a.legacy || a.status !== 'no_show' || a.saleId || (a.deposit && a.deposit.paid > 0)) continue;
+    if (!a || a.legacy || a.status !== 'no_show' || (a.deposit && a.deposit.paid > 0)) continue;
     lost += a.price || 0;
   }
   return lost;
@@ -124,11 +128,12 @@ function cashOf(s, today, min) {
   const late = [...missed.close, ...missed.uncounted].sort()[0] || null;
   const last = [...s.drawers.values()].filter((x) => x.closedAt).sort((a, b) => b.closedAt - a.closedAt)[0] || null;
   const open = !!s.drawer;
-  const unpaid = [...(s.apptsByDay.get(today) || [])].map((id) => s.appts.get(id)).filter((a) => a && !a.saleId && !a.legacy && (a.status === 'in_chair' || a.status === 'done' || ((a.status === 'booked' || a.status === 'arrived') && a.start + a.dur <= min))).length;
+  const unpaid = toPayAppts(s, today, min).length;
   const z = late ? 'missed' : s.closures.has(today) ? 'done' : open || hadTill(s, today) ? 'due' : 'none';
   return {
     drawer: open ? 'open' : last && last.day === today ? 'counted' : 'none',
-    lastDiff: last ? last.diff : null,
+    // the difference of a drawer counted today only: an earlier day's is not today's Z
+    lastDiff: last && last.day === today ? last.diff : null,
     unpaid, z, missedDay: late, closesAt: closingMin(s, today) || null, remaining: remainingAppts(s, today, min).length,
     warnings: closingWarnings(s, today)
   };
@@ -187,7 +192,7 @@ function equityOf(s, today, now, chairs) {
     const a = s.appts.get(id);
     if (a && !a.legacy && a.anyStaff && a.source === 'site' && a.status !== 'cancelled' && a.status !== 'no_show') anyone.set(a.staffId, (anyone.get(a.staffId) || 0) + 1);
   }
-  skew('any', anyone, (n, a, b) => n + ' reçoit ' + a + NB + '% des réservations « sans préférence » pour ' + b + NB + '% des heures ouvertes.');
+  skew('any', anyone, (n, a, b) => n + ' reçoit ' + a + NB + '% des réservations «' + NB + 'sans préférence' + NB + '»' + ' pour ' + b + NB + '% des heures ouvertes.');
   // idle chair time since Monday: the chair that stood empty longer than the others'
   const wk = report(s, { from: weekStart(today), to: today, staffId: null, today, now });
   const idle = new Map(wk.staff.map((x) => [x.id, x.idleMin]));
@@ -263,7 +268,7 @@ function build(s, q) {
 
   return {
     asOf: now,
-    range: { kind: p.range, day: p.day, from: p.from, to: p.to, upTo: p.upTo, label: p.label, prevLabel: p.prevLabel, prev: p.prev, today, live: p.live },
+    range: { kind: p.range, day: p.day, from: p.from, to: p.to, upTo: p.upTo, label: p.label, prevLabel: p.prevLabel, prev: p.prev, today, live: p.live, partial: p.partial, closed: p.range === 'day' && !openDays(s, p.from, p.to) },
     kpis, team, cash: cashOf(s, today, local.min),
     // built last: it needs the rows above and says nothing below its thresholds
     equity: equityOf(s, today, now, chairs.filter((x) => x.active))

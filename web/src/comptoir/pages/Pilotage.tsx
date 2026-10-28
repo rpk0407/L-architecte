@@ -47,10 +47,15 @@ export default function Pilotage() {
   const last = useRef<Cockpit | undefined>(undefined);
   if (data) last.current = data;
   const d = data || last.current;
-  const switching = !data && !!d;
+  // the next period failed to load (offline, 5xx): the old read stays, said plainly, with a way to ask again
+  const failed = !data && !!d && !!error;
+  const switching = !data && !!d && !failed;
   const masked = useMaskedAmounts();
   const [shown, setShown] = useState(false);
   useEffect(() => { if (!shown) return; const t = window.setTimeout(() => setShown(false), REVEAL_MS); return () => clearTimeout(t); }, [shown]);
+  // the blur is carried by the page root, not by .pl: the barber's sheet and the statement are portalled outside it
+  const hide = masked && !shown;
+  useEffect(() => { if (!hide) return; document.documentElement.dataset.plMasked = '1'; return () => { delete document.documentElement.dataset.plMasked; }; }, [hide]);
   // the till's clock moves without the journal moving: the page asks again every two minutes (the server answers from memory)
   useInterval(() => { void refresh(); }, 120000);
   const [sheet, setSheet] = useState<string | null>(null);
@@ -66,7 +71,7 @@ export default function Pilotage() {
   const row = d && sheet ? d.team.find((x) => x.id === sheet) || null : null;
 
   return (
-    <div className="pl" data-masked={masked && !shown ? '1' : undefined} data-shown={masked && shown ? '1' : undefined}>
+    <div className="pl">
       <PageTitle><h1>Pilotage</h1></PageTitle>
       <header className="pl-head">
         <div className="pl-head-top">
@@ -76,7 +81,7 @@ export default function Pilotage() {
               <Button icon="chevL" aria-label={kind === 'day' ? 'Reculer d’un jour' : kind === 'week' ? 'Reculer d’une semaine' : 'Reculer d’un mois'} onClick={() => go(-1)} />
               <div className="pl-label" role="status" aria-live="polite">
                 <b>{d ? d.range.label : '…'}</b>
-                {d ? <small className="muted">{current ? 'en cours' : 'terminé'} · comparé à {d.range.prevLabel}</small> : null}
+                {d ? <small className="muted">{current ? 'en cours' : 'terminé'} · comparé {d.range.prevLabel}</small> : null}
               </div>
               <Button icon="chevR" aria-label={kind === 'day' ? 'Avancer d’un jour' : kind === 'week' ? 'Avancer d’une semaine' : 'Avancer d’un mois'} disabled={current} onClick={() => go(1)} />
             </div>
@@ -86,8 +91,8 @@ export default function Pilotage() {
             {!current ? <Button variant="ghost" onClick={() => setDay('')}>Revenir à aujourd’hui</Button> : null}
             {boot.me.chair ? <Link to="/espace" className="btn btn-ghost">Ma journée<Icon name="arrowR" size={15} /></Link> : null}
             {masked ? (
-              <button type="button" className="pl-eye" aria-pressed={shown} aria-label={shown ? 'Masquer les montants de Pilotage' : 'Afficher les montants de Pilotage pendant 30 secondes'} onClick={() => setShown(!shown)} data-guide="pilotage.montants">
-                <Icon name={shown ? 'eyeOff' : 'eye'} size={16} />Montants
+              <button type="button" className="pl-eye" aria-pressed={shown} aria-label={shown ? 'Remasquer les montants' : 'Afficher les montants pendant 30 secondes'} onClick={() => setShown(!shown)} data-guide="pilotage.montants">
+                <Icon name={shown ? 'eyeOff' : 'eye'} size={16} />{shown ? 'Remasquer' : 'Afficher 30 s'}
               </button>
             ) : null}
           </div>
@@ -100,6 +105,7 @@ export default function Pilotage() {
         <div className="col" style={{ gap: 14 }} aria-busy="true"><Skeleton h={44} r={14} /><div className="pl-tiles">{[0, 1, 2, 3, 4, 5].map((i) => <Skeleton key={i} h={118} r={20} />)}</div><Skeleton h={300} r={22} /></div>
       ) : (
         <div className={'pl-body' + (switching ? ' switching' : '')} aria-busy={switching}>
+          {failed ? <div className="pl-fail" role="alert"><Icon name="alert" size={16} /><span>Cette période ne s’est pas chargée : ce que tu vois est la précédente.</span><Button onClick={() => { void refresh(); }}>Réessayer</Button></div> : null}
           <Cash cash={d.cash} today={d.range.today} />
           <Tiles d={d} />
           <div className={'pl-cols' + (d.equity.length ? ' two' : '')}>
@@ -108,7 +114,7 @@ export default function Pilotage() {
           </div>
           <div className="pl-extras"><ExtraTiles from={d.range.from} to={d.range.upTo} /></div>
           <p className="pl-more"><Link to="/rapports" className="link">Tous les chiffres, jour par jour<Icon name="chevR" size={14} /></Link></p>
-          <BarberSheet x={row} d={d} onClose={() => setSheet(null)} onStatement={(id) => { setSheet(null); setStatement({ staffId: id, month: d.range.upTo.slice(0, 7) }); }} />
+          <BarberSheet x={row} d={d} reveal={masked ? { shown, toggle: () => setShown(!shown) } : null} onClose={() => setSheet(null)} onStatement={(id) => { setSheet(null); setStatement({ staffId: id, month: d.range.upTo.slice(0, 7) }); }} />
         </div>
       )}
       {statement ? <Suspense fallback={null}><StatementSheet open staffId={statement.staffId} month={statement.month} onClose={() => setStatement(null)} /></Suspense> : null}

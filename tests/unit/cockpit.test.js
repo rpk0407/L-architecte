@@ -181,7 +181,11 @@ test('the till: Z missed for a past day nobody closed, done once it is, due whil
   assert.notEqual(cockpit(s, q()).cash.z, 'missed');
   const today = s.closures.get(DAY);
   s.closures.set(DAY, { number: 999, day: DAY }); bump();
-  assert.equal(cockpit(s, q()).cash.z, 'done');
+  const sealed = cockpit(s, q()).cash;
+  assert.equal(sealed.z, 'done');
+  // a sealed day takes no more payments (the Caisse badge says the same), and no earlier day's count difference is today's
+  assert.equal(sealed.unpaid, 0);
+  assert.equal(sealed.lastDiff, null);
   if (today) s.closures.set(DAY, today); else s.closures.delete(DAY);
   bump();
 });
@@ -228,4 +232,18 @@ test('equity: one chair taking 10+ new clients’ visits far above his hours is 
   assert.equal(e.kpis.cashed.value, 0);
   assert.equal(e.kpis.cashed.goal ? e.kpis.cashed.goal.done : 0, 0);
   assert.ok(e.team.length >= 2);
+});
+
+test('periods: the preposition is in the label, and a day only just begun is flagged partial', () => {
+  const day = periodOf('day', DAY, DAY), wk = periodOf('week', DAY, DAY), mo = periodOf('month', DAY, DAY);
+  assert.equal(day.prevLabel, 'à mardi dernier en entier');
+  assert.equal(wk.prevLabel, 'à la semaine dernière');
+  assert.equal(mo.prevLabel, 'au mois dernier');
+  assert.equal(day.partial, true);
+  assert.equal(periodOf('day', '2026-11-02', DAY).partial, false);
+  assert.equal(periodOf('week', '2026-11-05', '2026-11-05').partial, false); // Monday to Thursday: several days read
+  assert.equal(periodOf('week', '2026-11-02', '2026-11-02').partial, true); // Monday morning
+  const c = cockpit(S(), q());
+  assert.equal(c.range.partial, true);
+  assert.equal(typeof c.range.closed, 'boolean');
 });

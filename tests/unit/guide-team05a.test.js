@@ -30,7 +30,8 @@ test('every step of Pilotage points at a data-guide mark of its sources, and eve
 
 test('the tiles folder: every file exports its meta (a unique id, the capability it needs) and a component that fetches its own route', () => {
   const files = walk('web/src/comptoir/pages/pilotage/tiles').filter((f) => f.endsWith('.tsx'));
-  assert.deepEqual(files.map((f) => f.split('/').pop()).sort(), ['Accounts.tsx', 'Members.tsx', 'Reviews.tsx']);
+  // a new area drops its file here (Loyalty, Compta…): the built-in three must be there, any other must keep the contract below
+  for (const n of ['Accounts.tsx', 'Members.tsx', 'Reviews.tsx']) assert.ok(files.some((f) => f.endsWith('/' + n)), n + ' is missing');
   const ids = new Set();
   for (const f of files) {
     const src = read(f);
