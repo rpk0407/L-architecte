@@ -95,11 +95,11 @@ function PriceList({ items }: { items: Service[] }) {
   const cats = [...new Set(active.map((s) => s.category))];
   return (
     <>
-      <div className="row wrap ct-bar" data-guide="catalogue-bar"><p className="muted grow">{plural(active.length, 'prestation')} · les prix et les durées se changent avec le gérant</p></div>
+      <div className="row wrap ct-bar"><p className="muted grow">{plural(active.length, 'prestation')} · les prix et les durées se changent avec le gérant</p></div>
       <div className="col" style={{ gap: 14 }}>
         {!active.length ? <section className="card"><Empty icon="scissors" title="Pas encore de prestation">Le gérant prépare la carte du salon.</Empty></section> : null}
         {cats.map((c) => (
-          <section key={c} className="card" data-guide="catalogue-prestations">
+          <section key={c} className="card">
             <div className="card-h"><h2>{c}</h2><span className="faint" style={{ fontSize: 13 }}>{active.filter((s) => s.category === c).length}</span></div>
             <ul className="list">
               {active.filter((s) => s.category === c).map((s) => (
@@ -169,7 +169,7 @@ function Services({ items }: { items: Service[] }) {
         <p className="muted grow">{plural(active.length, 'prestation')} · {plural(active.filter(onSite).length, 'visible', 'visibles')} sur le site · l’ordre est celui du site</p>
         <Button variant="primary" icon="plus" onClick={() => setEdit('new')}>Nouvelle prestation</Button>
       </div>
-      <div className="col" style={{ gap: 14 }}>
+      <div className="col" style={{ gap: 14 }} data-guide="catalogue-prestations">
         {!items.length ? (
           <section className="card">
             <Empty icon="scissors" title="Pas encore de prestation" action={<Button variant="primary" icon="download" busy={taking} onClick={takeOver}>Reprendre la carte de l’ancien site</Button>}>
@@ -183,7 +183,7 @@ function Services({ items }: { items: Service[] }) {
           </section>
         ) : null}
         {cats.map((c) => (
-          <section key={c} className="card" data-guide="catalogue-prestations">
+          <section key={c} className="card">
             <div className="card-h"><h2>{c}</h2><span className="faint" style={{ fontSize: 13 }}>{active.filter((s) => s.category === c).length}</span></div>
             <ul className="list">
               {active.filter((s) => s.category === c).map((s, i, arr) => (
@@ -313,7 +313,7 @@ function ServiceSheet({ sv, all, onClose }: { sv: Service | 'new' | null; all: S
           </div>
         ) : <span className="faint" style={{ fontSize: 13.5 }}>{isNew ? 'En dernier dans sa catégorie ; tu la déplaces ensuite.' : 'Archivée : pas sur le site.'}</span>}</Field>
       </div>
-      <div data-guide="catalogue-carnet"><Switch on={f.isPack} onChange={(v) => setF({ ...f, isPack: v })} title="C’est un carnet" hint="Vendu une fois, puis chaque passage est décompté à la caisse." /></div>
+      <div><Switch on={f.isPack} onChange={(v) => setF({ ...f, isPack: v })} title="C’est un carnet" hint="Vendu une fois, puis chaque passage est décompté à la caisse." /></div>
       {f.isPack ? (
         <div className="card card-tight ct-pack">
           <div className="grid2">

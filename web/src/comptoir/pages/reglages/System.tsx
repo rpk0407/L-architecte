@@ -288,11 +288,13 @@ function Journal() {
   for (const x of items) { const d = dates.localParts(x.at).day; if (!days.has(d)) days.set(d, []); days.get(d)!.push(x); }
   return (
     <div className="col" style={{ gap: 14 }}>
-      <div className="chips rp-periods" data-guide="journal-filtres">{KINDS.map(([k, t]) => <Chip key={k} small on={type === k} onClick={() => setType(k)}>{t}</Chip>)}</div>
-      <Field label="Qui"><select className="input select" value={actor} onChange={(e) => setActor(e.target.value)} style={{ maxWidth: 260 }}><option value="">Tout le monde</option>{boot.staff.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}<option value="web">Clients (site)</option><option value="scheduler">Automatique</option></select></Field>
+      <div className="col" style={{ gap: 14 }} data-guide="journal-filtres">
+        <div className="chips rp-periods">{KINDS.map(([k, t]) => <Chip key={k} small on={type === k} onClick={() => setType(k)}>{t}</Chip>)}</div>
+        <Field label="Qui"><select className="input select" value={actor} onChange={(e) => setActor(e.target.value)} style={{ maxWidth: 260 }}><option value="">Tout le monde</option>{boot.staff.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}<option value="web">Clients (site)</option><option value="scheduler">Automatique</option></select></Field>
+      </div>
       {!items.length && busy ? <Skeleton h={300} r={22} /> : !items.length ? <Empty icon="journal" title="Rien à afficher" /> : (
-        [...days].map(([d, xs]) => (
-          <section key={d} className="card" data-guide="journal-jour">
+        <div className="col" style={{ gap: 14 }} data-guide="journal-jour">{[...days].map(([d, xs]) => (
+          <section key={d} className="card">
             <div className="card-h"><h2>{cap(dates.dayLong(d))}</h2><span className="faint" style={{ fontSize: 13 }}>{xs.length}</span></div>
             <ul className="rg-log">{xs.map((x) => (
               <li key={x.v}>
@@ -301,7 +303,7 @@ function Journal() {
               </li>
             ))}</ul>
           </section>
-        ))
+        ))}</div>
       )}
       {items.length && !end ? <Button variant="ghost" block busy={busy} onClick={() => load(false)}>Plus ancien</Button> : null}
       <p className="faint" style={{ fontSize: 12.5 }}>Le journal ne s’efface pas et ne se modifie pas. Dernière mise à jour {ago(now(), now())}.</p>

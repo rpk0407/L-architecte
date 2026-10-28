@@ -101,7 +101,7 @@ function MyCard() {
       <PageTitle><h1>Ma fiche</h1></PageTitle>
       <div className="eq-member">
         <div className="col" style={{ gap: 16 }}>
-          <section className="card col" style={{ gap: 14 }} data-guide="equipe-mafiche">
+          <section className="card col" style={{ gap: 14 }}>
             <div className="row" style={{ gap: 16 }}>
               <Avatar name={st.name} initials={st.initials} color={st.color} photo={photoOf(st)} size="xl" />
               <div className="grow">
@@ -113,7 +113,7 @@ function MyCard() {
             <p className="muted" style={{ fontSize: 13.5 }}>{st.chair ? <>Tes horaires et tes prestations se changent avec le gérant. Ta couleur et ta présentation sur le site, dans <Link to="/reglages/compte" className="link">Mon compte</Link>.</> : <>Ton accès se règle avec le gérant. Ton code et ton mot de passe, dans <Link to="/reglages/compte" className="link">Mon compte</Link>.</>}</p>
           </section>
           {st.chair ? (
-            <section className="card" data-guide="equipe-mes-horaires">
+            <section className="card">
               <div className="card-h"><h2><Icon name="clock" size={16} />Mes horaires</h2><span className="faint" style={{ fontSize: 13 }}>{Math.floor(total / 60)} h{total % 60 ? String(total % 60).padStart(2, '0') : ''} par semaine</span></div>
               {[1, 2, 3, 4, 5, 6, 0].map((d) => (
                 <div key={d} className="kv">

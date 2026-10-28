@@ -25,11 +25,22 @@ const caps = read('web/src/comptoir/pages/reglages/caps.ts');
 const SECTION_CAP = Object.fromEntries([...caps.slice(caps.indexOf('SECTION_CAP'), caps.indexOf('};')).matchAll(/^\s+'?([\w-]+)'?: '(\w+)'/gm)].map((m) => [m[1], m[2]]));
 const OPEN_SECTIONS = ['compte'];
 
-// owned by GUIDE-01a (the tour's own package: it launches from there and writes the steps of the daily pages)
-const OTHER_PACKAGE = { pages: new Set(['agenda']), sections: new Set(['mise-en-route']) };
+// owned by GUIDE-01a (the tour's own package: it writes the steps of the daily pages); exempt only while its file is not
+// merged, so the rule bites by itself once it is
+const has01a = files.includes('GUIDE-01a.ts');
+const OTHER_PACKAGE = has01a ? { pages: new Set(), sections: new Set() } : { pages: new Set(['agenda']), sections: new Set(['mise-en-route']) };
+
+// the menu, read from App.tsx useNav: the page of each entry and the capability it needs (a page not in the menu is not
+// part of anyone's tour, whatever the route allows)
+const NAV = Object.fromEntries(app.slice(app.indexOf('function useNav')).split('\n').slice(0, 25).filter((l) => /\bpage: '/.test(l)).map((l) => [l.match(/page: '(\w+)'/)[1], (l.match(/cap: '([^']+)'/) || [])[1] || null]));
 
 test('the page and section tables of this test are read from the sources (a renamed table fails here, not silently)', () => {
-  assert.deepEqual(Object.keys(ROUTES).sort(), ['agenda', 'caisse', 'catalogue', 'clients', 'equipe', 'espace', 'rapports', 'relances', 'reglages'].sort());
+  // a later package adds its page to ROUTES: «every page has a step» below is what guards it
+  for (const p of ['agenda', 'caisse', 'catalogue', 'clients', 'equipe', 'espace', 'rapports', 'relances', 'reglages']) assert.ok(Object.hasOwn(ROUTES, p), 'page ' + p);
+  assert.equal(NAV.catalogue, 'catalog');
+  assert.equal(NAV.equipe, 'team');
+  assert.equal(NAV.relances, 'marketing');
+  assert.equal(NAV.reglages, null);
   assert.ok(SECTIONS.length >= 15 && SECTIONS.includes('compte') && SECTIONS.includes('journal'));
   assert.equal(SECTION_CAP.journal, 'audit');
   assert.equal(SECTION_CAP.wordpress, 'settings');
@@ -107,10 +118,19 @@ test('a step is never on a page that one of its roles cannot open; a barber\'s t
       if (c) assert.ok(capsOf(STAFF(r), SETTINGS).has(c), s.id + ': ' + r + ' cannot open ' + s.page + ' (needs ' + c + ')');
     }
   }
+  // the tour follows the menu: a desk member or a barber is never sent to a page that has no link for him
+  for (const s of all) {
+    const p = parts(s.page)[0];
+    if (p === 'reglages') continue;
+    for (const r of s.roles || roles) {
+      const inMenu = Object.hasOwn(NAV, p) && (!NAV[p] || capsOf(STAFF(r), SETTINGS).has(NAV[p])) && !(p === 'espace' && r === 'desk') && !(p === 'rapports' && r === 'desk');
+      assert.ok(inMenu, s.id + ': ' + r + ' has no menu entry for ' + s.page);
+    }
+  }
   const barber = mine.filter((s) => (s.roles || []).includes('barber'));
   assert.ok(barber.length >= 15, 'the barber has a tour');
   for (const s of barber) assert.ok(!/^\/comptoir\/reglages\/(?!compte$)/.test(s.page), s.id + ': a barber has no Réglages section but Mon compte');
-  // the desk's tour: Relances, Catalogue (cartes cadeaux), Mon compte; no figures page (it has no chair)
+  // the desk's tour: Relances (its four tabs), Mon compte; no figures page (it has no chair)
   assert.ok(mine.some((s) => parts(s.page)[0] === 'relances' && (s.roles || []).includes('desk')));
   assert.ok(!mine.some((s) => parts(s.page)[0] === 'rapports' && (s.roles || []).includes('desk')));
 });
