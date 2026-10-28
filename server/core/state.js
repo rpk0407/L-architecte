@@ -78,6 +78,8 @@ export function evolve(s, e) {
       s.settings = mergeDeep(s.settings, d.patch);
       // the owner's alert address and mobile, out of the chain (commands/shop.js)
       if (p.notify) s.settings = mergeDeep(s.settings, { notify: p.notify });
+      // and the accountant's contact (CPT-03, commands/shop.js)
+      if (p.compta) s.settings = mergeDeep(s.settings, { compta: p.compta });
       break;
 
     case 'staff.added':

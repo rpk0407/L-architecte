@@ -15,6 +15,7 @@ import { refundOnline } from './routes-public.js';
 import { fmtEur } from '../../shared/money.js';
 import { monthNo, yearNo } from '../domain/fiscal.js';
 import { fmtPhone, safeEqual } from '../lib/util.js';
+import { csv } from '../lib/csv.js';
 import * as T from '../commands/team.js';
 import * as K from '../commands/catalog.js';
 import * as SH from '../commands/shop.js';
@@ -172,10 +173,6 @@ const conflictCount = (r, t) => T.timeoffConflicts(r.s, t, { now: r.now, local: 
 
 /* ---------------- CSV for the accountant ---------------- */
 
-function csv(rows) {
-  const esc = (v) => { const t = v == null ? '' : String(v); return /[;"\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t; };
-  return '﻿' + rows.map((r) => r.map(esc).join(';')).join('\r\n') + '\r\n';
-}
 const eu = (c) => (c / 100).toFixed(2).replace('.', ',');
 /** The rules the commission figures follow, as the first row of the payroll and commissions CSV (TEAM-03). */
 function rulesRow(s) {

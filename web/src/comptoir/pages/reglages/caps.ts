@@ -14,6 +14,7 @@ export const SECTION_CAP: Record<string, string> = {
   equipe: 'settings',
   objectifs: 'settings',
   fidelite: 'settings',
+  compta: 'settings',
   appareils: 'devices',
   donnees: 'data',
   wordpress: 'settings',

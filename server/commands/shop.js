@@ -16,12 +16,16 @@ export { settingsSchema };
  * pii, like a client's details, and the projection merges them back (core/state.js). Mutates the patch.
  */
 function contactPii(patch) {
+  // the accountant's name, firm and e-mail (CPT-03) are a person's too
+  const acc = patch.compta && patch.compta.accountant;
+  if (acc) { delete patch.compta.accountant; if (!Object.keys(patch.compta).length) delete patch.compta; }
+  const extra = acc ? { compta: { accountant: acc } } : null;
   const n = patch.notify;
-  if (!n || (n.to === undefined && n.phone === undefined)) return null;
+  if (!n || (n.to === undefined && n.phone === undefined)) return extra;
   const { to, phone, ...rest } = n;
   if (phone && !normPhone(phone)) fail(400, 'invalid', 'Ce numéro ne peut pas recevoir de SMS. Exemple : 06 12 34 56 78.');
   if (Object.keys(rest).length) patch.notify = rest; else delete patch.notify;
-  return { notify: { ...(to !== undefined ? { to } : {}), ...(phone !== undefined ? { phone } : {}) } };
+  return { notify: { ...(to !== undefined ? { to } : {}), ...(phone !== undefined ? { phone } : {}) }, ...extra };
 }
 
 export const updateSettings = {

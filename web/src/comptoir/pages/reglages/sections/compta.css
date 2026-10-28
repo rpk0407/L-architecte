@@ -1,0 +1,42 @@
+/* Réglages › Comptabilité (CPT-03) */
+/* the choices wrap on a narrow screen, every one a 44 px target */
+.cp .seg { flex-wrap: wrap; max-width: 100%; align-self: flex-start; }
+.cp .seg button { min-height: 44px; }
+@media (max-width: 560px) { .cp .seg { border-radius: 22px; } }
+.cp-fixed { display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border-radius: var(--r2); background: var(--panel2); box-shadow: inset 0 0 0 1px var(--line); }
+.cp-fixed b { font-size: 14.5px; }
+.cp-fixed small { font-size: 12.5px; color: var(--tx3); line-height: 1.4; }
+.cp-foot { font-size: 13px; }
+
+/* the chart of accounts: one compact row per role, two columns where there is room */
+.cp-group { display: flex; flex-direction: column; gap: 6px; }
+.cp-list { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 24px; }
+.cp-row { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; padding: 6px 0; border-bottom: 1px solid var(--line); min-width: 0; }
+.cp-row label { display: flex; flex-direction: column; gap: 2px; min-width: 0; font-size: 14px; }
+.cp-row label small { font-size: 12px; color: var(--tx3); }
+.cp-num.input { width: 120px; flex: none; min-height: 44px; font-variant-numeric: tabular-nums; letter-spacing: .02em; }
+.cp-num.input.err { border-color: var(--danger); }
+.cp-err { width: 100%; text-align: right; font-size: 12px; color: var(--danger); }
+@media (max-width: 760px) { .cp-list { grid-template-columns: minmax(0, 1fr); } }
+
+/* the month's files */
+.cp-month.input { max-width: 260px; }
+.cp-files { display: flex; flex-wrap: wrap; gap: 8px; }
+.cp-files .btn { min-height: 44px; }
+.cp-vat { display: flex; flex-direction: column; gap: 8px; }
+.cp-vat .section-k { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; line-height: 1.3; }
+.cp-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.cp-table th, .cp-table td { padding: 8px 6px; border-bottom: 1px solid var(--line); text-align: right; }
+.cp-table th:first-child { text-align: left; font-weight: 600; }
+.cp-table thead th { font: 600 12px/1.2 var(--sans); color: var(--tx3); }
+.cp-table .cp-sub th, .cp-table .cp-sub td { color: var(--tx2); font-weight: 400; font-size: 13px; }
+.cp-warn { margin: 4px 0 0; padding-left: 18px; font-size: 13px; }
+.cp-figs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.cp-fig { display: flex; flex-direction: column; gap: 4px; padding: 12px; border-radius: var(--r2); background: var(--panel2); min-width: 0; }
+.cp-fig > span:first-child { font-size: 12.5px; color: var(--tx3); }
+.cp-fig .money { font: 400 22px/1.1 var(--serif); }
+.cp-fig small { font-size: 12px; color: var(--tx3); }
+@media (max-width: 760px) { .cp-figs { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+/* privacy mode: an amount shows while its cell has the keyboard's focus, as under the mouse */
+:root[data-private='1'] .cp-fig:focus .money, :root[data-private='1'] .cp-table td:focus .money { filter: none; }
+.cp-fig:focus-visible, .cp-table td:focus-visible { outline: 2px solid var(--tx2); outline-offset: 2px; }

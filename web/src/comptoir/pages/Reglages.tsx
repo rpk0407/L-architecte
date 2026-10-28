@@ -48,6 +48,7 @@ const SECTIONS: Section[] = [
   { id: 'equipe', label: 'Équipe et accès', hint: 'Ce que les barbiers peuvent faire', icon: 'shield', group: 'Salon', component: salon(() => import('./reglages/sections/Equipe')) },
   { id: 'objectifs', label: 'Objectifs', hint: 'Chiffre visé chaque mois', icon: 'target', group: 'Salon', component: salon(() => import('./reglages/sections/Objectifs')) },
   { id: 'fidelite', label: 'Fidélité', hint: 'Carte à tampons et parrainage', icon: 'gift', group: 'Salon', component: salon(() => import('./reglages/sections/Fidelite')) },
+  { id: 'compta', label: 'Comptabilité', hint: 'TVA, plan de comptes, ton comptable', icon: 'euro', group: 'Salon', component: salon(() => import('./reglages/sections/Compta')) },
   { id: 'appareils', label: 'Appareils', hint: 'Postes autorisés à la connexion par code', icon: 'device', group: 'Sécurité', component: system('appareils') },
   { id: 'donnees', label: 'Données et intégrité', hint: 'Santé, vérification, exports, système', icon: 'shieldOk', group: 'Sécurité', component: system('donnees') },
   { id: 'wordpress', label: 'Reprendre WordPress', hint: 'Clients, rendez-vous, cartes cadeaux', icon: 'download', group: 'Sécurité', component: () => <Wordpress /> },

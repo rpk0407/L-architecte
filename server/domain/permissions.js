@@ -39,7 +39,8 @@ export const CAPS = {
   'audit': 'Voir le journal d’activité',
   'data': 'Exporter et vérifier les données',
   'member.manage': 'Gérer les abonnements (résiliation, coupe hors forfait)',
-  'loyalty.manage': 'Gérer la fidélité (ajustements, récompenses offertes)'
+  'loyalty.manage': 'Gérer la fidélité (ajustements, récompenses offertes)',
+  'compta': 'Voir la comptabilité et les exports du comptable'
 };
 
 const ALL = Object.keys(CAPS);

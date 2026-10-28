@@ -12,6 +12,7 @@ Four roles, each a set of capabilities (`server/domain/permissions.js`). Every w
 | Full phone numbers, client export | ✓ | ✓ | numbers | |
 | Salon figures, month goal, sales and VAT exports (`report.shop`) | ✓ | ✓ | | never (own figures always) |
 | Each barber's figures without commissions or tips (`report.team`) | ✓ | ✓ | | setting |
+| The accountant's files: entries, VAT, month-end balances (`compta`, CPT-03; no client name in them) | ✓ | ✓ | | |
 | Text one's own regulars (`client.rebook`) | ✓ | ✓ | ✓ | setting (off in production) |
 | Team, catalogue | ✓ | ✓ | | |
 | Settings, devices, data, GDPR erasure | ✓ | | | |
