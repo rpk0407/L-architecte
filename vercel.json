@@ -86,6 +86,8 @@
     },
     { "source": "/assets/(.*)", "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }] },
     { "source": "/img/(.*)", "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }] },
-    { "source": "/support.js", "headers": [{ "key": "Cache-Control", "value": "public, max-age=3600" }] }
+    { "source": "/support.js", "headers": [{ "key": "Cache-Control", "value": "public, max-age=3600" }] },
+    { "source": "/guide.js", "headers": [{ "key": "Cache-Control", "value": "public, max-age=3600" }] },
+    { "source": "/guide.css", "headers": [{ "key": "Cache-Control", "value": "public, max-age=3600" }] }
   ]
 }

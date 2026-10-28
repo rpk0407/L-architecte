@@ -17,7 +17,7 @@
 .gd-bub .gd-x{flex:none;display:grid;place-items:center;width:44px;height:44px;border-radius:50%;opacity:.7}
 .gd-bub .gd-x:hover{opacity:1;background:rgba(236,232,224,.12)}
 .gd-bub .gd-x svg{width:18px;height:18px}
-@media (min-width:900px){.gd-bub{left:24px;bottom:24px}}
+@media (min-width:1000px){.gd-bub{left:auto;right:24px;bottom:auto;top:92px}}
 
 /* the tour: the root swallows taps (the page stays put), the spotlight cuts a hole with its own shadow */
 .gd-root{position:fixed;inset:0;z-index:95;overflow:hidden}

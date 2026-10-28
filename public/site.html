@@ -326,7 +326,6 @@
 @font-face{font-family:'Instrument Serif';font-style:italic;font-weight:400;font-display:swap;src:url(/fonts/instrument-serif-latin-400-italic.woff2) format('woff2')}
 </style>
 <script src="/support.js"></script>
-<link rel="stylesheet" href="/guide.css">
 <script src="/guide.js" defer></script>
 </head>
 <body>
@@ -757,7 +756,8 @@ position:relative;font:400 17px/1.5 var(--f-sans);color:var(--os);background:var
 .bk-k{font:600 11.5px/1 var(--f-sans);letter-spacing:.09em;text-transform:uppercase;color:var(--cendre2)}
 .bk-t{margin-top:7px;font:400 28px/1.05 var(--f-serif);letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .bk-t:focus{outline:none}
-.bk-h{margin-top:7px;font:500 14px/1.3 var(--f-sans);color:var(--cendre2);text-wrap:balance}
+.bk-h{margin-top:7px;min-height:1.3em;font:500 14px/1.3 var(--f-sans);color:var(--cendre2);display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
+@media (max-width:380px){.bk-h{min-height:2.6em}}
 .bk-prog{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px;padding:4px 24px 2px}
 .bk-prog.off{visibility:hidden}
 .bk-prog i{height:3px;border-radius:3px;background:var(--iligne);overflow:hidden;position:relative}
@@ -1078,7 +1078,7 @@ html{scroll-behavior:auto}
 </div>
 </nav>
 </sc-if>
-<div class="{{ctaCls}}"><button type="button" class="btn" onClick="{{openMain}}" data-guide="site.reserver" data-guide-n="10" data-guide-scroll="top" data-guide-title="Réserver" data-guide-body="Touche Réserver : tu choisis ta prestation, ton barbier, puis ton créneau. Ça prend moins d’une minute."><span>{{ctaLabel}}</span><sc-if value="{{hasCtaSub}}" hint-placeholder-val="{{ true }}"><small>{{ctaSub}}</small></sc-if></button></div>
+<div class="{{ctaCls}}"><button type="button" class="btn" onClick="{{openMain}}" data-guide="site.reserver" data-guide-n="10" data-guide-scroll="top" data-guide-title="Réserver" data-guide-body="Ici, tu choisis ta prestation, ton barbier, puis ton créneau. Ça prend moins d’une minute."><span>{{ctaLabel}}</span><sc-if value="{{hasCtaSub}}" hint-placeholder-val="{{ true }}"><small>{{ctaSub}}</small></sc-if></button></div>
 <main id="main">
 <div class="dk">
 <section class="hero" id="frais" data-tone="light" data-cov ref="{{r.hero}}" aria-labelledby="t-hero">
@@ -1092,7 +1092,7 @@ html{scroll-behavior:auto}
 <sc-if value="{{hasRating}}" hint-placeholder-val="{{ true }}"><a class="hr-rate" href="#preuve"><span class="stars" style="--off: {{starOff}}" aria-hidden="true"><svg class="st-bg" viewBox="0 0 120 22"><path d="M11 1.6l2.7 6.2 6.7.6-5.1 4.5 1.5 6.6L11 16l-5.8 3.5 1.5-6.6L1.6 8.4l6.7-.6z"/><path transform="translate(24 0)" d="M11 1.6l2.7 6.2 6.7.6-5.1 4.5 1.5 6.6L11 16l-5.8 3.5 1.5-6.6L1.6 8.4l6.7-.6z"/><path transform="translate(48 0)" d="M11 1.6l2.7 6.2 6.7.6-5.1 4.5 1.5 6.6L11 16l-5.8 3.5 1.5-6.6L1.6 8.4l6.7-.6z"/><path transform="translate(72 0)" d="M11 1.6l2.7 6.2 6.7.6-5.1 4.5 1.5 6.6L11 16l-5.8 3.5 1.5-6.6L1.6 8.4l6.7-.6z"/><path transform="translate(96 0)" d="M11 1.6l2.7 6.2 6.7.6-5.1 4.5 1.5 6.6L11 16l-5.8 3.5 1.5-6.6L1.6 8.4l6.7-.6z"/></svg><svg class="st-fg" viewBox="0 0 120 22"><path d="M11 1.6l2.7 6.2 6.7.6-5.1 4.5 1.5 6.6L11 16l-5.8 3.5 1.5-6.6L1.6 8.4l6.7-.6z"/><path transform="translate(24 0)" d="M11 1.6l2.7 6.2 6.7.6-5.1 4.5 1.5 6.6L11 16l-5.8 3.5 1.5-6.6L1.6 8.4l6.7-.6z"/><path transform="translate(48 0)" d="M11 1.6l2.7 6.2 6.7.6-5.1 4.5 1.5 6.6L11 16l-5.8 3.5 1.5-6.6L1.6 8.4l6.7-.6z"/><path transform="translate(72 0)" d="M11 1.6l2.7 6.2 6.7.6-5.1 4.5 1.5 6.6L11 16l-5.8 3.5 1.5-6.6L1.6 8.4l6.7-.6z"/><path transform="translate(96 0)" d="M11 1.6l2.7 6.2 6.7.6-5.1 4.5 1.5 6.6L11 16l-5.8 3.5 1.5-6.6L1.6 8.4l6.7-.6z"/></svg></span><span>{{rateShort}}</span></a></sc-if>
 </div>
 <div class="hr-next-w">
-<button type="button" class="hr-next" onClick="{{bookNext}}" data-guide="site.sans-compte" data-guide-n="20" data-guide-scroll="top" data-guide-title="Sans compte" data-guide-body="Pas besoin de compte pour réserver : ton prénom et ton numéro suffisent. Ce bouton te propose le premier créneau libre.">
+<button type="button" class="hr-next" onClick="{{bookNext}}" data-guide="site.sans-compte" data-guide-n="20" data-guide-scroll="top" data-guide-title="Sans compte" data-guide-body="Pas besoin de compte pour réserver&nbsp;: ton prénom et ton numéro suffisent. Ce bouton ouvre les créneaux libres.">
 <span class="hr-next-t"><span class="hr-next-k"><i aria-hidden="true"></i>{{nextK}}</span><span class="hr-next-v">{{nextV}}</span></span>
 <span class="hr-next-a" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h15M13 6l6 6-6 6"/></svg></span>
 </button>
@@ -1328,11 +1328,11 @@ html{scroll-behavior:auto}
 <sc-if value="{{hasIg}}" hint-placeholder-val="{{ true }}"><li><a href="{{igUrl}}" target="_blank" rel="noopener">Instagram</a></li></sc-if>
 <li><a href="https://www.facebook.com/pg/barbershop.larchitecte/" target="_blank" rel="noopener">Facebook</a></li>
 <li><a href="https://www.youtube.com/channel/UCi2oLstkv0IIucLyd211G8A" target="_blank" rel="noopener">YouTube</a></li>
-<li><a href="/contact" data-guide="site.contact" data-guide-n="80" data-guide-title="Contact" data-guide-body="Une question avant de venir ? Écris au salon, on te répond.">Écrire au salon</a></li>
+<li><a href="/contact" data-guide="site.contact" data-guide-n="80" data-guide-title="Contact" data-guide-body="Une question avant de venir&nbsp;? Écris au salon, on te répond.">Écrire au salon</a></li>
 <li><a href="/formations">Formations</a></li>
-<li><a href="/carte-cadeau" data-guide="site.cadeau" data-guide-n="60" data-guide-title="Carte cadeau" data-guide-body="Offre une coupe : tu choisis le montant, on envoie le code par SMS à qui tu veux. Elle se dépense au salon, en une ou plusieurs fois.">Carte cadeau</a></li>
-<li><a href="/mon-rendez-vous" data-guide="site.rdv" data-guide-n="70" data-guide-title="Mon rendez-vous" data-guide-body="Tu as réservé sans compte ? Donne ton numéro : on t’envoie le lien par SMS pour déplacer ou annuler.">Mon rendez-vous</a></li>
-<sc-if value="{{espaceOn}}" hint-placeholder-val="{{ false }}"><li><a href="/moi" data-guide="site.espace-lien" data-guide-n="30" data-guide-title="Mon espace" data-guide-body="Crée ton espace avec ton numéro : tes rendez-vous et tes reçus au même endroit. C’est facultatif, tu peux toujours réserver sans." data-guide-n-2="50" data-guide-title-2="Carte fidélité" data-guide-body-2="Chaque coupe payée remplit ta carte, dans ton espace. À la 10e, elle est offerte.">Mon espace</a></li></sc-if>
+<li><a href="/carte-cadeau" data-guide="site.cadeau" data-guide-n="60" data-guide-title="Carte cadeau" data-guide-body="Offre une coupe&nbsp;: tu choisis le montant, on envoie le code par SMS à qui tu veux. Elle se dépense au salon, en une ou plusieurs fois.">Carte cadeau</a></li>
+<li><a href="/mon-rendez-vous" data-guide="site.rdv" data-guide-n="70" data-guide-title="Mon rendez-vous" data-guide-body="Tu as réservé sans compte&nbsp;? Donne ton numéro&nbsp;: on t’envoie le lien pour déplacer ou annuler.">Mon rendez-vous</a></li>
+<sc-if value="{{espaceOn}}" hint-placeholder-val="{{ false }}"><li><a href="/moi" data-guide="site.espace-lien" data-guide-n="30" data-guide-title="Mon espace" data-guide-body="Crée ton espace avec ton numéro&nbsp;: tes rendez-vous et tes reçus au même endroit. C’est facultatif, tu peux toujours réserver sans." data-guide-n-2="50" data-guide-title-2="{{fidTitle}}" data-guide-body-2="{{fidBody}}">Mon espace</a></li></sc-if>
 <li><a href="/resilier">Résilier mon abonnement</a></li>
 <li><a href="/?visite" data-guide-replay>Comment ça marche&nbsp;?</a></li>
 <li><a href="/mentions-legales">Mentions légales</a></li>
@@ -2867,6 +2867,9 @@ class Component extends DCLogic {
       // the client space: the footer's « Mon espace », « Crée ton espace » under a booking just made (under the deposit's
       // block when one waits, which keeps the lead), « C’est dans ton espace » only when that booking is his
       espaceOn: !!(s.acct && s.acct.enabled),
+      // the guide's loyalty step only when the salon runs the card (own switch), with its real goal; no title: no step
+      fidTitle: s.acct && s.acct.enabled && s.acct.loyalty && s.acct.loyalty.on ? 'Carte fidélité' : '',
+      fidBody: s.acct && s.acct.loyalty && s.acct.loyalty.on ? 'Chaque coupe payée remplit ta carte, dans ton espace. À la ' + ((Number(s.acct.loyalty.goal) || 9) + 1) + 'ᵉ coupe, ta récompense t’attend.' : '',
       espaceNew: !!(s.acct && s.acct.enabled && !s.acct.signedIn && s.bk.result && s.bk.result.token),
       espaceIn: !!(s.acct && s.acct.enabled && s.acct.signedIn && s.bk.result && s.ownTok === s.bk.result.token),
       espaceUrl: '/moi?garder=' + encodeURIComponent((s.bk.result && s.bk.result.token) || ''),
@@ -2886,8 +2889,8 @@ const BK_ORDER = ['svc', 'who', 'when', 'info'];
 const DAY_PAGE = 10;
 const BK_LABEL = { svc: 'Prestation', who: 'Barbier', when: 'Créneau', info: 'Coordonnées' };
 /* the first booking only: one line under the title says what the step wants (public/guide.js explains the rest of the page) */
-const BK_HELP = { svc: 'Choisis ta prestation', who: 'Choisis ton barbier ou “Peu importe”', when: 'Choisis ton créneau', info: 'Tes coordonnées : on t’envoie la confirmation par SMS' };
-const BK_HELP_NOSMS = 'Tes coordonnées : on te confirme ton rendez-vous';
+const BK_HELP = { svc: 'Choisis ta prestation', who: 'Un barbier, ou “Sans préférence”', when: 'Choisis ton créneau', info: 'Pour ta confirmation par SMS' };
+const BK_HELP_NOSMS = 'Pour confirmer ton rendez-vous';
 const BOOKED_KEY = 'lx-booked';
 function bookedBefore() { try { return !!window.localStorage.getItem(BOOKED_KEY); } catch (e) { return false; } }
 function markBooked() { try { window.localStorage.setItem(BOOKED_KEY, '1'); } catch (e) { /* storage off: the helper stays */ } }
@@ -3299,8 +3302,6 @@ const BookingMixin = {
     const pending = !!(b.result && b.result.status === 'pending');
     v.bkStepLabel = b.moving && si >= 0 ? 'Déplacer · ' + BK_LABEL[step] : si >= 0 ? 'Étape ' + (si + 1) + ' sur 4 · ' + BK_LABEL[step] : (step === 'done' ? (pending ? 'Acompte à régler' : (b.moved ? 'Déplacé' : 'Confirmé')) : (step === 'manage' ? 'Réservation' : 'Annulation'));
     v.bkTitle = step === 'done' && b.result ? (pending ? 'Presque réservé, ' + b.result.first + '.' : (b.moved ? 'C’est déplacé, ' : 'C’est réservé, ') + b.result.first + '.') : (b.moving && step === 'when' ? 'Pour quand ?' : BK_TITLE[step]);
-    const help = si >= 0 && !b.moving && !me && !bookedBefore() ? (step === 'info' && sal && sal.sms === false ? BK_HELP_NOSMS : BK_HELP[step]) : '';
-    v.hasBkHelp = !!help; v.bkHelp = help;
     v.progCls = 'bk-prog' + (si < 0 ? ' off' : '');
     ['pg0', 'pg1', 'pg2', 'pg3'].forEach((k, i) => { v[k] = i < si ? 'done' : (i === si ? 'on' : ''); });
     v.isSvc = step === 'svc'; v.isWho = step === 'who'; v.isWhen = step === 'when'; v.isInfo = step === 'info';
@@ -3310,6 +3311,9 @@ const BookingMixin = {
     // nothing online yet (a new salon before the owner fills the Catalogue): say how to reach the salon instead
     const live = LXE.services();
     v.noMenu = !!(live && !live.length);
+    // the first booking's helper line, only when there is something to choose (no catalogue: the sheet says the salon opens soon)
+    const help = si >= 0 && !b.moving && !me && !v.noMenu && !bookedBefore() ? (step === 'info' && sal && sal.sms === false ? BK_HELP_NOSMS : BK_HELP[step]) : '';
+    v.hasBkHelp = !!help; v.bkHelp = help;
     const tel = sal && sal.shop && sal.shop.phone ? String(sal.shop.phone) : '';
     const mail = sal && sal.shop && sal.shop.email ? String(sal.shop.email) : 'larchitectebarber@gmail.com';
     v.contactHref = tel ? 'tel:' + tel.replace(/[^\d+]/g, '') : 'mailto:' + mail;
