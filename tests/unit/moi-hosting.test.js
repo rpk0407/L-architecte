@@ -69,17 +69,25 @@ test('the public pages no longer say « Pas de cookie »', () => {
   assert.ok(pub.includes('confidentialite.html') && pub.includes('pages.js'));
   for (const f of pub) assert.doesNotMatch(read('public/' + f), /Pas de cookie/i, f);
   const conf = read('public/confidentialite.html');
-  // the cookie the space sets is named, with how long it lasts and how to remove it
-  assert.match(conf, /un seul cookie te garde connecté sur ce téléphone \(180 jours au plus/);
+  // the cookie the space sets is named, with how long it lasts (the salon's setting, its default said) and how to remove it
+  assert.match(conf, /un seul cookie te garde connecté sur ce téléphone \(le temps choisi par le salon, 180 jours par défaut/);
+  assert.match(read('server/settings/accounts.js'), /defaults: \(\) => \(\{ enabled: false, sessionDays: 180,/);
   assert.match(conf, /<h2 id="t-space">Ton espace<\/h2>/);
+  // closed in production until the salon opens it: the page does not promise it as there today
+  assert.match(conf, /Quand le salon l’ouvre, et seulement si tu le veux, tu ouvres ton espace/);
   assert.match(read('public/pages.js'), /Pas de pistage, pas de mesure d’audience\./);
 });
+
+const r_ = () => read('web/src/client/main.tsx');
 
 test('the site, /r/ and /mon-rendez-vous lead to the space, only while the salon has it open', () => {
   const site = read('public/site.html');
   assert.match(site, /<sc-if value="\{\{espaceNew\}\}"[^>]*><div class="card espace" data-guide="site.espace"><h3>Crée ton espace<\/h3><p>Tous tes rendez-vous et tes reçus au même endroit, sur ce téléphone\.<\/p><a class="btn" href="\{\{espaceUrl\}\}">Créer mon espace<\/a><\/div><\/sc-if>/);
   assert.match(site, /<sc-if value="\{\{espaceOn\}\}"[^>]*><li><a href="\/moi">Mon espace<\/a><\/li><\/sc-if>/);
   assert.match(site, /espaceUrl: '\/moi\?garder=' \+ encodeURIComponent\(/);
+  // « C’est dans ton espace » only for a booking that is his (booked with another number, it is not)
+  assert.match(site, /espaceIn: !!\(s\.acct && s\.acct\.enabled && s\.acct\.signedIn && s\.bk\.result && s\.ownTok === s\.bk\.result\.token\)/);
+  assert.match(r_(), /setMine\(\(m\.upcoming \|\| \[\]\)\.some\(\(u\) => u\.token === token\)\)/);
   const r = read('web/src/client/main.tsx');
   assert.match(r, /if \(!acc \|\| !acc\.enabled\) return null;/);
   assert.match(r, /href=\{'\/moi\?garder=' \+ encodeURIComponent\(token\)\}>Créer mon espace</);

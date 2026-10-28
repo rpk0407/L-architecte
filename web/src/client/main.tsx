@@ -5,7 +5,7 @@ import { createRoot } from 'react-dom/client';
 import { api } from '../lib/api';
 import { cap, dates, eur, time } from '../lib/format';
 import { Move, STATUS_WORDS, icsUrl, type Booking } from './booking';
-import type { AccountState } from '../moi/types';
+import type { AccountState, Me } from '../moi/types';
 import './client.css';
 import './cadeau.css';
 
@@ -140,12 +140,21 @@ function Manage({ token, back }: { token: string; back: string | null }) {
   );
 }
 
-/** « Crée ton espace » under a booking to come (AC-03a): hidden while the salon keeps the space closed, a plain way in once signed in. */
+/**
+ * « Crée ton espace » under a booking to come (AC-03a): hidden while the salon keeps the space closed. Signed in, « C’est
+ * dans ton espace » only when this booking is among his (booked with another number, it is that number's, not his).
+ */
 function Espace({ token }: { token: string }) {
   const [acc, setAcc] = useState<AccountState | null>(null);
-  useEffect(() => { api.get<AccountState>('/api/public/account').then(setAcc).catch(() => {}); }, []);
+  const [mine, setMine] = useState(false);
+  useEffect(() => {
+    api.get<AccountState>('/api/public/account').then((a) => {
+      setAcc(a);
+      if (a.enabled && a.signedIn) api.get<Me>('/api/me/home').then((m) => setMine((m.upcoming || []).some((u) => u.token === token))).catch(() => {});
+    }).catch(() => {});
+  }, []);
   if (!acc || !acc.enabled) return null;
-  if (acc.signedIn) return <p className="c-muted c-small c-espace-in" data-guide="r.espace">C’est dans ton espace. <a href="/moi">Ouvrir mon espace</a></p>;
+  if (acc.signedIn) return !mine ? null : <p className="c-muted c-small c-espace-in" data-guide="r.espace">C’est dans ton espace. <a href="/moi">Ouvrir mon espace</a></p>;
   return (
     <section className="c-card c-espace" data-guide="r.espace">
       <p><b>Crée ton espace</b> : tous tes rendez-vous et tes reçus au même endroit.</p>

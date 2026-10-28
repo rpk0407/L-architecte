@@ -111,7 +111,7 @@ export function SignIn({ demo, enabled, garder, onIn }: { demo: boolean; enabled
     try { await api.post('/api/public/account/demo', {}); onIn(); }
     catch (x: any) { setErr(x.message); setBusy(false); }
   };
-  const back = () => { setStep('phone'); setCode(''); setToken(null); setErr(''); setLive(''); };
+  const back = () => { setStep('phone'); setCode(''); setFirst(''); setToken(null); setErr(''); setLive(''); };
 
   if (!enabled) {
     return (
@@ -125,6 +125,8 @@ export function SignIn({ demo, enabled, garder, onIn }: { demo: boolean; enabled
     );
   }
 
+  // the error sits right under the field it is about (seen with the keyboard open), read out as soon as it shows
+  const errLine = <p id="m-in-err" className="m-err" role="alert">{err}</p>;
   return (
     <>
       <section className="c-card m-in" aria-labelledby="m-in-t" data-guide="moi.signin">
@@ -135,6 +137,7 @@ export function SignIn({ demo, enabled, garder, onIn }: { demo: boolean; enabled
             <p className="c-muted">Tes rendez-vous, tes reçus, ta prochaine coupe. Sans mot de passe.</p>
             <label htmlFor="m-phone">Ton numéro</label>
             <input id="m-phone" className="m-inp" type="tel" inputMode="tel" autoComplete="tel" placeholder="06 12 34 56 78" maxLength={24} value={phone} aria-invalid={!!err} aria-describedby="m-in-err" onChange={(e) => { setPhone(e.target.value); if (err) setErr(''); }} />
+            {errLine}
             <button type="submit" className="c-btn" disabled={busy}>{busy ? 'Envoi…' : 'Recevoir mon code'}</button>
           </form>
         ) : step === 'code' ? (
@@ -142,6 +145,7 @@ export function SignIn({ demo, enabled, garder, onIn }: { demo: boolean; enabled
             <p className="c-muted">{lead || 'Si ce numéro est connu du salon, tu reçois un code par SMS.'}</p>
             <label htmlFor="m-code">Le code reçu par SMS</label>
             <input id="m-code" ref={codeRef} className="m-inp m-code" type="text" inputMode="numeric" autoComplete="one-time-code" pattern="\d{6}" maxLength={6} placeholder="• • • • • •" value={code} aria-invalid={!!err} aria-describedby="m-in-err m-in-live" onChange={(e) => onCode(e.target.value)} />
+            {errLine}
             <button type="submit" className="c-btn" disabled={busy || code.length !== 6}>{busy ? 'Vérification…' : 'Entrer'}</button>
             <div className="m-links">
               <button type="button" className="c-link" disabled={wait > 0 || busy} onClick={resend}>{wait > 0 ? 'Pas reçu ? Renvoyer dans ' + wait + ' s' : 'Pas reçu ? Renvoyer'}</button>
@@ -152,11 +156,12 @@ export function SignIn({ demo, enabled, garder, onIn }: { demo: boolean; enabled
           <form className="m-form" onSubmit={(e) => { e.preventDefault(); if (first.trim()) verify(code, first.trim()); }} noValidate>
             <p className="c-muted">Pour être sûr que ce numéro est toujours le tien.</p>
             <label htmlFor="m-first">Ton prénom ?</label>
-            <input id="m-first" className="m-inp" type="text" autoComplete="given-name" maxLength={40} value={first} aria-describedby="m-in-err" onChange={(e) => setFirst(e.target.value)} autoFocus />
+            <input id="m-first" className="m-inp" type="text" autoComplete="given-name" maxLength={40} value={first} aria-describedby="m-in-err" aria-invalid={!!err} onChange={(e) => { setFirst(e.target.value); if (err) setErr(''); }} autoFocus />
+            {errLine}
             <button type="submit" className="c-btn" disabled={busy || !first.trim()}>{busy ? 'Vérification…' : 'Entrer'}</button>
+            <div className="m-links"><button type="button" className="c-link" onClick={back}>Changer de numéro</button></div>
           </form>
         )}
-        <p id="m-in-err" className="m-err" role="alert">{err}</p>
         <p id="m-in-live" className="m-live" role="status">{live}</p>
         <a className="c-link m-lost" href="/mon-rendez-vous">Juste retrouver un rendez-vous ? Lien par SMS</a>
       </section>

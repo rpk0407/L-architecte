@@ -2,14 +2,13 @@
 // bookings stay, faint. « Voir plus » asks for the page before the last day shown (GET /api/me/history?before=).
 import { useEffect, useState } from 'react';
 import { api, qs } from '../../lib/api';
-import { dates, eur } from '../../lib/format';
+import { eur } from '../../lib/format';
+import { dayWords } from '../kit';
 import type { CardProps, MeHistory, MeHistoryItem } from '../types';
 
 export const meta = { id: 'history', tab: 'history' as const, order: 10 };
 
 const PAST: Record<MeHistoryItem['status'], string> = { done: '', no_show: 'Manqué', cancelled: 'Annulé' };
-/** « 12 oct. », the year when it is not this one */
-function dayWords(day: string, year: string) { const p = dates.dayParts(day); return p.d + ' ' + dates.MONTHS_SH[p.m - 1] + (day.slice(0, 4) !== year ? ' ' + p.y : ''); }
 
 export default function History({ me }: CardProps) {
   const [items, setItems] = useState<MeHistoryItem[] | null>(null);
@@ -25,8 +24,7 @@ export default function History({ me }: CardProps) {
     } catch (e: any) { setErr(e.message); } finally { setBusy(false); }
   };
   useEffect(() => { load(); }, []);
-  const year = dates.localParts(Date.now()).day.slice(0, 4);
-  const fence = me.fenced && me.historyFrom ? <p className="c-muted c-small m-fence">Ton historique d’avant le {dates.dayLong(me.historyFrom)} n’apparaît pas ici. S’il est à toi, demande-le au salon.</p> : null;
+  const fence = me.fenced && me.historyFrom ? <p className="c-muted c-small m-fence">Ton historique d’avant le {dayWords(me.historyFrom, { long: true })} n’apparaît pas ici. S’il est à toi, demande-le au salon.</p> : null;
 
   return (
     <section className="c-card m-hist" aria-labelledby="m-hist-t" aria-busy={busy} data-guide="moi.history">
@@ -42,10 +40,10 @@ export default function History({ me }: CardProps) {
             return (
               <li key={x.day + x.start + ':' + i} className={gone ? 'gone' : ''}>
                 <span className="m-rows-t">
-                  <b>{dayWords(x.day, year)} · {x.services.map((s) => s.name).join(' + ') || 'Passage'}</b>
+                  <b>{dayWords(x.day)} · {x.services.map((s) => s.name).join(' + ') || 'Passage'}</b>
                   <small>{[x.staff ? x.staff.name : '', gone ? PAST[x.status] : eur(x.receipt ? x.paid : x.price)].filter(Boolean).join(' · ')}</small>
                 </span>
-                {x.receipt ? <a className="m-rec" href={x.receipt} aria-label={'Reçu du ' + dayWords(x.day, year)}>Reçu</a> : null}
+                {x.receipt ? <a className="m-rec" href={x.receipt} aria-label={'Reçu du ' + dayWords(x.day)}>Reçu</a> : null}
               </li>
             );
           })}

@@ -37,7 +37,8 @@ export function icsUrl(b: IcsBooking, url: string = location.href) {
 /** What moving needs to know of the booking: the same services, the same barber unless any was fine. */
 export type MovableBooking = { services: { id: string }[]; anyStaff: boolean; staff: { id: string } | null };
 
-export function Move({ b, token, onDone, onCancel }: { b: MovableBooking; token: string; onDone: (b: Booking) => void; onCancel: () => void }) {
+/** onPick (the demo's client in /moi): the slot chosen is handed back and nothing is sent, so the showcase stays as it is. */
+export function Move({ b, token, onDone, onCancel, onPick }: { b: MovableBooking; token: string; onDone: (b: Booking) => void; onCancel: () => void; onPick?: (day: string, start: number) => void }) {
   const [days, setDays] = useState<{ day: string; slots: { m: number; s: string }[] }[] | null>(null);
   const [day, setDay] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -49,6 +50,7 @@ export function Move({ b, token, onDone, onCancel }: { b: MovableBooking; token:
   }, []);
   const go = async (m: number) => {
     if (!day) return;
+    if (onPick) { onPick(day, m); return; }
     setBusy(true); setErr('');
     try { onDone(await api.post<Booking>('/api/public/bookings/' + encodeURIComponent(token) + '/move', { day, start: m })); }
     catch (e: any) { setErr(e.message); setBusy(false); }

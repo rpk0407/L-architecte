@@ -7,6 +7,9 @@
 .m-page :focus-visible, .m-sheet :focus-visible { outline: 2.5px solid currentColor; outline-offset: 3px; }
 /* the client pages' text links (« Retour », « Non, je garde ») as big as a thumb here */
 .m-page .c-link { display: inline-flex; align-items: center; min-height: 44px; }
+/* the footer's two links: a thumb's height, and the client pages' second ink so they read */
+.m-page .c-foot { color: var(--ink2); }
+.m-page .c-foot a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 4px; }
 .m-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .m-book { display: inline-flex; align-items: center; min-height: 44px; padding: 0 20px; border-radius: 999px; background: var(--red); color: var(--ink); font: 600 15px/1 var(--sans); text-decoration: none; }
 .m-hello { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; padding: 4px 4px 6px; }
@@ -60,7 +63,7 @@
 .m-rows-t { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .m-rows-t b { font: 600 15.5px/1.3 var(--sans); }
 .m-rows-t small { font-size: 13.5px; color: var(--ink2); }
-.m-rows li.gone .m-rows-t { opacity: .55; }
+.m-rows li.gone .m-rows-t b { opacity: .55; }
 .m-rec { flex: none; display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px; border-radius: 999px; box-shadow: inset 0 0 0 1.5px var(--line2); font: 600 14.5px/1 var(--sans); text-decoration: none; }
 .m-rec:hover { background: var(--ink); color: var(--paper); box-shadow: none; }
 .m-more { min-height: 48px; }
@@ -83,7 +86,7 @@
 .m-inp[aria-invalid='true'] { box-shadow: inset 0 0 0 2px var(--red); }
 .m-code { font-variant-numeric: tabular-nums; letter-spacing: .35em; text-align: center; }
 .m-links { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 18px; }
-.m-links .c-link, .m-lost { min-height: 44px; display: inline-flex; align-items: center; }
+.m-links .c-link, .m-lost { min-height: 44px; display: inline-flex; align-items: center; line-height: 1.35; }
 .m-lost { align-self: flex-start; color: var(--ink2); }
 .m-demo { border: 1.5px dashed var(--line2); background: transparent; box-shadow: none; }
 .m-demo .c-k { color: var(--red); }
@@ -91,7 +94,7 @@
 
 /* the tab bar */
 .m-tabs { position: fixed; z-index: 20; left: 0; right: 0; bottom: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); padding: 0 max(8px, calc((100% - 560px) / 2)) env(safe-area-inset-bottom); background: rgba(246, 243, 238, .94); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); box-shadow: 0 -1px 0 var(--line); }
-.m-tabs a { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 56px; color: var(--ink3); font: 600 12px/1 var(--sans); text-decoration: none; }
+.m-tabs a { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 56px; color: var(--ink2); font: 600 12px/1 var(--sans); text-decoration: none; }
 .m-tabs a[aria-current='page'] { color: var(--ink); }
 .m-tabs a[aria-current='page']::before { content: ''; position: absolute; top: 0; left: 50%; width: 28px; height: 3px; margin-left: -14px; border-radius: 0 0 3px 3px; background: var(--red); }
 

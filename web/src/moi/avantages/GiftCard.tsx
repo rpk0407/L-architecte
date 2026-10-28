@@ -1,8 +1,8 @@
 // « Mes avantages » › the gift cards on the client's file with money left: the last four of the code, the balance, until
 // when. The full code is never shown here: whoever holds it spends the card.
 import { useState } from 'react';
-import { dates, eur } from '../../lib/format';
-import { AvRow, Sheet, until } from '../kit';
+import { eur } from '../../lib/format';
+import { AvRow, Sheet, dayWords, until } from '../kit';
 import type { CardProps, MeGiftcard } from '../types';
 
 export const meta = { id: 'giftcard', order: 40 };
@@ -19,7 +19,7 @@ export default function GiftCard({ me }: CardProps) {
       {open ? (
         <Sheet title={'Carte cadeau •••• ' + open.last4} kicker="Mes avantages" onClose={() => setOpen(null)}>
           <div className="m-big"><b>{amount(open.balance)}</b><span>à dépenser au salon</span></div>
-          <p className="c-muted">Valable jusqu’au {dates.dayLong(open.expires)} {open.expires.slice(0, 4)}, en une ou plusieurs fois. Au moment de payer, présente ta carte ou son code au salon.</p>
+          <p className="c-muted">Valable jusqu’au {dayWords(open.expires, { weekday: true, long: true })}, en une ou plusieurs fois. Au moment de payer, présente ta carte ou son code au salon.</p>
           <a className="c-btn" href="/?reserver">Réserver</a>
         </Sheet>
       ) : null}

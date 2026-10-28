@@ -28,6 +28,7 @@ import { fiscalSteps } from '../commands/steps/fiscal.js';
 import { demoSigner } from '../core/signer.js';
 import { SOFTWARE } from '../version.js';
 import { launchLoyalty, importLoyalty, claimReferral } from '../commands/loyalty.js';
+import { personaOf } from '../commands/accounts.js';
 import { rewardsOf } from './loyalty.js';
 import { rewardValue } from '../../shared/loyalty.js';
 
@@ -468,6 +469,9 @@ export async function buildDemoJournal(nowReal, opt = {}) {
     }
     clock = nowReal;
   }
+  // AC-03a: the client « Essayer avec un client de démo » opens holds a carnet, so « Mes avantages » shows in the demo
+  const persona = personaOf(eng.state, clock);
+  if (persona) await eng.run(checkout, { clientId: persona.id, lines: [{ kind: 'pack', ref: slugId.ab }], payments: [{ method: 'card', amount: eng.state.services.get(slugId.ab).price }] }, base).catch(() => null);
   await eng.run({ run(s, input, ctx) { ctx.emit('demo.seeded', { days: seeded }); return {}; } }, {}, SYS);
   return eng.journal;
 }

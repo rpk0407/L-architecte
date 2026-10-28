@@ -1,5 +1,6 @@
 // /moi on a phone and on a computer (AC-03a): the demo's client signs in, sees his next appointment with its four
-// gestures, moves it, opens his carnet in « Mes avantages », reads his visits and a receipt, signs out. Then a visitor
+// gestures, moves and cancels it (simulated: the demo's client is everyone's showcase, the salon's bookings stay as they
+// are), opens his carnet in « Mes avantages », reads his visits and a receipt, signs out. Then a visitor
 // books on the site, « Créer mon espace » on the done step (and on /r/) opens /moi with the masked number and the demo's
 // code, and the booking he just made is the hero. No JavaScript error, no sideways scroll at 390 px, targets ≥ 44 px.
 export const name = 'client space: sign in, next visit, move, carnet, history, receipt, sign out, « Créer mon espace »';
@@ -25,7 +26,7 @@ export default async ({ h, page }) => {
   await h.expectText(page, 'Démo : aucun SMS ne part.');
   await h.expectText(page, 'Pas encore venu ? Ton espace s’ouvre avec ta première réservation.');
   await noSideScroll(page, '/moi sign-in');
-  await bigEnough(page, '.m-in button, .m-in a, .m-demo button, .m-first a', '/moi sign-in');
+  await bigEnough(page, '.m-in button, .m-in a, .m-demo button, .m-first a, .c-foot a', '/moi sign-in');
   await h.shot(page, 'moi-signin-phone');
 
   // a number the salon does not know: the same answer as any other, then the code field
@@ -52,9 +53,14 @@ export default async ({ h, page }) => {
   if (!/avec \S+/.test(await hero.locator('.c-what').textContent())) throw new Error('the hero does not name the barber');
   for (const [role, label] of [['link', 'Agenda'], ['link', 'Itinéraire'], ['button', 'Déplacer'], ['button', 'Annuler']]) await hero.getByRole(role, { name: label }).waitFor();
   await h.expectText(page, 'Modifiable jusqu’à');
-  await bigEnough(page, '.m-hero a, .m-hero button, .m-tabs a, .m-book', '/moi home');
+  await bigEnough(page, '.m-hero a, .m-hero button, .m-tabs a, .m-book, .c-foot a', '/moi home');
   await noSideScroll(page, '/moi home');
   await h.shot(page, 'moi-home-phone');
+
+  // what the salon holds for him before the visitor touches anything
+  const atSalon = async () => (await page.evaluate(async () => (await fetch('/api/me/home')).json())).upcoming.map((u) => u.id + '@' + u.day + '/' + u.start).join(',');
+  const held0 = await atSalon();
+  if (!held0) throw new Error('the demo client has nothing booked at the salon');
 
   // Déplacer: the last day with free slots, so the booking stays movable; the hero follows
   await hero.getByRole('button', { name: 'Déplacer' }).click();
@@ -64,30 +70,42 @@ export default async ({ h, page }) => {
   await page.locator('.c-slots button').first().click();
   await h.expectText(page, 'C’est déplacé');
   await page.waitForFunction((w) => { const e = document.querySelector('.m-hero .m-when'); return !!e && e.textContent !== w; }, when0, { timeout: 8000 });
-
-  /* ---------- « Mes avantages »: the salon sells him a carnet ---------- */
-  if (await page.locator('.m-avs').isVisible()) throw new Error('« Mes avantages » shows with nothing in it');
-  const mine = await page.evaluate(async () => (await fetch('/api/me/home')).json());
-  await h.setup();
-  const found = await h.api('/api/v1/clients?q=' + encodeURIComponent(mine.first + ' ' + mine.last));
-  const file = found.json.items.find((c) => c.first === mine.first && c.last === mine.last);
-  if (!file) throw new Error('the demo client is not found at the salon: ' + found.text.slice(0, 200));
-  const cat = await h.api('/api/v1/catalog');
-  const pack = cat.json.services.find((s) => s.active && s.pack);
-  const sale = await h.api('/api/v1/sales', { body: { clientId: file.id, lines: [{ kind: 'pack', ref: pack.id }], payments: [{ method: 'card', amount: pack.price }] }, headers: { 'x-request-id': 'e2e-moi-carnet-' + Date.now() } });
-  if (sale.status !== 200) throw new Error('the carnet was not sold: ' + sale.text);
+  await h.expectText(page, 'Démo : rien n’est changé au salon.');
+  // Annuler: the hero goes, the next visitor still finds the booking where it was
+  await page.locator('.m-hero').getByRole('button', { name: 'Annuler' }).click();
+  await page.getByRole('button', { name: 'Oui, annuler' }).click();
+  await h.expectText(page, 'C’est annulé.');
+  await h.shot(page, 'moi-cancel-demo-phone');
+  if ((await atSalon()) !== held0) throw new Error('a visitor changed the demo client’s bookings at the salon: ' + held0 + ' → ' + (await atSalon()));
   await page.reload();
+  await page.getByRole('heading', { name: /^Salut / }).waitFor({ timeout: 10000 });
+  if ((await heroWhen(page)) !== when0) throw new Error('after a reload the hero is not the salon’s booking: ' + (await heroWhen(page)));
+
+  /* ---------- « Mes avantages »: the seed sold him a carnet (or, the demo's client having changed since, the salon does now) ---------- */
+  const mine = await page.evaluate(async () => (await fetch('/api/me/home')).json());
+  if (!mine.wallet.carnets.length) {
+    if (await page.locator('.m-avs').isVisible()) throw new Error('« Mes avantages » shows with nothing in it');
+    await h.setup();
+    const found = await h.api('/api/v1/clients?q=' + encodeURIComponent(mine.first + ' ' + mine.last));
+    const file = found.json.items.find((c) => c.first === mine.first && c.last === mine.last);
+    if (!file) throw new Error('the demo client is not found at the salon: ' + found.text.slice(0, 200));
+    const cat = await h.api('/api/v1/catalog');
+    const pack = cat.json.services.find((s) => s.active && s.pack);
+    const sale = await h.api('/api/v1/sales', { body: { clientId: file.id, lines: [{ kind: 'pack', ref: pack.id }], payments: [{ method: 'card', amount: pack.price }] }, headers: { 'x-request-id': 'e2e-moi-carnet-' + Date.now() } });
+    if (sale.status !== 200) throw new Error('the carnet was not sold: ' + sale.text);
+    await page.reload();
+  }
   const avs = page.locator('.m-avs');
   await avs.getByRole('heading', { name: 'Mes avantages' }).waitFor({ timeout: 8000 });
-  const row = avs.getByRole('button', { name: /Carnet/ });
+  const row = avs.getByRole('button', { name: /Carnet/ }).first();
   await row.waitFor();
   await h.shot(page, 'moi-avantages-phone');
-  if (!/5\srestantes/.test(await row.textContent())) throw new Error('the carnet row: ' + (await row.textContent()));
+  if (!/\d+\srestantes? · jusqu’au /.test(await row.textContent())) throw new Error('the carnet row: ' + (await row.textContent()));
   if (/abonnement/i.test(await avs.textContent())) throw new Error('a carnet is called « abonnement »');
   await row.click();
   const sheet = page.getByRole('dialog', { name: /Carnet/ });
   await sheet.waitFor();
-  await sheet.getByText('coupes restantes sur 5').waitFor();
+  await sheet.getByText(/restantes? sur \d+/).waitFor();
   if (!(await sheet.evaluate((d) => d.contains(document.activeElement)))) throw new Error('the sheet does not take the focus');
   await page.keyboard.press('Tab'); await page.keyboard.press('Tab'); await page.keyboard.press('Tab');
   if (!(await sheet.evaluate((d) => d.contains(document.activeElement)))) throw new Error('the focus leaves the sheet');
@@ -116,7 +134,8 @@ export default async ({ h, page }) => {
   await page.getByRole('heading', { name: 'Ton profil' }).waitFor();
   if (!page.url().endsWith('/moi/profil')) throw new Error('the Profil tab is not at /moi/profil: ' + page.url());
   await h.shot(page, 'moi-profile-phone');
-  await page.getByRole('button', { name: /Se déconnecter/ }).click();
+  // .first(): AC-02's Profil card has its own « Se déconnecter » row (cards/Session.tsx goes when it lands)
+  await page.getByRole('button', { name: /Se déconnecter/ }).first().click();
   await page.getByRole('button', { name: 'Recevoir mon code' }).waitFor({ timeout: 8000 });
   if ((await page.evaluate(async () => (await fetch('/api/public/account')).json())).signedIn) throw new Error('still signed in after « Se déconnecter »');
 

@@ -1,7 +1,8 @@
 // The client space's small kit, on top of the client pages' look (client.css): the site's booking sheet as a dialog
 // (bottom sheet on a phone, a panel on the right on a computer, as on the site), the row of « Mes avantages », and the
-// sign-out every card may need. Rows and cards of other areas may use these; nothing here knows about them.
-import { useEffect, useId, useRef, type ReactNode } from 'react';
+// sign-out every card may need, the crash guard of each card and row, and how a day is written. Rows and cards of other
+// areas may use these; nothing here knows about them.
+import { Component, useEffect, useId, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { api } from '../lib/api';
 import { dates } from '../lib/format';
@@ -67,14 +68,28 @@ export function AvRow({ icon, title, sub, onOpen, guide }: { icon: string; title
   );
 }
 
+/** A card or a row that breaks shows nothing rather than taking the whole space (or the whole card) down with it. */
+export class Guard extends Component<{ children: ReactNode }, { broken: boolean }> {
+  state = { broken: false };
+  static getDerivedStateFromError() { return { broken: true }; }
+  componentDidCatch(e: unknown) { console.warn('[moi] card', e); }
+  render() { return this.state.broken ? null : this.props.children; }
+}
+
 /** Today in Paris (the salon's days), whatever this phone's time zone. */
 export const todayKey = () => dates.localParts(Date.now()).day;
 
-/** « jusqu’au 14 déc. », « jusqu’au 1er mars 2027 »: the year only when it is not this one. */
-export function until(day: string, today = todayKey()) {
+/**
+ * Every day the client reads in his space, one way: « 12 oct. », « 1er mars 2027 », weekday « jeu. 12 nov. », long
+ * « jeudi 12 novembre ». « 1er » for the first of the month; the year only when it is not this one.
+ */
+export function dayWords(day: string, o: { weekday?: boolean; long?: boolean } = {}, today = todayKey()) {
   const p = dates.dayParts(day);
-  return 'jusqu’au ' + (p.d === 1 ? '1er' : p.d) + ' ' + dates.MONTHS_SH[p.m - 1] + (day.slice(0, 4) !== today.slice(0, 4) ? ' ' + p.y : '');
+  return (o.weekday ? (o.long ? dates.DAYS_FR : dates.DAYS_SH)[p.wd] + ' ' : '') + (p.d === 1 ? '1er' : p.d) + ' ' + (o.long ? dates.MONTHS_FR : dates.MONTHS_SH)[p.m - 1] + (day.slice(0, 4) !== today.slice(0, 4) ? ' ' + p.y : '');
 }
+
+/** « jusqu’au 14 déc. », « jusqu’au 1er mars 2027 » */
+export const until = (day: string, today = todayKey()) => 'jusqu’au ' + dayWords(day, {}, today);
 
 /** Signs this phone out; the page then shows the sign-in again. */
 export async function signOut() {

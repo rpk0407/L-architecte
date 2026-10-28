@@ -1,8 +1,8 @@
 // « Mes avantages » › the carnets the client holds (prepaid cuts, sold at the salon): cuts left and until when. A carnet is
 // never called « abonnement » (that word is the monthly membership's, INDEX › Words).
 import { useState } from 'react';
-import { dates, plural } from '../../lib/format';
-import { AvRow, Sheet, until } from '../kit';
+import { plural } from '../../lib/format';
+import { AvRow, Sheet, dayWords, until } from '../kit';
 import type { CardProps, MeCarnet } from '../types';
 
 export const meta = { id: 'carnet', order: 20 };
@@ -24,7 +24,7 @@ export default function Carnet({ me }: CardProps) {
       {open ? (
         <Sheet title={carnetName(open)} kicker="Mes avantages" onClose={() => setOpen(null)}>
           <div className="m-big"><b>{open.left}</b><span>{open.left > 1 ? 'coupes restantes' : 'coupe restante'} sur {open.total}</span></div>
-          <p className="c-muted">Valable jusqu’au {dates.dayLong(open.expires)} {open.expires.slice(0, 4)}. Chaque coupe se déduit au salon, au moment de payer.</p>
+          <p className="c-muted">Valable jusqu’au {dayWords(open.expires, { weekday: true, long: true })}. Chaque coupe se déduit au salon, au moment de payer.</p>
           <a className="c-btn" href="/?reserver">Réserver une coupe</a>
         </Sheet>
       ) : null}

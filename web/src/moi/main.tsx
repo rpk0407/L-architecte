@@ -2,15 +2,14 @@
 // of the client pages (/r/). Three tabs; each shows the cards its folder holds (registry.ts), so other areas add a card
 // by adding a file. Signed out (or the space closed by the salon), it is the sign-in. GET /api/me/home is read once, again
 // when the phone comes back to the page, and after every action a card reports through reload().
-import { Component, StrictMode, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { StrictMode, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { api, type ApiError } from '../lib/api';
-import { dates } from '../lib/format';
 import { Icon } from '../ui/Icon';
 import { tabCards } from './registry';
 import { PATHS, safeNext, tabOf, type Tab } from './paths';
 import { SignIn } from './SignIn';
-import { todayKey } from './kit';
+import { Guard, dayWords, todayKey } from './kit';
 import type { AccountState, Me } from './types';
 import '../client/client.css';
 import './moi.css';
@@ -20,14 +19,6 @@ const TAB_WORDS: Record<Tab, { label: string; icon: string; title: string }> = {
   history: { label: 'Historique', icon: 'clock', title: 'Historique' },
   profile: { label: 'Profil', icon: 'user', title: 'Profil' }
 };
-
-/** A card that breaks shows nothing rather than taking the whole space down with it. */
-class Guard extends Component<{ children: ReactNode }, { broken: boolean }> {
-  state = { broken: false };
-  static getDerivedStateFromError() { return { broken: true }; }
-  componentDidCatch(e: unknown) { console.warn('[moi] card', e); }
-  render() { return this.state.broken ? null : this.props.children; }
-}
 
 function Shell({ children, tab, onTab }: { children: ReactNode; tab?: Tab; onTab?: (t: Tab) => void }) {
   return (
@@ -58,7 +49,7 @@ function Hello({ me }: { me: Me }) {
   let line: ReactNode = null;
   if (!me.upcoming.length) {
     const book = <a className="c-btn" href="/?reserver">Réserver</a>;
-    if (due) line = <><p className="m-due">{(due < today ? 'Ta coupe t’attend depuis le ' : 'Ta prochaine coupe vers le ') + dates.dayLong(due) + '.'}</p>{book}</>;
+    if (due) line = <><p className="m-due">{(due < today ? 'Ta coupe t’attend depuis le ' : 'Ta prochaine coupe vers le ') + dayWords(due, { weekday: true }, today) + '.'}</p>{book}</>;
     else if (me.rhythm.visits > 0) line = <><p className="m-due">Ta première coupe t’a plu ? Reprends un créneau.</p>{book}</>;
     else line = <><p className="m-due">Ta première coupe t’attend.</p>{book}</>;
   }
@@ -149,7 +140,16 @@ function App() {
       </Shell>
     );
   }
-  if (!me) return <Shell><div className="c-card c-center" aria-busy="true"><span className="c-spin" /><p className="c-muted">On ouvre ton espace…</p>{err ? <p className="c-note warn" role="alert">{err}</p> : null}</div></Shell>;
+  if (!me) {
+    // the space did not open (the salon did not answer): say so and offer to try again, no spinner left turning
+    return (
+      <Shell>
+        {err ? (
+          <section className="c-card c-center"><p className="c-k">Mon espace</p><h1 className="c-h">Ton espace ne s’ouvre pas.</h1><p className="c-muted" role="alert">{err}</p><button type="button" className="c-btn" onClick={() => { setErr(''); reload(); }}>Réessayer</button></section>
+        ) : <div className="c-card c-center" aria-busy="true"><span className="c-spin" /><p className="c-muted">On ouvre ton espace…</p></div>}
+      </Shell>
+    );
+  }
   return (
     <Shell tab={tab} onTab={onTab}>
       <TabHead tab={tab} me={me} />

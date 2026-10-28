@@ -2160,6 +2160,13 @@ class Component extends DCLogic {
     fetch('/api/public/account', { headers: { accept: 'application/json' }, credentials: 'same-origin', cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : null)).then((a) => { if (this._mounted && a) this.setState({ acct: a }); }).catch(() => { /* the entry points stay hidden */ });
   }
+  /* signed in: is the booking just made among his? (made with another number, it is that number's file, not his) */
+  acctOwn(token) {
+    const a = this.state.acct;
+    if (!a || !a.enabled || !a.signedIn || !token) return;
+    fetch('/api/me/home', { headers: { accept: 'application/json' }, credentials: 'same-origin', cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null)).then((m) => { if (this._mounted && m && (m.upcoming || []).some((u) => u.token === token)) this.setState({ ownTok: token }); }).catch(() => { /* nothing said */ });
+  }
 
   /* the old WordPress pages (/nos-services, /creations) land on #carte or #coupes: go there once the page is laid out */
   toHash() {
@@ -2718,10 +2725,11 @@ class Component extends DCLogic {
       meForgot: !!s.forgot,
       forgetMe: () => { clearMe(); this.setState({ forgot: true, fFirst: '', fLast: '', fPhone: '', fEmail: '', fNote: '', fMkt: false }); },
 
-      // the client space: the footer's « Mon espace », and « Crée ton espace » under a booking just made (not while a deposit waits)
+      // the client space: the footer's « Mon espace », « Crée ton espace » under a booking just made (under the deposit's
+      // block when one waits, which keeps the lead), « C’est dans ton espace » only when that booking is his
       espaceOn: !!(s.acct && s.acct.enabled),
-      espaceNew: !!(s.acct && s.acct.enabled && !s.acct.signedIn && s.bk.result && s.bk.result.token && !bv.needPay),
-      espaceIn: !!(s.acct && s.acct.enabled && s.acct.signedIn),
+      espaceNew: !!(s.acct && s.acct.enabled && !s.acct.signedIn && s.bk.result && s.bk.result.token),
+      espaceIn: !!(s.acct && s.acct.enabled && s.acct.signedIn && s.bk.result && s.ownTok === s.bk.result.token),
       espaceUrl: '/moi?garder=' + encodeURIComponent((s.bk.result && s.bk.result.token) || ''),
 
       mapsUrl: mapsOf()
@@ -3005,6 +3013,7 @@ const BookingMixin = {
       this.remember({ first: String(s0.fFirst).trim(), last: String(s0.fLast || '').trim(), phone: s0.fPhone, email: String(s0.fEmail || '').trim(), lastF: b.f, lastBarber: r.barber }, result);
       clearInterval(this._holdT);
       this.setState({ bk: Object.assign(this.bkEmpty(), { step: 'done', result: result, f: b.f }), icsUrl: this.bkIcs(result), fNote: '' });
+      this.acctOwn(result.token);
       buzz([16, 40, 16]);
     } catch (e) {
       if (e.code === 'taken') this.bkConflict(e.message);
@@ -3053,6 +3062,7 @@ const BookingMixin = {
       const result = Object.assign({}, bk.result, { day: v.day, time: v.start, barber: v.staff ? (Object.keys(LXE.BMAP).filter((k) => LXE.BMAP[k].sid === v.staff.id)[0] || bk.result.barber) : bk.result.barber });
       this.remember(null, result);
       this.setState({ bk: Object.assign(this.bkEmpty(), { step: 'done', result: result, f: result.f, moved: true }), icsUrl: this.bkIcs(result) });
+      this.acctOwn(result.token);
       buzz([16, 40, 16]);
     } catch (e) {
       this.setState({ bk: Object.assign({}, bk, { busy: false, step: 'when', time: null, err: e.message }) });

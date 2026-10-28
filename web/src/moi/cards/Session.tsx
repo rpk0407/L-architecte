@@ -1,5 +1,7 @@
 // « Profil » › this phone's session: sign out here, the space stays open on the client's other devices. The rest of the
 // profile (barber, details, messages, data, every device) is AC-02's Profile card, in the same folder.
+// MERGE NOTE: AC-02's Profile card has its own « Se déconnecter » row. When it lands, delete this file, the guide step
+// moi.session (guide/steps/AC-03a.ts) and this card's entry in tests/unit/moi-registry.test.js, so one button remains.
 import { useState } from 'react';
 import { Icon } from '../../ui/Icon';
 import { signOut } from '../kit';
