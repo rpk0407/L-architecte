@@ -8,7 +8,7 @@ import { useApp } from '../../state';
 import { orderedCards } from './registry';
 
 export function Customize({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { boot, reloadBoot } = useApp();
+  const { boot, reloadBoot, offline } = useApp();
   const [said, setSaid] = useState('');
   const cards = orderedCards(boot.me.prefs, boot.me.chair);
   const save = async (order: string[], hidden: string[], words: string) => {
@@ -31,16 +31,16 @@ export function Customize({ open, onClose }: { open: boolean; onClose: () => voi
   const show = (id: string, on: boolean) => save(ids, on ? hiddenIds.filter((x) => x !== id) : [...hiddenIds, id], cards.find((c) => c.meta.id === id)!.meta.title + (on ? ' affichée' : ' masquée'));
   return (
     <Sheet open={open} onClose={onClose} title="Personnaliser" kicker="Mon espace"
-      footer={<><Button variant="ghost" onClick={() => void save([], [], 'Ordre d’origine remis')}>Remettre par défaut</Button><span className="grow" /><Button variant="primary" onClick={onClose}>Terminé</Button></>}>
+      footer={<><Button variant="ghost" disabled={offline} onClick={() => void save([], [], 'Ordre d’origine remis')}>Remettre par défaut</Button><span className="grow" /><Button variant="primary" onClick={onClose}>Terminé</Button></>}>
       <p className="muted" style={{ fontSize: 13.5 }}>Choisis les cartes que tu veux voir et dans quel ordre. C’est rien que pour toi, sur tous tes appareils.</p>
       <ul className="es-custom">
         {cards.map((c, i) => (
           <li key={c.meta.id}>
             <div className="es-mv">
-              <button type="button" id={'es-mv-' + c.meta.id + '-up'} className="es-arrow" aria-label={'Monter ' + c.meta.title} disabled={i === 0} onClick={() => void move(i, -1)}><Icon name="chevL" size={18} className="es-up" /></button>
-              <button type="button" id={'es-mv-' + c.meta.id + '-down'} className="es-arrow" aria-label={'Descendre ' + c.meta.title} disabled={i === cards.length - 1} onClick={() => void move(i, 1)}><Icon name="chevL" size={18} className="es-down" /></button>
+              <button type="button" id={'es-mv-' + c.meta.id + '-up'} className="es-arrow" aria-label={'Monter ' + c.meta.title} disabled={offline || i === 0} onClick={() => void move(i, -1)}><Icon name="chevL" size={18} className="es-up" /></button>
+              <button type="button" id={'es-mv-' + c.meta.id + '-down'} className="es-arrow" aria-label={'Descendre ' + c.meta.title} disabled={offline || i === cards.length - 1} onClick={() => void move(i, 1)}><Icon name="chevL" size={18} className="es-down" /></button>
             </div>
-            <Switch on={!c.hidden} onChange={(on) => void show(c.meta.id, on)} title={c.meta.title} />
+            <Switch on={!c.hidden} onChange={(on) => void show(c.meta.id, on)} title={c.meta.title} disabled={offline} />
           </li>
         ))}
       </ul>

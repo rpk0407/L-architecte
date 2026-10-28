@@ -1,0 +1,4 @@
+/* The cut notes of a client's file: loaded with the block itself, since the desk never opens Mon espace's stylesheet */
+.cn-list li { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; min-height: 40px; padding: 8px 0; font-size: 14.5px; white-space: pre-line; }
+.cn-list li + li { border-top: 1px solid var(--line); }
+.cn-list li span:first-child { font-size: 12.5px; }

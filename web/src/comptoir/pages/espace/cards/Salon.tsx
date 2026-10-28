@@ -8,7 +8,8 @@ export const meta: EspaceCardMeta = { id: 'salon', title: 'Le salon', chairOnly:
 
 export default function Salon({ data }: EspaceCardProps) {
   const s = data.salon;
-  if (!s) return null;
+  // nothing to show on a salon with no goal and no cut yet
+  if (!s || (!s.goalPct && !s.fill && !(s.team && s.team.length))) return null;
   return (
     <EsCard guide="espace.salon" title="Le salon" icon="chair">
       <p className="es-big">{s.goalPct != null ? s.goalPct + ' % de l’objectif du mois · ' : ''}remplissage {pct(s.fill)}</p>

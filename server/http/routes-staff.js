@@ -217,7 +217,7 @@ function orphans(r) {
 }
 
 /** The file a client route names, followed through merges; an erased file is still found (it says so). */
-function fileOf(r) {
+export function fileOf(r) {
   let c = r.s.clients.get(r.params.id);
   while (c && c.mergedInto) c = r.s.clients.get(c.mergedInto);
   if (!c) throw new HttpError(404, 'not_found', 'Client introuvable.');

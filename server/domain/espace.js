@@ -3,7 +3,7 @@
 // gaps, his figures toward his goal. Everything is computed on the server from what this person may see: his own
 // appointments, his own figures, the salon in percent, never a colleague's money, a client's number or a colleague's
 // client. Cards that depend on a module another package adds (walk-in turn, the late notice, a favourite barber) read it
-// behind a guard, so nothing here needs them. Memoised per (journal version, person, day, minute).
+// behind a guard, so nothing here needs them. Memoised per (journal version, person, day), for the current minute.
 import { dayParts, diffDays, keyOf, localParts, monthStart, weekStart } from '../../shared/dates.js';
 import { busyIntervals, intersect, occupies, staffIntervals, subtract } from './availability.js';
 import { clientStats, goalOf, report } from './insights.js';
@@ -25,11 +25,16 @@ const KEEP_ALL = 20;
 
 const cache = new WeakMap();
 /** @template T @param {any} s @param {string} key @param {() => T} fn @returns {T} */
-function memo(s, key, fn) {
+function memo(s, key, minute, fn) {
   let c = cache.get(s);
   if (!c || c.version !== s.version) { c = { version: s.version, m: new Map() }; cache.set(s, c); }
-  if (!c.m.has(key)) c.m.set(key, fn());
-  return c.m.get(key);
+  // one entry per (person, day, caps), the current minute only: a quiet journal does not pile up a view per minute
+  const hit = c.m.get(key);
+  if (hit && hit.minute === minute) return hit.value;
+  const value = fn();
+  if (c.m.size >= 500) c.m.clear();
+  c.m.set(key, { minute, value });
+  return value;
 }
 
 /** « Karim B. » */
@@ -110,17 +115,20 @@ function clientView(s, me, a, stats, now) {
     id: c.id, name: nameOf(c), visits: st.visits || 0, withMe, firstVisit: !(st.visits > 0),
     // d'habitude avec toi: he did most of the cuts, and there are enough of them to say so
     usual: st.favStaff === me.id && (st.visits || 0) >= 2,
-    lastCut: last ? { day: last.day, staffName: (s.staff.get(last.staffId) || {}).name || '' } : null,
+    lastCut: last ? { day: last.day, staffName: (s.staff.get(last.staffId) || {}).name || '', services: last.services.map((x) => x.name) } : null,
     cadence: st.cadence || null, birthdaySoon: bday, noShows: st.noShows || 0,
     member: member ? { kind: 'member', label: member.plan, used: member.used, of: member.of } : pack ? { kind: 'carnet', label: pack.name, used: pack.used, of: pack.total } : null,
     prefersMe: !!(acc && acc.prefs && acc.prefs.staffId === me.id)
   };
 }
 
+/** Who a note is shown under: the barber of the cut, and the writer when it was not him (the desk, the owner). */
+export const noteWho = (s, x) => ({ staff: (s.staff.get(x.staffId) || {}).name || '', ...(x.by !== x.staffId ? { by: (s.staff.get(x.by) || {}).name || '' } : {}) });
+
 /** The last three notes any barber left on this client's file before this visit, with who and when. */
 function notesView(s, me, c, apptId, n = 3) {
   const ids = fileIds(s, c);
-  return cutNotesOf(s, ids, KEEP_ALL).filter((x) => x.apptId !== apptId).slice(0, n).map((x) => ({ id: x.id, apptId: x.apptId, day: x.day, staff: (s.staff.get(x.staffId) || {}).name || '', mine: x.staffId === me.id, text: x.text, edited: x.prev.length > 0 }));
+  return cutNotesOf(s, ids, KEEP_ALL).filter((x) => x.apptId !== apptId).slice(0, n).map((x) => ({ id: x.id, apptId: x.apptId, day: x.day, ...noteWho(s, x), mine: x.by === me.id, text: x.text, edited: x.prev.length > 0 }));
 }
 
 /** [start, end) pairs where he is free from `from` on: his work minus bookings, blocks, live holds. */
@@ -168,7 +176,7 @@ function figuresOf(s, me, from, to, today, now) {
  */
 export function espaceView(s, me, caps, q) {
   const local = localParts(q.now);
-  return memo(s, ['espace', me.id, q.day, Math.floor(q.now / 60000), [...caps].filter((c) => c.startsWith('report.') || c === 'agenda.all').sort().join(',')].join('|'), () => build(s, me, caps, q.day, q.now, local));
+  return memo(s, ['espace', me.id, q.day, [...caps].filter((c) => c.startsWith('report.') || c === 'agenda.all').sort().join(',')].join('|'), Math.floor(q.now / 60000), () => build(s, me, caps, q.day, q.now, local));
 }
 
 function build(s, me, caps, day, now, local) {

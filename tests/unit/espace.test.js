@@ -133,7 +133,9 @@ test('Mon espace is for a chair: the desk is told so, a signed-out call is refus
 
 test('cut notes: only his own appointment, in the chair or within two weeks; the text sits in pii under the file', async () => {
   const jk = await onTablet('JKut'), frank = await onTablet('Frank');
-  const done = mineToday().find((a) => a.status === 'done' && a.clientId);
+  // a client the demo has not noted yet (the seed writes notes for those about to come back)
+  const done = mineToday().find((a) => a.status === 'done' && a.clientId && !(rt.engine.state.cutNotes.get(a.clientId) || []).length);
+  assert.ok(done, 'a done visit of JKut for a client without notes');
   const url = (id) => '/api/v1/appointments/' + id + '/cut-note';
   // a colleague cannot write on JKut’s appointment
   const no = await frank.post(url(done.id), { text: 'Dégradé 1,5 sur les côtés' });
@@ -296,4 +298,29 @@ test('the view reads without the optional modules (no walk-in rotation, no late 
   assert.deepEqual(v.walkins, { waiting: 0, mineNext: null });
   assert.equal(v.next.lateNotice, null);
   assert.equal(v.next.client.prefersMe, false);
+});
+
+test('a note written by the desk says so: shown under the barber of the cut, « écrit par » the desk, and not his own', async () => {
+  const jk = await onTablet('JKut'), desk = await onTablet('Inès');
+  const s = rt.engine.state;
+  const done = mineToday().find((a) => a.status === 'done' && a.clientId && !s.cutNoteOf.has(a.id));
+  assert.ok(done, 'a done visit of JKut without a note');
+  const ok = await desk.post('/api/v1/appointments/' + done.id + '/cut-note', { text: 'Contour au rasoir' });
+  assert.equal(ok.status, 200, ok.text);
+  const e = rt.engine.journal.at(-1);
+  assert.deepEqual([e.data.staffId, e.data.by], [ids.JKut, ids['Inès']]);
+  const seen = (await jk.get('/api/v1/clients/' + done.clientId + '/cut-notes')).json.items.find((n) => n.apptId === done.id);
+  assert.deepEqual([seen.staff, seen.by, seen.mine], ['JKut', 'Inès', false]);
+  // a note by the barber himself carries no « by »: his name alone
+  const own = mineToday().find((a) => a.status === 'done' && a.clientId && !s.cutNoteOf.has(a.id));
+  if (own) {
+    assert.equal((await jk.post('/api/v1/appointments/' + own.id + '/cut-note', { text: 'Dégradé 1' })).status, 200);
+    const mine = (await jk.get('/api/v1/clients/' + own.clientId + '/cut-notes')).json.items.find((n) => n.apptId === own.id);
+    assert.deepEqual([mine.staff, mine.by, mine.mine], ['JKut', undefined, true]);
+  }
+  // the owner's journal names the event without the text
+  const boss = await login();
+  const list = (await boss.get('/api/v1/journal?limit=50')).json;
+  const row = (list.items || list.events || []).find((x) => x.type === 'cut.noted');
+  if (row) { assert.equal(row.label, 'Note de coupe'); assert.ok(!JSON.stringify(row).includes('rasoir')); }
 });

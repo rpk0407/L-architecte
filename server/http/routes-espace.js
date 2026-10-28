@@ -3,7 +3,8 @@
 // owner or a manager who cuts too, a barber); the desk has none and is told so. The read is computed for the person who
 // asks and nobody else (domain/espace.js).
 import { HttpError } from './kit.js';
-import { espaceView } from '../domain/espace.js';
+import { fileOf } from './routes-staff.js';
+import { espaceView, noteWho } from '../domain/espace.js';
 import { addCutNote } from '../commands/cutnotes.js';
 import { cutNotesOf } from '../projections/cutnotes.js';
 import { fileIds } from '../commands/clients.js';
@@ -22,11 +23,9 @@ export function espaceRoutes(app) {
 
   /** The notes of one client's file (merged files included), for the client file: who wrote them, and when. */
   app.get('/api/v1/clients/:id/cut-notes', (r) => {
-    let c = r.s.clients.get(r.params.id);
-    for (let i = 0; c && c.mergedInto && i < 20; i++) c = r.s.clients.get(c.mergedInto);
-    if (!c) throw new HttpError(404, 'not_found', 'Client introuvable.');
+    const c = fileOf(r);
     const items = c.erased ? [] : cutNotesOf(r.s, fileIds(r.s, c)).map((n) => ({
-      id: n.id, apptId: n.apptId, day: n.day, staff: (r.s.staff.get(n.staffId) || {}).name || '', mine: n.staffId === r.me.id, text: n.text, edited: n.prev.length > 0
+      id: n.id, apptId: n.apptId, day: n.day, ...noteWho(r.s, n), mine: n.by === r.me.id, text: n.text, edited: n.prev.length > 0
     }));
     return { items };
   }, { cap: 'client.view' });

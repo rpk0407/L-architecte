@@ -7,7 +7,7 @@ export const meta: EspaceCardMeta = { id: 'avis', title: 'Avis demandés', chair
 
 export default function Avis({ data }: EspaceCardProps) {
   const r = data.reviews;
-  if (!r) return null;
+  if (!r || (!r.sent && !r.opened)) return null;
   return (
     <EsCard guide="espace.avis" title="Avis demandés" icon="star">
       <p className="es-big">{r.sent} demandé{r.sent > 1 ? 's' : ''} · {r.opened} ouvert{r.opened > 1 ? 's' : ''} <span className="muted">ce mois</span></p>

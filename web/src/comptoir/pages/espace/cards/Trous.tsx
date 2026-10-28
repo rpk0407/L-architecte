@@ -15,7 +15,7 @@ const loader = Object.values(found)[0];
 const Offers = loader ? lazy(() => loader().then((m) => ({ default: (m.OffersSheet || m.default) as ComponentType<OffersProps> }))) : null;
 
 export default function Trous({ data }: EspaceCardProps) {
-  const { boot } = useApp();
+  const { boot, offline } = useApp();
   const [offers, setOffers] = useState(false);
   const w = data.walkins;
   return (
@@ -24,10 +24,12 @@ export default function Trous({ data }: EspaceCardProps) {
         <ul className="es-gaps" aria-label="Mes créneaux libres">
           {data.gaps.map((g) => <li key={g.start}><b className="tnum">{time(g.start)} – {time(g.end)}</b><span className="muted tnum">{dur(g.dur)}</span></li>)}
         </ul>
-      ) : <p className="es-empty"><b>Pas de trou</b><span>Rien de libre de 20 minutes ou plus d’ici la fin de ta journée.</span></p>}
+      ) : data.now && data.now.status === 'off' && data.now.kind === 'none' ? <p className="es-empty"><b>Pas de journée</b><span>Tu ne travailles pas aujourd’hui.</span></p>
+        : data.now && data.now.status === 'off' && data.now.kind === 'after' ? <p className="es-empty"><b>Journée finie</b><span>Plus de place à proposer aujourd’hui.</span></p>
+        : <p className="es-empty"><b>Pas de trou</b><span>Rien de libre de 20 minutes ou plus d’ici la fin de ta journée.</span></p>}
       {w.waiting ? <p className="es-walk"><b>{w.waiting} en attente</b>{w.mineNext ? ' · c’est ton tour' : ''}</p> : null}
       {Offers && data.gaps.length ? (
-        <div className="es-acts"><Button variant="ghost" icon="sms" onClick={() => setOffers(true)}>Proposer</Button></div>
+        <div className="es-acts"><Button variant="ghost" icon="sms" disabled={offline} onClick={() => setOffers(true)}>Proposer</Button></div>
       ) : null}
       {Offers && offers ? <Suspense fallback={null}><Offers day={data.day} staffId={boot.me.id} open onClose={() => setOffers(false)} /></Suspense> : null}
     </EsCard>

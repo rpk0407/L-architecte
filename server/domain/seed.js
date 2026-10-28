@@ -306,8 +306,8 @@ export async function buildDemoJournal(nowReal, opt = {}) {
     return c;
   };
   const byId = new Map(pool.map((c) => [c.id, c]));
-  // the most regular (a cut every two or three weeks, still coming): chosen from their place in the list, not from r
-  const noters = new Map(pool.filter((c) => !c.abo && !c.stop && !c.join && c.cadence <= 21).slice(0, 20).map((c) => [c.id, 0]));
+  // the last visit done of each client (TEAM-04: the cut note of the client about to sit down is written on it)
+  const lastVisit = new Map();
   const giftDays = new Set([addDays(start, 9), addDays(start, 23), addDays(today, -3)]);
   const seeded = [];
 
@@ -346,6 +346,9 @@ export async function buildDemoJournal(nowReal, opt = {}) {
       }
     }
   };
+
+  /** a cut note written by the barber who did the cut (so « écrit par » is his name, not the owner's) */
+  const noteCut = (v, c) => eng.run(addCutNote, { id: v.id, text: CUT_NOTES[hashStr('cut|' + c.id + '|' + v.day) % CUT_NOTES.length] }, { ...base, staff: eng.state.staff.get(v.staffId) || base.staff }).catch(() => null);
 
   /* one day of the salon */
   const runDay = async (day, isToday) => {
@@ -394,11 +397,10 @@ export async function buildDemoJournal(nowReal, opt = {}) {
       const res = await eng.run(checkout, input, base).catch((e) => { if (process.env.LX_DEBUG) console.error('seed checkout', e.message); return null; });
       if (res && c && c.abo && !packId && input.lines[0].kind === 'pack') c.packId = [...eng.state.packs.values()].find((k) => k.saleId === res.id)?.id || null;
       if (c) { c.last = day; c.booked = null; }
-      // the barber who usually cuts him notes the cut, on his last visits (at most two a client; not r: the draws stay what they were)
-      if (res && c && noters.has(c.id) && noters.get(c.id) < 2 && cur.staffId === c.pref && diffDays(day, today) <= 21) {
-        noters.set(c.id, noters.get(c.id) + 1);
-        at(day, end + 6);
-        await eng.run(addCutNote, { id: cur.id, text: CUT_NOTES[hashStr('cut|' + pool.indexOf(c) + '|' + noters.get(c.id)) % CUT_NOTES.length] }, base).catch(() => null);
+      // the barber notes the cut of one visit in five of the last three weeks (from the visit, not from r: the draws stay what they were)
+      if (res && c) {
+        lastVisit.set(c.id, { id: cur.id, day, end, staffId: cur.staffId });
+        if (diffDays(day, today) <= 21 && hashStr('cutnote|' + c.id + '|' + day) % 5 === 0) { at(day, end + 6); await noteCut(lastVisit.get(c.id), c); }
       }
       // a third of clients book their next cut before leaving
       if (res && c && r() < 0.33 && (!c.stop || addDays(day, c.cadence) < c.stop)) {
@@ -467,6 +469,21 @@ export async function buildDemoJournal(nowReal, opt = {}) {
     const plans = planDay(eng.state, d, fillFor(d, today), r, pickClient(d), clock);
     for (const p of plans) { const c = byId.get(p.clientId); if (c) c.booked = d; await eng.run(createAppointment, p, base).catch(() => null); }
     seeded.push(d);
+  }
+  // TEAM-04: whoever sits down in the next three days has a note on his last cut, so Mon espace shows « La dernière fois »
+  // at once, the first chair (JKut) first. A visit within two weeks is noted this morning, an older one from its own day (the 14-day rule).
+  {
+    for (const sid of barberIds) for (let i = 0; i <= 2; i++) {
+      for (const id of eng.state.apptsByDay.get(addDays(today, i)) || []) {
+        const a = eng.state.appts.get(id);
+        const c = a && a.staffId === sid && a.status !== 'done' && a.clientId ? byId.get(a.clientId) : null;
+        const v = c && lastVisit.get(c.id);
+        if (!v || eng.state.cutNoteOf.has(v.id)) continue;
+        if (diffDays(v.day, today) > 14) at(v.day, v.end + 6); else clock = nowReal;
+        await noteCut(v, c);
+      }
+    }
+    clock = nowReal;
   }
   // Saturday is full: a few people wait for a cancellation
   const sat = [1, 2, 3, 4, 5, 6, 7].map((i) => addDays(today, i)).find((d) => weekday(d) === 6);

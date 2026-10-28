@@ -35,14 +35,25 @@ function Chips({ n }: { n: EspaceNext }) {
   return <div className="es-chips">{out.map((x) => <span key={x.t} className={'badge ' + (x.tone || '')}>{x.t}</span>)}</div>;
 }
 
+/** a client this late can be marked absent from the card, so the page moves on to the next one */
+const LATE_ABSENT = 30;
+/** « Frank », or « Frank, écrit par Inès » when the desk or the owner wrote it for him */
+const who = (x: { staff: string; by?: string }) => x.staff + (x.by ? ', écrit par ' + x.by : '');
+
 export default function Prochain({ data, reload, note }: EspaceCardProps) {
   const { can, offline } = useApp();
   const [busy, setBusy] = useState('');
   const n = data.next;
   if (!n) {
+    // worded by where he stands: not working, not started, over, or free with nobody booked
+    const off = data.now && data.now.status === 'off' ? data.now : null;
+    const [title, sub] = off && off.kind === 'none' ? ['Pas de journée', 'Tu ne travailles pas aujourd’hui.']
+      : off && off.kind === 'before' && off.until != null ? ['Pas encore ouvert', 'Ta journée commence à ' + time(off.until) + '.']
+      : off && off.kind === 'after' ? ['Journée finie', 'Profite : ta journée est faite.']
+      : [data.list.length ? 'Plus personne à venir' : 'Aucun rendez-vous', data.gaps.length ? 'Ta place est libre : regarde « Mes trous » pour la proposer.' : 'Rien d’autre de prévu dans ta colonne.'];
     return (
       <EsCard guide="espace.prochain" title="Prochain client" icon="scissors" className="es-next">
-        <p className="es-empty"><b>{data.list.length ? 'Plus personne à venir' : 'Aucun rendez-vous aujourd’hui'}</b><span>{data.gaps.length ? 'Ta place est libre : regarde « Mes trous » pour la proposer.' : 'Profite : ta journée est faite.'}</span></p>
+        <p className="es-empty"><b>{title}</b><span>{sub}</span></p>
       </EsCard>
     );
   }
@@ -55,30 +66,47 @@ export default function Prochain({ data, reload, note }: EspaceCardProps) {
       await reload();
     } catch (e) { toastError(e); } finally { setBusy(''); }
   };
-  const last = n.cutNotes[0];
-  const more = n.cutNotes.slice(1);
+  // the newest note counts as « la dernière fois » only when it is about his last visit: an older one is a note, not the last cut
+  const cut = c?.lastCut || null;
+  const newest = n.cutNotes[0];
+  const last = newest && (!cut || newest.day >= cut.day) ? newest : null;
+  const older = last ? n.cutNotes.slice(1) : n.cutNotes;
+  const first = last ? null : older[0];
+  const more = last ? older : older.slice(1);
+  // the seat gestures come up half an hour before the booking (or when he is there or late), not at nine for half past three
+  const soon = n.status === 'arrived' || n.status === 'in_chair' || n.late > 0 || (data.now != null && n.start - data.now.min <= 30);
+  const absent = async () => {
+    setBusy('no_show');
+    try {
+      await api.post('/api/v1/appointments/' + n.id + '/status', { status: 'no_show' });
+      toast({ title: n.name + ' marqué absent', icon: 'check' });
+      await reload();
+    } catch (e) { toastError(e); } finally { setBusy(''); }
+  };
   return (
     <EsCard guide="espace.prochain" title="Prochain client" icon="scissors" className="es-next" end={n.status === 'in_chair' ? 'au fauteuil' : n.late > 0 ? 'en retard' : undefined}>
       <div className="es-when"><span className="es-t tnum">{time(n.start)}</span><h3 className="es-who">{n.name}</h3></div>
       <p className="es-svc">{n.services.join(' + ')} · {n.dur} min</p>
       <Chips n={n} />
       {last ? (
-        <p className="es-last"><b>La dernière fois</b> ({shortDay(last.day)}, {last.staff}) : {last.text}</p>
-      ) : c && c.lastCut ? (
-        <p className="es-last"><b>La dernière fois</b> ({shortDay(c.lastCut.day)}, {c.lastCut.staffName}) : rien de noté.</p>
+        <p className="es-last"><b>La dernière fois</b> ({shortDay(last.day)}, {who(last)}) : {last.text}</p>
+      ) : cut ? (
+        <p className="es-last"><b>La dernière fois</b> ({shortDay(cut.day)}, {cut.staffName}) : rien de noté{cut.services.length ? ' · ' + cut.services.join(' + ') : ''}.</p>
       ) : null}
+      {first ? <p className="es-last older"><b>Note du {shortDay(first.day)}</b> ({who(first)}) : {first.text}</p> : null}
       {more.length ? (
         <details className="es-more"><summary>{more.length === 1 ? 'Une note avant' : more.length + ' notes avant'}</summary>
-          {more.map((x) => <p key={x.id}>{shortDay(x.day)}, {x.staff} : {x.text}</p>)}
+          {more.map((x) => <p key={x.id}>{shortDay(x.day)}, {who(x)} : {x.text}</p>)}
         </details>
       ) : null}
       {n.myNote ? <p className="es-tech"><b>Ta note du jour</b> · {n.myNote}</p> : null}
       {n.tech ? <p className="es-tech"><b>Fiche technique</b> · {n.tech}</p> : null}
       {n.note ? <p className="es-tech"><b>Note</b> · {n.note}</p> : null}
       <div className="es-acts">
-        {n.status === 'booked' || n.status === 'pending' ? <Button variant="subtle" icon="check" busy={busy === 'arrived'} disabled={offline} onClick={() => status('arrived')}>Il est là</Button> : null}
-        {n.status !== 'in_chair' ? <Button variant="primary" icon="chair" busy={busy === 'in_chair'} disabled={offline} onClick={() => status('in_chair')}>Au fauteuil</Button> : null}
+        {soon && (n.status === 'booked' || n.status === 'pending') ? <Button variant="subtle" icon="check" busy={busy === 'arrived'} disabled={offline} onClick={() => status('arrived')}>Il est là</Button> : null}
+        {soon && n.status !== 'in_chair' ? <Button variant="primary" icon="chair" busy={busy === 'in_chair'} disabled={offline} onClick={() => status('in_chair')}>Au fauteuil</Button> : null}
         {n.status === 'in_chair' && can('sale.create') ? <Button variant="primary" icon="caisse" disabled={offline} onClick={() => navigate('/caisse?rdv=' + n.id)}>Encaisser</Button> : null}
+        {n.late >= LATE_ABSENT && (n.status === 'booked' || n.status === 'pending') ? <Button variant="ghost" icon="x" busy={busy === 'no_show'} disabled={offline} onClick={absent}>Absent</Button> : null}
         {n.canNote ? <Button variant="ghost" icon="edit" disabled={offline} onClick={() => note({ id: n.id, name: n.name, text: n.myNote })}>{n.myNote ? 'Corriger la note' : 'Note de coupe'}</Button> : null}
       </div>
       {n.status === 'in_chair' && !can('sale.create') ? <p className="es-tech faint">À encaisser à l’accueil.</p> : null}

@@ -1,5 +1,5 @@
 // @ts-check
-// Cut notes (TEAM-04): what a barber writes about a cut for whoever cuts next. cut.noted { id, apptId, cid, staffId, day }
+// Cut notes (TEAM-04): what a barber writes about a cut for whoever cuts next. cut.noted { id, apptId, cid, staffId, by, day }
 // with pii { text } (a few words about the cut: personal data, so next to the event and erased with the client).
 // s.cutNotes: cid → the last 20 notes, newest first; a second note on the same appointment replaces the first, which
 // stays in `prev` (the journal keeps every version). Reads go through the client's file ids, so a merge needs nothing here.
@@ -9,7 +9,7 @@
 /** notes kept per file, and earlier versions kept per note */
 export const KEEP = 20, PREV = 5;
 
-/** @typedef {{ id: string, apptId: string, staffId: string, day: string, text: string, at: number, prev: { text: string, at: number }[] }} CutNote */
+/** @typedef {{ id: string, apptId: string, staffId: string, by: string, day: string, text: string, at: number, prev: { text: string, at: number }[] }} CutNote */
 
 /** newest visit first, then the latest written */
 const byNewest = (/** @type {CutNote} */ a, /** @type {CutNote} */ b) => b.day.localeCompare(a.day) || b.at - a.at;
@@ -31,7 +31,7 @@ export const cutnotesExtension = {
         if (old) s.cutNotes.set(was, list.filter((n) => n !== old));
       }
       const prev = old ? [{ text: old.text, at: old.at }, ...old.prev].slice(0, PREV) : [];
-      const list = [{ id: d.id, apptId: d.apptId, staffId: d.staffId, day: d.day, text, at: e.at, prev }, ...(s.cutNotes.get(d.cid) || [])].sort(byNewest);
+      const list = [{ id: d.id, apptId: d.apptId, staffId: d.staffId, by: d.by || d.staffId, day: d.day, text, at: e.at, prev }, ...(s.cutNotes.get(d.cid) || [])].sort(byNewest);
       for (const n of list.splice(KEEP)) if (s.cutNoteOf.get(n.apptId) === d.cid) s.cutNoteOf.delete(n.apptId);
       s.cutNotes.set(d.cid, list);
       s.cutNoteOf.set(d.apptId, d.cid);

@@ -6,7 +6,7 @@ import { useInterval, useMedia } from '../../lib/hooks';
 import { Link } from '../../lib/router';
 import { cap, dates, time } from '../../lib/format';
 import { Icon } from '../../ui/Icon';
-import { Avatar, Button, Empty, Skeleton, Stale } from '../../ui/kit';
+import { Avatar, Button, Empty, Skeleton } from '../../ui/kit';
 import { photoOf, useApp, useMaskedAmounts } from '../state';
 import { PageTitle } from '../App';
 import type { EspaceData, EspaceNow, NoteTarget } from '../types';
@@ -34,7 +34,7 @@ const REVEAL_MS = 30000;
 
 export default function Espace() {
   const app = useApp();
-  const { boot, offline } = app;
+  const { boot } = app;
   // two columns as soon as the tablet in portrait has room for them (the rail leaves ~900 px)
   const wide = useMedia('(min-width: 900px)');
   // no chair, no page: the desk is told so without asking the server for what it would refuse
@@ -54,7 +54,7 @@ export default function Espace() {
   const status = data?.now ? statusWords(data.now) : null;
 
   return (
-    <div className="es" data-masked={masked && !shown ? '1' : undefined}>
+    <div className="es" data-masked={masked && !shown ? '1' : undefined} data-shown={masked && shown ? '1' : undefined}>
       <PageTitle><h1>Mon espace</h1></PageTitle>
       <header className="es-head" data-guide="espace.entete">
         <Avatar name={me.name} initials={me.initials} color={me.color} photo={photoOf(me)} size="lg" />
@@ -65,9 +65,8 @@ export default function Espace() {
       </header>
       <div className="es-state">
         {status ? <span className={'es-status' + (status.tone ? ' ' + status.tone : '')} data-guide="espace.statut" role="status"><i aria-hidden />{status.text}</span> : null}
-        {offline ? <Stale at={app.pulseAt} now={Date.now()} /> : null}
         {masked ? (
-          <button type="button" className="es-eye" aria-pressed={shown} aria-label={shown ? 'Masquer les montants de mon espace' : 'Afficher les montants de mon espace pendant 30 secondes'} onClick={() => setShown(!shown)}>
+          <button type="button" className="es-eye" aria-pressed={shown} aria-label={shown ? 'Masquer les montants de mon espace' : 'Afficher les montants de mon espace pendant 30 secondes'} onClick={() => setShown(!shown)} data-guide="espace.montants">
             <Icon name={shown ? 'eyeOff' : 'eye'} size={16} />Montants
           </button>
         ) : null}
@@ -75,10 +74,12 @@ export default function Espace() {
 
       {!boot.me.chair ? (
         <section className="card"><Empty icon="chair" title="Pas de fauteuil, pas de Mon espace" action={<Link to="/agenda" className="btn btn-subtle">Ouvrir l’agenda</Link>}>Mon espace est pour ceux qui ont un fauteuil.</Empty></section>
-      ) : loading ? <div className="col" style={{ gap: 14 }}><Skeleton h={230} r={22} /><Skeleton h={260} r={22} /></div> : error ? (
+      ) : loading ? <div className="col" style={{ gap: 14 }}><Skeleton h={230} r={22} /><Skeleton h={260} r={22} /></div> : !data && error ? (
         <section className="card"><Empty icon="alert" title="Mon espace est indisponible" action={<Button variant="primary" onClick={() => { void refresh(); }}>Réessayer</Button>}>{error.message}</Empty></section>
       ) : data ? (
+        // a refresh that fails keeps the last read on screen: the shell's chip says how old it is, the actions are off
         <>
+          {!cards.length ? <section className="card"><p className="muted es-line">Toutes tes cartes sont masquées. Touche « Personnaliser » pour en remettre.</p></section> : null}
           <div className={wide ? 'es-cols' : 'es-col'}>
             {wide ? [cards.slice(0, 2), cards.slice(2)].map((col, i) => (
               <div key={i} className="es-col">{col.map(({ meta, C }) => <C key={meta.id} data={data} reload={reload} note={setNoting} />)}</div>

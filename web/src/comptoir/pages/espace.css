@@ -26,6 +26,8 @@
 .es-chips .badge { height: 26px; padding: 0 10px; font-size: 12.5px; }
 .es-last { margin-top: 12px; padding: 10px 13px; border-radius: 14px; background: var(--panel2); font-size: 14.5px; line-height: 1.4; }
 .es-last b { font-weight: 650; }
+.es-last, .es-more p { white-space: pre-line; }
+.es-last.older { margin-top: 6px; background: transparent; box-shadow: inset 0 0 0 1px var(--line); color: var(--tx2); }
 .es-more { margin-top: 8px; font-size: 13.5px; color: var(--tx2); }
 .es-more summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; }
 .es-more p { padding: 4px 0 4px 10px; border-left: 2px solid var(--line2); margin-top: 4px; }
@@ -77,8 +79,6 @@
 .es-line + .es-line { margin-top: 6px; }
 .es-plain li { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; min-height: 40px; padding: 8px 0; font-size: 14.5px; }
 .es-plain li + li { border-top: 1px solid var(--line); }
-.es-cutnotes li { flex-direction: column; align-items: flex-start; gap: 3px; }
-.es-cutnotes li span:first-child { font-size: 12.5px; }
 
 /* Personnaliser */
 .es-custom { display: flex; flex-direction: column; gap: 8px; }
@@ -96,6 +96,8 @@
 .es-eye:hover { box-shadow: inset 0 0 0 1.5px var(--tx2); }
 .es[data-masked='1'] .money { filter: blur(7px); transition: filter .2s; }
 .es .money { transition: filter .2s; }
+/* the page's own « Montants » wins over the top bar's privacy eye for these 30 seconds */
+:root .es[data-shown='1'] .money { filter: none; }
 
 @media (max-width: 760px) {
   .es { gap: 10px; }

@@ -1,6 +1,7 @@
 // @ts-check
 // A cut note (TEAM-04): a few words about the cut, written by the barber who did it (or whoever edits every booking),
-// while the client is in the chair or in the two weeks after. The text is personal data: it travels in pii, under the
+// while the client is in the chair or in the two weeks after (staffId: the barber of the cut; by: who wrote it, the desk or
+// the owner included). The text is personal data: it travels in pii, under the
 // client's file (data.cid), so erasing the file takes it away. A second note on the same appointment replaces the first
 // in what is shown; the journal keeps both.
 import { fail } from '../core/engine.js';
@@ -26,7 +27,7 @@ export const addCutNote = {
     const c = getClient(s, a.clientId);
     if (c.erased) fail(409, 'erased', 'Cette fiche a été effacée.');
     const noteId = ctx.id('cn');
-    ctx.emit('cut.noted', { id: noteId, apptId: a.id, cid: c.id, staffId: a.staffId, day: a.day }, { text: x.text });
+    ctx.emit('cut.noted', { id: noteId, apptId: a.id, cid: c.id, staffId: a.staffId, by: (ctx.staff && ctx.staff.id) || a.staffId, day: a.day }, { text: x.text });
     return { ok: true, id: noteId };
   }
 };

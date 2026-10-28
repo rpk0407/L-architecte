@@ -42,6 +42,9 @@ export default async ({ h, page }) => {
   const last = next.getByText('La dernière fois');
   const lb = await last.boundingBox();
   must(lb && lb.y + lb.height <= tabs.y, '« La dernière fois » is not in view');
+  // the demo's clients about to sit down have a real note on their last cut, not the « rien de noté » fallback
+  const lastLine = await next.locator('.es-last').first().innerText();
+  must(/La dernière fois/.test(lastLine) && !/rien de noté/.test(lastLine), 'the next client has no note in the demo: ' + lastLine);
 
   // « Ma journée »: at least four of his rows above the fold
   const rows = await page.locator('.es-row').evaluateAll((els, limit) => els.filter((e) => { const r = e.getBoundingClientRect(); return r.top >= 0 && r.bottom <= limit; }).length, tabs.y);
@@ -134,11 +137,24 @@ export default async ({ h, page }) => {
   // no horizontal scroll at 390 px
   must(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), 'the page scrolls sideways');
 
+  // a barber with few rows left (Frank, mid-afternoon): what is open now is in view, the finished ones are folded
+  const fr = await h.newPage({ viewport: { width: 390, height: 844 } });
+  await pin(fr, h.base, 'Frank', '1357');
+  await fr.getByRole('heading', { name: 'Prochain client' }).waitFor({ timeout: 8000 });
+  const ftabs = await fr.locator('.tabbar').boundingBox();
+  const open = await fr.locator('.es-row:not(.past)').first().boundingBox();
+  must(open && ftabs && open.y + open.height <= ftabs.y, 'Frank’s first open row is under the tab bar: ' + JSON.stringify(open));
+  must((await fr.locator('.es-row .es-note').count()) <= 1, 'more than one « + note » while the day is folded');
+
   // the desk has no chair: no tab, and the page says why
   const desk = await h.newPage({ viewport: { width: 390, height: 844 } });
   await pin(desk, h.base, 'Inès', '1470');
   must(!(await desk.locator('.tabbar').innerText()).includes('Mon espace'), 'the desk has a Mon espace tab');
   must(/\/comptoir\/agenda$/.test(desk.url()), 'the desk lands on ' + desk.url());
+  // a client file opened before Mon espace was ever loaded: the notes block is styled by its own stylesheet
+  await desk.goto(h.base + '/comptoir/clients/' + who);
+  await desk.getByRole('heading', { name: 'Notes de coupe' }).waitFor({ timeout: 8000 });
+  must((await desk.locator('.cn-list li').first().evaluate((e) => getComputedStyle(e).flexDirection)) === 'column', 'the notes of the client file are unstyled');
   await desk.goto(h.base + '/comptoir/espace');
   await h.expectText(desk, 'Mon espace est pour ceux qui ont un fauteuil.');
   // the bar follows the number of tabs: Agenda, Caisse, Clients and Plus, in four equal columns

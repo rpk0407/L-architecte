@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../../../lib/api';
 import { refreshAll } from '../../../lib/query';
 import { Button, Field, Sheet, toast, toastError } from '../../../ui/kit';
+import { useApp } from '../../state';
 import type { NoteTarget } from '../../types';
 
 /** the longest note the server keeps (server/commands/cutnotes.js) */
@@ -10,6 +11,7 @@ export const NOTE_MAX = 280;
 const SHORTCUTS = ['Comme d’habitude', 'Plus court', 'Dégradé'];
 
 export function CutNoteSheet({ target, onClose, onSaved }: { target: NoteTarget | null; onClose: () => void; onSaved: () => void }) {
+  const { offline } = useApp();
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   useEffect(() => { if (target) setText(target.text || ''); }, [target?.id]);
@@ -25,10 +27,12 @@ export function CutNoteSheet({ target, onClose, onSaved }: { target: NoteTarget 
   };
   return (
     <Sheet open={!!target} onClose={onClose} title={target ? 'Note de coupe · ' + target.name : ''} kicker="Pour la prochaine fois"
-      footer={<><Button variant="ghost" onClick={onClose}>Annuler</Button><span className="grow" /><Button variant="primary" busy={busy} disabled={!text.trim()} onClick={save}>Enregistrer</Button></>}>
+      footer={<><Button variant="ghost" onClick={onClose}>Annuler</Button><span className="grow" /><Button variant="primary" busy={busy} disabled={!text.trim() || offline} onClick={save}>Enregistrer</Button></>}>
+      <div data-guide="espace.note-coupe">
       <Field label="Note de coupe" htmlFor="es-note-t" hint={text.length + ' / ' + NOTE_MAX + ' · Visible par toute l’équipe.'}>
         <textarea id="es-note-t" className="input textarea" rows={4} maxLength={NOTE_MAX} value={text} placeholder="Sabot, longueurs, produit… Pas d’infos de santé ici." onChange={(e) => setText(e.target.value)} data-autofocus />
       </Field>
+      </div>
       <div className="chips" role="group" aria-label="Phrases toutes faites">
         {SHORTCUTS.map((w) => <button key={w} type="button" className="chip" onClick={() => add(w)}>{w}</button>)}
       </div>

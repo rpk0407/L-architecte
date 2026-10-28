@@ -63,11 +63,11 @@ export type EspaceNow =
   | { min: number; status: 'busy'; phase: 'chair' | 'arrived' | 'expected'; with: string; until: number }
   | { min: number; status: 'busy'; phase: 'block'; label: string; until: number }
   | { min: number; status: 'off'; kind: 'none' | 'before' | 'break' | 'after'; until: number | null };
-export type CutNoteView = { id: string; apptId: string; day: string; staff: string; mine: boolean; text: string; edited: boolean };
+export type CutNoteView = { id: string; apptId: string; day: string; staff: string; by?: string; mine: boolean; text: string; edited: boolean };
 export type EspaceNext = {
   id: string; start: number; dur: number; name: string; services: string[]; status: EspaceStatus; late: number; paid: boolean; note: string; tech: string;
   client: {
-    id: string; name: string; visits: number; withMe: number; firstVisit: boolean; usual: boolean; lastCut: { day: string; staffName: string } | null; cadence: number | null;
+    id: string; name: string; visits: number; withMe: number; firstVisit: boolean; usual: boolean; lastCut: { day: string; staffName: string; services: string[] } | null; cadence: number | null;
     birthdaySoon: { inDays: number; day: string } | null; noShows: number; member: { kind: 'member' | 'carnet'; label: string; used: number; of: number } | null; prefersMe: boolean;
   } | null;
   cutNotes: CutNoteView[]; myNote: string | null; canNote: boolean; lateNotice: { min: number | null; at: number | null } | null;
