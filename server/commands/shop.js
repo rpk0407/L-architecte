@@ -7,6 +7,9 @@ import { normPhone } from '../lib/util.js';
 import { settingsSchema } from '../settings/index.js';
 import { cgvPatch } from '../settings/shop.js';
 import { checkMembership } from '../settings/membership.js';
+import compta, { journalClash } from '../settings/compta.js';
+
+const comptaJournals = (s) => ({ ...compta.defaults().journals, ...((s.settings.compta && s.settings.compta.journals) || {}) });
 
 // Composed from server/settings, one file per section; still exported from here as before.
 export { settingsSchema };
@@ -16,12 +19,16 @@ export { settingsSchema };
  * pii, like a client's details, and the projection merges them back (core/state.js). Mutates the patch.
  */
 function contactPii(patch) {
+  // the accountant's name, firm and e-mail (CPT-03) are a person's too
+  const acc = patch.compta && patch.compta.accountant;
+  if (acc) { delete patch.compta.accountant; if (!Object.keys(patch.compta).length) delete patch.compta; }
+  const extra = acc ? { compta: { accountant: acc } } : null;
   const n = patch.notify;
-  if (!n || (n.to === undefined && n.phone === undefined)) return null;
+  if (!n || (n.to === undefined && n.phone === undefined)) return extra;
   const { to, phone, ...rest } = n;
   if (phone && !normPhone(phone)) fail(400, 'invalid', 'Ce numéro ne peut pas recevoir de SMS. Exemple : 06 12 34 56 78.');
   if (Object.keys(rest).length) patch.notify = rest; else delete patch.notify;
-  return { notify: { ...(to !== undefined ? { to } : {}), ...(phone !== undefined ? { phone } : {}) } };
+  return { notify: { ...(to !== undefined ? { to } : {}), ...(phone !== undefined ? { phone } : {}) }, ...extra };
 }
 
 export const updateSettings = {
@@ -30,6 +37,8 @@ export const updateSettings = {
     let patch = parse(settingsSchema, input);
     if (patch.hours) for (const k of Object.keys(patch.hours)) checkIntervals(patch.hours[k], 'horaires');
     if (patch.membership) checkMembership(s, patch.membership);
+    // a journal code given to one journal while another keeps it (CPT-03): checked against the codes already set
+    if (patch.compta && patch.compta.journals) { const dup = journalClash({ ...comptaJournals(s), ...patch.compta.journals }); if (dup) fail(400, 'invalid', 'Deux journaux ne peuvent pas avoir le même code (' + dup + ').'); }
     const pii = contactPii(patch);
     if (!Object.keys(patch).length && !pii) return { settings: s.settings };
     // the CGV version follows the deposit and cancellation rules, dated here rather than by the screen that saved them

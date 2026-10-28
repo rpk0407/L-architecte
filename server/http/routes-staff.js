@@ -179,13 +179,8 @@ const byV = (a, b) => a.v - b.v;
 function badges(r) {
   const s = r.s, L = r.local;
   const mineOnly = !r.caps.has('agenda.all');
-  let toPay = 0;
   // a sealed day takes no more payments: what is left is not "to pay" any more
-  for (const id of s.closures.has(L.day) ? [] : s.apptsByDay.get(L.day) || []) {
-    const a = s.appts.get(id);
-    if (!a || a.saleId || a.legacy || (mineOnly && a.staffId !== r.me.id)) continue; // legacy: paid on the old site's till
-    if (a.status === 'in_chair' || a.status === 'done' || ((a.status === 'booked' || a.status === 'arrived') && a.start + a.dur <= L.min)) toPay++;
-  }
+  const toPay = S.toPayAppts(s, L.day, L.min).filter((a) => !mineOnly || a.staffId === r.me.id).length;
   const queue = [...s.queue.values()].filter((q) => q.status === 'waiting' || q.status === 'called').length;
   let relances = 0;
   if (r.caps.has('marketing')) for (const [id, st] of clientStats(s, L.day, r.now)) { const c = st.overdue && s.clients.get(id); if (c && rebookable(c, st)) relances++; }

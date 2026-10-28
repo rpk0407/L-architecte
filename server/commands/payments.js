@@ -11,6 +11,7 @@ import { mailConfirmation, mailOwner } from '../domain/mails.js';
 import { payDeadline } from '../domain/policy.js';
 import { busyIntervals } from '../domain/availability.js';
 import { providerKnown } from '../projections/payments.js';
+import { advanceRate } from '../domain/ledger.js';
 
 const KINDS = new Set(['deposit', 'qr', 'guarantee', 'giftcard']);
 
@@ -98,7 +99,9 @@ export const paymentSucceeded = {
     const ap = py.apptId ? s.appts.get(py.apptId) : null;
     const cid = py.cid || (ap && ap.clientId) || undefined;
     const ids = cid && (input.customer || input.pm) ? { ...(input.customer ? { customer: String(input.customer) } : {}), ...(input.pm ? { pm: String(input.pm) } : {}) } : undefined;
-    ctx.emit('payment.succeeded', { id: py.id, chargeRef: input.chargeRef || null, ...(cid ? { cid } : {}) }, ids);
+    // the VAT rate it carries if it stays an advance, frozen now: a later catalogue edit never rewrites a month exported
+    const vat = py.kind === 'guarantee' ? null : advanceRate(s, py);
+    ctx.emit('payment.succeeded', { id: py.id, chargeRef: input.chargeRef || null, ...(cid ? { cid } : {}), ...(vat != null ? { vat } : {}) }, ids);
     if (py.apptId && (py.kind === 'deposit' || py.kind === 'guarantee')) {
       const a = getAppt(s, py.apptId);
       // paid after its deadline (the tick has not run yet): the slot may already belong to someone else

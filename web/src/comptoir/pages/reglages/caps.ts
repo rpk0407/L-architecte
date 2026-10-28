@@ -14,6 +14,8 @@ export const SECTION_CAP: Record<string, string> = {
   equipe: 'settings',
   objectifs: 'settings',
   fidelite: 'settings',
+  // the accountant's files for the owner and a manager; its configuration cards stay the owner's (Reglages.tsx)
+  compta: 'compta',
   appareils: 'devices',
   donnees: 'data',
   wordpress: 'settings',

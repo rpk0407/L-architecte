@@ -251,7 +251,7 @@ function MyGoal({ g }: { g: GoalView }) {
 
 /* ---------------- the monthly statement, printable ---------------- */
 
-function StatementSheet({ open, staffId, month, onClose }: { open: boolean; staffId: string | null; month: string; onClose: () => void }) {
+export function StatementSheet({ open, staffId, month, onClose }: { open: boolean; staffId: string | null; month: string; onClose: () => void }) {
   const { data, error } = useQuery<Statement>(open ? '/api/v1/statements' + qs({ month, staff: staffId }) : null);
   const st = data && (!staffId || data.staff.id === staffId) && data.month === month ? data : null;
   return (

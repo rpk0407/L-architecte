@@ -16,6 +16,7 @@ import { GUARD_OPEN, SECTION_CAP } from './pages/reglages/caps';
 import { canOpenPath, navShows, sectionNeed } from './access';
 import { ComptoirTour, GLANCE_PAGES, TourButtons, TourWelcome, startTour } from './guide/ComptoirTour';
 
+const Pilotage = lazy(() => import('./pages/Pilotage'));
 const Espace = lazy(() => import('./pages/Espace'));
 const Agenda = lazy(() => import('./pages/Agenda'));
 const Caisse = lazy(() => import('./pages/Caisse'));
@@ -31,6 +32,7 @@ const Reglages = lazy(() => import('./pages/Reglages'));
 // Équipe and Catalogue are read-only without `team` / `catalog` (own card, prices), Relances refuses its own tabs.
 type Route = { C: ComponentType; title: string; cap?: string; sub?: (id: string) => string | undefined };
 const ROUTES: Record<string, Route> = {
+  pilotage: { C: Pilotage, title: 'Pilotage', cap: 'report.shop' },
   espace: { C: Espace, title: 'Mon espace', cap: 'agenda.own' },
   agenda: { C: Agenda, title: 'Agenda', cap: 'agenda.own' },
   caisse: { C: Caisse, title: 'Caisse', cap: 'sale.create' },
@@ -90,7 +92,8 @@ function useNav(): NavItem[] {
   const { can, pulse, boot } = useApp();
   const b = pulse?.badges;
   const items: NavItem[] = [
-    // a chair's home (TEAM-04); /comptoir alone opens each person's home (home.ts), the Agenda keeps its own address
+    // the owner's and the managers' home (TEAM-05a), then a chair's (TEAM-04); /comptoir alone opens each person's home (home.ts), the Agenda keeps its own address
+    { to: '/pilotage', page: 'pilotage', label: 'Pilotage', icon: 'target', cap: 'report.shop' },
     { to: '/espace', page: 'espace', label: 'Mon espace', icon: 'chair', cap: 'agenda.own' },
     { to: '/agenda', page: 'agenda', label: 'Agenda', icon: 'agenda', cap: 'agenda.own' },
     { to: '/caisse', page: 'caisse', label: 'Caisse', icon: 'caisse', cap: 'sale.create', badge: b?.toPay },

@@ -32,7 +32,7 @@ export default async ({ h, page }) => {
   // the list says one is left, and so does the agenda, with the way back to it
   // (one kept back, plus any client the plan asked to choose: they stay with Frank until they do)
   await page.getByText(/\d+\s+rdv à replacer/).first().waitFor({ timeout: 8000 });
-  await page.goto(h.base + '/comptoir');
+  await page.goto(h.base + '/comptoir/agenda');
   await page.getByText(/\d+\s+rendez-vous chez Frank, absent vendredi/).waitFor({ timeout: 8000 });
   await page.getByRole('button', { name: 'Traiter' }).click();
   await page.getByRole('dialog').getByText('Les clients de Frank').waitFor({ timeout: 8000 });
