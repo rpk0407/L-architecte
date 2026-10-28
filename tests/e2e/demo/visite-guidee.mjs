@@ -1,9 +1,10 @@
 // GUIDE-01a · The guided tour, in a real browser. The owner's first sign-in shows the welcome; « Commencer la visite »
 // lights the first part of Mise en route; « Suivant » moves the spotlight to the next part, then to another page;
 // Escape closes it and « Visite guidée » stays in the top bar; « Revoir la visite » in Mise en route starts it again.
-// On a phone the card is a bottom card; with reduced motion nothing moves. The demo's client sees « Bienvenue dans ton
-// espace » once on /moi, and its tour opens from it.
-export const name = 'guided tour: welcome, spotlight, next part, next page, Escape, « Revoir la visite », phone, reduced motion, /moi welcome';
+// Every answer 1.2 s late (a cold server): the same visit, every part lit. On a phone the card is a bottom card; with
+// reduced motion nothing moves. The demo's client sees « Bienvenue dans ton espace » once on /moi, and its tour opens
+// from it.
+export const name = 'guided tour: welcome, spotlight, next part, next page, Escape, « Revoir la visite », slow connection, phone, reduced motion, /moi welcome';
 
 const box = (page, sel) => page.locator(sel).first().evaluate((e) => { const r = e.getBoundingClientRect(); return { x: r.left + scrollX, y: r.top + scrollY, w: r.width, h: r.height }; });
 /** the spotlight's box on the page, once it has stopped moving */
@@ -155,6 +156,18 @@ export default async ({ h, page }) => {
   const walk = await walkTour(page, (id) => (['agenda.board', 'caisse.lines', 'clients.file-head', 'clients.abonnes-list'].includes(id) ? h.shot(page, 'tour-walk-' + id) : null));
   if (walk.seen.length < 40) throw new Error('the owner’s tour is short: ' + walk.seen.length + ' steps');
   if (walk.unlit.length > 3) throw new Error(walk.unlit.length + ' steps light nothing: ' + walk.unlit.join(', '));
+
+  /* ---------- a slow connection (a cold server, the salon's Wi-Fi): every answer 1.2 s late, the same visit ---------- */
+  const slow = await h.newPage();
+  await h.loginOwner(slow);
+  await slow.goto(h.base + '/comptoir/reglages/mise-en-route');
+  await slow.getByRole('button', { name: 'Revoir la visite' }).waitFor();
+  await slow.route('**/api/**', (r) => new Promise((ok) => setTimeout(ok, 1200)).then(() => r.continue()).catch(() => {}));
+  await slow.getByRole('button', { name: 'Revoir la visite' }).click();
+  const late = await walkTour(slow);
+  if (late.seen.join(',') !== walk.seen.join(',')) throw new Error('a slow connection changes the visit: ' + JSON.stringify({ fast: walk.seen.filter((x) => !late.seen.includes(x)), slow: late.seen.filter((x) => !walk.seen.includes(x)), n: [walk.seen.length, late.seen.length] }));
+  if (late.unlit.join(',') !== walk.unlit.join(',')) throw new Error('a slow connection leaves steps unlit: ' + late.unlit.join(', '));
+  await slow.unrouteAll({ behavior: 'ignoreErrors' });
 
   /* ---------- a phone: a bottom card, no sideways scroll ---------- */
   const phone = await h.newPage({ viewport: { width: 390, height: 844 } });

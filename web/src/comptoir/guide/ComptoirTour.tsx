@@ -7,7 +7,8 @@
 // The public demo signs everyone in as the same owner: there the welcome's « vu » is also this browser tab's own, so
 // one visitor's « Plus tard » does not take the welcome away from the next one (the salon's owner among them).
 import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
-import { api } from '../../lib/api';
+import { api, qs } from '../../lib/api';
+import { liveMembers } from '../../lib/members';
 import { navigate, useRoute } from '../../lib/router';
 import { dates } from '../../lib/format';
 import { toast } from '../../ui/kit';
@@ -16,7 +17,7 @@ import { Tour, type TourEnd } from '../../ui/tour/Tour';
 import { COMPTOIR_PLACES, TOUR_V, collect, firstName, pageSteps, plan, resumeAt, welcomeOf, type Played } from '../../ui/tour/order';
 import type { GuideRole } from '../../lib/guide';
 import { useApp } from '../state';
-import type { Agenda, ClientCard, TourPrefs } from '../types';
+import type { Agenda, ClientCard, Cover, TourPrefs } from '../types';
 import './guide.css';
 
 const STEPS = collect(import.meta.glob('./steps/*.ts', { eager: true }));
@@ -75,16 +76,28 @@ export function usePlan(canOpen: (path: string) => boolean): Played[] {
 
 /* ---------------- the views a step needs: a ticket open, a client's file ---------------- */
 
-/** A client waiting to pay today (his ticket is already filled), the one with the most to show (a membership, a carnet:
- *  their lines and chips), else an empty free sale (the parts it does not show are left out by the tour). */
+/** A client waiting to pay today (his ticket is already filled): one whose ticket shows a membership or a carnet line
+ *  and still has something to pay (the methods), else one with something to pay, else a member's ticket at 0 €, else an
+ *  empty free sale (the parts it does not show are left out by the tour). */
 async function aTicket(today: string, nowMin: number) {
   const cur = new URLSearchParams(location.search).get('rdv');
   if (location.pathname === '/comptoir/caisse' && cur) return '/comptoir/caisse?rdv=' + encodeURIComponent(cur);
   const a = await api.get<Agenda>('/api/v1/agenda?day=' + today).catch(() => null);
   const waiting = (a?.appts || []).filter((x) => !x.saleId && !x.legacy && !a!.closed && (x.status === 'in_chair' || x.status === 'done' || (['booked', 'arrived'].includes(x.status) && x.start + x.dur <= nowMin)));
-  const score = (x: Agenda['appts'][number]) => (x.client?.memberships?.length ? 2 : 0) + (x.client?.packs?.length ? 1 : 0);
-  const due = waiting.reduce<(typeof waiting)[number] | null>((b, x) => (!b || score(x) > score(b) ? x : b), null);
-  return due ? '/comptoir/caisse?rdv=' + encodeURIComponent(due.id) : a && !a.closed ? '/comptoir/caisse?vente=1' : null;
+  // what the till will do with each line, as it does it (Checkout: the membership's dry check, then a carnet that fits)
+  const score = async (x: Agenda['appts'][number]) => {
+    const c = x.client, m = liveMembers(c?.memberships)[0];
+    let covered = 0, pays = false;
+    for (const sv of x.services) {
+      const ok = m ? await api.get<Cover>('/api/v1/memberships/' + m.id + '/cover' + qs({ serviceId: sv.id, pending: covered })).then((r) => r.ok, () => false) : false;
+      if (ok || c?.packs?.some((p) => p.used < p.total && (!p.serviceIds.length || p.serviceIds.includes(sv.id)))) covered++;
+      else if (sv.price > 0) pays = true;
+    }
+    return (covered && pays ? 4 : 0) + (pays ? 2 : 0) + (covered ? 1 : 0);
+  };
+  const scores = await Promise.all(waiting.map(score));
+  const k = scores.reduce((b, v, i) => (b < 0 || v > scores[b] ? i : b), -1);
+  return k >= 0 ? '/comptoir/caisse?rdv=' + encodeURIComponent(waiting[k].id) : a && !a.closed ? '/comptoir/caisse?vente=1' : null;
 }
 /** The file open now, else a regular with the most to show: a membership, a carnet, a few visits. */
 async function aFile() {

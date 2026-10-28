@@ -3,15 +3,17 @@
 // progress and a dot per step of the page. The spotlight glides from part to part, the card follows and fades, a page
 // change fades the two out and in; under prefers-reduced-motion everything is instant (tour.css).
 // It goes to each step's page with the app's own router (`go`) and lets the page settle (its parts up to 3 s after a
-// page change, less once the page is done: its empty state, data-tour-empty, or nothing new for a moment). The parts the
-// page does not show then (an empty salon, a client with no carnet, a ticket with no member, a button hidden at this
-// width) are left out all at once, before the page's first card: no card explains what is not there to tap, and the
-// page's count « 2 / 5 » holds from its first card to its last. The `:param` places (a ticket, a file) are found before
-// the first card, so a whole page is never dropped mid-way. It never gets stuck: a part gone later (the data changed)
-// gets a centered card ('center', the Comptoir) or is left out ('skip', /moi). What to play and in what order: order.ts.
+// page change, less once the page is done: its empty state, data-tour-empty, or nothing new for a moment; longer while
+// its data is still on its way, lib/api netIdle). The parts the page does not show then (an empty salon, a client with
+// no carnet, a ticket with no member, a button hidden at this width) are left out all at once, before the page's first
+// card: no card explains what is not there to tap, and the page's count « 2 / 5 » holds from its first card to its
+// last. The `:param` places (a ticket, a file) are found before the first card, so a whole page is never dropped
+// mid-way. It never gets stuck: a part gone later (the data changed) gets a centered card ('center', the Comptoir) or
+// is left out ('skip', /moi). What to play and in what order: order.ts.
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from '../Icon';
+import { netIdle } from '../../lib/api';
 import { playOrder, type Played } from './order';
 import './tour.css';
 
@@ -39,8 +41,10 @@ export type TourProps = {
 const WAIT_MS = 3000;
 /** on a page already open, a part that is not there by now is not coming */
 const SETTLE_MS = 500;
-/** a page with some of its parts in and nothing new on it for this long is done loading */
+/** a page with some of its parts in, no request on its way and nothing new on it for this long is done loading */
 const QUIET_MS = 700;
+/** a page whose data is still on its way past WAIT_MS (a cold server, a slow connection) is waited for up to this */
+const LOAD_MS = 12000;
 /** spotlight padding around the part, room between it and the card (the arrow), distance kept from the screen's edges */
 const PAD = 8, GAP = 16, EDGE = 12;
 /** below this width the card is a bottom card */
@@ -186,8 +190,9 @@ export function Tour({ steps, start = 0, skin, mode = 'tour', missing = 'center'
   };
 
   /** Wait for this place's page to settle: every part in, or the page done without some (its empty state, parts hidden
-   *  at this width, or some parts in and nothing new for QUIET_MS), or `long` ms (3 s after a page change). false: the
-   *  visitor moved on meanwhile. */
+   *  at this width, or some parts in and nothing new for QUIET_MS), or `long` ms (3 s after a page change). The page is
+   *  done only once its data is in: while a request is on its way it is not quiet, and past the 3 s it is waited for (up
+   *  to LOAD_MS), so a slow connection shows the same parts as a fast one. false: the visitor moved on meanwhile. */
   const settle = async (place: string, my: number, long: boolean) => {
     const targets = [...new Set(listRef.current.filter((x) => x.place === place && x.target).map((x) => x.target!))];
     if (!targets.length) return true;
@@ -196,12 +201,12 @@ export function Tour({ steps, start = 0, skin, mode = 'tour', missing = 'center'
       if (ms.some((m) => { const n = m.target.nodeType === 1 ? (m.target as Element) : m.target.parentElement; return !n?.closest('.tour'); })) last = Date.now();
     }) : null;
     mo?.observe(document.body, { childList: true, subtree: true, characterData: true });
-    const t0 = Date.now(), until = t0 + (long ? WAIT_MS : SETTLE_MS);
+    const t0 = Date.now(), until = t0 + (long ? WAIT_MS : SETTLE_MS), cap = t0 + LOAD_MS;
     try {
       for (;;) {
-        const out = targets.filter((t) => !findPart(t)), now = Date.now();
-        if (!out.length || now >= until) return true;
-        if (now - t0 >= SETTLE_MS && (out.every(notHere) || (out.length < targets.length && now - last >= QUIET_MS))) return true;
+        const out = targets.filter((t) => !findPart(t)), now = Date.now(), quiet = Math.min(now - last, netIdle());
+        if (!out.length || now >= cap || (now >= until && netIdle() >= QUIET_MS)) return true;
+        if (now - t0 >= SETTLE_MS && netIdle() >= QUIET_MS && (out.every(notHere) || (out.length < targets.length && quiet >= QUIET_MS))) return true;
         await sleep(80);
         if (my !== token.current) return false;
       }
