@@ -38,6 +38,8 @@ test('every step of Mon espace points at a data-guide mark in the source', () =>
     assert.ok(s.title && s.body, s.id + ' has a title and a body');
     assert.ok(s.body.split(/(?<=[.!?])\s+/).filter(Boolean).length <= 2, s.id + ': two short sentences at most');
   }
-  // no mark without its step: what the page marks, the tour explains
-  for (const t of marked) assert.ok(list.some((s) => s.target === t), 'data-guide="' + t + '" has no step');
+  // no mark without its step: what the page marks, the tour explains (Clients.tsx also carries other packages' marks, whose
+  // steps live in their own files)
+  const everywhere = new Set(readdirSync(join(ROOT, 'web/src/comptoir/guide/steps')).flatMap((f) => [...read('web/src/comptoir/guide/steps/' + f).matchAll(/target: '([^']+)'/g)].map((m) => m[1])));
+  for (const t of marked) assert.ok(list.some((s) => s.target === t) || everywhere.has(t), 'data-guide="' + t + '" has no step');
 });

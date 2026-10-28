@@ -1,7 +1,7 @@
 // « Abonnement » is the monthly membership only; the prepaid pack is a « Carnet » (the data keeps saying `pack`). Nothing a
 // person reads, in the Comptoir or on the public pages, may call the pack an abonnement: no « Abonnement 5 coupes », and no
-// « abonnement » within 40 characters of « carnet », « pack » or « 5 coupes » unless the two are named side by side as
-// different things (« coupes de carnet et d’abonnement »). Only what is shown is read: string literals and text between tags.
+// « abonnement » within 40 characters of « carnet », « pack » or « 5 coupes » in the same clause, unless the two are named
+// side by side as different things (« coupes de carnet et d’abonnement », « Abonnement &amp; carnet »). Only what is shown is read: string literals and text between tags.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
@@ -11,17 +11,15 @@ const ROOT = new URL('../..', import.meta.url).pathname;
 const walk = (d) => readdirSync(d).flatMap((f) => { const p = join(d, f); return statSync(p).isDirectory() ? walk(p) : [p]; });
 const files = [...walk(join(ROOT, 'web/src')), ...walk(join(ROOT, 'public'))].filter((f) => /\.(tsx?|jsx?|html)$/.test(f) && !/\.d\.ts$/.test(f));
 
-// the public pages PAY-04 rewrites in the same wave (site copy and the CGV are its files): its own tests keep them honest;
-// delete these entries once it has merged, so the wording stays checked everywhere
-const PAY04 = new Set(['public/site.html', 'public/cgv.html']);
 
 /** the words next to each other on purpose: two different things named together */
-const BOTH = /carnets?\s*(?:,|\/|et|ou|ni)\s*(?:d[’']|de l[’']|l[’']|des |les |le |un |une )?abonnements?|abonnements?\s*(?:,|\/|et|ou|ni)\s*(?:de |du |des |les |le |un |une |d[’'])?(?:carnets?|packs?)/gi;
+const BOTH = /carnets?(?:\s+de\s+coupes)?\s*(?:,|\/|&amp;|&|et|ou|ni)\s*(?:[^,.;:]{1,30}(?:,|et|ou)\s*)?(?:à l[’']|à |au |d[’']|de l[’']|l[’']|des |les |le |un |une )?abonnements?|abonnements?\s*(?:,|\/|&amp;|&|et|ou|ni)\s*(?:[^,.;:]{1,30}(?:,|et|ou)\s*)?(?:de |du |des |les |le |un |une |d[’']|au |à )?(?:carnets?|packs?)/gi;
 // a branch taken when the pack is there (hasPack ? '…abonnement…', consumed ? '…'), or the old site's 5-cut pack that Mise en route
 // counts, is the carnet and may not say abonnement
 const PACKISH = /\b(?:hasPack|consumed|packId|\.pack)\s*\?\s*['"`][^'"`]*abonnement/i;
 const OLDSITE = /abonnements?\s+de l[’']ancien site/i;
-const NEAR = /abonnement.{0,40}(?:carnet|pack|5 coupes)|(?:carnet|pack|5 coupes).{0,40}abonnement/is;
+// within one clause: « … un carnet ou une carte cadeau sera perdu. Un abonnement … » names two things, not one
+const NEAR = /abonnement[^.,;]{0,40}(?:carnet|pack|5 coupes)|(?:carnet|pack|5 coupes)[^.,;]{0,40}abonnement/is;
 
 /** what a person can read in a line: string literals, and the text between a `>` and a `<` */
 function shown(line) {
@@ -38,10 +36,11 @@ test('no « Abonnement 5 coupes », and no abonnement named beside a carnet as i
   const bad = [];
   for (const f of files) {
     const rel = relative(ROOT, f);
-    if (PAY04.has(rel)) continue;
     readFileSync(f, 'utf8').split('\n').forEach((line, i) => {
       if (/^\s*(\/\/|\*|\/\*|<!--)/.test(line)) return;
       for (const seg of shown(line)) {
+        // an id (« site-abonnement-carnet », « site.abonnement.carnet ») is never read by a person
+        if (/^[\w.-]+$/.test(seg.trim())) continue;
         if (/abonnement 5 coupes/i.test(seg)) bad.push(rel + ':' + (i + 1) + '  ' + seg.trim().slice(0, 100));
         else if (NEAR.test(seg.replace(BOTH, ' '))) bad.push(rel + ':' + (i + 1) + '  ' + seg.trim().slice(0, 100));
         else if (/abonnement/i.test(seg.replace(BOTH, ' ')) && (PACKISH.test(line) || OLDSITE.test(seg))) bad.push(rel + ':' + (i + 1) + '  ' + seg.trim().slice(0, 100));
