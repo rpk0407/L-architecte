@@ -115,3 +115,36 @@ export type EspaceCardMeta = { id: string; title: string; chairOnly?: boolean };
 export type NoteTarget = { id: string; name: string; text?: string | null };
 /** reload: fetch the page again (after an action); note: open the cut note sheet for an appointment. */
 export type EspaceCardProps = { data: EspaceData; reload: () => Promise<void>; note: (t: NoteTarget) => void };
+
+// TEAM-05a: GET /api/v1/cockpit (server/domain/cockpit.js), the owner's Pilotage. `upTo` is the last day read (today while the
+// period runs); the previous figures cover the same number of days at the start of the period before.
+export type CockpitRange = 'day' | 'week' | 'month';
+export type CockpitGoal = { target: number; done: number; pct: number; perDay: number; openDaysLeft: number; week: { from: string; to: string; target: number; done: number }; projection: number | null; monthLabel: string; month: string };
+export type CockpitTeamRow = StaffRow & {
+  active: boolean; photo: number | null; goalPct: number | null; goal: { target: number; done: number; auto: boolean; perDay: number; openDaysLeft: number } | null;
+  week: { from: string; to: string; minutes: number; off: { id: string; from: string; to: string; status: 'approved' | 'pending' }[] };
+};
+export type CockpitEquity = { staffId: string; kind: 'new' | 'walkin' | 'any' | 'idle'; text: string };
+export type CockpitCash = {
+  drawer: 'open' | 'counted' | 'none'; lastDiff: number | null; unpaid: number; z: 'done' | 'due' | 'missed' | 'none'; missedDay: string | null;
+  closesAt: number | null; remaining: number; warnings: string[];
+};
+export type Cockpit = {
+  asOf: number;
+  range: { kind: CockpitRange; day: string; from: string; to: string; upTo: string; label: string; prevLabel: string; prev: { from: string; to: string }; today: string; live: boolean };
+  kpis: {
+    cashed: { value: number; prev: number; tickets: number; goal: CockpitGoal | null; series: number[] };
+    performed: number; gap: Gap;
+    fill: { value: number; prev: number; chairs: { id: string; name: string; color: string; value: number }[] };
+    clients: { total: number; new: number; returning: number };
+    noShows: { count: number; rate: number; lost: number };
+    lateCancels: number; avgTicket: number; rebookRate: number; returned60: number; tips: number; discounts: number; refunds: number;
+    outstanding: { giftcards: number; giftcardCount: number; carnets: number; carnetCount: number; cuts: number };
+    prev: { cashed: number; performed: number; fill: number; clients: number; newClients: number; noShows: number; noShowRate: number; avgTicket: number; rebookRate: number; returned60: number; tips: number; discounts: number; refunds: number; lost: number };
+  };
+  team: CockpitTeamRow[]; cash: CockpitCash; equity: CockpitEquity[];
+};
+/** What a tile of Pilotage is: `export const meta` and a default component in web/src/comptoir/pages/pilotage/tiles/*.tsx.
+ *  A tile fetches its own route and renders nothing when it answers 403 or 404; from/to are the days read. */
+export type PilotageTileMeta = { id: string; cap?: string };
+export type PilotageTileProps = { from: string; to: string };

@@ -111,9 +111,9 @@ async function aFile() {
 
 /* ---------------- the pieces the shell places ---------------- */
 
-/** Homes read at a glance on a phone (TEAM-04: his next client and four rows of his day without scrolling): the welcome
+/** Homes read at a glance on a phone (TEAM-04: his next client and four rows of his day without scrolling; TEAM-05a: the owner's Pilotage): the welcome
  *  goes under the page there, and the top bar's « Visite guidée » invites him meanwhile. */
-export const GLANCE_PAGES: readonly string[] = ['espace'];
+export const GLANCE_PAGES: readonly string[] = ['pilotage', 'espace'];
 
 /** The tour itself, mounted once by the shell; it plays when someone asks (startTour). */
 export function ComptoirTour({ canOpen }: { canOpen: (path: string) => boolean }) {

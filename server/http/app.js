@@ -30,6 +30,7 @@ import { meLoyaltyRoutes } from './routes-me-loyalty.js';
 import { basculeRoutes } from './routes-bascule.js';
 import { meMembershipRoutes } from './routes-me-membership.js';
 import { espaceRoutes } from './routes-espace.js';
+import { cockpitRoutes } from './routes-cockpit.js';
 
 // A REGISTRY: one line per route file
 const app = router();
@@ -56,6 +57,7 @@ meLoyaltyRoutes(app);
 basculeRoutes(app);
 meMembershipRoutes(app);
 espaceRoutes(app);
+cockpitRoutes(app);
 
 const MUTATING = new Set(['POST', 'PATCH', 'PUT', 'DELETE']);
 const READ_DOWN = 'La base de données ne répond pas. Réessaie dans un instant.';

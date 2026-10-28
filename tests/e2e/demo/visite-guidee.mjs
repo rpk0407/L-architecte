@@ -106,9 +106,12 @@ export default async ({ h, page }) => {
   await page.waitForFunction(() => document.querySelector('.tour-card')?.getAttribute('data-step') === 'mer.list');
   await page.keyboard.press('ArrowLeft');
   await page.waitForFunction(() => document.querySelector('.tour-card')?.getAttribute('data-step') === 'mer.replay');
-  for (let i = 0; i < 8 && !page.url().includes('/comptoir/agenda'); i++) {
+  // Pilotage (TEAM-05a) comes between Mise en route and the Agenda: its parts are crossed first, each tap waiting for its
+  // step (a page that loads takes longer than a tap a human would repeat)
+  for (let i = 0; i < 40 && !page.url().includes('/comptoir/agenda'); i++) {
+    const was = await page.locator('.tour-card').getAttribute('data-step');
     await page.getByRole('button', { name: 'Suivant' }).click();
-    await page.waitForTimeout(400);
+    await page.waitForFunction((w) => document.querySelector('.tour-card')?.getAttribute('data-step') !== w, was, { timeout: 6000 }).catch(() => {});
   }
   if (!page.url().includes('/comptoir/agenda')) throw new Error('the tour did not cross to the Agenda: ' + page.url());
   await page.waitForFunction(() => /^agenda\./.test(document.querySelector('.tour-card[data-on="1"]')?.getAttribute('data-step') || ''), null, { timeout: 8000 });
