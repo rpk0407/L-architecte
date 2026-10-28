@@ -58,12 +58,15 @@ export default async ({ h, page }) => {
   const after = (await call('/api/v1/memberships?clientId=' + m.clientId)).json.members[0];
   if (after.used !== 2) fail('the month shows ' + after.used + ' cuts, expected 2');
 
-  // 3. Clients › Abonnés: the strip and the member
+  // 3. Clients › Abonnés: the strip and the member. Opening the board reads the owner's rows, which also catches up a month whose renewal notice never came
+  const reads = [];
+  page.on('request', (rq) => { const u = new URL(rq.url()); if (u.pathname === '/api/v1/memberships' && !u.searchParams.has('clientId')) reads.push(u.href); });
   await page.goto(h.base + '/comptoir/clients?segment=abonnes');
   await page.getByRole('group', { name: 'Les abonnés en chiffres' }).waitFor({ timeout: 8000 });
   for (const t of ['Chaque mois', 'À régulariser', 'Coupes ce mois']) await page.getByText(t, { exact: true }).first().waitFor({ timeout: 3000 });
   await page.getByText('Carnets en cours').waitFor({ timeout: 3000 });
   await page.getByRole('button', { name: new RegExp(file.first + ' ' + file.last) }).first().waitFor({ timeout: 3000 });
+  if (!reads.length) fail('the Abonnés board never read /api/v1/memberships (the catch-up of missed renewals)');
   await h.shot(page, 'membership-board');
 
   // 4. his file: the chip opens the block; cancel at the end of the paid month → « Fin le … »
@@ -76,7 +79,7 @@ export default async ({ h, page }) => {
   const dlg = page.getByRole('dialog', { name: /Résilier l’abonnement/ });
   await dlg.getByRole('radio', { name: /À la fin du mois payé/ }).check();
   await h.shot(page, 'membership-cancel');
-  await dlg.getByRole('button', { name: 'Confirmer la résiliation' }).click();
+  await dlg.getByRole('button', { name: 'Résilier', exact: true }).click();
   await page.getByText(/Fin le \d\d\/\d\d/).first().waitFor({ timeout: 8000 });
   const ending = (await call('/api/v1/memberships?clientId=' + m.clientId)).json.members[0];
   if (ending.status !== 'ending' || !ending.cancelAt) fail('the membership is ' + ending.status + ', expected ending');
@@ -89,7 +92,7 @@ export default async ({ h, page }) => {
   const dlg2 = page.getByRole('dialog', { name: /Résilier l’abonnement/ });
   await dlg2.getByRole('radio', { name: /Tout de suite/ }).check();
   await dlg2.getByText(/Rembourser .* \(jours non utilisés\)/).waitFor({ timeout: 3000 });
-  await dlg2.getByRole('button', { name: 'Confirmer la résiliation' }).click();
+  await dlg2.getByRole('button', { name: 'Résilier', exact: true }).click();
   await page.getByText('Terminé', { exact: false }).first().waitFor({ timeout: 8000 }).catch(() => {});
   const gone = (await call('/api/v1/memberships?clientId=' + other.clientId)).json.members.find((x) => x.id === other.id);
   if (gone.status !== 'ended') fail('stopped now, but the membership is ' + gone.status);
@@ -113,7 +116,7 @@ export default async ({ h, page }) => {
   const duo = site.plans.find((p) => p.name === 'Duo barbe');
   if (!duo || duo.price !== 2500 || duo.cuts !== 1 || !duo.services.some((s) => s.name === 'Taille de barbe')) fail('the new formule is not on the site: ' + JSON.stringify(site.plans.map((p) => p.name)));
 
-  // 6. a phone: the board, a file and the settings never scroll sideways
+  // 6. a phone: the board, a file and the settings never scroll sideways, and the cancel sheet's two buttons fit the screen
   const phone = await h.newPage({ viewport: { width: 390, height: 844 } });
   await h.loginOwner(phone);
   for (const path of ['/comptoir/clients?segment=abonnes', '/comptoir/clients/' + other.clientId, '/comptoir/reglages/abonnements', '/comptoir/caisse?rdv=' + booked.json.id]) {
@@ -121,4 +124,23 @@ export default async ({ h, page }) => {
     await phone.waitForTimeout(900);
     if (await phone.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)) fail(path + ' scrolls sideways on a phone');
   }
+  const live = (await call('/api/v1/memberships')).json.members.find((x) => ['active', 'ending'].includes(x.status) && !x.cancelAt && x.id !== m.id) || fail('no member left to open the cancel sheet on a phone');
+  await phone.goto(h.base + '/comptoir/clients/' + live.clientId);
+  await phone.getByRole('button', { name: /^Abonnement .*Ouvrir/ }).click();
+  await phone.getByRole('button', { name: 'Résilier', exact: true }).click();
+  await phone.getByRole('dialog', { name: /Résilier l’abonnement/ }).waitFor({ timeout: 5000 });
+  const foot = await phone.evaluate(() => { const f = document.querySelector('.sheet-f'); return f ? { sw: f.scrollWidth, cw: f.clientWidth } : null; });
+  if (!foot || foot.sw > foot.cw) fail('the cancel sheet footer is clipped on a phone: ' + JSON.stringify(foot));
+  await phone.getByRole('button', { name: 'Garder' }).click();
+
+  // 7. a file with no e-mail cannot be offered a membership: the sheet says what is missing and keeps both buttons off
+  const bare = (await call('/api/v1/clients?limit=200')).json.items.find((c) => c.hasPhone && !c.hasEmail && !c.memberships.length) || fail('no client without an e-mail in the demo');
+  await page.goto(h.base + '/comptoir/clients/' + bare.id);
+  const fold = page.locator('#fold-abo .cl-fold-h button');
+  await fold.waitFor({ timeout: 8000 });
+  if ((await fold.getAttribute('aria-expanded')) !== 'true') await fold.click();
+  await page.getByRole('button', { name: /^Abonner / }).click();
+  const offer = page.getByRole('dialog', { name: /^Abonner / });
+  await offer.getByText(/Ajoute son e-mail pour l’abonner/).waitFor({ timeout: 5000 });
+  if (!(await offer.getByRole('button', { name: 'Afficher le QR' }).isDisabled())) fail('the QR button is on for a file with no e-mail');
 };

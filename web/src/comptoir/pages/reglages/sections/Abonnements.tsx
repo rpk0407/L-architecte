@@ -39,10 +39,12 @@ export default function Abonnements({ s }: SectionProps) {
   const holders = useMemo(() => { const n = new Map<string, number>(); for (const r of board.data?.members || []) if (r.status !== 'ended') n.set(r.planId, (n.get(r.planId) || 0) + 1); return n; }, [board.data]);
   const set = (i: number, patch: Partial<Plan>) => m.setV({ ...M, plans: M.plans.map((p, j) => (j === i ? { ...p, ...patch } : p)) });
   const problem = (p: Plan) => (p.name.trim().length < 2 ? 'Donne un nom à la formule.' : p.price < PRICE_MIN || p.price > PRICE_MAX ? 'Un prix entre 5 € et 500 € par mois.' : !p.serviceIds.length ? 'Coche au moins une prestation couverte.' : '');
-  const bad = M.plans.some((p) => !!problem(p)) || (M.enabled && !M.plans.some((p) => p.active !== false));
+  // a new formule's code is chosen once the board of members has said which codes are taken
+  const bad = M.plans.some((p) => !!problem(p)) || (M.enabled && !M.plans.some((p) => p.active !== false)) || (!board.data && !board.error && M.plans.some((p) => !p.id));
   const doSave = () => {
     // a new formule's code comes from its name, once, and never the same twice
-    const used = new Set(M.plans.map((p) => p.id).filter(Boolean));
+    // (a formule taken off sale earlier but still held keeps its code too: two contracts never share one)
+    const used = new Set([...M.plans.map((p) => p.id), ...(board.data?.members || []).map((r) => r.planId)].filter(Boolean));
     const plans = M.plans.map((p) => {
       let id = p.id;
       if (!id) { const base = slug(p.name) || 'formule'; id = base; for (let n = 2; used.has(id); n++) id = base.slice(0, 21) + '-' + n; used.add(id); }
@@ -69,23 +71,23 @@ export default function Abonnements({ s }: SectionProps) {
 
       <div className="col" style={{ gap: 14 }} data-guide="abo-plans">
         {M.plans.map((p, i) => (
-          <PlanCard key={i} p={p} i={i} set={(patch) => set(i, patch)} remove={() => remove(i)} problem={problem(p)} holders={p.id ? holders.get(p.id) || 0 : 0}
+          <PlanCard key={i} p={p} i={i} set={(patch) => set(i, patch)} remove={() => remove(i)} known={!!board.data || !p.id} problem={problem(p)} holders={p.id ? holders.get(p.id) || 0 : 0}
             saved={s.membership.plans.find((x: Plan) => x.id === p.id)} services={services.map((x) => ({ id: x.id, name: x.name }))} />
         ))}
         <div><Button icon="plus" disabled={M.plans.length >= MAX} onClick={() => m.setV({ ...M, plans: [...M.plans, blank()] })}>Ajouter une formule</Button>{M.plans.length >= MAX ? <span className="muted" style={{ fontSize: 13, marginLeft: 10 }}>{MAX} formules au plus.</span> : null}</div>
       </div>
 
       <Card title="Après un paiement refusé" icon="alert">
-        <Field label="Délai de grâce" hint="Il garde ses coupes pendant que la banque réessaie. Passé ce délai sans paiement, l’abonnement s’arrête.">
+        <div data-guide="abo-grace"><Field label="Délai de grâce" hint="Il garde ses coupes pendant que la banque réessaie. Passé ce délai sans paiement, l’abonnement s’arrête.">
           <div className="chips" role="group" aria-label="Délai de grâce">{[...new Set([...GRACE, M.graceDays])].sort((a, b) => a - b).map((d) => <Chip key={d} on={M.graceDays === d} onClick={() => m.setV({ ...M, graceDays: d })}>{d} jours</Chip>)}</div>
-        </Field>
+        </Field></div>
       </Card>
       <SaveBar dirty={m.dirty} busy={busy} disabled={bad} onReset={m.reset} onSave={doSave} />
     </div>
   );
 }
 
-function PlanCard({ p, i, set, remove, problem, holders, saved, services }: { p: Plan; i: number; set: (patch: Partial<Plan>) => void; remove: () => void; problem: string; holders: number; saved?: Plan; services: { id: string; name: string }[] }) {
+function PlanCard({ p, i, set, remove, known, problem, holders, saved, services }: { p: Plan; i: number; set: (patch: Partial<Plan>) => void; remove: () => void; known: boolean; problem: string; holders: number; saved?: Plan; services: { id: string; name: string }[] }) {
   // the price is typed as it is said (« 34 », « 34,50 »), never rewritten under the fingers
   const [txt, setTxt] = useState(p.price % 100 ? (p.price / 100).toFixed(2).replace('.', ',') : String(p.price / 100));
   // the price changed from outside (an undo, a reset): the field follows
@@ -100,7 +102,9 @@ function PlanCard({ p, i, set, remove, problem, holders, saved, services }: { p:
         <span className="row" style={{ gap: 8 }}>
           {holders ? <span className="badge badge-ok">{holders} abonné{holders > 1 ? 's' : ''}</span> : null}
           {p.active === false ? <span className="badge">Hors vente</span> : null}
-          <Button size="sm" variant="ghost" icon="trash" aria-label={'Retirer la formule ' + (p.name || i + 1)} onClick={remove}>{holders ? 'Arrêter la vente' : 'Retirer'}</Button>
+          {holders && p.active === false
+            ? <Button size="sm" variant="ghost" icon="undo" aria-label={'Remettre en vente la formule ' + (p.name || i + 1)} onClick={() => set({ active: true })}>Remettre en vente</Button>
+            : <Button size="sm" variant="ghost" icon="trash" disabled={!known} aria-label={'Retirer la formule ' + (p.name || i + 1)} onClick={remove}>{holders ? 'Arrêter la vente' : 'Retirer'}</Button>}
         </span>
       </div>
       <div className="ab-grid">

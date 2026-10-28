@@ -153,7 +153,7 @@ export function stepsOf(h: Health, robots: boolean | null, countries: string[], 
     tone: wp.switchedAt ? 'ok' : wp.runs ? (demo ? 'info' : 'warn') : demo ? 'info' : 'todo',
     line: wp.switchedAt ? 'Bascule faite le ' + dm(wp.switchedAt) + '. ' + took + '.'
       : wp.runs ? 'Reprise faite, bascule à faire. ' + took + (wp.hold.on && wp.hold.queued ? ' · ' + s(wp.hold.queued, 'message attend', 'messages attendent') + ' la bascule' : '') + '.'
-        : 'Clients, rendez-vous, cartes cadeaux et abonnements de l’ancien site : pas encore repris.',
+        : 'Clients, rendez-vous, cartes cadeaux et carnets de l’ancien site : pas encore repris.',
     more: 'Tout se suit dans Reprendre WordPress › Jour J.' });
 
   const b = h.backup;

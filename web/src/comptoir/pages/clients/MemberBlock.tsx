@@ -12,25 +12,20 @@ import { QR } from '../../../lib/qr';
 import { navigate } from '../../../lib/router';
 import { Button, Chip, Note, Sheet, Skeleton, Switch, toast, toastError } from '../../../ui/kit';
 import { useApp } from '../../state';
-import type { ClientFull, MemberRow, Plan } from '../../types';
+import type { ClientFull, MemberRow } from '../../types';
 import './clients-members.css';
 
 const END_FR: Record<string, string> = { cancelled: 'résilié', withdrawn: 'rétracté', unpaid: 'arrêté faute de paiement', abandoned: 'jamais payé', ended: 'terminé' };
 const dmy = (ms: number) => { const d = dates.localParts(ms).day; return ddmm(d) + '/' + d.slice(2, 4); };
 
-/** What the salon sells right now: every formule on sale for who sets them, the site's for the rest; `live` when money can move. */
+/** What the counter sells right now: every formule on sale, the ones kept for the salon too; `live` when money can move (the server's word). */
 export function useSellable(): { plans: { id: string; name: string; price: number; words: string }[]; live: boolean; ready: boolean } {
-  const { boot, can } = useApp();
-  const pub = useQuery<{ live: boolean; plans: { id: string; name: string; price: number; words: string }[] }>('/api/public/memberships');
-  const M = can('settings') ? (boot.settings.membership as { enabled: boolean; plans: Plan[] } | undefined) : undefined;
-  if (M) {
-    const plans = M.plans.filter((p) => p.active !== false).map((p) => ({ id: p.id, name: p.name, price: p.price, words: pub.data?.plans.find((x) => x.id === p.id)?.words || '' }));
-    return { plans, live: !!M.enabled && plans.length > 0 && (boot.mode === 'demo' || boot.providers.paymentsLive), ready: true };
-  }
-  return { plans: pub.data?.plans || [], live: !!pub.data?.live, ready: !!pub.data };
+  const { can } = useApp();
+  const q = useQuery<{ live: boolean; plans: { id: string; name: string; price: number; words: string }[] }>(can('client.edit') ? '/api/v1/memberships/plans' : null);
+  return { plans: q.data?.plans || [], live: !!q.data?.live, ready: !!q.data || !can('client.edit') };
 }
 
-export default function MemberBlock({ c }: { c: ClientFull }) {
+export default function MemberBlock({ c, onEdit }: { c: ClientFull; onEdit: () => void }) {
   const { can } = useApp();
   const q = useQuery<{ members: MemberRow[] }>('/api/v1/memberships?clientId=' + c.id);
   const [cancel, setCancel] = useState<MemberRow | null>(null);
@@ -49,12 +44,12 @@ export default function MemberBlock({ c }: { c: ClientFull }) {
       {!live.length ? (
         <div className="col" style={{ gap: 10 }}>
           <p className="muted">{c.first} n’a pas d’abonnement.</p>
-          {can('client.edit') && !c.erased ? <div><Button variant="primary" icon="card" onClick={() => setOffer(true)}>Abonner {c.first}</Button></div> : null}
+          {can('client.edit') && !c.erased ? <div><Button variant="primary" icon="card" data-guide="member-offer" onClick={() => setOffer(true)}>Abonner {c.first}</Button></div> : null}
         </div>
       ) : null}
       {ended.length ? <ul className="mb-ended">{ended.map((m) => <li key={m.id} className="muted" style={{ fontSize: 13 }}>{m.plan} · {END_FR[m.endReason] || 'terminé'}{m.endedAt ? ' le ' + dmy(m.endedAt) : ''}</li>)}</ul> : null}
       {cancel ? <CancelSheet m={cancel} first={c.first} onClose={() => setCancel(null)} /> : null}
-      {offer ? <OfferSheet c={c} onClose={() => setOffer(false)} /> : null}
+      {offer ? <OfferSheet c={c} onClose={() => setOffer(false)} onEdit={onEdit} /> : null}
     </>
   );
 }
@@ -64,10 +59,10 @@ function MemberRowView({ m, manage, onCard, onSync, onCancel }: { m: MemberRow; 
   const trouble = m.status === 'grace' || m.status === 'unpaid';
   return (
     <div className="mb">
-      <div className="mb-h"><b>{m.plan}</b><span className={'badge' + toneClass(w.tone)}>{w.text}</span><span className="muted grow" style={{ textAlign: 'right' }}>{eur(m.price)}/mois</span></div>
+      <div className="mb-h"><b>{m.plan}</b><span className={'badge' + toneClass(w.tone)}>{w.text}</span><span className="muted grow" style={{ textAlign: 'right' }}><span className="money">{eur(m.price)}</span>/mois</span></div>
       <dl className="mb-kv">
         {m.since ? <><dt>Depuis</dt><dd>{dates.dayShort(dates.localParts(m.since).day)}</dd></> : null}
-        {m.next ? <><dt>Prochain prélèvement</dt><dd>{eur(m.price)} le {ddmm(m.next)}</dd></> : null}
+        {m.next ? <><dt>Prochain prélèvement</dt><dd><span className="money">{eur(m.price)}</span> le {ddmm(m.next)}</dd></> : null}
         {manage ? <><dt>Carte</dt><dd>{m.card || '—'}</dd></> : null}
         {m.status !== 'pending' ? <><dt>Coupes ce mois-ci</dt><dd>{m.of ? m.used + ' sur ' + m.of : plural(m.used, 'coupe') + ' (illimité)'}{m.until ? ' · jusqu’au ' + ddmm(m.until) : ''}</dd></> : null}
       </dl>
@@ -79,7 +74,7 @@ function MemberRowView({ m, manage, onCard, onSync, onCancel }: { m: MemberRow; 
         <div className="mb-acts">
           {m.status !== 'pending' ? <Button size="sm" icon="sms" onClick={onCard}>Envoyer le lien carte</Button> : null}
           {trouble ? <Button size="sm" icon="undo" onClick={onSync}>Relire Stripe</Button> : null}
-          <Button size="sm" variant="danger" icon="x" onClick={onCancel}>{m.cancelVerified === false ? 'Confirmer sa résiliation' : 'Résilier'}</Button>
+          <Button size="sm" variant="danger" icon="x" data-guide="member-cancel" onClick={onCancel}>{m.cancelVerified === false ? 'Confirmer sa résiliation' : 'Résilier'}</Button>
         </div>
       ) : null}
     </div>
@@ -109,7 +104,7 @@ function CancelSheet({ m, first, onClose }: { m: MemberRow; first: string; onClo
   };
   return (
     <Sheet open onClose={onClose} title="Résilier l’abonnement" kicker={first + ' · ' + m.plan}
-      footer={<><Button variant="ghost" onClick={onClose}>Garder l’abonnement</Button><span className="grow" /><Button variant="danger" busy={busy} onClick={go}>{unconfirmed ? 'Confirmer sa résiliation' : 'Confirmer la résiliation'}</Button></>}>
+      footer={<><Button variant="ghost" onClick={onClose}>Garder</Button><span className="grow" /><Button variant="danger" busy={busy} onClick={go}>{unconfirmed ? 'Confirmer' : 'Résilier'}</Button></>}>
       {unconfirmed ? <Note tone="warn" icon="info">{first} a demandé de résilier sans son lien. En confirmant, l’abonnement s’arrête à la fin du mois payé ({m.cancelAt ? ddmm(m.cancelAt) : ''}) et il reçoit la confirmation.</Note> : waiting ? <Note icon="info">Son premier paiement n’est pas fait : la demande est annulée, rien n’est prélevé.</Note> : (
         <fieldset className="col" style={{ gap: 10, border: 0, padding: 0, margin: 0 }}>
           <legend className="section-k" style={{ marginBottom: 8 }}>Quand ça s’arrête</legend>
@@ -117,7 +112,7 @@ function CancelSheet({ m, first, onClose }: { m: MemberRow; first: string; onClo
             <label className="mb-opt"><input type="radio" name="when" checked={when === 'end'} onChange={() => setWhen('end')} /><span><b>À la fin du mois payé{m.until ? ' (' + ddmm(m.until) + ')' : ''}</b><small>Il garde ses coupes jusqu’à cette date, puis plus aucun prélèvement.</small></span></label>
           ) : null}
           <label className="mb-opt"><input type="radio" name="when" checked={when === 'now'} onChange={() => setWhen('now')} /><span><b>Tout de suite</b><small>Ses coupes s’arrêtent aujourd’hui.</small></span></label>
-          {when === 'now' && canRefund ? <Switch on={refund} onChange={setRefund} title={'Rembourser ' + eur(m.refund, { decimals: true }) + ' (jours non utilisés)'} hint="Le reste du mois payé lui est rendu sur sa carte, avec un avoir." /> : null}
+          {when === 'now' && canRefund ? <Switch on={refund} onChange={setRefund} title={<>Rembourser <span className="money">{eur(m.refund, { decimals: true })}</span> (jours non utilisés)</>} hint="Le reste du mois payé lui est rendu sur sa carte, avec un avoir." /> : null}
         </fieldset>
       )}
     </Sheet>
@@ -125,7 +120,7 @@ function CancelSheet({ m, first, onClose }: { m: MemberRow; first: string; onClo
 }
 
 /** « Abonner {prénom} »: pick the formule, then the link by SMS (member.manage) or a QR code to show. */
-function OfferSheet({ c, onClose }: { c: ClientFull; onClose: () => void }) {
+function OfferSheet({ c, onClose, onEdit }: { c: ClientFull; onClose: () => void; onEdit: () => void }) {
   const { can } = useApp();
   const { plans, live, ready } = useSellable();
   const [planId, setPlanId] = useState('');
@@ -133,6 +128,8 @@ function OfferSheet({ c, onClose }: { c: ClientFull; onClose: () => void }) {
   const [busy, setBusy] = useState<'' | 'sms' | 'qr'>('');
   const [qr, setQr] = useState<string | null>(null);
   const plan = plans.find((p) => p.id === (planId || plans[0]?.id));
+  // the contract's confirmation goes to his e-mail and the link to his number, by SMS or as a QR code: the server wants both
+  const missing = !c.hasPhone ? 'son numéro' : !c.hasEmail ? 'son e-mail' : '';
   const go = async (send: 'sms' | 'qr') => {
     if (!plan) return;
     setBusy(send);
@@ -160,10 +157,10 @@ function OfferSheet({ c, onClose }: { c: ClientFull; onClose: () => void }) {
           {plan?.words ? <p className="muted" style={{ fontSize: 13.5 }}>{plan.words}</p> : null}
           <Switch on={now} onChange={setNow} title="Il commence tout de suite, à sa demande" hint="Sinon, le premier prélèvement a lieu après les 14 jours de rétractation. Commencer tout de suite : s’il se rétracte, les coupes prises lui sont facturées." />
           <div className="mb-acts">
-            {can('member.manage') ? <Button variant="primary" icon="sms" busy={busy === 'sms'} disabled={!c.hasPhone || !plan} onClick={() => go('sms')}>Envoyer le lien par SMS</Button> : null}
-            <Button icon="qr" busy={busy === 'qr'} disabled={!plan} onClick={() => go('qr')}>Afficher le QR</Button>
+            {can('member.manage') ? <Button variant="primary" icon="sms" busy={busy === 'sms'} disabled={!!missing || !plan} onClick={() => go('sms')}>Envoyer le lien par SMS</Button> : null}
+            <Button icon="qr" busy={busy === 'qr'} disabled={!!missing || !plan} onClick={() => go('qr')}>Afficher le QR</Button>
           </div>
-          {!c.hasPhone ? <Note icon="phone">Pas de numéro sur cette fiche : montre le QR code.</Note> : null}
+          {missing ? <Note icon={c.hasPhone ? 'info' : 'phone'}>Ajoute {missing} pour l’abonner. <button type="button" className="link" onClick={() => { onClose(); onEdit(); }}>Modifier la fiche</button></Note> : null}
         </>
       )}
     </Sheet>

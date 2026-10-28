@@ -132,3 +132,34 @@ test('the list of one file, with the next charge and what a cancellation today w
   assert.equal(done.status, 200, JSON.stringify(done.json));
   assert.equal(done.json.refunded.amount, rows[0].refund);
 });
+
+test('cover: a payment in trouble is told to the owner, never to a barber, who reads a cut the plan does not cover today', async () => {
+  const t = await setup();
+  const cl = t.svc('cl');
+  const m = await t.join('essentiel');
+  // fifty days on, no renewal recorded: nothing covers today but the contract runs
+  t.clock.now = instantOf(addDays(DAY, 50), 15 * 60);
+  assert.equal((await t.owner.post('/api/auth/login', { email: DEMO.email, password: DEMO.password })).status, 200);
+  assert.equal((await t.barber.post('/api/auth/pin', { staffId: t.ids.JKut, pin: DEMO.pins.JKut })).status, 200);
+  const owner = await t.cover(t.owner, m, cl);
+  assert.deepEqual([owner.json.ok, owner.json.why, owner.json.words], [false, 'unpaid', 'Paiement de l’abonnement en attente']);
+  const barber = await t.cover(t.barber, m, cl);
+  assert.deepEqual([barber.json.ok, barber.json.why, barber.json.force], [false, 'quota', false]);
+  assert.equal(barber.json.words, 'L’abonnement ne couvre pas cette coupe aujourd’hui');
+  assert.doesNotMatch(JSON.stringify(barber.json), /unpaid|Paiement/);
+});
+
+test('the counter’s formules: every one on sale, with the services it covers; a client card says whether it has an e-mail', async () => {
+  const t = await setup();
+  const res = await t.owner.get('/api/v1/memberships/plans');
+  assert.equal(res.status, 200, JSON.stringify(res.json));
+  assert.equal(res.json.live, true);
+  assert.deepEqual(res.json.plans.map((p) => p.id).sort(), t.plans.map((p) => p.id).sort());
+  assert.ok(res.json.plans.every((p) => p.words && p.serviceIds.length && p.online === true));
+  assert.equal((await t.barber.get('/api/v1/memberships/plans')).status, 200, 'a barber shows the QR code, so he reads the formules');
+  assert.equal((await browser(t.rt).get('/api/v1/memberships/plans')).status, 401);
+  const bare = (await t.owner.post('/api/v1/clients', { first: 'Sans', phone: phone() })).json;
+  const mailed = (await t.owner.post('/api/v1/clients', { first: 'Avec', phone: phone(), email: 'avec@exemple.fr' })).json;
+  assert.equal((await t.owner.get('/api/v1/clients/' + bare.id)).json.client.hasEmail, false);
+  assert.equal((await t.owner.get('/api/v1/clients/' + mailed.id)).json.client.hasEmail, true);
+});

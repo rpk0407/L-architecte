@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { api, qs, uuid } from '../../../lib/api';
 import { refreshAll, useQuery } from '../../../lib/query';
-import { useRoute } from '../../../lib/router';
+import { navigate, useRoute } from '../../../lib/router';
 import { dates, dayShortWord, eur, money, rhythmWords, time } from '../../../lib/format';
 import { useDebounced, buzz } from '../../../lib/hooks';
 import { QR } from '../../../lib/qr';
@@ -19,10 +19,10 @@ type Kind = 'service' | 'product' | 'giftcard' | 'pack' | 'fee';
 // base: the price the line starts from (the booked one for an appointment), now: today's catalogue price
 type Line = { key: string; kind: Kind; ref: string | null; name: string; qty: number; unit: number; base: number; now: number; booked?: boolean; from: boolean; staffId: string | null; packId: string | null; discount: number; vat: number; recipient?: string;
   // PAY-05: the membership that pays the cut (0 €, the month is already paid), what the till said of it, and the cuts the person decided himself
-  memberId?: string | null; force?: boolean; memberOff?: boolean; auto?: boolean; cover?: { label: string; note: string; canForce: boolean } };
+  memberId?: string | null; force?: boolean; memberOff?: boolean; auto?: boolean; cover?: { label: string; note: string; canForce: boolean; retry?: boolean } };
 type Pay = { key: string; method: 'card' | 'cash' | 'online' | 'giftcard' | 'deposit'; amount: number; given?: number; ref?: string; label: string };
 const k = () => Math.random().toString(36).slice(2, 9);
-/** the badges TillChips shows itself (membership, carnet, loyalty reward) */
+/** the badges TillChips shows itself (membership, carnet, loyalty reward: its own plain badge when no reward chip is passed) */
 const CHIPPED = ['abonné', 'carnet', 'récompense'];
 const METHOD_ICON: Record<string, string> = { card: 'card', cash: 'cash', online: 'qr', giftcard: 'gift', deposit: 'globe' };
 /** The test checkout takes no real money: outside the demo, a QR needs Stripe (the server refuses it too). */
@@ -83,8 +83,9 @@ export function Checkout({ apptId, drawerOpen, onClose }: { apptId: string | nul
   // the membership pays a covered cut before any carnet: asked of the server (its rule, not a copy), in the order of the ticket so
   // the third cut of a plan of two is the one that stays priced. A cut the person decided himself (memberOff, a chosen carnet) is left alone.
   const [checking, setChecking] = useState(false);
+  const [recheck, setRecheck] = useState(0);
   const member = liveMembers(client?.memberships)[0] || null;
-  const sig = lines.map((l) => l.key + ':' + l.ref + ':' + (l.kind === 'service' && !l.memberOff && (!l.packId || l.auto) ? '1' : '0')).join(',') + '|' + (member?.id || '');
+  const sig = lines.map((l) => l.key + ':' + l.ref + ':' + (l.kind === 'service' && !l.memberOff && (!l.packId || l.auto) ? '1' : '0')).join(',') + '|' + (member?.id || '') + '|' + recheck;
   useEffect(() => {
     if (!member) { setLines((ls) => (ls.some((l) => l.memberId || l.cover) ? ls.map((l) => (l.memberId || l.cover ? { ...l, memberId: null, force: false, cover: undefined } : l)) : ls)); return; }
     let alive = true;
@@ -94,22 +95,23 @@ export function Checkout({ apptId, drawerOpen, onClose }: { apptId: string | nul
       let covered = 0;
       for (const l of lines) {
         if (l.kind !== 'service' || l.memberOff || (l.packId && !l.auto)) continue;
-        // a cut given on purpose stays given; it counts on the plan's month as the server counts it
-        if (l.force && l.memberId) { covered++; continue; }
+        // a cut given on purpose stays given, if it was given on this member's plan; it counts on the plan's month as the server counts it
+        if (l.force && l.memberId === member.id) { covered++; continue; }
         try {
           const c = await api.get<Cover>('/api/v1/memberships/' + member.id + '/cover' + qs({ serviceId: l.ref, pending: covered }));
           if (c.ok) { covered++; patches.set(l.key, { memberId: member.id, packId: null, force: false, cover: { label: c.label, note: '', canForce: false } }); }
           // a service the plan never covers is simply a priced cut; the other refusals say why (quota, one a week, payment)
           else patches.set(l.key, { memberId: null, force: false, cover: c.why === 'service' || c.why === 'ended' ? undefined : { label: '', note: c.words + ' — encaissée au prix normal', canForce: c.force } });
-        } catch { patches.set(l.key, { memberId: null, cover: undefined }); }
+        // not checked: the cut would go through at full price under the member's chip, so the till says it and waits for a retry
+        } catch { patches.set(l.key, { memberId: null, force: false, cover: { label: '', note: 'Abonnement non vérifié : vérifie ta connexion', canForce: false, retry: true } }); }
       }
       if (!alive) return;
       setLines((ls) => ls.map((l) => {
         const p = patches.get(l.key);
-        if (!p || l.memberOff || (l.force && p.cover?.canForce)) return l;
-        // back to the carnet the line was attached to when the membership no longer pays it
+        if (!p || l.memberOff || (l.force && l.memberId === member.id && p.cover?.canForce)) return l;
+        // back to the carnet the line was attached to when the membership no longer pays it (the carnet pays it: no refusal to show)
         const pk = p.memberId || !l.auto || l.packId ? null : client?.packs.find((x) => x.used < x.total && (!x.serviceIds.length || x.serviceIds.includes(l.ref!)));
-        return { ...l, ...p, ...(pk ? { packId: pk.id } : {}) };
+        return { ...l, ...p, ...(pk ? { packId: pk.id, cover: undefined } : {}) };
       }));
       setChecking(false);
     })();
@@ -139,7 +141,7 @@ export function Checkout({ apptId, drawerOpen, onClose }: { apptId: string | nul
   };
 
   const submit = async (ls: Line[] = lines) => {
-    if (left !== 0 || !ls.length || checking) return;
+    if (left !== 0 || !ls.length || checking || ls.some((l) => l.cover?.retry)) return;
     if (ls.some((l) => !l.staffId)) { setModal('who'); return; }
     setBusy(true);
     try {
@@ -188,10 +190,11 @@ export function Checkout({ apptId, drawerOpen, onClose }: { apptId: string | nul
             <div key={l.key} className="tk-line" data-guide={l.memberId ? 'till-member-line' : undefined}>
               <button type="button" className="tk-main" onClick={() => setOpen(open === l.key ? null : l.key)} aria-expanded={open === l.key}>
                 {st ? <Avatar name={st.name} initials={st.initials} color={st.color} size="sm" /> : <span className="av av-sm" style={{ ['--c' as any]: 'var(--panel3)' }}><Icon name={l.kind === 'giftcard' ? 'gift' : 'box'} size={14} /></span>}
-                <span className="nm"><b>{l.qty > 1 ? l.qty + ' × ' : ''}{l.name}</b><small>{l.memberId ? (l.cover?.label || 'Abonnement') + (l.force ? ' · hors forfait' : '') : l.packId ? 'Couvert par le carnet' : l.kind === 'giftcard' ? (l.recipient || 'Carte cadeau') + ' · valable 1 an' : st ? 'par ' + st.name : 'Qui l’a fait ? À choisir'}{l.discount ? ' · remise ' + eur(l.discount) : ''}</small>{l.booked && !paidBy(l) && l.base !== l.now ? <small style={{ color: 'var(--warn-tx)' }}>Réservé à {eur(l.base, { decimals: l.base % 100 !== 0 })} (prix actuel {eur(l.now, { decimals: l.now % 100 !== 0 })})</small> : null}{l.cover?.note ? <small className="tk-refused" role="status">{l.cover.note}</small> : null}</span>
+                <span className="nm"><b>{l.qty > 1 ? l.qty + ' × ' : ''}{l.name}</b><small>{l.memberId ? (l.cover?.label || 'Abonnement') + (st ? ' · par ' + st.name : ' · Qui l’a fait ? À choisir') : l.packId ? 'Couvert par le carnet' : l.kind === 'giftcard' ? (l.recipient || 'Carte cadeau') + ' · valable 1 an' : st ? 'par ' + st.name : 'Qui l’a fait ? À choisir'}{l.discount ? ' · remise ' + eur(l.discount) : ''}</small>{l.booked && !paidBy(l) && l.base !== l.now ? <small style={{ color: 'var(--warn-tx)' }}>Réservé à {eur(l.base, { decimals: l.base % 100 !== 0 })} (prix actuel {eur(l.now, { decimals: l.now % 100 !== 0 })})</small> : null}{l.cover?.note ? <small className="tk-refused" role="status">{l.cover.note}</small> : null}</span>
               </button>
               <span className="pr"><Money cents={net} />{paidBy(l) || l.discount ? <s><Money cents={l.unit * l.qty} /></s> : null}</span>
-              {l.cover?.canForce && !l.memberId && can('member.manage') ? <button type="button" className="link tk-force" onClick={() => update(l.key, { memberId: member?.id, force: true, packId: null, cover: { label: l.cover!.note.split(' — ')[0], note: '', canForce: false } })}>L’offrir quand même</button> : null}
+              {l.cover?.retry ? <button type="button" className="link tk-force" onClick={() => setRecheck((n) => n + 1)}>Réessayer</button> : null}
+              {l.cover?.canForce && !l.memberId && can('member.manage') ? <button type="button" className="link tk-force" onClick={() => update(l.key, { memberId: member?.id, force: true, packId: null, cover: { label: 'Offerte hors forfait · ' + l.cover!.note.split(' — ')[0], note: '', canForce: false } })}>L’offrir quand même</button> : null}
               {open === l.key ? (
                 <div className="ed">
                   {l.kind === 'product' ? <div className="row"><span className="muted grow">Quantité</span><span className="qty"><Button size="sm" icon="minus" aria-label="Moins" onClick={() => update(l.key, { qty: Math.max(1, l.qty - 1) })} /><b>{l.qty}</b><Button size="sm" icon="plus" aria-label="Plus" onClick={() => update(l.key, { qty: Math.min(99, l.qty + 1) })} /></span></div> : null}
@@ -199,7 +202,7 @@ export function Checkout({ apptId, drawerOpen, onClose }: { apptId: string | nul
                   {l.kind !== 'giftcard' || !ownChair ? (
                     <div className="col" style={{ gap: 8 }}><span className="label">{l.kind === 'giftcard' ? 'Vendue par' : 'Réalisé par'}</span><div className="chips">{performers(l).map((s) => <Chip key={s.id} small dot={s.color} on={l.staffId === s.id} onClick={() => update(l.key, { staffId: s.id })}>{s.name}</Chip>)}</div></div>
                   ) : null}
-                  {opts.length || l.memberId ? <div className="col" style={{ gap: 8 }}><span className="label">Incluse dans</span><div className="chips"><Chip small on={!l.packId && !l.memberId} onClick={() => update(l.key, { packId: null, memberId: null, force: false, memberOff: true, auto: false })}>Rien : la payer</Chip>{l.memberId && member ? <Chip small on onClick={() => undefined}>Abonnement {member.plan}</Chip> : null}{opts.map((o) => <Chip key={o.id} small on={l.packId === o.id} onClick={() => update(l.key, { packId: o.id, memberId: null, force: false, memberOff: true, auto: false })}>{o.label}</Chip>)}</div></div> : null}
+                  {opts.length || (member && l.kind === 'service') ? <div className="col" style={{ gap: 8 }}><span className="label">Incluse dans</span><div className="chips"><Chip small on={!l.packId && !l.memberId} onClick={() => update(l.key, { packId: null, memberId: null, force: false, memberOff: true, auto: false, cover: undefined })}>Rien : la payer</Chip>{member && l.kind === 'service' ? <Chip small on={!!l.memberId} onClick={() => update(l.key, l.memberId ? { memberOff: false } : { memberOff: false, packId: null, auto: true, cover: undefined })}>Abonnement {member.plan}</Chip> : null}{opts.map((o) => <Chip key={o.id} small on={l.packId === o.id} onClick={() => update(l.key, { packId: o.id, memberId: null, force: false, memberOff: true, auto: false, cover: undefined })}>{o.label}</Chip>)}</div></div> : null}
                   <div className="row"><span className="grow" /><Button size="sm" variant="danger" icon="trash" onClick={() => { setLines(lines.filter((x) => x.key !== l.key)); setOpen(null); }}>Retirer</Button></div>
                 </div>
               ) : null}
@@ -237,7 +240,7 @@ export function Checkout({ apptId, drawerOpen, onClose }: { apptId: string | nul
         </>
       ) : left < 0 ? <Note tone="warn" icon="alert">Les paiements dépassent le total de {eur(-left)}. Retire un paiement.</Note> : null}
 
-      <Button variant="primary" size="xl" block busy={busy || checking} disabled={left !== 0 || !lines.length} onClick={() => submit()} icon="check">{left === 0 && lines.length ? 'Valider l’encaissement · ' + eur(totals.due) : 'Encaisser'}</Button>
+      <Button variant="primary" size="xl" block busy={busy || checking} disabled={left !== 0 || !lines.length || lines.some((l) => l.cover?.retry)} onClick={() => submit()} icon="check">{left === 0 && lines.length ? 'Valider l’encaissement · ' + eur(totals.due) : 'Encaisser'}</Button>
 
       <AddSheet open={modal === 'add'} onClose={() => setModal('')} onAdd={(ls) => { setLines((x) => { const next = [...x, ...ls]; if (ls.some((l) => l.kind === 'pack')) { const svc = serviceById.get(ls.find((l) => l.kind === 'pack')!.ref!); const cut = next.find((l) => l.kind === 'service' && !l.packId && !l.memberId && (!svc?.pack?.serviceIds?.length || svc.pack.serviceIds.includes(l.ref!))); if (cut) cut.packId = 'new'; } return next; }); setModal(''); }} performer={performer} />
       <DiscountModal open={modal === 'discount'} onClose={() => setModal('')} gross={lines.filter((l) => l.kind !== 'giftcard' && !paidBy(l)).reduce((t, l) => t + l.unit * l.qty, 0)} maxPct={maxPct} value={disc} onSet={(d) => { setDisc(d); setModal(''); }} />
@@ -544,13 +547,15 @@ function Done({ done, onNext }: { done: any; onNext: () => void }) {
 function OfferMember({ c, lines }: { c: ClientCard; lines: Line[] }) {
   const { can } = useApp();
   const [state, setState] = useState<'' | 'busy' | 'sent'>('');
-  // the plans the site sells: public, so the desk and a manager read them too (their settings hold no membership); `live` says money can move
-  const shop = useQuery<{ live: boolean; plans: { id: string; name: string; price: number; services: { id: string }[] }[] }>(can('member.manage') && c.hasPhone && !c.memberships?.length ? '/api/public/memberships' : null);
+  // what the counter sells, the formules kept for the salon too (the site's list leaves them out); `live` says money can move
+  const shop = useQuery<{ live: boolean; plans: { id: string; name: string; price: number; serviceIds: string[] }[] }>(can('member.manage') && c.hasPhone && !c.memberships?.length ? '/api/v1/memberships/plans' : null);
   const plans = [...(shop.data?.plans || [])].sort((a, b) => a.price - b.price);
   // memberships on a card are the ones running or waiting for their checkout
   if (!shop.data?.live || !plans.length) return null;
   const done = lines.filter((l) => l.kind === 'service').map((l) => l.ref!);
-  const plan = plans.find((p) => p.services.some((x) => done.includes(x.id))) || plans[0];
+  const plan = plans.find((p) => p.serviceIds.some((x) => done.includes(x))) || plans[0];
+  // the contract's confirmation goes to his e-mail: without one the offer would only fail, so the line says what to do
+  if (!c.hasEmail) return <div className="till-offer" data-guide="till-offer"><p className="muted">Pour lui proposer l’abonnement, ajoute son e-mail à sa fiche. <button type="button" className="link" onClick={() => navigate('/clients/' + c.id)}>Ouvrir la fiche</button></p></div>;
   const send = async () => {
     setState('busy');
     try { await api.post('/api/v1/memberships/offer', { clientId: c.id, planId: plan.id, send: 'sms' }, uuid()); setState('sent'); toast({ title: 'Lien envoyé par SMS à ' + c.first, icon: 'sms' }); refreshAll(); }
@@ -558,7 +563,7 @@ function OfferMember({ c, lines }: { c: ClientCard; lines: Line[] }) {
   };
   return (
     <div className="till-offer" data-guide="till-offer">
-      {state === 'sent' ? <p className="muted" role="status">Lien de l’abonnement {plan.name} envoyé à {c.first}.</p> : <Button variant="ghost" size="sm" icon="sms" busy={state === 'busy'} onClick={send}>Proposer l’abonnement {plan.name} ({eur(plan.price)}/mois)</Button>}
+      {state === 'sent' ? <p className="muted" role="status">Lien de l’abonnement {plan.name} envoyé à {c.first}.</p> : <Button className="till-offer-btn" variant="ghost" size="sm" icon="sms" busy={state === 'busy'} onClick={send}>Proposer l’abonnement {plan.name} (<span className="money">{eur(plan.price)}</span>/mois)</Button>}
     </div>
   );
 }

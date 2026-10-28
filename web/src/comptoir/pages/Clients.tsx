@@ -13,7 +13,7 @@ import { PageTitle } from '../App';
 import type { ClientCard, ClientFull } from '../types';
 import ClientReview from './avis/ClientReview';
 import { ClientChips, Fold, useFolds } from './clients/ClientChips';
-import MemberBlock from './clients/MemberBlock';
+import MemberBlock, { useSellable } from './clients/MemberBlock';
 import Members from './clients/Members';
 import { liveMembers } from '../../lib/members';
 import './clients.css';
@@ -285,6 +285,8 @@ function ClientFile({ id }: { id: string }) {
   const [takeover, setTakeover] = useState(false);
   const [menu, setMenu] = useState<DOMRect | null>(null);
   const folds = useFolds();
+  // the Abonnement block is for a file that has a membership, or for any file once memberships are on sale
+  const sell = useSellable();
   const back = () => navigate('/clients' + location.search);
   if (error) return <section className="card"><Empty icon="alert" title="Fiche introuvable" action={<Button variant="ghost" onClick={back}>Retour</Button>}>Elle a peut-être été fusionnée ou effacée.</Empty></section>;
   if (loading && !data) return <section className="card col" style={{ gap: 14 }}><Skeleton h={60} w={300} /><Skeleton h={110} /><Skeleton h={220} /></section>;
@@ -342,10 +344,10 @@ function ClientFile({ id }: { id: string }) {
       <div className="cl-cols">
         <div className="col" style={{ gap: 14 }}>
           <TechCard c={c} favStaff={favStaff ? staffById.get(favStaff)?.name || '' : ''} favSvc={favSvc} />
-          {c.erased ? null : (
+          {c.erased || !(c.memberships.length || sell.live) ? null : (
             <Fold id="abo" guide="file-abonnement" title="Abonnement" icon="card" open={folds.isOpen('abo')} onToggle={() => folds.toggle('abo')}
               summary={liveMembers(c.memberships)[0] ? liveMembers(c.memberships)[0].plan + ' · ' + liveMembers(c.memberships)[0].used + (liveMembers(c.memberships)[0].of ? '/' + liveMembers(c.memberships)[0].of : '') + ' ce mois-ci' : 'Aucun'}>
-              <MemberBlock c={c} />
+              <MemberBlock c={c} onEdit={() => setEdit(true)} />
             </Fold>
           )}
           {data.packs.length ? (

@@ -17,6 +17,10 @@ const PAY04 = new Set(['public/site.html', 'public/cgv.html']);
 
 /** the words next to each other on purpose: two different things named together */
 const BOTH = /carnets?\s*(?:,|\/|et|ou|ni)\s*(?:d[’']|de l[’']|l[’']|des |les |le |un |une )?abonnements?|abonnements?\s*(?:,|\/|et|ou|ni)\s*(?:de |du |des |les |le |un |une |d[’'])?(?:carnets?|packs?)/gi;
+// a branch taken when the pack is there (hasPack ? '…abonnement…', consumed ? '…'), or the old site's 5-cut pack that Mise en route
+// counts, is the carnet and may not say abonnement
+const PACKISH = /\b(?:hasPack|consumed|packId|\.pack)\s*\?\s*['"`][^'"`]*abonnement/i;
+const OLDSITE = /abonnements?\s+de l[’']ancien site/i;
 const NEAR = /abonnement.{0,40}(?:carnet|pack|5 coupes)|(?:carnet|pack|5 coupes).{0,40}abonnement/is;
 
 /** what a person can read in a line: string literals, and the text between a `>` and a `<` */
@@ -40,10 +44,19 @@ test('no « Abonnement 5 coupes », and no abonnement named beside a carnet as i
       for (const seg of shown(line)) {
         if (/abonnement 5 coupes/i.test(seg)) bad.push(rel + ':' + (i + 1) + '  ' + seg.trim().slice(0, 100));
         else if (NEAR.test(seg.replace(BOTH, ' '))) bad.push(rel + ':' + (i + 1) + '  ' + seg.trim().slice(0, 100));
+        else if (/abonnement/i.test(seg.replace(BOTH, ' ')) && (PACKISH.test(line) || OLDSITE.test(seg))) bad.push(rel + ':' + (i + 1) + '  ' + seg.trim().slice(0, 100));
       }
     });
   }
   assert.deepEqual(bad, [], 'the pack is a « Carnet », the monthly membership an « Abonnement »:\n' + bad.join('\n'));
+});
+
+test('a line that reads the pack in code may not say abonnement', () => {
+  const hit = (line) => shown(line).some((seg) => /abonnement/i.test(seg.replace(BOTH, ' ')) && (PACKISH.test(line) || OLDSITE.test(seg)));
+  assert.ok(hit("hasPack ? ', hors abonnement (coche sa ligne)' : ''"));
+  assert.ok(hit("plan?.consumed ? ', hors coupes d’abonnement déjà faites' : ''"));
+  assert.ok(hit("'cartes cadeaux et abonnements de l’ancien site'"));
+  assert.ok(!hit("hasPack ? ', hors carnet (coche sa ligne)' : ''"));
 });
 
 test('the wording check itself catches what it should', () => {

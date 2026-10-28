@@ -9,3 +9,4 @@
 .tk-line .nm small.tk-refused { color: var(--warn-tx); }
 .tk-force { grid-column: 1 / -1; justify-self: start; display: inline-flex; align-items: center; min-height: 44px; padding: 0 4px; font: 600 13px/1 var(--sans); color: var(--tx); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 .till-offer { display: flex; justify-content: center; }
+@media (max-width: 760px) { .till-offer .btn { min-height: 44px; } }

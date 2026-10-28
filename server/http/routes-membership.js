@@ -147,7 +147,7 @@ function rowOf(s, m, now, full) {
     // a barber never reads a payment in trouble: an end for want of payment is an end to him
     since: m.activatedAt || null, endedAt: m.ended ? m.ended.at : null, endReason: m.withdrawn ? 'withdrawn' : m.ended ? (!full && m.ended.reason === 'unpaid' ? 'ended' : m.ended.reason) : '',
     // PAY-05: the next charge (as memberView says it) and what « Résilier tout de suite » would give back (0: nothing to)
-    next: !live || m.cancel || hide ? null : p && p.paid ? p.end : p ? p.start : null, refund: full && live ? unusedRefund(period, day) : 0
+    next: !live || m.cancel || hide || status === 'grace' || status === 'unpaid' ? null : p && p.paid ? p.end : p ? p.start : null, refund: full && live ? unusedRefund(period, day) : 0
   };
 }
 
@@ -452,6 +452,16 @@ export function membershipRoutes(app, o = {}) {
     return { members: rows, mrr: full ? mrr(r.s, day) : null };
   }, { cap: 'client.view' });
 
+  /**
+   * What the counter can sell (PAY-05): every formule on sale, the ones kept for the salon too (online: false), which the
+   * site's list leaves out. live: money can move (the switch on, Stripe or the demo, at least one formule).
+   */
+  app.get('/api/v1/memberships/plans', (r) => {
+    const s = r.s, M = s.settings.membership || {};
+    const plans = (M.plans || []).filter((p) => p.active !== false).map((p) => ({ id: p.id, name: p.name, price: p.price, words: coverWordsOf(s, p), online: p.online !== false, serviceIds: p.serviceIds || [] }));
+    return { live: !!M.enabled && open(r) && plans.length > 0, plans };
+  }, { cap: 'client.edit' });
+
   app.get('/api/v1/memberships/summary', (r) => membershipSummary(r.s, r.now), { cap: 'report.shop' });
 
   /**
@@ -467,9 +477,11 @@ export function membershipRoutes(app, o = {}) {
     if (!sv) throw new HttpError(404, 'not_found', 'Prestation introuvable.');
     const pending = Math.max(0, Math.min(9, Number(r.query.get('pending')) || 0));
     const c = cover(s, m, sv.id, { day: r.local.day, pending });
-    const words = c.ok ? '' : coverWords(c, sv.name);
+    // a barber never reads a payment in trouble (as rowOf and memberCards): to him it is a cut the plan does not cover today
+    const mask = !c.ok && c.why === 'unpaid' && !r.caps.has('member.manage');
+    const words = c.ok ? '' : mask ? 'L’abonnement ne couvre pas cette coupe aujourd’hui' : coverWords(c, sv.name);
     return {
-      ok: c.ok, why: c.ok ? null : c.why, used: c.used, of: c.of, until: c.until, next: c.next || null,
+      ok: c.ok, why: c.ok ? null : mask ? 'quota' : c.why, used: c.used, of: c.of, until: c.until, next: c.next || null,
       label: c.ok ? coverLabel(m, c.used + 1, c) : '', words, force: !c.ok && c.why !== 'ended' && r.caps.has('member.manage'),
       plan: m.name
     };
@@ -500,7 +512,6 @@ export function membershipRoutes(app, o = {}) {
       const url = done.url || (done.provider === 'simulated' ? r.origin + '/paiement/' + encodeURIComponent(done.id) : '');
       return { id, link: r.origin + '/api/public/memberships/' + memberToken(r.rt.secret, id, Math.max(done.exp || 0, r.now + DAY)) + '/pay', url, sent: s.messages.has('msg_moffer_' + id) };
     }
-    if (send === 'sms' && !c.phone) throw new HttpError(409, 'no_phone', 'Pas de numéro sur cette fiche : montre le QR code.');
     if (!c.phone) throw new HttpError(409, 'no_phone', 'Ajoute le numéro du client d’abord : l’abonnement le demande.');
     if (!c.email || !isEmail(c.email)) throw new HttpError(409, 'no_email', 'Ajoute l’e-mail du client d’abord : il reçoit la confirmation de son abonnement.');
     if (liveOf(s, c.id, r.local.day)) throw new HttpError(409, 'already', 'Ce client a déjà un abonnement en cours.');

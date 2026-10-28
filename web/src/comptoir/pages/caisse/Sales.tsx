@@ -226,7 +226,7 @@ function RefundModal({ open, sale, onClose, onPrint }: { open: boolean; sale: Sa
           )}
           {plan && !refundable(plan) ? <Note icon="info">Plus rien à rembourser : ce qui reste sur ce ticket, ce sont les coupes de carnet déjà faites.</Note> : null}
           {products.length ? <Switch on={restock} onChange={setRestock} title="Remettre en stock" hint={products.map((l) => pick[l.i] + ' × ' + l.name).join(', ')} /> : null}
-          <Field label={byLine ? 'Montant (calculé, modifiable à la baisse)' : 'Montant'} htmlFor="rf-a" hint={byLine ? undefined : hasPack && !cap ? 'Le carnet se rembourse en cochant sa ligne (\u00ab\u00a0Annuler le carnet\u00a0\u00bb).' : 'Sans ligne cochée, jusqu’à ' + eur(cap, { decimals: true }) + (hasPack ? ', hors abonnement (coche sa ligne)' : plan?.consumed ? ', hors coupes d’abonnement déjà faites' : '')}>
+          <Field label={byLine ? 'Montant (calculé, modifiable à la baisse)' : 'Montant'} htmlFor="rf-a" hint={byLine ? undefined : hasPack && !cap ? 'Le carnet se rembourse en cochant sa ligne (\u00ab\u00a0Annuler le carnet\u00a0\u00bb).' : 'Sans ligne cochée, jusqu’à ' + eur(cap, { decimals: true }) + (hasPack ? ', hors carnet (coche sa ligne)' : plan?.consumed ? ', hors coupes de carnet déjà faites' : '')}>
             <input id="rf-a" className="input input-money" inputMode="decimal" value={txt ?? fmt(cap)} onChange={(e) => setTxt(e.target.value)} onBlur={() => { if (typed != null) setTxt(fmt(amount)); }} />
           </Field>
           {plan?.giftcardPaid ? <Note icon="alert">Payé en partie par carte cadeau ({eur(plan.giftcardPaid, { decimals: true })}) : ce remboursement sort en argent.</Note> : null}

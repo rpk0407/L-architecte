@@ -34,7 +34,9 @@ export function TillChips({ client, reward }: { client: ClientCard | null; rewar
   const [more, setMore] = useState(false);
   const id = useId();
   const all = tillChipsOf(client);
+  // FID-03's chip when it is passed; until then the server's own badge, so a waiting reward never goes unseen
   if (reward) all.push(['reward', reward]);
+  else if (client?.badges.includes('récompense')) all.push(['reward', <span className="badge badge-ok"><Icon name="gift" size={12} />Récompense</span>]);
   if (!all.length) return null;
   const shown = more ? all : all.slice(0, SHOWN);
   const hidden = all.length - SHOWN;
