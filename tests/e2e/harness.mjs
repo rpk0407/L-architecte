@@ -76,7 +76,8 @@ export function runner(browser) {
       contexts.push(ctx);
       const page = await ctx.newPage();
       page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
-      page.on('console', (m) => { if (m.type() === 'error' && !/favicon|404 \(Not Found\)/.test(m.text())) errors.push('console: ' + m.text()); });
+      const expected = []; page.expect = expected; // a scenario that stages a refusal says which console line it expects (page.expect)
+      page.on('console', (m) => { if (m.type() === 'error' && !/favicon|404 \(Not Found\)/.test(m.text()) && !expected.some((re) => re.test(m.text()))) errors.push('console: ' + m.text()); });
       return page;
     };
     const page = await newPage();
