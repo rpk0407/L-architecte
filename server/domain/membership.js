@@ -9,7 +9,11 @@
 //   - after a failed renewal (member.pastDue), graceDays (settings.membership, 7 by default) while the provider retries.
 // The grace is the salon's: periodAt, statusOf and isLive take it (no default, so a screen and the till never disagree);
 // statusIn, periodIn and liveIn read it from the state, the entry points for the routes and the screens (PAY-03/04/05).
-import { addDays, dayParts, keyOf, localParts, isDay, MONTHS_FR, pad2 } from '../../shared/dates.js';
+//
+// PAY-07: a plan may count by the week (rhythm 'week', shared/membership-words.js). 'lost' is the calendar week's rule
+// here (cover, why 'week'); 'month' and 'free' ride on the derived cuts and minDays. A member from before reads 'month'.
+import { addDays, dayParts, keyOf, localParts, MONTHS_FR, pad2 } from '../../shared/dates.js';
+import { rhythmOf, perWeekOf, weekRule, weekOf, labelWords } from '../../shared/membership-words.js';
 
 export const GRACE_DAYS = 7;
 /** What a covered cut of an illimité plan is worth when the cuts are counted: four a month. */
@@ -106,17 +110,50 @@ export const liveIn = (s, m, at) => isLive(m, at, graceOf(s));
 
 const ddmm = (day) => { const p = dayParts(day); return pad2(p.d) + '/' + pad2(p.m); };
 
-/** What one covered cut is worth: the barber's commission base (team.memberCredit) and the withdrawal's measure. */
-export function cutValue(m) { return Math.round(m.price / (m.cuts || UNLIMITED_SHARE)); }
+/** The weeks a year has, for what a weekly plan's cut is worth: a month is 12/52 of a year. */
+const WEEKS_A_YEAR = 52;
+/**
+ * What one covered cut is worth: the barber's commission base (team.memberCredit) and the withdrawal's measure. A weekly
+ * plan: a month's price over the cuts of its weeks (80 € for one a week: 18,46 €); a monthly one: over its cuts, or four.
+ */
+export function cutValue(m) {
+  if (rhythmOf(m) === 'week') return Math.round((m.price * 12) / (WEEKS_A_YEAR * perWeekOf(m)));
+  return Math.round(m.price / (m.cuts || UNLIMITED_SHARE));
+}
 
 /**
- * "Abonnement · coupe 2/2 (26/09–25/10)", "Abonnement illimité (03/11–02/12)": the billing month it counts in, its first
- * and last day (a month's name would read « sept. » for a cut of 1 October in a period from 26 September).
- * @param {any} m @param {number} used @param {{ start?: string, end?: string }} [period]
+ * The till's line (shared/membership-words.js labelWords): « Abonnement · coupe 2/2 (26/09–25/10) », « Abonnement
+ * illimité (03/11–02/12) », « Abonnement · semaine du 03/11 (1/1) ».
+ * @param {any} m @param {number} used @param {{ start?: string, end?: string, week?: { start: string } | null }} [period]
  */
-export function label(m, used, period = {}) {
-  const span = period.start && period.end && isDay(period.start) && isDay(period.end) ? ' (' + ddmm(period.start) + '–' + ddmm(addDays(period.end, -1)) + ')' : '';
-  return m.cuts ? 'Abonnement · coupe ' + used + '/' + m.cuts + span : 'Abonnement illimité' + span;
+export const label = (m, used, period = {}) => labelWords(m, used, period);
+
+/** The covered cuts of a member from one day to another ([from, to)). @param {any} m @param {string} from @param {string} to */
+const usesBetween = (m, from, to) => (m.uses || []).filter((u) => u.day >= from && u.day < to).length;
+
+/**
+ * The weeks of the billing period that covers this day, Monday to Sunday (the first and the last may reach outside it:
+ * a week is the salon's, whatever day the month started), each with whether he had a covered cut in it and whether it
+ * has begun. [] when nothing covers the day. FID-04 reads it for its idle member.
+ * @param {any} s @param {any} m @param {string|number} at
+ * @returns {{ start: string, end: string, came: boolean, cuts: number, future: boolean }[]}
+ */
+export function weeksOf(s, m, at) {
+  const day = dayOf(at);
+  const p = periodAt(m, day, graceOf(s));
+  if (!p) return [];
+  const out = [];
+  for (let w = weekOf(p.start).start; w < p.end && out.length < 7; w = addDays(w, 7)) {
+    const n = usesBetween(m, w, addDays(w, 7));
+    out.push({ start: w, end: addDays(w, 6), came: n > 0, cuts: n, future: w > day });
+  }
+  return out;
+}
+
+/** The covered cuts of the calendar week of a day, and how many it allows. @param {any} m @param {string} day */
+export function weekUse(m, day) {
+  const w = weekOf(day);
+  return { start: w.start, end: w.end, used: usesBetween(m, w.start, w.next), of: perWeekOf(m) || 0 };
 }
 
 /**
@@ -124,22 +161,28 @@ export function label(m, used, period = {}) {
  * being rung up (not in the state yet).
  * @param {any} s @param {any} m @param {string} serviceId
  * @param {{ at?: number, day?: string, pending?: number }} [o]
- * @returns {{ ok: boolean, why?: 'ended'|'paused'|'unpaid'|'service'|'quota'|'soon', used: number, of: number, until: string|null, next?: string, start?: string, end?: string }}
+ * A weekly plan (PAY-07) says its calendar week (week: Monday, Sunday); 'lost' counts the cuts of that week (used, of =
+ * perWeek: the bookings to come are policy.js's) and refuses why 'week', the next Monday as next.
+ * @returns {{ ok: boolean, why?: 'ended'|'paused'|'unpaid'|'service'|'quota'|'soon'|'week', used: number, of: number, until: string|null, next?: string, start?: string, end?: string, week?: { start: string, end: string } }}
  */
 export function cover(s, m, serviceId, o = {}) {
   const day = o.day || dayOf(o.at ?? 0);
   const grace = graceOf(s);
   const pending = o.pending || 0;
   const st = statusOf(m, day, grace);
-  const no = (why, extra = {}) => ({ ok: false, why, used: 0, of: m.cuts, until: null, ...extra });
+  const lost = weekRule(m);
+  const no = (why, extra = {}) => ({ ok: false, why, used: 0, of: lost ? perWeekOf(m) : m.cuts, until: null, ...extra });
   if (st === 'ended') return no('ended');
   if (st === 'paused') return no('paused');
   const p = periodAt(m, day, grace);
   if (!p) return no('unpaid');
   const until = addDays(p.grace && p.until ? p.until : p.end, -1);
-  const used = (m.uses || []).filter((u) => u.periodStart === p.start).length + pending;
-  const base = { used, of: m.cuts, until, start: p.start, end: p.end };
+  const wk = rhythmOf(m) === 'week' ? weekOf(day) : null;
+  // 'lost': the calendar week's cuts, wherever its month began; otherwise the billing month's
+  const used = (lost && wk ? usesBetween(m, wk.start, wk.next) : (m.uses || []).filter((u) => u.periodStart === p.start).length) + pending;
+  const base = { used, of: lost ? perWeekOf(m) : m.cuts, until, start: p.start, end: p.end, ...(wk ? { week: { start: wk.start, end: wk.end } } : {}) };
   if (!(m.serviceIds || []).includes(serviceId)) return { ok: false, why: 'service', ...base };
+  if (lost && wk && used >= base.of) return { ok: false, why: 'week', ...base, next: wk.next };
   if (m.cuts && used >= m.cuts) return { ok: false, why: 'quota', ...base, next: p.end };
   if (m.minDays) {
     const last = pending ? day : (m.uses || []).reduce((x, u) => (u.day > x ? u.day : x), '');
@@ -153,6 +196,7 @@ export function cover(s, m, serviceId, o = {}) {
 export function coverWords(c, service = '') {
   switch (c.why) {
     case 'quota': return 'Coupe déjà prise ce mois-ci (' + c.used + '/' + c.of + ')';
+    case 'week': return (c.of > 1 ? 'Coupes de la semaine déjà prises' : 'Coupe de la semaine déjà prise') + ' (' + c.used + '/' + c.of + ')' + (c.next ? ' · prochaine lundi ' + ddmm(c.next) : '');
     case 'soon': return 'Prochaine coupe incluse le ' + ddmm(c.next);
     case 'unpaid': return 'Paiement de l’abonnement en attente';
     case 'paused': return 'Abonnement en pause';

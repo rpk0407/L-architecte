@@ -39,15 +39,15 @@ async function barber(rt, owner, name) {
 }
 const slotsOf = (rt, staffId, day) => freeSlots(rt.engine.state, { day, dur: 30, serviceIds: [], staffId, now: NOW, local: localParts(NOW), online: false, step: 30 }).length;
 
-test('Frank off 30–31 Oct: 26 appointments to replace, the plan applied in one batch with the clients told', async () => {
+test('Frank off 30–31 Oct: 20 appointments to replace, the plan applied in one batch with the clients told', async () => {
   const { rt, owner, id, appends } = await demo();
   const frank = id('Frank');
   const range = { staffId: frank, from: '2026-10-30', to: '2026-10-31' };
 
   // before posting: what the absence would land on, each with a proposal
   const before = (await owner.post('/api/v1/timeoff/preview', range)).json;
-  assert.equal(before.count, 26);
-  assert.equal(before.rows.length, 26);
+  assert.equal(before.count, 20);
+  assert.equal(before.rows.length, 20);
   assert.ok(before.rows.every((x) => ['2026-10-30', '2026-10-31'].includes(x.day)));
   for (const x of before.rows) {
     if (x.choice === 'same') assert.ok(x.same.staffId !== frank && x.same.start === x.start && x.same.day === x.day, 'the same time with another barber');
@@ -70,11 +70,11 @@ test('Frank off 30–31 Oct: 26 appointments to replace, the plan applied in one
 
   const posted = await owner.post('/api/v1/timeoff', { ...range, reason: 'Congés', publicNote: 'Frank revient le 3 novembre' });
   assert.equal(posted.status, 200, JSON.stringify(posted.json));
-  assert.equal(posted.json.conflicts, 26);
+  assert.equal(posted.json.conflicts, 20);
   const tid = posted.json.id;
   assert.equal(rt.engine.state.timeoff.get(tid).publicNote, 'Frank revient le 3 novembre', 'the note the site may show (WP-06)');
   const plan = (await owner.post('/api/v1/timeoff/preview', { id: tid })).json;
-  assert.equal(plan.count, 26, 'the posted absence: the same list');
+  assert.equal(plan.count, 20, 'the posted absence: the same list');
   assert.equal(slotsOf(rt, frank, '2026-10-30'), 0, 'posted by the owner: his slots are gone at once');
 
   // the owner keeps two proposals and asks a third client to choose
@@ -85,7 +85,7 @@ test('Frank off 30–31 Oct: 26 appointments to replace, the plan applied in one
   const v0 = rt.engine.state.version, n0 = appends();
   const res = await owner.post('/api/v1/timeoff/' + tid + '/reassign', body);
   assert.equal(res.status, 200, JSON.stringify(res.json));
-  assert.deepEqual(res.json, { moved: 2, asked: 1, toCall: 0, cancelled: 0, texted: 3, refunded: 0, unrefunded: 0, left: 24 });
+  assert.deepEqual(res.json, { moved: 2, asked: 1, toCall: 0, cancelled: 0, texted: 3, refunded: 0, unrefunded: 0, left: 18 });
   assert.equal(appends() - n0, 1, 'all in one batch');
   const ev = rt.engine.journal.filter((e) => e.v > v0);
   assert.deepEqual(ev.filter((e) => e.type === 'appt.moved').map((e) => e.data.id).sort(), [m1.id, m2.id].sort());
@@ -106,7 +106,7 @@ test('Frank off 30–31 Oct: 26 appointments to replace, the plan applied in one
 
   // the list now: two fewer, the asked one marked so
   const after = (await owner.post('/api/v1/timeoff/preview', { id: tid })).json;
-  assert.equal(after.count, 24);
+  assert.equal(after.count, 18);
   assert.equal(after.rows.find((x) => x.id === asked.id).asked, true);
 
   // the same request again (a retry after a network drop): nothing written twice
@@ -136,9 +136,9 @@ test('Frank off 30–31 Oct: 26 appointments to replace, the plan applied in one
 
   // the agenda tells the owner what is left, and the feed says it
   const ag = (await owner.get('/api/v1/agenda?day=2026-10-27')).json;
-  assert.deepEqual(ag.absences.items.map((x) => [x.id, x.count, x.day]), [[tid, 24, '2026-10-30']]);
+  assert.deepEqual(ag.absences.items.map((x) => [x.id, x.count, x.day]), [[tid, 18, '2026-10-30']]);
   const feed = (await owner.get('/api/v1/feed')).json.items;
-  assert.ok(feed.some((f) => f.kind === 'timeoff' && f.title === 'Frank absent du vendredi 30 au samedi 31 · 24 rdv à replacer'), JSON.stringify(feed.slice(0, 3)));
+  assert.ok(feed.some((f) => f.kind === 'timeoff' && f.title === 'Frank absent du vendredi 30 au samedi 31 · 18 rdv à replacer'), JSON.stringify(feed.slice(0, 3)));
 
   // a barber neither applies a plan nor reads another's absence
   const tab = await barber(rt, owner, 'JKut');

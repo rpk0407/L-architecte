@@ -23,7 +23,9 @@ import { sendMemberLink, offerMember, sendCardLink, requestCancelUnverified, con
 import { paymentRefundedOutside } from '../commands/payments.js';
 import { refund as refundSale } from '../commands/sales.js';
 import { providerKnown, outsideOpen } from '../projections/payments.js';
-import { statusIn, periodIn, membersOf, liveIn, canWithdraw, withdrawRefund, abandoned, mrr, graceOf, disputeHeld, dateWords, cover, coverWords, label as coverLabel, rootOf } from '../domain/membership.js';
+import { statusIn, periodIn, membersOf, liveIn, canWithdraw, withdrawRefund, abandoned, mrr, graceOf, disputeHeld, dateWords, cover, coverWords, label as coverLabel, rootOf, weeksOf, weekUse } from '../domain/membership.js';
+import { planWords, missedWords, rhythmOf, perWeekOf, missedOf } from '../../shared/membership-words.js';
+import { clientStats } from '../domain/insights.js';
 import { readMe, isPersona } from './me-kit.js';
 import { LINK_IP_PER_HOUR, LINK_PER_DAY, linkIpKey, linkPhoneKey } from '../domain/linkcap.js';
 
@@ -64,12 +66,13 @@ function staffRun(r) {
 /** New membership money runs only where it is real or plainly the demo's (PAY-01: never a test key in production). */
 const open = (r) => { const m = moneyMode(r); return (m === 'demo' || m === 'live') && !!r.rt.pay.caps.billing && !!r.rt.pay.createSubscription; };
 const ddmm = (d) => { const p = dayParts(d); return pad2(p.d) + '/' + pad2(p.m); };
-/** « 2 coupes par mois · Coupe classique », « 1 coupe tous les 7 jours · Coupe classique, Coupe + contour » */
+/** « 2 coupes par mois · Coupe classique », « 1 coupe par semaine · Coupe classique, Coupe + contour » (shared/membership-words.js) */
 function coverWordsOf(s, plan) {
-  const n = plan.cuts ? plan.cuts + (plan.cuts > 1 ? ' coupes' : ' coupe') + ' par mois' : plan.minDays ? '1 coupe tous les ' + plan.minDays + ' jours' : 'coupes illimitées';
   const names = (plan.serviceIds || []).map((x) => (s.services.get(x) || {}).name).filter(Boolean);
-  return n + (names.length ? ' · ' + names.join(', ') : '');
+  return planWords(plan) + (names.length ? ' · ' + names.join(', ') : '');
 }
+/** A plan's or a member's rhythm as the screens read it (PAY-07): absent for a monthly one, so its answer keeps its shape. */
+const rhythmView = (p) => (rhythmOf(p) === 'week' ? { rhythm: 'week', perWeek: perWeekOf(p), missed: missedOf(p), missedWords: missedWords(p) } : {});
 /** the member's page, signed for ttl (up to the next 10-minute mark: a retry gives Stripe the same success address) */
 const pageOf = (r, id, ttl = MEMBER_TEXT_TTL) => r.origin + '/abo/' + memberToken(r.rt.secret, id, Math.ceil((r.now + ttl) / 600000) * 600000);
 /** the line above Stripe's button for a start in 14 days: its page would otherwise speak of a « trial » */
@@ -118,11 +121,12 @@ export function memberView(r, m) {
   const caps = r.rt.pay.caps || {};
   // PAY-04: the first day a covered cut is included again (today, after the month's quota, or the days between cuts)
   const c = live && m.serviceIds.length ? cover(s, m, m.serviceIds[0], { day }) : null;
-  const nextCut = !c ? null : c.ok ? day : c.why === 'quota' || c.why === 'soon' ? c.next || null : null;
+  const nextCut = !c ? null : c.ok ? day : c.why === 'quota' || c.why === 'soon' || c.why === 'week' ? c.next || null : null;
   return {
     id: m.id, first: k.first, status, startDay,
-    plan: { id: m.planId, name: m.name, price: m.price, cuts: m.cuts, minDays: m.minDays, words: coverWordsOf(s, m), services: m.serviceIds.map((x) => { const sv = s.services.get(x); return sv ? { id: sv.id, name: sv.name, slug: sv.slug || null } : null; }).filter(Boolean) },
-    used, of: m.cuts, nextCut, period: p ? { start: p.start, end: p.end, last: addDays(p.grace && p.until ? p.until : p.end, -1), paid: !!p.paid } : null,
+    plan: { id: m.planId, name: m.name, price: m.price, cuts: m.cuts, minDays: m.minDays, words: coverWordsOf(s, m), ...rhythmView(m), services: m.serviceIds.map((x) => { const sv = s.services.get(x); return sv ? { id: sv.id, name: sv.name, slug: sv.slug || null } : null; }).filter(Boolean) },
+    // PAY-07: a weekly plan's calendar week (its covered cuts of perWeek), what the page and /moi say first
+    used, of: m.cuts, nextCut, week: live && p && rhythmOf(m) === 'week' ? weekUse(m, day) : null, period: p ? { start: p.start, end: p.end, last: addDays(p.grace && p.until ? p.until : p.end, -1), paid: !!p.paid } : null,
     next, card: m.card || '', pastDue: m.pastDue && live ? { since: m.pastDue.at, action: !!m.pastDue.action } : null,
     cancel: m.cancel ? { at: m.cancel.at, effective: m.cancel.effective, last: addDays(m.cancel.effective, -1), by: m.cancel.by, verified: m.cancel.verified !== false } : null,
     withdraw: wd ? { until: addDays(localParts(m.activatedAt).day, 14), refund: withdrawRefund(m, day), used: m.uses.length } : null,
@@ -135,7 +139,12 @@ export function memberView(r, m) {
   };
 }
 
-/** One line of Clients › Abonnés. full: who manages the contracts sees a payment in trouble and the card (views.js memberCards). */
+/**
+ * One line of Clients › Abonnés. full: who manages the contracts sees a payment in trouble, the card and the money (the
+ * price, the next charge, the refund); the others (a barber, the desk) read his status, his cuts and his weeks only.
+ * PAY-07: his weeks of the billing month (weeksOf: came, to come), this week (week: its covered cuts of `of`, came), and
+ * his last visit (a covered cut or any visit done, whichever is later), so the board says who skipped this week.
+ */
 function rowOf(s, m, now, full) {
   const day = localParts(now).day;
   const status = abandoned(m, now) ? 'ended' : statusIn(s, m, day);
@@ -146,8 +155,12 @@ function rowOf(s, m, now, full) {
   const endDay = m.ended ? localParts(m.ended.at).day : '';
   const live = status !== 'ended';
   const period = paidPeriodOf(m, p);
+  const wk = weekUse(m, day);
+  const lastUse = m.uses.reduce((x, u) => (u.day > x ? u.day : x), '');
+  const st = k.cid ? clientStats(s, day, now).get(k.cid) : null;
+  const lastDone = st && st.lastDay && st.lastDay <= day ? st.lastDay : '';
   return {
-    id: m.id, clientId: k.cid, first: k.first, plan: m.name, planId: m.planId, price: m.price, status: hide ? 'active' : status, channel: m.channel,
+    id: m.id, clientId: k.cid, first: k.first, plan: m.name, planId: m.planId, price: full ? m.price : null, status: hide ? 'active' : status, channel: m.channel,
     used: p ? m.uses.filter((u) => u.periodStart === p.start).length : 0, of: m.cuts, until: p ? addDays(p.grace && p.until ? p.until : p.end, -1) : null,
     cancelAt: m.cancel ? (endDay && endDay < m.cancel.effective ? endDay : addDays(m.cancel.effective, -1)) : null, cancelVerified: m.cancel ? m.cancel.verified !== false : null,
     pastDueSince: full && m.pastDue && status !== 'ended' ? m.pastDue.at : null, card: full ? m.card || '' : '',
@@ -155,7 +168,10 @@ function rowOf(s, m, now, full) {
     // a barber never reads a payment in trouble: an end for want of payment is an end to him
     since: m.activatedAt || null, endedAt: m.ended ? m.ended.at : null, endReason: m.withdrawn ? 'withdrawn' : m.ended ? (!full && m.ended.reason === 'unpaid' ? 'ended' : m.ended.reason) : '',
     // PAY-05: the next charge (as memberView says it) and what « Résilier tout de suite » would give back (0: nothing to)
-    next: !live || m.cancel || hide || status === 'grace' || status === 'unpaid' ? null : p && p.paid ? p.end : p ? p.start : null, refund: full && live ? unusedRefund(period, day) : 0
+    next: !full || !live || m.cancel || hide || status === 'grace' || status === 'unpaid' ? null : p && p.paid ? p.end : p ? p.start : null, refund: full && live ? unusedRefund(period, day) : 0,
+    rhythm: rhythmOf(m), ...(rhythmOf(m) === 'week' ? { perWeek: perWeekOf(m), missed: missedOf(m) } : {}),
+    week: live && p ? { start: wk.start, end: wk.end, used: wk.used, of: wk.of, came: wk.used > 0 } : null,
+    weeks: live ? weeksOf(s, m, day) : [], lastVisit: (lastUse > lastDone ? lastUse : lastDone) || null
   };
 }
 
@@ -174,7 +190,9 @@ function unusedRefund(period, day) {
 const sums = new WeakMap();
 /**
  * Abonnés at a glance (PAY-05's strip, TEAM's cockpit): who runs, MRR, who joined and who left over 30 days, churn,
- * payments in trouble, and this month's covered cuts worth at list price against what the months brought in.
+ * payments in trouble, and this month's covered cuts worth at list price against what the months brought in. PAY-07:
+ * the weekly members' attendance over their billing month: weeks attended of the weeks gone by (the current one counts
+ * once he came), the weeks missed, and who has not come this week yet.
  * @param {any} s @param {number} now
  */
 export function membershipSummary(s, now) {
@@ -185,10 +203,21 @@ export function membershipSummary(s, now) {
   // disputed: held by a chargeback (open or lost), apart from the payments in trouble: billing waits for the owner's call
   const count = { pending: 0, active: 0, grace: 0, unpaid: 0, ending: 0, paused: 0, disputed: 0 };
   let joined = 0, left = 0, base = 0, cuts = 0, value = 0, collected = 0;
+  const weeks = { members: 0, attended: 0, elapsed: 0, missed: 0, notYet: 0, rate: 0 };
   for (const m of s.members.values()) {
     const st0 = abandoned(m, now) ? 'ended' : statusIn(s, m, day);
     const st = st0 === 'unpaid' && disputeHeld(m) ? 'disputed' : st0;
     if (st !== 'ended') count[st] = (count[st] || 0) + 1;
+    if (rhythmOf(m) === 'week' && (st === 'active' || st === 'grace' || st === 'ending')) {
+      weeks.members++;
+      for (const w of weeksOf(s, m, day)) {
+        const past = w.end < day, current = !past && !w.future;
+        if (past || (current && w.came)) weeks.elapsed++;
+        if (w.came && !w.future) weeks.attended++;
+        if (past && !w.came) weeks.missed++;
+        if (current && !w.came) weeks.notYet++;
+      }
+    }
     if (m.activatedAt && localParts(m.activatedAt).day >= from) joined++;
     // a contract that ran and was cancelled, withdrawn or ended in the window (a checkout never paid is no departure)
     const stopAt = !m.activatedAt ? 0 : m.cancel ? m.cancel.at : m.withdrawn ? m.withdrawn.at : m.ended ? m.ended.at : 0;
@@ -205,7 +234,8 @@ export function membershipSummary(s, now) {
   const out = {
     day, ...count, live: count.active + count.grace + count.unpaid + count.ending + count.disputed, mrr: mrr(s, day), graceDays: graceOf(s),
     days30: { joined, left, churn: base ? Math.round((left * 1000) / base) / 10 : 0 },
-    troubled: count.grace + count.unpaid, month: { month, cuts, value, collected }
+    troubled: count.grace + count.unpaid, month: { month, cuts, value, collected },
+    weeks: { ...weeks, rate: weeks.elapsed ? Math.round((weeks.attended * 100) / weeks.elapsed) : 0 }
   };
   sums.set(s, { v: s.version, day, out });
   return out;
@@ -279,7 +309,7 @@ export function membershipRoutes(app, o = {}) {
   app.get('/api/public/memberships', (r) => {
     const s = r.s, M = s.settings.membership || {};
     const plans = (M.plans || []).filter((p) => p.active !== false && p.online !== false).map((p) => ({
-      id: p.id, name: p.name, price: p.price, cuts: p.cuts, minDays: p.minDays || 0, blurb: p.blurb || '', words: coverWordsOf(s, p),
+      id: p.id, name: p.name, price: p.price, cuts: p.cuts, minDays: p.minDays || 0, blurb: p.blurb || '', words: coverWordsOf(s, p), ...rhythmView(p),
       services: p.serviceIds.map((x) => { const sv = s.services.get(x); return sv ? { id: sv.id, name: sv.name, slug: sv.slug || null } : null; }).filter(Boolean)
     }));
     // PAY-04: the carnet sold at the salon, shown beside the plans (« Carnet 5 coupes · 80 € · valable 10 semaines »)
@@ -476,7 +506,7 @@ export function membershipRoutes(app, o = {}) {
    */
   app.get('/api/v1/memberships/plans', (r) => {
     const s = r.s, M = s.settings.membership || {};
-    const plans = (M.plans || []).filter((p) => p.active !== false).map((p) => ({ id: p.id, name: p.name, price: p.price, words: coverWordsOf(s, p), online: p.online !== false, serviceIds: p.serviceIds || [] }));
+    const plans = (M.plans || []).filter((p) => p.active !== false).map((p) => ({ id: p.id, name: p.name, price: p.price, words: coverWordsOf(s, p), ...rhythmView(p), online: p.online !== false, serviceIds: p.serviceIds || [] }));
     return { live: !!M.enabled && open(r) && plans.length > 0, plans };
   }, { cap: 'client.edit' });
 

@@ -20,6 +20,7 @@ import { TEMPLATES } from '../core/templates.js';
 import { queueMessage } from '../domain/messages.js';
 import { noticeMail, ownerAlert, originOf } from '../domain/notices.js';
 import { planOf } from '../settings/membership.js';
+import { planWords, missedWords, rhythmOf, perWeekOf, missedOf } from '../../shared/membership-words.js';
 import { cgvVersionOf } from '../settings/shop.js';
 import { statusIn, periodIn, rootOf, membersOf, liveIn, withdrawRefund, canWithdraw, dateWords, dayOf } from '../domain/membership.js';
 import { clientParts } from './clients.js';
@@ -91,10 +92,10 @@ function memberText(s, ctx, m, template, key, vars = {}, legal = false) {
 }
 const hello = (first) => 'Bonjour' + (first ? ' ' + first : '') + ',';
 const shopLine = (s) => s.settings.shop.name + (s.settings.shop.phone ? ' · ' + s.settings.shop.phone : '');
-/** "2 coupes par mois", "coupes illimitées, une tous les 7 jours au plus" */
+/** "2 coupes par mois", "coupes illimitées, une tous les 7 jours au plus", "1 coupe par semaine (semaine manquée : perdue)" */
 function coverage(m) {
-  const n = m.cuts ? m.cuts + (m.cuts > 1 ? ' coupes' : ' coupe') + ' par mois' : 'coupes illimitées';
-  return n + (m.minDays ? ', une tous les ' + m.minDays + ' jours au plus' : '');
+  const rule = missedWords(m);
+  return planWords(m, { detail: true }) + (rule ? ' (' + rule.charAt(0).toLowerCase() + rule.slice(1) + ')' : '');
 }
 const servicesOf = (s, m) => m.serviceIds.map((x) => (s.services.get(x) || {}).name).filter(Boolean).join(', ');
 /** 27/10: the dates of a text (the mails say them in words) */
@@ -149,6 +150,8 @@ export const startMembership = {
     const mid = x.id || ctx.id('mb');
     ctx.emit('member.created', {
       id: mid, cid, clientId: cid, planId: plan.id, name: plan.name, price: plan.price, cuts: plan.cuts, minDays: plan.minDays ?? (plan.cuts ? 0 : 7),
+      // PAY-07: a weekly plan's rhythm and missed-week rule, his for the contract's life (a monthly one writes nothing new)
+      ...(rhythmOf(plan) === 'week' ? { rhythm: 'week', perWeek: perWeekOf(plan), missed: missedOf(plan) } : {}),
       serviceIds: [...plan.serviceIds], vat: plan.vat ?? s.settings.payments.vat, provider: x.provider, providerRef: x.providerRef, url: x.url || null,
       exp: x.exp || ctx.now + 24 * 3600000, channel: x.channel, startNow: x.startNow !== false, cgv: x.cgv || cgvVersionOf(s.settings.shop),
       // the demo's simulated billing refuses this member's next renewal once (steps/sim-billing.js)

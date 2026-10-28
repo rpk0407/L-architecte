@@ -33,12 +33,18 @@
 
 /* Clients › Abonnés */
 .mbs { display: flex; flex-direction: column; gap: 14px; }
-/* the strip in the list's narrow column: one line of tiles, swiped sideways, instead of three rows ahead of the first member */
-.mbs .kpis.k5 { display: flex; gap: 8px; overflow-x: auto; scroll-snap-type: x proximity; padding-bottom: 4px; scrollbar-width: thin; }
-.mbs .kpis.k5 > * { flex: 0 0 156px; scroll-snap-align: start; grid-column: auto; }
-.mbs .kpi { min-width: 0; min-height: 84px; padding: 12px 14px; border-radius: 16px; gap: 4px; }
-.mbs .kpi-v { font-size: 30px; }
-.mbs .kpi-s { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+/* the strip in the list's narrow column (PAY-07): small tiles that wrap to more rows, never a sideways strip that cuts a
+   word (the icons stay out: they would take a line of their own in a tile this narrow) */
+.mbs .kpis.mbs-kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 6px; }
+.mbs .kpis.mbs-kpis > * { grid-column: auto; min-width: 0; }
+.mbs-kpi-g { display: flex; min-width: 0; }
+.mbs-kpi-g > .kpi { flex: 1; }
+.mbs .mbs-kpis .kpi { min-width: 0; min-height: 0; padding: 10px 12px 11px; border-radius: 14px; gap: 3px; }
+.mbs .mbs-kpis .kpi-k { font-size: 11.5px; }
+.mbs .mbs-kpis .kpi-k > svg { display: none; }
+.mbs .mbs-kpis .kpi-v { font-size: 25px; }
+.mbs .mbs-kpis .kpi-s { font-size: 11.5px; line-height: 1.25; }
+.mbs .mbs-kpis .kpi-bar { margin-top: 4px; }
 .mbs-h { display: flex; align-items: baseline; gap: 8px; margin: 0; }
 .mbs-h small { color: var(--tx3); font-weight: 500; font-size: 12.5px; }
 .mbs-row { border-radius: 12px; padding-left: 8px; padding-right: 8px; min-height: 52px; }
@@ -49,3 +55,22 @@
 .mbs-row[aria-current='true'] { background: var(--panel2); box-shadow: inset 0 0 0 1.5px var(--tx); }
 /* the file's actions are 44 px targets on a phone */
 @media (max-width: 760px) { .mb-acts .btn { min-height: 44px; } }
+
+/* PAY-07: a member's row: his weeks as dots, this week, and the two gestures under it */
+.mbs-filter { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 4px; }
+.mbs-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 4px; }
+.mbs-row .li-main { min-width: 0; }
+.mbs-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin-top: 5px; }
+.mbs-now { font-size: 12px; color: var(--tx3); white-space: nowrap; }
+.mbs-now.ok { color: var(--ok-tx); }
+/* « Écrire », « Appeler »: beside the row, one above the other */
+.mbs-acts { display: flex; flex-direction: column; gap: 6px; padding-right: 4px; }
+.mbs-acts .btn { height: 32px; min-height: 32px; padding: 0 10px; font-size: 13px; justify-content: flex-start; }
+@media (max-width: 760px) { .mbs-acts .btn { height: 44px; min-height: 44px; } }
+.wk-dots { display: inline-flex; gap: 5px; align-items: center; }
+.wk { display: inline-block; width: 11px; height: 11px; border-radius: 50%; box-sizing: border-box; }
+.wk-came { background: var(--ok); }
+.wk-missed { background: transparent; box-shadow: inset 0 0 0 1.5px var(--danger); position: relative; }
+.wk-missed::after { content: ''; position: absolute; left: 1px; right: 1px; top: 4.75px; height: 1.5px; background: var(--danger); transform: rotate(-45deg); }
+.wk-now { background: transparent; box-shadow: inset 0 0 0 2px var(--tx); }
+.wk-future { background: transparent; border: 1.5px dashed var(--tx3); }

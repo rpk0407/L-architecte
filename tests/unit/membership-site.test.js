@@ -25,6 +25,7 @@ import { otpCode } from '../../server/domain/otp.js';
 import { ACCOUNT_TIMING, settled } from '../../server/http/routes-me.js';
 import { dispatch } from '../../server/http/scheduler.js';
 import { browser, testRuntime } from '../api/client.js';
+import { legacyPlans } from '../helpers.js';
 
 Object.assign(ACCOUNT_TIMING, { minMs: 0, jitterMs: 0, verifyMs: 0 });
 const DAY = '2026-11-03'; // a Tuesday
@@ -127,6 +128,7 @@ test('bookOnline: the member words and no deposit only on the verified path, on 
 test('the site’s booking carries the member page’s booking link (mbr); a forged, expired or cancelling one is ignored', async () => {
   const clock = { now: instantOf('2026-11-24', 15 * 60) };
   const rt = await testRuntime({ clock: () => clock.now });
+  await legacyPlans(rt);
   const owner = [...rt.engine.state.staff.values()].find((x) => x.role === 'owner');
   await rt.engine.run(updateSettings, { deposits: { mode: 'all', percent: 30 } }, { actor: { t: 'staff', id: owner.id }, staff: owner, caps: capsOf(owner, rt.engine.state.settings), meta: {} });
   const site = browser(rt);
@@ -273,6 +275,7 @@ test('the e-mail provider down for 8 hours, then up: the acknowledgement leaves,
 async function siteMember(startNow) {
   const clock = { now: instantOf('2026-11-24', 15 * 60) };
   const rt = await testRuntime({ clock: () => clock.now });
+  await legacyPlans(rt);
   const site = browser(rt);
   const sub = await site.post('/api/public/memberships', { planId: 'essentiel', first: 'Démo', phone: '06 00 12 34 56', email: 'demo+123456@exemple.fr', startNow, cgv: CGV_TEXT });
   assert.equal(sub.status, 201, sub.text);
@@ -324,6 +327,7 @@ test('/api/public/memberships says whether the CGV keep the membership’s claus
 test('a signed-in client subscribes on his own file, whatever number is typed', async () => {
   const clock = { now: instantOf('2026-11-24', 15 * 60) };
   const rt = await testRuntime({ clock: () => clock.now });
+  await legacyPlans(rt);
   const site = browser(rt);
   // a visitor's booking makes his file; he opens his space on it
   const svc = [...rt.engine.state.services.values()].find((x) => x.slug === 'cl');

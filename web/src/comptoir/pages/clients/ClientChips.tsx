@@ -2,7 +2,7 @@
 // given by its package, and the blocks below it folded until someone asks. A chip opens its block. The membership's and the
 // carnet's chips are this package's; the Espace and loyalty ones come from AC-02 and FID-03 through `espace` and `carte`.
 import { useCallback, useId, useState, type ReactNode } from 'react';
-import { liveMembers, statusWords, toneClass } from '../../../lib/members';
+import { liveMembers, shortWords, statusWords, toneClass } from '../../../lib/members';
 import { Icon } from '../../../ui/Icon';
 import type { ClientCard } from '../../types';
 import './clients-members.css';
@@ -45,7 +45,7 @@ export function ClientChips({ c, onOpen, espace, carte }: { c: ClientCard; onOpe
       {espace}
       {m && w ? (
         <button type="button" className={'cl-chip badge' + toneClass(w.tone)} onClick={() => onOpen('abo')} aria-label={'Abonnement ' + m.plan + ', ' + w.text + '. Ouvrir.'}>
-          <Icon name="card" size={12} />Abonné {m.plan} {m.used}{m.of ? '/' + m.of : ''}{w.tone === 'warn' || w.tone === 'danger' || m.status === 'ending' ? ' · ' + w.text : ''}
+          <Icon name="card" size={12} />Abonné {m.plan} · {shortWords(m, m)}{w.tone === 'warn' || w.tone === 'danger' || m.status === 'ending' ? ' · ' + w.text : ''}
         </button>
       ) : null}
       {carte}

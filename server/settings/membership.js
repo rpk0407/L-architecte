@@ -5,10 +5,14 @@
 //              minDays (days between two covered cuts, fair use: 7 by default for illimité, 0 otherwise), serviceIds
 //              (the services a covered cut may be), vat (bp; payments.vat when not set), online (sold on the site), blurb,
 //              active }. A member keeps what he signed for (domain/membership.js): changing a plan moves no one.
+//              PAY-07: rhythm 'month' (absent: as before) or 'week', with perWeek (1-3) and missed ('lost': one a calendar
+//              week, no catching up; 'month': the month's perWeek × 4 when he wants; 'free': no ceiling). A weekly plan's
+//              cuts and minDays are derived and stored (shared/membership-words.js derivedCuts): one covered cut a day at most.
 //   graceDays  how long a member keeps his cuts after a failed renewal, while the provider retries
 // No pause, no SEPA, no plan change in v1 (the event names are reserved, commands/memberships.js).
 // No import of the engine here: the settings registry (index.js) loads this file while the engine is still loading.
-import { str, int, bool, opt, obj, arr, id, InvalidInput } from '../lib/validate.js';
+import { str, int, bool, opt, obj, arr, id, oneOf, InvalidInput } from '../lib/validate.js';
+import { RHYTHMS, MISSED, PER_WEEK_MAX, derivedCuts } from '../../shared/membership-words.js';
 
 export const PLANS_MAX = 4;
 /** a plan's id: lower case, digits and dashes, as in a link (/abonnement#essentiel) */
@@ -18,8 +22,12 @@ const planSchema = () => obj({
   id: str({ min: 2, max: 24, pattern: PLAN_ID }),
   name: str({ min: 2, max: 40 }),
   price: int({ min: 500, max: 50000 }),
-  cuts: int({ min: 0, max: 8 }),
+  // a monthly plan says its cuts; a weekly one has them derived
+  cuts: opt(int({ min: 0, max: 8 })),
   minDays: opt(int({ min: 0, max: 30 })),
+  rhythm: opt(oneOf(RHYTHMS)),
+  perWeek: opt(int({ min: 1, max: PER_WEEK_MAX })),
+  missed: opt(oneOf(MISSED)),
   serviceIds: arr(id(), { min: 1, max: 20 }),
   vat: opt(int({ min: 0, max: 3000 })),
   online: opt(bool()),
@@ -39,6 +47,15 @@ const membershipSchema = (() => {
         if (seen.has(pl.id)) throw new InvalidInput(at('plans[' + i + '].id'), 'deux formules ont le même code');
         seen.add(pl.id);
         if (new Set(pl.serviceIds).size !== pl.serviceIds.length) throw new InvalidInput(at('plans[' + i + '].serviceIds'), 'prestation en double');
+        if (pl.rhythm === 'week') {
+          // how often and what a missed week does say it all: the till's quota and gap follow from them
+          pl.perWeek = pl.perWeek ?? 1; pl.missed = pl.missed ?? 'lost';
+          Object.assign(pl, derivedCuts(pl));
+        } else {
+          // a monthly plan keeps the shape it always had (no rhythm key: replay and the members read as before)
+          delete pl.rhythm; delete pl.perWeek; delete pl.missed;
+          if (pl.cuts === undefined) throw new InvalidInput(at('plans[' + i + '].cuts'), 'obligatoire');
+        }
         // illimité without a gap would be a cut a day: fair use asks a week unless the owner says otherwise
         pl.minDays = pl.minDays ?? (pl.cuts === 0 ? 7 : 0);
         pl.online = pl.online !== false; pl.blurb = pl.blurb || ''; pl.active = pl.active !== false;
@@ -52,7 +69,7 @@ export { membershipSchema };
 function defaults() {
   return {
     enabled: false,
-    plans: /** @type {{ id: string, name: string, price: number, cuts: number, minDays: number, serviceIds: string[], vat?: number, online: boolean, blurb: string, active: boolean }[]} */ ([]),
+    plans: /** @type {{ id: string, name: string, price: number, cuts: number, minDays: number, serviceIds: string[], vat?: number, online: boolean, blurb: string, active: boolean, rhythm?: 'month'|'week', perWeek?: number, missed?: 'lost'|'month'|'free' }[]} */ ([]),
     graceDays: 7
   };
 }

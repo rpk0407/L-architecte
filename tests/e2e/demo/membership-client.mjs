@@ -1,5 +1,5 @@
 // PAY-04 · The membership from the client's side, on the demo: « Je m'abonne » on the site → the test checkout → the
-// member page « 0/2 coupes ce mois-ci »; « Réserver ma coupe » books a covered cut with no deposit; the cancellation in
+// member page « 0/1 coupe cette semaine » (PAY-07: the demo's weekly formule); « Réserver ma coupe » books a covered cut with no deposit; the cancellation in
 // at most 3 taps from the member page, from /resilier by number, by e-mail only, and without either (the fallback);
 // a second member renounces on day 1 and sees his refund. Every screen: no sideways scroll at 390 px, final buttons
 // at least 44 px high, roles found by name.
@@ -34,7 +34,7 @@ export default async ({ browser, h, page }) => {
   };
   /** One visitor (his own browser: his own demo identity) subscribes to a plan and lands on his member page. */
   let k = 0;
-  async function subscribe(p, plan = 'Essentiel', now = true) {
+  async function subscribe(p, plan = 'Hebdo', now = true) {
     k++;
     const email = 'e2e+' + k + '-' + Date.now().toString(36) + '@exemple.fr';
     await p.goto(h.base + '/');
@@ -71,10 +71,11 @@ export default async ({ browser, h, page }) => {
   /* ---------- 1 · site block, subscribe, member page, a covered cut ---------- */
   const a = await subscribe(page);
   await h.expectText(page, 'Merci, ton abonnement est actif');
-  await page.getByText('0/2').first().waitFor();
-  await h.expectText(page, 'coupes ce mois-ci');
+  await page.getByText('0/1').first().waitFor();
+  await h.expectText(page, 'coupe cette semaine');
+  await h.expectText(page, 'Semaine manquée : perdue');
   await page.getByText('actif', { exact: true }).waitFor();
-  await h.expectText(page, 'Prochain prélèvement : 34');
+  await h.expectText(page, 'Prochain prélèvement : 80');
   await narrow(page, 'member page');
   await h.shot(page, 'pay04-member-active');
   // « Réserver ma coupe » carries a booking-only link, never the page's own (that one cancels)
@@ -90,7 +91,7 @@ export default async ({ browser, h, page }) => {
   await page.locator('.bk button.sl').first().click();
   await h.expectText(page, 'Réservé avec ton abonnement');
   await page.getByRole('button', { name: /^(Confirmer|Réserver et régler l’acompte)$/ }).click();
-  await h.expectText(page, 'Inclus dans ton abonnement · 1/2 ce mois', 15000);
+  await h.expectText(page, 'Inclus dans ton abonnement · semaine du', 15000);
   if (await page.getByRole('link', { name: 'Régler l’acompte' }).count()) throw new Error('a covered cut asks for a deposit');
   await h.shot(page, 'pay04-booked-covered');
 
@@ -117,7 +118,7 @@ export default async ({ browser, h, page }) => {
   await page.goto(h.base + '/');
   /* ---------- 2b · the default start (in 14 days) called off: the acknowledgement on its done screen ---------- */
   const pz = await h.newPage({ viewport: PHONE });
-  await subscribe(pz, 'Essentiel', false);
+  await subscribe(pz, 'Hebdo', false);
   await pz.getByText(/^démarre le \d{2}\/\d{2}$/).waitFor({ timeout: 10000 });
   await pz.getByRole('button', { name: 'Renoncer au contrat ici' }).waitFor();
   await h.shot(pz, 'pay04-member-scheduled');
@@ -159,7 +160,7 @@ export default async ({ browser, h, page }) => {
   const px = await raw.newPage();
   await px.goto(h.base + '/');
   await px.locator('#abonnement').waitFor({ timeout: 15000 });
-  await px.getByRole('button', { name: /formule Essentiel/ }).click();
+  await px.getByRole('button', { name: /formule Hebdo/ }).click();
   await px.getByRole('dialog', { name: 'Je m’abonne' }).waitFor();
   await px.locator('#a-phone').fill(b.phone);
   await px.getByLabel('E-mail').fill(b.email);
@@ -204,16 +205,16 @@ export default async ({ browser, h, page }) => {
 
   /* ---------- 6 · a second member renounces on day 1 ---------- */
   const pe = await h.newPage({ viewport: PHONE });
-  await subscribe(pe, 'Illimité');
+  await subscribe(pe, 'Hebdo');
   await pe.getByRole('button', { name: 'Renoncer au contrat ici' }).click();
-  await h.expectText(pe, 'Tu n’as utilisé aucune coupe. On te rembourse 49');
+  await h.expectText(pe, 'Tu n’as utilisé aucune coupe. On te rembourse 80');
   await h.shot(pe, 'pay04-withdraw-recap');
   const wd = pe.getByRole('button', { name: 'Confirmer la rétractation' });
   await tall(wd, '« Confirmer la rétractation »');
   await narrow(pe, 'withdraw recap');
   await wd.click();
   await pe.getByRole('heading', { name: /^Rétractation enregistrée le/ }).waitFor({ timeout: 10000 });
-  await h.expectText(pe, 'Remboursement de 49');
+  await h.expectText(pe, 'Remboursement de 80');
   await pe.close();
 
   /* ---------- 7 · a member whose renewal failed: the card first ---------- */
@@ -238,7 +239,7 @@ export default async ({ browser, h, page }) => {
   const wide = await h.newPage({ viewport: DESKTOP });
   await wide.goto(h.base + '/');
   await wide.locator('#abonnement').waitFor({ timeout: 15000 });
-  await wide.getByRole('button', { name: /formule Essentiel/ }).click();
+  await wide.getByRole('button', { name: /formule Hebdo/ }).click();
   await wide.getByRole('dialog', { name: 'Je m’abonne' }).waitFor();
   await h.shot(wide, 'pay04-subscribe-desktop');
   await wide.keyboard.press('Escape');

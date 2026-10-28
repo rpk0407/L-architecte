@@ -288,9 +288,11 @@ export function personaOf(s, now) {
   const hit = personaMemo.get(s);
   if (hit && hit.v === s.version && hit.day === day) return hit.c;
   const stats = clientStats(s, day, now);
+  // never a member: his row in « Mes avantages » is the carnet the seed gives him (AC-03a), the membership has its own page
+  const members = new Set([...(s.members ? s.members.values() : [])].map((m) => m.cid));
   let best = null, most = -1;
   for (const c of s.clients.values()) {
-    if (c.erased || c.mergedInto || !c.phone || c.source === 'site') continue;
+    if (c.erased || c.mergedInto || !c.phone || c.source === 'site' || members.has(c.id)) continue;
     const v = (stats.get(c.id) || {}).visits || 0;
     if (v <= most) continue;
     if (!upcomingOf(s, c.id, now).length) continue;

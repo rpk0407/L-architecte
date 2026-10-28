@@ -6,7 +6,8 @@ import { staffIntervals } from '../domain/availability.js';
 import { clientStats } from '../domain/insights.js';
 import { ROLES } from '../domain/permissions.js';
 import { ticketNo, refundNo } from '../domain/cash.js';
-import { membersOf, statusOf, periodAt, graceOf, abandoned } from '../domain/membership.js';
+import { membersOf, statusOf, periodAt, graceOf, abandoned, weekUse } from '../domain/membership.js';
+import { rhythmOf, perWeekOf, missedOf } from '../../shared/membership-words.js';
 import { localParts, addDays } from '../../shared/dates.js';
 import { cardLine, saleLoyalty } from '../domain/loyalty.js';
 
@@ -39,7 +40,9 @@ export function memberCards(s, cid, now, full = true) {
     const p = periodAt(m, day, grace);
     out.push({
       id: m.id, plan: m.name, planId: m.planId, status: full || (status !== 'grace' && status !== 'unpaid') ? status : 'active', used: p ? m.uses.filter((u) => u.periodStart === p.start).length : 0, of: m.cuts,
-      until: p ? addDays(p.grace && p.until ? p.until : p.end, -1) : null, cancelAt: m.cancel ? addDays(m.cancel.effective, -1) : null, card: full ? m.card || '' : ''
+      until: p ? addDays(p.grace && p.until ? p.until : p.end, -1) : null, cancelAt: m.cancel ? addDays(m.cancel.effective, -1) : null, card: full ? m.card || '' : '',
+      // PAY-07: a weekly plan's rule and this calendar week's covered cuts (a monthly card keeps its shape)
+      ...(rhythmOf(m) === 'week' ? { rhythm: 'week', perWeek: perWeekOf(m), missed: missedOf(m), week: p ? weekUse(m, day) : null } : {})
     });
   }
   return out;

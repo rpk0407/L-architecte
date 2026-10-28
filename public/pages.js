@@ -103,7 +103,7 @@
     each(document, '[data-list="plans"]', function (ul) {
       while (ul.firstChild) ul.removeChild(ul.firstChild);
       ((mb && (mb.live || mb.terms) && mb.plans) || []).forEach(function (p) {
-        var gap = p.cuts && p.minDays ? ', au moins ' + p.minDays + NB + 'jours entre deux coupes' : '';
+        var gap = p.missedWords ? ', ' + p.missedWords.charAt(0).toLowerCase() + p.missedWords.slice(1) : p.cuts && p.minDays ? ', au moins ' + p.minDays + NB + 'jours entre deux coupes' : '';
         ul.appendChild(h('li', {}, [h('b', {}, [p.name]), ' : ' + eur(p.price) + ' par mois, ' + p.words + gap + '.']));
       });
     });

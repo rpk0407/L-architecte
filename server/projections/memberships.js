@@ -5,7 +5,8 @@
 //
 // s.members: id → {
 //   id, cid (the client file, as when it was written: rootOf follows a merge), planId, name, price, cuts (0: illimité),
-//   minDays, serviceIds, vat — what he signed for, kept when the owner changes the plan —, provider, providerRef, url, exp
+//   minDays, serviceIds, vat, and for a weekly plan (PAY-07) rhythm 'week', perWeek, missed (absent: 'month', so a record
+//   from before keeps its shape) — what he signed for, kept when the owner changes the plan —, provider, providerRef, url, exp
 //   (the checkout and when it lapses), channel ('online'|'salon'|'import'), startNow, cgv, demoFail, createdAt,
 //   first, phone, email (pii of member.created), customer, subscription, card (pii of member.activated: 'Visa •• 4242'),
 //   activatedAt (0: pending), periods [{ start, end, invoice, amount, paymentId, saleId, at }] (paid, by start),
@@ -46,7 +47,7 @@ export const membershipsExtension = {
     'member.created': (s, e, d, p) => {
       s.members.set(d.id, {
         id: d.id, cid: d.cid || d.clientId || null, planId: d.planId, name: d.name, price: d.price, cuts: d.cuts, minDays: d.minDays || 0,
-        serviceIds: d.serviceIds || [], vat: d.vat ?? 0, provider: d.provider || '', providerRef: d.providerRef || null, url: d.url || null, exp: d.exp || 0,
+        serviceIds: d.serviceIds || [], vat: d.vat ?? 0, ...(d.rhythm === 'week' ? { rhythm: 'week', perWeek: d.perWeek || 1, missed: d.missed || 'lost' } : {}), provider: d.provider || '', providerRef: d.providerRef || null, url: d.url || null, exp: d.exp || 0,
         channel: d.channel || 'online', startNow: d.startNow !== false, cgv: d.cgv || '', demoFail: !!d.demoFail, createdAt: e.at,
         first: p.first || '', phone: p.phone || '', email: p.email || '', customer: '', subscription: '', card: '',
         activatedAt: 0, periods: [], invoices: [], failed: [], pastDue: null, uses: [], cancel: null, withdrawn: null, ended: null, acks: []

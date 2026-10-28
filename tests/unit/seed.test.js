@@ -27,6 +27,6 @@ test('the demo salon is built by the real rules and its books verify', async () 
   assert.equal(neg.length, 0, 'stock never negative');
   // PAY-02: the monthly membership, renewed by the demo itself
   assert.equal(s.members.size, 16);
-  assert.equal(s.settings.membership.plans.length, 2);
+  assert.equal(s.settings.membership.plans.length, 1);
   assert.ok(mrr(s, now) > 0);
 });

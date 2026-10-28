@@ -14,20 +14,29 @@ export type ClientFull = ClientCard & { email: string; notes: string; birthday: 
 // PAY-02/05: the monthly membership. MemberCard rides on a client's card (views.js memberCards); MemberRow is a line of
 // Clients › Abonnés (routes-membership.js rowOf); a barber's rows never carry a payment in trouble, the card or the refund.
 export type MemberStatus = 'pending' | 'active' | 'grace' | 'unpaid' | 'paused' | 'ending' | 'ended';
-export type MemberCard = { id: string; plan: string; planId: string; status: MemberStatus; used: number; of: number; until: string | null; cancelAt: string | null; card: string };
+// PAY-07: a weekly plan (rhythm 'week') says its rule and this calendar week's covered cuts; absent, the plan is monthly
+export type MemberWeek = { start: string; end: string; used: number; of: number };
+export type MemberCard = { id: string; plan: string; planId: string; status: MemberStatus; used: number; of: number; until: string | null; cancelAt: string | null; card: string; rhythm?: 'week'; perWeek?: number; missed?: 'lost' | 'month' | 'free'; week?: MemberWeek | null };
+/** A week of the member's billing month on the board (domain/membership.js weeksOf): came, or still to come. */
+export type MemberWeekDot = { start: string; end: string; came: boolean; cuts: number; future: boolean };
 export type MemberRow = {
-  id: string; clientId: string | null; first: string; plan: string; planId: string; price: number; status: MemberStatus; channel: string; used: number; of: number; until: string | null;
+  /** price, next, refund, card, pastDueSince, disputed: who manages the contracts only (price null, next null for the others) */
+  id: string; clientId: string | null; first: string; plan: string; planId: string; price: number | null; status: MemberStatus; channel: string; used: number; of: number; until: string | null;
   cancelAt: string | null; cancelVerified: boolean | null; pastDueSince: number | null; card: string; disputed: boolean; since: number | null; endedAt: number | null; endReason: string;
   next: string | null; refund: number;
+  // PAY-07: his rule, this week, the weeks of his billing month, his last visit (a covered cut or any visit done)
+  rhythm: 'month' | 'week'; perWeek?: number; missed?: 'lost' | 'month' | 'free'; week: (MemberWeek & { came: boolean }) | null; weeks: MemberWeekDot[]; lastVisit: string | null;
 };
 export type MemberSummary = {
   day: string; pending: number; active: number; grace: number; unpaid: number; ending: number; paused: number; disputed: number; live: number; mrr: number; graceDays: number;
   days30: { joined: number; left: number; churn: number }; troubled: number; month: { month: string; cuts: number; value: number; collected: number };
+  /** PAY-07: the weekly members' weeks over their billing month (rate: attended of elapsed, %) */
+  weeks?: { members: number; attended: number; elapsed: number; missed: number; notYet: number; rate: number };
 };
 /** GET /api/v1/memberships/:id/cover: the till's dry check (routes-membership.js). */
-export type Cover = { ok: boolean; why: 'ended' | 'paused' | 'unpaid' | 'service' | 'quota' | 'soon' | null; used: number; of: number; until: string | null; next: string | null; label: string; words: string; force: boolean; plan: string };
+export type Cover = { ok: boolean; why: 'ended' | 'paused' | 'unpaid' | 'service' | 'quota' | 'soon' | 'week' | null; used: number; of: number; until: string | null; next: string | null; label: string; words: string; force: boolean; plan: string };
 /** settings.membership.plans (server/settings/membership.js) */
-export type Plan = { id: string; name: string; price: number; cuts: number; minDays: number; serviceIds: string[]; vat?: number; online: boolean; blurb: string; active: boolean };
+export type Plan = { id: string; name: string; price: number; cuts: number; minDays: number; serviceIds: string[]; vat?: number; online: boolean; blurb: string; active: boolean; rhythm?: 'month' | 'week'; perWeek?: number; missed?: 'lost' | 'month' | 'free' };
 export type ApptService = { id: string; name: string; price: number; from: boolean; dur: number };
 export type Appt = { id: string; code: string; staffId: string; anyStaff: boolean; day: string; start: number; dur: number; services: ApptService[]; price: number; status: 'pending' | 'booked' | 'arrived' | 'in_chair' | 'done' | 'no_show' | 'cancelled'; source: string; note: string; name: string; client: ClientCard | null; deposit: { amount: number; paid: number; paymentId: string | null } | null; saleId: string | null; createdAt: number; statusAt: Record<string, number>; cancel: any; moves: number; demo: boolean; legacy?: boolean };
 export type Lane = Staff & { work: [number, number][] };
@@ -85,7 +94,7 @@ export type EspaceNext = {
   id: string; start: number; dur: number; name: string; services: string[]; status: EspaceStatus; late: number; paid: boolean; note: string; tech: string;
   client: {
     id: string; name: string; visits: number; withMe: number; firstVisit: boolean; usual: boolean; lastCut: { day: string; staffName: string; services: string[] } | null; cadence: number | null;
-    birthdaySoon: { inDays: number; day: string } | null; noShows: number; member: { kind: 'member' | 'carnet'; label: string; used: number; of: number } | null; prefersMe: boolean;
+    birthdaySoon: { inDays: number; day: string } | null; noShows: number; member: { kind: 'member' | 'carnet'; label: string; used: number; of: number; rhythm?: 'week'; perWeek?: number; missed?: 'lost' | 'month' | 'free'; week?: MemberWeek | null } | null; prefersMe: boolean;
   } | null;
   cutNotes: CutNoteView[]; myNote: string | null; canNote: boolean; lateNotice: { min: number | null; at: number | null } | null;
 };

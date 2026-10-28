@@ -4,6 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { browser, testRuntime } from '../api/client.js';
+import { legacyPlans } from '../helpers.js';
 import { DEMO } from '../../server/domain/seed.js';
 import { instantOf, addDays } from '../../shared/dates.js';
 
@@ -15,6 +16,8 @@ const phone = () => '06 00 00 ' + String(40 + ++phones).padStart(2, '0') + ' ' +
 async function setup() {
   const clock = { now: instantOf(DAY, 15 * 60) };
   const rt = await testRuntime({ clock: () => clock.now });
+  // the monthly formules these tests read (the demo sells the weekly one since PAY-07)
+  await legacyPlans(rt);
   const owner = browser(rt);
   assert.equal((await owner.post('/api/auth/login', { email: DEMO.email, password: DEMO.password })).status, 200);
   assert.equal((await owner.post('/api/auth/device', { name: 'Poste 1' })).status, 200);

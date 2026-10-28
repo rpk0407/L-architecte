@@ -18,7 +18,7 @@ import type { CardLine } from '../../lib/loyalty';
 import { ClientChips, Fold, useFolds } from './clients/ClientChips';
 import MemberBlock, { useSellable } from './clients/MemberBlock';
 import Members from './clients/Members';
-import { liveMembers } from '../../lib/members';
+import { liveMembers, shortWords } from '../../lib/members';
 import CutNotes from './espace/CutNotes';
 import './clients.css';
 
@@ -356,7 +356,7 @@ function ClientFile({ id }: { id: string }) {
           <TechCard c={c} favStaff={favStaff ? staffById.get(favStaff)?.name || '' : ''} favSvc={favSvc} />
           {c.erased || !(c.memberships.length || sell.live) ? null : (
             <Fold id="abo" guide="file-abonnement" title="Abonnement" icon="card" open={folds.isOpen('abo')} onToggle={() => folds.toggle('abo')}
-              summary={liveMembers(c.memberships)[0] ? liveMembers(c.memberships)[0].plan + ' · ' + liveMembers(c.memberships)[0].used + (liveMembers(c.memberships)[0].of ? '/' + liveMembers(c.memberships)[0].of : '') + ' ce mois-ci' : 'Aucun'}>
+              summary={liveMembers(c.memberships)[0] ? liveMembers(c.memberships)[0].plan + ' · ' + shortWords(liveMembers(c.memberships)[0], liveMembers(c.memberships)[0]) : 'Aucun'}>
               <MemberBlock c={c} onEdit={() => setEdit(true)} />
             </Fold>
           )}

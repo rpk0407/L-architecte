@@ -21,6 +21,7 @@ import { membershipRoutes, LOOKUP_PHONE, LOOKUP_EMAIL, EXPIRED, SOON, ALREADY, S
 import { router, errorResponse } from '../../server/http/kit.js';
 import { refundNo } from '../../server/domain/cash.js';
 import { browser, testRuntime } from '../api/client.js';
+import { legacyPlans } from '../helpers.js';
 import { instantOf, addDays, localParts } from '../../shared/dates.js';
 
 const DAY = '2026-11-03'; // a Tuesday
@@ -695,18 +696,19 @@ test('the demo: subscribe, the test page shows the plan, its confirmation pays t
   const site = browser(rt);
   const plans = await site.get('/api/public/memberships');
   assert.equal(plans.json.live, true);
-  assert.deepEqual(plans.json.plans.map((p) => p.words), ['2 coupes par mois · Coupe classique', '1 coupe tous les 7 jours · Coupe classique, Coupe + contour de barbe']);
-  const res = await site.post('/api/public/memberships', { planId: 'essentiel', first: 'Démo', phone: '06 00 00 12 34', email: 'demo+12@exemple.fr', startNow: true, cgv: '2026-10-27' });
+  // PAY-07: the salon's offer, one cut a week for 80 € a month, a missed week lost
+  assert.deepEqual(plans.json.plans.map((p) => [p.words, p.rhythm, p.perWeek, p.missed, p.missedWords]), [['1 coupe par semaine · Coupe classique, Coupe + contour de barbe', 'week', 1, 'lost', 'Semaine manquée : perdue']]);
+  const res = await site.post('/api/public/memberships', { planId: 'hebdo', first: 'Démo', phone: '06 00 00 12 34', email: 'demo+12@exemple.fr', startNow: true, cgv: '2026-10-27' });
   assert.equal(res.status, 201, JSON.stringify(res.json));
   const id = res.json.url.split('/paiement/')[1];
   const page = (await site.get('/api/public/payments/' + id)).json;
-  assert.match(page.label, /^Abonnement Essentiel · 34\s€\/mois$/);
-  assert.deepEqual([page.amount, page.status, page.kind], [3400, 'pending', 'membership']);
+  assert.match(page.label, /^Abonnement Hebdo · 80\s€\/mois$/);
+  assert.deepEqual([page.amount, page.status, page.kind], [8000, 'pending', 'membership']);
   assert.deepEqual((await site.post('/api/public/payments/' + id + '/simulate', { outcome: 'ok' })).json, { status: 'paid' });
   const m = rt.engine.state.members.get(id);
   assert.equal(statusIn(rt.engine.state, m, '2026-11-24'), 'active');
   const sale = rt.engine.state.sales.get(m.periods[0].saleId);
-  assert.deepEqual(sale.lines.map((l) => [l.kind, l.net]), [['membership', 3400]]);
+  assert.deepEqual(sale.lines.map((l) => [l.kind, l.net]), [['membership', 8000]]);
   assert.equal(m.periods[0].invoice, 'sim_' + id + '_0', 'the numbering the demo’s billing goes on with');
   assert.equal((await site.get('/api/public/payments/' + id)).json.status, 'paid');
   assert.equal((await site.post('/api/public/payments/' + id + '/simulate', { outcome: 'ok' })).status, 409);
@@ -715,7 +717,7 @@ test('the demo: subscribe, the test page shows the plan, its confirmation pays t
   const card = await site.post('/api/public/memberships/' + token + '/card', {});
   assert.match(card.json.url, new RegExp('/paiement/' + id + '\\?carte$'));
   // a checkout left: cancelled on the test page, the member ends unpaid
-  const left = await site.post('/api/public/memberships', { planId: 'illimite', first: 'Démo', phone: '06 00 00 12 35', email: 'demo+13@exemple.fr', startNow: true });
+  const left = await site.post('/api/public/memberships', { planId: 'hebdo', first: 'Démo', phone: '06 00 00 12 35', email: 'demo+13@exemple.fr', startNow: true });
   const lid = left.json.url.split('/paiement/')[1];
   assert.deepEqual((await site.post('/api/public/payments/' + lid + '/simulate', { outcome: 'cancel' })).json, { status: 'failed' });
   assert.equal(rt.engine.state.members.get(lid).ended.reason, 'abandoned');
@@ -849,6 +851,7 @@ test('the list’s catch-up asks Stripe about 5 late members a visit, and the ne
 test('the demo: a start in 14 days is confirmed on the test page, mailed, and its first month paid on its start day', async () => {
   const clock = { now: instantOf('2026-11-24', 15 * 60) };
   const rt = await testRuntime({ clock: () => clock.now });
+  await legacyPlans(rt);
   const site = browser(rt);
   // a client of the salon (a visitor's own file would be erased two hours later by the demo's purge, membership included)
   const s0 = rt.engine.state;
@@ -880,6 +883,7 @@ test('the demo: a start in 14 days is confirmed on the test page, mailed, and it
 test('the demo: a visitor’s start in 14 days ends with his file, two hours later', async () => {
   const clock = { now: instantOf('2026-11-24', 15 * 60) };
   const rt = await testRuntime({ clock: () => clock.now });
+  await legacyPlans(rt);
   const site = browser(rt);
   const res = await site.post('/api/public/memberships', { planId: 'essentiel', first: 'Visiteur', phone: '06 00 00 12 37', email: 'demo+15@exemple.fr', startNow: false, cgv: '2026-10-27' });
   assert.equal(res.status, 201, JSON.stringify(res.json));

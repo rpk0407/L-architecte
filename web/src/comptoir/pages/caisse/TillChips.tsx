@@ -2,7 +2,7 @@
 // at most, in that order, the rest under « +n » (a phone has no room for three); each chip is given by its package, the
 // reward's (FID-03's RewardChip) is passed in. The member's payment in trouble shows here too, in amber, in words.
 import { useId, useState, type ReactNode } from 'react';
-import { ddmm, liveMembers, statusWords, toneClass } from '../../../lib/members';
+import { ddmm, liveMembers, shortWords, statusWords, toneClass } from '../../../lib/members';
 import { Icon } from '../../../ui/Icon';
 import type { ClientCard } from '../../types';
 import './tillchips.css';
@@ -18,7 +18,7 @@ export function tillChipsOf(client: ClientCard | null): [string, ReactNode][] {
     const trouble = m.status === 'grace' || m.status === 'unpaid';
     out.push(['abo', (
       <span className={'badge' + toneClass(trouble ? 'warn' : 'ok')} title={trouble ? 'Le dernier paiement de son abonnement a été refusé : le salon le suit.' : undefined}>
-        <Icon name={trouble ? 'alert' : 'card'} size={12} />{trouble ? w.text : 'Abonné · ' + m.plan}{!trouble && m.status === 'ending' && m.cancelAt ? ' · fin le ' + ddmm(m.cancelAt) : ''}
+        <Icon name={trouble ? 'alert' : 'card'} size={12} />{trouble ? w.text : 'Abonné · ' + m.plan + ' · ' + shortWords(m, m)}{!trouble && m.status === 'ending' && m.cancelAt ? ' · fin le ' + ddmm(m.cancelAt) : ''}
       </span>
     )]);
   }

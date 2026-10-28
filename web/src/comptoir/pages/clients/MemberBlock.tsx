@@ -7,12 +7,13 @@ import { api } from '../../../lib/api';
 import { refreshAll, useQuery } from '../../../lib/query';
 import { copyText } from '../../../lib/clipboard';
 import { dates, eur, plural } from '../../../lib/format';
-import { ddmm, statusWords, toneClass } from '../../../lib/members';
+import { ddmm, missedWords, planWords, statusWords, toneClass, useWords } from '../../../lib/members';
 import { QR } from '../../../lib/qr';
 import { navigate } from '../../../lib/router';
 import { Button, Chip, Note, Sheet, Skeleton, Switch, toast, toastError } from '../../../ui/kit';
 import { useApp } from '../../state';
 import type { ClientFull, MemberRow } from '../../types';
+import WeekDots from './WeekDots';
 import './clients-members.css';
 
 const END_FR: Record<string, string> = { cancelled: 'résilié', withdrawn: 'rétracté', unpaid: 'arrêté faute de paiement', abandoned: 'jamais payé', ended: 'terminé' };
@@ -55,16 +56,25 @@ export default function MemberBlock({ c, onEdit }: { c: ClientFull; onEdit: () =
 }
 
 function MemberRowView({ m, manage, onCard, onSync, onCancel }: { m: MemberRow; manage: boolean; onCard: () => void; onSync: () => void; onCancel: () => void }) {
+  const { boot } = useApp();
   const w = statusWords(m);
+  // PAY-07: a weekly plan says its rule, this week and his weeks; a monthly one its cuts of the month
+  const weekly = m.rhythm === 'week';
+  const rule = weekly ? planWords({ ...m, cuts: m.of }) + ' · ' + missedWords(m).replace('Semaine manquée', 'semaine manquée') : '';
   const trouble = m.status === 'grace' || m.status === 'unpaid';
   return (
     <div className="mb">
-      <div className="mb-h"><b>{m.plan}</b><span className={'badge' + toneClass(w.tone)}>{w.text}</span><span className="muted grow" style={{ textAlign: 'right' }}><span className="money">{eur(m.price)}</span>/mois</span></div>
+      <div className="mb-h"><b>{m.plan}</b><span className={'badge' + toneClass(w.tone)}>{w.text}</span>{m.price != null ? <span className="muted grow" style={{ textAlign: 'right' }}><span className="money">{eur(m.price)}</span>/mois</span> : null}</div>
       <dl className="mb-kv">
         {m.since ? <><dt>Depuis</dt><dd>{dates.dayShort(dates.localParts(m.since).day)}</dd></> : null}
-        {m.next ? <><dt>Prochain prélèvement</dt><dd><span className="money">{eur(m.price)}</span> le {ddmm(m.next)}</dd></> : null}
+        {m.next && m.price != null ? <><dt>Prochain prélèvement</dt><dd><span className="money">{eur(m.price)}</span> le {ddmm(m.next)}</dd></> : null}
         {manage ? <><dt>Carte</dt><dd>{m.card || '—'}</dd></> : null}
-        {m.status !== 'pending' ? <><dt>Coupes ce mois-ci</dt><dd>{m.of ? m.used + ' sur ' + m.of : plural(m.used, 'coupe') + ' (illimité)'}{m.until ? ' · jusqu’au ' + ddmm(m.until) : ''}</dd></> : null}
+        {m.status !== 'pending' && weekly ? <>
+          <dt>Sa règle</dt><dd>{rule}</dd>
+          <dt>Cette semaine</dt><dd>{useWords(m, m).replace('Cette semaine : ', '')}{(m.missed || 'lost') === 'lost' && m.week && m.week.used < m.week.of ? ' d’ici dimanche ' + ddmm(m.week.end) : ''}</dd>
+          {m.weeks && m.weeks.length ? <><dt>Ses semaines</dt><dd><WeekDots weeks={m.weeks} today={boot.today} /></dd></> : null}
+        </> : null}
+        {m.status !== 'pending' && !weekly ? <><dt>Coupes ce mois-ci</dt><dd>{m.of ? m.used + ' sur ' + m.of : plural(m.used, 'coupe') + ' (illimité)'}{m.until ? ' · jusqu’au ' + ddmm(m.until) : ''}</dd></> : null}
       </dl>
       {m.status === 'pending' ? <Note icon="info">Son premier paiement n’est pas encore fait : l’abonnement commence dès qu’il a payé.</Note> : null}
       {trouble && m.pastDueSince ? <Note tone="warn" icon="alert">Paiement refusé le {ddmm(dates.localParts(m.pastDueSince).day)}. {m.status === 'grace' && m.until ? 'Il garde ses coupes jusqu’au ' + ddmm(m.until) + ', le temps que la banque réessaie.' : 'Ses coupes sont suspendues.'} {manage ? 'Envoie-lui le lien de sa carte.' : ''}</Note> : null}

@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { api } from '../../../../lib/api';
 import { navigate } from '../../../../lib/router';
 import { dates, time } from '../../../../lib/format';
+import { shortWords } from '../../../../lib/members';
 import { Button, toast, toastError } from '../../../../ui/kit';
 import { useApp } from '../../../state';
 import type { EspaceCardMeta, EspaceCardProps, EspaceNext } from '../../../types';
@@ -28,7 +29,7 @@ function Chips({ n }: { n: EspaceNext }) {
   if (c && c.birthdaySoon) out.push({ t: birthdayWords(c.birthdaySoon), tone: 'badge-accent' });
   if (c && c.member) {
     const m = c.member;
-    out.push({ t: m.kind === 'member' ? 'Abonné · ' + (m.of ? m.used + '/' + m.of : 'illimité') : 'Carnet · ' + (m.of - m.used) + ' restante' + (m.of - m.used > 1 ? 's' : ''), tone: 'badge-ok' });
+    out.push({ t: m.kind === 'member' ? 'Abonné · ' + shortWords(m, m) : 'Carnet · ' + (m.of - m.used) + ' restante' + (m.of - m.used > 1 ? 's' : ''), tone: 'badge-ok' });
   }
   if (c && c.prefersMe) out.push({ t: 'Te préfère', tone: 'badge-accent' });
   if (c && c.noShows) out.push({ t: c.noShows + ' absence' + (c.noShows > 1 ? 's' : ''), tone: 'badge-danger' });

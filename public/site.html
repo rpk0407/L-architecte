@@ -3512,11 +3512,10 @@ const SubscribeMixin = {
   /* the block shows while the salon sells the membership online (enabled, a real or demo payment, at least one plan) */
   aboOn() { const m = LXE.memberships(); return !!(m && m.live && m.plans && m.plans.length); },
   aboPlan(id) { const m = LXE.memberships(); return m && m.plans ? m.plans.filter((p) => p.id === id)[0] || null : null; },
-  /* « 2 coupes par mois · Coupe classique »; an illimité in the site's words */
+  /* « 1 coupe par semaine · Coupe classique · semaine manquée : perdue »: the server's words (shared/membership-words.js), with what a missed week does */
   aboWords(p) {
-    const names = (p.services || []).map((x) => x.name).join(', ');
-    if (!p.cuts && p.minDays === 7) return '1 coupe par semaine, autant de semaines que tu veux' + (names ? ' · ' + names : '');
-    return p.words;
+    const rule = p.missedWords ? p.missedWords.charAt(0).toLowerCase() + p.missedWords.slice(1) : '';
+    return p.words + (rule ? ' · ' + rule : '');
   },
   abOpen(planId) {
     if (!this.aboPlan(planId)) return;

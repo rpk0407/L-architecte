@@ -20,6 +20,7 @@ import { ackScheduledCancel, billingAlert, contactOf } from '../commands/member-
 import { memberOf, membersOf, statusIn, abandoned } from '../domain/membership.js';
 import { addDays, dayParts, localParts, fmtTime, MONTHS_FR } from '../../shared/dates.js';
 import { fmtEur } from '../../shared/money.js';
+import { planWords, missedWords } from '../../shared/membership-words.js';
 
 /** the reasons the cancel recap offers (optional, never a step before the final button) */
 export const CANCEL_REASONS = ['Je viens moins souvent', 'Trop cher pour moi', 'Je déménage', 'Autre raison'];
@@ -30,9 +31,10 @@ const dayWords = (day) => { const p = dayParts(day); return (p.d === 1 ? '1er' :
 /** « 27 octobre 2026 à 14 h 05 », Paris time */
 const atWords = (ms) => { const L = localParts(ms); return dayWords(L.day) + ' à ' + fmtTime(L.min); };
 const esc = (x) => String(x == null ? '' : x).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] || c);
-/** « 2 coupes par mois · Coupe classique », as on the member page */
+/** « 2 coupes par mois (Coupe classique) », « 1 coupe par semaine, semaine manquée : perdue (…) », as on the member page */
 function coverage(s, m) {
-  const n = m.cuts ? m.cuts + (m.cuts > 1 ? ' coupes' : ' coupe') + ' par mois' : m.minDays ? '1 coupe tous les ' + m.minDays + ' jours' : 'coupes illimitées';
+  const rule = missedWords(m);
+  const n = planWords(m) + (rule ? ', ' + rule.charAt(0).toLowerCase() + rule.slice(1) : '');
   const names = (m.serviceIds || []).map((x) => (s.services.get(x) || {}).name).filter(Boolean);
   return n + (names.length ? ' (' + names.join(', ') + ')' : '');
 }

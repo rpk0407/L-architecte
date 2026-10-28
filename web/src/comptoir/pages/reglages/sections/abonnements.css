@@ -9,3 +9,13 @@
 .ab-p b { font: 400 26px/1 var(--serif); color: var(--tx); margin-right: 2px; }
 .ab-w { font-size: 14px; color: var(--tx); line-height: 1.4; }
 .ab-b { font-size: 13px; color: var(--tx2); line-height: 1.4; }
+/* PAY-07: what a missed week does, three radio cards with one line each */
+.ab-rule { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; border: 0; min-width: 0; }
+.ab-rule legend { padding: 0; margin-bottom: 8px; }
+.ab-opt { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: 14px; box-shadow: inset 0 0 0 1px var(--line); cursor: pointer; min-height: 44px; }
+.ab-opt:has(input:checked) { box-shadow: inset 0 0 0 1.5px var(--tx); background: var(--panel2); }
+.ab-opt input { flex: none; width: 18px; height: 18px; margin-top: 2px; accent-color: var(--accent); }
+.ab-opt span { display: flex; flex-direction: column; gap: 2px; font-size: 14px; min-width: 0; }
+.ab-opt b { font-weight: 600; }
+.ab-opt small { color: var(--tx2); font-size: 12.5px; line-height: 1.4; }
+.ab-line { margin: 0; font-size: 13.5px; line-height: 1.45; max-width: 520px; overflow-wrap: anywhere; }

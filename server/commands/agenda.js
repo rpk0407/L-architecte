@@ -6,6 +6,7 @@ import { str, int, bool, opt, obj, arr, day, id, oneOf, parse } from '../lib/val
 import { freeSlots, isFree, staffIntervals, canDo, busyIntervals, intersect, subtract } from '../domain/availability.js';
 import { normPhone, capFirst } from '../lib/util.js';
 import { depositFor, memberCovers, clientMayChange, payWindowMin } from '../domain/policy.js';
+import { bookedWords } from '../../shared/membership-words.js';
 import { rootOf } from '../domain/membership.js';
 import { riskDeposit } from '../domain/risk.js';
 import { queueMessage, apptVars } from '../domain/messages.js';
@@ -149,7 +150,7 @@ export const bookOnline = {
       mailOwner(s, ctx, a, 'booked', { first: existing ? existing.first : capFirst(b.first) });
     }
     // the till applies the membership when he comes (the booking consumes nothing): the site says it is included
-    const memberLine = covered && covered.ok ? { covered: true, label: 'Inclus dans ton abonnement · ' + (member.cuts ? covered.used + '/' + member.cuts + ' ce mois' : 'illimité') } : null;
+    const memberLine = covered && covered.ok ? { covered: true, label: 'Inclus dans ton abonnement · ' + bookedWords(member, covered) } : null;
     return { id: aid, code, status: a.status, staffId, deposit, price, ...(memberLine ? { member: memberLine } : {}) };
   }
 };

@@ -117,7 +117,7 @@ function clientView(s, me, a, stats, now) {
     usual: st.favStaff === me.id && (st.visits || 0) >= 2,
     lastCut: last ? { day: last.day, staffName: (s.staff.get(last.staffId) || {}).name || '', services: last.services.map((x) => x.name) } : null,
     cadence: st.cadence || null, birthdaySoon: bday, noShows: st.noShows || 0,
-    member: member ? { kind: 'member', label: member.plan, used: member.used, of: member.of } : pack ? { kind: 'carnet', label: pack.name, used: pack.used, of: pack.total } : null,
+    member: member ? { kind: 'member', label: member.plan, used: member.used, of: member.of, ...(member.rhythm ? { rhythm: member.rhythm, perWeek: member.perWeek, missed: member.missed, week: member.week } : {}) } : pack ? { kind: 'carnet', label: pack.name, used: pack.used, of: pack.total } : null,
     prefersMe: !!(acc && acc.prefs && acc.prefs.staffId === me.id)
   };
 }

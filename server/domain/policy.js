@@ -2,6 +2,7 @@
 // Booking policies the owner sets in Réglages: deposits, cancellation window.
 import { instantOf, addDays } from '../../shared/dates.js';
 import { cover, periodIn } from './membership.js';
+import { weekRule, weekOf, perWeekOf } from '../../shared/membership-words.js';
 
 /** Stripe Checkout lives at least 30 minutes: a booking must wait at least that long for its deposit. */
 export const STRIPE_PAY_MIN = 31;
@@ -39,28 +40,34 @@ export function depositFor(s, services, o = {}) {
  * Would this member's plan pay for every one of these services on that day, as the till will check it (cover)? A booking
  * consumes nothing (the till does), so the file's other bookings to come that the plan would pay count as taken: three
  * covered bookings in a month of two cuts leave the third at the usual deposit, and an illimité's next booking must
- * keep its days between cuts from them too. used: the cut this booking would be in its month (2 of « 2/2 »).
+ * keep its days between cuts from them too. used: the cut this booking would be in its month (2 of « 2/2 »). PAY-07: a
+ * plan of one a week where a missed week is lost counts the bookings to come in the same calendar week instead (used of
+ * perWeek, week: its Monday), so a member cannot book two covered cuts in one week.
  * @param {any} s @param {any} m @param {{ id: string }[]} services @param {string} day
  * @param {{ day: string, services: { id: string }[] }[]} [upcoming]
- * @returns {{ ok: boolean, used: number, of: number }}
+ * @returns {{ ok: boolean, used: number, of: number, week?: { start: string, end: string } }}
  */
 export function memberCovers(s, m, services, day, upcoming = []) {
-  const no = { ok: false, used: 0, of: m ? m.cuts : 0 };
+  const lost = !!m && weekRule(m);
+  const no = { ok: false, used: 0, of: m ? (lost ? perWeekOf(m) : m.cuts) : 0 };
   if (!m || !services.length) return no;
   const p = periodIn(s, m, day);
   if (!p) return no;
   const paid = (a) => a.services.some((x) => (m.serviceIds || []).includes(x.id));
   const others = upcoming.filter(paid);
-  const inPeriod = others.filter((a) => a.day >= p.start && a.day < p.end).length;
+  const wk = lost ? weekOf(day) : null;
+  const taken = wk ? others.filter((a) => a.day >= wk.start && a.day < wk.next).length : others.filter((a) => a.day >= p.start && a.day < p.end).length;
+  const ceiling = lost ? perWeekOf(m) : m.cuts;
   // a minimum gap between cuts: the bookings to come keep it as cuts already taken would
   if (m.minDays && others.some((a) => a.day < addDays(day, m.minDays) && addDays(a.day, m.minDays) > day)) return no;
-  let used = 0;
+  let used = 0, week;
   for (let i = 0; i < services.length; i++) {
     const c = cover(s, m, services[i].id, { day, pending: i });
-    if (!c.ok || (m.cuts && c.used + inPeriod >= m.cuts)) return no;
-    used = c.used + inPeriod + 1;
+    if (!c.ok || (ceiling && c.used + taken >= ceiling)) return no;
+    used = c.used + taken + 1;
+    week = c.week;
   }
-  return { ok: true, used, of: m.cuts };
+  return { ok: true, used, of: ceiling, ...(week ? { week } : {}) };
 }
 
 /** Minutes a booking waits for its online deposit. With Stripe, never less than its checkout's lifetime. */

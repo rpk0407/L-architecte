@@ -1,9 +1,11 @@
-// Abonnements: the monthly membership the salon sells. Up to four formules (name, price a month, cuts a month or illimité,
-// the services a cut may be), the grace after a refused payment, and a preview of the card the site shows. A member keeps
-// the price and the cuts he signed for: changing a formule moves nobody. No pause, no SEPA, no plan change in v1.
+// Abonnements: the monthly membership the salon sells. Up to four formules (name, price a month, how often: cuts a week
+// with what a missed week does, or cuts a month or illimité; the services a cut may be), the grace after a refused
+// payment, and a preview of the card the site shows. A member keeps the price and the rule he signed for: changing a
+// formule moves nobody. No pause, no SEPA, no plan change in v1. The words are shared/membership-words.js's (PAY-07).
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '../../../../lib/query';
-import { eur, money } from '../../../../lib/format';
+import { eur, money, plural } from '../../../../lib/format';
+import { derivedCuts, missedOf, missedWords, offerWords, perWeekOf, planWords, rhythmOf, type Missed } from '../../../../lib/members';
 import { Icon } from '../../../../ui/Icon';
 import { Button, Chip, Field, Note, Switch } from '../../../../ui/kit';
 import { useApp } from '../../../state';
@@ -14,18 +16,27 @@ import './abonnements.css';
 type Membership = { enabled: boolean; plans: Plan[]; graceDays: number };
 const MAX = 4;
 const CUTS = [1, 2, 3, 4, 0];
+const PER_WEEK = [1, 2, 3];
+/** What a missed week does, as the owner picks it: one line each, the client's rule in plain words. */
+const MISSED: { v: Missed; t: string; s: string }[] = [
+  { v: 'lost', t: 'La coupe est perdue', s: 'Une par semaine, sans rattrapage.' },
+  { v: 'month', t: 'Il la rattrape dans le mois', s: 'Ses 4 coupes du mois, quand il veut, une par jour au plus.' },
+  { v: 'free', t: 'Pas de limite', s: 'Il vient quand il veut ; tu vois juste ses semaines.' }
+];
 const GRACE = [3, 7, 14];
 const PRICE_MIN = 500, PRICE_MAX = 50000;
 
 /** « Duo barbe » → duo-barbe: a formule's code, once and for all (the member's links and the site's anchor carry it). */
 const slug = (name: string) => name.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 24);
-const blank = (): Plan => ({ id: '', name: '', price: 3000, cuts: 2, minDays: 0, serviceIds: [], online: true, blurb: '', active: true });
-
-/** What the site's card says of a formule: « 2 coupes par mois · Coupe classique ». */
-export function planWords(p: Pick<Plan, 'cuts' | 'minDays'>, names: string[]) {
-  const n = p.cuts ? p.cuts + (p.cuts > 1 ? ' coupes' : ' coupe') + ' par mois' : p.minDays ? '1 coupe tous les ' + p.minDays + ' jours' : 'coupes illimitées';
-  return n + (names.length ? ' · ' + names.join(', ') : '');
-}
+// a new formule is the salon's offer: one cut a week, a missed week lost
+const blank = (): Plan => ({ id: '', name: '', price: 8000, cuts: 0, minDays: 1, rhythm: 'week', perWeek: 1, missed: 'lost', serviceIds: [], online: true, blurb: '', active: true });
+/** The rule a formule sells (its rhythm, how many, what a missed week does), to tell when the owner changed it. */
+const ruleKey = (p: Plan) => (rhythmOf(p) === 'week' ? 'w' + perWeekOf(p) + missedOf(p) : 'm' + p.cuts + '-' + (p.cuts ? 0 : p.minDays || 7));
+/** What the site's card says of a formule (public/site.html aboWords): « 1 coupe par semaine · Coupe classique · semaine manquée : perdue ». */
+const cardWords = (p: Plan, names: string[]) => {
+  const rule = missedWords(p);
+  return planWords(p) + (names.length ? ' · ' + names.join(', ') : '') + (rule ? ' · ' + rule.charAt(0).toLowerCase() + rule.slice(1) : '');
+};
 
 export default function Abonnements({ s }: SectionProps) {
   const { boot } = useApp();
@@ -38,7 +49,8 @@ export default function Abonnements({ s }: SectionProps) {
   const moneyOk = boot.mode === 'demo' || boot.providers.paymentsLive;
   const holders = useMemo(() => { const n = new Map<string, number>(); for (const r of board.data?.members || []) if (r.status !== 'ended') n.set(r.planId, (n.get(r.planId) || 0) + 1); return n; }, [board.data]);
   const set = (i: number, patch: Partial<Plan>) => m.setV({ ...M, plans: M.plans.map((p, j) => (j === i ? { ...p, ...patch } : p)) });
-  const problem = (p: Plan) => (p.name.trim().length < 2 ? 'Donne un nom à la formule.' : p.price < PRICE_MIN || p.price > PRICE_MAX ? 'Un prix entre 5 € et 500 € par mois.' : !p.serviceIds.length ? 'Coche au moins une prestation couverte.' : '');
+  // every screen and text says « Abonnement {formule} »: a formule called « Abonnement » would read twice
+  const problem = (p: Plan) => (p.name.trim().length < 2 ? 'Donne un nom à la formule.' : /^abonnements?$/i.test(p.name.trim()) ? 'Le mot « Abonnement » est déjà devant son nom partout : donne-lui un nom à elle (ex. : Hebdo).' : p.price < PRICE_MIN || p.price > PRICE_MAX ? 'Un prix entre 5 € et 500 € par mois.' : !p.serviceIds.length ? 'Coche au moins une prestation couverte.' : '');
   // a new formule's code is chosen once the board of members has said which codes are taken
   const bad = M.plans.some((p) => !!problem(p)) || (M.enabled && !M.plans.some((p) => p.active !== false)) || (!board.data && !board.error && M.plans.some((p) => !p.id));
   const doSave = () => {
@@ -48,7 +60,9 @@ export default function Abonnements({ s }: SectionProps) {
     const plans = M.plans.map((p) => {
       let id = p.id;
       if (!id) { const base = slug(p.name) || 'formule'; id = base; for (let n = 2; used.has(id); n++) id = base.slice(0, 21) + '-' + n; used.add(id); }
-      return { id, name: p.name.trim(), price: p.price, cuts: p.cuts, minDays: p.cuts === 0 ? p.minDays || 7 : 0, serviceIds: p.serviceIds, ...(p.vat != null ? { vat: p.vat } : {}), online: p.online !== false, blurb: (p.blurb || '').trim(), active: p.active !== false };
+      // a weekly formule says how often and what a missed week does; the server derives its quota and gap from them
+      const rule = rhythmOf(p) === 'week' ? { rhythm: 'week' as const, perWeek: perWeekOf(p), missed: missedOf(p) || 'lost' } : { cuts: p.cuts, minDays: p.cuts === 0 ? p.minDays || 7 : 0 };
+      return { id, name: p.name.trim(), price: p.price, ...rule, serviceIds: p.serviceIds, ...(p.vat != null ? { vat: p.vat } : {}), online: p.online !== false, blurb: (p.blurb || '').trim(), active: p.active !== false };
     });
     return save({ membership: { enabled: M.enabled, plans, graceDays: M.graceDays } }, 'Abonnements enregistrés');
   };
@@ -94,6 +108,9 @@ function PlanCard({ p, i, set, remove, known, problem, holders, saved, services 
   useEffect(() => { if (money.parseEur(txt) !== p.price) setTxt(p.price % 100 ? (p.price / 100).toFixed(2).replace('.', ',') : String(p.price / 100)); }, [p.price]);
   const names = p.serviceIds.map((x) => services.find((y) => y.id === x)?.name).filter(Boolean) as string[];
   const cutsOpts = [...new Set([...CUTS, p.cuts])];
+  const week = rhythmOf(p) === 'week';
+  // the rule changed from the one on sale: who holds it keeps the one he signed for
+  const ruleChanged = !!saved && holders > 0 && ruleKey(saved) !== ruleKey(p);
   const idl = 'ab-' + i;
   return (
     <section className={'card col ab-plan' + (p.active === false ? ' off' : '')} style={{ gap: 14 }} aria-label={'Formule ' + (p.name || i + 1)}>
@@ -116,14 +133,39 @@ function PlanCard({ p, i, set, remove, known, problem, holders, saved, services 
           </div>
         </Field>
       </div>
-      <Field label="Coupes par mois">
-        <div className="chips" role="group" aria-label="Coupes par mois">{cutsOpts.map((c) => <Chip key={c} on={p.cuts === c} onClick={() => set({ cuts: c, minDays: c === 0 ? p.minDays || 7 : 0 })}>{c === 0 ? 'Illimité' : c}</Chip>)}</div>
-      </Field>
-      {p.cuts === 0 ? (
-        <Field label="Une coupe incluse au plus tous les … jours" htmlFor={idl + '-d'} hint="Évite une coupe par jour : sept jours par défaut.">
-          <input id={idl + '-d'} className="input ct-num" inputMode="numeric" value={p.minDays || 7} onChange={(e) => set({ minDays: num(e.target.value, 1, 30) })} style={{ maxWidth: 90 }} />
-        </Field>
-      ) : null}
+      <div data-guide="abo-rhythm"><Field label="Rythme">
+        <div className="chips" role="group" aria-label="Rythme">
+          <Chip on={week} onClick={() => set({ rhythm: 'week', perWeek: perWeekOf({ ...p, rhythm: 'week' }), missed: missedOf({ ...p, rhythm: 'week' }) || 'lost', ...derivedCuts({ ...p, rhythm: 'week' }) })}>Par semaine</Chip>
+          <Chip on={!week} onClick={() => set({ rhythm: 'month', cuts: p.cuts || 2, minDays: 0 })}>Par mois</Chip>
+        </div>
+      </Field></div>
+      {week ? (
+        <>
+          <Field label="Coupes par semaine">
+            <div className="chips" role="group" aria-label="Coupes par semaine">{PER_WEEK.map((n) => <Chip key={n} on={perWeekOf(p) === n} onClick={() => set({ perWeek: n, ...derivedCuts({ ...p, perWeek: n }) })}>{n}</Chip>)}</div>
+          </Field>
+          <fieldset className="ab-rule" data-guide="abo-missed">
+            <legend className="label">S’il ne vient pas une semaine</legend>
+            {MISSED.map((o) => (
+              <label key={o.v} className="ab-opt">
+                <input type="radio" name={idl + '-missed'} checked={missedOf(p) === o.v} onChange={() => set({ missed: o.v, ...derivedCuts({ ...p, missed: o.v }) })} />
+                <span><b>{o.v === 'month' && perWeekOf(p) > 1 ? 'Il les rattrape dans le mois' : o.t}</b><small>{o.v === 'month' ? 'Ses ' + perWeekOf(p) * 4 + ' coupes du mois, quand il veut, une par jour au plus.' : o.v === 'lost' && perWeekOf(p) > 1 ? perWeekOf(p) + ' par semaine, sans rattrapage.' : o.s}</small></span>
+              </label>
+            ))}
+          </fieldset>
+        </>
+      ) : (
+        <>
+          <Field label="Coupes par mois">
+            <div className="chips" role="group" aria-label="Coupes par mois">{cutsOpts.map((c) => <Chip key={c} on={p.cuts === c} onClick={() => set({ cuts: c, minDays: c === 0 ? p.minDays || 7 : 0 })}>{c === 0 ? 'Illimité' : c}</Chip>)}</div>
+          </Field>
+          {p.cuts === 0 ? (
+            <Field label="Une coupe incluse au plus tous les … jours" htmlFor={idl + '-d'} hint="Évite une coupe par jour : sept jours par défaut.">
+              <input id={idl + '-d'} className="input ct-num" inputMode="numeric" value={p.minDays || 7} onChange={(e) => set({ minDays: num(e.target.value, 1, 30) })} style={{ maxWidth: 90 }} />
+            </Field>
+          ) : null}
+        </>
+      )}
       <Field label="Prestations couvertes" hint="Ce que l’abonnement paie : une coupe à 0 € à la caisse.">
         <div className="chips" role="group" aria-label="Prestations couvertes">{services.map((x) => <Chip key={x.id} small on={p.serviceIds.includes(x.id)} onClick={() => set({ serviceIds: p.serviceIds.includes(x.id) ? p.serviceIds.filter((y) => y !== x.id) : [...p.serviceIds, x.id] })}>{x.name}</Chip>)}</div>
       </Field>
@@ -131,14 +173,16 @@ function PlanCard({ p, i, set, remove, known, problem, holders, saved, services 
       <Switch on={p.online !== false} onChange={(v) => set({ online: v })} title="En vente sur le site" hint="Sinon, tu ne la proposes qu’au salon, depuis la fiche du client." />
       {problem ? <Note tone="warn" icon="alert">{problem}</Note> : null}
       {saved && saved.price !== p.price ? <Note icon="info">Les abonnés en cours gardent leur prix.</Note> : null}
+      {ruleChanged ? <Note icon="info">La nouvelle règle vaut pour les nouveaux abonnés : {plural(holders, 'abonné garde', 'abonnés gardent')} l’ancienne règle.</Note> : null}
       <div className="ab-prev" data-guide="abo-preview" aria-label="Aperçu sur le site">
         <p className="section-k">Aperçu sur le site</p>
         <div className="ab-card">
           <b className="ab-n">{p.name.trim() || 'Nom de la formule'}</b>
           <span className="ab-p"><b>{eur(p.price, { decimals: p.price % 100 !== 0 })}</b>/mois</span>
-          <span className="ab-w">{planWords(p, names)}</span>
+          <span className="ab-w">{cardWords(p, names)}</span>
           {p.blurb.trim() ? <span className="ab-b">{p.blurb.trim()}</span> : null}
         </div>
+        <p className="ab-line" data-guide="abo-offer-line" aria-live="polite"><span className="faint">Ce que voit le client :</span> {offerWords(p)}</p>
       </div>
     </section>
   );

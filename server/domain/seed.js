@@ -7,7 +7,7 @@ import { memoryStore } from '../store/memory.js';
 import { CAPS } from './permissions.js';
 import { hashSecretSync } from '../auth/password.js';
 import { localParts, instantOf, addDays, diffDays, weekday } from '../../shared/dates.js';
-import { rng, hashStr } from '../lib/util.js';
+import { rng, hashStr, sha256 } from '../lib/util.js';
 import { DENOMS } from '../../shared/money.js';
 import { staffIntervals, isFree, freeSlots } from './availability.js';
 import { drawerExpected } from './cash.js';
@@ -23,7 +23,7 @@ import { sendRebook } from '../commands/messages.js';
 import { seedReviews } from '../commands/reviews.js';
 import { startMembership, memberPaid, requestCancel } from '../commands/memberships.js';
 import simBilling from '../commands/steps/sim-billing.js';
-import { memberOf, cover, addMonths } from './membership.js';
+import { memberOf, cover, addMonths, statusIn } from './membership.js';
 import { addCutNote } from '../commands/cutnotes.js';
 import { fiscalSteps } from '../commands/steps/fiscal.js';
 import { demoSigner } from '../core/signer.js';
@@ -64,20 +64,24 @@ const SERVICES = [
   { slug: 'ab', name: 'Carnet 5 coupes', short: 'Carnet', category: 'Carnet', price: 8000, dur: 30, online: false, includes: ['5 coupes sur 5 semaines', 'Sans barbe'], description: '16 € la coupe. Il se prend au salon : on fixe tes coupes avec toi.', tag: '16 € la coupe', w: 0, pack: { credits: 5, days: 70 } }
 ];
 
-/* the monthly membership (PAY-02): two formules, sixteen members over the history, the demo's billing renews them */
+/*
+ * the monthly membership: the salon's real offer (PAY-07), 80 € a month charged automatically, one cut a week, a missed
+ * week lost; sixteen members over the history, the demo's billing renews them. « Hebdo »: every screen and text says
+ * « Abonnement {formule} », so a formule named « Abonnement » would read twice.
+ */
 const PLANS = [
-  { id: 'essentiel', name: 'Essentiel', price: 3400, cuts: 2, minDays: 0, slugs: ['cl'], blurb: '2 coupes classiques par mois, sans engagement.' },
-  { id: 'illimite', name: 'Illimité', price: 4900, cuts: 0, minDays: 7, slugs: ['cl', 'cc'], blurb: 'Une coupe chaque semaine, contour de barbe compris.' }
+  { id: 'hebdo', name: 'Hebdo', price: 8000, rhythm: 'week', perWeek: 1, missed: 'lost', slugs: ['cl', 'cc'], blurb: 'Une coupe chaque semaine, contour de barbe compris. Sans engagement.' }
 ];
 /**
  * What happens to each of the sixteen members, counted back from today: 12 run, 1 has its renewal refused (in grace), 1
  * ends at its period's end, 2 were cancelled. ago: days before today it starts (kept inside the history); a start or a
  * cancellation on a closed day happens on the next open one. graceAt: started so that the renewal is due yesterday;
  * endAt: so that the period ends in four days. The members are regulars whose usual service a formule covers, picked
- * from the clientele as it is drawn, so the rest of the demo (bookings, the random draws) stays what it was.
+ * from the clientele as it is drawn. A running member comes once a week (memberVisits), on his own day; this week three
+ * have not come yet (skip), one of them has missed last week too (skip2), so the Abonnés board has someone to call.
  */
 const MEMBERS = [
-  { ago: 66 }, { ago: 60 }, { ago: 55, salon: true }, { ago: 49 }, { ago: 43 }, { ago: 38 }, { ago: 31, salon: true }, { ago: 26 },
+  { ago: 66 }, { ago: 60, skip2: true }, { ago: 55, salon: true }, { ago: 49 }, { ago: 43, skip: true }, { ago: 38 }, { ago: 31, salon: true }, { ago: 26, skip: true },
   { ago: 19 }, { ago: 12 }, { ago: 7 }, { ago: 3 }, { graceAt: true }, { endAt: true, cancelAgo: 6 },
   { ago: 67, cancelAfter: 10, by: 'salon' }, { ago: 62, cancelAfter: 20 }
 ];
@@ -282,7 +286,7 @@ export async function buildDemoJournal(nowReal, opt = {}) {
     const stop = i % 9 === 4 ? addDays(today, -(cadence + 8 + Math.floor(r() * 21))) : null;
     // the last 200 discover the salon along the way: new clients every week
     const join = i >= 320 ? addDays(start, Math.floor(((i - 320) / 200) * weeks * 7)) : null;
-    pool.push({ id: res.id, pref: barberIds[Math.floor(r() * barberIds.length)], cadence, fav: slugId[favSlug], last: null, packId: null, abo: i % 19 === 3, booked: null, stop, join });
+    pool.push({ id: res.id, pref: barberIds[Math.floor(r() * barberIds.length)], cadence, fav: slugId[favSlug], last: null, packId: null, abo: i % 19 === 3, booked: null, stop, join, member: false });
   }
   // the clientele came before these ten weeks: half of it kept its paper card, taken over (1 to 8 stamps, from its place
   // in the list, not from r), so full cards and rewards show from the first weeks (half: the journal budget)
@@ -295,14 +299,15 @@ export async function buildDemoJournal(nowReal, opt = {}) {
   const graceStart = () => { let d = addMonths(addDays(today, -1), -1); while (!eng.state.settings.hours[weekday(d)]?.length) d = addDays(d, -1); return d; };
   const plans = MEMBERS.slice(0, regulars.length).map((x, i) => {
     const c = regulars[i];
-    const plan = /** @type {any} */ (PLANS[c.fav === slugId.cc || c.cadence <= 14 ? 1 : 0]);
+    const plan = /** @type {any} */ (PLANS[0]);
     const startDay = x.graceAt ? graceStart() : x.endAt ? addMonths(addDays(today, 4), -1) : addDays(today, -(x.ago || 0));
     const from = startDay < start ? start : startDay;
     const cancelDay = x.cancelAgo != null ? addDays(today, -x.cancelAgo) : x.cancelAfter != null ? addDays(from, x.cancelAfter) : null;
-    return { ...x, c, plan, from, cancelDay: cancelDay && cancelDay < from ? from : cancelDay, id: '', started: false, cancelled: false };
+    return { ...x, c, plan, from, cancelDay: cancelDay && cancelDay < from ? from : cancelDay, id: '', started: false, cancelled: false, startDay: '' };
   });
   const pickClient = (day) => (staffId) => {
-    const due = pool.filter((c) => (!c.booked || c.booked < day) && (!c.stop || day < c.stop) && (!c.join || day >= c.join)).filter((c) => !c.last || diffDays(c.last, day) >= c.cadence * 0.75);
+    // a running member comes on his own weekly day (memberVisits), not at random
+    const due = pool.filter((c) => !c.member && (!c.booked || c.booked < day) && (!c.stop || day < c.stop) && (!c.join || day >= c.join)).filter((c) => !c.last || diffDays(c.last, day) >= c.cadence * 0.75);
     const mine = due.filter((c) => c.pref === staffId);
     const list = mine.length && r() < 0.8 ? mine : due;
     if (!list.length) return null;
@@ -324,13 +329,58 @@ export async function buildDemoJournal(nowReal, opt = {}) {
         p.started = true;
         const cl = eng.state.clients.get(p.c.id);
         const res = await eng.run(startMembership, { planId: p.plan.id, first: cl.first, phone: cl.phone, ...(cl.email ? { email: cl.email } : {}), provider: 'simulated', providerRef: 'sim_co_' + p.c.id, channel: p.salon ? 'salon' : 'online', ...(p.graceAt ? { demoFail: true } : {}) }, base);
-        p.id = res.id;
+        p.id = res.id; p.startDay = day;
         await eng.run(memberPaid, { id: res.id, invoice: 'sim_' + res.id + '_0', amount: p.plan.price, periodStart: day, periodEnd: addMonths(day, 1), chargeRef: 'sim_ch_' + res.id + '_0', customer: 'cus_sim_' + p.c.id, subscription: 'sub_sim_' + p.c.id, card: p.from.endsWith('5') ? 'Mastercard •• 5100' : 'Visa •• 4242' }, base);
       }
       if (p.started && !p.cancelled && p.cancelDay && p.cancelDay <= day) {
         p.cancelled = true;
         await eng.run(requestCancel, { id: p.id, by: p.by || 'client', channel: p.by === 'salon' ? 'comptoir' : 'site' }, base);
       }
+    }
+  };
+
+  /*
+   * PAY-07: each running member books his weekly cut, on his day of the week (from his file, Tuesday to Saturday). This
+   * week, whoever's day is still to come comes today, before now when there is room, so a Tuesday afternoon already
+   * shows the week; the skippers do not; a past week is missed now and then (one in nine, from the file and the week).
+   */
+  const OPEN_WD = [2, 3, 4, 5, 6];
+  // well spread from close keys (hashStr clusters on a last character)
+  const spread = (key, n) => parseInt(sha256(key).slice(0, 8), 16) % n;
+  const thisWeek = addDays(today, -((weekday(today) + 6) % 7));
+  // their bookings come as planned (no random cancellation or no-show): the board's week is the one these lines say
+  const visits = new Set();
+  const memberVisits = async (day, isToday) => {
+    const week = addDays(day, -((weekday(day) + 6) % 7));
+    for (const [i, p] of plans.entries()) {
+      if (!p.started || !p.id) continue;
+      const m = eng.state.members.get(p.id);
+      const st = m ? statusIn(eng.state, m, day) : 'ended';
+      p.c.member = st === 'active' || st === 'grace' || st === 'ending';
+      if (!p.c.member || p.c.booked === day) continue;
+      const own = addDays(week, OPEN_WD[spread('wd|' + i, OPEN_WD.length)] - 1);
+      const skip = week === thisWeek ? p.skip || p.skip2 : (p.skip2 && week === addDays(thisWeek, -7)) || spread('miss|' + i + '|' + week, 9) === 0;
+      const target = own < p.startDay ? p.startDay : week === thisWeek && own > today ? today : own;
+      if (skip || target !== day) continue;
+      const sv = eng.state.services.get(p.c.fav);
+      if (!sv) continue;
+      const dur = sv.dur + (sv.buffer || 0), nowMin = isToday ? localParts(nowReal).min : 1440;
+      const times = [570, 600, 630, 660, 690, 720, 810, 840, 870, 900, 930, 960, 990, 1020];
+      // his usual hour; the key keeps, on the tests' fixed clock, the days the other demo scenarios look for
+      const k = spread('t20|' + i, times.length);
+      const all = [...times.slice(k), ...times.slice(0, k)];
+      // a slot already over first (with any barber, his own first), so today's visit is done by now
+      const before = all.filter((x) => x + dur + 20 <= nowMin);
+      const staff = [p.c.pref, ...barberIds.filter((x) => x !== p.c.pref)];
+      let slot = null;
+      for (const list of [before, all]) {
+        for (const sid of staff) { const t = list.find((x) => isFree(eng.state, sid, day, x, dur, { now: clock })); if (t != null) { slot = { sid, t }; break; } }
+        if (slot) break;
+      }
+      if (!slot) continue;
+      at(day, 8 * 60 + 5);
+      const res = await eng.run(createAppointment, { clientId: p.c.id, serviceIds: [sv.id], staffId: slot.sid, day, start: slot.t, source: p.salon ? 'salon' : 'site', sms: false, demo: true }, base).catch(() => null);
+      if (res) { p.c.booked = day; visits.add(res.id); }
     }
   };
 
@@ -368,12 +418,13 @@ export async function buildDemoJournal(nowReal, opt = {}) {
     at(day, 8 * 60);
     // the review requests of the last evening's visits leave as the quiet hours end, as the tick sends them (REV-02)
     await eng.run(seedReviews, {}, base);
+    await memberVisits(day, isToday);
     const plans = planDay(eng.state, day, fillFor(day, today), r, pickClient(day), clock);
     for (const p of plans) { const c = byId.get(p.clientId); if (c) c.booked = day; await eng.run(createAppointment, p, base).catch(() => null); }
     seeded.push(day);
     const appts = [...(eng.state.apptsByDay.get(day) || [])].map((id) => eng.state.appts.get(id)).filter((a) => a && a.status === 'booked');
     // a few cancel in the morning
-    for (const a of appts) if (r() < 0.03) await eng.run(cancelAppointment, { id: a.id, reason: 'Empêchement' }, base);
+    for (const a of appts) if (r() < 0.03 && !visits.has(a.id)) await eng.run(cancelAppointment, { id: a.id, reason: 'Empêchement' }, base);
     const nowMin = isToday ? localParts(nowReal).min : 1440;
     if (nowMin > 8 * 60 + 50) { at(day, 8 * 60 + 50); await eng.run(openDrawer, { float: 15000 }, base); }
     const live = appts.filter((a) => eng.state.appts.get(a.id).status === 'booked').sort((a, b) => a.start + a.dur - (b.start + b.dur));
@@ -383,7 +434,7 @@ export async function buildDemoJournal(nowReal, opt = {}) {
         if (isToday && a.start <= nowMin) { at(day, Math.min(nowMin, a.start + 2)); await eng.run(setStatus, { id: a.id, status: 'in_chair' }, base).catch(() => null); }
         continue;
       }
-      if (r() < 0.03) { at(day, a.start + 12); await eng.run(setStatus, { id: a.id, status: 'no_show' }, base).catch(() => null); continue; }
+      if (r() < 0.03 && !visits.has(a.id)) { at(day, a.start + 12); await eng.run(setStatus, { id: a.id, status: 'no_show' }, base).catch(() => null); continue; }
       at(day, end + 2);
       const c = a.clientId ? byId.get(a.clientId) : null;
       const cur = eng.state.appts.get(a.id);
@@ -407,7 +458,7 @@ export async function buildDemoJournal(nowReal, opt = {}) {
         if (diffDays(day, today) <= 21 && hashStr('cutnote|' + c.id + '|' + day) % 5 === 0) { at(day, end + 6); await noteCut(lastVisit.get(c.id), c); }
       }
       // a third of clients book their next cut before leaving
-      if (res && c && r() < 0.33 && (!c.stop || addDays(day, c.cadence) < c.stop)) {
+      if (res && c && r() < 0.33 && !c.member && (!c.stop || addDays(day, c.cadence) < c.stop)) {
         const next = addDays(day, c.cadence);
         if (diffDays(today, next) <= ahead && diffDays(today, next) >= -60) {
           const free = [600, 660, 720, 840, 900, 960, 1020].find((m) => isFree(eng.state, cur.staffId, next, m, cur.dur, { now: clock }));

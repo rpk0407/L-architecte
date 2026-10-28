@@ -6,6 +6,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../../lib/api';
 import { dates, eur, time } from '../../lib/format';
+import { missedWords, planWords, useWords } from '../../lib/members';
 import './member.css';
 
 export type MemberStatus = 'pending' | 'active' | 'grace' | 'unpaid' | 'paused' | 'ending' | 'ended';
@@ -13,8 +14,14 @@ export type AckKind = 'welcome' | 'cancel' | 'withdraw';
 /** What PAY-03's memberView answers (server/http/routes-membership.js): no number, no e-mail. */
 export type MemberView = {
   id: string; first: string; status: MemberStatus; startDay: string | null;
-  plan: { id: string; name: string; price: number; cuts: number; minDays: number; words: string; services: { id: string; name: string; slug: string | null }[] };
+  plan: {
+    id: string; name: string; price: number; cuts: number; minDays: number; words: string; services: { id: string; name: string; slug: string | null }[];
+    /** PAY-07: a weekly plan (absent: monthly) and what a missed week does, in words */
+    rhythm?: 'week'; perWeek?: number; missed?: 'lost' | 'month' | 'free'; missedWords?: string;
+  };
   used: number; of: number; nextCut: string | null;
+  /** PAY-07: a weekly plan's calendar week, its covered cuts of `of` (null for a monthly plan) */
+  week?: { start: string; end: string; used: number; of: number } | null;
   period: { start: string; end: string; last: string; paid: boolean } | null;
   next: { amount: number; day: string } | null; card: string;
   pastDue: { since: number; action: boolean } | null;
@@ -76,9 +83,12 @@ export function statusWords(m: MemberView): { text: string; tone: '' | 'ok' | 'w
   if (m.status === 'pending') return { text: m.startDay ? 'démarre le ' + ddmm(m.startDay) : 'en attente du paiement', tone: '' };
   return { text: 'actif', tone: 'ok' };
 }
-/** « 1/2 coupes ce mois » / « Illimité · prochaine coupe incluse dès le 12/11 », for the /moi row. */
+/** One a week, a missed week lost: the calendar week is what he counts (PAY-07). */
+const weekRule = (m: MemberView) => m.plan.rhythm === 'week' && (m.plan.missed || 'lost') === 'lost' && !!m.week;
+/** « 1/2 coupes ce mois » / « Illimité · prochaine coupe incluse dès le 12/11 » / « Cette semaine : à prendre », for the /moi row. */
 export function counterWords(m: MemberView) {
   if (m.status === 'ended' || m.status === 'pending') return statusWords(m).text;
+  if (m.plan.rhythm === 'week') return useWords(m.plan, { used: m.used, of: m.of, week: m.week });
   if (m.of) return m.used + '/' + m.of + ' coupes ce mois';
   return 'Illimité' + (m.nextCut && m.nextCut > today() ? ' · prochaine coupe incluse dès le ' + ddmm(m.nextCut) : ' · prochaine coupe incluse');
 }
@@ -96,6 +106,11 @@ function counterSub(m: MemberView, included: boolean | null | '') {
   // past the grace days the till includes nothing until the card goes through: never « incluse » then
   if (m.status === 'unpaid') return 'Coupes en attente : elles sont de nouveau incluses dès que le paiement passe.';
   const until = m.period ? 'jusqu’au ' + ddmm(m.period.last) : '';
+  if (weekRule(m) && m.week) {
+    const left = m.week.of - m.week.used;
+    if (left <= 0) return 'Ta coupe de la semaine est prise : la prochaine est incluse dès le lundi ' + ddmm(dates.addDays(m.week.start, 7)) + '.';
+    return (left > 1 ? 'Tes ' + left + ' coupes de la semaine t’attendent' : 'Ta coupe de la semaine t’attend') + ' jusqu’à dimanche ' + ddmm(m.week.end) + ' : une semaine manquée ne se rattrape pas.';
+  }
   if (!m.of) return [included || !m.nextCut ? 'Ta prochaine coupe est incluse' : 'Prochaine coupe incluse dès le ' + ddmm(m.nextCut), until].filter(Boolean).join(' · ');
   if (m.used >= m.of && m.nextCut) return 'Tes coupes du mois sont prises : la prochaine est incluse dès le ' + ddmm(m.nextCut) + '.';
   return until;
@@ -308,8 +323,10 @@ export function MemberPanel({ source, initial, back, onChange }: { source: Membe
           <p className="mb-sub">{m.startDay ? 'Il démarre le ' + ddmm(m.startDay) + ' : rien n’est prélevé avant, et d’ici là tes coupes sont au prix normal.' : 'On attend la confirmation du paiement.'}</p>
         ) : live ? (
           <div className="mb-count" data-guide="member-counter">
-            {unlimited ? <p className="mb-big">Illimité</p> : <p className="mb-big" aria-label={m.used + ' coupe' + (m.used > 1 ? 's' : '') + ' sur ' + m.of + ' ce mois-ci'}>{m.used}/{m.of}<small>coupes ce mois-ci</small></p>}
+            {weekRule(m) && m.week ? <p className="mb-big" aria-label={m.week.used + ' coupe' + (m.week.used > 1 ? 's' : '') + ' sur ' + m.week.of + ' cette semaine'}>{m.week.used}/{m.week.of}<small>{m.week.of > 1 ? 'coupes' : 'coupe'} cette semaine</small></p>
+              : unlimited ? <p className="mb-big">Illimité</p> : <p className="mb-big" aria-label={m.used + ' coupe' + (m.used > 1 ? 's' : '') + ' sur ' + m.of + ' ce mois-ci'}>{m.used}/{m.of}<small>coupes ce mois-ci</small></p>}
             <p className="mb-sub">{counterSub(m, included)}</p>
+            {m.plan.rhythm === 'week' ? <p className="mb-sub mb-rule" data-guide="member-rule">{planWords(m.plan)} · {missedWords(m.plan)}</p> : null}
           </div>
         ) : (
           <p className="mb-sub">{m.withdrawn ? 'Rétractation enregistrée le ' + atWords(m.withdrawn.at) + '.' : m.cancel ? 'Résilié : fin le ' + ddmm(m.cancel.last) + '.' : 'Cet abonnement est arrêté.'}</p>

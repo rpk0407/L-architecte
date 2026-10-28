@@ -1,5 +1,5 @@
 // The membership in the Comptoir (PAY-05) on the demo salon: a member's cut at 0 € in one tap, the next one past the plan
-// priced with its note, the Abonnés board, cancelling at the end of the paid month and now, a formule added in Réglages and
+// priced with its note (PAY-07: the demo's formule is one cut a week, so the second of the week), the Abonnés board, cancelling at the end of the paid month and now, a formule added in Réglages and
 // on sale on the site, and nothing wider than a phone.
 export const name = 'membership in the Comptoir: till, board, file, cancel, plans';
 
@@ -13,9 +13,9 @@ export default async ({ h, page }) => {
 
   const pulse = (await call('/api/v1/pulse')).json;
   const members = (await call('/api/v1/memberships')).json.members;
-  const m = members.find((x) => x.plan === 'Essentiel' && x.status === 'active' && x.used === 0) || fail('no Essentiel member with a free month in the demo');
+  const m = members.find((x) => x.plan === 'Hebdo' && x.status === 'active' && x.week && x.week.used === 0) || fail('no Hebdo member who has not come this week in the demo');
   const file = (await call('/api/v1/clients/' + m.clientId)).json.client;
-  const plan = (await call('/api/public/memberships')).json.plans.find((p) => p.name === 'Essentiel');
+  const plan = (await call('/api/public/memberships')).json.plans.find((p) => p.name === 'Hebdo');
   const cut = plan.services[0];
   const lane = (await call('/api/v1/agenda?day=' + pulse.today)).json.lanes[0];
 
@@ -24,8 +24,8 @@ export default async ({ h, page }) => {
   if (booked.status !== 200) fail('booking refused: ' + JSON.stringify(booked.json));
   await page.goto(h.base + '/comptoir/caisse?rdv=' + booked.json.id);
   await page.locator('.ticket').waitFor({ timeout: 8000 });
-  await page.getByText(/Abonnement · coupe 1\/2/).waitFor({ timeout: 8000 });
-  await page.getByText('Abonné · Essentiel').waitFor({ timeout: 3000 });
+  await page.getByText(/Abonnement · semaine du \d\d\/\d\d \(1\/1\)/).waitFor({ timeout: 8000 });
+  await page.getByText(/Abonné · Hebdo/).waitFor({ timeout: 3000 });
   await page.getByRole('button', { name: /Valider l’encaissement · 0 €/ }).waitFor({ timeout: 3000 });
   await h.shot(page, 'membership-till-line');
   await page.getByRole('button', { name: /Valider l’encaissement/ }).click();
@@ -34,18 +34,15 @@ export default async ({ h, page }) => {
   if (!sale || sale.totals.due !== 0) fail('the member ticket is not at 0 €: ' + JSON.stringify(sale && sale.totals));
   if (!sale.lines[0].memberId) fail('the line does not say which membership paid it');
 
-  // 2. a free sale for him: the second cut of the month is covered, the third stays priced and says why
+  // 2. a free sale for him: the week's cut is taken, the next one stays priced and says why
   await page.goto(h.base + '/comptoir/caisse');
   await page.getByRole('button', { name: 'Vente libre' }).click();
   await page.getByRole('button', { name: 'Associer un client' }).click();
   await page.getByPlaceholder('Prénom, nom ou numéro').fill(file.first + ' ' + file.last);
   await page.getByRole('dialog').getByRole('button', { name: new RegExp(file.first) }).first().click();
-  for (let i = 0; i < 2; i++) {
-    await page.getByRole('button', { name: 'Ajouter', exact: true }).click();
-    await page.getByRole('dialog').getByRole('button', { name: new RegExp(cut.name) }).first().click();
-  }
-  await page.getByText(/Abonnement · coupe 2\/2/).waitFor({ timeout: 8000 });
-  await page.getByText('Coupe déjà prise ce mois-ci (2/2) — encaissée au prix normal').waitFor({ timeout: 8000 });
+  await page.getByRole('button', { name: 'Ajouter', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: new RegExp(cut.name) }).first().click();
+  await page.getByText(/Coupe de la semaine déjà prise \(1\/1\) · prochaine lundi \d\d\/\d\d — encaissée au prix normal/).waitFor({ timeout: 8000 });
   await page.getByRole('button', { name: 'L’offrir quand même' }).waitFor({ timeout: 3000 });
   await h.shot(page, 'membership-till-quota');
   await page.getByRole('button', { name: 'Carte Terminal de paiement' }).click();
@@ -54,9 +51,9 @@ export default async ({ h, page }) => {
   await page.getByRole('dialog', { name: 'Qui a fait la prestation ?' }).getByRole('button', { name: 'JKut' }).click();
   await page.getByRole('button', { name: 'Ticket suivant' }).waitFor({ timeout: 8000 });
   const sales = (await call('/api/v1/sales?day=' + pulse.today)).json.items.filter((x) => x.clientId === m.clientId);
-  if (!sales.some((x) => x.totals.due > 0)) fail('the third cut was not charged: ' + JSON.stringify(sales.map((x) => x.totals.due)));
+  if (!sales.some((x) => x.totals.due > 0)) fail('the second cut of the week was not charged: ' + JSON.stringify(sales.map((x) => x.totals.due)));
   const after = (await call('/api/v1/memberships?clientId=' + m.clientId)).json.members[0];
-  if (after.used !== 2) fail('the month shows ' + after.used + ' cuts, expected 2');
+  if (after.week.used !== 1) fail('the week shows ' + after.week.used + ' cuts, expected 1');
 
   // 3. Clients › Abonnés: the strip and the member. Opening the board reads the owner's rows, which also catches up a month whose renewal notice never came
   const reads = [];
@@ -72,8 +69,8 @@ export default async ({ h, page }) => {
   // 4. his file: the chip opens the block; cancel at the end of the paid month → « Fin le … »
   await page.getByRole('button', { name: new RegExp(file.first + ' ' + file.last) }).first().click();
   await page.getByRole('group', { name: 'En un coup d’œil' }).waitFor({ timeout: 8000 });
-  await page.getByRole('button', { name: /^Abonnement Essentiel.*Ouvrir/ }).click();
-  await page.getByText('Coupes ce mois-ci').waitFor({ timeout: 3000 });
+  await page.getByRole('button', { name: /^Abonnement Hebdo.*Ouvrir/ }).click();
+  await page.getByText('Cette semaine', { exact: true }).waitFor({ timeout: 3000 });
   await h.shot(page, 'membership-file');
   await page.getByRole('button', { name: 'Résilier', exact: true }).click();
   const dlg = page.getByRole('dialog', { name: /Résilier l’abonnement/ });
@@ -101,10 +98,11 @@ export default async ({ h, page }) => {
   await page.goto(h.base + '/comptoir/reglages/abonnements');
   await page.getByRole('switch', { name: /Vendre des abonnements/ }).waitFor({ timeout: 8000 });
   await page.getByRole('button', { name: 'Ajouter une formule' }).click();
-  await page.getByRole('region', { name: 'Formule 3' }).getByLabel('Nom').fill('Duo barbe');
-  // the card takes the name it was given
+  await page.getByRole('region', { name: 'Formule 2' }).getByLabel('Nom').fill('Duo barbe');
+  // the card takes the name it was given; a new formule is weekly by default (PAY-07): this one counts by the month
   const card = page.getByRole('region', { name: 'Formule Duo barbe' });
   await card.getByLabel('Prix par mois').fill('25');
+  await card.getByRole('group', { name: 'Rythme' }).getByRole('button', { name: 'Par mois' }).click();
   await card.getByRole('group', { name: 'Coupes par mois' }).getByRole('button', { name: '1', exact: true }).click();
   await card.getByRole('group', { name: 'Prestations couvertes' }).getByRole('button', { name: 'Taille de barbe', exact: true }).click();
   await page.getByText('Aperçu sur le site').last().waitFor();
