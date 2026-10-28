@@ -10,7 +10,7 @@
 // last one); a negative balance (a refund after the reward) is kept, and paid back by the next visits.
 import { fail } from '../core/engine.js';
 import { rootOf } from './membership.js';
-import { diffDays, dayParts, pad2, localParts } from '../../shared/dates.js';
+import { addDays, diffDays, dayParts, pad2, localParts } from '../../shared/dates.js';
 import { rewardValue, rewardWords, cardWords } from '../../shared/loyalty.js';
 import { fmtEur } from '../../shared/money.js';
 import loyaltySection from '../settings/loyalty.js';
@@ -79,6 +79,31 @@ export function earnOf(s, client, lines, day) {
     if (stampStands(s, x) && rootOf(s, x.clientId) === root) return 0;
   }
   return units;
+}
+
+/**
+ * What a ticket did for its client's card (the till's done screen): the stamp it earned, the full cards it completed (their
+ * rewards), and, when it earned none, why: 'covered' (a carnet or the membership paid the cut), 'min' (less than the
+ * minimum paid), 'today' (already stamped that day), 'off' (he does not take part). null while the programme is off or the
+ * ticket has no client.
+ * @param {any} s @param {any} x a sale
+ * @returns {{ units: number, rewards: { reward: any }[], why: 'covered'|'min'|'today'|'off'|null }|null}
+ */
+export function saleLoyalty(s, x) {
+  const cfg = cfgOf(s);
+  if (!cfg.enabled || !x.clientId) return null;
+  const units = x.loyalty ? x.loyalty.units : 0;
+  const rewards = [...L(s).rewards.values()].filter((r) => r.saleId === x.id && r.source === 'card' && !r.voided).map((r) => ({ reward: r.reward }));
+  /** @type {'covered'|'min'|'today'|'off'|null} */
+  let why = null;
+  if (!units) {
+    const c = s.clients.get(rootOf(s, x.clientId) || x.clientId);
+    const net = qualifyingNet(x.lines);
+    if (!c || c.loyaltyOff || c.erased) why = 'off';
+    else if (net <= 0) why = x.lines.some((l) => l.kind === 'service' && (l.packId || l.memberId)) ? 'covered' : 'min';
+    else why = net < (cfg.minNet || 0) ? 'min' : 'today';
+  }
+  return { units, rewards, why };
 }
 
 /* ---------------- the card's timeline ---------------- */
@@ -227,15 +252,18 @@ function historyOf(s, g) {
 /**
  * A client's card on a day: { root, model, enabled, off, units, goal, rewards [{ id, source, reward, label, expires }],
  * last (10 movements, newest first: { day, what, units }), lastEarn, referredBy }.
- * @param {any} s @param {string} cid @param {string} day
+ * from: a fenced account's historyFrom (domain/me.js): only the stamps and rewards of that day on, what came before is
+ * the number's previous holder's.
+ * @param {any} s @param {string} cid @param {string} day @param {string|null} [from]
  */
-export function cardOf(s, cid, day) {
+export function cardOf(s, cid, day, from = null) {
   const root = rootOf(s, cid) || cid;
-  return memo(s, 'card|' + root + '|' + day, () => {
+  return memo(s, 'card|' + root + '|' + day + '|' + (from || ''), () => {
     const cfg = cfgOf(s);
     const c = s.clients.get(root);
     // a read: every file's timeline at once, the lists ask for many cards
-    const g = index(s).get(root) || { items: [], rewards: [] };
+    const all = index(s).get(root) || { items: [], rewards: [] };
+    const g = from ? { items: all.items.filter((x) => x.day >= from), rewards: all.rewards.filter((r) => r.day >= from) } : all;
     const f = fold(g.items, cfg, day);
     const words = nameOf(s);
     const rewards = g.rewards.filter((r) => usable(r, day)).sort((a, b) => (a.expires < b.expires ? -1 : 1))
@@ -339,6 +367,55 @@ export function receiptLoyalty(s, sale, day) {
   return { words: cardWords({ ...card, units: Math.max(0, card.units) }), next: rewardWords(cfgOf(s).reward, nameOf(s)) };
 }
 
+/* ---------------- the launch ---------------- */
+
+/**
+ * What launching gives with a head start, before anything is written: the stamps of each client with paid visits in the
+ * last 365 days (visits brought over from WordPress included, a visit that already earned a stamp not counted twice),
+ * capped by the head start. The command writes exactly this; the owner's confirmation shows its figures.
+ * @param {any} s @param {'none'|'half'|'full'} head @param {string} day @returns {{ cap: number, rows: { root: string, units: number }[] }}
+ */
+export function launchPlan(s, head, day) {
+  const cfg = cfgOf(s);
+  const cap = head === 'full' ? cfg.goal - 1 : head === 'half' ? Math.floor(cfg.goal / 2) : 0;
+  if (cap <= 0) return { cap: 0, rows: [] };
+  const since = addDays(day, -365);
+  /** @type {Map<string, Set<string>>} */
+  const visits = new Map();
+  const add = (cid, d) => { const k = rootOf(s, cid); if (!k) return; const v = visits.get(k); if (v) v.add(d); else visits.set(k, new Set([d])); };
+  for (const t of s.sales.values()) {
+    // a ticket refunded in full was no visit
+    if (!t.clientId || t.day < since || t.day > day || (t.loyalty && t.loyalty.units) || t.totals.revenue - (t.refunded || 0) <= 0) continue;
+    if (unitsFor(cfg, qualifyingNet(t.lines))) add(t.clientId, t.day);
+  }
+  for (const a of s.appts.values()) if (a.legacy && a.status === 'done' && !a.saleId && a.clientId && a.day >= since && a.day <= day) add(a.clientId, a.day);
+  const rows = [];
+  for (const [root, days] of visits) {
+    const c = s.clients.get(root);
+    if (!c || c.erased || c.loyaltyOff) continue;
+    // the stamps already on the card count: the head start never completes a card by itself
+    const units = Math.min(cap, days.size, Math.max(0, cfg.goal - 1 - cardOf(s, root, day).units));
+    if (units) rows.push({ root, units });
+  }
+  return { cap, rows };
+}
+
+/**
+ * Réglages › Fidélité's launch line: what a launch on this day would give with that head start, or what the launch gave
+ * (the day, the cards it opened).
+ * @param {any} s @param {'none'|'half'|'full'} head @param {string} day
+ */
+export function launchView(s, head, day) {
+  const done = L(s).launched;
+  if (done) {
+    let clients = 0, stamps = 0;
+    for (const list of L(s).entries.values()) for (const e of list) if (e.kind === 'earned' && e.reason === 'start') { clients++; stamps += e.units; }
+    return { launched: { day: done.day, headStart: done.headStart, clients, stamps }, plan: null };
+  }
+  const p = launchPlan(s, head, day);
+  return { launched: null, plan: { headStart: head, cap: p.cap, clients: p.rows.length, stamps: p.rows.reduce((t, x) => t + x.units, 0) } };
+}
+
 /* ---------------- what the programme costs and owes ---------------- */
 
 /**
@@ -377,8 +454,8 @@ export function liability(s, day) {
 
 /**
  * The period's tickets replayed under another programme (the owner's simulator), with the stamps carried over at launch
- * or from the old site: { clients (who earned), rewards, value (at today's prices), share (of the period's service
- * revenue), perClientYear (value a year per client who earned) }.
+ * or from the old site: { clients (who earned), winners (who won a reward), rewards, value (at today's prices), share (of
+ * the period's service revenue), perClientYear (value a year per client who earned) }.
  * @param {any} s @param {any} over a programme's settings over the salon's own @param {{ from: string, to: string }} q
  */
 export function simulate(s, over, q) {
@@ -433,7 +510,7 @@ export function simulate(s, over, q) {
     }
     const days = Math.max(1, diffDays(q.from, q.to) + 1);
     return {
-      clients: earners.size, rewards, value, share: serviceRevenue ? value / serviceRevenue : 0,
+      clients: earners.size, winners: new Set(won.map((w) => w.root)).size, rewards, value, share: serviceRevenue ? value / serviceRevenue : 0,
       perClientYear: earners.size ? Math.round(((value / earners.size) * 365) / days) : 0
     };
   });

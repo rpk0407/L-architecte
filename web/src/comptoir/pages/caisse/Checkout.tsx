@@ -12,10 +12,11 @@ import { Avatar, Button, Chip, Field, Modal, Money, Note, Seg, Sheet, Skeleton, 
 import { useApp } from '../../state';
 import type { Appt, ApptService, Boot, ClientCard, ClientFull, Service } from '../../types';
 import { GiftCode, Receipt, Voucher, printNow, type VoucherCard } from './Receipt';
+import { LoyaltyDone, RewardChip } from './RewardChip';
 
 type Kind = 'service' | 'product' | 'giftcard' | 'pack' | 'fee';
 // base: the price the line starts from (the booked one for an appointment), now: today's catalogue price
-type Line = { key: string; kind: Kind; ref: string | null; name: string; qty: number; unit: number; base: number; now: number; booked?: boolean; from: boolean; staffId: string | null; packId: string | null; discount: number; vat: number; recipient?: string };
+type Line = { key: string; kind: Kind; ref: string | null; name: string; qty: number; unit: number; base: number; now: number; booked?: boolean; from: boolean; staffId: string | null; packId: string | null; discount: number; vat: number; recipient?: string; rewardId?: string };
 type Pay = { key: string; method: 'card' | 'cash' | 'online' | 'giftcard' | 'deposit'; amount: number; given?: number; ref?: string; label: string };
 const k = () => Math.random().toString(36).slice(2, 9);
 const METHOD_ICON: Record<string, string> = { card: 'card', cash: 'cash', online: 'qr', giftcard: 'gift', deposit: 'globe' };
@@ -102,7 +103,7 @@ export function Checkout({ apptId, drawerOpen, onClose }: { apptId: string | nul
     try {
       const body = {
         apptId: apptId || undefined, clientId: client?.id || undefined,
-        lines: ls.map((l) => ({ kind: l.kind, ref: l.ref || undefined, name: l.kind === 'fee' ? l.name : undefined, qty: l.qty, unit: l.kind === 'giftcard' || l.kind === 'fee' || (l.kind === 'service' && !l.packId) ? l.unit : undefined, discount: l.discount || undefined, staffId: l.staffId || undefined, packId: l.packId || undefined, recipient: l.recipient || undefined })),
+        lines: ls.map((l) => ({ kind: l.kind, ref: l.ref || undefined, name: l.kind === 'fee' ? l.name : undefined, qty: l.qty, unit: l.kind === 'giftcard' || l.kind === 'fee' || (l.kind === 'service' && !l.packId) ? l.unit : undefined, discount: l.rewardId ? undefined : l.discount || undefined, rewardId: l.rewardId, staffId: l.staffId || undefined, packId: l.packId || undefined, recipient: l.recipient || undefined })),
         discount: disc && disc.amount ? disc : undefined, tip: tip && tip.amount ? tip : undefined,
         payments: pays.length ? pays.map((p) => ({ method: p.method, amount: p.amount, given: p.given, ref: p.ref })) : [{ method: 'card', amount: 0 }]
       };
@@ -134,6 +135,7 @@ export function Checkout({ apptId, drawerOpen, onClose }: { apptId: string | nul
         </div>
       </div>
       {client?.badges.length ? <div className="row wrap" style={{ gap: 6, marginTop: -6 }}>{client.badges.map((b) => <span key={b} className={'badge ' + (b === 'abonné' ? 'badge-ok' : b === 'fidèle' ? 'badge-ok' : b === 'nouveau' ? 'badge-info' : '')}>{b}</span>)}{client.visits ? <span className="badge">{client.visits} visite{client.visits > 1 ? 's' : ''} · {rhythmWords(client.cadence)}</span> : null}</div> : null}
+      <RewardChip client={client} lines={lines} setLines={setLines} />
 
       <div className="tk-lines">
         {!lines.length ? <p className="muted" style={{ padding: '10px 4px' }}>Ajoute une prestation, un produit ou une carte cadeau.</p> : null}
@@ -145,7 +147,7 @@ export function Checkout({ apptId, drawerOpen, onClose }: { apptId: string | nul
             <div key={l.key} className="tk-line">
               <button type="button" className="tk-main" onClick={() => setOpen(open === l.key ? null : l.key)} aria-expanded={open === l.key}>
                 {st ? <Avatar name={st.name} initials={st.initials} color={st.color} size="sm" /> : <span className="av av-sm" style={{ ['--c' as any]: 'var(--panel3)' }}><Icon name={l.kind === 'giftcard' ? 'gift' : 'box'} size={14} /></span>}
-                <span className="nm"><b>{l.qty > 1 ? l.qty + ' × ' : ''}{l.name}</b><small>{l.packId ? 'Couvert par l’abonnement' : l.kind === 'giftcard' ? (l.recipient || 'Carte cadeau') + ' · valable 1 an' : st ? 'par ' + st.name : 'Qui l’a fait ? À choisir'}{l.discount ? ' · remise ' + eur(l.discount) : ''}</small>{l.booked && !l.packId && l.base !== l.now ? <small style={{ color: 'var(--warn-tx)' }}>Réservé à {eur(l.base, { decimals: l.base % 100 !== 0 })} (prix actuel {eur(l.now, { decimals: l.now % 100 !== 0 })})</small> : null}</span>
+                <span className="nm"><b>{l.qty > 1 ? l.qty + ' × ' : ''}{l.name}{l.rewardId ? ' · fidélité' : ''}</b><small>{l.packId ? 'Couvert par l’abonnement' : l.kind === 'giftcard' ? (l.recipient || 'Carte cadeau') + ' · valable 1 an' : st ? 'par ' + st.name : 'Qui l’a fait ? À choisir'}{l.discount ? (l.rewardId ? ' · fidélité −' : ' · remise ') + eur(l.discount) : ''}</small>{l.booked && !l.packId && l.base !== l.now ? <small style={{ color: 'var(--warn-tx)' }}>Réservé à {eur(l.base, { decimals: l.base % 100 !== 0 })} (prix actuel {eur(l.now, { decimals: l.now % 100 !== 0 })})</small> : null}</span>
               </button>
               <span className="pr"><Money cents={net} />{l.packId || l.discount ? <s><Money cents={l.unit * l.qty} /></s> : null}</span>
               {open === l.key ? (
@@ -196,7 +198,7 @@ export function Checkout({ apptId, drawerOpen, onClose }: { apptId: string | nul
       <Button variant="primary" size="xl" block busy={busy} disabled={left !== 0 || !lines.length} onClick={() => submit()} icon="check">{left === 0 && lines.length ? 'Valider l’encaissement · ' + eur(totals.due) : 'Encaisser'}</Button>
 
       <AddSheet open={modal === 'add'} onClose={() => setModal('')} onAdd={(ls) => { setLines((x) => { const next = [...x, ...ls]; if (ls.some((l) => l.kind === 'pack')) { const svc = serviceById.get(ls.find((l) => l.kind === 'pack')!.ref!); const cut = next.find((l) => l.kind === 'service' && !l.packId && (!svc?.pack?.serviceIds?.length || svc.pack.serviceIds.includes(l.ref!))); if (cut) cut.packId = 'new'; } return next; }); setModal(''); }} performer={performer} />
-      <DiscountModal open={modal === 'discount'} onClose={() => setModal('')} gross={lines.filter((l) => l.kind !== 'giftcard' && !l.packId).reduce((t, l) => t + l.unit * l.qty, 0)} maxPct={maxPct} value={disc} onSet={(d) => { setDisc(d); setModal(''); }} />
+      <DiscountModal open={modal === 'discount'} onClose={() => setModal('')} gross={lines.filter((l) => l.kind !== 'giftcard' && !l.packId).reduce((t, l) => t + l.unit * l.qty - l.discount, 0)} maxPct={maxPct} value={disc} onSet={(d) => { setDisc(d); setModal(''); }} />
       <TipModal open={modal === 'tip'} onClose={() => setModal('')} presets={S.tipPresets} staffId={tip?.staffId || performer || ''} value={tip} onSet={(t) => { setTip(t); setModal(''); }} />
       <WhoModal open={modal === 'who'} onClose={() => setModal('')} onPick={(id) => { const next = lines.map((l) => (l.staffId ? l : { ...l, staffId: id })); setLines(next); setModal(''); submit(next); }} />
       <CashModal open={modal === 'cash'} onClose={() => setModal('')} due={left} drawerOpen={drawerOpen} onPay={(amount, given) => { addPay({ method: 'cash', amount, given, label: 'Espèces' }); setModal(''); }} />
@@ -476,6 +478,7 @@ function Done({ done, onNext }: { done: any; onNext: () => void }) {
       <span className="ok"><Icon name="check" /></span>
       <h2>Encaissé · <span className="money">{eur(done.totals.due, { decimals: done.totals.due % 100 !== 0 })}</span></h2>
       <p className="muted">Ticket T{String(done.number).padStart(6, '0')}{c ? ' · ' + c.first : ''}</p>
+      <LoyaltyDone client={c} saleId={done.id} />
       {done.change ? <div className="change" style={{ minWidth: 260 }}><span>Monnaie à rendre</span><b className="tnum">{eur(done.change, { decimals: true })}</b></div> : null}
       {(done.giftcards as VoucherCard[] | undefined)?.map((g) => <GiftCode key={g.code} card={g} from={c?.first} onPrint={() => { setVoucher(g); printNow(); }} />)}
       <div className="row wrap" style={{ justifyContent: 'center' }}>

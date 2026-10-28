@@ -348,6 +348,8 @@ export function staffRoutes(app) {
       // whether the client space is open (AC-02): the desk offers its invite, the file says « fermé » only when it is
       accounts: { enabled: !!(s.settings.accounts && s.settings.accounts.enabled) },
       payments: s.settings.payments, team: s.settings.team, goals: r.caps.has('report.shop') ? s.settings.goals : {},
+      // FID-03: whether the till tells a ticket without a client that it earns no stamp (the rules are the owner's to read)
+      loyalty: { enabled: !!(s.settings.loyalty && s.settings.loyalty.enabled) },
       messages: { ...s.settings.messages, templates: r.caps.has('marketing') ? s.settings.messages.templates : {} }
     };
     return {

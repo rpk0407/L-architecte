@@ -13,6 +13,8 @@ import { PageTitle } from '../App';
 import type { ClientCard, ClientFull } from '../types';
 import ClientReview from './avis/ClientReview';
 import AccountCard from './clients/AccountCard';
+import { LoyaltyCard } from './clients/LoyaltyCard';
+import type { CardLine } from '../../lib/loyalty';
 import './clients.css';
 
 type ListData = { total: number; counts: Record<string, number>; excludedNoConsent?: number; retention?: { before: string; other: number } | null; items: ClientCard[] };
@@ -125,7 +127,7 @@ function ClientList({ active }: { active: string | null }) {
                         <b>{c.first} {c.last}{c.badges.filter((b) => b !== 'nouveau' || !c.visits).slice(0, 2).map((b) => <span key={b} className={'badge ' + badgeTone(b)}>{b}</span>)}</b>
                         <small>{c.next ? 'Prochain RDV ' + dayShortWord(c.next.day, boot.today) + ' ' + time(c.next.start) : c.overdue ? 'Pas revenu ' + sinceWords(c.sinceLast).replace('il y a', 'depuis') + (c.cadence ? ' · venait ' + rhythmWords(c.cadence) : '') : c.lastDay ? 'Venu ' + sinceWords(c.sinceLast) + (c.cadence ? ' · ' + rhythmWords(c.cadence) : '') : 'Pas encore venu'}</small>
                       </span>
-                      <span className="li-end"><b className="money tnum">{c.spend ? eur(c.spend) : ''}</b><small className="faint">{c.visits ? plural(c.visits, 'visite') : ''}</small></span>
+                      <span className="li-end"><b className="money tnum">{c.spend ? eur(c.spend) : ''}</b><small className="faint">{[c.visits ? plural(c.visits, 'visite') : '', cardChip(c)].filter(Boolean).join(' · ')}</small></span>
                     </button>
                   </li>
                 ))}
@@ -219,6 +221,11 @@ function Retention({ files, other, before }: { files: number; other: number; bef
   );
 }
 
+/** « Carte 6/9 »: where his stamp card stands; nothing while the programme is off or he does not take part, and the « récompense » badge says it when one waits */
+export function cardChip(c: ClientCard): string {
+  const l = (c as ClientCard & { loyalty?: CardLine }).loyalty;
+  return l && !l.off && !l.rewards ? 'Carte ' + Math.max(0, l.units) + '/' + l.goal : '';
+}
 export function badgeTone(b: string) {
   return b === 'fidèle' || b === 'abonné' ? 'badge-ok' : b === 'nouveau' ? 'badge-info' : b === 'absences' ? 'badge-warn' : b === 'VIP' || b === 'récompense' ? 'badge-accent' : '';
 }
@@ -299,6 +306,7 @@ function ClientFile({ id }: { id: string }) {
           <h2>{c.first} {c.last}</h2>
           <div className="row wrap" style={{ gap: 6, marginTop: 8 }}>
             {c.badges.map((b) => <span key={b} className={'badge ' + badgeTone(b)}>{b}</span>)}
+            {cardChip(c) ? <span className="badge">{cardChip(c)}</span> : null}
             {c.tags.filter((t) => t !== 'VIP' && t !== TRUSTED).map((t) => <span key={t} className="badge">{t}</span>)}
             {/* the tag's own word: a trusted client still pays the salon's deposit from the threshold up */}
             {c.tags.includes(TRUSTED) ? <span className="badge badge-ok">confiance</span> : null}
@@ -347,6 +355,7 @@ function ClientFile({ id }: { id: string }) {
           ) : null}
           <Prefs c={c} />
           <AccountCard c={c} />
+          <LoyaltyCard c={c} />
         </div>
         <div className="card">
           <div className="tabs" role="tablist" style={{ marginTop: -6 }}>

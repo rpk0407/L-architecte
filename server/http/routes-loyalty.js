@@ -6,7 +6,9 @@ import { HttpError, guard } from './kit.js';
 import { signLink, checkLink } from '../auth/session.js';
 import { addDays, isDay, diffDays } from '../../shared/dates.js';
 import { rewardWords } from '../../shared/loyalty.js';
-import { cardOf, cfgOf, rootOf, referralOf, simulate, programStats, liability } from '../domain/loyalty.js';
+import { fmtEur } from '../../shared/money.js';
+import { cardOf, cfgOf, rootOf, referralOf, simulate, programStats, liability, launchView } from '../domain/loyalty.js';
+import { HEAD_STARTS } from '../settings/loyalty.js';
 import { adjustLoyalty, giftReward, voidReward, restoreReward, claimReferral, launchLoyalty, setLoyaltyOff } from '../commands/loyalty.js';
 
 /** A file as the routes name it: the one kept after a merge. */
@@ -72,7 +74,12 @@ function overOf(q) {
   const kind = q.get('kind');
   if (kind && kind !== 'service' && kind !== 'amount') throw new HttpError(400, 'invalid', 'kind : service ou amount.');
   if (kind === 'amount') o.reward = { kind: 'amount', amount: amount ?? 500 };
-  else if (kind === 'service' || cap !== undefined) o.reward = { kind: 'service', ...(cap !== undefined ? { cap } : {}) };
+  else if (kind === 'service' || cap !== undefined || q.has('refs')) {
+    // refs: the services the reward may pay, comma-separated (empty: any), as Réglages › Fidélité has them before it saves
+    const refs = (q.get('refs') || '').split(',').filter(Boolean);
+    if (refs.length > 10 || refs.some((x) => !/^[A-Za-z0-9_:-]{1,64}$/.test(x))) throw new HttpError(400, 'invalid', 'refs : dix prestations au plus.');
+    o.reward = { kind: 'service', ...(cap !== undefined ? { cap } : {}), ...(q.has('refs') ? { refs } : {}) };
+  }
   return o;
 }
 
@@ -85,7 +92,9 @@ export function loyaltyRoutes(app) {
     const card = cardOf(s, c.id, r.local.day);
     const ref = referralOf(s, card.root);
     const by = ref.by ? s.clients.get(ref.by) : null;
-    return { ...card, referral: { by: by && !by.erased ? { id: by.id, name: shortName(by) } : null, count: ref.count } };
+    const cfg = cfgOf(s);
+    // minNet and referralOn: what the till and the done screen say about the rule, for a barber too (the settings are not his to read)
+    return { ...card, referral: { by: by && !by.erased ? { id: by.id, name: shortName(by) } : null, count: ref.count }, minNet: cfg.minNet, referralOn: !!(cfg.referral && cfg.referral.enabled) };
   }, { cap: 'client.view' });
 
   app.post('/api/v1/loyalty/adjust', (r) => r.run(adjustLoyalty, r.body), { cap: 'sale.create' });
@@ -105,6 +114,12 @@ export function loyaltyRoutes(app) {
   }, { cap: 'sale.create' });
 
   app.post('/api/v1/loyalty/launch', (r) => r.run(launchLoyalty, r.body || {}), { cap: 'settings' });
+  // the launch line of Réglages › Fidélité: the day and cards it opened, or what launching now would give with this head start
+  app.get('/api/v1/loyalty/launch', (r) => {
+    const h = r.query.get('headStart') || cfgOf(r.s).headStart;
+    if (!HEAD_STARTS.includes(/** @type {any} */ (h))) throw new HttpError(400, 'invalid', 'headStart : none, half ou full.');
+    return launchView(r.s, /** @type {'none'|'half'|'full'} */ (h), r.local.day);
+  }, { cap: 'settings' });
 
   // the owner's simulator: the last 365 days of tickets under another programme
   app.get('/api/v1/loyalty/simulate', (r) => {
@@ -126,7 +141,10 @@ export function loyaltyRoutes(app) {
     guard('parrain|' + r.ip, 30, 60000);
     const c = referrerOf(r, r.params.token);
     if (!c) throw new HttpError(404, 'not_found', 'Ce lien de parrainage n’est pas (ou plus) valable.');
-    const words = rewardWords(cfgOf(r.s).referral.referee, (id) => (r.s.services.get(id) || {}).name || '');
-    return { first: c.first, offer: words + ' sur ta première visite' };
+    const ref = cfgOf(r.s).referral.referee;
+    const words = rewardWords(ref, (id) => (r.s.services.get(id) || {}).name || '');
+    // give / line are ready for a sentence (« Karim t’offre 5 € sur ta première visite »): offer already says « offerts »
+    const give = ref.kind === 'amount' ? fmtEur(ref.amount || 0) : words.replace(' offerte', '').replace(/^./, (x) => x.toLowerCase());
+    return { first: c.first, offer: words + ' sur ta première visite', give, line: c.first + ' t’offre ' + give + ' sur ta première visite' };
   });
 }

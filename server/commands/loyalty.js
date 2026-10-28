@@ -7,7 +7,7 @@ import { fail } from '../core/engine.js';
 import { str, int, bool, opt, obj, arr, id, oneOf, parse } from '../lib/validate.js';
 import { getClient } from './common.js';
 import { addDays, dayParts, pad2, diffDays } from '../../shared/dates.js';
-import { cfgOf, rootOf, filesOf, unlocks, qualifyingNet, unitsFor, takeReward, stampStands, cardOf, mergedUnits } from '../domain/loyalty.js';
+import { cfgOf, rootOf, filesOf, unlocks, qualifyingNet, unitsFor, takeReward, stampStands, mergedUnits, launchPlan } from '../domain/loyalty.js';
 import { rewardSchema, HEAD_STARTS } from '../settings/loyalty.js';
 
 const DAY_MS = 86400000;
@@ -153,29 +153,11 @@ export const launchLoyalty = {
     // once only: launched while off, the head start would be spent before the final WordPress sync
     if (!cfg.enabled) fail(409, 'off', 'Active d’abord le programme de fidélité, puis lance la reprise des cartes.');
     const head = x.headStart || cfg.headStart;
-    const cap = head === 'full' ? cfg.goal - 1 : head === 'half' ? Math.floor(cfg.goal / 2) : 0;
-    const day = ctx.local.day, since = addDays(day, -365);
+    const day = ctx.local.day;
     ctx.emit('loyalty.launched', { day, headStart: head });
-    if (cap <= 0) return { launched: day, headStart: head, clients: 0, stamps: 0 };
-    /** @type {Map<string, Set<string>>} */
-    const visits = new Map();
-    const add = (cid, d) => { const k = rootOf(s, cid); if (!k) return; const v = visits.get(k); if (v) v.add(d); else visits.set(k, new Set([d])); };
-    for (const t of s.sales.values()) {
-      // a ticket refunded in full was no visit
-      if (!t.clientId || t.day < since || t.day > day || (t.loyalty && t.loyalty.units) || t.totals.revenue - (t.refunded || 0) <= 0) continue;
-      if (unitsFor(cfg, qualifyingNet(t.lines))) add(t.clientId, t.day);
-    }
-    for (const a of s.appts.values()) if (a.legacy && a.status === 'done' && !a.saleId && a.clientId && a.day >= since && a.day <= day) add(a.clientId, a.day);
-    let clients = 0, stamps = 0;
-    for (const [root, days] of visits) {
-      const c = s.clients.get(root);
-      if (!c || c.erased || c.loyaltyOff) continue;
-      // the stamps already on the card count: the head start never completes a card by itself
-      const units = Math.min(cap, days.size, Math.max(0, cfg.goal - 1 - cardOf(s, root, day).units));
-      if (!units) continue;
-      ctx.emit('loyalty.earned', { id: ctx.id('lea'), cid: root, clientId: root, units, reason: 'start', day });
-      clients++; stamps += units;
-    }
+    const plan = launchPlan(s, head, day);
+    for (const row of plan.rows) ctx.emit('loyalty.earned', { id: ctx.id('lea'), cid: row.root, clientId: row.root, units: row.units, reason: 'start', day });
+    const clients = plan.rows.length, stamps = plan.rows.reduce((t, x) => t + x.units, 0);
     return { launched: day, headStart: head, clients, stamps };
   }
 };
@@ -365,12 +347,16 @@ export const importLoyalty = {
 const offSchema = obj({ clientId: id(), off: bool() });
 /**
  * The right not to take part: off, nothing is earned and the card reads « Ne participe pas »; the rewards already
- * earned stay usable until they expire. FID-03 adds the client's own switch on /moi.
+ * earned stay usable until they expire. The salon sets it at the counter (client.edit); the client himself, signed in to
+ * /moi, sets it on his own file only, which the route vouches for in ctx.meta.me (http/me-kit.js runAs), never the body's.
  */
 export const setLoyaltyOff = {
   run(s, input, ctx) {
-    ctx.need('client.edit');
-    const x = parse(offSchema, input);
+    const own = ctx.actor.t === 'client';
+    if (!own) ctx.need('client.edit');
+    const mine = own ? ctx.meta && ctx.meta.me && ctx.meta.me.cid : null;
+    if (own && !mine) fail(401, 'signed_out', 'Ton espace s’est fermé. Reconnecte-toi.');
+    const x = parse(offSchema, own ? { clientId: mine, off: input && input.off } : input);
     const c = getClient(s, x.clientId);
     if (c.erased) fail(409, 'erased', 'Cette fiche a été effacée.');
     if (!!c.loyaltyOff === x.off) return { ok: true, off: x.off };
