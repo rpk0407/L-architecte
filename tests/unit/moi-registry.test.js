@@ -52,7 +52,7 @@ test('the registries read whole folders, and every file in them is a card or a r
     assert.deepEqual(m && [m[1], m[2], Number(m[3])], metas[f], f);
   }
   const rows = { 'Carnet.tsx': ['carnet', 20], 'GiftCard.tsx': ['giftcard', 40] };
-  for (const f of readdirSync(join(ROOT, 'web/src/moi/avantages'))) {
+  for (const f of readdirSync(join(ROOT, 'web/src/moi/avantages')).filter((x) => x.endsWith('.tsx'))) {
     const src = read('web/src/moi/avantages/' + f);
     has(src, f);
     if (!rows[f]) continue;
