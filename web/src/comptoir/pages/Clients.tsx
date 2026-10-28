@@ -101,16 +101,16 @@ function ClientList({ active }: { active: string | null }) {
   const shown = SEGMENTS.filter((s) => (!s.cap || can(s.cap)) && (!s.rare || seg === s.v || (data?.counts[s.v] || 0) > 0 || (s.v === 'inactifs' && (data?.retention?.other || 0) > 0)));
   return (
     <section className="card cl-list">
-      <div className="row" style={{ gap: 8 }}>
+      <div className="row" style={{ gap: 8 }} data-guide="cl-search">
         <label className="search grow"><Icon name="search" /><input className="input" type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Nom ou numéro" aria-label="Rechercher un client" autoComplete="off" /></label>
         {can('client.edit') ? <Button variant="primary" icon="plus" aria-label="Nouveau client" onClick={() => setCreating(true)}><span className="hide-phone">Nouveau</span></Button> : null}
       </div>
-      <div ref={segsRef} className="chips cl-segs" role="tablist" aria-label="Segments">
+      <div ref={segsRef} className="chips cl-segs" role="tablist" aria-label="Segments" data-guide="cl-segs">
         {shown.map((s) => <Chip key={s.v} small on={seg === s.v} onClick={() => setQuery({ segment: s.v === 'all' ? null : s.v, tri: null })}>{s.t}{data?.counts[s.v] != null ? <span className="cnt">{data.counts[s.v]}</span> : null}</Chip>)}
       </div>
       {seg === 'doublons' ? <Duplicates q={dq.trim()} /> : seg === 'abonnes' ? <Members q={dq.trim()} active={active} /> : (
         <>
-          <div className="row cl-tools">
+          <div className="row cl-tools" data-guide="cl-tools">
             <span className="muted grow" style={{ fontSize: 13 }}>{data ? plural(data.total, 'client') : ''}{hint ? ' · ' + hint : ''}{excluded}</span>
             <select className="input select cl-sort" value={sort} onChange={(e) => setQuery({ tri: e.target.value })} aria-label="Trier">{SORTS.map((s) => <option key={s.v} value={s.v}>{s.t}</option>)}</select>
             {can('client.export') ? <a className="btn btn-ghost btn-sm btn-icon" href="/api/v1/export?kind=clients" download aria-label="Exporter en CSV" title="Exporter en CSV"><Icon name="download" /></a> : null}
@@ -123,10 +123,10 @@ function ClientList({ active }: { active: string | null }) {
             </button>
           ) : null}
           {loading && !data ? <div className="col" style={{ gap: 10 }}>{[0, 1, 2, 3, 4, 5].map((i) => <Skeleton key={i} h={52} />)}</div> : !data?.items.length ? (
-            <Empty icon="clients" title={dq ? 'Personne à ce nom' : 'Aucun client ici'}>{dq ? 'Vérifie l’orthographe ou cherche par les derniers chiffres du numéro.' : 'Ce segment est vide pour le moment.'}</Empty>
+            <div data-tour-empty><Empty icon="clients" title={dq ? 'Personne à ce nom' : 'Aucun client ici'}>{dq ? 'Vérifie l’orthographe ou cherche par les derniers chiffres du numéro.' : 'Ce segment est vide pour le moment.'}</Empty></div>
           ) : (
             <>
-              <ul className="list">
+              <ul className="list" data-guide="cl-rows">
                 {data.items.map((c) => (
                   <li key={c.id}>
                     <button type="button" className="li cl-row" aria-current={active === c.id ? 'true' : undefined} onClick={() => navigate('/clients/' + c.id + location.search)}>
@@ -311,7 +311,7 @@ function ClientFile({ id }: { id: string }) {
   return (
     <section className="cl-file">
       <button type="button" className="cl-back" onClick={back}><Icon name="chevL" size={16} />Clients</button>
-      <div className="card cl-head">
+      <div className="card cl-head" data-guide="file-head">
         <Avatar name={c.first + ' ' + c.last} size="xl" color={c.overdue ? 'var(--warn)' : undefined} />
         <div className="grow" style={{ minWidth: 0 }}>
           <h2>{c.first} {c.last}</h2>
@@ -338,7 +338,7 @@ function ClientFile({ id }: { id: string }) {
 
       {c.erased ? null : <ClientChips c={c} onOpen={folds.show} />}
 
-      <div className="kpis">
+      <div className="kpis" data-guide="file-kpis">
         <Kpi k="Visites" v={c.visits} s={c.lastDay ? 'dernière ' + sinceWords(c.sinceLast) : 'pas encore venu'} icon="scissors" />
         <Kpi k="Rythme" v={<span className="kpi-v sm">{c.cadence ? 'tous les ' + c.cadence + ' j' : '—'}</span>} s={c.cadence ? rhythmWords(c.cadence) : 'après 2 visites'} icon="clock" />
         <Kpi k="Dépensé" v={eur(c.spend)} s={c.visits ? 'soit ' + eur(Math.round(c.spend / c.visits)) + ' par visite' : ''} icon="euro" />
@@ -377,7 +377,7 @@ function ClientFile({ id }: { id: string }) {
           <AccountCard c={c} />
           <LoyaltyCard c={c} />
         </div>
-        <div className="card">
+        <div className="card" data-guide="file-history">
           <div className="tabs" role="tablist" style={{ marginTop: -6 }}>
             <button type="button" role="tab" aria-selected={tab === 'rdv'} onClick={() => setTab('rdv')}>Rendez-vous<span className="count">{data.appts.length}</span></button>
             {data.sales.length ? <button type="button" role="tab" aria-selected={tab === 'tickets'} onClick={() => setTab('tickets')}>Tickets<span className="count">{data.sales.length}</span></button> : null}
@@ -463,7 +463,7 @@ function TechCard({ c, favStaff, favSvc }: { c: ClientFull; favStaff: string; fa
   useEffect(() => () => clearTimeout(timer.current), []);
   const ro = !can('client.edit');
   return (
-    <div className="card">
+    <div className="card" data-guide="file-tech">
       <div className="card-h"><h2><Icon name="scissors" size={16} />Fiche technique</h2><small className="faint">{state === 'saving' ? 'Enregistrement…' : state === 'saved' ? 'Enregistré' : ''}</small></div>
       {favStaff || favSvc ? <p className="muted" style={{ fontSize: 13.5, margin: '-4px 0 10px' }}>{favSvc ? 'Prend souvent : ' + favSvc : ''}{favStaff && favSvc ? ' · ' : ''}{favStaff ? 'Habitué de ' + favStaff : ''}</p> : null}
       <textarea className="input textarea" rows={4} value={tech} readOnly={ro} maxLength={500} placeholder="Dégradé, hauteur des côtés, sabot, produit, ce qu’il n’aime pas…" onChange={(e) => { setTech(e.target.value); save({ tech: e.target.value }); }} aria-label="Fiche technique" />
@@ -500,7 +500,7 @@ function Prefs({ c }: { c: FileClient }) {
     ? rule ? 'Le site ne lui demande plus l’acompte prévu pour les absences. À partir de ' + eur(dep.thresholdCents ?? 5000) + ', la règle du salon reste la même.' : 'Sans effet tant que l’acompte pour les absences est coupé (Réglages › Réservation).'
     : plural(c.noShows, 'absence') + (noOnline ? ' : le site lui demandera un acompte même pour une coupe, dès que Stripe sera branché.' : ' : le site lui demande un acompte même pour une coupe.');
   return (
-    <div className="card col" style={{ gap: 10 }}>
+    <div className="card col" style={{ gap: 10 }} data-guide="file-prefs">
       <div className="card-h"><h2><Icon name="star" size={16} />Préférences</h2></div>
       <div className="chips">{TAGS.map((t) => <Chip key={t} small on={c.tags.includes(t)} disabled={ro} onClick={() => toggleTag(t)}>{t}</Chip>)}</div>
       <Switch on={c.sms} disabled={ro} onChange={(v) => patch({ sms: v })} title="SMS de confirmation et de rappel" hint={c.sms ? 'Activés' : 'Il a demandé à ne plus en recevoir'} />

@@ -97,7 +97,7 @@ export function Closing() {
   return (
     <div className="cs-grid closing">
       {periods.data?.closable ? <MonthNote c={periods.data.closable} /> : null}
-      <section className="card col" style={{ gap: 14 }}>
+      <section className="card col" style={{ gap: 14 }} data-guide="cl-drawer">
         <div className="card-h"><h2><Icon name="cash" size={16} />Le tiroir</h2>{data.open ? <span className="badge badge-ok">Ouvert {ago(data.open.openedAt, t)}</span> : <span className="badge">Fermé</span>}</div>
         {data.warnings.map((w) => <Note key={w} tone="warn" icon="alert">{w}</Note>)}
         {data.open ? (
@@ -122,7 +122,7 @@ export function Closing() {
         {data.last ? <p className="faint" style={{ fontSize: 12.5 }}>Dernier comptage {ago(data.last.closedAt, t)} : {eur(data.last.counted, { decimals: true })}{data.last.diff ? ', écart ' + eur(data.last.diff, { decimals: true }) + (data.last.note ? ' (' + data.last.note + ')' : '') : ', juste'}.</p> : null}
       </section>
 
-      <section className="card col" style={{ gap: 14 }}>
+      <section className="card col" style={{ gap: 14 }} data-guide="cl-z">
         <div className="card-h"><h2><Icon name="lock" size={16} />Clôture du jour</h2>{data.closure ? <span className="badge badge-ok">{zNo(data.closure.number)}</span> : null}</div>
         {can('closure') ? data.missed.map((m, i) => (
           <Note key={m.day} tone="warn" icon="alert">
@@ -151,7 +151,7 @@ export function Closing() {
       </section>
 
       {can('closure') ? (
-        <section className="card cl-history">
+        <section className="card cl-history" data-guide="cl-history">
           <div className="card-h"><h2>Les dernières clôtures</h2><span className="muted">Grand total perpétuel {z.data ? eur(z.data.grandTotal, { decimals: true }) : ''}</span></div>
           {z.data?.items.length ? (
             <div className="table-wrap"><table className="table">
@@ -223,7 +223,7 @@ export function MonthClosures({ data, onPrint }: { data: Periods; onPrint: (p: P
     try { onPrint(await api.get<PeriodRecord>('/api/v1/periods/' + ref)); } catch (e) { toastError(e); }
   };
   return (
-    <section className="card cl-history" aria-labelledby="cl-months-h">
+    <section className="card cl-history" aria-labelledby="cl-months-h" data-guide="cl-months">
       <div className="card-h"><h2 id="cl-months-h">Clôtures mensuelles</h2>{data.key ? <span className="muted">Clé {data.key.kid.slice(0, 8)} · {data.key.sourceLabel}</span> : null}</div>
       {data.items.length ? (
         <div className="table-wrap"><table className="table cl-months">

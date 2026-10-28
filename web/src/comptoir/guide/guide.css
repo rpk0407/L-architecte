@@ -1,0 +1,31 @@
+/* GUIDE-01a · the welcome card at a first sign-in and the top bar's « Visite guidée » / « ? » (ComptoirTour.tsx).
+   The welcome sits in the page, above it: never over what someone needs to tap. */
+.tour-welcome {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 16px; margin-bottom: 18px;
+  background: linear-gradient(120deg, var(--accent-bg), transparent 62%), var(--panel); box-shadow: inset 0 0 0 1px var(--accent-line);
+  animation: rise .32s var(--ease-out) both;
+}
+.tw-mark { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; background: var(--accent); color: #fff; }
+.tw-main h2 { font: 400 23px/1.15 var(--serif); letter-spacing: -.005em; margin: 0 0 4px; }
+.tw-main p { margin: 0; color: var(--tx2); font-size: 14px; line-height: 1.45; }
+.tw-acts { display: flex; gap: 8px; }
+@media (max-width: 760px) {
+  .tour-welcome { grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: 12px 14px; }
+  .tw-mark { width: 38px; height: 38px; }
+  .tw-main h2 { font-size: 21px; }
+  .tw-acts { grid-column: 1 / -1; }
+  .tw-acts .btn { flex: 1; }
+}
+.tour-chip { position: relative; min-height: 40px; gap: 6px; font-size: 13.5px; color: var(--tx); box-shadow: inset 0 0 0 1px var(--accent-line); background: var(--accent-bg); }
+.tour-chip svg { color: var(--accent); }
+/* 44 px to the finger, 40 px to the eye: the top bar keeps its height (Mon espace's four rows above the fold) */
+.tour-chip::after { content: ''; position: absolute; inset: -2px 0; }
+.tour-help span { font: 600 17px/1 var(--sans); }
+/* a phone's top bar: « Visite » alone, next to the page's « ? » */
+@media (max-width: 420px) { .tour-chip .tour-chip-more { display: none; } .tour-chip { padding: 0 12px; } }
+@media (prefers-reduced-motion: reduce) { .tour-welcome { animation: none; } }
+/* Réglages › Mise en route: « Revoir la visite », the last line of its header card */
+.mr-tour { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+.mr-tour b { display: block; font: 600 14.5px/1.3 var(--sans); }
+.mr-tour small { display: block; color: var(--tx2); font-size: 13px; line-height: 1.4; }
+.page > .tour-welcome:last-child { margin: 18px 0 0; }

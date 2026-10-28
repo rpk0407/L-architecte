@@ -20,6 +20,7 @@ export type GuideStep = {
   title: string;
   /** what it does and when to use it, in two short sentences at most, with « tu » */
   body: string;
-  /** a smaller number comes first on its page */
+  /** a smaller number comes first on its page; once the page is open the tour follows the parts on screen top to
+   *  bottom, and `order` breaks ties and places the parts it does not show (web/src/ui/tour/order.ts playOrder) */
   order?: number;
 };

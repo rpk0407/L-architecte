@@ -27,7 +27,7 @@ export function Sales() {
   return (
     <>
       <div className="row wrap" style={{ justifyContent: 'space-between' }}>
-        <div className="row">
+        <div className="row" data-guide="sales-day">
           <Button icon="chevL" aria-label="Jour précédent" onClick={() => setQuery({ jour: dates.addDays(day, -1) })} />
           <b className="serif" style={{ fontSize: 26 }}>{cap(dayWord(day, boot.today))}</b>
           <Button icon="chevR" aria-label="Jour suivant" disabled={day >= boot.today} onClick={() => setQuery({ jour: dates.addDays(day, 1) === boot.today ? null : dates.addDays(day, 1) })} />
@@ -35,7 +35,7 @@ export function Sales() {
         {data?.closed ? <span className="badge badge-ok"><Icon name="lock" />Journée clôturée</span> : null}
       </div>
       {t ? (
-        <section className="kpis">
+        <section className="kpis" data-guide="sales-kpis">
           {/* the Z's own figures: net TTC with net HT, and the gross only when refunds made them differ */}
           <Kpi k="Chiffre du jour" v={<Money cents={t.netTtc} />} s={'TTC net · HT ' + eur(t.htNet) + (t.refundsTotal ? ' · brut ' + eur(t.grossTtc) + ', remboursé ' + eur(t.refundsTotal) : '')} icon="euro" />
           <Kpi k="Tickets" v={t.tickets} s={t.tickets ? 'panier moyen ' + eur(Math.round(t.revenue / t.tickets)) : ''} icon="ticket" />
@@ -43,7 +43,7 @@ export function Sales() {
           <Kpi k="Pourboires" v={<Money cents={t.tips} />} s={t.giftcardsSold || t.giftcardsRefunded ? 'cartes cadeaux vendues ' + eur(t.giftcardsSold + (t.giftcardsRefunded || 0)) + (t.giftcardsRefunded ? ', annulées ' + eur(t.giftcardsRefunded) : '') : 'hors chiffre d’affaires'} icon="heart" />
         </section>
       ) : null}
-      <section className="card">
+      <section className="card" data-guide="sales-list">
         {loading ? <Skeleton h={240} /> : !data?.items.length ? <Empty icon="ticket" title="Aucun ticket">Les encaissements de la journée apparaissent ici.</Empty> : (
           <ul className="list">
             {data.items.map((x) => (

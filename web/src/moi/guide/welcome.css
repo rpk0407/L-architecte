@@ -1,0 +1,8 @@
+/* GUIDE-01a · /moi's welcome card (MoiTour.tsx): the site's paper card, its red pill and its underlined link. */
+.m-welcome { margin-bottom: 14px; animation: m-welcome-in .32s cubic-bezier(.16, 1, .3, 1) both; }
+.m-welcome .c-muted { margin: 0; }
+.m-welcome-acts { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 18px; }
+.m-welcome-acts .c-btn { min-height: 52px; padding: 0 22px; font-size: 16px; }
+.m-welcome-acts .c-link { min-height: 44px; border: 0; background: none; color: var(--ink); cursor: pointer; }
+@keyframes m-welcome-in { from { opacity: 0; transform: translateY(8px); } }
+@media (prefers-reduced-motion: reduce) { .m-welcome { animation: none; } }

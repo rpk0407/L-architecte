@@ -98,7 +98,7 @@ export function Board(p: BoardProps) {
   const cols = phone ? '46px minmax(0, 1fr)' : `56px repeat(${visible.length}, minmax(140px, 1fr))`;
 
   return (
-    <section className="board" aria-label="Planning de la journée">
+    <section className="board" aria-label="Planning de la journée" data-guide="ag-board">
       {phone && lanes.length > 1 ? (
         <div className="lane-pick" role="tablist" aria-label="Barbier affiché">
           {lanes.map((l) => <Chip key={l.id} small on={l.id === (p.lane || lanes[0]?.id)} dot={l.color} onClick={() => p.setLane(l.id)}>{l.name}{l.id === p.myId ? ' (moi)' : ''}</Chip>)}

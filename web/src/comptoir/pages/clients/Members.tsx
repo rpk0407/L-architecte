@@ -97,7 +97,8 @@ export default function Members({ q, active }: { q: string; active: string | nul
   const filtered = only && missing.length ? missing : members;
   const open = (id: string) => navigate('/clients/' + id + location.search);
   if ((loading && !data) || (can('client.view') && !rows.data && !rows.error)) return <div className="col" style={{ gap: 10 }}>{[0, 1, 2, 3, 4].map((i) => <Skeleton key={i} h={52} />)}</div>;
-  if (!members.length && !carnets.length) return <Empty icon="clients" title={q ? 'Personne à ce nom' : 'Aucun abonné ni carnet'}>{q ? 'Vérifie l’orthographe.' : 'Les abonnements et les carnets en cours apparaissent ici.'}</Empty>;
+  // data-tour-empty: the guided tour passes over this view's parts instead of explaining them over nothing (GUIDE-01a)
+  if (!members.length && !carnets.length) return <div data-tour-empty><Empty icon="clients" title={q ? 'Personne à ce nom' : 'Aucun abonné ni carnet'}>{q ? 'Vérifie l’orthographe.' : 'Les abonnements et les carnets en cours apparaissent ici.'}</Empty></div>;
   const canWrite = can('marketing');
   const canCall = can('client.contact');
   const firstWrite = canWrite ? filtered.find(({ c }) => c.hasPhone && c.sms && c.marketing)?.c.id : undefined;

@@ -2,7 +2,9 @@
 export type Staff = { id: string; name: string; initials: string; color: string; role: 'owner' | 'manager' | 'desk' | 'barber'; roleLabel: string; chair: boolean; bookable: boolean; active: boolean; order: number; bio: string; instagram: string; photo?: number | null; email?: string; services?: 'all' | string[]; schedule?: Record<string, [number, number][]>; commission?: { service: number; product: number }; hasPwd?: boolean; hasPin?: boolean };
 // TEAM-02: one's own Comptoir (server/projections/staffprefs.js); cards/hidden order Mon espace's cards (TEAM-04); cal: the
 // calendar feed's generation (0: off); device.personal: one's own linked phone; Staff.photo: the photo's version
-export type Prefs = { home: 'auto' | 'espace' | 'agenda' | 'pilotage'; notify: 'mine' | 'all' | 'none'; buzz: boolean; cards: string[]; hidden: string[]; blur: 'auto' | 'on' | 'off'; cal: number; calName: boolean };
+// GUIDE-01a: tour, his guided tour (v: the version offered, 0 never; at: the step id he stopped on; done: finished or skipped)
+export type TourPrefs = { v: number; at: string; done: boolean };
+export type Prefs = { home: 'auto' | 'espace' | 'agenda' | 'pilotage'; notify: 'mine' | 'all' | 'none'; buzz: boolean; cards: string[]; hidden: string[]; blur: 'auto' | 'on' | 'off'; cal: number; calName: boolean; tour?: TourPrefs };
 export type Me = Staff & { caps: string[]; device: { id: string; name: string; personal?: boolean } | null; session: 'pwd' | 'pin'; prefs: Prefs };
 export type Service = { id: string; slug: string | null; name: string; short: string; category: string; price: number; from: boolean; dur: number; buffer: number; online: boolean; deposit: number | null; vat: number; order: number; description: string; includes: string[]; pack: { credits: number; days: number; serviceIds?: string[] } | null; tag?: string; active: boolean };
 export type Product = { id: string; name: string; price: number; cost: number; stock: number; low: number; vat: number; sku: string; category: string; active: boolean };

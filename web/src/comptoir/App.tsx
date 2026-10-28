@@ -12,7 +12,9 @@ import { Login, linkToken, type AuthState } from './Login';
 import { Palette } from './Palette';
 import { FeedSheet } from './Feed';
 import type { Boot, FeedItem } from './types';
-import { GUARD_OPEN as OWN_SECTIONS, SECTION_CAP } from './pages/reglages/caps';
+import { GUARD_OPEN, SECTION_CAP } from './pages/reglages/caps';
+import { canOpenPath, navShows, sectionNeed } from './access';
+import { ComptoirTour, GLANCE_PAGES, TourButtons, TourWelcome, startTour } from './guide/ComptoirTour';
 
 const Espace = lazy(() => import('./pages/Espace'));
 const Agenda = lazy(() => import('./pages/Agenda'));
@@ -37,7 +39,7 @@ const ROUTES: Record<string, Route> = {
   rapports: { C: Rapports, title: 'Rapports', cap: 'report.own' },
   equipe: { C: Equipe, title: 'Équipe' },
   catalogue: { C: Catalogue, title: 'Catalogue' },
-  reglages: { C: Reglages, title: 'Réglages', sub: (id) => (OWN_SECTIONS.includes(id) ? undefined : (Object.hasOwn(SECTION_CAP, id) ? SECTION_CAP[id] : 'settings')) }
+  reglages: { C: Reglages, title: 'Réglages', sub: (id) => sectionNeed(id, { GUARD_OPEN, SECTION_CAP }) }
 };
 
 /** The pages this person may open (a new page in ROUTES joins by itself: Mon espace, Pilotage), for homeOf. */
@@ -74,6 +76,13 @@ export function Root() {
   );
 }
 
+/** GUIDE-01a: can this person open this page of the tour (/comptoir/<page>/<id>, a `:param` for any)? Its menu entry
+ *  and its capability, as the shell decides them, so a barber's tour never shows a page he cannot open. */
+export function useCanOpen(nav: NavItem[]) {
+  const { can } = useApp();
+  return (path: string) => canOpenPath(path, ROUTES, nav, can);
+}
+
 const PHONE_TABS = ['pilotage', 'espace', 'agenda', 'caisse', 'clients', 'rapports'];
 type NavItem = { to: string; page: string; label: string; icon: string; cap?: string; badge?: number; soft?: boolean };
 
@@ -93,8 +102,7 @@ function useNav(): NavItem[] {
     { to: '/reglages', page: 'reglages', label: 'Réglages', icon: 'reglages' }
   ];
   // the desk has no chair: no figures of its own, so no page of zeros (the agenda gives it the salon's counts)
-  const noFigures = !boot.me.chair && !can('report.shop');
-  return items.filter((x) => (!x.cap || can(x.cap)) && !(x.page === 'rapports' && noFigures) && !(x.page === 'espace' && !boot.me.chair));
+  return items.filter((x) => navShows(x, can, boot.me.chair));
 }
 
 function Shell() {
@@ -102,6 +110,7 @@ function Shell() {
   const { boot, unread } = app;
   const route = useRoute();
   const nav = useNav();
+  const canOpen = useCanOpen(nav);
   const phone = useIsPhone();
   const [palette, setPalette] = useState(false);
   const [feedOpen, setFeedOpen] = useState(false);
@@ -175,6 +184,7 @@ function Shell() {
         <header className={'top' + (scrolled ? ' scrolled' : '')}>
           <div className="top-title" id="page-title" />
           <div className="top-acts">
+            <TourButtons canOpen={canOpen} />
             {/* no answer for 2 minutes (a phone out of signal, back from sleep): what is shown is from then */}
             {app.offline ? <Stale at={app.pulseAt} now={Date.now()} /> : null}
             <Button className="hide-phone" icon="search" aria-label="Rechercher (⌘K)" title="Rechercher · ⌘K" onClick={() => setPalette(true)} />
@@ -187,7 +197,9 @@ function Shell() {
           </div>
         </header>
         <main className="page" key={page} id="main">
+          {phone && GLANCE_PAGES.includes(page) ? null : <TourWelcome canOpen={canOpen} />}
           {allowed ? <Suspense fallback={<PageSkeleton />}><Page /></Suspense> : <Reserved title={r.title} back={page === 'reglages' ? 'compte' : 'agenda'} />}
+          {phone && GLANCE_PAGES.includes(page) ? <TourWelcome canOpen={canOpen} /> : null}
         </main>
       </div>
 
@@ -213,6 +225,7 @@ function Shell() {
         <p className="k">{boot.me.name} · {boot.me.roleLabel}</p>
         <button type="button" onClick={() => navigate('/reglages/compte')}><Icon name="key" />Mon mot de passe et mon code</button>
         <button type="button" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}><Icon name={theme === 'dark' ? 'sun' : 'moon'} />{theme === 'dark' ? 'Thème clair' : 'Thème sombre'}</button>
+        <button type="button" onClick={() => startTour('tour', 'start')}><Icon name="sparkle" />Revoir la visite</button>
         <div className="sep" />
         {boot.me.device ? <button type="button" onClick={() => app.lock()}><Icon name="lock" />{personal ? 'Verrouiller' : 'Verrouiller · changer de personne'}</button> : null}
         <button type="button" onClick={() => app.signOut()}><Icon name="logout" />Se déconnecter</button>
@@ -220,6 +233,7 @@ function Shell() {
 
       {palette ? <Palette onClose={() => setPalette(false)} /> : null}
       <FeedSheet open={feedOpen} onClose={() => setFeedOpen(false)} />
+      <ComptoirTour canOpen={canOpen} />
     </div>
   );
 }

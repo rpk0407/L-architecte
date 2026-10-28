@@ -32,7 +32,7 @@ export default function Caisse() {
   return (
     <>
       <PageTitle><h1>Caisse</h1></PageTitle>
-      <nav className="tabs" aria-label="Caisse">
+      <nav className="tabs" aria-label="Caisse" data-guide="cs-tabs">
         {tabs.map((t) => <Link key={t.id} to={t.to} className="tab" aria-current={tab === t.id ? 'page' : undefined}><Icon name={t.icon} size={16} />{t.label}</Link>)}
       </nav>
       {boot.mode !== 'demo' ? <div style={{ marginBottom: 16 }}><Note icon="info"><b>Caisse de gestion : le ticket légal sort de ta caisse certifiée.</b> <button type="button" className="link" onClick={() => setWhy(true)}>En savoir plus</button></Note></div> : null}
@@ -91,7 +91,7 @@ function Till() {
   if (loading && !data) return <div className="cs-grid"><Skeleton h={320} r={22} /><Skeleton h={420} r={22} /></div>;
   if (data?.closed) {
     return (
-      <section className="card">
+      <section className="card" data-tour-empty data-guide="cs-closed">
         <Empty icon="lock" title="La journée est clôturée" action={<Button variant="ghost" icon="ticket" onClick={() => navigate('/caisse/ventes')}>Voir les tickets</Button>}>
           Le Z de {dates.dayLong(today)} est scellé. Les ventes reprendront demain ; une erreur se corrige par un avoir.
         </Empty>
@@ -118,13 +118,13 @@ function Till() {
   return (
     <div className={'cs-grid' + (showTicket ? ' has-ticket' : '')}>
       <aside className="col cs-side" style={{ gap: 14 }}>
-        <Button variant={free ? 'solid' : 'primary'} size="lg" block icon="plus" onClick={() => setQuery({ vente: '1', rdv: null, paiement: null })}>Vente libre</Button>
-        <section className="card cs-list">
+        <Button variant={free ? 'solid' : 'primary'} size="lg" block icon="plus" data-guide="cs-free" onClick={() => setQuery({ vente: '1', rdv: null, paiement: null })}>Vente libre</Button>
+        <section className="card cs-list" data-guide="cs-topay">
           <div className="card-h"><h2><Icon name="caisse" size={16} />À encaisser</h2>{toPay.length ? <span className="badge badge-accent">{toPay.length}</span> : null}</div>
           {toPay.length ? <ul className="list">{toPay.map((a) => item(a, true))}</ul> : <p className="muted" style={{ padding: '6px 4px 4px' }}>Personne n’attend. {paid ? paid + ' rendez-vous déjà encaissé' + (paid > 1 ? 's' : '') + ' aujourd’hui.' : ''}</p>}
         </section>
         {later.length ? (
-          <section className="card cs-list">
+          <section className="card cs-list" data-guide="cs-later">
             <div className="card-h"><h2><Icon name="clock" size={16} />Plus tard aujourd’hui</h2></div>
             <ul className="list">{later.map((a) => item(a, false))}</ul>
           </section>

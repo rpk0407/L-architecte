@@ -10,6 +10,7 @@ import { tabCards } from './registry';
 import { PATHS, safeNext, tabOf, type Tab } from './paths';
 import { SignIn } from './SignIn';
 import { Guard, dayWords, todayKey } from './kit';
+import { MoiTour, MoiWelcome } from './guide/MoiTour';
 import type { AccountState, Me } from './types';
 import '../client/client.css';
 import './moi.css';
@@ -153,8 +154,11 @@ function App() {
   return (
     <Shell tab={tab} onTab={onTab}>
       <TabHead tab={tab} me={me} />
+      {/* GUIDE-01a: the first visit's welcome, then the tour it opens (replayed from Profil) */}
+      {tab === 'home' ? <MoiWelcome /> : null}
       {err ? <p className="c-note warn" role="alert">{err}</p> : null}
       {tabCards(tab).map((c) => { const Card = c.default; return <Guard key={c.meta.id}><Card me={me} reload={reload} /></Guard>; })}
+      <MoiTour go={go} />
     </Shell>
   );
 }
