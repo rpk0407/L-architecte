@@ -71,3 +71,36 @@ export type Statement = {
   refunds: number; refundCount: number; tips: { card: number; cash: number }; discountsGiven: number; done: number; noShows: number; walkins: number;
   absenceDays: number; workedDays: number; warnings: string[];
 };
+
+// TEAM-04: GET /api/v1/espace (server/domain/espace.js), a barber's own home. Only his appointments, his figures and the
+// salon in percent; `now` and `next` are today's (null on another day).
+export type EspaceStatus = 'pending' | 'booked' | 'arrived' | 'in_chair' | 'done' | 'no_show';
+export type EspaceNow =
+  | { min: number; status: 'free'; until: number }
+  | { min: number; status: 'busy'; phase: 'chair' | 'arrived' | 'expected'; with: string; until: number }
+  | { min: number; status: 'busy'; phase: 'block'; label: string; until: number }
+  | { min: number; status: 'off'; kind: 'none' | 'before' | 'break' | 'after'; until: number | null };
+export type CutNoteView = { id: string; apptId: string; day: string; staff: string; by?: string; mine: boolean; text: string; edited: boolean };
+export type EspaceNext = {
+  id: string; start: number; dur: number; name: string; services: string[]; status: EspaceStatus; late: number; paid: boolean; note: string; tech: string;
+  client: {
+    id: string; name: string; visits: number; withMe: number; firstVisit: boolean; usual: boolean; lastCut: { day: string; staffName: string; services: string[] } | null; cadence: number | null;
+    birthdaySoon: { inDays: number; day: string } | null; noShows: number; member: { kind: 'member' | 'carnet'; label: string; used: number; of: number } | null; prefersMe: boolean;
+  } | null;
+  cutNotes: CutNoteView[]; myNote: string | null; canNote: boolean; lateNotice: { min: number | null; at: number | null } | null;
+};
+export type EspaceRow = { id: string; start: number; dur: number; name: string; clientId: string | null; services: string[]; status: EspaceStatus; late: number; firstVisit: boolean; paid: boolean; noted: boolean; needsNote: boolean };
+export type EspaceFigures = { from: string; to: string; performed: number; commission: number; tips: number; done: number; fill: number; avgTicket: number; rebookRate: number };
+export type EspaceData = {
+  day: string; today: string; now: EspaceNow | null; next: EspaceNext | null; list: EspaceRow[];
+  gaps: { start: number; end: number; dur: number }[]; walkins: { waiting: number; mineNext: boolean | null };
+  figures: { day: EspaceFigures; week: EspaceFigures; month: EspaceFigures; goal: GoalView | null } | null;
+  birthdays: { id: string; name: string; inDays: number; day: string }[]; reviews: { sent: number; opened: number } | null;
+  absences: { next: { id: string; from: string; to: string } | null; pending: { id: string; from: string; to: string }[] };
+  salon: { goalPct: number | null; fill: number; team?: { id: string; name: string; color: string; done: number; occupancy: number }[] } | null;
+};
+/** What a card of Mon espace is: `export const meta` and a default component in web/src/comptoir/pages/espace/cards/*.tsx. */
+export type EspaceCardMeta = { id: string; title: string; chairOnly?: boolean };
+export type NoteTarget = { id: string; name: string; text?: string | null };
+/** reload: fetch the page again (after an action); note: open the cut note sheet for an appointment. */
+export type EspaceCardProps = { data: EspaceData; reload: () => Promise<void>; note: (t: NoteTarget) => void };

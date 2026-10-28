@@ -14,6 +14,7 @@ import { FeedSheet } from './Feed';
 import type { Boot, FeedItem } from './types';
 import { GUARD_OPEN as OWN_SECTIONS, SECTION_CAP } from './pages/reglages/caps';
 
+const Espace = lazy(() => import('./pages/Espace'));
 const Agenda = lazy(() => import('./pages/Agenda'));
 const Caisse = lazy(() => import('./pages/Caisse'));
 const Clients = lazy(() => import('./pages/Clients'));
@@ -28,6 +29,7 @@ const Reglages = lazy(() => import('./pages/Reglages'));
 // Équipe and Catalogue are read-only without `team` / `catalog` (own card, prices), Relances refuses its own tabs.
 type Route = { C: ComponentType; title: string; cap?: string; sub?: (id: string) => string | undefined };
 const ROUTES: Record<string, Route> = {
+  espace: { C: Espace, title: 'Mon espace', cap: 'agenda.own' },
   agenda: { C: Agenda, title: 'Agenda', cap: 'agenda.own' },
   caisse: { C: Caisse, title: 'Caisse', cap: 'sale.create' },
   clients: { C: Clients, title: 'Clients', cap: 'client.view' },
@@ -72,13 +74,15 @@ export function Root() {
   );
 }
 
+const PHONE_TABS = ['pilotage', 'espace', 'agenda', 'caisse', 'clients', 'rapports'];
 type NavItem = { to: string; page: string; label: string; icon: string; cap?: string; badge?: number; soft?: boolean };
 
 function useNav(): NavItem[] {
   const { can, pulse, boot } = useApp();
   const b = pulse?.badges;
   const items: NavItem[] = [
-    // /comptoir alone is each person's home (home.ts): the Agenda keeps its own address
+    // a chair's home (TEAM-04); /comptoir alone opens each person's home (home.ts), the Agenda keeps its own address
+    { to: '/espace', page: 'espace', label: 'Mon espace', icon: 'chair', cap: 'agenda.own' },
     { to: '/agenda', page: 'agenda', label: 'Agenda', icon: 'agenda', cap: 'agenda.own' },
     { to: '/caisse', page: 'caisse', label: 'Caisse', icon: 'caisse', cap: 'sale.create', badge: b?.toPay },
     { to: '/clients', page: 'clients', label: 'Clients', icon: 'clients', cap: 'client.view', badge: b?.retention, soft: true },
@@ -90,7 +94,7 @@ function useNav(): NavItem[] {
   ];
   // the desk has no chair: no figures of its own, so no page of zeros (the agenda gives it the salon's counts)
   const noFigures = !boot.me.chair && !can('report.shop');
-  return items.filter((x) => (!x.cap || can(x.cap)) && !(x.page === 'rapports' && noFigures));
+  return items.filter((x) => (!x.cap || can(x.cap)) && !(x.page === 'rapports' && noFigures) && !(x.page === 'espace' && !boot.me.chair));
 }
 
 function Shell() {
@@ -142,7 +146,8 @@ function Shell() {
   const need = route.id && r.sub ? r.sub(route.id) : r.cap;
   const Page = r.C;
   const allowed = !need || app.can(need);
-  const phoneTabs = nav.filter((x) => ['agenda', 'caisse', 'clients', 'rapports'].includes(x.page)).slice(0, 4);
+  // the first four of these that this person can open (Pilotage joins in front of Mon espace); the rest is behind « Plus »
+  const phoneTabs = PHONE_TABS.map((p) => nav.find((x) => x.page === p)).filter((x): x is NavItem => !!x).slice(0, 4);
   const rest = nav.filter((x) => !phoneTabs.includes(x));
 
   return (

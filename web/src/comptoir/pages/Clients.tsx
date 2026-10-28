@@ -19,6 +19,7 @@ import { ClientChips, Fold, useFolds } from './clients/ClientChips';
 import MemberBlock, { useSellable } from './clients/MemberBlock';
 import Members from './clients/Members';
 import { liveMembers } from '../../lib/members';
+import CutNotes from './espace/CutNotes';
 import './clients.css';
 
 type ListData = { total: number; counts: Record<string, number>; excludedNoConsent?: number; retention?: { before: string; other: number } | null; items: ClientCard[] };
@@ -359,6 +360,7 @@ function ClientFile({ id }: { id: string }) {
               <MemberBlock c={c} onEdit={() => setEdit(true)} />
             </Fold>
           )}
+          {c.erased ? null : <CutNotes clientId={c.id} />}
           {data.packs.length ? (
             <Fold id="carnets" guide="file-carnets" title="Carnets" icon="ticket" open={folds.isOpen('carnets')} onToggle={() => folds.toggle('carnets')}
               summary={(() => { const n = data.packs.reduce((t, p) => t + Math.max(0, p.total - p.used), 0); return n ? n + ' restante' + (n > 1 ? 's' : '') : 'terminés'; })()}>

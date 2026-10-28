@@ -56,6 +56,8 @@ Object.assign(LABELS, { 'period.closed': 'Clôture du mois ou de l’année', 's
 Object.assign(LABELS, { 'phone.linkIssued': 'Lien de téléphone créé', 'phone.pinMissed': 'Code faux sur un téléphone lié', 'phone.pinCleared': 'Code juste après des erreurs', 'phone.locked': 'Téléphone bloqué (codes faux)', 'staff.photo': 'Photo de l’équipe modifiée', 'prefs.set': 'Réglages personnels modifiés' });
 // PAY-03: the salon confirms a cancellation asked from /resilier without the member's link
 Object.assign(LABELS, { 'member.cancelConfirmed': 'Résiliation confirmée' });
+// TEAM-04: a barber's note about a cut (the text itself is personal data and stays out of the journal's summary)
+Object.assign(LABELS, { 'cut.noted': 'Note de coupe' });
 // AC-01: the client space
 Object.assign(LABELS, { 'account.signedIn': 'Espace client : connexion', 'account.codeMissed': 'Espace client : code erroné', 'account.codeBurned': 'Espace client : code bloqué', 'account.fenceOpened': 'Espace client : ouvert sur une fiche inactive', 'account.revoked': 'Espace client : appareils déconnectés', 'account.closed': 'Espace client supprimé' });
 const STATUS = { arrived: 'arrivé', in_chair: 'au fauteuil', booked: 'remis à venir', no_show: 'absent' };
@@ -98,6 +100,7 @@ function summary(s, e) {
     case 'import.batch': return d.i != null ? 'Paquet n° ' + (d.i + 1) : '';
     case 'phone.linkIssued': return 'pour ' + ((s.staff.get(d.staffId) || {}).name || '');
     case 'device.enrolled': case 'phone.locked': return d.staffId ? 'téléphone de ' + ((s.staff.get(d.staffId) || {}).name || '') + ' · ' + (d.name || '') : '';
+    case 'cut.noted': return ((s.staff.get(d.staffId) || {}).name || '') + ' · ' + d.day + (d.by && d.by !== d.staffId ? ' · écrite par ' + ((s.staff.get(d.by) || {}).name || '') : '');
     case 'staff.photo': return ((s.staff.get(d.id) || {}).name || '') + (d.v ? '' : ' · retirée');
     case 'prefs.set': return Object.keys(d.prefs || {}).join(', ');
     case 'shop.restored': return 'depuis ' + (d.from === 'fichier' ? 'un fichier' : d.from) + ' · ' + d.count + ' opérations';

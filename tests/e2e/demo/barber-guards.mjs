@@ -126,8 +126,8 @@ export default async ({ h, page }) => {
   await h.expectText(owner, 'Coordonnées');
   await none(owner, 'Réservé au gérant', 'owner /reglages/constructor');
 
-  // JKut's agenda: his own figures, without the salon's month goal or warnings (bootstrap), and no refused call
-  await page.goto(h.base + '/comptoir');
+  // JKut's agenda (his home is Mon espace now, TEAM-04): his own figures, without the salon's month goal or warnings (bootstrap), and no refused call
+  await page.goto(h.base + '/comptoir/agenda');
   await page.getByRole('region', { name: 'La journée en chiffres' }).getByText('Mon chiffre').waitFor({ timeout: 8000 });
   if (!(await page.getByRole('link', { name: 'Mes chiffres' }).count())) throw new Error('JKut: his « Mes chiffres » tab is missing');
 

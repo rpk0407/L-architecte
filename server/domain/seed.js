@@ -24,6 +24,7 @@ import { seedReviews } from '../commands/reviews.js';
 import { startMembership, memberPaid, requestCancel } from '../commands/memberships.js';
 import simBilling from '../commands/steps/sim-billing.js';
 import { memberOf, cover, addMonths } from './membership.js';
+import { addCutNote } from '../commands/cutnotes.js';
 import { fiscalSteps } from '../commands/steps/fiscal.js';
 import { demoSigner } from '../core/signer.js';
 import { SOFTWARE } from '../version.js';
@@ -103,6 +104,8 @@ const PRODUCTS = [
 const FIRST = ['Yanis', 'Mehdi', 'Lucas', 'Karim', 'Nolan', 'Enzo', 'Sofiane', 'Hugo', 'Adam', 'Ilyes', 'Matteo', 'Bilal', 'Théo', 'Nassim', 'Kylian', 'Jules', 'Samir', 'Walid', 'Ethan', 'Amine', 'Louis', 'Ryad', 'Malik', 'Gabriel', 'Anis', 'Noah', 'Sami', 'Yassine', 'Tom', 'Axel', 'Nathan', 'Ismaël', 'Raphaël', 'Hamza', 'Marius', 'Zakaria', 'Jordan', 'Kenzo', 'Sacha', 'Dylan', 'Younes', 'Lenny', 'Mathis', 'Wassim', 'Imran', 'Léo', 'Djibril', 'Timéo', 'Nabil', 'Kaïs', 'Lounis', 'Bastien', 'Moussa', 'Florian', 'Chris', 'Idriss', 'Kevin', 'Maxime', 'Yann', 'Aymen'];
 const LAST = ['Martin', 'Benali', 'Rossi', 'Fabre', 'Haddad', 'Garcia', 'Moreau', 'Mansouri', 'Romano', 'Durand', 'Belkacem', 'Lopez', 'Bernard', 'Chabane', 'Ferrari', 'Girard', 'Amrani', 'Blanc', 'Mercier', 'Ziani', 'Santini', 'Bouzid', 'Faure', 'Ricci', 'Kaci', 'Roux', 'Medjahed', 'Pons', 'Esposito', 'Brahimi'];
 const TECH = ['Dégradé bas, sabot 0,5 sur les côtés', 'Garde la longueur sur le dessus', 'Barbe : ne pas trop raccourcir', 'Raie à gauche, bien marquée', 'Skin fade, dessus texturé', 'Ciseaux uniquement sur le dessus', 'Taper, nuque arrondie', 'Contour au rasoir, pas à la tondeuse', 'Cuir chevelu sensible : pas de lotion alcoolisée', '', '', '', ''];
+// what a barber writes after the cut (TEAM-04): the 20 most regular clients have one or two, from their usual barber
+const CUT_NOTES = ['Dégradé bas, sabot 1 sur les côtés, dessus aux ciseaux', 'Comme d’habitude, un peu plus court derrière', 'Skin fade net, contour au rasoir, dessus texturé', 'Garde la longueur dessus, nuque arrondie', 'Barbe taillée au sabot 3, joues propres', 'Plus court sur les côtés cette fois, il a aimé', 'Raie à gauche bien marquée, produit mat', 'Dégradé 1,5 sur les côtés, 4 cm dessus, cire mate'];
 const NOTES = ['Vient avec son fils le samedi', 'Préfère les créneaux du matin', 'Toujours à l’heure', 'Aime parler foot', '', '', '', '', ''];
 
 const SYS = { actor: /** @type {const} */ ({ t: 'system', id: 'seed', n: 'Démo' }), caps: new Set(Object.keys(CAPS)) };
@@ -307,6 +310,8 @@ export async function buildDemoJournal(nowReal, opt = {}) {
     return c;
   };
   const byId = new Map(pool.map((c) => [c.id, c]));
+  // the last visit done of each client (TEAM-04: the cut note of the client about to sit down is written on it)
+  const lastVisit = new Map();
   const giftDays = new Set([addDays(start, 9), addDays(start, 23), addDays(today, -3)]);
   const seeded = [];
 
@@ -345,6 +350,9 @@ export async function buildDemoJournal(nowReal, opt = {}) {
       }
     }
   };
+
+  /** a cut note written by the barber who did the cut (so « écrit par » is his name, not the owner's) */
+  const noteCut = (v, c) => eng.run(addCutNote, { id: v.id, text: CUT_NOTES[hashStr('cut|' + c.id + '|' + v.day) % CUT_NOTES.length] }, { ...base, staff: eng.state.staff.get(v.staffId) || base.staff }).catch(() => null);
 
   /* one day of the salon */
   const runDay = async (day, isToday) => {
@@ -393,6 +401,11 @@ export async function buildDemoJournal(nowReal, opt = {}) {
       const res = await eng.run(checkout, input, base).catch((e) => { if (process.env.LX_DEBUG) console.error('seed checkout', e.message); return null; });
       if (res && c && c.abo && !packId && input.lines[0].kind === 'pack') c.packId = [...eng.state.packs.values()].find((k) => k.saleId === res.id)?.id || null;
       if (c) { c.last = day; c.booked = null; }
+      // the barber notes the cut of one visit in five of the last three weeks (from the visit, not from r: the draws stay what they were)
+      if (res && c) {
+        lastVisit.set(c.id, { id: cur.id, day, end, staffId: cur.staffId });
+        if (diffDays(day, today) <= 21 && hashStr('cutnote|' + c.id + '|' + day) % 5 === 0) { at(day, end + 6); await noteCut(lastVisit.get(c.id), c); }
+      }
       // a third of clients book their next cut before leaving
       if (res && c && r() < 0.33 && (!c.stop || addDays(day, c.cadence) < c.stop)) {
         const next = addDays(day, c.cadence);
@@ -460,6 +473,21 @@ export async function buildDemoJournal(nowReal, opt = {}) {
     const plans = planDay(eng.state, d, fillFor(d, today), r, pickClient(d), clock);
     for (const p of plans) { const c = byId.get(p.clientId); if (c) c.booked = d; await eng.run(createAppointment, p, base).catch(() => null); }
     seeded.push(d);
+  }
+  // TEAM-04: whoever sits down in the next three days has a note on his last cut, so Mon espace shows « La dernière fois »
+  // at once, the first chair (JKut) first. A visit within two weeks is noted this morning, an older one from its own day (the 14-day rule).
+  {
+    for (const sid of barberIds) for (let i = 0; i <= 2; i++) {
+      for (const id of eng.state.apptsByDay.get(addDays(today, i)) || []) {
+        const a = eng.state.appts.get(id);
+        const c = a && a.staffId === sid && a.status !== 'done' && a.clientId ? byId.get(a.clientId) : null;
+        const v = c && lastVisit.get(c.id);
+        if (!v || eng.state.cutNoteOf.has(v.id)) continue;
+        if (diffDays(v.day, today) > 14) at(v.day, v.end + 6); else clock = nowReal;
+        await noteCut(v, c);
+      }
+    }
+    clock = nowReal;
   }
   // Saturday is full: a few people wait for a cancellation
   const sat = [1, 2, 3, 4, 5, 6, 7].map((i) => addDays(today, i)).find((d) => weekday(d) === 6);
