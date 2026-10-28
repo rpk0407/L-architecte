@@ -11,6 +11,8 @@ The salon's own system, replacing the WordPress setup: the public site where cli
 | `/mon-rendez-vous` (also `/mon-compte`) | Find an appointment without an account: a phone number in, the `/r/` links by SMS to that number | a client without the SMS at hand |
 | `/moi` | "Mon espace", optional (off in production until the salon opens it): next appointment to move or cancel, visits and receipts, carnets and gift cards; sign-in with a code by SMS | a client, on his phone |
 | `/paiement/:id`, `/recu/:token` | Test checkout (until Stripe is connected), receipt | clients |
+| `/abo/:token` | The member page: this month's cuts, next charge, card, « Résilier mon abonnement », « Renoncer au contrat ici » (14 days) | a member, from his texts and e-mails |
+| `/resilier` | Cancel or manage a membership without an account: a number or an e-mail in, the member page's link out (or a cancellation without either) | anyone, linked from every page's footer |
 
 ## Run it
 

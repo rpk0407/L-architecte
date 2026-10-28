@@ -15,7 +15,7 @@ import { newId, normPhone, isEmail, sha256 } from '../lib/util.js';
 import { addDays, diffDays, instantOf, localParts, fmtTime, dayParts, pad2 } from '../../shared/dates.js';
 import { moneyMode, providerFor, providerLabel } from '../payments/provider.js';
 import { memberMeta, billingOf, cancelAtProvider, syncMember } from '../payments/billing.js';
-import { readMemberToken, memberToken, MEMBER_TEXT_TTL, MEMBER_ASK_TTL } from '../auth/member-token.js';
+import { readMemberToken, memberToken, MEMBER_TEXT_TTL, MEMBER_ASK_TTL, MEMBER_BOOK } from '../auth/member-token.js';
 import { planOf } from '../settings/membership.js';
 import { cgvVersionOf } from '../settings/shop.js';
 import { startMembership, requestCancel, withdrawMember, endMember } from '../commands/memberships.js';
@@ -24,6 +24,7 @@ import { paymentRefundedOutside } from '../commands/payments.js';
 import { refund as refundSale } from '../commands/sales.js';
 import { providerKnown, outsideOpen } from '../projections/payments.js';
 import { statusIn, periodIn, membersOf, liveIn, canWithdraw, withdrawRefund, abandoned, mrr, graceOf, disputeHeld, dateWords, cover, coverWords, label as coverLabel, rootOf } from '../domain/membership.js';
+import { readMe, isPersona } from './me-kit.js';
 import { LINK_IP_PER_HOUR, LINK_PER_DAY, linkIpKey, linkPhoneKey } from '../domain/linkcap.js';
 
 const HOUR = 3600000, DAY = 86400000;
@@ -90,8 +91,10 @@ function memberFromToken(r) {
 
 /** What a message became, for « Confirmation envoyée le … » or « Envoi en cours » (PAY-04). */
 const SENT = new Set(['sent', 'simulated', 'delivered']);
-function acksOf(s, m) {
-  return m.acks.map((a) => {
+export function acksOf(s, m) {
+  // a start called off before it began is acknowledged by one e-mail (ackScheduledCancel): that message stands for it
+  const off = !m.activatedAt && m.cancel && !m.acks.some((a) => a.kind === 'cancel') ? s.messages.get('msg_mschx_' + m.id) : null;
+  return (off ? [...m.acks, { kind: 'cancel', at: off.at || m.cancel.at, msgIds: [off.id] }] : m.acks).map((a) => {
     const list = a.msgIds.map((id) => s.messages.get(id)).filter(Boolean);
     const left = list.filter((x) => SENT.has(x.status));
     return { kind: a.kind, at: a.at, sent: list.length > 0 && left.length === list.length, sentAt: left.reduce((t, x) => Math.max(t, x.updatedAt || x.at || 0), 0) || null };
@@ -113,17 +116,22 @@ export function memberView(r, m) {
   const next = !live || m.cancel ? null : p && p.paid ? { amount: m.price, day: p.end } : p ? { amount: m.price, day: p.start } : startDay ? { amount: m.price, day: startDay } : null;
   const wd = canWithdraw(m, day);
   const caps = r.rt.pay.caps || {};
+  // PAY-04: the first day a covered cut is included again (today, after the month's quota, or the days between cuts)
+  const c = live && m.serviceIds.length ? cover(s, m, m.serviceIds[0], { day }) : null;
+  const nextCut = !c ? null : c.ok ? day : c.why === 'quota' || c.why === 'soon' ? c.next || null : null;
   return {
     id: m.id, first: k.first, status, startDay,
     plan: { id: m.planId, name: m.name, price: m.price, cuts: m.cuts, minDays: m.minDays, words: coverWordsOf(s, m), services: m.serviceIds.map((x) => { const sv = s.services.get(x); return sv ? { id: sv.id, name: sv.name, slug: sv.slug || null } : null; }).filter(Boolean) },
-    used, of: m.cuts, period: p ? { start: p.start, end: p.end, last: addDays(p.grace && p.until ? p.until : p.end, -1), paid: !!p.paid } : null,
+    used, of: m.cuts, nextCut, period: p ? { start: p.start, end: p.end, last: addDays(p.grace && p.until ? p.until : p.end, -1), paid: !!p.paid } : null,
     next, card: m.card || '', pastDue: m.pastDue && live ? { since: m.pastDue.at, action: !!m.pastDue.action } : null,
     cancel: m.cancel ? { at: m.cancel.at, effective: m.cancel.effective, last: addDays(m.cancel.effective, -1), by: m.cancel.by, verified: m.cancel.verified !== false } : null,
     withdraw: wd ? { until: addDays(localParts(m.activatedAt).day, 14), refund: withdrawRefund(m, day), used: m.uses.length } : null,
     withdrawn: m.withdrawn ? { at: m.withdrawn.at, refund: m.withdrawn.refund } : null,
     ended: status === 'ended' ? { reason: m.withdrawn ? 'withdrawn' : m.ended ? m.ended.reason : 'cancelled' } : null,
     actions: { cancel: live && !m.cancel, withdraw: wd, card: live && !!m.activatedAt && !!caps.portal && (m.provider === 'simulated' || !!m.customer) },
-    acks: acksOf(s, m), shop: { name: s.settings.shop.name, phone: s.settings.shop.phone }
+    acks: acksOf(s, m), shop: { name: s.settings.shop.name, phone: s.settings.shop.phone },
+    // PAY-04: « Réserver ma coupe »'s link: books a covered cut, never cancels (it ends up in a URL)
+    book: live && status !== 'pending' ? memberToken(r.rt.secret, m.id, r.now + MEMBER_ASK_TTL, MEMBER_BOOK) : null
   };
 }
 
@@ -214,7 +222,7 @@ export function membershipSummary(s, now) {
  * @param {any} r @param {{ paymentId: string, saleId: string, amount: number, key: string, reason: string, as?: (cmd: any, input: any) => Promise<any> }} o
  * @returns {Promise<{ ok: boolean, error?: string, refundId?: string }>} refundId: the credit note, when it is written
  */
-async function refundMonth(r, o) {
+export async function refundMonth(r, o) {
   const py = r.s.payments.get(o.paymentId);
   const sale = r.s.sales.get(o.saleId);
   if (!py || !sale || !(o.amount > 0)) return { ok: false, error: 'rien à rembourser' };
@@ -274,8 +282,13 @@ export function membershipRoutes(app, o = {}) {
       id: p.id, name: p.name, price: p.price, cuts: p.cuts, minDays: p.minDays || 0, blurb: p.blurb || '', words: coverWordsOf(s, p),
       services: p.serviceIds.map((x) => { const sv = s.services.get(x); return sv ? { id: sv.id, name: sv.name, slug: sv.slug || null } : null; }).filter(Boolean)
     }));
+    // PAY-04: the carnet sold at the salon, shown beside the plans (« Carnet 5 coupes · 80 € · valable 10 semaines »)
+    const pk = [...s.services.values()].filter((x) => x.active && x.pack && x.pack.credits).sort((a, b) => (a.order ?? 0) - (b.order ?? 0))[0];
+    const carnet = pk ? { name: pk.name, price: pk.price, credits: pk.pack.credits, days: pk.pack.days || 0 } : null;
     // live: the site shows the block and its button; sepa: no SEPA in v1; startDay: the day a start not asked for now begins
-    return json({ live: !!M.enabled && open(r) && plans.length > 0, sepa: false, plans, startDay: addDays(r.local.day, START_DAYS), cgv: cgvVersionOf(s.settings.shop) }, 200, { 'cache-control': 'public, max-age=0, s-maxage=20, stale-while-revalidate=60' });
+    // terms: the CGV keep the membership's clauses while it is on or any contract still runs (its members link to them)
+    const terms = !!M.enabled || [...s.members.values()].some((x) => liveIn(s, x, r.local.day));
+    return json({ live: !!M.enabled && open(r) && plans.length > 0, terms, sepa: false, plans, carnet, startDay: addDays(r.local.day, START_DAYS), cgv: cgvVersionOf(s.settings.shop) }, 200, { 'cache-control': 'public, max-age=0, s-maxage=20, stale-while-revalidate=60' });
   });
 
   /**
@@ -290,15 +303,18 @@ export function membershipRoutes(app, o = {}) {
     if (!open(r) || !(s.settings.membership && s.settings.membership.enabled)) throw new HttpError(409, 'soon', SOON);
     const plan = planOf(s.settings, String(b.planId || ''));
     if (!plan || plan.active === false || plan.online === false) throw new HttpError(404, 'not_found', 'Formule introuvable.');
+    // PAY-04: a signed-in client subscribes on his own file, with its number (the demo's persona stays a showcase: typed)
+    const meNow = readMe(r);
+    const own = meNow && !isPersona(meNow) && meNow.c && meNow.c.phone ? meNow : null;
     const first = String(b.first || '').trim().slice(0, 40);
-    const phone = normPhone(String(b.phone || '').slice(0, 32));
+    const phone = own ? own.c.phone : normPhone(String(b.phone || '').slice(0, 32));
     const email = String(b.email || '').trim().toLowerCase().slice(0, 120);
     if (!first) throw new HttpError(400, 'invalid', 'Indique ton prénom.');
     if (!phone) throw new HttpError(400, 'invalid', 'Vérifie ton numéro : 10 chiffres, comme 06 12 34 56 78.');
     if (!isEmail(email)) throw new HttpError(400, 'invalid', 'Indique ton e-mail : il reçoit la confirmation de ton abonnement.');
     const startNow = b.startNow === true;
     const day = r.local.day;
-    const known = liveOf(s, s.clientByPhone.get(phone), day);
+    const known = liveOf(s, own ? own.cid : s.clientByPhone.get(phone), day);
     if (known) {
       if (!limited(linkPhoneKey(phone), LINK_PER_DAY, DAY)) {
         const res = await r.rt.engine.run(sendMemberLink, { memberId: known.id }, SELF(r, null, MEMBER_ASK_TTL));
@@ -313,7 +329,7 @@ export function membershipRoutes(app, o = {}) {
     const price = await prov.ensurePrice(plan, plan.price);
     const co = await prov.createSubscription({ id, price, planId: plan.id, name: plan.name, email, startNow, startAt, sepa: false, ...(startNow ? {} : { note: startNote(day) }), successUrl: page + '?paiement=ok', cancelUrl: r.origin + '/?abonnement=annule' });
     await r.rt.engine.run(startMembership, {
-      id, planId: plan.id, first, phone, email, provider: prov.name, providerRef: co.ref, ...(/^https:\/\//.test(co.url) ? { url: co.url } : {}),
+      id, planId: plan.id, first, phone, email, ...(own ? { clientId: own.cid } : {}), provider: prov.name, providerRef: co.ref, ...(/^https:\/\//.test(co.url) ? { url: co.url } : {}),
       // a start in 14 days waits that long for its first payment: it is not abandoned when the checkout page closes
       exp: startNow ? lapse(r, co) : startAt + 2 * DAY, channel: 'online', startNow, cgv: String(b.cgv || '').slice(0, 20) || undefined
     }, SYSTEM(r));
@@ -333,7 +349,9 @@ export function membershipRoutes(app, o = {}) {
     const key = phone ? linkPhoneKey(phone) : 'linke|' + email;
     if (!limited(key, LINK_PER_DAY, DAY)) {
       await constant(async () => {
-        const res = await r.rt.engine.run(sendMemberLink, phone ? { phone } : { email }, SELF(r, null, MEMBER_ASK_TTL));
+        // PAY-04: the link asked from /resilier opens the member page on the cancellation's recap
+        const self = SELF(r, null, MEMBER_ASK_TTL), pageOf = self.meta.memberLink;
+        const res = await r.rt.engine.run(sendMemberLink, phone ? { phone } : { email }, { ...self, meta: { ...self.meta, memberLink: (m) => pageOf(m) + '?resilier' } });
         // asked for now: it leaves now, not at the next tick
         if (res.ids) await dispatchNow(r.rt, res.ids);
       });

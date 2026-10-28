@@ -5,23 +5,26 @@
 import { signLink, checkLink } from './session.js';
 
 export const MEMBER_LINK = 'mbr';
+/** PAY-04: « Réserver ma coupe » (/?reserver&mbr=…): books a covered cut for this member, and nothing else (no cancel,
+ *  no withdrawal, no card: a URL a site visitor may share or a demo visitor may read) */
+export const MEMBER_BOOK = 'mbk';
 /** a link in a text the salon sends (welcome, failed payment, acknowledgements) */
 export const MEMBER_TEXT_TTL = 7 * 86400000;
 /** a link asked for from /resilier (lookup): it reaches whoever holds the phone or the mailbox now */
 export const MEMBER_ASK_TTL = 3600000;
 
-/** @param {string} secret @param {string} memberId @param {number} exp the instant it stops working (ms) */
-export function memberToken(secret, memberId, exp) {
-  return signLink(secret, MEMBER_LINK, memberId + '~' + Math.floor(exp).toString(36));
+/** @param {string} secret @param {string} memberId @param {number} exp the instant it stops working (ms) @param {string} [kind] */
+export function memberToken(secret, memberId, exp, kind = MEMBER_LINK) {
+  return signLink(secret, kind, memberId + '~' + Math.floor(exp).toString(36));
 }
 
 /**
  * The member a link names, or why not: 'invalid' (not ours, altered) or 'expired' (genuine, too old).
- * @param {string} secret @param {string} token @param {number} now
+ * @param {string} secret @param {string} token @param {number} now @param {string} [kind] MEMBER_BOOK for a booking's
  * @returns {{ id: string, exp: number } | { error: 'invalid'|'expired' }}
  */
-export function readMemberToken(secret, token, now) {
-  const v = checkLink(secret, MEMBER_LINK, token);
+export function readMemberToken(secret, token, now, kind = MEMBER_LINK) {
+  const v = checkLink(secret, kind, token);
   const i = v ? v.lastIndexOf('~') : -1;
   if (!v || i < 1) return { error: 'invalid' };
   const exp = parseInt(v.slice(i + 1), 36);

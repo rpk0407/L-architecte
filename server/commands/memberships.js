@@ -59,8 +59,8 @@ function memberRef(s, x) {
  * {lien}: the member's own page (PAY-03 signs it, ctx.meta.memberLink), else nothing: the site's cancellation page
  * (/resilier) comes with PAY-04, and a dead link in an acknowledgement is worse than none.
  */
-function linkOf(ctx, m) {
-  if (ctx.meta && typeof ctx.meta.memberLink === 'function') return String(ctx.meta.memberLink(m) || '');
+function linkOf(ctx, m, o) {
+  if (ctx.meta && typeof ctx.meta.memberLink === 'function') return String(ctx.meta.memberLink(m, o) || '');
   return '';
 }
 /** The welcome's « Réserve tes coupes » link: the member's page, else the site where he books (not the cancellation page). */
@@ -194,7 +194,8 @@ export const memberPaid = {
 
     if (first) {
       const k = contactOf(s, m);
-      const link = linkOf(ctx, m);
+      // PAY-04: the mail's links live through the withdrawal period (its last day + 1), not the texts' usual week
+      const link = linkOf(ctx, m, { until: addDays(start, 15) });
       const sms = memberText(s, ctx, m, 'memberWelcome', 'mwel_' + m.id, { lien: bookLinkOf(ctx, m) }, true);
       const mail = noticeMail(s, ctx, {
         key: 'mwelm_' + m.id, template: 'memberWelcome', legal: true, to: k.email, cid,
@@ -208,6 +209,8 @@ export const memberPaid = {
           'Sans engagement : tu résilies quand tu veux, l’abonnement s’arrête à la fin du mois payé.',
           'Tu peux aussi te rétracter pendant 14 jours : on te rembourse ce mois, moins les coupes déjà faites.',
           ...(link ? ['', 'Gérer ou résilier mon abonnement : ' + link] : []),
+          // PAY-04: the withdrawal function, shown while it is open (until the 14th day after this one)
+          ...(link && link.includes('/abo/') ? ['Renoncer au contrat ici (jusqu’au ' + dateWords(addDays(start, 14)) + ') : ' + link + '?renoncer'] : []),
           '', shopLine(s)
         ],
         button: link ? { label: 'Mon abonnement', url: link } : null

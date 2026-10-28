@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="fr" data-cgv-text="2026-10-27">
+<html lang="fr" data-cgv-text="2026-10-28">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Conditions générales de vente · Barber L’Architecte</title>
-<meta name="description" content="Prix, réservation, acompte, annulation, cartes cadeaux et abonnement chez Barber L’Architecte, barbier place Pélabon à Marseille.">
+<meta name="description" content="Prix, réservation, acompte, annulation, cartes cadeaux, carnet et abonnement mensuel chez Barber L’Architecte, barbier place Pélabon à Marseille.">
 <meta name="theme-color" content="#ECE8E0" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0F0E0D" media="(prefers-color-scheme: dark)">
 <link rel="icon" href="/icon.svg" type="image/svg+xml">
@@ -20,7 +20,7 @@
 <main id="main">
 <p class="kk">Conditions</p>
 <h1>Conditions générales de vente</h1>
-<p class="lead">Elles s’appliquent aux prestations réservées sur ce site, par téléphone ou au salon, aux cartes cadeaux et aux abonnements. En réservant, tu les acceptes.</p>
+<p class="lead">Elles s’appliquent aux prestations réservées sur ce site, par téléphone ou au salon, aux cartes cadeaux, au carnet de coupes et à l’abonnement mensuel. En réservant ou en t’abonnant, tu les acceptes.</p>
 <p class="ver" data-opt>Version du <b data-f="cgvDate">27 octobre 2026</b></p>
 
 <section aria-labelledby="t-shop">
@@ -71,10 +71,44 @@
 </section>
 
 <section aria-labelledby="t-sub">
-<h2 id="t-sub">Abonnement</h2>
-<p data-unless="pack" hidden>L’abonnement comprend 5&nbsp;coupes, valables 70&nbsp;jours à partir de son achat.</p>
-<p data-if="pack"><span data-f="pack.name">Abonnement 5 coupes</span>&nbsp;: <b><span data-f="pack.credits">5</span>&nbsp;prestations valables <span data-f="pack.days">70</span>&nbsp;jours</b> à partir de son achat, pour <span data-f="pack.price">80&nbsp;€</span>.</p>
+<h2 id="t-sub">Carnet</h2>
+<p data-unless="pack" hidden>Le carnet comprend 5&nbsp;coupes, valables 70&nbsp;jours à partir de son achat.</p>
+<p data-if="pack"><span data-f="pack.name">Carnet 5 coupes</span>&nbsp;: <b><span data-f="pack.credits">5</span>&nbsp;prestations valables <span data-f="pack.days">70</span>&nbsp;jours</b> à partir de son achat, pour <span data-f="pack.price">80&nbsp;€</span>, payé d’avance au salon.</p>
 <p>Il est personnel. Les prestations non utilisées à la fin de la période sont perdues&nbsp;: le salon fixe les rendez-vous avec toi pour que tu en profites en entier.</p>
+</section>
+
+<section id="abonnement" aria-labelledby="t-abo" data-if="membership.terms" hidden>
+<h2 id="t-abo">Abonnement mensuel</h2>
+<p>Un abonnement donne droit, chaque mois, aux coupes de sa formule&nbsp;:</p>
+<ul data-list="plans"></ul>
+<h3>Durée et paiement</h3>
+<p>Il est conclu <b>pour une durée indéterminée, sans engagement</b>. Le prix est prélevé chaque mois à la date anniversaire de ton abonnement, sur la carte que tu as donnée au paiement (Stripe). Chaque mois payé fait l’objet d’un ticket, envoyé par e-mail.</p>
+<h3>Ce qui est inclus</h3>
+<ul>
+<li>Les coupes incluses valent pour le mois payé&nbsp;: celles que tu ne prends pas <b>ne se reportent pas</b> au mois suivant.</li>
+<li>Seules les prestations de ta formule sont incluses&nbsp;; une formule «&nbsp;illimitée&nbsp;» laisse le délai indiqué ci-dessus entre deux coupes. Le reste se paie au prix de la carte.</li>
+<li>L’abonnement est personnel. Une coupe incluse, réservée depuis la page de ton abonnement, se réserve sans acompte&nbsp;; un rendez-vous manqué suit les conditions d’annulation ci-dessus.</li>
+<li>Après un paiement refusé, tes coupes restent incluses quelques jours, le temps de mettre ta carte à jour&nbsp;; sans paiement, l’abonnement s’arrête.</li>
+<li>Il ne se met pas en pause&nbsp;: tu le résilies quand tu veux et tu te réabonnes plus tard.</li>
+</ul>
+<h3>Prix</h3>
+<p>Le prix de ta formule est garanti tant que ton abonnement court. Un changement de prix te serait annoncé par e-mail au moins un mois avant de s’appliquer, et tu pourrais résilier sans frais avant qu’il ne s’applique.</p>
+<h3>Résiliation</h3>
+<p>Tu résilies <b>à tout moment, en ligne, sans compte et sans frais</b>, depuis la page de ton abonnement ou depuis <a href="/resilier">Résilier mon abonnement</a> (ton numéro ou ton e-mail suffit, le lien est sur chaque page du site). La résiliation prend effet <b>à la fin du mois déjà payé</b>&nbsp;: tes coupes restent incluses jusque-là et plus rien n’est prélevé ensuite. Tu en reçois aussitôt la confirmation par e-mail et par SMS, avec la date de ta demande et celle de la fin. Elle peut aussi se faire au salon.</p>
+<h3>Droit de rétractation</h3>
+<p>Tu disposes de <b>14&nbsp;jours</b> à partir de ton abonnement pour y renoncer, sans motif et sans frais. Pendant ces 14&nbsp;jours, la page de ton abonnement affiche <b>«&nbsp;Renoncer au contrat ici&nbsp;»</b>&nbsp;; tu peux aussi envoyer au salon le formulaire ci-dessous, ou toute déclaration sans ambiguïté.</p>
+<ul>
+<li>Sans demande de ta part, l’abonnement commence à la fin de ces 14&nbsp;jours&nbsp;: rien n’est prélevé avant, et tes coupes d’ici là sont au prix de la carte. Y renoncer pendant ce temps l’annule simplement, sans rien à payer. La page de ton abonnement affiche encore «&nbsp;Renoncer au contrat ici&nbsp;» pendant les 14&nbsp;jours qui suivent le premier paiement, avec le remboursement ci-dessous.</li>
+<li>Si tu as demandé qu’il commence tout de suite (la case à cocher avant le paiement), une rétractation te rembourse le mois payé <b>moins les coupes déjà faites</b>, chacune comptée au prix du mois divisé par le nombre de coupes incluses (par 4 pour une formule illimitée), sous 14&nbsp;jours et sur la même carte.</li>
+</ul>
+<h3>Formulaire de rétractation</h3>
+<p style="padding:16px 18px;border-radius:18px;background:var(--sf);box-shadow:inset 0 0 0 1px var(--ln)">À l’attention de <span data-f="editor">Barber L’Architecte</span>, <span data-f="address">16, place Pélabon, 13013 Marseille</span>, <a data-f="shop.email" data-link="mail" href="mailto:larchitectebarber@gmail.com">larchitectebarber@gmail.com</a>&nbsp;:<br>
+Je vous notifie par la présente ma rétractation du contrat portant sur la prestation de services ci-dessous&nbsp;: abonnement mensuel, formule …<br>
+Souscrit le&nbsp;: …<br>
+Nom du consommateur&nbsp;: …<br>
+Adresse du consommateur&nbsp;: …<br>
+Signature du consommateur (uniquement en cas de notification du présent formulaire sur papier)&nbsp;: …<br>
+Date&nbsp;: …</p>
 </section>
 
 <section aria-labelledby="t-med">

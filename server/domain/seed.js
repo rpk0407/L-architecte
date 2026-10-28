@@ -287,10 +287,13 @@ export async function buildDemoJournal(nowReal, opt = {}) {
   // regulars who come every four weeks at most for a cut a formule covers: Illimité for the contour or the frequent ones
   // (from the end of the list: the first files stay plain clients, as the tests and the demo script know them)
   const regulars = pool.filter((c) => !c.abo && !c.stop && !c.join && c.cadence <= 28 && (c.fav === slugId.cl || c.fav === slugId.cc)).reverse();
+  // the past-due member's start: the last open day a month before yesterday (a closed one would start it later, and
+  // its refused renewal would not have come yet: no past-due page to show that day)
+  const graceStart = () => { let d = addMonths(addDays(today, -1), -1); while (!eng.state.settings.hours[weekday(d)]?.length) d = addDays(d, -1); return d; };
   const plans = MEMBERS.slice(0, regulars.length).map((x, i) => {
     const c = regulars[i];
     const plan = /** @type {any} */ (PLANS[c.fav === slugId.cc || c.cadence <= 14 ? 1 : 0]);
-    const startDay = x.graceAt ? addMonths(addDays(today, -1), -1) : x.endAt ? addMonths(addDays(today, 4), -1) : addDays(today, -(x.ago || 0));
+    const startDay = x.graceAt ? graceStart() : x.endAt ? addMonths(addDays(today, 4), -1) : addDays(today, -(x.ago || 0));
     const from = startDay < start ? start : startDay;
     const cancelDay = x.cancelAgo != null ? addDays(today, -x.cancelAgo) : x.cancelAfter != null ? addDays(from, x.cancelAfter) : null;
     return { ...x, c, plan, from, cancelDay: cancelDay && cancelDay < from ? from : cancelDay, id: '', started: false, cancelled: false };

@@ -75,7 +75,8 @@ export default async ({ browser, h, page }) => {
   await page.goto(h.base + '/comptoir/reglages/mise-en-route');
   await step(page, 'menu').waitFor();
   await until('the menu and the team ticked', async () => (await done(page, 'menu')) && (await done(page, 'team')));
-  await h.expectText(page, '11 prestations visibles sur le site');
+  // the old menu's eleven, less the carnet sold at the salon (PAY-04)
+  await h.expectText(page, '10 prestations visibles sur le site');
   await h.expectText(page, '1 fauteuil, chacun avec son code');
   await h.shot(page, 'mise-en-route');
   await page.goto(h.base + '/comptoir');

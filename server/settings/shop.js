@@ -5,7 +5,7 @@ import { str, opt, obj, InvalidInput } from '../lib/validate.js';
 
 /** The date of the text of public/cgv.html (its <html data-cgv-text>, kept equal by tests/unit/settings-legal.test.js).
  *  Bump both when that text changes: the CGV in force are then the newer of this and the salon's shop.cgvVersion. */
-export const CGV_TEXT = '2026-10-27';
+export const CGV_TEXT = '2026-10-28';
 
 const url = () => str({ max: 300, pattern: /^https:\/\/[^\s]+$/ });
 /** Empty clears the link (an optional page, unlike the review link the messages need). */

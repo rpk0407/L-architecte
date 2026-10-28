@@ -1,0 +1,55 @@
+/* PAY-04 · The client pages' kit (client.css) for the member page opened in /moi's sheet, scoped to that sheet: /moi
+   keeps its own base styles, the sheet gets the same paper, ink and red as /abo/:token. :where() keeps client.css's
+   specificity, so member.css (loaded after) wins as it does there. Keep in step with client.css. */
+@import '@fontsource/instrument-sans/latin-400.css';
+@import '@fontsource/instrument-sans/latin-500.css';
+@import '@fontsource/instrument-sans/latin-600.css';
+@import '@fontsource/instrument-serif/latin-400.css';
+
+.mb-sheet, .mb-row {
+  --paper: #ECE8E0; --card: #F6F3EE; --ink: #0F0E0D; --ink2: #58534C; --ink3: #8A847B; --line: rgba(15, 14, 13, .1); --line2: rgba(15, 14, 13, .18);
+  --red: #EB4639; --ok: #23824B; --ok-bg: rgba(35, 130, 75, .1); --warn: #9A5B0F; --warn-bg: rgba(217, 119, 6, .12);
+  --serif: 'Instrument Serif', 'Times New Roman', serif; --sans: 'Instrument Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.mb-sheet { font: 400 16px/1.45 var(--sans); }
+:where(.mb-sheet *, .mb-sheet *::before, .mb-sheet *::after) { box-sizing: border-box; }
+:where(.mb-sheet h1, .mb-sheet h2, .mb-sheet p) { margin: 0; }
+:where(.mb-sheet a) { color: inherit; }
+:where(.mb-sheet button) { font: inherit; color: inherit; border: 0; background: none; cursor: pointer; padding: 0; }
+:where(.mb-sheet button:disabled) { opacity: .5; cursor: default; }
+:where(.mb-sheet) .c-card { padding: 22px 20px; border-radius: 24px; background: var(--card); box-shadow: 0 1px 0 rgba(15, 14, 13, .04), 0 18px 40px -24px rgba(15, 14, 13, .25); display: flex; flex-direction: column; gap: 14px; }
+:where(.mb-sheet) .c-center { align-items: center; text-align: center; padding: 34px 22px; }
+:where(.mb-sheet) .c-k { font: 600 12px/1 var(--sans); letter-spacing: .1em; text-transform: uppercase; color: var(--ink2); }
+:where(.mb-sheet) .c-h { font: 400 38px/1.05 var(--serif); letter-spacing: -.01em; }
+:where(.mb-sheet) .c-h2 { font: 400 28px/1.1 var(--serif); }
+:where(.mb-sheet) .c-muted { color: var(--ink2); font-size: 15px; }
+:where(.mb-sheet) .c-small { font-size: 13.5px; }
+:where(.mb-sheet) .c-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+:where(.mb-sheet) .c-btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 56px; padding: 0 26px; border-radius: 999px; background: var(--red); color: var(--ink); font: 600 17px/1 var(--sans); text-decoration: none; transition: transform .15s, background-color .2s; }
+:where(.mb-sheet) .c-btn:active { transform: scale(.98); }
+:where(.mb-sheet) .c-btn.ghost { background: transparent; box-shadow: inset 0 0 0 1.5px var(--line2); }
+:where(.mb-sheet) .c-link { font: 600 15px/1 var(--sans); text-decoration: underline; text-underline-offset: 4px; padding: 10px 2px; }
+:where(.mb-sheet) .c-pill { display: inline-flex; align-items: center; gap: 8px; padding: 7px 12px; border-radius: 999px; background: rgba(15, 14, 13, .06); font: 600 13px/1 var(--sans); }
+:where(.mb-sheet) .c-pill::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--ink3); }
+:where(.mb-sheet) .c-pill.ok { background: var(--ok-bg); color: var(--ok); }
+:where(.mb-sheet) .c-pill.ok::before { background: var(--ok); }
+:where(.mb-sheet) .c-pill.warn { background: var(--warn-bg); color: var(--warn); }
+:where(.mb-sheet) .c-pill.warn::before { background: var(--warn); }
+:where(.mb-sheet) .c-code { font-size: 14px; color: var(--ink2); }
+:where(.mb-sheet) .c-code b { color: var(--ink); letter-spacing: .04em; }
+:where(.mb-sheet) .c-ticket { background: var(--ink); color: var(--paper); }
+:where(.mb-sheet) .c-ticket .c-k, :where(.mb-sheet) .c-ticket .c-code { color: rgba(236, 232, 224, .6); }
+:where(.mb-sheet) .c-ticket .c-code b { color: var(--paper); }
+:where(.mb-sheet) .c-ticket .c-pill { background: rgba(236, 232, 224, .1); color: var(--paper); }
+:where(.mb-sheet) .c-ticket .c-pill.ok { color: #86EFAC; }
+:where(.mb-sheet) .c-ticket .c-pill.ok::before { background: #4ADE80; }
+:where(.mb-sheet) .c-ticket .c-pill.warn { color: #FCD38D; }
+:where(.mb-sheet) .c-ticket .c-pill.warn::before { background: #F5B544; }
+:where(.mb-sheet) .c-note { padding: 14px 16px; border-radius: 16px; font: 500 15px/1.4 var(--sans); background: rgba(15, 14, 13, .06); }
+:where(.mb-sheet) .c-note.ok { background: var(--ok-bg); color: var(--ok); }
+:where(.mb-sheet) .c-note.warn { background: var(--warn-bg); color: var(--warn); }
+:where(.mb-sheet) .c-spin { width: 28px; height: 28px; border-radius: 50%; border: 3px solid var(--line2); border-top-color: var(--ink); animation: mb-spin .8s linear infinite; }
+:where(.mb-sheet) .c-check { display: grid; place-items: center; width: 72px; height: 72px; border-radius: 50%; background: var(--ok); color: #fff; font: 600 34px/1 var(--sans); }
+:where(.mb-sheet) .c-check.no { background: var(--warn); }
+@keyframes mb-spin { to { transform: rotate(360deg); } }

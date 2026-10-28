@@ -28,6 +28,7 @@ import { meRoutes } from './routes-me.js';
 import { moiRoutes } from './routes-moi.js';
 import { meLoyaltyRoutes } from './routes-me-loyalty.js';
 import { basculeRoutes } from './routes-bascule.js';
+import { meMembershipRoutes } from './routes-me-membership.js';
 
 // A REGISTRY: one line per route file
 const app = router();
@@ -52,6 +53,7 @@ meRoutes(app);
 moiRoutes(app);
 meLoyaltyRoutes(app);
 basculeRoutes(app);
+meMembershipRoutes(app);
 
 const MUTATING = new Set(['POST', 'PATCH', 'PUT', 'DELETE']);
 const READ_DOWN = 'La base de données ne répond pas. Réessaie dans un instant.';

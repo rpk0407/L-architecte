@@ -8,6 +8,7 @@ import { Move, STATUS_WORDS, icsUrl, type Booking } from './booking';
 import type { AccountState, Me } from '../moi/types';
 import './client.css';
 import './cadeau.css';
+import Member from './abonnement/Member';
 
 function App() {
   const parts = location.pathname.split('/').filter(Boolean);
@@ -17,6 +18,7 @@ function App() {
   if (parts[0] === 'paiement' && parts[1]) return <Checkout id={parts[1]} />;
   if (parts[0] === 'recu' && parts[1]) return <Receipt token={parts[1]} />;
   if (parts[0] === 'cadeau' && parts[1]) return <Gift token={parts[1]} back={q.get('paiement')} />;
+  if (parts[0] === 'abo' && parts[1]) return <Shell><Member token={parts[1]} /></Shell>;
   return <Shell><Lost /></Shell>;
 }
 
@@ -177,10 +179,15 @@ function Checkout({ id }: { id: string }) {
   // a gift card bought on /carte-cadeau comes back to its own page (only that kind of address: never an open redirect)
   const retour = new URLSearchParams(location.search).get('retour') || '';
   const gift = /^\/cadeau\/[A-Za-z0-9_.-]{8,120}$/.test(retour) ? retour : null;
+  // a membership subscribed on the site comes back to its member page (PAY-04), as from Stripe's page
+  const abo = /^\/abo\/[A-Za-z0-9_.~-]{8,160}$/.test(retour) ? retour : null;
   const after = (ok: boolean, res?: { status?: string; start?: string }) => {
     if (gift) { location.href = ok ? gift + '?paiement=ok' : '/carte-cadeau?paiement=annule'; return; }
     // a membership says what happened: paid now, or recorded for its start day (nothing charged)
+    if (ok && p!.kind === 'membership' && abo) { location.href = abo + '?paiement=ok'; return; }
     if (ok && p!.kind === 'membership') { location.href = '/paiement/merci?abonnement=' + encodeURIComponent(res && res.status === 'scheduled' && res.start ? res.start : 'ok'); return; }
+    // a subscription left at the checkout: back to the site's sheet, as Stripe's cancelUrl does (PAY-04)
+    if (p!.kind === 'membership') { location.href = '/?abonnement=annule'; return; }
     location.href = p!.back ? p!.back + '?paiement=' + (ok ? 'ok' : 'annule') : '/paiement/merci' + (ok ? '' : '?paiement=annule');
   };
   const run = async (outcome: 'ok' | 'cancel') => {
@@ -191,7 +198,7 @@ function Checkout({ id }: { id: string }) {
   if (err) return <Shell><Lost msg={err} /></Shell>;
   if (!p) return <Shell><Spinner /></Shell>;
   // a member's « Changer de carte » in the demo (PAY-03, simulated portalUrl): nothing to change
-  if (p.kind === 'membership' && new URLSearchParams(location.search).has('carte')) return <Shell shop={p.shop}><section className="c-card c-center"><p className="c-k">Carte de paiement</p><h1 className="c-h">Démo : la carte est à jour.</h1><p className="c-muted">Avec Stripe, cette page est celle de Stripe : la nouvelle carte sert dès le prochain prélèvement.</p></section></Shell>;
+  if (p.kind === 'membership' && new URLSearchParams(location.search).has('carte')) return <Shell shop={p.shop}><section className="c-card c-center"><p className="c-k">Carte de paiement</p><h1 className="c-h">Démo : la carte est à jour.</h1><p className="c-muted">Avec Stripe, cette page est celle de Stripe : la nouvelle carte sert dès le prochain prélèvement.</p><button type="button" className="c-btn" onClick={() => { if (history.length > 1) history.back(); else location.href = '/'; }}>Revenir à mon abonnement</button></section></Shell>;
   if (p.kind === 'membership' && p.status === 'scheduled' && p.start) return <Shell shop={p.shop}><section className="c-card c-center"><p className="c-k">Abonnement enregistré</p><h1 className="c-h">{startWords(p.start)}</h1><p className="c-muted">La confirmation est partie par e-mail.</p></section></Shell>;
   if (p.status !== 'pending') return <Shell shop={p.shop}><section className="c-card c-center"><p className="c-k">Paiement</p><h1 className="c-h">{p.status === 'paid' ? 'Déjà payé. Merci !' : 'Ce paiement n’est plus en attente.'}</h1>{gift ? <a className="c-btn" href={gift}>Voir ma carte cadeau</a> : p.back ? <a className="c-btn" href={p.back}>Voir mon rendez-vous</a> : null}</section></Shell>;
   const later = p.kind === 'membership' && p.start ? p.start : null;
