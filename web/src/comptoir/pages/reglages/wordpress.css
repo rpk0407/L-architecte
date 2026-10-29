@@ -22,6 +22,8 @@
 .wp-row > svg { color: var(--tx2); }
 .wp-go { display: flex; align-items: center; gap: 16px; margin-top: 8px; padding-top: 14px; border-top: 1px solid var(--line); }
 .wp-go p { flex: 1; font-size: 13px; }
+/* the label may be long (« Enregistrer la vérification (rien de nouveau) »): it wraps inside the button rather than spilling out of its rounded ends */
+.wp-go .btn { white-space: normal; text-align: center; line-height: 1.25; padding-block: 10px; }
 .wp-bar { height: 6px; border-radius: 4px; background: var(--line2); overflow: hidden; }
 .wp-bar i { display: block; height: 100%; background: var(--accent); border-radius: 4px; transition: width .3s var(--ease-out); }
 .wp-review .li { min-height: 48px; padding: 9px 2px; }

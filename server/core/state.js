@@ -158,7 +158,7 @@ export function evolve(s, e) {
         Object.assign(c, { first: 'Client', last: 'effacé', phone: '', email: '', notes: '', tech: '', birthday: '', erased: true, sms: false, marketing: false });
         delete c.wpPhone; delete c.wpEmail;
       }
-      for (const a of s.appts.values()) if (ids.has(a.clientId)) { a.note = ''; if (a.cancel && a.cancel.by === 'client') a.cancel.reason = ''; }
+      for (const a of s.appts.values()) if (ids.has(a.clientId)) { a.note = ''; delete a.wpFirst; if (a.cancel && a.cancel.by === 'client') a.cancel.reason = ''; }
       for (const m of s.messages.values()) if (ids.has(m.cid)) { m.to = ''; m.body = ''; if (m.mail) m.mail = null; delete m.wa; }
       for (const x of s.sales.values()) if (ids.has(x.clientId)) x.discountNote = '';
       for (const w of s.waitlist.values()) if (ids.has(w.clientId)) { w.first = ''; w.phone = ''; }
@@ -187,6 +187,8 @@ export function evolve(s, e) {
     case 'appt.booked': {
       const a = {
         id: d.id, code: d.code, tokenHash: d.tokenHash || '', clientId: d.clientId || null, name: p.name || '', note: p.note || '',
+        // the first name the old site typed on an imported booking (pii: it goes with the file's erasure), so a later pass tells its correction from a renamed file
+        ...(p.wpFirst ? { wpFirst: p.wpFirst } : {}),
         staffId: d.staffId, anyStaff: !!d.anyStaff, day: d.day, start: d.start, dur: d.dur, services: d.services, price: d.price,
         source: d.source, status: d.status || 'booked', createdAt: d.createdAt || e.at, createdBy: e.actor.id, sms: d.sms !== false,
         deposit: d.deposit || null, saleId: null, cancel: d.cancel ? { ...d.cancel, actor: e.actor.id } : null, moves: 0, demo: !!d.demo, statusAt: {},
@@ -216,6 +218,7 @@ export function evolve(s, e) {
       Object.assign(a, d.patch || {});
       if (p.note !== undefined) a.note = p.note;
       if (p.name !== undefined) a.name = p.name;
+      if (p.wpFirst !== undefined) a.wpFirst = p.wpFirst;
       break;
     }
     case 'appt.status': {

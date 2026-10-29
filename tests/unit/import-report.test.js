@@ -357,16 +357,21 @@ test('conflicts: same number other first name, an e-mail already on another file
   assert.equal(c.review.find((r) => r.kind === 'email-elsewhere').text, 'Cet e-mail est déjà sur la fiche de Ben : pas copié');
   assert.equal(s.clients.get(ben).email, 'ben@exemple.fr');
 
-  // a customer of the old site, by id: a new number is kept apart
+  // a customer of the old site, by id: the number of his newest booking is the file's (the file remembers which booking its number is the word of)
   const d = await t.engine.run(importBatch, { appts: [row(906, { first: 'Zoé', last: 'Roux', phone: '0600000087', wpUser: 87 })] }, as);
   const zoe = byWp(t, 906).clientId;
-  assert.deepEqual(s.clients.get(zoe).ext, { wp: 87 });
+  assert.deepEqual(s.clients.get(zoe).ext, { wp: 87, pw: 906 });
   assert.deepEqual(d.review.filter((r) => r.kind === 'new-number'), []);
   const e = await t.engine.run(importBatch, { appts: [row(907, { first: 'Zoé', last: 'Roux', phone: '0600000099', wpUser: 87 })] }, as);
   assert.equal(byWp(t, 907).clientId, zoe, 'one person, one file');
-  assert.equal(s.clients.get(zoe).phone, '+33600000087', 'the number is not changed');
-  assert.equal(e.review.find((r) => r.kind === 'new-number').text, 'Nouveau numéro sur l’ancien site pour Zoé Roux : numéro gardé, à vérifier');
-  assert.equal(s.clientByPhone.get('+33600000099'), undefined);
+  assert.equal(s.clients.get(zoe).phone, '+33600000099', 'the newest booking’s number');
+  assert.equal(e.review.find((r) => r.kind === 'new-number').text, 'Autre numéro sur l’ancien site pour Zoé Roux : mis sur la fiche, vérifie');
+  assert.equal(s.clientByPhone.get('+33600000099'), zoe);
+  assert.equal(s.clientByPhone.get('+33600000087'), undefined);
+  // an older booking met later does not take it back, and says nothing
+  const e2 = await t.engine.run(importBatch, { appts: [row(801, { first: 'Zoé', last: 'Roux', phone: '0600000055', wpUser: 87, start: 720 })] }, as);
+  assert.equal(s.clients.get(zoe).phone, '+33600000099');
+  assert.deepEqual(e2.review.filter((r) => r.kind === 'new-number'), []);
   // a file met by number gets the customer id, for the next time
   await t.engine.run(importBatch, { appts: [row(908, { first: 'Ali', phone: '0611111111', wpUser: 55 })] }, as);
   assert.deepEqual(s.clients.get(ali).ext, { wp: 55 });

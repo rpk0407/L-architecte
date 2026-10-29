@@ -146,20 +146,29 @@ test('the booking with the highest WordPress number gives the file its number, w
     const t = await shop();
     const s = t.engine.state;
     const a = row(t, 31050, { phone: '0600000050', start: 540 }), b = row(t, 31051, { phone: '0600000051', start: 600 });
-    // the first pass: one person, two bookings, two numbers (the first number kept)
-    const first = await send(t, a, b);
-    assert.equal(s.clients.get(byWp(t, 31050).clientId).phone, '+33600000050');
-    assert.deepEqual(lines(first, 'new-number').map((r) => r.v), [undefined]);
-    // the final sync reads them in the order the export happens to give
-    const res = await send(t, ...(order === 'older first' ? [a, b] : [b, a]));
-    ends.push(s.clients.get(byWp(t, 31050).clientId).phone);
-    assert.deepEqual(lines(res, 'new-number').map((r) => [r.v, r.wp]), [['fixed', 31051]], order);
-    assert.match(lines(res, 'new-number')[0].text, /^Autre numéro sur l’ancien site pour Karim Benali : mis sur la fiche/);
-    assert.equal(s.clientByPhone.get('+33600000051'), byWp(t, 31050).clientId);
+    const pick = (x, y) => (order === 'older first' ? [x, y] : [y, x]);
+    // the first pass: one person, two bookings, two numbers: the file ends with the newest booking’s, whichever comes first
+    const first = await send(t, ...pick(a, b));
+    const cid = byWp(t, 31050).clientId;
+    ends.push(s.clients.get(cid).phone);
+    assert.equal(s.clients.get(cid).phone, '+33600000051', order);
+    assert.equal(s.clientByPhone.get('+33600000051'), cid);
     assert.equal(s.clientByPhone.get('+33600000050'), undefined);
-    // and again, in the other order: the older booking does not take it back
-    await send(t, ...(order === 'older first' ? [b, a] : [a, b]));
-    assert.equal(s.clients.get(byWp(t, 31050).clientId).phone, '+33600000051', order);
+    assert.deepEqual(first.clients.added, 1);
+    // the final sync reads them in the order the export happens to give: nothing to change, nothing to say
+    const v = s.version;
+    for (const o of [pick(a, b), pick(b, a)]) assert.deepEqual((await send(t, ...o)).review, [], order);
+    assert.equal(s.version, v, order);
+    // the newest booking is corrected on the old site: the file follows, whatever the order, and the older booking does not take it back
+    const fix = { ...b, phone: '0600000052' };
+    const res = await send(t, ...pick(a, fix));
+    assert.deepEqual(lines(res, 'new-number').map((r) => [r.v, r.wp]), [['fixed', 31051]], order);
+    assert.match(lines(res, 'new-number')[0].text, /^Autre numéro sur l’ancien site pour Karim Benali : mis sur la fiche, vérifie$/);
+    assert.equal(s.clients.get(cid).phone, '+33600000052', order);
+    const v2 = s.version;
+    assert.deepEqual((await send(t, ...pick(fix, a))).review, [], order);
+    assert.equal(s.version, v2, order);
+    assert.equal(s.clients.get(cid).phone, '+33600000052', order);
   }
   assert.deepEqual(ends, ['+33600000051', '+33600000051']);
 });
@@ -180,11 +189,14 @@ test('a corrected first name is worded as a correction when the booking already 
   assert.equal(lines(fix, 'name')[0].text, 'Prénom changé sur l’ancien site (« Kérim ») : gardé sur ce rendez-vous, pas sur la fiche de Léo Lefebvre');
   assert.equal(say('name', { typed: 'Kérim', file: 'Léo Lefebvre' }, 'fixed'), lines(fix, 'name')[0].text);
   assert.ok(TODO_KINDS.has('name'));
-  // a booking with no name of its own (it followed the file) whose typed name now differs: still the family case
+  // a booking with no name of its own (it followed the file) whose typed name now differs is a correction too: it was brought in as a booking
+  // of the file, so the old site changed what it typed (the family wording is for a booking that is new)
   await send(t, row(t, 31072, { first: 'Léo', last: 'Lefebvre', phone: '0600000070', wpUser: undefined, start: 660 }));
   assert.equal(byWp(t, 31072).name, '');
   const other = await send(t, row(t, 31072, { first: 'Hugo', last: 'Lefebvre', phone: '0600000070', wpUser: undefined, start: 660 }));
-  assert.deepEqual(lines(other, 'name').map((r) => r.v), [undefined]);
+  assert.deepEqual(lines(other, 'name').map((r) => r.v), ['fixed']);
+  assert.equal(lines(other, 'name')[0].text, 'Prénom changé sur l’ancien site (« Hugo ») : gardé sur ce rendez-vous, pas sur la fiche de Léo Lefebvre');
+  assert.equal(byWp(t, 31072).name, 'Hugo Lefebvre');
 });
 
 /* ---------------- the preview ---------------- */
@@ -203,14 +215,16 @@ test('the preview counts a corrected number, e-mail or first name: it never says
   const same = await pass(t, [{ name: 'export.csv', text: csv(...base()) }]);
   assert.deepEqual([same.pv.counts.toUpdate, same.pv.counts.already], [0, 3]);
   assert.equal(same.appts.changed || 0, 0);
-  // each correction alone is counted, and is what sending then does
+  // each correction alone is counted, and is what sending then does (each export keeps the corrections of the one before: the old site’s state moves on)
+  let cur = base();
   const cases = [
     ['a number', () => line(31027, '20 Nov 2026 10:00', 'Karim', 'Benali', 'karim@exemple.fr', '0605651199'), /numéro/, 31027],
     ['an e-mail', () => line(31028, '20 Nov 2026 11:00', 'Nora', 'Haddad', 'nora.h@exemple.fr', '0600000028'), /e-mail/, 31028],
     ['a first name', () => line(31029, '20 Nov 2026 12:00', 'Hakim', 'Zian', 'hamid@exemple.fr', '0600000029'), /prénom/, 31029]
   ];
   for (const [what, make, re, wp] of cases) {
-    const text = csv(...base().map((l) => (l.startsWith(wp + ',') ? make() : l)));
+    cur = cur.map((l) => (l.startsWith(wp + ',') ? make() : l));
+    const text = csv(...cur);
     const p = W.readFiles([{ name: 'export.csv', text }], DAY);
     const s = t.engine.state;
     const imported = withFixes(s, p, new Map(priorView(s, p.bookings.map((b) => b.wp)).map((a) => [a.wp, a])), t.clock.now);
@@ -226,7 +240,7 @@ test('the preview counts a corrected number, e-mail or first name: it never says
   const s = t.engine.state;
   const cid = byWp(t, 31027).clientId;
   await t.engine.run(updateClient, { id: cid, patch: { phone: '0699887766' } }, owner(t));
-  const mine = await pass(t, [{ name: 'export.csv', text: csv(...base().map((l) => (l.startsWith('31027,') ? line(31027, '20 Nov 2026 10:00', 'Karim', 'Benali', 'karim@exemple.fr', '0605651199') : l))) }]);
+  const mine = await pass(t, [{ name: 'export.csv', text: csv(...cur) }]);
   assert.equal(mine.pv.counts.toUpdate, 0, 'a number the owner changed is not overwritten, so not a change');
   assert.equal(s.clients.get(cid).phone, '+33699887766');
 });

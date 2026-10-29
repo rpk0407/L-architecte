@@ -71,7 +71,7 @@ export const KIND_TEXT = {
   'name:fixed': 'Prénom changé sur l’ancien site[ (« {typed} »)] : gardé sur ce rendez-vous, pas sur la fiche[ de {file}]',
   'email-elsewhere': 'Cet e-mail est déjà sur la fiche[ de {other}] : pas copié',
   'new-number': 'Nouveau numéro sur l’ancien site[ pour {file}] : numéro gardé, à vérifier',
-  'new-number:fixed': 'Autre numéro sur l’ancien site[ pour {file}] : mis sur la fiche (celui du rendez-vous le plus récent), vérifie',
+  'new-number:fixed': 'Autre numéro sur l’ancien site[ pour {file}] : mis sur la fiche, vérifie',
   'new-number:edited': 'Numéro changé ici depuis la reprise[ pour {file}] : gardé tel que tu l’as mis, l’ancien site a encore l’autre',
   'new-number:detached': 'Numéro détaché ici[ pour {file}], l’ancien site en donne un : pas remis sur la fiche',
   'new-email': 'Autre e-mail sur l’ancien site[ pour {file}] : e-mail gardé, à vérifier',
@@ -193,58 +193,78 @@ const phoneOf = (x) => (x.phone ? normPhoneImport(x.phone, x.prefix) : null);
 const emailOf = (x) => (x.email && isEmail(String(x.email).toLowerCase()) ? String(x.email).toLowerCase() : '');
 
 /**
- * What the old site now says about the person of a booking (number, e-mail, last name), set against the file the booking is on, once an
- * earlier run made or met that file. Only an import's own gift is ever replaced: c.wpPhone and c.wpEmail (personal data, so kept in pii; no
- * view shows them) are the number and the e-mail an import last gave the file. A file still holding them was not touched here, so it follows
- * the old site (the booking with the highest WordPress number speaks, ext.pw and ext.ew: two bookings never undo each other). A number or an
- * e-mail the owner changed or took away since, and a number detached for good (phoneDetachedAt), are never put back, only listed. A file
- * with no such memory (a salon's file, a run from before the memory) takes what it lacks and is otherwise only listed.
+ * What the old site now says about the person of a booking (number, e-mail, last name), set against the file the booking is on. Only an
+ * import's own gift is ever replaced: c.wpPhone and c.wpEmail (personal data, so kept in pii; no view shows them) are the number and the
+ * e-mail an import last gave the file, and c.ext.pw, c.ext.ew the WordPress number of the booking they are the word of (the high-water mark:
+ * the newest booking the file is known to agree with). A file still holding what an import gave follows a booking whose number is not below
+ * the mark, so it ends with the value of its highest-numbered booking whatever the order of the rows and the way they fall into batches; an
+ * older booking says nothing. The mark moves up when a booking agrees with the file, so a booking met in a later batch cannot take it back.
+ * A number or an e-mail the owner changed or took away since (or a merge of two files, which counts as his choice), and a number detached for
+ * good (phoneDetachedAt), are never put back, only listed. A file with no such memory (a salon's file, a run from before the memory) takes
+ * what it lacks and is otherwise only listed. A row with no booking number (w.pw 0: a customer's record) fills and lists but never replaces.
  * Read only: the batch and the preview (priorView) decide the same way.
  * @param {any} c the file
- * @param {{ phone: string|null, pw: number, email: string, ew: number, last?: string }} w the old site's, from the rows that speak for the file
+ * @param {{ phone: string|null, pw: number, email: string, ew: number, last?: string }} w the old site's, from the row
  * @param {{ phone: (p: string) => string|undefined, email: (e: string) => string|undefined }} taken the file that already holds a number, an e-mail
  * @returns {{ fill: Record<string, string>, gave: Record<string, string>, ext: Record<string, number>, lines: { of: 'phone'|'email', kind: string, v?: string, o?: string }[] }}
- * fill: what goes on the file; gave: what the file remembers having been given (pii); ext: the counters; lines: what to say
+ * fill: what goes on the file; gave: what the file remembers having been given (pii); ext: the marks; lines: what to say
  */
 export function judge(c, w, taken) {
   const fill = /** @type {Record<string, string>} */ ({}), gave = /** @type {Record<string, string>} */ ({}), ext = /** @type {Record<string, number>} */ ({}), lines = /** @type {any[]} */ ([]);
-  const mem = c.ext || {};
+  const mem = c.ext || {}, pw = mem.pw || 0, ew = mem.ew || 0;
+  /** @param {'pw'|'ew'} k @param {number} v */
+  const mark = (k, v) => { if (v > 0) ext[k] = v; };
   if (w.last && !c.last) fill.last = capFirst(w.last).slice(0, 40);
-  if (w.phone && w.phone !== c.phone) {
-    const other = taken.phone(w.phone), said = w.phone === c.wpPhone;
-    if (other && other !== c.id) lines.push({ of: 'phone', kind: 'new-number' });
-    // the owner took the number off this file for good: the old site still has it, and it does not come back
-    else if (c.phoneDetachedAt) { if (!said) lines.push({ of: 'phone', kind: 'new-number', v: 'detached' }); }
-    else if (!c.wpPhone) { if (!c.phone) { fill.phone = w.phone; gave.wpPhone = w.phone; } else lines.push({ of: 'phone', kind: 'new-number' }); }
-    else if (c.phone === c.wpPhone) { if (!((mem.pw || 0) >= w.pw)) { fill.phone = w.phone; gave.wpPhone = w.phone; ext.pw = w.pw; lines.push({ of: 'phone', kind: 'new-number', v: 'fixed' }); } }
-    else lines.push({ of: 'phone', kind: 'new-number', ...(said ? { v: 'edited' } : {}) });
+  if (w.phone) {
+    if (w.phone === c.phone) { if (c.wpPhone === c.phone && w.pw > pw) mark('pw', w.pw); }
+    // an older booking than the one the file's number is the word of (or a customer's record, once a booking has spoken): the newest word counts, this one says nothing
+    else if (w.pw >= pw) {
+      const other = taken.phone(w.phone), said = w.phone === c.wpPhone;
+      if (other && other !== c.id) lines.push({ of: 'phone', kind: 'new-number' });
+      // the owner took the number off this file for good: the old site still has it, and it does not come back
+      else if (c.phoneDetachedAt) { if (!said) lines.push({ of: 'phone', kind: 'new-number', v: 'detached' }); }
+      else if (!c.wpPhone) { if (!c.phone) { fill.phone = w.phone; gave.wpPhone = w.phone; mark('pw', w.pw); } else lines.push({ of: 'phone', kind: 'new-number' }); }
+      else if (c.phone === c.wpPhone) {
+        if (w.pw > 0) { fill.phone = w.phone; gave.wpPhone = w.phone; mark('pw', w.pw); lines.push({ of: 'phone', kind: 'new-number', v: 'fixed' }); }
+        else lines.push({ of: 'phone', kind: 'new-number' });
+      }
+      else lines.push({ of: 'phone', kind: 'new-number', ...(said ? { v: 'edited' } : {}) });
+    }
   }
-  if (w.email && w.email !== String(c.email || '').toLowerCase()) {
-    const other = taken.email(w.email), said = w.email === c.wpEmail;
-    if (other && other !== c.id) { if (c.email) lines.push({ of: 'email', kind: 'email-elsewhere', o: other }); }
-    else if (!c.wpEmail) { if (!c.email) { fill.email = w.email; gave.wpEmail = w.email; } else lines.push({ of: 'email', kind: 'new-email' }); }
-    else if (String(c.email || '').toLowerCase() === c.wpEmail) { if (!((mem.ew || 0) >= w.ew)) { fill.email = w.email; gave.wpEmail = w.email; ext.ew = w.ew; lines.push({ of: 'email', kind: 'new-email', v: 'fixed' }); } }
-    else lines.push({ of: 'email', kind: 'new-email', ...(said ? { v: 'edited' } : {}) });
+  if (w.email) {
+    const mail = String(c.email || '').toLowerCase();
+    if (w.email === mail) { if (c.wpEmail === mail && w.ew > ew) mark('ew', w.ew); }
+    else if (w.ew >= ew) {
+      const other = taken.email(w.email), said = w.email === c.wpEmail;
+      if (other && other !== c.id) { if (c.email) lines.push({ of: 'email', kind: 'email-elsewhere', o: other }); }
+      else if (!c.wpEmail) { if (!c.email) { fill.email = w.email; gave.wpEmail = w.email; mark('ew', w.ew); } else lines.push({ of: 'email', kind: 'new-email' }); }
+      else if (mail === c.wpEmail) {
+        if (w.ew > 0) { fill.email = w.email; gave.wpEmail = w.email; mark('ew', w.ew); lines.push({ of: 'email', kind: 'new-email', v: 'fixed' }); }
+        else lines.push({ of: 'email', kind: 'new-email' });
+      }
+      else lines.push({ of: 'email', kind: 'new-email', ...(said ? { v: 'edited' } : {}) });
+    }
   }
   return { fill, gave, ext, lines };
 }
 
 /**
- * The name a booking keeps after a pass, when the row types a first name that is not the file's (a father booking for his sons) or corrects
- * the one it had: null when nothing changes. now: the file's number once the pass is through (the same number is what makes it the same person).
- * fixed: the booking already carried another name, so the old site corrected it rather than a second person booking.
+ * The name a booking an earlier run brought in keeps after a pass, when the old site types a first name that is not the file's (a father
+ * booking for his sons) or corrects the one it had: null when nothing changes. An existing booking can only have been corrected: a second
+ * person booking from the same number is a new booking (find()). The first name the old site typed when the booking came in (a.wpFirst, in pii)
+ * tells a correction from a file the owner renamed since: the same typed name is nothing new. now: the file's number once the pass is through
+ * (the same number is what makes it the same person).
  * @param {any} c the file, or null when the booking has none @param {any} a the booking @param {any} x the row @param {string} now
- * @returns {{ name: string, fixed: boolean }|null}
+ * @returns {{ name: string }|null}
  */
 function nameFor(c, a, x, now) {
   const typed = [x.first, x.last].filter(Boolean).join(' ').slice(0, 40);
-  if (!c) return typed && typed !== a.name ? { name: typed, fixed: false } : null;
+  if (!c) return typed && typed !== a.name ? { name: typed } : null;
   const phone = phoneOf(x);
-  if (x.first && c.first && c.first !== 'Client' && (!phone || phone === now)) {
-    const p = fold(x.first), q = fold(c.first);
-    if (p && q && !p.startsWith(q) && !q.startsWith(p) && typed !== a.name) return { name: typed, fixed: !!a.name };
-  }
-  return null;
+  if (!x.first || !c.first || c.first === 'Client' || (phone && phone !== now) || typed === a.name) return null;
+  const p = fold(x.first), q = fold(c.first);
+  if (!p || !q || p.startsWith(q) || q.startsWith(p) || (a.wpFirst && fold(a.wpFirst) === p)) return null;
+  return { name: typed };
 }
 
 /**
@@ -343,23 +363,38 @@ const fileName = (c) => (c.erased ? 'Client effacé' : [c.first, c.last].filter(
 /**
  * One run's view of the clients: the state plus the files created earlier in the same batch. A row is matched to a
  * file by the WordPress customer id first (the number may have changed), then the number, then the e-mail.
+ * What a row says about the person is judged on its own against what the file holds at that moment (reconcile), and the file keeps a mark of
+ * the newest booking it agrees with (judge), so the end state is the same whatever the order of the rows and the way they fall into batches.
  * @param {any} s @param {import('../core/engine.js').Ctx} ctx @param {any} out @param {string} [rid] the run this batch belongs to
  */
 function people(s, ctx, out, rid) {
   const byPhone = new Map(), byEmail = new Map(), byWp = new Map(), created = new Set(), touched = new Set(), told = new Set();
   /** the files this batch made (not in the state yet), by id */
   const made = new Map();
-  const file = (cid) => made.get(cid) || getClient(s, cid);
+  /** the files of the state as this batch sees them: a copy, so that what a row changes is what the next row reads (the state moves once the batch is through) */
+  const seen = new Map();
+  const file = (cid) => {
+    const m = made.get(cid);
+    if (m) return m;
+    const c = getClient(s, cid);
+    let l = seen.get(c.id);
+    if (!l) seen.set(c.id, (l = { ...c, ...(c.ext ? { ext: { ...c.ext } } : {}) }));
+    return l;
+  };
   /** every file this batch made or met, once each */
   const met = new Set();
   /** the oldest creation time the old site gave for the rows of a file (« client depuis »): applied once, at the end of the batch */
   const earliest = new Map();
-  /** the files whose gaps were already filled in by this batch (once each) */
-  const filled = new Set();
+  /** the files whose mark of the newest booking they agree with moved: written once, at the end of the batch (a file that changed writes it with the change) */
+  const dirty = new Set();
+  /** what a file was told in this batch, once each: a line says the same thing for every booking of the file */
+  const lineOf = /** @type {Map<string, any>} */ (new Map());
+  /** the files a new booking’s row corrected, for which no booking of an earlier run was counted yet (the preview counts the old booking) */
+  const owed = new Set();
+  /** the files for which a booking was counted as changed (a number, an e-mail, a last name): once per file and batch, as the preview counts the file’s newest booking */
+  const credited = new Set();
   const K = known(s);
   const run = rid ? { run: rid } : {};
-  /** the rows that speak for a file in this batch (see speak()): its number and its e-mail come from the booking with the highest WordPress number */
-  const lead = /** @type {Map<string, { phone?: any, email?: any }>} */ (new Map());
   /** who already holds a number or an e-mail: a file of this batch, then the state */
   const taken = { phone: (p) => byPhone.get(p) || s.clientByPhone.get(p), email: (e) => byEmail.get(e) || K.email.get(e) };
   /**
@@ -390,6 +425,49 @@ function people(s, ctx, out, rid) {
     const e = email && (byEmail.get(email) || K.email.get(email));
     return e ? { cid: file(e).id, via: 'email' } : null;
   }
+  /** One line of the review list about a file, said once per file and batch (a later booking’s row only moves a correction to its own booking). */
+  function tell(row, c, l) {
+    const key = c.id + '|' + l.kind + '|' + (l.v || '') + '|' + (l.o || '');
+    const at = lineOf.get(key);
+    if (at) { if (l.v === 'fixed') Object.assign(at, { wp: row.wp, day: row.day, start: row.start, name: row.name }); return; }
+    const line = { ...row, kind: l.kind, text: say(l.kind, { file: fileName(c), other: l.o ? fileName(file(l.o)) : '' }, l.v), ...(l.v ? { v: l.v } : {}), cid: c.id, ...(l.o ? { o: l.o } : {}) };
+    lineOf.set(key, line);
+    out.review.push(line);
+  }
+  /**
+   * What a row says about the person (number, e-mail, last name), set against the file it belongs to (judge()): a file that lacks something
+   * takes it, one still holding what an import gave follows the booking with the highest WordPress number, one the owner changed keeps what he
+   * put and is told. Each row is judged against what the file holds now, so a file ends with the value of its highest booking whatever the order
+   * of the rows, and the batches it falls into. fresh: the row is a new booking, which also says an e-mail that is another file's.
+   * @param {string} cid @param {any} x the row @param {any} row where it comes from, for the review list
+   * @returns {{ changed: boolean, elsewhere: string|null }} changed: the file took a number, an e-mail or a last name; elsewhere: the file that holds the row's e-mail
+   */
+  function reconcile(cid, x, row, fresh = false) {
+    const c = file(cid);
+    if (c.erased) return { changed: false, elsewhere: null };
+    const email = emailOf(x);
+    // the e-mail the old site gives is already another client's: not copied (first file wins)
+    const other = email && (byEmail.get(email) || K.email.get(email));
+    const elsewhere = other && file(other).id !== c.id ? file(other).id : null;
+    if (fresh && elsewhere) out.review.push({ ...row, kind: 'email-elsewhere', text: say('email-elsewhere', { other: fileName(file(elsewhere)) }), cid: c.id, o: elsewhere });
+    const j = judge(c, { phone: phoneOf(x), pw: x.wp || 0, email: fresh && elsewhere ? '' : email, ew: x.wp || 0, last: x.last }, taken);
+    for (const l of j.lines) tell(row, c, l);
+    // the customer id, for the next time
+    const ext = { ...j.ext, ...(x.wpUser && !(c.ext && c.ext.wp) ? { wp: x.wpUser } : {}) };
+    const merged = Object.keys(ext).some((k) => !c.ext || c.ext[k] !== ext[k]) ? { ...(c.ext || {}), ...ext } : null;
+    const keys = Object.keys(j.fill);
+    if (keys.length) {
+      ctx.emit('client.updated', { id: c.id, cid: c.id, patch: merged ? { ext: merged } : {}, fields: keys, ...run }, { ...j.fill, ...j.gave });
+      const was = c.phone;
+      Object.assign(c, j.fill, j.gave);
+      if (merged) c.ext = merged;
+      dirty.delete(c.id);
+      if (j.fill.phone) { byPhone.set(j.fill.phone, c.id); if (was && byPhone.get(was) === c.id) byPhone.delete(was); }
+      if (j.fill.email) byEmail.set(j.fill.email, c.id);
+      if (fresh) owed.add(c.id);
+    } else if (merged) { c.ext = merged; dirty.add(c.id); }
+    return { changed: keys.length > 0, elsewhere };
+  }
   /**
    * @param {any} x the row @param {any} row where it comes from, for the review list
    * @param {{ named?: boolean }} [note] set when the row's first name is not the file's (the booking keeps the typed name)
@@ -409,23 +487,11 @@ function people(s, ctx, out, rid) {
     const hit = apart ? null : hit0;
     let cid = hit ? hit.cid : null;
     if (hit) {
-      const c = file(hit.cid);
       meet(cid);
-      // the e-mail the old site gives for this number is already another client's: not copied (first file wins)
-      const other = email && (byEmail.get(email) || K.email.get(email));
-      const elsewhere = other && file(other).id !== cid ? file(other).id : null;
-      if (elsewhere) out.review.push({ ...row, kind: 'email-elsewhere', text: say('email-elsewhere', { other: fileName(file(elsewhere)) }), cid, o: elsewhere });
-      // the old site may know what the file lacks: never overwrite, only fill in (once per file and batch). Not what the owner took away: a
-      // number detached for good, an e-mail or a number an import gave and that is gone now (the file remembers: wpPhone, wpEmail)
-      if (!filled.has(cid)) {
-        filled.add(cid);
-        const fill = {}, gave = {}, patch = {};
-        if (email && !c.email && !c.wpEmail && !byEmail.has(email) && !elsewhere) { fill.email = email; gave.wpEmail = email; }
-        if (phone && !c.phone && !c.wpPhone && !c.phoneDetachedAt && !s.clientByPhone.has(phone) && !byPhone.has(phone)) { fill.phone = phone; gave.wpPhone = phone; }
-        if (x.last && !c.last) fill.last = capFirst(x.last).slice(0, 40);
-        if (x.wpUser && !(c.ext && c.ext.wp) && !created.has(cid)) patch.ext = { ...(c.ext || {}), wp: x.wpUser };
-        if (Object.keys(fill).length || Object.keys(patch).length) ctx.emit('client.updated', { id: cid, cid, patch, fields: Object.keys(fill), ...run }, Object.keys(fill).length ? { ...fill, ...gave } : undefined);
-      }
+      // the old site may know what the file lacks, or have corrected what an import gave it: judged against the file as it is now (reconcile).
+      // Not what the owner took away or changed: a number detached for good, an e-mail or a number an import gave and that is gone now
+      const { elsewhere } = reconcile(cid, x, row, true);
+      const c = file(cid);
       // same number, other first name (a father booking for his sons): the booking keeps the name that was typed
       if (hit.via === 'phone' && x.first && c.first && c.first !== 'Client' && !c.erased) {
         const a = fold(x.first), b = fold(c.first);
@@ -434,8 +500,6 @@ function people(s, ctx, out, rid) {
           out.review.push({ ...row, kind: 'name', text: say('name', { typed: capFirst(x.first), file: fileName(c) }), cid });
         }
       }
-      // the customer id is the same person, the number is not: kept as it was, for a look
-      if (hit.via === 'wp' && phone && c.phone && c.phone !== phone) out.review.push({ ...row, kind: 'new-number', text: say('new-number', { file: fileName(c) }), cid });
       if (phone) byPhone.set(phone, cid);
       if (email && !elsewhere) byEmail.set(email, cid);
       if (x.wpUser) byWp.set(x.wpUser, cid);
@@ -444,16 +508,16 @@ function people(s, ctx, out, rid) {
     if (!phone && !email) return null;
     cid = ctx.id('cl');
     const mail = apart ? '' : email;
-    // wpPhone, wpEmail: what this import gave the file, so a later pass tells the old site's correction from the owner's edit (judge)
+    // wpPhone, wpEmail: what this import gave the file, so a later pass tells the old site's correction from the owner's edit (judge);
+    // ext.pw, ext.ew: the WordPress number of the booking that gave them (a client's record has none)
     const pii = { first: capFirst(x.first || '').slice(0, 40) || 'Client', last: capFirst(x.last || '').slice(0, 40), phone: phone || '', email: mail, ...(x.notes ? { notes: x.notes } : {}), ...(phone ? { wpPhone: phone } : {}), ...(mail ? { wpEmail: mail } : {}) };
-    const ext = { ...run, ...(x.wpUser ? { wp: x.wpUser } : {}) };
+    const ext = { ...run, ...(x.wpUser ? { wp: x.wpUser } : {}), ...(x.wp && phone ? { pw: x.wp } : {}), ...(x.wp && mail ? { ew: x.wp } : {}) };
     const born = pastInstant(x.createdAt, ctx.now);
     // consent: service texts yes (they booked with their number), promotions no, and nobody ever asked on the old site: marketingSrc says so
     ctx.emit('client.added', { id: cid, cid, source: 'wordpress', sms: true, marketing: false, marketingSrc: 'wordpress', marketingAt: ctx.now, tags: [], createdAt: born, ...(Object.keys(ext).length ? { ext } : {}) }, pii);
     created.add(cid);
-    filled.add(cid);
     met.add(cid);
-    made.set(cid, { id: cid, first: pii.first, last: pii.last, phone: pii.phone, email: mail, ext, source: 'wordpress', createdAt: born || ctx.now, ...(phone ? { wpPhone: phone } : {}), ...(mail ? { wpEmail: mail } : {}) });
+    made.set(cid, { id: cid, first: pii.first, last: pii.last, phone: pii.phone, email: mail, ext: { ...ext }, source: 'wordpress', createdAt: born || ctx.now, ...(phone ? { wpPhone: phone } : {}), ...(mail ? { wpEmail: mail } : {}) });
     out.clients.added++;
     if (apart && hit0) out.review.push({ ...row, kind: 'person', text: say('person', { other: fileName(file(hit0.cid)) }), cid, o: hit0.cid });
     if (phone && isLandline(phone)) out.review.push({ ...row, kind: 'landline', text: say('landline'), cid });
@@ -463,61 +527,35 @@ function people(s, ctx, out, rid) {
     return cid;
   }
   /**
-   * A booking an earlier run brought in, seen again while nobody handled it here: what the old site corrected about the person. What the file
-   * lacks (an e-mail, a last name, a number) is filled in, as find() does; a number or an e-mail it still holds from an import follows the old
-   * site, and one the owner changed or took away is kept and listed (judge()). It is decided once per file and batch, by the rows that speak for
-   * it (speak()): the booking with the highest WordPress number, whatever the order of the rows. A first name that is not the file's stays on
-   * the booking, and is said (the family case, or the old site's correction).
+   * A booking an earlier run brought in, seen again while nobody handled it here: what the old site corrected about the person. Judged as a new
+   * booking's row is (reconcile): what the file lacks is filled in, a number or an e-mail it still holds from an import follows the old site
+   * when this booking is not older than the one it came from, and one the owner changed or took away is kept and listed. A first name that is
+   * not the file's, and not the one the old site typed when the booking came in, stays on the booking and is said (a correction of the old site).
    * @param {any} x the row @param {any} row where it comes from, for the review list @param {any} a the booking in the state
-   * @returns {{ name?: string, touched: boolean }} name: the name the booking keeps now
+   * @returns {{ name?: string, first?: string, touched: boolean }} name: the name the booking keeps now; first: the first name typed, to remember
    */
   function revisit(x, row, a) {
-    const res = /** @type {{ name?: string, touched: boolean }} */ ({ touched: false });
+    const res = /** @type {{ name?: string, first?: string, touched: boolean }} */ ({ touched: false });
     if (!a.clientId) {
       // no file: the booking keeps the name the old site gives, corrected when it was
       const n = nameFor(null, a, x, '');
       if (n) { res.name = n.name; res.touched = true; }
       return res;
     }
-    const cid = file(a.clientId).id, c = file(cid);
-    if (c.erased) return res;
-    let now = c.phone;
-    if (!filled.has(cid)) {
-      filled.add(cid);
-      if (!lead.has(cid)) speak(cid, x);
-      const sp = lead.get(cid) || {};
-      const j = judge(c, { phone: sp.phone ? phoneOf(sp.phone) : null, pw: sp.phone ? sp.phone.wp : 0, email: sp.email ? emailOf(sp.email) : '', ew: sp.email ? sp.email.wp : 0, last: x.last }, taken);
-      for (const l of j.lines) {
-        const at = (l.of === 'phone' ? sp.phone : sp.email) || x;
-        const where = { wp: at.wp, day: at.day, start: at.start, name: [at.first, at.last].filter(Boolean).join(' ') };
-        out.review.push({ ...where, kind: l.kind, text: say(l.kind, { file: fileName(c), other: l.o ? fileName(file(l.o)) : '' }, l.v), ...(l.v ? { v: l.v } : {}), cid, ...(l.o ? { o: l.o } : {}) });
-      }
-      const pii = { ...j.fill, ...j.gave };
-      if (Object.keys(j.fill).length || Object.keys(j.ext).length) {
-        ctx.emit('client.updated', { id: cid, cid, patch: Object.keys(j.ext).length ? { ext: { ...(c.ext || {}), ...j.ext } } : {}, fields: Object.keys(j.fill), ...run }, Object.keys(pii).length ? pii : undefined);
-        res.touched = true;
-        if (j.fill.phone) { now = j.fill.phone; byPhone.set(j.fill.phone, cid); if (c.phone && byPhone.get(c.phone) === cid) byPhone.delete(c.phone); }
-        if (j.fill.email) byEmail.set(j.fill.email, cid);
-      }
-    }
-    // the same number, another first name (a father booking for his sons): the booking keeps the name that was typed
-    const n = nameFor(c, a, x, now);
+    const cid = file(a.clientId).id;
+    if (file(cid).erased) return res;
+    const r = reconcile(cid, x, row);
+    const c = file(cid);
+    // a correction a new booking's row of this batch already carried to the file is this booking's correction too; the file is counted once
+    const carried = r.changed || (owed.has(cid) && ((phoneOf(x) && phoneOf(x) === c.phone) || (emailOf(x) && emailOf(x) === String(c.email || '').toLowerCase())));
+    if (carried && !credited.has(cid)) { credited.add(cid); owed.delete(cid); res.touched = true; }
+    // another first name than the file's, and than the one typed when the booking came in: the booking keeps the typed name
+    const n = nameFor(c, a, x, c.phone);
     if (n) {
-      res.name = n.name; res.touched = true;
-      out.review.push({ ...row, kind: 'name', text: say('name', { typed: capFirst(x.first), file: fileName(c) }, n.fixed ? 'fixed' : ''), ...(n.fixed ? { v: 'fixed' } : {}), cid });
+      res.name = n.name; res.first = capFirst(x.first).slice(0, 40); res.touched = true;
+      out.review.push({ ...row, kind: 'name', text: say('name', { typed: capFirst(x.first), file: fileName(c) }, 'fixed'), v: 'fixed', cid });
     }
     return res;
-  }
-  /**
-   * A booking that revisit() will go through speaks for its file: of the rows of the batch that do, the one with the highest WordPress
-   * number gives the number, and the one that gives an e-mail with the highest gives that (the newest booking is the latest word of the
-   * client), so the file ends the same whatever the order of the rows.
-   */
-  function speak(cid, x) {
-    const l = lead.get(cid) || {};
-    if (phoneOf(x) && !(l.phone && l.phone.wp >= x.wp)) l.phone = x;
-    if (emailOf(x) && !(l.email && l.email.wp >= x.wp)) l.email = x;
-    lead.set(cid, l);
   }
   /** Is the file this e-mail leads to somebody else? It has another number than the row's, and another first name. */
   function sameEmailOtherPerson(cid, x, phone) {
@@ -532,13 +570,19 @@ function people(s, ctx, out, rid) {
     if (!cid || !t) return;
     if (!earliest.has(cid) || t < /** @type {number} */ (earliest.get(cid))) earliest.set(cid, t);
   }
-  /** End of the batch: the files an import made get the oldest creation time known for them, when it is older than theirs. */
+  /**
+   * End of the batch: the files an import made get the oldest creation time known for them, when it is older than theirs; the files whose mark
+   * of the newest booking they agree with moved without a change write it (once each).
+   */
   function settle() {
-    for (const [cid, t] of earliest) {
+    for (const cid of new Set([...earliest.keys(), ...dirty])) {
       const c = file(cid);
-      if (!c || c.erased || c.source !== 'wordpress') continue;
-      const cur = made.has(cid) ? made.get(cid).createdAt : c.createdAt;
-      if (cur && t < cur) { ctx.emit('client.updated', { id: cid, cid, patch: { createdAt: t }, fields: [], ...run }); if (made.has(cid)) made.get(cid).createdAt = t; }
+      if (!c || c.erased) continue;
+      const patch = /** @type {Record<string, any>} */ ({});
+      if (dirty.has(cid)) patch.ext = c.ext;
+      const t = earliest.get(cid);
+      if (t != null && c.source === 'wordpress' && c.createdAt && t < c.createdAt) { patch.createdAt = t; if (made.has(cid)) made.get(cid).createdAt = t; }
+      if (Object.keys(patch).length) ctx.emit('client.updated', { id: cid, cid, patch, fields: [], ...run });
     }
   }
   /** A file met: counted once for the batch, as merged (a file of the salon) or again (one an earlier run made). Also for a booking carried over by a re-run. */
@@ -552,7 +596,7 @@ function people(s, ctx, out, rid) {
   }
   /** Does this person already have a file (in the salon, or made earlier in this batch)? */
   const has = (x) => !!lookup(x);
-  return { find, revisit, speak, gone, has, meet, created, met, since, settle };
+  return { find, revisit, gone, has, meet, created, met, since, settle };
 }
 
 /** The old barbers who left (John, JBlades…): one archived profile without a chair (out of the team's figures), created when first needed. */
@@ -767,6 +811,7 @@ function carry(s, ctx, r, a, row, run, { free, ext2, patch, pii }) {
   if (free) {
     const who = run.P.revisit(r, row, a);
     if (who.name !== undefined) pii.name = who.name;
+    if (who.first !== undefined) pii.wpFirst = who.first;
     if (who.touched) changed = true;
   }
   return changed;
@@ -816,16 +861,6 @@ export const importBatch = {
     /** upcoming bookings of this run, per chair and day, to report overlaps between them too */
     const mine = new Map();
     const pass = { out, mine, P, tag: rid ? { run: rid } : {} };
-    // the bookings an earlier run brought in that this one goes through again (delta → carry → revisit): the rows of a same file are heard
-    // before any is applied, so the file takes the number of its newest booking whatever the order of the rows
-    for (const r of x.appts || []) {
-      const prev = s.appts.get(s.apptByWp.get(String(r.wp)) || '');
-      if (!prev || !prev.clientId || !isOpen(prev) || movedHere(prev)) continue;
-      // a row of someone erased is skipped by the loop below: it does not speak
-      const tomb = rowTomb(s, r, ctx.meta.tombKey);
-      if (tomb && !(r.createdAt && r.createdAt > tomb.at)) continue;
-      if (mapStatus(r.status, !!r.noShow, instantOf(r.day, r.start + (r.dur || prev.dur)) <= ctx.now) === 'booked') P.speak(getClient(s, prev.clientId).id, r);
-    }
     for (const r of x.appts || []) {
       const key = String(r.wp);
       if (seen.has(key)) continue;
@@ -892,7 +927,8 @@ export const importBatch = {
         ...(status === 'cancelled' ? { cancel: { by: 'salon', reason: CANCEL_REASON, at: createdAt || ctx.now, late: false } } : {})
       };
       // a booking without a file keeps the name on it; so does one whose typed first name is not the file's (erased with the file)
-      const pii = { ...(clientId && !named.named ? {} : { name: name.slice(0, 40) || 'Client' }), ...(notes ? { note: notes.slice(0, 300) } : {}) };
+      // wpFirst: the first name the old site typed (a later pass tells its correction from a file the owner renamed); it goes with the file’s erasure
+      const pii = { ...(clientId && !named.named ? {} : { name: name.slice(0, 40) || 'Client' }), ...(notes ? { note: notes.slice(0, 300) } : {}), ...(clientId && r.first ? { wpFirst: capFirst(r.first).slice(0, 40) } : {}) };
       ctx.emit('appt.booked', a, Object.keys(pii).length ? pii : undefined);
       out.appts[status === 'no_show' ? 'noShow' : status]++;
       // cancelled before it was due, after a deposit: the client may be owed it back

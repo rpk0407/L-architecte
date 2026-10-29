@@ -126,6 +126,17 @@ export default async ({ h, page }) => {
   const small = await page.evaluate(() => [...document.querySelectorAll('.wr button, .wr a.btn')].filter((b) => b.offsetParent && (b.getBoundingClientRect().height < 44)).map((b) => b.textContent));
   if (small.length) throw new Error('touch targets under 44 px: ' + small.join(' | '));
 
+  // the button of an export with nothing new carries the longest label: on a phone it wraps inside the button, never spills out of its rounded ends
+  await drop('wp-bookings-fr-delta.csv');
+  await h.expectText(page, 'Tout est déjà repris');
+  await ready();
+  const go = await page.evaluate(() => { const b = document.querySelector('.wp-go button'); const r = b.getBoundingClientRect(); return { label: b.textContent, over: b.scrollWidth - b.clientWidth, h: Math.round(r.height), right: Math.round(r.right), vw: window.innerWidth }; });
+  if (!go.label.includes('Enregistrer la vérification')) throw new Error('not the nothing-new button: ' + go.label);
+  if (go.over > 1) throw new Error('the label spills out of the button on a phone (' + go.over + ' px): ' + go.label);
+  if (go.h < 44 || go.right > go.vw) throw new Error('the button on a phone: ' + JSON.stringify(go));
+  await page.locator('.wp-go').evaluate((el) => el.scrollIntoView({ block: 'center' }));
+  await h.shot(page, 'wp-go-phone');
+
   // a run that stops half way (the second batch is lost): the page says so at once, fits the phone, and going on completes it
   await page.getByRole('button', { name: 'Tout retirer' }).click().catch(() => {});
   await page.evaluate(() => window.scrollTo(0, 0));

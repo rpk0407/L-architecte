@@ -308,7 +308,7 @@ test('the final sync carries what the old site changed on a booking still to com
   assert.equal(s.clientByPhone.get('+33600000433'), nadir.id);
   assert.equal(s.clientByPhone.get('+33600000403'), undefined);
   assert.deepEqual(lines(1403).map((r) => [r.kind, r.v]), [['new-number', 'fixed']]);
-  assert.match(lines(1403)[0].text, /Autre numéro sur l’ancien site pour Nadir Saidi : mis sur la fiche \(celui du rendez-vous le plus récent\), vérifie/);
+  assert.match(lines(1403)[0].text, /Autre numéro sur l’ancien site pour Nadir Saidi : mis sur la fiche, vérifie/);
   assert.deepEqual([byWp(t, 1404).name, s.clients.get(byWp(t, 1404).clientId).first], ['Hakim Zian', 'Hamid']);
   assert.deepEqual(lines(1404).map((r) => r.kind), ['name']);
   // a number fixed on a file of the salon is not copied (Yanis), nor one that another file already has
