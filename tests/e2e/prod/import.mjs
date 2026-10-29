@@ -5,7 +5,8 @@
 // then offers « Payé sur l’ancien site » for the deposit), and a third drop has nothing new.
 // Run by tests/e2e/prod.mjs: export default async ({ h, page }), h = { base, setup(), loginOwner(page), api() }.
 import { join } from 'node:path';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, utimesSync, unlinkSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { ROOT } from '../harness.mjs';
 
 export const name = 'Réglages › Reprendre WordPress: preview, import, the agenda, old e-mail links';
@@ -103,6 +104,43 @@ export default async ({ h, page }) => {
   await drop();
   await seen(page, 'Tout est déjà repris');
   await page.getByRole('button', { name: 'Enregistrer la vérification (rien de nouveau)' }).waitFor();
+
+  // an older copy of the export (saved three days before the last run read its own): the preview warns, and nothing is sent until the owner ticks
+  const stale = join(tmpdir(), 'wp-stale-export-' + process.pid + '.csv');
+  writeFileSync(stale, cutover);
+  const old = new Date(Date.now() - 3 * 86400000);
+  utimesSync(stale, old, old);
+  await page.goto(base + '/comptoir/reglages/wordpress');
+  await page.setInputFiles('.wp-drop input[type=file]', [stale]);
+  await seen(page, 'Cet export est plus ancien que celui de la dernière reprise');
+  const send = page.locator('.wp-go button').first();
+  await page.waitForFunction(() => !document.body.textContent.includes('Vérification des fiches'), null, { timeout: 10000 });
+  if (!(await send.isDisabled())) throw new Error('an export older than the last run can be sent without the tick');
+  await page.getByLabel(/Je sais, envoyer cet export plus ancien/).check();
+  if (await send.isDisabled()) throw new Error('the tick does not open the button');
+  unlinkSync(stale);
+
+  // the old site corrected Sami’s number and nothing else: the preview counts it (never « rien de nouveau »), the file follows, the report says so
+  // his newest booking (1395) is the one that says it: the file follows the booking with the highest number
+  const at1395 = cutover.indexOf('1395,');
+  const fixed = cutover.slice(0, at1395) + cutover.slice(at1395).replace('0644556677', '0644556688');
+  if (at1395 < 0 || fixed === cutover) throw new Error('Sami’s number was not found in the cut-over export');
+  const dropFixed = () => page.setInputFiles('.wp-drop input[type=file]', [{ name: 'wp-bookings-fr.csv', mimeType: 'text/csv', buffer: Buffer.from(fixed) }, { name: 'wp-bookings.wxr.xml', mimeType: 'text/xml', buffer: readFileSync(join(FIX, 'wp-bookings.wxr.xml')) }]);
+  await page.goto(base + '/comptoir/reglages/wordpress');
+  await dropFixed();
+  await seen(page, 'Modifié sur l’ancien site depuis le premier import (numéro)');
+  if (await page.getByText('Tout est déjà repris').count()) throw new Error('the preview says « rien de nouveau » over a corrected number');
+  const fix = page.getByRole('button', { name: 'Importer 1 changement' });
+  await fix.waitFor({ timeout: 10000 });
+  await page.waitForFunction(() => { const b = [...document.querySelectorAll('.wp-go button')][0]; return b && !b.disabled; }, null, { timeout: 10000 });
+  await fix.click();
+  await seen(page, 'Tout est compté', 20000);
+  await seen(page, 'Autre numéro sur l’ancien site pour Sami Kaci');
+  const sami = must(await call(page, '/api/v1/clients?q=Sami'), 'clients');
+  if (!(sami.items || []).some((c) => /44 55 66 88/.test(c.phone))) throw new Error('Sami’s file did not follow the corrected number: ' + JSON.stringify((sami.items || []).map((c) => c.phone)));
+  await page.goto(base + '/comptoir/reglages/wordpress');
+  await dropFixed();
+  await seen(page, 'Tout est déjà repris');
 
   // Jour J on a production salon: the sends are held until the switch, the old addresses are tried on this server's own
   // address, and the DNS and the parked site wait for a domain (the card asks for it)

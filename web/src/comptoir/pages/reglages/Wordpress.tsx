@@ -23,6 +23,8 @@ type Done = { id: string; next?: string; failed?: boolean; halt?: Halt };
 
 const MB = 1024 * 1024;
 const when = (r: { day?: string; start?: number }) => (r.day ? cap(dates.dayShort(r.day)) + ' ' + r.day.slice(0, 4) + (r.start != null ? ' · ' + time(r.start) : '') : '');
+/** « 27 octobre à 10:12 » */
+const stamp = (ms: number) => { const p = dates.localParts(ms); return p.d + ' ' + dates.MONTHS_FR[p.m - 1] + ' à ' + dates.hhmm(p.min); };
 /** A refusal the owner can act on (a file too heavy), as opposed to a failure of the reading. */
 class Refused extends Error {}
 
@@ -64,6 +66,9 @@ export default function Wordpress() {
   const doneRef = useRef<Done | null>(null);
   // the record of the runs lives on the server: the report is there after a reload too
   const runs = useQuery<{ runs: Parameters<typeof Report>[0]['runs'] }>('/api/v1/import/runs');
+  const reports = runs.data?.runs || [];
+  // an export older than the one the last run read would put back what was cancelled, moved or changed since: said, and sent only once ticked
+  const [oldOk, setOldOk] = useState(false);
 
   const services = boot.services.filter((s) => s.active && !s.pack);
   const chairs = boot.staff.filter((s) => s.active && s.chair);
@@ -74,6 +79,7 @@ export default function Wordpress() {
   parsedRef.current = parsed;
   const seen = useMemo(() => (parsed ? W.names(parsed) : { services: [], staff: [] }), [parsed]);
   const map: W.Mapping = useMemo(() => ({ services: svcMap, staff: staffMap }), [svcMap, staffMap]);
+  const older = useMemo(() => (parsed ? W.olderExport(parsed.files, reports) : null), [parsed, runs.data]);
   const pv = useMemo(() => (parsed ? W.preview(parsed, map, now(), { ...(server || {}), chairs: chairIds, today: boot.today, svcDur }) : null), [parsed, map, server, chairIds]);
   // barbers with upcoming bookings to bring in: the archived profile has no lane in the agenda, so a chair is required
   const upcoming = useMemo(() => (parsed ? W.upcomingNames(parsed, now(), { imported: server?.imported }) : new Set<string>()), [parsed, server]);
@@ -86,6 +92,7 @@ export default function Wordpress() {
   const settle = async (next: Dropped[]) => {
     putFiles(next);
     putDone(null);
+    setOldOk(false);
     if (!next.length) { setServer(null); setCheckErr(null); setSvcMap({}); setStaffMap({}); setGuessed({}); return; }
     const p = W.readFiles(next, boot.today);
     // matched once, then the owner's choices are kept as more files arrive. A name left unmatched goes to the archived
@@ -149,6 +156,10 @@ export default function Wordpress() {
         const r = await api.post<{ appts?: W.Prior[] }>('/api/v1/import/preview', { wp: part });
         for (const a of r.appts || []) imported.set(a.wp, a);
       }
+      // the bookings a pass goes through again (still to come, nobody handled them here): what it would correct on the person, so « rien de nouveau » is never said over a corrected number
+      const said: W.Prior[] = [];
+      for (const part of W.chunks(W.whoRows(p, imported, now()), 300, 40000)) said.push(...((await api.post<{ appts?: W.Prior[] }>('/api/v1/import/preview', { who: part })).appts || []));
+      W.applyFixes(imported, said);
       // the periods are asked 12 at a time: a booking in two overlapping periods comes back twice
       const inWin = new Map<number, W.InWindow>();
       for (let i = 0; i < p.windows.length; i += 12) for (const x of (await api.post<{ inWindow?: W.InWindow[] }>('/api/v1/import/preview', { window: p.windows.slice(i, i + 12) })).inWindow || []) inWin.set(x.wp, x);
@@ -268,7 +279,6 @@ export default function Wordpress() {
     } finally { setProgress(null); setWaiting(false); }
   };
 
-  const reports = runs.data?.runs || [];
   const showReport = (reports.length > 0 || !!done) && (!pv || !!done);
   const demo = boot.mode === 'demo';
   const names = seen.staff.map(([n]) => n).filter(Boolean);
@@ -318,7 +328,7 @@ export default function Wordpress() {
             </div>
             <p className="muted wp-also">
               {[
-                c.already ? plural(c.already, 'rendez-vous déjà repris', 'rendez-vous déjà repris') : '', c.toMove ? plural(c.toMove, 'déplacé', 'déplacés') + ' sur l’ancien site' : '', c.toUpdate ? plural(c.toUpdate, 'modifié', 'modifiés') + ' sur l’ancien site (prix, prestation ou acompte payé depuis)' : '',
+                c.already ? plural(c.already, 'rendez-vous déjà repris', 'rendez-vous déjà repris') : '', c.toMove ? plural(c.toMove, 'déplacé', 'déplacés') + ' sur l’ancien site' : '', c.toUpdate ? plural(c.toUpdate, 'modifié', 'modifiés') + ' sur l’ancien site (prix, prestation, acompte payé depuis, numéro, e-mail ou prénom corrigés, détails en plus)' : '',
                 c.toReopen ? plural(c.toReopen, 'à rétablir', 'à rétablir') + ' (annulés ici, de nouveau confirmés sur l’ancien site)' : '',
                 pv.gone.length ? plural(pv.gone.length, 'supprimé', 'supprimés') + ' sur l’ancien site (annulés ici, sans SMS)' : '',
                 pv.excluded.retention ? plural(pv.excluded.retention, 'personne', 'personnes') + ' sans visite depuis 3 ans : pas reprise' + (pv.excluded.retention > 1 ? 's' : '') + ' (règle de conservation)' : '',
@@ -330,7 +340,17 @@ export default function Wordpress() {
             </p>
             {pv.warning ? <Note tone="warn" icon="alert">{pv.warning}</Note> : null}
             {pv.notes.map((t) => <Note key={t} tone="warn" icon="alert">{t}</Note>)}
-            {nothingNew ? <Note tone="ok" icon="check">Tout est déjà repris : ces fichiers n’apportent rien de nouveau.{sendable ? ' Tu peux enregistrer la vérification : le rapport gardera la trace de cette synchro, et reprendra au passage un numéro ou un prénom corrigé sur l’ancien site.' : ''}</Note> : null}
+            {older ? (
+              <div data-guide="wp-plus-ancien">
+                <Note tone="warn" icon="alert">
+                  <b>Cet export est plus ancien que celui de la dernière reprise</b>
+                  <span> ({older.by === 'file' ? 'fichiers du ' + stamp(older.mine) + ', la dernière reprise a lu des fichiers du ' + stamp(older.last) : 'le rendez-vous le plus récent a été pris le ' + stamp(older.mine) + ', la dernière reprise en a lu un du ' + stamp(older.last)}).</span>
+                  <span> Le déposer remettrait ce qui a été annulé, déplacé ou modifié depuis, et annulerait ce qu’il ne connaît pas encore. Refais l’export, ou coche pour l’envoyer quand même.</span>
+                  <label className="row" style={{ gap: 10, marginTop: 8, fontSize: 14 }}><input type="checkbox" checked={oldOk} onChange={(e) => setOldOk(e.target.checked)} style={{ width: 18, height: 18, accentColor: 'var(--accent)' }} />Je sais, envoyer cet export plus ancien quand même</label>
+                </Note>
+              </div>
+            ) : null}
+            {nothingNew && !older ? <Note tone="ok" icon="check">Tout est déjà repris : ces fichiers n’apportent rien de nouveau.{sendable ? ' Tu peux enregistrer la vérification : le rapport gardera la trace de cette synchro.' : ''}</Note> : null}
           </section>
 
           {pv.review.length ? <Review title="À regarder" rows={pv.review} /> : null}
@@ -373,7 +393,7 @@ export default function Wordpress() {
             {need.length && !noChair ? <Note tone="warn" icon="alert">Choisis un barbier actif pour {need.map((n) => '« ' + (n || 'Sans barbier') + ' »').join(', ')} : ses rendez-vous à venir doivent avoir leur place dans l’agenda.</Note> : null}
             <div className="wp-go">
               <p className="muted">{demo ? 'Aucun SMS n’est envoyé à l’import. Les rappels partiront la veille de chaque rendez-vous à venir, comme pour les autres.' : 'Aucun SMS ni e-mail n’est envoyé à l’import ni avant la bascule : les rappels du nouveau salon ne partent qu’après « Ouvrir les envois » (Jour J).'}</p>
-              <Button variant="primary" size="lg" icon="check" busy={!!progress} disabled={(!work && !sendable) || checking || !server || need.length > 0 || noCatalogue} onClick={run}>
+              <Button variant="primary" size="lg" icon="check" busy={!!progress} disabled={(!work && !sendable) || checking || !server || need.length > 0 || noCatalogue || (!!older && !oldOk) || (runs.loading && !runs.data)} onClick={run}>
                 {progress ? 'Import ' + progress.done + ' / ' + progress.total : label ? 'Importer ' + label : sendable ? 'Enregistrer la vérification (rien de nouveau)' : 'Rien de nouveau à importer'}
               </Button>
             </div>

@@ -121,8 +121,11 @@ export default async ({ h, page }) => {
   await page.unroute('**/api/v1/import/batch');
 
   // the same export dropped again after the import: « Tout est déjà repris » stays (the green note is not swallowed by the check)
+  // (saved now, like the file of the run: an export dated before the last run's would be flagged as older, wp-report.mjs)
   await page.setViewportSize({ width: 1440, height: 900 });
-  await drop(join(FIX, 'wp-bookings-fr.csv'));
+  const again = join(dir, 'wp-bookings-fr.csv');
+  await writeFile(again, await readFile(join(FIX, 'wp-bookings-fr.csv')));
+  await drop(again);
   await h.expectText(page, 'Tout est déjà repris');
   await settled();
   await page.waitForTimeout(500);

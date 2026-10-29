@@ -19,6 +19,7 @@ import { createRuntime } from '../../server/http/runtime.js';
 import { memoryStore } from '../../server/store/memory.js';
 import { capsOf } from '../../server/domain/permissions.js';
 import { browser } from '../api/client.js';
+import { withFixes } from '../wp-helpers.js';
 
 const fixture = (f) => readFileSync(new URL('../fixtures/' + f, import.meta.url), 'utf8');
 const CSV = fixture('wp-bookings-fr.csv');
@@ -70,7 +71,7 @@ async function ask(t, p, map) {
     if (w === 'salon') known.add(k.g); else if (w === 'wordpress') again.add(k.g);
     else if (w === 'erased') erased.set(k.g, Math.max(rowTomb(s, k, TOMB).at, erased.get(k.g) || 0));
   }
-  const imported = new Map(priorView(s, p.bookings.map((b) => b.wp)).map((a) => [a.wp, a]));
+  const imported = withFixes(s, p, new Map(priorView(s, p.bookings.map((b) => b.wp)).map((a) => [a.wp, a])), t.clock.now);
   const days = [...new Set(p.bookings.filter((b) => b.day >= today).map((b) => b.day))].slice(0, 120);
   const svcDur = Object.fromEntries([...s.services.values()].map((x) => [x.id, { dur: x.dur, buffer: x.buffer || 0 }]));
   const opts = { known, again, erased, imported, chairs: chairsOf(t), today, inWindow: inWindow(s, p.windows, today), busy: busyView(s, days), svcDur };

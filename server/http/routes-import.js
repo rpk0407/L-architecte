@@ -12,6 +12,8 @@ export const previewSchema = obj({
   // a cell that is too long is cut, not refused: it must not lock the page (the batch cuts the same way)
   keys: opt(arr(obj({ phone: opt(str({ max: 32, cut: true })), prefix: opt(str({ max: 6, cut: true })), email: opt(str({ max: 160, cut: true })), wpUser: opt(int({ min: 1, max: 999999999999 })) }), { max: 500 })),
   wp: opt(arr(int({ min: 1, max: 999999999999 }), { max: 5000 })),
+  // the identity the files give some of those bookings (the ones still to come that nobody handled here): what a pass would correct on the person
+  who: opt(arr(obj({ wp: int({ min: 1, max: 999999999999 }), first: opt(str({ max: 60, cut: true })), last: opt(str({ max: 60, cut: true })), phone: opt(str({ max: 32, cut: true })), prefix: opt(str({ max: 6, cut: true })), email: opt(str({ max: 160, cut: true, lower: true })), note: opt(str({ max: 300, cut: true })) }), { max: 500 })),
   // the periods an export covers → the bookings still to come in them; the days whose agenda the double-booking check reads
   window: opt(arr(obj({ from: day(), to: day() }), { max: 12 })),
   busy: opt(arr(day(), { max: 120 })),
@@ -29,7 +31,7 @@ export function importRoutes(app) {
     const key = tombKeyOf(r.rt.secret);
     const known = [], again = [], erased = [];
     (x.keys || []).forEach((k, i) => { const w = knownClient(r.s, k, key); if (w === 'salon') known.push(i); else if (w === 'wordpress') again.push(i); else if (w === 'erased') erased.push({ i, at: rowTomb(r.s, k, key).at }); });
-    const appts = priorView(r.s, x.wp || []);
+    const appts = priorView(r.s, x.wp || (x.who || []).map((w) => w.wp), x.who);
     return { known, again, erased, imported: appts.map((a) => a.wp), appts, ...(x.window ? { inWindow: inWindow(r.s, x.window, r.local.day) } : {}), ...(x.busy ? { busy: busyView(r.s, x.busy) } : {}), ...(x.gift || x.packs ? (({ cards, carnets }) => ({ haveCards: cards, haveCarnets: carnets }))(haveView(r.s, x.gift, x.packs)) : {}) };
   }, { cap: 'settings' });
   // a run's record (projections/imports.js): the last 20, and one with its lines (names rebuilt from the files, never stored)

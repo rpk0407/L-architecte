@@ -29,6 +29,16 @@ export function mapAll(t, p, { legacyUnknown = false } = {}) {
 }
 const chairsOf = (t) => new Set([...t.engine.state.staff.values()].filter((x) => x.active && x.chair).map((x) => x.id));
 
+/**
+ * The wizard's second question about the bookings already brought in (POST /api/v1/import/preview, `who`): what a pass would correct on the
+ * person (number, e-mail, names, note), added to each as `fix`. Same rows as the browser sends (W.whoRows).
+ */
+export function withFixes(s, p, imported, now) {
+  const rows = W.whoRows(p, imported, now);
+  W.applyFixes(imported, priorView(s, rows.map((r) => r.wp), rows));
+  return imported;
+}
+
 /** What the wizard asks the server before it sends anything (POST /api/v1/import/preview). */
 export async function ask(t, p, map) {
   const s = t.engine.state, today = DAY;
@@ -40,7 +50,7 @@ export async function ask(t, p, map) {
     if (w === 'salon') known.add(k.g); else if (w === 'wordpress') again.add(k.g);
     else if (w === 'erased') erased.set(k.g, Math.max(rowTomb(s, k, TOMB).at, erased.get(k.g) || 0));
   }
-  const imported = new Map(priorView(s, p.bookings.map((b) => b.wp)).map((a) => [a.wp, a]));
+  const imported = withFixes(s, p, new Map(priorView(s, p.bookings.map((b) => b.wp)).map((a) => [a.wp, a])), t.clock.now);
   const days = [...new Set(p.bookings.filter((b) => b.day >= today).map((b) => b.day))].slice(0, 120);
   const svcDur = Object.fromEntries([...s.services.values()].map((x) => [x.id, { dur: x.dur, buffer: x.buffer || 0 }]));
   const opts = { known, again, erased, imported, chairs: chairsOf(t), today, inWindow: inWindow(s, p.windows, today), busy: busyView(s, days), svcDur };

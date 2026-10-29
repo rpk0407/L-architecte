@@ -16,6 +16,7 @@ import { createRuntime } from '../../server/http/runtime.js';
 import { memoryStore } from '../../server/store/memory.js';
 import { capsOf } from '../../server/domain/permissions.js';
 import { browser } from '../api/client.js';
+import { withFixes } from '../wp-helpers.js';
 
 const fixture = (f) => readFileSync(new URL('../fixtures/' + f, import.meta.url), 'utf8');
 const CSV = fixture('wp-bookings-fr.csv');
@@ -45,7 +46,7 @@ function mapping(t, p) {
   };
 }
 /** What the wizard asks the server before a run (POST /api/v1/import/preview): where earlier imports stand. */
-const priors = (t, p) => new Map(priorView(t.engine.state, p.bookings.map((b) => b.wp)).map((a) => [a.wp, a]));
+const priors = (t, p) => withFixes(t.engine.state, p, new Map(priorView(t.engine.state, p.bookings.map((b) => b.wp)).map((a) => [a.wp, a])), t.clock.now);
 const chairsOf = (t) => new Set([...t.engine.state.staff.values()].filter((x) => x.active && x.chair).map((x) => x.id));
 async function send(t, rows) {
   const total = { clients: { added: 0, merged: new Set() }, appts: { done: 0, noShow: 0, cancelled: 0, booked: 0, skipped: 0, already: 0, updated: 0, moved: 0, closed: 0, changed: 0 }, giftcards: { added: 0, already: 0, skipped: 0 }, packs: { added: 0, already: 0, skipped: 0 }, review: [] };
@@ -280,12 +281,13 @@ test('the final sync carries what the old site changed on a booking still to com
   ].reduce((txt, f) => f(txt), first);
   const later = W.readFiles([{ name: 'export.csv', text }]);
   const imported = priors(t, later);
-  // the preview says it before anything is sent: the money and the services (the corrected number and name are told in the report)
+  // the preview says it before anything is sent: the money, the services, the corrected number and name (not 1411's number: another file has it, it is only listed)
   const pv = W.preview(later, map, t.clock.now, { imported, chairs: chairsOf(t) });
-  assert.equal(pv.counts.toUpdate, 5, 'price, service, two deposits, and a deposit on a booking already checked in');
+  assert.equal(pv.counts.toUpdate, 7, 'price, service, two deposits, a deposit on a booking already checked in, the corrected number and the corrected name');
   assert.equal(pv.counts.toCancel, 1);
   const said = (wp) => pv.review.filter((r) => r.wp === wp).map((r) => r.text).join(' | ');
   assert.match(said(1401), /prix/); assert.match(said(1402), /prestation, prix/); assert.match(said(1405), /acompte/); assert.match(said(1410), /acompte/);
+  assert.match(said(1403), /numéro/); assert.match(said(1404), /prénom/); assert.equal(said(1411), '', 'a number another file has changes nothing');
   assert.match(said(1409), /rembourse-le/, 'a cancelled booking that had a deposit: the client may be owed it');
   assert.match(said(1407), /Erreur.*gardé/);
   const res = await send(t, W.toRows(later, map, imported));
@@ -306,7 +308,7 @@ test('the final sync carries what the old site changed on a booking still to com
   assert.equal(s.clientByPhone.get('+33600000433'), nadir.id);
   assert.equal(s.clientByPhone.get('+33600000403'), undefined);
   assert.deepEqual(lines(1403).map((r) => [r.kind, r.v]), [['new-number', 'fixed']]);
-  assert.match(lines(1403)[0].text, /Numéro changé sur l’ancien site pour Nadir Saidi : mis sur la fiche/);
+  assert.match(lines(1403)[0].text, /Autre numéro sur l’ancien site pour Nadir Saidi : mis sur la fiche \(celui du rendez-vous le plus récent\), vérifie/);
   assert.deepEqual([byWp(t, 1404).name, s.clients.get(byWp(t, 1404).clientId).first], ['Hakim Zian', 'Hamid']);
   assert.deepEqual(lines(1404).map((r) => r.kind), ['name']);
   // a number fixed on a file of the salon is not copied (Yanis), nor one that another file already has
@@ -458,7 +460,15 @@ test('the API: preview, batch, paper gift cards in the liabilities and in no Z, 
   }
   const pre2 = await owner.post('/api/v1/import/preview', { keys: [{ phone: '0698765432' }, { email: 'personne@exemple.fr' }], wp: [1350, 9999] });
   assert.deepEqual([pre2.json.known, pre2.json.again, pre2.json.imported], [[], [0], [1350]], 'a file an earlier run created is not counted as merged');
-  assert.deepEqual(pre2.json.appts, [{ wp: 1350, day: '2026-11-10', start: 600, dur: 45, staffId: ids.jkut, status: 'booked', open: true, movedHere: false, cancelledByImport: false, price: 4000, paid: 1000, svc: ids.cut, live: true }]);
+  assert.deepEqual(pre2.json.appts, [{ wp: 1350, day: '2026-11-10', start: 600, dur: 45, staffId: ids.jkut, status: 'booked', open: true, movedHere: false, cancelledByImport: false, price: 4000, paid: 1000, svc: ids.cut, live: true, late: false, uniq: true, note: true, fix: [] }]);
+
+  // the identity the files give those bookings: what a pass would correct on the person, so the preview never calls a corrected number « rien de nouveau »
+  const who = await owner.post('/api/v1/import/preview', { who: [{ wp: 1350, first: 'Yanis', last: 'Martin', phone: '0600000099', email: 'YANIS.NEW@exemple.fr', note: 'x'.repeat(400) }, { wp: 9999, phone: '0600000098' }] });
+  assert.equal(who.status, 200, JSON.stringify(who.json));
+  const cid = rt.engine.state.appts.get(rt.engine.state.apptByWp.get('1350')).clientId;
+  assert.deepEqual(who.json.appts.map((a) => [a.wp, a.fix, a.who]), [[1350, ['note'], { cid, phone: 2, email: 2 }]], 'only the bookings an earlier run brought in; a note corrected, and the file would take the number and the e-mail');
+  assert.deepEqual((await owner.post('/api/v1/import/preview', { who: [{ wp: 1350, first: 'Yanis', last: 'Martin', phone: '0612345678' }] })).json.appts.map((a) => [a.fix, a.who]), [[[], { cid, phone: 1, email: 0 }]], 'the same person: nothing to correct');
+  assert.deepEqual((await owner.post('/api/v1/import/preview', { who: [{ wp: 1350, first: 'Karim', phone: '0612345678' }] })).json.appts.map((a) => a.fix), [['prénom']], 'another first name on the same number: kept on the booking');
 
   // the cut-over day itself: this morning's visit, already over and paid on the old till, is history, not to be paid here
   const head = 'ID,DATE/HEURE,CRÉÉ,"PRÉNOM DU CLIENT","NOM DU CLIENT","E-MAIL DU CLIENT","TÉL DU CLIENT",SERVICES,ASSISTANTS,"PRIX TOTAL",ÉTAT\n';

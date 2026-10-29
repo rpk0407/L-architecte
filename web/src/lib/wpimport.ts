@@ -713,7 +713,11 @@ export type Prior = {
   wp: number; day: string; start: number; dur: number; staffId: string; status: string; open: boolean; movedHere: boolean;
   /** this import cancelled it (annulé or supprimé sur l’ancien site): it comes back if the old site confirms it again */ cancelledByImport?: boolean;
   /** what the old site said last time: the price (cents), the deposit paid (cents), the services (their ids, sorted, joined by a comma) */ price?: number; paid?: number; svc?: string;
-  /** still in the agenda and not paid at the till: a deposit paid on the old site since can still be taken */ live?: boolean
+  /** still in the agenda and not paid at the till: a deposit paid on the old site since can still be taken */ live?: boolean;
+  /** a past visit taken over as done: the WXR after a CSV can turn it into a no-show */ late?: boolean;
+  /** it already holds the secret of the old e-mails' link, a note */ uniq?: boolean; note?: boolean;
+  /** what a pass would correct on the person (numéro, e-mail, nom, prénom, note), as the server decides it from `whoRows` (see applyFixes) */ fix?: string[];
+  /** the file of the booking, and whether this row has a number and an e-mail (0 none, 1 nothing to change, 2 the file would take it) */ who?: { cid: string; phone: number; email: number }
 };
 type Has = { has(wp: number): boolean };
 
@@ -803,7 +807,7 @@ export function change(b: WpBooking, k: Prior, staffId: string, now: number, tod
   if (k.cancelledByImport) return b.status !== 'error' && outcome(b, now, k.dur) === 'booked' ? 'reopen' : null;
   const out = outcome(b, now, k.dur);
   // handled here: nothing changes, but a deposit paid on the old site since is still taken (the till can cash it)
-  if (!k.open) return out === 'booked' && edits(b, k, map).includes('acompte') ? 'update' : null;
+  if (!k.open) return out === 'booked' && edits(b, k, map).includes('acompte') ? 'update' : out === 'no_show' && k.late ? 'close' : null;
   if (out === 'cancelled') return 'cancel';
   if (out === 'done' || out === 'no_show') return k.day < today ? 'close' : null;
   if (out !== 'booked') return null;
@@ -823,6 +827,54 @@ export function edits(b: WpBooking, k: Prior, map?: Mapping): string[] {
   const ids = map && b.services.length ? b.services.map((n) => svcOf(map, n)) : [];
   if (ids.length && ids.every((id) => id && id !== LEGACY) && k.svc != null && [...new Set(ids)].sort().join(',') !== k.svc) out.push('prestation');
   if (b.price != null && k.price != null && b.price !== k.price) out.push('prix');
+  // the person (the server reads the number, the e-mail and the names against the file: whoRows), and the real length a WXR gives after a CSV
+  out.push(...(k.fix || []));
+  if (b.dur && b.dur >= 5 && b.dur <= 600 && b.dur !== k.dur) out.push('durée');
+  return out;
+}
+
+/** What a pass fills in on a booking that was already brought in, whoever handled it: the old site's note it lacks, the secret of its e-mails' link (the WXR after a CSV). */
+export function fills(b: WpBooking, k: Prior): string[] {
+  const out: string[] = [];
+  if (b.note && b.note.trim() && !k.note) out.push('note');
+  if (b.uniq && !k.uniq) out.push('lien des anciens e-mails');
+  return out;
+}
+
+/**
+ * The server's answers to `whoRows`, put on the bookings they are about. A file takes its number, and its e-mail, from the booking with the highest
+ * WordPress number among the rows that have one (the batch does the same), so a number counts as a correction only when that row is the one
+ * the file would follow: a person whose older booking says another number than the file, and whose newest says the file's own, changes nothing.
+ */
+export function applyFixes(imported: Map<number, Prior>, answers: { wp: number; fix?: string[]; who?: { cid: string; phone: number; email: number } }[]) {
+  const lead = { numéro: new Map<string, { wp: number; v: number }>(), 'e-mail': new Map<string, { wp: number; v: number }>() };
+  for (const a of answers) {
+    const k = imported.get(a.wp);
+    if (!k) continue;
+    k.fix = [...(a.fix || [])];
+    k.who = a.who;
+    if (!a.who || !a.who.cid) continue;
+    for (const [word, v] of [['numéro', a.who.phone], ['e-mail', a.who.email]] as const) {
+      const cur = lead[word].get(a.who.cid);
+      if (v > 0 && (!cur || a.wp > cur.wp)) lead[word].set(a.who.cid, { wp: a.wp, v });
+    }
+  }
+  for (const word of ['numéro', 'e-mail'] as const) for (const x of lead[word].values()) if (x.v === 2) imported.get(x.wp)?.fix?.push(word);
+}
+
+/**
+ * The identity the files give the bookings an earlier run brought in that a pass goes through again (still to come, nobody handled them here):
+ * what POST /api/v1/import/preview (`who`) reads against their client files to say what a pass corrects on the person. The same cells as the
+ * rows sent (a shared contact is taken off, long cells cut).
+ */
+export function whoRows(p: Parsed, imported: Map<number, Prior>, now: number) {
+  const q = effective(p);
+  const out: { wp: number; first?: string; last?: string; phone?: string; prefix?: string; email?: string; note?: string }[] = [];
+  p.bookings.forEach((_, i) => {
+    const b = q.bookings[i], k = imported.get(b.wp);
+    if (!k || !k.open || k.movedHere || k.cancelledByImport || b.status === 'error' || outcome(b, now, k.dur) !== 'booked') return;
+    out.push({ wp: b.wp, first: cut(b.first, 60), last: cut(b.last, 60), phone: cut(b.phone, 32), prefix: cut(b.prefix, 6), email: cut(b.email, 160), note: cut(b.note, 300) });
+  });
   return out;
 }
 
@@ -1027,7 +1079,9 @@ export function preview(p: Parsed, map: Mapping, now: number, o: PreviewOpts = {
       if (ch === 'cancel') { counts.toCancel++; review.push({ ...row, kind: 'cancel', text: 'Annulé sur l’ancien site depuis le premier import : sera annulé ici' + ((k.paid || 0) || b.paid ? '. Un acompte y était payé : rembourse-le si besoin, depuis l’ancien site' : '') }); }
       else if (ch === 'move') { counts.toMove++; review.push({ ...row, kind: 'move', text: 'Déplacé sur l’ancien site depuis le premier import : sera déplacé ici' }); }
       else if (ch === 'close') counts.toClose++;
-      else if (ch === 'update') { counts.toUpdate++; review.push({ ...row, kind: 'update', text: 'Modifié sur l’ancien site depuis le premier import (' + edits(b, k, map).join(', ') + ') : sera mis à jour ici' }); }
+      else if (ch === 'update') { counts.toUpdate++; review.push({ ...row, kind: 'update', text: 'Modifié sur l’ancien site depuis le premier import (' + [...new Set([...edits(b, k, map), ...fills(b, k)])].join(', ') + ') : sera mis à jour ici' }); }
+      // nothing changed there, but the file holds a detail the first pass lacked (a WXR after a CSV): sending still writes it
+      else if (b.status !== 'error' && fills(b, k).length) { counts.toUpdate++; review.push({ ...row, kind: 'update', text: 'Complété par ces fichiers (' + fills(b, k).join(', ') + ') : sera mis à jour ici' }); }
       else counts.already++;
       return;
     }
@@ -1223,13 +1277,34 @@ export function reconcile(run: Pick<RunRecord, 'totals' | 'excluded' | 'counts' 
   return rows;
 }
 
+/**
+ * Is the export dropped older than the one the last run read? A pass from an older export reads the old site as it was: the final sync would
+ * put back what was cancelled, moved or changed since, and cancel what it did not know yet. Compared on the exports' own dates (the files'
+ * lastModified), else on the newest booking they hold; only the files of bookings count (a hand-made list of cards is no export). A minute
+ * of slack: the files of one export are saved seconds apart. `runs` newest first, as GET /api/v1/import/runs gives them.
+ * @returns null, or the dates of this export and of the last run's (ms), and which kind of date was compared
+ */
+export function olderExport(files: Pick<FileReport, 'kind' | 'at' | 'newest'>[], runs: Pick<RunRecord, 'files' | 'batches' | 'undoneAt'>[]): { mine: number; last: number; by: 'file' | 'booking' } | null {
+  const books = (list: { kind: string; at?: number; newest?: number }[]) => list.filter((f) => f.kind === 'bookings' || f.kind === 'wxr');
+  const best = (list: { at?: number; newest?: number }[], k: 'at' | 'newest') => Math.max(0, ...list.map((f) => f[k] || 0));
+  const mine = books(files);
+  if (!mine.length) return null;
+  const run = runs.find((r) => r.batches > 0 && !r.undoneAt && books(r.files).length > 0);
+  if (!run) return null;
+  const last = books(run.files);
+  const a = best(mine, 'at'), b = best(last, 'at');
+  if (a && b) return a < b - 60000 ? { mine: a, last: b, by: 'file' } : null;
+  const n = best(mine, 'newest'), m = best(last, 'newest');
+  return n && m && n < m ? { mine: n, last: m, by: 'booking' } : null;
+}
+
 /** What each kind of line is called in the report's groups (the line itself says the rest). */
 const KIND_TITLE: Record<string, string> = {
   pending: 'En attente sur l’ancien site', paid: 'Déjà payé sur l’ancien site', overlap: 'Chevauchements', today: 'Terminés aujourd’hui sur l’ancien site', moved: 'Déplacés',
   cancelled: 'Annulés sur l’ancien site mais déjà pris en charge', service: 'Prestations inconnues', staff: 'Barbiers à choisir', phone: 'Numéros illisibles', erased: 'Clients effacés',
   giftcard: 'Cartes cadeaux non reprises', pack: 'Carnets non repris', error: 'État « Erreur » sur l’ancien site', unpaid: 'Paiement en ligne jamais terminé', retention: 'Plus de 3 ans sans visite',
   gone: 'Supprimés sur l’ancien site', 'gone-handled': 'Supprimés sur l’ancien site mais déjà pris en charge', name: 'Même numéro, autre prénom', 'email-elsewhere': 'E-mail déjà sur une autre fiche',
-  'new-number': 'Nouveau numéro sur l’ancien site', 'status-unknown': 'État inconnu sur l’ancien site', reopened: 'Rétablis sur l’ancien site', person: 'Même e-mail, autre personne',
+  'new-number': 'Numéros qui diffèrent de l’ancien site', 'new-email': 'E-mails qui diffèrent de l’ancien site', 'status-unknown': 'État inconnu sur l’ancien site', reopened: 'Rétablis sur l’ancien site', person: 'Même e-mail, autre personne',
   landline: 'Numéros fixes : pas de SMS', unreadable: 'Lignes illisibles', email: 'E-mails illisibles',
   changed: 'Modifiés sur l’ancien site', refund: 'Acomptes à rembourser (annulés sur l’ancien site)'
 };

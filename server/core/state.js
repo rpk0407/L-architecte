@@ -125,7 +125,9 @@ export function evolve(s, e) {
     case 'stock.adjusted': { const x = s.products.get(d.productId); if (x) x.stock = (x.stock || 0) + d.delta; break; }
 
     case 'client.added': {
-      const c = { id: d.id, first: p.first || '', last: p.last || '', phone: p.phone || '', email: p.email || '', notes: p.notes || '', tech: p.tech || '', birthday: p.birthday || '', tags: d.tags || [], sms: d.sms !== false, marketing: !!d.marketing, source: d.source || 'salon', createdAt: d.createdAt || e.at, erased: false, mergedInto: null, demo: !!d.demo, ...(d.ext ? { ext: d.ext } : {}), ...(d.marketingSrc ? { marketingSrc: d.marketingSrc, marketingAt: d.marketingAt } : {}) };
+      const c = { id: d.id, first: p.first || '', last: p.last || '', phone: p.phone || '', email: p.email || '', notes: p.notes || '', tech: p.tech || '', birthday: p.birthday || '', tags: d.tags || [], sms: d.sms !== false, marketing: !!d.marketing, source: d.source || 'salon', createdAt: d.createdAt || e.at, erased: false, mergedInto: null, demo: !!d.demo, ...(d.ext ? { ext: d.ext } : {}), ...(d.marketingSrc ? { marketingSrc: d.marketingSrc, marketingAt: d.marketingAt } : {}),
+        // what an import of the old site gave this file (WordPress import): personal data, so in pii; no view shows it, it only tells a later pass an old-site correction from an owner's edit
+        ...(p.wpPhone ? { wpPhone: p.wpPhone } : {}), ...(p.wpEmail ? { wpEmail: p.wpEmail } : {}) };
       s.clients.set(d.id, c);
       if (c.phone) s.clientByPhone.set(c.phone, d.id);
       break;
@@ -154,6 +156,7 @@ export function evolve(s, e) {
         if (!c) continue;
         if (c.phone && ids.has(s.clientByPhone.get(c.phone))) s.clientByPhone.delete(c.phone);
         Object.assign(c, { first: 'Client', last: 'effacé', phone: '', email: '', notes: '', tech: '', birthday: '', erased: true, sms: false, marketing: false });
+        delete c.wpPhone; delete c.wpEmail;
       }
       for (const a of s.appts.values()) if (ids.has(a.clientId)) { a.note = ''; if (a.cancel && a.cancel.by === 'client') a.cancel.reason = ''; }
       for (const m of s.messages.values()) if (ids.has(m.cid)) { m.to = ''; m.body = ''; if (m.mail) m.mail = null; delete m.wa; }
