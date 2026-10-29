@@ -2,6 +2,7 @@
 // the freeze to do; « C’est fait » records the freeze; the final sync only counts when it comes after it; « Ouvrir les envois »
 // waits for it, asks, and records the switch. The network checks read « Démo ». Mise en route follows (Reprise WordPress,
 // Nouveautés). Desktop and phone: nothing scrolls sideways, every target is at least 44 px. Screenshots with SHOTS=1.
+import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { ROOT } from '../harness.mjs';
 
@@ -13,7 +14,9 @@ const IDS = ['first-run', 'freeze', 'final-sync', 'cold-backup', 'dns', 'redirec
 export default async ({ h, page }) => {
   await h.setup();
   await h.loginOwner(page);
-  const drop = (file) => page.setInputFiles('.wp-drop input[type=file]', [join(FIX, file)]);
+  // dropped as bytes, so the browser dates the file now: the export reads as made after the freeze whenever the checkout was
+  // written (a fixture's own date on disk is the clone's, which can be older than the freeze the demo records)
+  const drop = async (file) => page.setInputFiles('.wp-drop input[type=file]', [{ name: file, mimeType: 'text/csv', buffer: await readFile(join(FIX, file)) }]);
   const ready = async () => {
     await page.waitForFunction(() => !document.body.textContent.includes('Vérification des fiches'), null, { timeout: 15000 });
     const beard = page.getByRole('combobox', { name: 'Prestation pour « Coupe + barbe »' });
