@@ -26,7 +26,12 @@ export function localParts(ms, tz = TZ) {
 
 export function pad2(n) { return n < 10 ? '0' + n : '' + n; }
 export function keyOf(y, m, d) { return y + '-' + pad2(m) + '-' + pad2(d); }
-export function isDay(s) { return typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Date.parse(s + 'T12:00:00Z')); }
+/** A real calendar day: '2026-02-30' or '2027-02-29' roll over to the next month, so the round trip must give the same text. */
+export function isDay(s) {
+  if (typeof s !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  const t = Date.parse(s + 'T12:00:00Z');
+  return !Number.isNaN(t) && new Date(t).toISOString().slice(0, 10) === s;
+}
 
 export function dayParts(key) {
   const [y, m, d] = key.split('-').map(Number);

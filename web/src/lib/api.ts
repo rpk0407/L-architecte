@@ -45,7 +45,7 @@ async function send<T>(method: string, path: string, body: unknown, opts: { requ
     res = await fetch(path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body), credentials: 'same-origin', signal: opts.signal });
   } catch (e) {
     if ((e as any)?.name === 'AbortError') throw e;
-    throw new ApiError(0, 'network', 'Pas de connexion. Vérifie le Wi-Fi, on réessaie.');
+    throw new ApiError(0, 'network', 'Pas de connexion. Vérifie le Wi-Fi puis réessaie.');
   }
   const ct = res.headers.get('content-type') || '';
   const data = ct.includes('application/json') ? await res.json().catch(() => null) : await res.text();
@@ -66,6 +66,24 @@ export const api = {
   patch: <T = any>(path: string, body: unknown = {}) => request<T>('PATCH', path, body),
   del: <T = any>(path: string) => request<T>('DELETE', path)
 };
+
+/**
+ * Sends again what failed for a reason that says nothing about the request itself: no network (status 0), a gateway that answered
+ * 502, 503 or 504. Waits 1, 2, 4 and 8 s between tries; the caller passes the same request id each time, so a request the server
+ * had in fact received is answered, not done twice. Anything else (a 400, a 409, a 500) is thrown at once.
+ */
+export async function withRetry<T>(fn: () => Promise<T>, o: { waits?: number[]; sleep?: (ms: number) => Promise<void>; onWait?: (n: number, e: ApiError) => void } = {}): Promise<T> {
+  const waits = o.waits ?? [1000, 2000, 4000, 8000];
+  const sleep = o.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+  for (let i = 0; ; i++) {
+    try { return await fn(); } catch (e) {
+      const st = e instanceof ApiError ? e.status : -1;
+      if (!(st === 0 || st === 502 || st === 503 || st === 504) || i >= waits.length) throw e;
+      o.onWait?.(i + 1, e as ApiError);
+      await sleep(waits[i]);
+    }
+  }
+}
 
 export function qs(params: Record<string, string | number | boolean | null | undefined>) {
   const u = new URLSearchParams();

@@ -1,0 +1,14 @@
+﻿Réservations,de,à
+,"01 Jan 2021","31 Déc 2027"
+
+ID,DATE/HEURE,CRÉÉ,"PRÉNOM DU CLIENT","NOM DU CLIENT","E-MAIL DU CLIENT","TÉL DU CLIENT","Adresse du client",SERVICES,ASSISTANTS,"NOMBRE DE POUR CHAQUE SERVICE","PRIX TOTAL",ÉTAT
+26001,"18 Sep 2026 10:00","15 Sep 2026 20:15",Enzo,Esposito,enzo.esposito463@icloud.com,0612984800,"26 boulevard Longchamp, 13007 Marseille","Coupe + barbe",JKut,1,"40 € (10 € déjà payé en acompte)",Payant
+26002,"06 Nov 2026 10:30","28 Oct 2026 20:15",Romain,Ndiaye,romain.ndiaye464@laposte.net,0620353591,"12 avenue du Prado, 13003 Marseille","Coupe + barbe",JKut,1,"40 € (10 € déjà payé en acompte)",Payant
+26003,"07 Nov 2026 10:30","28 Oct 2026 20:15",Anthony,Peretti,anthony.peretti465@live.fr,0727722382,"154 cours Julien, 13016 Marseille",Coupe,JKut,1,"20 € (20 € déjà payé en acompte)",Payant
+26004,"10 Nov 2026 10:30","28 Oct 2026 20:15",Ilyes,Haddad,ilyes.haddad466@wanadoo.fr,0635091173,"150 rue Paradis, 13009 Marseille",Coupe,JKut,1,"20 €",Payant
+26005,"10 Nov 2026 11:00","28 Oct 2026 20:15",Hakim,Garcia,hakim.garcia467@proton.me,0642459964,"112 boulevard Longchamp, 13004 Marseille",Coupe,JKut,1,"20 €",Confirmé
+26006,"10 Nov 2026 11:30","28 Oct 2026 20:15",Sébastien,Esposito,sebastien.esposito468@gmail.com,0649828755,"154 place Pélabon, 13012 Marseille",Coupe,JKut,1,"20 €","Paiement en attente"
+26007,"11 Nov 2026 10:00","28 Oct 2026 20:15",Franck,Ndiaye,franck.ndiaye469@hotmail.fr,0657197546,"62 rue de la République, 13015 Marseille",Coupe,JKut,1,"20 € (30 € déjà payé en acompte)",Payant
+26008,"12 Nov 2026 10:00","28 Oct 2026 20:15",Sofiane,Picard,sofiane.picard470@yahoo.fr,0764566337,"49 boulevard de la Libération, 13006 Marseille","Coupe + barbe",JKut,1,"40 €",Payant
+26009,"13 Nov 2026 10:30","28 Oct 2026 20:15",Giovanni,Mattei,giovanni.mattei471@outlook.fr,0671935128,"24 rue Paradis, 13002 Marseille","Coupe + barbe",JKut,1,"40 €","Payer plus tard"
+26010,"14 Nov 2026 10:00","28 Oct 2026 20:15",Timéo,Simon,timeo.simon472@orange.fr,0679303919,"58 boulevard de la Libération, 13013 Marseille","Coupe + barbe",JKut,1,"40 €",Annulé

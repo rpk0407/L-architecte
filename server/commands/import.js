@@ -9,7 +9,7 @@
 // its counts, the rows it skipped by reason and references to the rows that want a look, never a name or a number.
 import { fail } from '../core/engine.js';
 import { str, int, bool, opt, obj, arr, day, id, oneOf, money, record, parse, InvalidInput } from '../lib/validate.js';
-import { normPhoneImport, isEmail, capFirst, sha256, normGiftCode, giftCode } from '../lib/util.js';
+import { normPhoneImport, isEmail, isLandline, capFirst, sha256, normGiftCode, giftCode } from '../lib/util.js';
 import { addDays, instantOf, dayShort, fmtTime } from '../../shared/dates.js';
 import { fmtEur } from '../../shared/money.js';
 import { retentionCutoff } from '../../shared/retention.js';
@@ -20,8 +20,13 @@ import { runOpen } from '../projections/imports.js';
 /** Salon Booking System's statuses (sln-b-…), as the browser normalises them from the French or English labels. */
 export const WP_STATUS = /** @type {const} */ (['confirmed', 'pending', 'pendingpayment', 'paid', 'paylater', 'canceled', 'error']);
 export const LEGACY_STAFF = 'legacy';
+/** The built-in choice for an old service nobody matched: the archived « Ancienne prestation » (created when first needed), like LEGACY_STAFF for barbers. */
+export const LEGACY_SERVICE = 'legacy';
 const ACTIVE = new Set(['pending', 'booked', 'arrived', 'in_chair']);
 export const GONE_REASON = 'Supprimé sur l’ancien site';
+export const CANCEL_REASON = 'Annulé sur l’ancien site';
+/** The reasons of the cancellations this import makes: a booking cancelled for one of them (and by nobody else) comes back if the old site confirms it again. */
+const IMPORT_CANCELS = new Set([CANCEL_REASON, GONE_REASON]);
 
 /**
  * What each row of the review list says. {x} is filled from what is known; a [group] holding a missing {x} is
@@ -38,6 +43,7 @@ export const KIND_TEXT = {
   'moved:both': 'Déplacé ici et sur l’ancien site : vérifie le créneau[ (ici {was})]',
   cancelled: 'Annulé sur l’ancien site, mais déjà pris en charge ici : vérifie',
   service: 'Prestation inconnue[ : {names}] (ligne ignorée)',
+  'service:upcoming': 'Prestation inconnue[ : {names}] : ce rendez-vous à venir n’est pas dans l’agenda, ajoute-le à la main',
   staff: 'À venir sans barbier actif : choisis-en un et relance l’import (ligne ignorée)',
   'staff:unknown': 'Barbier inconnu (ligne ignorée)',
   phone: 'Numéro illisible[ : « {phone} »]',
@@ -58,13 +64,21 @@ export const KIND_TEXT = {
   name: 'Même numéro, autre prénom[ (« {typed} »)] : mis sur la fiche[ de {file}]. Famille ?',
   'email-elsewhere': 'Cet e-mail est déjà sur la fiche[ de {other}] : pas copié',
   'new-number': 'Nouveau numéro sur l’ancien site[ pour {file}] : numéro gardé, à vérifier',
-  'status-unknown': 'État inconnu sur l’ancien site : ligne ignorée'
+  'status-unknown': 'État inconnu sur l’ancien site : ligne ignorée',
+  reopened: 'Rétabli sur l’ancien site : remis dans l’agenda, vérifie le créneau',
+  person: 'Même e-mail que[ {other}] mais une autre personne : fiche séparée, à vérifier',
+  landline: 'Numéro fixe : pas de SMS, appelle le client pour le rappel',
+  unreadable: 'Ligne que la lecture n’a pas pu comprendre',
+  email: 'E-mail illisible[ : « {email} »] : pas gardé'
 };
 /** The kinds that ask the owner to do something (« À faire »); the rest is « Pour info ». */
-export const TODO_KINDS = new Set(['pending', 'paid', 'overlap', 'today', 'moved', 'cancelled', 'gone-handled', 'name', 'new-number', 'staff']);
+export const TODO_KINDS = new Set(['pending', 'paid', 'overlap', 'today', 'moved', 'cancelled', 'gone-handled', 'name', 'new-number', 'staff', 'giftcard', 'pack', 'reopened', 'person', 'unreadable']);
+/** Variants of a kind that ask something of the owner although the kind is only « Pour info »: an upcoming booking lost to its service label. */
+const TODO_VARIANTS = new Set(['service:upcoming']);
+const isTodo = (kind, v) => TODO_KINDS.has(kind) || TODO_VARIANTS.has(kind + ':' + (v || ''));
 
 /** The kinds about a client file rather than a booking. */
-const FILE_KINDS = new Set(['name', 'new-number', 'email-elsewhere']);
+const FILE_KINDS = new Set(['name', 'new-number', 'email-elsewhere', 'person', 'landline']);
 
 /** The text of a review row. @param {string} kind @param {Record<string, any>} [vars] @param {string} [v] */
 export function say(kind, vars = {}, v = '') {
@@ -80,17 +94,19 @@ const strict = (shape) => {
 };
 const wpId = int({ min: 1, max: 999999999999 });
 const who = { first: opt(str({ max: 60 })), last: opt(str({ max: 60 })), phone: opt(str({ max: 32 })), prefix: opt(str({ max: 6 })), email: opt(str({ max: 160, lower: true })) };
-const clientRow = strict({ ...who, notes: opt(str({ max: 1000 })), createdAt: opt(int({ min: 0, max: 8640000000000000 })), wpUser: opt(wpId), source: opt(oneOf(['files', 'site'])) });
+/** A creation time the old site printed: any instant JavaScript can hold (a bad one is dropped by pastInstant, never a reason to refuse the batch). */
+const when = () => opt(int({ min: -8640000000000000, max: 8640000000000000 }));
+const clientRow = strict({ ...who, notes: opt(str({ max: 1000 })), createdAt: when(), wpUser: opt(wpId), source: opt(oneOf(['files', 'site'])) });
 const apptRow = strict({
   wp: wpId, uniq: opt(str({ max: 64, pattern: /^[A-Za-z0-9]+$/ })), day: day(), start: int({ min: 0, max: 1439 }), dur: opt(int({ min: 5, max: 600 })),
-  createdAt: opt(int({ min: 0, max: 8640000000000000 })), ...who, serviceIds: arr(id(), { max: 6 }), staffId: id(), price: opt(money(1000000)), paid: opt(money(1000000)),
+  createdAt: when(), ...who, serviceIds: arr(id(), { max: 6 }), staffId: id(), price: opt(money(1000000)), paid: opt(money(1000000)),
   status: oneOf(WP_STATUS), noShow: opt(bool()), note: opt(str({ max: 300 })), wpUser: opt(wpId), source: opt(oneOf(['files', 'site'])),
   // the old site's names for the services the owner left unmatched (a service name is not personal): the report says which
   wpServices: opt(arr(str({ max: 80 }), { max: 6 }))
 });
 const giftRow = strict({ code: str({ min: 1, max: 40 }), amount: money(100000), expires: opt(day()), buyer: opt(str({ max: 60 })), recipient: opt(str({ max: 60 })) });
 const packRow = strict({ ...who, clientId: opt(id()), left: int({ min: 1, max: 50 }), expires: day(), serviceId: opt(id()) });
-const batchSchema = obj({
+export const batchSchema = obj({
   clients: opt(arr(clientRow, { max: 150 })), appts: opt(arr(apptRow, { max: 150 })), giftcards: opt(arr(giftRow, { max: 150 })), packs: opt(arr(packRow, { max: 150 })),
   // the bookings the old site no longer has (the browser's call, see wpimport.ts), the run this batch belongs to and its place in it
   gone: opt(arr(wpId, { max: 150 })), run: opt(id()), i: opt(int({ min: 0, max: 100000 }))
@@ -101,7 +117,8 @@ const onePack = obj({ clientId: id(), left: int({ min: 1, max: 50 }), expires: d
 const count = int({ min: 0, max: 1000000 });
 const startSchema = obj({
   source: oneOf(['files', 'site']),
-  files: arr(obj({ name: str({ max: 80 }), kind: str({ max: 20 }), rows: count, sha: str({ max: 16, pattern: /^[0-9a-f]*$/ }) }), { max: 30 }),
+  // at: the file's own date, newest: the newest creation time among its bookings (ms): how fresh an export is (Jour J compares it to the freeze)
+  files: arr(obj({ name: str({ max: 80 }), kind: str({ max: 20 }), rows: count, sha: str({ max: 16, pattern: /^[0-9a-f]*$/ }), at: opt(int({ min: 0, max: 8640000000000000 })), newest: opt(int({ min: 0, max: 8640000000000000 })) }), { max: 30 }),
   window: arr(obj({ from: day(), to: day() }), { max: 12 }),
   map: obj({ services: record(/^.{0,80}$/, id(), { max: 300 }), staff: record(/^.{0,80}$/, id(), { max: 100 }) }),
   totals: obj({ bookings: count, clients: count, giftcards: count, packs: count }),
@@ -112,7 +129,9 @@ const startSchema = obj({
   // the old site's address for a site run, never a login
   site: opt(obj({ url: str({ max: 200 }) })),
   // how many batches the browser plans, to say « interrompue à 3/12 » when it stops
-  parts: opt(int({ min: 0, max: 5000 }))
+  parts: opt(int({ min: 0, max: 5000 })),
+  // the lines nobody could read (file, line, WordPress number, the bad value), kept so the report lists them: 500 at most, the count stays exact
+  problems: opt(arr(obj({ file: str({ max: 80 }), line: int({ min: 0, max: 100000000 }), wp: opt(wpId), text: str({ max: 160 }) }), { max: 500 }))
 });
 
 /* ---------------- what the state does not index: e-mails, legacy packs, the old barbers' profile ---------------- */
@@ -122,7 +141,7 @@ const lazy = new WeakMap();
 function known(s) {
   let x = lazy.get(s);
   if (!x || x.v !== s.version) {
-    x = { v: s.version, email: new Map(), wp: new Map(), packs: new Set(), legacyStaff: /** @type {string|null} */ (null) };
+    x = { v: s.version, email: new Map(), wp: new Map(), packs: new Set(), legacyStaff: /** @type {string|null} */ (null), legacyService: /** @type {string|null} */ (null) };
     for (const c of s.clients.values()) {
       if (c.erased || c.mergedInto) continue;
       if (c.email && !x.email.has(c.email)) x.email.set(c.email, c.id);
@@ -130,6 +149,7 @@ function known(s) {
     }
     for (const k of s.packs.values()) if (k.legacy) x.packs.add(k.clientId);
     for (const st of s.staff.values()) if (st.legacy) x.legacyStaff = st.id;
+    for (const sv of s.services.values()) if (sv.legacy) x.legacyService = sv.id;
     lazy.set(s, x);
   }
   return x;
@@ -165,13 +185,15 @@ export function priorView(s, wps) {
   for (const w of wps) {
     const a = s.appts.get(s.apptByWp.get(String(w)) || '');
     if (!a) continue;
-    out.push({ wp: w, day: a.day, start: a.start, dur: a.dur, staffId: a.staffId, status: a.status, open: isOpen(a), movedHere: movedHere(a) });
+    out.push({ wp: w, day: a.day, start: a.start, dur: a.dur, staffId: a.staffId, status: a.status, open: isOpen(a), movedHere: movedHere(a), cancelledByImport: cancelledByImport(a) });
   }
   return out;
 }
 /** Nobody handled it here yet: not checked in, not paid, not a closed visit of the old site. */
 const isOpen = (a) => (a.status === 'booked' || a.status === 'pending') && !a.saleId && !a.legacy;
 const movedHere = (a) => a.moves > ((a.ext && a.ext.moves) || 0);
+/** Cancelled by this import itself (« Annulé » or « Supprimé sur l’ancien site », by the salon), and never paid: the old site may confirm it again. */
+const cancelledByImport = (a) => a.status === 'cancelled' && !a.saleId && !!a.cancel && a.cancel.by === 'salon' && IMPORT_CANCELS.has(a.cancel.reason);
 
 /**
  * The imported bookings still to come inside the periods a file covers: what the browser compares to the export to find
@@ -187,6 +209,18 @@ export function inWindow(s, windows, today) {
     if (out.length >= 5000) break;
   }
   return out;
+}
+
+/**
+ * Which of these cards and carnets are already here, for a second drop of the same file: the indexes of the codes whose card exists, and of
+ * the numbers whose client already has a carnet taken over. Read only.
+ * @param {any} s @param {string[]} [codes] @param {{ phone?: string, prefix?: string }[]} [packs]
+ */
+export function haveView(s, codes = [], packs = []) {
+  const cards = [], carnets = [];
+  codes.forEach((c, i) => { const n = normGiftCode(c); if (n.length >= 4 && s.giftByHash.has(sha256(n))) cards.push(i); });
+  packs.forEach((k, i) => { const p = k.phone ? normPhoneImport(k.phone, k.prefix) : null; const cid = p && s.clientByPhone.get(p); if (cid && known(s).packs.has(cid)) carnets.push(i); });
+  return { cards, carnets };
 }
 
 /** The agenda's active bookings on these days, so the preview checks double bookings against it as the batch does. @param {any} s @param {string[]} days */
@@ -217,6 +251,8 @@ function people(s, ctx, out, rid) {
   const file = (cid) => made.get(cid) || getClient(s, cid);
   /** every file this batch made or met, once each */
   const met = new Set();
+  /** the oldest creation time the old site gave for the rows of a file (« client depuis »): applied once, at the end of the batch */
+  const earliest = new Map();
   /** the files whose gaps were already filled in by this batch (once each) */
   const filled = new Set();
   const K = known(s);
@@ -261,7 +297,13 @@ function people(s, ctx, out, rid) {
     const phone = phoneOf(x);
     if (x.phone && !phone) out.review.push({ ...row, kind: 'phone', text: say('phone', { phone: x.phone }) });
     const email = x.email && isEmail(x.email) ? x.email : '';
-    const hit = lookup(x);
+    // an address that cannot be one (a `?bcc=` in it, two addresses in one cell) is not kept, and said
+    if (x.email && !email) out.review.push({ ...row, kind: 'email', text: say('email', { email: String(x.email).slice(0, 60) }) });
+    const hit0 = lookup(x);
+    // two people on one e-mail (a couple, a parent and a child, the desk's dummy address): this row has a number the file does not,
+    // the file has another, and the first names differ: not the same person. The e-mail stays on the first file, this one is apart
+    const apart = !!hit0 && hit0.via === 'email' && !!phone && sameEmailOtherPerson(hit0.cid, x, phone);
+    const hit = apart ? null : hit0;
     let cid = hit ? hit.cid : null;
     if (hit) {
       const c = file(hit.cid);
@@ -297,19 +339,45 @@ function people(s, ctx, out, rid) {
     }
     if (!phone && !email) return null;
     cid = ctx.id('cl');
-    const pii = { first: capFirst(x.first || '').slice(0, 40) || 'Client', last: capFirst(x.last || '').slice(0, 40), phone: phone || '', email, ...(x.notes ? { notes: x.notes } : {}) };
+    const mail = apart ? '' : email;
+    const pii = { first: capFirst(x.first || '').slice(0, 40) || 'Client', last: capFirst(x.last || '').slice(0, 40), phone: phone || '', email: mail, ...(x.notes ? { notes: x.notes } : {}) };
     const ext = { ...run, ...(x.wpUser ? { wp: x.wpUser } : {}) };
+    const born = pastInstant(x.createdAt, ctx.now);
     // consent: service texts yes (they booked with their number), promotions no, and nobody ever asked on the old site: marketingSrc says so
-    ctx.emit('client.added', { id: cid, cid, source: 'wordpress', sms: true, marketing: false, marketingSrc: 'wordpress', marketingAt: ctx.now, tags: [], createdAt: pastInstant(x.createdAt, ctx.now), ...(Object.keys(ext).length ? { ext } : {}) }, pii);
+    ctx.emit('client.added', { id: cid, cid, source: 'wordpress', sms: true, marketing: false, marketingSrc: 'wordpress', marketingAt: ctx.now, tags: [], createdAt: born, ...(Object.keys(ext).length ? { ext } : {}) }, pii);
     created.add(cid);
     filled.add(cid);
     met.add(cid);
-    made.set(cid, { id: cid, first: pii.first, last: pii.last, phone: pii.phone, email, ext });
+    made.set(cid, { id: cid, first: pii.first, last: pii.last, phone: pii.phone, email: mail, ext, source: 'wordpress', createdAt: born || ctx.now });
     out.clients.added++;
+    if (apart && hit0) out.review.push({ ...row, kind: 'person', text: say('person', { other: fileName(file(hit0.cid)) }), cid, o: hit0.cid });
+    if (phone && isLandline(phone)) out.review.push({ ...row, kind: 'landline', text: say('landline'), cid });
     if (phone) byPhone.set(phone, cid);
-    if (email) byEmail.set(email, cid);
+    if (mail) byEmail.set(mail, cid);
     if (x.wpUser) byWp.set(x.wpUser, cid);
     return cid;
+  }
+  /** Is the file this e-mail leads to somebody else? It has another number than the row's, and another first name. */
+  function sameEmailOtherPerson(cid, x, phone) {
+    const c = file(cid);
+    if (c.erased || !c.phone || c.phone === phone || !x.first || !c.first || c.first === 'Client') return false;
+    if (s.clientByPhone.has(phone) || byPhone.has(phone)) return false;
+    const a = fold(x.first), b = fold(c.first);
+    return !!a && !!b && !a.startsWith(b) && !b.startsWith(a);
+  }
+  /** The row of this file was made on the old site at t: « client depuis » is the oldest of them (rows come most recent first). */
+  function since(cid, t) {
+    if (!cid || !t) return;
+    if (!earliest.has(cid) || t < /** @type {number} */ (earliest.get(cid))) earliest.set(cid, t);
+  }
+  /** End of the batch: the files an import made get the oldest creation time known for them, when it is older than theirs. */
+  function settle() {
+    for (const [cid, t] of earliest) {
+      const c = file(cid);
+      if (!c || c.erased || c.source !== 'wordpress') continue;
+      const cur = made.has(cid) ? made.get(cid).createdAt : c.createdAt;
+      if (cur && t < cur) { ctx.emit('client.updated', { id: cid, cid, patch: { createdAt: t }, fields: [], ...run }); if (made.has(cid)) made.get(cid).createdAt = t; }
+    }
   }
   /** A file met: counted once for the batch, as merged (a file of the salon) or again (one an earlier run made). Also for a booking carried over by a re-run. */
   function meet(cid) {
@@ -322,7 +390,7 @@ function people(s, ctx, out, rid) {
   }
   /** Does this person already have a file (in the salon, or made earlier in this batch)? */
   const has = (x) => !!lookup(x);
-  return { find, gone, has, meet, created, met };
+  return { find, gone, has, meet, created, met, since, settle };
 }
 
 /** The old barbers who left (John, JBlades…): one archived profile without a chair (out of the team's figures), created when first needed. */
@@ -335,6 +403,22 @@ function legacyStaff(s, ctx, run) {
   ctx.emit('staff.archived', { id: sid });
   return (run.legacyStaff = sid);
 }
+
+/**
+ * The old services nobody matched (a one-off, a formula that is gone, a label nobody can read): one archived service, « Ancienne prestation »,
+ * out of the catalogue and the site, created when first needed. A visit on it counts for the client's rhythm and spend, never for a chair.
+ */
+function legacyService(s, ctx, run) {
+  if (run.legacyService) return run.legacyService;
+  const have = known(s).legacyService;
+  if (have) return (run.legacyService = have);
+  const sid = ctx.id('sv');
+  ctx.emit('service.added', { id: sid, service: { name: 'Ancienne prestation', short: 'Ancienne prestation', slug: 'ancienne-prestation', category: 'Autres', price: 0, dur: 30, buffer: 0, online: false, vat: s.settings.payments.vat, order: 999, from: false, includes: [], legacy: true } });
+  ctx.emit('service.archived', { id: sid });
+  return (run.legacyService = sid);
+}
+/** A service of the state, or the stand-in for LEGACY_SERVICE (the real one is only created once a booking really uses it). */
+const serviceOf = (s, sid) => (sid === LEGACY_SERVICE ? { id: LEGACY_SERVICE, name: 'Ancienne prestation', price: 0, dur: 30, buffer: 0, from: false } : s.services.get(sid));
 
 /**
  * What a WordPress booking becomes here, or null when it is not worth keeping.
@@ -361,7 +445,7 @@ function uniqueCode(s, ctx, taken) {
 
 /** The services of an old booking, priced so they add up to what the client paid (or the menu price without one). */
 function snapshot(s, ids, total) {
-  const list = ids.map((sid) => s.services.get(sid)).map((sv) => ({ id: sv.id, name: sv.name, price: sv.price, from: !!sv.from, dur: sv.dur, buffer: sv.buffer || 0 }));
+  const list = ids.map((sid) => serviceOf(s, sid)).map((sv) => ({ id: sv.id, name: sv.name, price: sv.price, from: !!sv.from, dur: sv.dur, buffer: sv.buffer || 0 }));
   if (total == null) return list;
   const menu = list.reduce((t, x) => t + x.price, 0);
   let left = total;
@@ -409,7 +493,7 @@ function delta(s, ctx, r, a, row, run) {
   if (r.note && !a.note) pii.note = r.note.slice(0, 300);
   let did = /** @type {'cancelled'|'moved'|'closed'|'updated'|'already'} */ ('already');
   if (open && status === 'cancelled') {
-    ctx.emit('appt.cancelled', { id: a.id, by: 'salon', reason: 'Annulé sur l’ancien site', cid: a.clientId || undefined, ...tag });
+    ctx.emit('appt.cancelled', { id: a.id, by: 'salon', reason: CANCEL_REASON, cid: a.clientId || undefined, ...tag });
     did = 'cancelled';
   } else if (open && (status === 'done' || status === 'no_show')) {
     // it took place on the old site between the two runs; today's stays for the till, which may still cash it
@@ -466,7 +550,7 @@ export const importBatch = {
       again: /** @type {Set<string>} */ (new Set())
     };
     const P = people(s, ctx, out, rid);
-    const run = { legacyStaff: /** @type {string|null} */ (null) };
+    const run = { legacyStaff: /** @type {string|null} */ (null), legacyService: /** @type {string|null} */ (null) };
     const today = ctx.local.day, cutoff = retentionCutoff(today);
 
     for (const c of x.clients || []) {
@@ -475,9 +559,18 @@ export const importBatch = {
       if (!P.find(c, row)) out.skip.phone++;
     }
 
-    // who has a booking since the cutoff in this batch: their older rows come in with them
+    // who has a booking since the cutoff in this batch: their older rows come in with them. Only a row that will make a booking
+    // counts (the browser decides the same way): a person whose recent rows are all errors, unpaid or unmatched has no visit to keep
     const keysOf = (r) => { const p = r.phone ? normPhoneImport(r.phone, r.prefix) : null; return [r.wpUser ? 'w' + r.wpUser : '', p ? 'p' + p : '', r.email && isEmail(String(r.email).toLowerCase()) ? 'e' + String(r.email).toLowerCase() : ''].filter(Boolean); };
-    const recent = new Set((x.appts || []).filter((r) => r.day >= cutoff).flatMap(keysOf));
+    const wouldBook = (r) => {
+      const ids = r.serviceIds;
+      if (!ids.length || ids.some((sid) => sid !== LEGACY_SERVICE && !s.services.has(sid))) return false;
+      const dur = r.dur || totalDur(ids.map((sid) => serviceOf(s, sid)));
+      const status = mapStatus(r.status, !!r.noShow, instantOf(r.day, r.start + dur) <= ctx.now);
+      if (!status) return false;
+      return status !== 'booked' || (!ids.includes(LEGACY_SERVICE) && !!chairOf(s, r.staffId));
+    };
+    const recent = new Set((x.appts || []).filter((r) => r.day >= cutoff && wouldBook(r)).flatMap(keysOf));
     const seen = new Set(), codes = new Set();
     /** upcoming bookings of this run, per chair and day, to report overlaps between them too */
     const mine = new Map();
@@ -490,15 +583,36 @@ export const importBatch = {
       const row = { wp: r.wp, day: r.day, start: r.start, name };
       // before the delta too: a re-run must not put an erased client's note back on an old booking
       if (P.gone(r, row)) { out.appts.skipped++; out.skip.erased++; continue; }
-      const prev = s.apptByWp.get(key) ? s.appts.get(s.apptByWp.get(key)) : null;
-      if (prev) { P.meet(prev.clientId); out.appts[delta(s, ctx, r, prev, row, pass)]++; continue; }
-      const missing = r.serviceIds.filter((sid) => !s.services.has(sid));
-      const services = missing.length || !r.serviceIds.length ? null : snapshot(s, r.serviceIds, r.price ?? null);
+      let prev = s.apptByWp.get(key) ? s.appts.get(s.apptByWp.get(key)) : null;
+      // this import cancelled it (« Annulé » or « Supprimé sur l’ancien site ») and the old site confirms it again, to come: it goes back in the
+      // agenda as a new booking with the same WordPress number; the cancelled one stays in the history. A booking cancelled by the client or by hand never does.
+      const reopened = !!prev && cancelledByImport(prev) && mapStatus(r.status, !!r.noShow, instantOf(r.day, r.start + (r.dur || prev.dur)) <= ctx.now) === 'booked';
+      if (reopened) prev = null;
+      if (prev) {
+        P.meet(prev.clientId);
+        const did = delta(s, ctx, r, prev, row, pass);
+        out.appts[did]++;
+        // what the old site cancelled since an earlier run, apart from the bookings that come in cancelled
+        if (did === 'cancelled') out.appts.cancelledNow = (out.appts.cancelledNow || 0) + 1;
+        continue;
+      }
+      const ids = r.serviceIds;
+      const missing = ids.filter((sid) => sid !== LEGACY_SERVICE && !s.services.has(sid));
+      let services = missing.length || !ids.length ? null : snapshot(s, ids, r.price ?? null);
       const dur = r.dur || (services ? totalDur(services) : 30);
       const past = instantOf(r.day, r.start + dur) <= ctx.now;
       const status = mapStatus(r.status, !!r.noShow, past);
       if (!status) { out.appts.skipped++; const why = r.status === 'error' ? 'error' : 'unpaid'; out.skip[why]++; note(out, row, why); continue; }
-      if (!services) { out.appts.skipped++; out.skip.service++; const names = (r.wpServices || []).join(', ').slice(0, 160); note(out, row, 'service', { names: names || 'aucune' }); if (names) out.review[out.review.length - 1].names = names; continue; }
+      // an upcoming booking on « Ancienne prestation » would be in the agenda as a service nobody sells: left out, and listed to be put back by hand
+      if (services && status === 'booked' && ids.includes(LEGACY_SERVICE)) services = null;
+      if (!services) {
+        out.appts.skipped++; out.skip.service++;
+        const names = (r.wpServices || []).join(', ').slice(0, 160);
+        // to come: a client with no seat on the day (À faire); in the past: history only (Pour info)
+        note(out, row, 'service', { names: names || 'aucune' }, status === 'booked' ? 'upcoming' : '');
+        if (names) out.review[out.review.length - 1].names = names;
+        continue;
+      }
       let staffId = r.staffId;
       // an upcoming booking on the archived profile would be in no lane of the agenda, yet reminded and never blocking
       if (status === 'booked' && !chairOf(s, staffId)) { out.appts.skipped++; out.skip.staff++; note(out, row, 'staff'); continue; }
@@ -507,12 +621,15 @@ export const importBatch = {
       // unless the same person has a visit since in this batch (the browser sends the recent rows first, so across batches the file exists)
       if (r.day < cutoff && !P.has(r) && !keysOf(r).some((k) => recent.has(k))) { out.appts.skipped++; out.skip.retention++; note(out, row, 'retention'); continue; }
       if (staffId === LEGACY_STAFF) staffId = legacyStaff(s, ctx, run);
+      if (ids.includes(LEGACY_SERVICE)) { const lid = legacyService(s, ctx, run); services = services.map((v) => (v.id === LEGACY_SERVICE ? { ...v, id: lid } : v)); }
       const named = {};
       const clientId = P.find(r, row, named);
       const createdAt = pastInstant(r.createdAt, ctx.now);
+      P.since(clientId, createdAt);
       const price = r.price ?? services.reduce((t, v) => t + v.price, 0);
       const paidText = !past && r.paid ? (r.paid >= price ? 'Déjà payé en entier sur l’ancien site (' + fmtEur(r.paid) + ')' : 'Acompte de ' + fmtEur(r.paid) + ' déjà payé sur l’ancien site') : '';
-      const notes = [r.note, paidText].filter(Boolean).join(' · ');
+      // the deposit comes first: a long note of the client would cut it mid-word
+      const notes = [paidText, r.note].filter(Boolean).join(' · ');
       const a = {
         id: ctx.id('ap'), code: uniqueCode(s, ctx, codes), clientId, staffId, anyStaff: false, day: r.day, start: r.start, dur,
         services, price, source: 'import', status, sms: true, deposit: null, cid: clientId || undefined,
@@ -520,18 +637,21 @@ export const importBatch = {
         // uniq is the secret of the old e-mail links: only its hash is kept, like any link token
         ext: { wp: r.wp, slot: r.day + '|' + r.start, ...(r.uniq ? { uniq: sha256(r.uniq.toLowerCase()) } : {}), ...(r.paid ? { paid: r.paid } : {}), ...(rid ? { run: rid } : {}) },
         ...(past ? { legacy: true } : {}),
-        ...(status === 'cancelled' ? { cancel: { by: 'salon', reason: 'Annulé sur l’ancien site', at: createdAt || ctx.now, late: false } } : {})
+        ...(status === 'cancelled' ? { cancel: { by: 'salon', reason: CANCEL_REASON, at: createdAt || ctx.now, late: false } } : {})
       };
       // a booking without a file keeps the name on it; so does one whose typed first name is not the file's (erased with the file)
       const pii = { ...(clientId && !named.named ? {} : { name: name.slice(0, 40) || 'Client' }), ...(notes ? { note: notes.slice(0, 300) } : {}) };
       ctx.emit('appt.booked', a, Object.keys(pii).length ? pii : undefined);
       out.appts[status === 'no_show' ? 'noShow' : status]++;
       if (status !== 'booked') continue;
+      if (reopened) { out.appts.reopened = (out.appts.reopened || 0) + 1; note(out, row, 'reopened'); }
       if (r.status === 'pending' || r.status === 'pendingpayment') note(out, row, 'pending');
       if (paidText) note(out, row, 'paid', { amount: fmtEur(r.paid) }, r.paid >= price ? 'full' : '');
       // availability rules are skipped (the old site accepted it), but a double booking is worth a look
       if (overlaps(s, mine, { day: r.day, start: r.start, dur, staffId }, a.id)) note(out, row, 'overlap');
     }
+    // the files this batch made keep the oldest creation time the old site gave their rows
+    P.settle();
 
     // bookings the old site no longer has (deleted, not cancelled: they are in no export): the browser compares the
     // export to what an earlier run brought in, and says which. Cancelled here, with no message, while nobody handled them
@@ -551,7 +671,9 @@ export const importBatch = {
     const hashes = new Set();
     for (const g of x.giftcards || []) {
       const r = issueGift(s, ctx, g, { today, hashes, run: rid });
-      if (r.error) { out.giftcards.skipped++; out.skip.giftcard++; out.review.push({ kind: 'giftcard', name: '•••• ' + normGiftCode(g.code).slice(-4), text: r.error, v: r.v, ...(r.day ? { day: r.day } : {}) }); }
+      // named by what is not personal: the last four characters of the code and the balance, so the report says which card it was
+      const mask = '•••• ' + (normGiftCode(g.code).slice(-4) || '?') + ' · ' + fmtEur(g.amount);
+      if (r.error) { out.giftcards.skipped++; out.skip.giftcard++; out.review.push({ kind: 'giftcard', name: mask, names: mask, text: r.error, v: r.v, ...(r.day ? { day: r.day } : {}) }); }
       else if (r.already) out.giftcards.already++;
       else out.giftcards.added++;
     }
@@ -559,10 +681,13 @@ export const importBatch = {
     const packed = new Set();
     for (const k of x.packs || []) {
       const label = [k.first, k.last].filter(Boolean).join(' ') || k.phone || '';
+      // the report names a carnet by the last four digits of the number, never by the name or the number
+      const digits = String(k.phone || '').replace(/\D/g, '');
+      const mask = digits.length >= 4 ? '•••• ' + digits.slice(-4) : 'Carnet sans numéro';
       if (!k.clientId && P.gone(k, {})) { out.packs.skipped++; out.skip.erased++; continue; }
-      if (k.expires < today) { out.packs.skipped++; out.skip.pack++; out.review.push({ kind: 'pack', name: label, text: say('pack', { day: fmtDay(k.expires) }, 'expired'), v: 'expired', day: k.expires }); continue; }
+      if (k.expires < today) { out.packs.skipped++; out.skip.pack++; out.review.push({ kind: 'pack', name: label, names: mask, text: say('pack', { day: fmtDay(k.expires) }, 'expired'), v: 'expired', day: k.expires }); continue; }
       const cid = k.clientId ? getClient(s, k.clientId).id : k.phone || k.email ? (k.first ? P.find(k, { name: label }) : findOnly(s, k, P)) : null;
-      if (!cid) { out.packs.skipped++; out.skip.pack++; out.review.push({ kind: 'pack', name: label, text: say('pack', {}, 'nofile'), v: 'nofile' }); continue; }
+      if (!cid) { out.packs.skipped++; out.skip.pack++; out.review.push({ kind: 'pack', name: label, names: mask, text: say('pack', {}, 'nofile'), v: 'nofile' }); continue; }
       if (known(s).packs.has(cid) || packed.has(cid)) { out.packs.already++; continue; }
       packed.add(cid);
       issuePack(s, ctx, cid, k, rid);
@@ -685,9 +810,9 @@ export const finishImportRun = {
 
 /** A run for the list: everything but the lines. @param {any} s @param {any} r */
 export function runSummary(s, r) {
-  const { review, ...rest } = r;
+  const { review, problems, ...rest } = r;
   const by = s.staff.get(r.by);
-  return { ...rest, by: by ? by.name : '', reviewKept: review.length };
+  return { ...rest, by: by ? by.name : '', reviewKept: review.length, problemsKept: (problems || []).length };
 }
 
 /**
@@ -696,7 +821,7 @@ export function runSummary(s, r) {
  * @param {any} s @param {any} r
  */
 export function runLines(s, r) {
-  return r.review.map((ref) => {
+  const lines = r.review.map((ref) => {
     const a = ref.wp ? s.appts.get(s.apptByWp.get(String(ref.wp)) || '') : null;
     const cid = (a && a.clientId) || ref.cid;
     const c = cid ? s.clients.get(cid) : null;
@@ -708,7 +833,12 @@ export function runLines(s, r) {
     const st = a ? s.staff.get(a.staffId) : null;
     // about the file itself: once the client is erased there is nothing left to do
     const done = f && f.erased && FILE_KINDS.has(ref.kind);
-    const text = done ? 'Client effacé : rien à faire' : say(ref.kind, { typed, file: f ? fileName(f) : '', other: other ? fileName(getClient(s, other.id)) : '', amount: paid, day: ref.day ? fmtDay(ref.day) : '', names: ref.names || '' }, ref.v);
-    return { kind: ref.kind, wp: ref.wp || 0, day: ref.day || (a ? a.day : ''), start: ref.start ?? (a ? a.start : null), name, staff: st ? st.name : '', text, todo: TODO_KINDS.has(ref.kind) && !done };
+    const text = done ? 'Client effacé : rien à faire' : say(ref.kind, { typed, file: f ? fileName(f) : '', other: other ? fileName(getClient(s, other.id)) : '', amount: paid, day: ref.day ? fmtDay(ref.day) : '', names: ref.kind === 'service' ? ref.names || '' : '' }, ref.v);
+    // a card or a carnet is named by its masked identifier (the last digits: not personal), the other lines by the client file
+    const label = (ref.kind === 'giftcard' || ref.kind === 'pack') && ref.names ? ref.names : name;
+    return { kind: ref.kind, wp: ref.wp || 0, day: ref.day || (a ? a.day : ''), start: ref.start ?? (a ? a.start : null), name: label, staff: st ? st.name : '', text, todo: isTodo(ref.kind, ref.v) && !done };
   });
+  // what the reader could not understand, with its file and line: it must never vanish into a count
+  for (const x of r.problems || []) lines.push({ kind: 'unreadable', wp: x.wp || 0, day: '', start: null, name: '', staff: '', text: x.file + (x.line ? ' · ligne ' + x.line : '') + ' · ' + x.text, todo: true });
+  return lines;
 }

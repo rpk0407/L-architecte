@@ -78,6 +78,9 @@ export function normPhone(v) {
   return '';
 }
 
+/** A French landline or VoIP number (+33 1 to 5, or 9): no text can reach it. */
+export function isLandline(e164) { return /^\+33[1-59]\d{8}$/.test(String(e164 || '')); }
+
 // the old WordPress site's numbers: shared with the import wizard's preview
 export { PHONE_PREFIXES, normPhoneImport } from '../../shared/phone.js';
 
@@ -104,7 +107,7 @@ export function maskEmail(e, { domain = false } = {}) {
   return m[1] + '•••@' + (d ? d[1] + '•••' + (d[2] || '') : '•••');
 }
 
-export function isEmail(e) { return /^[^@\s]{1,64}@[^@\s]{1,190}\.[^@\s]{2,}$/.test(String(e || '')); }
+export { isEmail } from '../../shared/email.js';
 
 export function capFirst(t) {
   t = String(t || '').trim().replace(/\s+/g, ' ');

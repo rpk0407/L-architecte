@@ -1,0 +1,48 @@
+﻿Réservations,de,à
+,"01 Jan 2021","31 Déc 2027"
+
+ID,DATE/HEURE,CRÉÉ,"PRÉNOM DU CLIENT","NOM DU CLIENT","E-MAIL DU CLIENT","TÉL DU CLIENT","Adresse du client",SERVICES,ASSISTANTS,"NOMBRE DE POUR CHAQUE SERVICE","PRIX TOTAL",ÉTAT
+28001,"04 Aoû 2026 10:00","01 Aoû 2026 20:15",Abdel,Kader,noemail@noemail.com,,"130 boulevard Longchamp, 13013 Marseille",Coupe,JKut,1,"20 €",Confirmé
+28002,"06 Aoû 2026 11:00","03 Aoû 2026 20:15",Boris,Vian,noemail@noemail.com,,"28 cours Julien, 13011 Marseille",Coupe,Soldat,1,"20 €",Confirmé
+28003,"08 Aoû 2026 12:00","05 Aoû 2026 20:15",Cyril,Lignac,noemail@noemail.com,,"67 cours Julien, 13002 Marseille",Coupe,Frank,1,"20 €",Confirmé
+28004,"11 Aoû 2026 13:00","08 Aoû 2026 20:15",Damien,Saez,noemail@noemail.com,,"69 boulevard de la Libération, 13015 Marseille",Coupe,Esteban,1,"20 €",Confirmé
+28005,"12 Aoû 2026 14:00","09 Aoû 2026 20:15",Elias,Boudiaf,noemail@noemail.com,,"74 avenue de Mazargues, 13001 Marseille",Coupe,JKut,1,"20 €",Confirmé
+28006,"14 Aoû 2026 15:00","11 Aoû 2026 20:15",Fares,Zerrouki,noemail@noemail.com,,"101 rue Paradis, 13008 Marseille",Coupe,Soldat,1,"20 €",Confirmé
+28007,"18 Aoû 2026 16:00","15 Aoû 2026 20:15",Gaby,Pons,noemail@noemail.com,,"165 boulevard Longchamp, 13001 Marseille",Coupe,Frank,1,"20 €",Confirmé
+28008,"18 Aoû 2026 17:00","15 Aoû 2026 20:15",Hicham,Laroui,noemail@noemail.com,,"133 boulevard de la Libération, 13004 Marseille",Coupe,Esteban,1,"20 €",Confirmé
+28009,"20 Aoû 2026 10:00","17 Aoû 2026 20:15",Issa,Camara,noemail@noemail.com,,"93 rue Paradis, 13004 Marseille",Coupe,JKut,1,"20 €",Confirmé
+28010,"22 Aoû 2026 11:00","19 Aoû 2026 20:15",Jordy,Pagano,noemail@noemail.com,,"73 rue de la République, 13012 Marseille",Coupe,Soldat,1,"20 €",Confirmé
+28011,"25 Aoû 2026 12:00","22 Aoû 2026 20:15",Kevin,Lazzarini,a@a.fr,,"111 chemin de Saint-Menet, 13004 Marseille",Coupe,Frank,1,"20 €",Confirmé
+28012,"26 Aoû 2026 13:00","23 Aoû 2026 20:15",Lamine,Gueye,a@a.fr,,"54 rue Saint-Ferréol, 13011 Marseille",Coupe,Esteban,1,"20 €",Confirmé
+28013,"28 Aoû 2026 14:00","25 Aoû 2026 20:15",Marwan,Nasri,a@a.fr,,"6 place Pélabon, 13006 Marseille",Coupe,JKut,1,"20 €",Confirmé
+28014,"01 Sep 2026 15:00","29 Aoû 2026 20:15",Nico,Sanchez,a@a.fr,,"177 boulevard Longchamp, 13002 Marseille",Coupe,Soldat,1,"20 €",Confirmé
+28015,"01 Sep 2026 16:00","29 Aoû 2026 20:15",Oscar,Diaz,a@a.fr,,"7 place Pélabon, 13002 Marseille",Coupe,Frank,1,"20 €",Confirmé
+28016,"03 Sep 2026 17:00","31 Aoû 2026 20:15",Paulo,Mattei,x@x.com,,"69 avenue du Prado, 13009 Marseille",Coupe,Esteban,1,"20 €",Confirmé
+28017,"05 Sep 2026 10:00","02 Sep 2026 20:15",Quentin,Ricard,x@x.com,,"146 place Pélabon, 13011 Marseille",Coupe,JKut,1,"20 €",Confirmé
+28018,"08 Sep 2026 11:00","05 Sep 2026 20:15",Rudy,Gobert,x@x.com,,"89 cours Julien, 13009 Marseille",Coupe,Soldat,1,"20 €",Confirmé
+28019,"09 Sep 2026 12:00","06 Sep 2026 20:15",Steve,Mandanda,x@x.com,,"66 avenue du Prado, 13006 Marseille",Coupe,Frank,1,"20 €",Confirmé
+28020,"11 Sep 2026 13:00","08 Sep 2026 20:15",Tarik,Benzine,x@x.com,,"117 rue Saint-Ferréol, 13013 Marseille",Coupe,Esteban,1,"20 €",Confirmé
+28021,"15 Sep 2026 14:00","12 Sep 2026 20:15",Ulysse,Fabre,pas.de.mail@gmail.com,0000000000,"42 avenue du Prado, 13011 Marseille",Coupe,JKut,1,"20 €",Confirmé
+28022,"15 Sep 2026 15:00","12 Sep 2026 20:15",Victor,Hugo,pas.de.mail@gmail.com,0000000000,"113 rue Saint-Ferréol, 13012 Marseille",Coupe,Soldat,1,"20 €",Confirmé
+28023,"17 Sep 2026 16:00","14 Sep 2026 20:15",Wissam,"Ben Yedder",pas.de.mail@gmail.com,0000000000,"89 traverse du Moulin, 13011 Marseille",Coupe,Frank,1,"20 €",Confirmé
+28024,"19 Sep 2026 17:00","16 Sep 2026 20:15",Xavier,Dupont,pas.de.mail@gmail.com,0000000000,"80 rue de la République, 13016 Marseille",Coupe,Esteban,1,"20 €",Confirmé
+28025,"22 Sep 2026 10:00","19 Sep 2026 20:15",Yohan,Cabaye,pas.de.mail@gmail.com,0000000000,"137 place Pélabon, 13014 Marseille",Coupe,JKut,1,"20 €",Confirmé
+28026,"23 Sep 2026 11:00","20 Sep 2026 20:15",Zack,Morris,,0600000000,"153 rue Saint-Ferréol, 13008 Marseille",Coupe,Soldat,1,"20 €",Confirmé
+28027,"25 Sep 2026 12:00","22 Sep 2026 20:15",Adil,Rami,,0600000000,"76 cours Julien, 13016 Marseille",Coupe,Frank,1,"20 €",Confirmé
+28028,"29 Sep 2026 13:00","26 Sep 2026 20:15",Bruno,Genesio,,0600000000,"141 place Pélabon, 13009 Marseille",Coupe,Esteban,1,"20 €",Confirmé
+28029,"29 Sep 2026 14:00","26 Sep 2026 20:15",Cédric,Bakambu,,0600000000,"67 cours Julien, 13007 Marseille",Coupe,JKut,1,"20 €",Confirmé
+28030,"01 Oct 2026 15:00","28 Sep 2026 20:15",Dimitri,Payet,,0600000000,"38 cours Julien, 13002 Marseille",Coupe,Soldat,1,"20 €",Confirmé
+28031,"03 Oct 2026 16:00","30 Sep 2026 20:15",Éric,"Di Meco",,0600000000,"152 rue Saint-Ferréol, 13016 Marseille",Coupe,Frank,1,"20 €",Confirmé
+28032,"06 Oct 2026 17:00","03 Oct 2026 20:15",Florian,Thauvin,,"04 91 12 34 56","172 boulevard Longchamp, 13013 Marseille",Coupe,Esteban,1,"20 €",Confirmé
+28033,"07 Oct 2026 10:00","04 Oct 2026 20:15",Gerson,Santos,,"04 91 12 34 56","103 chemin de Saint-Menet, 13015 Marseille",Coupe,JKut,1,"20 €",Confirmé
+28034,"09 Oct 2026 11:00","06 Oct 2026 20:15",Hugo,Ekitike,,"04 91 12 34 56","109 avenue de Mazargues, 13002 Marseille",Coupe,Soldat,1,"20 €",Confirmé
+28035,"13 Oct 2026 12:00","10 Oct 2026 20:15",Iliman,Ndiaye,,"04 91 12 34 56","53 rue d’Aubagne, 13009 Marseille",Coupe,Frank,1,"20 €",Confirmé
+28036,"13 Oct 2026 13:00","10 Oct 2026 20:15",Jonathan,Clauss,,"04 91 12 34 56","46 rue Saint-Ferréol, 13004 Marseille",Coupe,Esteban,1,"20 €",Confirmé
+28037,"15 Oct 2026 14:00","12 Oct 2026 20:15",Kamil,Grabara,,"04 91 12 34 56","35 avenue du Prado, 13002 Marseille",Coupe,JKut,1,"20 €",Confirmé
+28038,"17 Oct 2026 15:00","14 Oct 2026 20:15",Leonardo,Balerdi,,0612345678,"38 boulevard Longchamp, 13004 Marseille",Coupe,Soldat,1,"20 €",Confirmé
+28039,"20 Oct 2026 16:00","17 Oct 2026 20:15",Matteo,Guendouzi,,0612345678,"113 rue Paradis, 13009 Marseille",Coupe,Frank,1,"20 €",Confirmé
+28040,"21 Oct 2026 17:00","18 Oct 2026 20:15",Nuno,Tavares,,0612345678,"98 rue Saint-Ferréol, 13010 Marseille",Coupe,Esteban,1,"20 €",Confirmé
+28041,"06 Nov 2026 11:00","28 Oct 2026 20:15",Nathan,Sylla,nathan.sylla527@proton.me,0684587424,"178 boulevard de la Libération, 13014 Marseille",Coupe,JKut,1,"20 €",Confirmé
+28042,"07 Nov 2026 11:30","28 Oct 2026 20:15",Ilyes,Leca,ilyes.leca528@gmail.com,0691956215,"121 rue d’Aubagne, 13016 Marseille",Coupe,JKut,1,"20 €",Confirmé
+28043,"10 Nov 2026 12:30","28 Oct 2026 20:15",Alexandre,Thomas,alexandre.thomas529@hotmail.fr,0699325006,"150 traverse du Moulin, 13010 Marseille",Coupe,JKut,1,"20 €",Confirmé
+28044,"10 Nov 2026 13:30","28 Oct 2026 20:15",Loïc,Bertrand,loic.bertrand530@yahoo.fr,0706693797,"47 rue Saint-Ferréol, 13009 Marseille",Coupe,JKut,1,"20 €",Confirmé

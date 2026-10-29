@@ -27,7 +27,7 @@ type ListData = { total: number; counts: Record<string, number>; excludedNoConse
 type FileClient = ClientFull & { marketingSrc?: string; marketingAt?: number | null };
 type FileData = {
   client: FileClient;
-  appts: { id: string; day: string; start: number; dur: number; status: string; services: string[]; staffId: string; price: number; source: string; saleId: string | null; note: string }[];
+  appts: { id: string; day: string; start: number; dur: number; status: string; services: string[]; staffId: string; price: number; source: string; saleId: string | null; note: string; typed?: string }[];
   sales: { id: string; ref: string; day: string; due: number; revenue: number; refunded: number; lines: string[] }[];
   packs: { id: string; name: string; used: number; total: number; expires: string; soldAt: number }[];
   messages: { id: string; channel?: 'sms' | 'email'; template: string; status: string; at: number }[];
@@ -389,7 +389,7 @@ function ClientFile({ id }: { id: string }) {
               return (
                 <li key={a.id}><button type="button" className="li" onClick={() => navigate('/agenda?day=' + a.day + '&rdv=' + a.id)}>
                   <span className="cl-date"><b>{dates.dayParts(a.day).d}</b><small>{dates.MONTHS_SH[dates.dayParts(a.day).m - 1].replace('.', '')}{a.day.slice(0, 4) !== boot.today.slice(0, 4) ? ' ' + a.day.slice(2, 4) : ''}</small></span>
-                  <span className="li-main"><b>{a.services.join(' + ')}</b><small>{time(a.start)}{st ? ' · ' + st.name : ''}{a.note ? ' · « ' + a.note + ' »' : ''}</small></span>
+                  <span className="li-main"><b>{a.services.join(' + ')}{a.typed ? <span className="faint"> · pour {a.typed}</span> : null}</b><small>{time(a.start)}{st ? ' · ' + st.name : ''}{a.note ? ' · « ' + a.note + ' »' : ''}</small></span>
                   <span className="li-end"><span className={'badge ' + (a.status === 'done' ? '' : a.status === 'no_show' ? 'badge-danger' : a.status === 'cancelled' ? 'badge-warn' : 'badge-info')}>{a.status === 'done' ? eur(a.price) : STATUS[a.status]}</span></span>
                 </button></li>
               );

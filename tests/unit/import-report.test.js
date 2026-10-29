@@ -82,7 +82,7 @@ async function wizard(t, files, { map: m, stop, chunk = 150 } = {}) {
   const p = W.readFiles(files);
   const map = m || mapping(t, p);
   const { pv, opts, imported } = await ask(t, p, map);
-  const rows = W.toRows(p, map, imported, { today: opts.today, known: opts.known, again: opts.again, erased: opts.erased, gone: pv.gone });
+  const rows = W.toRows(p, map, imported, { today: opts.today, known: opts.known, again: opts.again, erased: opts.erased, gone: pv.gone, now: t.clock.now, chairs: opts.chairs });
   const parts = [
     ...W.chunks(rows.clients, chunk).map((x) => ({ clients: x })), ...W.chunks(rows.appts, chunk).map((x) => ({ appts: x })),
     ...W.chunks(rows.giftcards, chunk).map((x) => ({ giftcards: x })), ...W.chunks(rows.packs, chunk).map((x) => ({ packs: x })), ...W.chunks(rows.gone, chunk).map((x) => ({ gone: x }))
@@ -135,7 +135,7 @@ test('a run leaves a record: start, three batches, finish; the counts are the ba
   const p = W.readFiles([{ name: 'export.csv', text: CSV }]);
   const map = mapping(t, p);
   const { pv, opts, imported } = await ask(t, p, map);
-  const rows = W.toRows(p, map, imported, { today: opts.today, gone: pv.gone });
+  const rows = W.toRows(p, map, imported, { today: opts.today, gone: pv.gone, now: t.clock.now, chairs: opts.chairs });
   assert.equal(rows.appts.length, 14);
   const parts = W.chunks(rows.appts, 5);
   assert.equal(parts.length, 3);
@@ -165,7 +165,8 @@ test('a run leaves a record: start, three batches, finish; the counts are the ba
   assert.equal(got.run.source, 'files');
   assert.ok(got.run.finishedAt);
   assert.deepEqual(got.run.window, [{ from: '2025-01-01', to: '2026-12-31' }], 'the preamble of the CSV');
-  assert.deepEqual(got.run.files, [{ name: 'export.csv', kind: 'bookings', rows: 14, sha: '0123456789abcdef' }]);
+  assert.deepEqual(got.run.files.map(({ newest, ...f }) => f), [{ name: 'export.csv', kind: 'bookings', rows: 14, sha: '0123456789abcdef' }]);
+  assert.ok(got.run.files[0].newest > Date.UTC(2026, 0, 1), 'the newest creation time of the file is kept: how fresh the export is');
   assert.ok(got.lines.length > 0 && got.lines.every((l) => typeof l.text === 'string' && typeof l.todo === 'boolean'));
   assert.equal((await P.b.get('/api/v1/import/runs')).json.runs[0].id, start.json.id);
   assert.equal((await P.b.get('/api/v1/import/runs/ir_nope')).status, 404);
@@ -174,7 +175,7 @@ test('a run leaves a record: start, three batches, finish; the counts are the ba
   // the same files again: a second run, with only « déjà là »
   const p2 = W.readFiles([{ name: 'export.csv', text: CSV }]);
   const a2 = await ask(t, p2, map);
-  const rows2 = W.toRows(p2, map, a2.imported, { today: a2.opts.today, known: a2.opts.known, again: a2.opts.again });
+  const rows2 = W.toRows(p2, map, a2.imported, { today: a2.opts.today, known: a2.opts.known, again: a2.opts.again, now: t.clock.now, chairs: a2.opts.chairs });
   const s2 = await post(P.b, '/api/v1/import/runs', W.runBody(p2, a2.pv, map, ['0123456789abcdef'], 1));
   const r2 = await post(P.b, '/api/v1/import/batch', { appts: rows2.appts, run: s2.json.id, i: 0 });
   assert.equal(r2.status, 200, JSON.stringify(r2.json));
@@ -183,9 +184,9 @@ test('a run leaves a record: start, three batches, finish; the counts are the ba
   assert.deepEqual(Object.fromEntries(Object.entries(again.counts.appts).filter(([, v]) => v)), { already: 13, skipped: 1 }, 'only what is already there (and the ERREUR row, skipped again)');
   assert.equal(again.counts.clients.added, 0);
   assert.equal((await P.b.get('/api/v1/import/runs')).json.runs.length, 2);
-  // the people the re-run carried over count as « déjà là »; the one whose only booking is in error is ignored
+  // the people the re-run carried over count as « déjà là »; the one whose only booking is in error has no visit to keep: left out, no file
   const rc = W.reconcile(again).find((x) => x.type === 'clients');
-  assert.deepEqual([rc.source, rc.made, rc.already, rc.skipped, rc.gap], [7, 0, 6, 1, 0]);
+  assert.deepEqual([rc.source, rc.made, rc.already, rc.skipped, rc.left, rc.gap], [7, 0, 6, 0, 1, 0]);
   assert.ok(W.reconcile(again).every((x) => x.gap === 0));
 
   // a finished run takes no more batches
@@ -235,7 +236,8 @@ test('it adds up: rows of the export = made + already there + skipped by reason 
   // the clients: people, counted once for the whole run
   const c = rep.find((x) => x.type === 'clients');
   assert.equal(c.source, 8, 'Mehdi, Karim, Yanis, Lucas, Hugo, Nolan, Sami, Zoé');
-  assert.deepEqual([c.made, c.already, c.left], [5, 1, 0]);
+  // Zoé (her online payment never went through) and the person whose only booking is in error have no visit to keep: no file for them
+  assert.deepEqual([c.made, c.already, c.left], [5, 1, 2]);
   assert.ok(c.gap === 0);
 
   // and the preview promised exactly that (clients-ops.test.js does the same for the batch)
@@ -249,16 +251,16 @@ test('it adds up: rows of the export = made + already there + skipped by reason 
 test('what is left out before sending is counted too: repeats across files, unreadable lines, a WXR item in an unknown state', async () => {
   const t = await shop();
   const bad = CSV + '1460,"31 Juin 2026 10:00",,Test,Test,,0644444444,Coupe,JKut,1,"20 €",Confirmé\n';
-  const wxr = WXR.replace('sln-b-paid', 'trash');
+  const wxr = WXR.replace('sln-b-paid', 'sln-b-frobnicated');
   const files = [{ name: 'a.csv', text: bad }, { name: 'b.csv', text: CSV }, { name: 'c.xml', text: wxr }];
   const p = W.readFiles(files);
   assert.ok(p.problems.some((x) => x.kind === 'status-unknown' && /1350/.test(x.text) && /État inconnu sur l’ancien site : ligne ignorée/.test(x.text)));
   assert.ok(p.unreadable.has(1460) && p.unreadable.has(1460) === true);
   const r = await wizard(t, files);
   const b = W.reconcile(r.run).find((x) => x.type === 'bookings');
-  // 15 lines in a.csv (14 + the unreadable one), the same 14 again in b.csv, 3 items in the XML: one trashed, one repeating the CSV, one only there
+  // 15 lines in a.csv (14 + the unreadable one), the same 14 again in b.csv, 3 items in the XML: one in a state the plugin does not know, one repeating the CSV, one only there
   assert.equal(r.run.excluded.duplicate, 14 + 1, 'b.csv again, and the XML’s repeat of 1310');
-  assert.equal(r.run.excluded.unreadable, 2, 'the 31 June and the trashed XML item');
+  assert.equal(r.run.excluded.unreadable, 2, 'the 31 June and the XML item in an unknown state');
   assert.equal(b.gap, 0, JSON.stringify(b));
   assert.equal(r.run.excluded.by.bookings, r.run.excluded.duplicate + r.run.excluded.unreadable);
 });
@@ -472,7 +474,9 @@ test('the unmatched service is named in the report, and a client erased leaves n
   const r = await wizard(t, [{ name: 'a.csv', text }], { map });
   assert.equal(summed(r.answers).skip.service, 1);
   const line = runLines(t.engine.state, r.run).find((l) => l.kind === 'service');
-  assert.equal(line.text, 'Prestation inconnue : Formule Coupe + Contour Barbe 25€ (ligne ignorée)');
+  // an upcoming booking lost to its service label is something to do, not a note
+  assert.equal(line.text, 'Prestation inconnue : Formule Coupe + Contour Barbe 25€ : ce rendez-vous à venir n’est pas dans l’agenda, ajoute-le à la main');
+  assert.equal(line.todo, true);
   assert.ok(!JSON.stringify(t.engine.journal.filter((e) => e.type.startsWith('import.'))).includes('Karim'));
 
   // the same number under another first name, then the file is erased
@@ -663,7 +667,7 @@ test('the CSV of a report: BOM, ; and CRLF, the counts first, a formula from the
 
 test('the wizard speaks of carnets, never abonnements', () => {
   const p = W.readFiles([{ name: 'k.csv', text: 'telephone;coupes_restantes;expire_le\n06 98 76 54 32;0;15/01/2027\n' }]);
-  assert.deepEqual(p.problems.map((x) => x.text), ['Carnet sans coupes restantes ou sans date d’expiration']);
+  assert.deepEqual(p.problems.map((x) => x.text), ['Carnet •••• 5432 : sans coupes restantes ou sans date d’expiration']);
   assert.equal(W.reconcile({ totals: { bookings: 0, clients: 0, giftcards: 0, packs: 1 }, excluded: { retention: 0, noVisit: 0, duplicate: 0, unreadable: 1, by: { packs: 1 } }, counts: {}, skip: {} }).at(-1).label, 'Carnets');
   assert.equal(say('pack', {}, 'nofile'), 'Aucun client avec ce numéro : ajoute son prénom');
   assert.equal(say('pack', { day: 'jeu. 15 janv. 2027' }, 'expired'), 'Carnet expiré le jeu. 15 janv. 2027');

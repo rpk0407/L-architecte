@@ -349,7 +349,7 @@ function InquiryCard({ q, data }: { q: Inquiry; data: InquiryData }) {
           {q.message ? <div className="bubble" style={{ alignSelf: 'stretch' }}><p>{q.message}</p></div> : <p className="faint" style={{ fontSize: 13.5 }}>Pas de message : {q.kind === 'formation' ? 'rappelle pour parler du module.' : 'rappelle pour en savoir plus.'}</p>}
           <div className="row wrap" style={{ gap: '6px 16px', fontSize: 14 }}>
             {q.phone ? <a className="link tnum" style={INLINE} href={'tel:' + q.phone.replace(/[^\d+]/g, '')}><Icon name="phone" size={14} />{q.phone}</a> : null}
-            {q.email ? <a className="link" style={INLINE} href={'mailto:' + q.email}><Icon name="mail" size={14} />{q.email}</a> : null}
+            {q.email ? <a className="link" style={INLINE} href={'mailto:' + encodeURIComponent(q.email).replace(/%40/g, '@')}><Icon name="mail" size={14} />{q.email}</a> : null}
             {q.cid ? <Link to={'/clients/' + q.cid} className="link">Voir sa fiche client</Link> : null}
           </div>
         </>

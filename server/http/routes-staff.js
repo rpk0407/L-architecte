@@ -2,7 +2,7 @@
 // The Comptoir API, for signed-in staff. Every route states the capability it needs; the handlers
 // re-check finer rules (own chair, discount caps) inside the commands.
 import { HttpError } from './kit.js';
-import { agendaView, apptView, clientCard, clientFull, saleView, staffView, serviceView, productView } from './views.js';
+import { agendaView, apptView, clientCard, clientFull, saleView, staffView, serviceView, productView, typedFor } from './views.js';
 import { freeSlots, staffIntervals, walkinEstimate } from '../domain/availability.js';
 import { clientStats, report, previousPeriod, goalOf, goalShares, autoGoal } from '../domain/insights.js';
 import { staffStatement } from '../domain/statement.js';
@@ -353,7 +353,7 @@ export function staffRoutes(app) {
     return {
       me: meView(s, r.me, r.device, r.session.kind), mode: s.mode, today: r.local.day, now: r.now, version: s.version, cfg: s.cfgVersion, settings,
       staff: [...s.staff.values()].filter((x) => x.active || full).sort((a, b) => (a.order ?? 99) - (b.order ?? 99)).map((x) => staffView(x, full || x.id === r.me.id)),
-      services: [...s.services.values()].filter((x) => x.active || r.caps.has('catalog')).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)).map(serviceView),
+      services: [...s.services.values()].filter((x) => !x.legacy && (x.active || r.caps.has('catalog'))).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)).map(serviceView),
       products: [...s.products.values()].filter((x) => x.active || r.caps.has('catalog')).map(productView),
       providers: { payments: r.rt.pay.name, paymentsLive: !!r.rt.pay.live, sms: r.rt.sms ? r.rt.sms.name : null, email: r.rt.email ? r.rt.email.name : null, store: r.rt.store.kind },
       // the server's own set-up is the owner's; what stops tonight's Z reaches whoever may close the day
@@ -537,7 +537,7 @@ export function staffRoutes(app) {
     const c = fileOf(r);
     const stats = clientStats(s, r.local.day, r.now);
     const appts = [...s.appts.values()].filter((a) => a.clientId === c.id).sort((a, b) => (b.day + String(b.start).padStart(4, '0')).localeCompare(a.day + String(a.start).padStart(4, '0')))
-      .map((a) => ({ id: a.id, day: a.day, start: a.start, dur: a.dur, status: a.status, services: a.services.map((x) => x.name), staffId: a.staffId, price: a.price, source: a.source, saleId: a.saleId, note: a.note || '' }));
+      .map((a) => ({ id: a.id, day: a.day, start: a.start, dur: a.dur, status: a.status, services: a.services.map((x) => x.name), staffId: a.staffId, price: a.price, source: a.source, saleId: a.saleId, note: a.note || '', ...(typedFor(a, c) ? { typed: typedFor(a, c) } : {}) }));
     const sales = [...s.sales.values()].filter((x) => x.clientId === c.id).sort((a, b) => b.at - a.at).slice(0, 40).map((x) => ({ id: x.id, ref: ticketNo(x.number), day: x.day, due: x.totals.due, revenue: x.totals.revenue, refunded: x.refunded, lines: x.lines.map((l) => l.name) }));
     const packs = [...s.packs.values()].filter((k) => k.clientId === c.id).map((k) => ({ id: k.id, name: k.name, used: k.used, total: k.total, expires: k.expires, soldAt: k.soldAt }));
     // the owner's alerts carry the client's id so erasure blanks them, but the client never received them

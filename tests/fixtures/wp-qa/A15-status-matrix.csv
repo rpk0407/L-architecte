@@ -1,0 +1,35 @@
+﻿Réservations,de,à
+,"01 Jan 2025","31 Déc 2027"
+
+ID,DATE/HEURE,CRÉÉ,"PRÉNOM DU CLIENT","NOM DU CLIENT","E-MAIL DU CLIENT","TÉL DU CLIENT","Adresse du client",SERVICES,ASSISTANTS,"NOMBRE DE POUR CHAQUE SERVICE","PRIX TOTAL",ÉTAT
+15901,"18 Sep 2026 10:00","15 Sep 2026 20:15",Giovanni,Saidi,giovanni.saidi181@hotmail.fr,0634985738,"68 rue Paradis, 13016 Marseille",Coupe,JKut,1,"20 €",Confirmé
+15902,"19 Sep 2026 10:00","16 Sep 2026 20:15",Timéo,Perrin,timeo.perrin182@yahoo.fr,0642354529,"53 avenue de Mazargues, 13008 Marseille",Coupe,JKut,1,"20 € (5 € déjà payé en acompte)",Payant
+15903,"22 Sep 2026 10:00","19 Sep 2026 20:15",Raphaël,Fabre,raphael.fabre183@outlook.fr,0649723320,"60 boulevard Longchamp, 13012 Marseille",Coupe,JKut,1,"20 €","Payer plus tard"
+15904,"22 Sep 2026 10:00","19 Sep 2026 20:15",Ethan,Bertrand,ethan.bertrand184@orange.fr,0657092111,"69 traverse du Moulin, 13016 Marseille",Coupe,JKut,1,"20 €","En attente"
+15905,"22 Sep 2026 10:00","19 Sep 2026 20:15",Ahmed,Bianchi,ahmed.bianchi185@free.fr,0764460902,"80 place Pélabon, 13003 Marseille",Coupe,JKut,1,"20 €","Paiement en attente"
+15906,"23 Sep 2026 10:00","20 Sep 2026 20:15",Walid,Mansouri,walid.mansouri186@sfr.fr,0671829693,"39 rue Saint-Ferréol, 13003 Marseille",Coupe,JKut,1,"20 €",Annulé
+15907,"24 Sep 2026 10:00","21 Sep 2026 20:15",Nicolas,Gauthier,nicolas.gauthier187@icloud.com,0679198484,"17 rue de la République, 13002 Marseille",Coupe,JKut,1,"20 €",ERREUR
+15908,"05 Nov 2026 11:00","28 Oct 2026 20:15",Cédric,Bastiani,cedric.bastiani188@laposte.net,0686567275,"52 avenue du Prado, 13002 Marseille",Coupe,JKut,1,"20 €",Confirmé
+15909,"06 Nov 2026 12:30","28 Oct 2026 20:15",Hugo,Michel,hugo.michel189@live.fr,0693936066,"20 avenue du Prado, 13009 Marseille",Coupe,Soldat,1,"20 € (5 € déjà payé en acompte)",Payant
+15910,"07 Nov 2026 12:30","28 Oct 2026 20:15",Kévin,Mercier,kevin.mercier190@wanadoo.fr,0701304857,"11 boulevard de la Libération, 13006 Marseille",Coupe,Frank,1,"20 €","Payer plus tard"
+15911,"10 Nov 2026 13:00","28 Oct 2026 20:15",Élias,Hamidi,elias.hamidi191@proton.me,0608673648,"67 cours Julien, 13009 Marseille",Coupe,Esteban,1,"20 €","En attente"
+15912,"10 Nov 2026 14:00","28 Oct 2026 20:15",Don,Coulibaly,don.coulibaly192@gmail.com,0616042439,"18 rue d’Aubagne, 13011 Marseille",Coupe,JKut,1,"20 €","Paiement en attente"
+15913,"10 Nov 2026 15:00","28 Oct 2026 20:15",Jules,Vidal,jules.vidal193@hotmail.fr,0623411230,"161 rue d’Aubagne, 13003 Marseille",Coupe,Soldat,1,"20 €",Annulé
+15914,"11 Nov 2026 16:00","28 Oct 2026 20:15",Dimitri,Bernard,dimitri.bernard194@yahoo.fr,0630780021,"6 chemin de Saint-Menet, 13011 Marseille",Coupe,Frank,1,"20 €",ERREUR
+15915,"29 Sep 2026 14:00","26 Sep 2026 20:15",Kylian,Muller,kylian.muller195@outlook.fr,0738148812,"140 rue Paradis, 13008 Marseille",Coupe,Soldat,1,"20 €",confirmé
+15916,"29 Sep 2026 14:00","26 Sep 2026 20:15",Maxime,Esposito,maxime.esposito196@orange.fr,0645517603,"155 boulevard de la Libération, 13002 Marseille",Coupe,Soldat,1,"20 €","CONFIRMÉ "
+15917,"30 Sep 2026 14:00","27 Sep 2026 20:15",Axel,Sow,axel.sow197@free.fr,0652886394,"98 rue Saint-Ferréol, 13007 Marseille",Coupe,Soldat,1,"20 €",Confirmée
+15918,"01 Oct 2026 14:00","28 Sep 2026 20:15",Ahmed,Vidal,ahmed.vidal198@sfr.fr,0660255185,"153 cours Julien, 13001 Marseille",Coupe,Soldat,1,"20 €",Annulée
+15919,"02 Oct 2026 14:00","29 Sep 2026 20:15",Nassim,Martin,nassim.martin199@icloud.com,0667623976,"28 avenue du Prado, 13012 Marseille",Coupe,Soldat,1,"20 €","Annulé par le client"
+15920,"03 Oct 2026 14:00","30 Sep 2026 20:15",Alexandre,Muller,alexandre.muller200@laposte.net,0774992767,"100 avenue de Mazargues, 13013 Marseille",Coupe,Soldat,1,"20 €",Payé
+15921,"06 Oct 2026 14:00","03 Oct 2026 20:15",Jérémy,Orsini,jeremy.orsini201@live.fr,0682361558,"142 avenue du Prado, 13001 Marseille",Coupe,Soldat,1,"20 €",sln-b-paid
+15922,"06 Oct 2026 14:00","03 Oct 2026 20:15",Karim,Ndiaye,karim.ndiaye202@wanadoo.fr,0689730349,"144 rue d’Aubagne, 13012 Marseille",Coupe,Soldat,1,"20 €","Pending approval"
+15923,"08 Oct 2026 15:00","05 Oct 2026 20:15",Rachid,Faure,rachid.faure203@proton.me,0697099140,"146 rue Paradis, 13005 Marseille",Coupe,Frank,1,"20 €",Brouillon
+15924,"09 Oct 2026 15:00","06 Oct 2026 20:15",Jean-Pierre,Mattei,jean.pierre.mattei204@gmail.com,0604467931,"112 traverse du Moulin, 13008 Marseille",Coupe,Frank,1,"20 €",Corbeille
+15925,"10 Oct 2026 15:00","07 Oct 2026 20:15",Gaspard,Vincent,gaspard.vincent205@hotmail.fr,0711836722,"48 chemin de Saint-Menet, 13016 Marseille",Coupe,Frank,1,"20 €",Absent
+15926,"13 Oct 2026 15:00","10 Oct 2026 20:15",Samir,Ferrari,samir.ferrari206@yahoo.fr,0619205513,"65 rue Saint-Ferréol, 13014 Marseille",Coupe,Frank,1,"20 €",Terminé
+15927,"13 Oct 2026 15:00","10 Oct 2026 20:15",Matteo,Konaté,matteo.konate207@outlook.fr,0626574304,"85 traverse du Moulin, 13004 Marseille",Coupe,Frank,1,"20 €","No show"
+15928,"13 Oct 2026 15:00","10 Oct 2026 20:15",Soufiane,Perrin,soufiane.perrin208@orange.fr,0633943095,"140 avenue du Prado, 13015 Marseille",Coupe,Frank,1,"20 €",
+15929,"14 Oct 2026 15:00","11 Oct 2026 20:15",Léo,Vidal,leo.vidal209@free.fr,0641311886,"143 traverse du Moulin, 13006 Marseille",Coupe,Frank,1,"20 €",Honoré
+15930,"15 Oct 2026 15:00","12 Oct 2026 20:15",Liam,Lefebvre,liam.lefebvre210@sfr.fr,0748680677,"14 cours Julien, 13015 Marseille",Coupe,Frank,1,"20 €",trash
+15931,"16 Oct 2026 15:00","13 Oct 2026 20:15",Corentin,Ferrari,corentin.ferrari211@icloud.com,0656049468,"28 boulevard Longchamp, 13007 Marseille",Coupe,Frank,1,"20 €",auto-draft

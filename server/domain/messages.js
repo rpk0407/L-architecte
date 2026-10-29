@@ -4,7 +4,7 @@
 // They are queued as events (so the Comptoir shows exactly what left and when) and delivered by a provider.
 import { dayParts, DAYS_SH, MONTHS_SH, fmtTime } from '../../shared/dates.js';
 import { afterQuiet, withStop } from '../../shared/sms.js';
-import { maskPhone, maskEmail, isEmail } from '../lib/util.js';
+import { maskPhone, maskEmail, isEmail, isLandline } from '../lib/util.js';
 import { fmtEur } from '../../shared/money.js';
 import { TEMPLATE_FLAGS, classOf } from '../core/templates.js';
 import { waVarNames } from '../settings/messages.js';
@@ -163,6 +163,8 @@ export function queueMessage(s, ctx, m) {
   const id = messageId(m.key);
   if (s.messages.has(id) || ctx.drafts.some((d) => d.type === 'message.queued' && d.data.id === id)) return null;
   if (!m.to) return null;
+  // a landline cannot receive a text: nothing is queued for it (the import's report says « Numéro fixe : pas de SMS »)
+  if (m.channel !== 'email' && isLandline(m.to)) return null;
   const M = s.settings.messages;
   const flags = TEMPLATE_FLAGS[m.template] || {};
   const cls = classOf(m.template);

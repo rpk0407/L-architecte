@@ -1,0 +1,19 @@
+﻿Réservations,de,à
+,"01 Jan 2025","31 Déc 2027"
+
+ID,DATE/HEURE,CRÉÉ,"PRÉNOM DU CLIENT","NOM DU CLIENT","E-MAIL DU CLIENT","TÉL DU CLIENT","Adresse du client",SERVICES,ASSISTANTS,"NOMBRE DE POUR CHAQUE SERVICE","PRIX TOTAL",ÉTAT
+17901,"29 Aoû 2026 10:00","26 Aoû 2026 20:15",Jordan,Perrin,jordan.perrin239@proton.me,0662375616,"21 chemin de Saint-Menet, 13006 Marseille","Coupe, Formule Taille de Barbe 18€","JKut, JKut","1, 1","38 €",Confirmé
+17902,"03 Sep 2026 10:00","31 Aoû 2026 20:15",Frédéric,Picard,frederic.picard240@gmail.com,0769744407,"156 rue Paradis, 13007 Marseille","Coupe, Formule Taille de Barbe 18€","JKut, Soldat","1, 1","38 €",Confirmé
+17903,"08 Sep 2026 10:00","05 Sep 2026 20:15",Lucas,Durand,lucas.durand241@hotmail.fr,0677113198,"172 cours Julien, 13002 Marseille","Coupe, Coupe junior","Frank, Frank","2, 1","35 €",Confirmé
+17904,"15 Sep 2026 10:00","12 Sep 2026 20:15",Farid,David,farid.david242@yahoo.fr,0684481989,"158 chemin de Saint-Menet, 13010 Marseille","Coupe, Soin visage","Esteban, Esteban","1, 1","35 €",Confirmé
+17905,"18 Sep 2026 10:00","15 Sep 2026 20:15",Jean-Baptiste,Ferrari,jean.baptiste.ferrari243@outlook.fr,0691850780,"18 avenue du Prado, 13006 Marseille","Coupe, Formule Taille de Barbe 18€, Formule Décoloration  60€, Formule Silver 100€, Formule Transformation  50€, Coupe junior, Formule Coupe + Contour Barbe 25€",JKut,"1, 1, 1, 1, 1, 1, 1","200 €",Confirmé
+17906,"23 Sep 2026 10:00","20 Sep 2026 20:15",Kylian,Doucouré,kylian.doucoure244@orange.fr,0699219571,"19 cours Julien, 13015 Marseille","Coupe, Coupe",JKut,2,"40 €",Confirmé
+17907,"29 Sep 2026 10:00","26 Sep 2026 20:15",Jules,André,jules.andre245@free.fr,0706588362,"121 boulevard Longchamp, 13006 Marseille",Coupe,JKut,1,"20 €",Confirmé
+17908,"29 Sep 2026 10:00","26 Sep 2026 20:15",Jules,André,jules.andre245@free.fr,0706588362,"121 boulevard Longchamp, 13006 Marseille",COUPE,JKUT,1,"20 €",Confirmé
+17909,"30 Sep 2026 10:00","27 Sep 2026 20:15",Jules,André,jules.andre245@free.fr,0706588362,"121 boulevard Longchamp, 13006 Marseille",Coupe,"J Kut",1,"20 €",Confirmé
+17910,"01 Oct 2026 10:00","28 Sep 2026 20:15",Jules,André,jules.andre245@free.fr,0706588362,"121 boulevard Longchamp, 13006 Marseille","Coupe  ","jkut ",1,"20 €",Confirmé
+17911,"02 Oct 2026 10:00","29 Sep 2026 20:15",Oussama,Thomas,oussama.thomas246@sfr.fr,0613957153,"118 traverse du Moulin, 13003 Marseille",Coupe,,1,"20 €",Confirmé
+17912,"05 Nov 2026 12:30","28 Oct 2026 20:15",Idriss,Michel,idriss.michel247@icloud.com,0621325944,"142 chemin de Saint-Menet, 13001 Marseille","Coupe, Formule Taille de Barbe 18€","JKut, Soldat","1, 1","38 €",Confirmé
+17913,"06 Nov 2026 10:00","28 Oct 2026 20:15",Maxime,Mercier,maxime.mercier248@laposte.net,0628694735,"1 avenue de Mazargues, 13014 Marseille",Coupe,,1,"20 €",Confirmé
+17914,"07 Nov 2026 10:00","28 Oct 2026 20:15",Thomas,Ndiaye,thomas.ndiaye249@live.fr,0636063526,"100 traverse du Moulin, 13015 Marseille",Coupe,"J Kut",1,"20 €",Confirmé
+17915,"10 Nov 2026 10:00","28 Oct 2026 20:15",Mickaël,Rousseau,mickael.rousseau250@wanadoo.fr,0743432317,"88 rue Paradis, 13013 Marseille","Coupe, Soin visage",Esteban,"1, 1","35 €",Confirmé

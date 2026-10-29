@@ -1,6 +1,6 @@
 /* Réglages › Reprendre WordPress */
 .wp-steps { display: flex; flex-direction: column; gap: 10px; margin: 0; padding-left: 20px; list-style: decimal; font-size: 14px; line-height: 1.5; color: var(--tx2); }
-.wp-steps li::marker { color: var(--tx3); font-weight: 600; }
+.wp-steps li::marker { color: var(--tx2); font-weight: 600; }
 .wp-steps b { color: var(--tx); font-weight: 600; }
 .wp-drop { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-height: 148px; padding: 20px; border-radius: 18px; border: 1.5px dashed var(--line2); background: var(--panel2); color: var(--tx2); text-align: center; cursor: pointer; transition: border-color .15s, background-color .15s; }
 .wp-drop:hover, .wp-drop.over { border-color: var(--tx2); background: var(--panel3); }
@@ -18,14 +18,14 @@
 .wp-row { display: grid; grid-template-columns: minmax(0, 1fr) 16px minmax(0, 1fr); align-items: center; gap: 12px; padding: 8px 0; border-top: 1px solid var(--line); }
 .wp-row > span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .wp-row b { font: 600 14px/1.25 var(--sans); overflow-wrap: anywhere; }
-.wp-row small { font-size: 12.5px; color: var(--tx3); }
-.wp-row > svg { color: var(--tx3); }
+.wp-row small { font-size: 12.5px; color: var(--tx2); }
+.wp-row > svg { color: var(--tx2); }
 .wp-go { display: flex; align-items: center; gap: 16px; margin-top: 8px; padding-top: 14px; border-top: 1px solid var(--line); }
 .wp-go p { flex: 1; font-size: 13px; }
 .wp-bar { height: 6px; border-radius: 4px; background: var(--line2); overflow: hidden; }
 .wp-bar i { display: block; height: 100%; background: var(--accent); border-radius: 4px; transition: width .3s var(--ease-out); }
 .wp-review .li { min-height: 48px; padding: 9px 2px; }
-@media (max-width: 760px) {
+@media (max-width: 900px) {
   .wp-row { grid-template-columns: minmax(0, 1fr); gap: 6px; }
   .wp-row > svg { display: none; }
   .wp-go { flex-direction: column; align-items: stretch; }
@@ -36,7 +36,7 @@
 .wr-files { display: flex; flex-wrap: wrap; gap: 4px 18px; margin: 0; padding: 0; list-style: none; font-size: 13px; }
 .wr-files li { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
 .wr-files b { font-weight: 600; overflow-wrap: anywhere; }
-.wr-files small { color: var(--tx3); font-size: 12px; }
+.wr-files small { color: var(--tx2); font-size: 12px; }
 .wr-table th[scope='row'] { padding: 12px 10px; text-align: left; font: 600 14px/1.2 var(--sans); color: var(--tx); white-space: nowrap; border-bottom: 1px solid var(--line); }
 .wr-table tbody tr:last-child th, .wr-table tbody tr:last-child td { border-bottom: 0; }
 .wr-table td.wr-more { width: 52px; padding: 4px 0 4px 6px; text-align: right; }
@@ -70,3 +70,37 @@
   .wr-table tr.wr-why td { padding: 0; border: 0; }
   .wr-table tr.wr-why { margin: -4px 0 10px; }
 }
+
+/* The files dropped, what was read of them */
+.wp-files .li-main small { color: var(--tx2); font-size: 12.5px; line-height: 1.4; overflow-wrap: anywhere; white-space: normal; }
+.wp-files .li { align-items: flex-start; gap: 10px; }
+.wp-files .li .badge { margin-top: 2px; }
+.wp-files .wp-why-file { color: var(--warn-tx); font-weight: 500; }
+.wp-files .wp-info { color: var(--tx2); font-style: normal; }
+.wp-reading { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 13px; color: var(--tx2); }
+.wp-wait { margin: 0; font-size: 13px; color: var(--tx2); }
+.wp-models { display: inline-flex; flex-wrap: wrap; gap: 8px; margin: 6px 0; vertical-align: top; }
+.wp-sample { display: flex; flex-direction: column; gap: 8px; padding-top: 10px; border-top: 1px solid var(--line); }
+.wp-sample h3 { margin: 0; font: 600 15px/1.3 var(--sans); }
+.wp-sample p { margin: 0; font-size: 13px; color: var(--tx2); }
+.wp-sample-t th[scope='row'] { padding: 12px 10px; text-align: left; font-variant-numeric: tabular-nums; font: 600 13px/1.2 var(--sans); color: var(--tx2); white-space: nowrap; border-bottom: 1px solid var(--line); }
+.wp-sample-t tbody tr:last-child th { border-bottom: 0; }
+.wp-sample-t thead th { color: var(--tx2); }
+.wp-issues-list summary { min-height: 44px; display: flex; align-items: center; font: 600 14px/1.2 var(--sans); color: var(--tx2); cursor: pointer; }
+.wp-issues-list .list { max-height: 360px; overflow: auto; }
+.wp-issues .li { min-height: 44px; padding: 8px 2px; }
+.wp-issues .li-main small { color: var(--tx2); overflow-wrap: anywhere; }
+@media (max-width: 760px) {
+  /* the first lines read, as cards: the column names become the labels */
+  .wp-sample-t, .wp-sample-t tbody, .wp-sample-t tr, .wp-sample-t th, .wp-sample-t td { display: block; }
+  .wp-sample-t thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .table-wrap:has(.wp-sample-t) { overflow: visible; margin: 0; padding: 0; }
+  .wp-sample-t tr { margin-bottom: 8px; padding: 10px 14px 6px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel2); }
+  .wp-sample-t th[scope='row'] { padding: 0 0 4px; border: 0; }
+  .wp-sample-t td { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border: 0; border-top: 1px solid var(--line); text-align: right; overflow-wrap: anywhere; }
+  .wp-sample-t td::before, .wp-sample-t th[scope='row']::before { content: attr(data-label); color: var(--tx2); font-weight: 500; text-align: left; flex: none; }
+  .wp-sample-t th[scope='row'] { display: flex; justify-content: space-between; gap: 12px; }
+}
+/* touch targets: the buttons of the files, the models, the lines nobody could read */
+.wp-files .btn, .wp-models .btn, .wp-issues .btn, .wp-steps .btn { min-height: 44px; }
+.wp-files .btn-icon { min-width: 44px; }

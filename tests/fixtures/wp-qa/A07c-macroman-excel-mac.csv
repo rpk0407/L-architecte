@@ -1,0 +1,10 @@
+Réservations;de;à
+;01/01/2025;31/12/2027
+
+ID;DATE/HEURE;CRÉÉ;PRÉNOM DU CLIENT;NOM DU CLIENT;E-MAIL DU CLIENT;TÉL DU CLIENT;Adresse du client;SERVICES;ASSISTANTS;NOMBRE DE POUR CHAQUE SERVICE;PRIX TOTAL;ÉTAT
+17501;19/08/2026 10:00;16/08/2026 20:15;Éloïse;Müller;adam.rodriguez290@yahoo.fr;0738183957;33 avenue du Prado, 13004 Marseille;Coupe;JKut;1;20,00 €;Confirmé
+17502;08/09/2026 11:00;05/09/2026 20:15;Zoë;Lefèvre;dylan.camara291@outlook.fr;0645552748;80 traverse du Moulin, 13012 Marseille;Coupe;JKut;1;20,00 EUR;Confirmé
+17503;29/09/2026 12:00;26/09/2026 20:15;Noël;Brûlé;aymeric.lambert292@orange.fr;0652921539;29 rue de la République, 13002 Marseille;Coupe;JKut;1;20,00 EUR;Confirmé
+17504;16/10/2026 13:00;13/10/2026 20:15;Hélène;Dupré;marius.mattei293@free.fr;0660290330;16 avenue du Prado, 13006 Marseille;Coupe;JKut;1;20,00 EUR;Confirmé
+17505;05/11/2026 14:30;28/10/2026 20:15;Gaël;Mélin;sofiane.bertrand294@sfr.fr;0667659121;167 rue de la République, 13005 Marseille;Coupe;JKut;1;20,00 EUR;Confirmé
+17506;10/11/2026 15:00;28/10/2026 20:15;Joël;Lécuyer;mamadou.rossi295@icloud.com;0775027912;26 rue d’Aubagne, 13005 Marseille;Coupe;JKut;1;20,00 EUR;Confirmé

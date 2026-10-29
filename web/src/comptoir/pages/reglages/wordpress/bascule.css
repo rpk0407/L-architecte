@@ -15,7 +15,7 @@
 .jj-step.ok .jj-t b { color: var(--tx2); }
 .jj-line { font-size: 13.5px; line-height: 1.45; color: var(--tx2); overflow-wrap: anywhere; }
 .jj-step.err .jj-line { color: var(--danger); }
-.jj-sub { font-size: 12.5px; line-height: 1.45; color: var(--tx3); overflow-wrap: anywhere; }
+.jj-sub { font-size: 12.5px; line-height: 1.45; color: var(--tx2); overflow-wrap: anywhere; }
 .jj-go { display: flex; align-items: flex-start; }
 .jj-go .btn { white-space: nowrap; }
 .jj-domain, .jj-force { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 6px; }
@@ -24,14 +24,14 @@
 .jj-link { align-self: flex-start; min-height: 44px; padding: 0; background: none; color: var(--tx2); font: 500 13px/1.3 var(--sans); text-decoration: underline; text-underline-offset: 3px; text-align: left; cursor: pointer; }
 .jj-link:hover { color: var(--tx); }
 .jj-link:focus-visible { outline: 2px solid var(--accent2); outline-offset: 2px; border-radius: 4px; }
-.jj-after { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 6px; font-size: 12.5px; color: var(--tx3); }
+.jj-after { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 6px; font-size: 12.5px; color: var(--tx2); }
 .jj-back { border-radius: 14px; box-shadow: inset 0 0 0 1px var(--line); }
 .jj-back summary { display: flex; align-items: center; min-height: 48px; padding: 0 16px; font: 600 14px/1.2 var(--sans); color: var(--tx2); cursor: pointer; }
 .jj-back summary:focus-visible { outline: 2px solid var(--accent2); outline-offset: 2px; border-radius: 14px; }
 .jj-back[open] summary { border-bottom: 1px solid var(--line); }
 .jj-back > div { padding: 14px 16px 16px; font-size: 13.5px; line-height: 1.5; color: var(--tx2); }
 .jj-back-steps { display: flex; flex-direction: column; gap: 8px; margin: 0; padding-left: 22px; list-style: decimal; }
-.jj-back-steps li::marker { color: var(--tx3); font-weight: 600; }
+.jj-back-steps li::marker { color: var(--tx2); font-weight: 600; }
 .jj-back-steps b { color: var(--tx); }
 .jj-back code { font-size: 12.5px; }
 .jj-back-acts { flex-wrap: wrap; align-items: center; gap: 8px 14px; }
@@ -45,8 +45,8 @@
   .jj-back-acts .btn { width: 100%; }
 }
 @media (prefers-reduced-motion: reduce) { .jj-step { transition: none; } }
-.jj-before { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; font-size: 12.5px; line-height: 1.45; color: var(--tx3); }
+.jj-before { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; font-size: 12.5px; line-height: 1.45; color: var(--tx2); }
 .jj-before b { font-weight: 600; color: var(--tx2); }
 .jj-before ul { display: flex; flex-direction: column; gap: 3px; margin: 0; padding-left: 18px; list-style: disc; }
 .jj-before li { display: list-item; }
-.jj-before li::marker { color: var(--tx3); }
+.jj-before li::marker { color: var(--tx2); }

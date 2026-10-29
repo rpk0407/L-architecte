@@ -66,7 +66,12 @@ test('phone numbers from the old site: the country code is added, the rest goes 
   assert.equal(normPhoneImport('470123456', '+32'), '+32470123456', 'the plugin keeps the prefix apart');
   assert.equal(normPhoneImport('+32 470 12 34 56'), '+32470123456');
   assert.equal(normPhoneImport('612345678', '+33'), '+33612345678');
-  for (const bad of ['12 34', '512345678', '+1 555 0100', '', 'abc']) assert.equal(normPhoneImport(bad), null, bad);
+  for (const bad of ['12 34', '512345678', '+33 6 12 34', '+0612345678', '', 'abc']) assert.equal(normPhoneImport(bad), null, bad);
+  // any country written with its + or 00 is kept as E.164, whatever the country; the plugin's separate prefix may be any 1 to 3 digit code
+  assert.equal(normPhoneImport('+1 415 555 2671'), '+14155552671');
+  assert.equal(normPhoneImport('00221771234567'), '+221771234567');
+  assert.equal(normPhoneImport('77 123 45 67', '221'), '+221771234567');
+  assert.equal(normPhoneImport('661234567', '212'), '+212661234567');
   for (const raw of ['612345678', '0033612345678', '12 34', '470123456', '+32 470 12 34 56', '0755667788']) assert.equal(W.normPhoneImport(raw, raw === '470123456' ? '+32' : undefined), normPhoneImport(raw, raw === '470123456' ? '+32' : undefined), 'the browser previews what the server does: ' + raw);
 });
 
@@ -104,7 +109,7 @@ test('importing the export: client files, past visits, upcoming bookings, nothin
   const pv0 = W.preview(p, map, t.clock.now);
   const known = new Set(pv0.identities.map((ids, g) => (ids.some((k) => k.phone && normPhoneImport(k.phone, k.prefix) === '+33612345678') ? g : -1)).filter((g) => g >= 0));
   const pv = W.preview(p, map, t.clock.now, { known });
-  assert.deepEqual(pv.counts, { newClients: 5, merged: 1, past: 7, noShow: 0, upcoming: 4, cancelled: 2, skipped: 1, unmapped: 0, already: 0, toCancel: 0, toMove: 0, toClose: 0, erased: 0, giftcards: 0, packs: 0 });
+  assert.deepEqual(pv.counts, { newClients: 5, merged: 1, past: 7, noShow: 0, upcoming: 4, cancelled: 2, skipped: 1, unmapped: 0, already: 0, toCancel: 0, toMove: 0, toClose: 0, toReopen: 0, erased: 0, giftcards: 0, packs: 0 });
   assert.ok(pv.review.some((r) => r.wp === 1315 && /Numéro illisible/.test(r.text)));
   assert.ok(pv.review.some((r) => r.wp === 1361 && /Chevauche/.test(r.text)));
 
@@ -353,7 +358,7 @@ test('the API: preview, batch, paper gift cards in the liabilities and in no Z, 
   }
   const pre2 = await owner.post('/api/v1/import/preview', { keys: [{ phone: '0698765432' }, { email: 'personne@exemple.fr' }], wp: [1350, 9999] });
   assert.deepEqual([pre2.json.known, pre2.json.again, pre2.json.imported], [[], [0], [1350]], 'a file an earlier run created is not counted as merged');
-  assert.deepEqual(pre2.json.appts, [{ wp: 1350, day: '2026-11-10', start: 600, dur: 45, staffId: ids.jkut, status: 'booked', open: true, movedHere: false }]);
+  assert.deepEqual(pre2.json.appts, [{ wp: 1350, day: '2026-11-10', start: 600, dur: 45, staffId: ids.jkut, status: 'booked', open: true, movedHere: false, cancelledByImport: false }]);
 
   // the cut-over day itself: this morning's visit, already over and paid on the old till, is history, not to be paid here
   const head = 'ID,DATE/HEURE,CRÉÉ,"PRÉNOM DU CLIENT","NOM DU CLIENT","E-MAIL DU CLIENT","TÉL DU CLIENT",SERVICES,ASSISTANTS,"PRIX TOTAL",ÉTAT\n';
