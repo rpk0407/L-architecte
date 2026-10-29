@@ -10,13 +10,15 @@ export class InvalidInput extends Error {
 /** @template T @typedef {{ parse: (x: any, path: string) => T, optional?: boolean }} Schema */
 
 /** @returns {Schema<string>} */
-export const str = ({ min = 0, max = 200, pattern = /** @type {RegExp|null} */ (null), trim = true, lower = false } = {}) => ({
+/** `cut`: a text that is too long is truncated instead of refused (the import's preview, where a long cell must not lock the page). */
+export const str = ({ min = 0, max = 200, pattern = /** @type {RegExp|null} */ (null), trim = true, lower = false, cut = false } = {}) => ({
   parse(x, p) {
     if (typeof x !== 'string') throw new InvalidInput(p, 'texte attendu');
     let v = trim ? x.trim() : x;
     if (lower) v = v.toLowerCase();
     // strip control characters, keep newlines and tabs
     v = v.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '');
+    if (cut && v.length > max) v = v.slice(0, max);
     if (v.length < min) throw new InvalidInput(p, min === 1 ? 'obligatoire' : `au moins ${min} caractères`);
     if (v.length > max) throw new InvalidInput(p, `${max} caractères maximum`);
     if (pattern && !pattern.test(v)) throw new InvalidInput(p, 'format invalide');

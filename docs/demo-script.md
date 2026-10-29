@@ -2,6 +2,8 @@
 
 Two screens: a laptop or tablet with **the Comptoir**, a phone with **the site**. The demo salon is alive: ten weeks of history, today's agenda filling up, clients booking online now and then. Start from a fresh salon: Comptoir › Réglages › Données › Remettre à zéro.
 
+**Never drop real client files into the demo** (Réglages › Reprendre WordPress): its owner login is public and imported clients are never purged. Use test files only; to rehearse the cut-over with the real exports, use a private production-mode copy.
+
 Access: owner `gerant@larchitecte.fr` / `Architecte13` · barbers' PINs JKut 2468, Frank 1357, Le Soldat 8642, Esteban 9753 · accueil Inès 1470.
 
 ## 1. "Your day, on one screen" (3 min) · Comptoir, owner

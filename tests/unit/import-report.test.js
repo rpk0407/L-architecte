@@ -19,6 +19,7 @@ import { createRuntime } from '../../server/http/runtime.js';
 import { memoryStore } from '../../server/store/memory.js';
 import { capsOf } from '../../server/domain/permissions.js';
 import { browser } from '../api/client.js';
+import { withFixes } from '../wp-helpers.js';
 
 const fixture = (f) => readFileSync(new URL('../fixtures/' + f, import.meta.url), 'utf8');
 const CSV = fixture('wp-bookings-fr.csv');
@@ -70,7 +71,7 @@ async function ask(t, p, map) {
     if (w === 'salon') known.add(k.g); else if (w === 'wordpress') again.add(k.g);
     else if (w === 'erased') erased.set(k.g, Math.max(rowTomb(s, k, TOMB).at, erased.get(k.g) || 0));
   }
-  const imported = new Map(priorView(s, p.bookings.map((b) => b.wp)).map((a) => [a.wp, a]));
+  const imported = withFixes(s, p, new Map(priorView(s, p.bookings.map((b) => b.wp)).map((a) => [a.wp, a])), t.clock.now);
   const days = [...new Set(p.bookings.filter((b) => b.day >= today).map((b) => b.day))].slice(0, 120);
   const svcDur = Object.fromEntries([...s.services.values()].map((x) => [x.id, { dur: x.dur, buffer: x.buffer || 0 }]));
   const opts = { known, again, erased, imported, chairs: chairsOf(t), today, inWindow: inWindow(s, p.windows, today), busy: busyView(s, days), svcDur };
@@ -82,7 +83,7 @@ async function wizard(t, files, { map: m, stop, chunk = 150 } = {}) {
   const p = W.readFiles(files);
   const map = m || mapping(t, p);
   const { pv, opts, imported } = await ask(t, p, map);
-  const rows = W.toRows(p, map, imported, { today: opts.today, known: opts.known, again: opts.again, erased: opts.erased, gone: pv.gone });
+  const rows = W.toRows(p, map, imported, { today: opts.today, known: opts.known, again: opts.again, erased: opts.erased, gone: pv.gone, now: t.clock.now, chairs: opts.chairs });
   const parts = [
     ...W.chunks(rows.clients, chunk).map((x) => ({ clients: x })), ...W.chunks(rows.appts, chunk).map((x) => ({ appts: x })),
     ...W.chunks(rows.giftcards, chunk).map((x) => ({ giftcards: x })), ...W.chunks(rows.packs, chunk).map((x) => ({ packs: x })), ...W.chunks(rows.gone, chunk).map((x) => ({ gone: x }))
@@ -135,7 +136,7 @@ test('a run leaves a record: start, three batches, finish; the counts are the ba
   const p = W.readFiles([{ name: 'export.csv', text: CSV }]);
   const map = mapping(t, p);
   const { pv, opts, imported } = await ask(t, p, map);
-  const rows = W.toRows(p, map, imported, { today: opts.today, gone: pv.gone });
+  const rows = W.toRows(p, map, imported, { today: opts.today, gone: pv.gone, now: t.clock.now, chairs: opts.chairs });
   assert.equal(rows.appts.length, 14);
   const parts = W.chunks(rows.appts, 5);
   assert.equal(parts.length, 3);
@@ -165,7 +166,8 @@ test('a run leaves a record: start, three batches, finish; the counts are the ba
   assert.equal(got.run.source, 'files');
   assert.ok(got.run.finishedAt);
   assert.deepEqual(got.run.window, [{ from: '2025-01-01', to: '2026-12-31' }], 'the preamble of the CSV');
-  assert.deepEqual(got.run.files, [{ name: 'export.csv', kind: 'bookings', rows: 14, sha: '0123456789abcdef' }]);
+  assert.deepEqual(got.run.files.map(({ newest, ...f }) => f), [{ name: 'export.csv', kind: 'bookings', rows: 14, sha: '0123456789abcdef' }]);
+  assert.ok(got.run.files[0].newest > Date.UTC(2026, 0, 1), 'the newest creation time of the file is kept: how fresh the export is');
   assert.ok(got.lines.length > 0 && got.lines.every((l) => typeof l.text === 'string' && typeof l.todo === 'boolean'));
   assert.equal((await P.b.get('/api/v1/import/runs')).json.runs[0].id, start.json.id);
   assert.equal((await P.b.get('/api/v1/import/runs/ir_nope')).status, 404);
@@ -174,7 +176,7 @@ test('a run leaves a record: start, three batches, finish; the counts are the ba
   // the same files again: a second run, with only « déjà là »
   const p2 = W.readFiles([{ name: 'export.csv', text: CSV }]);
   const a2 = await ask(t, p2, map);
-  const rows2 = W.toRows(p2, map, a2.imported, { today: a2.opts.today, known: a2.opts.known, again: a2.opts.again });
+  const rows2 = W.toRows(p2, map, a2.imported, { today: a2.opts.today, known: a2.opts.known, again: a2.opts.again, now: t.clock.now, chairs: a2.opts.chairs });
   const s2 = await post(P.b, '/api/v1/import/runs', W.runBody(p2, a2.pv, map, ['0123456789abcdef'], 1));
   const r2 = await post(P.b, '/api/v1/import/batch', { appts: rows2.appts, run: s2.json.id, i: 0 });
   assert.equal(r2.status, 200, JSON.stringify(r2.json));
@@ -183,9 +185,9 @@ test('a run leaves a record: start, three batches, finish; the counts are the ba
   assert.deepEqual(Object.fromEntries(Object.entries(again.counts.appts).filter(([, v]) => v)), { already: 13, skipped: 1 }, 'only what is already there (and the ERREUR row, skipped again)');
   assert.equal(again.counts.clients.added, 0);
   assert.equal((await P.b.get('/api/v1/import/runs')).json.runs.length, 2);
-  // the people the re-run carried over count as « déjà là »; the one whose only booking is in error is ignored
+  // the people the re-run carried over count as « déjà là »; the one whose only booking is in error has no visit to keep: left out, no file
   const rc = W.reconcile(again).find((x) => x.type === 'clients');
-  assert.deepEqual([rc.source, rc.made, rc.already, rc.skipped, rc.gap], [7, 0, 6, 1, 0]);
+  assert.deepEqual([rc.source, rc.made, rc.already, rc.skipped, rc.left, rc.gap], [7, 0, 6, 0, 1, 0]);
   assert.ok(W.reconcile(again).every((x) => x.gap === 0));
 
   // a finished run takes no more batches
@@ -235,7 +237,8 @@ test('it adds up: rows of the export = made + already there + skipped by reason 
   // the clients: people, counted once for the whole run
   const c = rep.find((x) => x.type === 'clients');
   assert.equal(c.source, 8, 'Mehdi, Karim, Yanis, Lucas, Hugo, Nolan, Sami, Zoé');
-  assert.deepEqual([c.made, c.already, c.left], [5, 1, 0]);
+  // Zoé (her online payment never went through) and the person whose only booking is in error have no visit to keep: no file for them
+  assert.deepEqual([c.made, c.already, c.left], [5, 1, 2]);
   assert.ok(c.gap === 0);
 
   // and the preview promised exactly that (clients-ops.test.js does the same for the batch)
@@ -249,16 +252,16 @@ test('it adds up: rows of the export = made + already there + skipped by reason 
 test('what is left out before sending is counted too: repeats across files, unreadable lines, a WXR item in an unknown state', async () => {
   const t = await shop();
   const bad = CSV + '1460,"31 Juin 2026 10:00",,Test,Test,,0644444444,Coupe,JKut,1,"20 €",Confirmé\n';
-  const wxr = WXR.replace('sln-b-paid', 'trash');
+  const wxr = WXR.replace('sln-b-paid', 'sln-b-frobnicated');
   const files = [{ name: 'a.csv', text: bad }, { name: 'b.csv', text: CSV }, { name: 'c.xml', text: wxr }];
   const p = W.readFiles(files);
   assert.ok(p.problems.some((x) => x.kind === 'status-unknown' && /1350/.test(x.text) && /État inconnu sur l’ancien site : ligne ignorée/.test(x.text)));
   assert.ok(p.unreadable.has(1460) && p.unreadable.has(1460) === true);
   const r = await wizard(t, files);
   const b = W.reconcile(r.run).find((x) => x.type === 'bookings');
-  // 15 lines in a.csv (14 + the unreadable one), the same 14 again in b.csv, 3 items in the XML: one trashed, one repeating the CSV, one only there
+  // 15 lines in a.csv (14 + the unreadable one), the same 14 again in b.csv, 3 items in the XML: one in a state the plugin does not know, one repeating the CSV, one only there
   assert.equal(r.run.excluded.duplicate, 14 + 1, 'b.csv again, and the XML’s repeat of 1310');
-  assert.equal(r.run.excluded.unreadable, 2, 'the 31 June and the trashed XML item');
+  assert.equal(r.run.excluded.unreadable, 2, 'the 31 June and the XML item in an unknown state');
   assert.equal(b.gap, 0, JSON.stringify(b));
   assert.equal(r.run.excluded.by.bookings, r.run.excluded.duplicate + r.run.excluded.unreadable);
 });
@@ -354,16 +357,21 @@ test('conflicts: same number other first name, an e-mail already on another file
   assert.equal(c.review.find((r) => r.kind === 'email-elsewhere').text, 'Cet e-mail est déjà sur la fiche de Ben : pas copié');
   assert.equal(s.clients.get(ben).email, 'ben@exemple.fr');
 
-  // a customer of the old site, by id: a new number is kept apart
+  // a customer of the old site, by id: the number of his newest booking is the file's (the file remembers which booking its number is the word of)
   const d = await t.engine.run(importBatch, { appts: [row(906, { first: 'Zoé', last: 'Roux', phone: '0600000087', wpUser: 87 })] }, as);
   const zoe = byWp(t, 906).clientId;
-  assert.deepEqual(s.clients.get(zoe).ext, { wp: 87 });
+  assert.deepEqual(s.clients.get(zoe).ext, { wp: 87, pw: 906 });
   assert.deepEqual(d.review.filter((r) => r.kind === 'new-number'), []);
   const e = await t.engine.run(importBatch, { appts: [row(907, { first: 'Zoé', last: 'Roux', phone: '0600000099', wpUser: 87 })] }, as);
   assert.equal(byWp(t, 907).clientId, zoe, 'one person, one file');
-  assert.equal(s.clients.get(zoe).phone, '+33600000087', 'the number is not changed');
-  assert.equal(e.review.find((r) => r.kind === 'new-number').text, 'Nouveau numéro sur l’ancien site pour Zoé Roux : numéro gardé, à vérifier');
-  assert.equal(s.clientByPhone.get('+33600000099'), undefined);
+  assert.equal(s.clients.get(zoe).phone, '+33600000099', 'the newest booking’s number');
+  assert.equal(e.review.find((r) => r.kind === 'new-number').text, 'Autre numéro sur l’ancien site pour Zoé Roux : mis sur la fiche, vérifie');
+  assert.equal(s.clientByPhone.get('+33600000099'), zoe);
+  assert.equal(s.clientByPhone.get('+33600000087'), undefined);
+  // an older booking met later does not take it back, and says nothing
+  const e2 = await t.engine.run(importBatch, { appts: [row(801, { first: 'Zoé', last: 'Roux', phone: '0600000055', wpUser: 87, start: 720 })] }, as);
+  assert.equal(s.clients.get(zoe).phone, '+33600000099');
+  assert.deepEqual(e2.review.filter((r) => r.kind === 'new-number'), []);
   // a file met by number gets the customer id, for the next time
   await t.engine.run(importBatch, { appts: [row(908, { first: 'Ali', phone: '0611111111', wpUser: 55 })] }, as);
   assert.deepEqual(s.clients.get(ali).ext, { wp: 55 });
@@ -472,7 +480,9 @@ test('the unmatched service is named in the report, and a client erased leaves n
   const r = await wizard(t, [{ name: 'a.csv', text }], { map });
   assert.equal(summed(r.answers).skip.service, 1);
   const line = runLines(t.engine.state, r.run).find((l) => l.kind === 'service');
-  assert.equal(line.text, 'Prestation inconnue : Formule Coupe + Contour Barbe 25€ (ligne ignorée)');
+  // an upcoming booking lost to its service label is something to do, not a note
+  assert.equal(line.text, 'Prestation inconnue : Formule Coupe + Contour Barbe 25€ : ce rendez-vous à venir n’est pas dans l’agenda, ajoute-le à la main');
+  assert.equal(line.todo, true);
   assert.ok(!JSON.stringify(t.engine.journal.filter((e) => e.type.startsWith('import.'))).includes('Karim'));
 
   // the same number under another first name, then the file is erased
@@ -577,7 +587,7 @@ test('fidelity: overlaps against the agenda, the newest file wins a repeated id,
   const t3 = await shop();
   const out = await wizard(t3, [{ name: 'a.csv', text: csv }, { name: 'r.xml', text: WXR }]);
   assert.equal(byWp(t3, 1350).ext.paid, 1000);
-  assert.ok(out.answers.flatMap((a) => a.review).some((x) => x.kind === 'paid' && /Acompte de 10\s€ déjà payé/.test(x.text)));
+  assert.ok(out.answers.flatMap((a) => a.review).some((x) => x.kind === 'paid' && /Acompte de 10\s€ payé sur l’ancien site/.test(x.text)));
 });
 
 /* ---------------- no personal data in the run ---------------- */
@@ -612,6 +622,36 @@ test('no personal data in the run record, and the lines say « Client effacé »
   const after = runLines(t.engine.state, r.run).find((l) => l.kind === 'name');
   assert.equal(after.name, 'Client effacé');
   assert.ok(!after.text.includes('Kader') && !after.text.includes('Karim'));
+});
+
+test('the final sync’s report: what the old site changed since the first pass is listed, adds up, and keeps no personal data', async () => {
+  const t = await shop();
+  const row = (wp, first, last, phone, price, status = 'Confirmé') => `${wp},"20 Nov 2026 1${wp % 10}:00","01 Nov 2026 08:00",${first},${last},${first.toLowerCase()}@exemple.fr,${phone},"Coupe",JKut,1,"${price}",${status}\n`;
+  const first = CSV + row(1501, 'Idris', 'Chaib', '0600000501', '20 €') + row(1502, 'Samir', 'Lahcen', '0600000502', '20 €', 'Paiement en attente') + row(1503, 'Tarek', 'Meziane', '0600000503', '20 € (10 € déjà payé en acompte)', 'Payant') + row(1504, 'Ismael', 'Kone', '0600000504', '20 €');
+  const one = await wizard(t, [{ name: 'export.csv', text: first }]);
+  assert.ok(W.reconcile(one.run).every((x) => x.gap === 0));
+  const sw = (txt, wp, from, to) => { const l = txt.split('\n').find((x) => x.startsWith(wp + ',')); return txt.replace(l, l.replace(from, to)); };
+  let text = sw(first, 1501, '"20 €"', '"25 €"');
+  text = sw(text, 1502, '"20 €",Paiement en attente', '"20 € (10 € déjà payé en acompte)",Payant');
+  text = sw(text, 1503, 'Payant', 'Annulé');
+  text = sw(text, 1504, 'Confirmé', 'ERREUR');
+  const v0 = t.engine.state.version;
+  const two = await wizard(t, [{ name: 'export.csv', text }]);
+  const a = summed(two.answers).appts;
+  assert.deepEqual([a.changed, a.cancelled, a.updated], [2, 1, 0], 'a price and a deposit are carried; one cancelled; the « Erreur » one is only listed');
+  assert.ok(t.engine.journal.slice(v0).filter((e) => e.type === 'appt.updated').length >= 2);
+  // the run adds up: the changed rows are rows of the export like any other
+  assert.ok(W.reconcile(two.run).every((x) => x.gap === 0), JSON.stringify(W.reconcile(two.run)));
+  const lines = runLines(t.engine.state, two.run);
+  const of = (kind) => lines.filter((l) => l.kind === kind && l.wp >= 1501).map((l) => [l.wp, l.todo, l.text.replace(/\s/g, ' ')]);
+  assert.deepEqual(of('changed'), [[1501, true, 'Modifié sur l’ancien site depuis le premier import (prix : 20 € → 25 €) : mis à jour ici, vérifie']]);
+  assert.deepEqual(of('paid'), [[1502, true, 'Acompte de 10 € payé sur l’ancien site depuis le premier import : à la caisse, encaisse-le avec « Payé sur l’ancien site »']]);
+  assert.deepEqual(of('refund'), [[1503, true, 'Annulé sur l’ancien site alors qu’un acompte de 10 € y était payé : rembourse-le si besoin, depuis l’ancien site']]);
+  assert.deepEqual(of('error'), [[1504, true, 'État « Erreur » sur l’ancien site depuis le premier import : rendez-vous gardé ici, vérifie avec le client']]);
+  assert.equal(byWp(t, 1504).status, 'booked');
+  // the report has nothing personal in it: only the services and the prices
+  const dump = JSON.stringify(t.engine.journal.filter((e) => e.type === 'import.batch').map((e) => e.data));
+  for (const x of ['Idris', 'Chaib', 'Samir', 'Tarek', 'Meziane', 'exemple.fr', '600000501']) assert.ok(!dump.includes(x), x);
 });
 
 test('the words of the review list: one text per kind, the variants and the to-do split', () => {
@@ -663,7 +703,7 @@ test('the CSV of a report: BOM, ; and CRLF, the counts first, a formula from the
 
 test('the wizard speaks of carnets, never abonnements', () => {
   const p = W.readFiles([{ name: 'k.csv', text: 'telephone;coupes_restantes;expire_le\n06 98 76 54 32;0;15/01/2027\n' }]);
-  assert.deepEqual(p.problems.map((x) => x.text), ['Carnet sans coupes restantes ou sans date d’expiration']);
+  assert.deepEqual(p.problems.map((x) => x.text), ['Carnet •••• 5432 : sans coupes restantes ou sans date d’expiration']);
   assert.equal(W.reconcile({ totals: { bookings: 0, clients: 0, giftcards: 0, packs: 1 }, excluded: { retention: 0, noVisit: 0, duplicate: 0, unreadable: 1, by: { packs: 1 } }, counts: {}, skip: {} }).at(-1).label, 'Carnets');
   assert.equal(say('pack', {}, 'nofile'), 'Aucun client avec ce numéro : ajoute son prénom');
   assert.equal(say('pack', { day: 'jeu. 15 janv. 2027' }, 'expired'), 'Carnet expiré le jeu. 15 janv. 2027');

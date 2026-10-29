@@ -1,0 +1,21 @@
+﻿Réservations,de,à
+,"01 Jan 2025","31 Déc 2027"
+
+ID,DATE/HEURE,CRÉÉ,Commentaire,"Date de naissance","Comment nous avez-vous connus ?","PRÉNOM DU CLIENT","NOM DU CLIENT","E-MAIL DU CLIENT","TÉL DU CLIENT","Adresse du client",SERVICES,ASSISTANTS,"NOMBRE DE POUR CHAQUE SERVICE","PRIX TOTAL",ÉTAT
+19901,"29 Aoû 2026 10:00","26 Aoû 2026 20:15",,,Google,Hakim,Lefebvre,hakim.lefebvre278@yahoo.fr,0649758465,"61 boulevard de la Libération, 13006 Marseille",Coupe,JKut,1,"20 €",Confirmé
+19902,"08 Sep 2026 11:00","05 Sep 2026 20:15","Mon fils a 8 ans",12/05/1990,Instagram,Stéphane,Rodriguez,stephane.rodriguez279@outlook.fr,0657127256,"144 place Pélabon, 13008 Marseille",Coupe,JKut,1,"20 €",Confirmé
+19903,"18 Sep 2026 12:00","15 Sep 2026 20:15","Allergique au latex",1985-03-02,"Bouche à oreille",Ange,Chérif,ange.cherif280@orange.fr,0764496047,"22 traverse du Moulin, 13011 Marseille",Coupe,JKut,1,"20 €",Confirmé
+19904,"29 Sep 2026 13:00","26 Sep 2026 20:15","RDV pour mon père, il est sourd",,,Amine,Barry,amine.barry281@free.fr,0671864838,"165 rue Paradis, 13014 Marseille",Coupe,JKut,1,"20 €",Confirmé
+19905,"08 Oct 2026 14:00","05 Oct 2026 20:15",,,Google,Mamadou,Mattei,mamadou.mattei282@sfr.fr,0679233629,"142 traverse du Moulin, 13015 Marseille",Coupe,JKut,1,"20 €",Confirmé
+19906,"05 Nov 2026 15:30","28 Oct 2026 20:15","Mon fils a 8 ans",12/05/1990,Instagram,Zinedine,Richard,zinedine.richard283@icloud.com,0686602420,"133 cours Julien, 13014 Marseille",Coupe,JKut,1,"20 €",Confirmé
+19907,"06 Nov 2026 16:00","28 Oct 2026 20:15","Allergique au latex",1985-03-02,"Bouche à oreille",Théo,Blanc,theo.blanc284@laposte.net,0693971211,"67 avenue du Prado, 13013 Marseille",Coupe,JKut,1,"20 €",Confirmé
+19908,"07 Nov 2026 17:00","28 Oct 2026 20:15","RDV pour mon père, il est sourd",,,Valentin,Orsini,valentin.orsini285@live.fr,0701340002,"152 traverse du Moulin, 13005 Marseille",Coupe,JKut,1,"20 €",Confirmé
+
+ID,DATE/HEURE,CRÉÉ,Commentaire,"Date de naissance","Comment nous avez-vous connus ?","PRÉNOM DU CLIENT","NOM DU CLIENT","E-MAIL DU CLIENT","TÉL DU CLIENT","Adresse du client",SERVICES,ASSISTANTS,"NOMBRE DE POUR CHAQUE SERVICE","PRIX TOTAL",ÉTAT
+"not an id","13 Déc 2025 10:00",,Sans,Id,,0611111111,,,Coupe,JKut,1,"20 €",Confirmé
+"1 100","13 Déc 2025 10:00",,Espace,Millier,,0622222222,,,,Coupe,JKut,1,"20 €",Confirmé
+1100.0,"14 Déc 2025 10:00",,Float,Id,,0633333333,,,,Coupe,JKut,1,"20 €",Confirmé
+19950,"15 Déc 2025 10:00",,Court
+19951,"15 Déc 2025 11:00",,Long,Ligne,long@exemple.fr,0644444444,,,,Coupe,JKut,1,"20 €",Confirmé,extra,cells,here
+,,,,,,,,,,,,,
+Total,,,,,,,,,,,,,"4 lignes"

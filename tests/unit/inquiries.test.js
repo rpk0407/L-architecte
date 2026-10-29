@@ -19,6 +19,7 @@ import { INQUIRIES_PER_HOUR } from '../../server/http/routes-inquiries.js';
 import trainings, { publicTrainings } from '../../server/settings/trainings.js';
 import { addDays } from '../../shared/dates.js';
 import { readFileSync } from 'node:fs';
+import { piiOf } from '../../server/core/journal.js';
 
 let ips = 0;
 /** A production salon behind the real HTTP handler, each test from its own address (the hourly limit is per address). */
@@ -48,7 +49,7 @@ test('a training request from the site: the event carries the kind and the modul
   assert.equal(res.json.ok, true);
   const [e] = events(rt, 'inquiry.received');
   assert.deepEqual(e.data, { id: res.json.id, kind: 'formation', module: 'classique' });
-  assert.deepEqual(e.pii, { first: 'Karim', phone: '+33698765432', email: 'karim.b@exemple.fr', message: KARIM.message });
+  assert.deepEqual(piiOf(e.pii), { first: 'Karim', phone: '+33698765432', email: 'karim.b@exemple.fr', message: KARIM.message });
   assert.deepEqual(e.actor, { t: 'client', id: 'web', n: '' }, 'the chained actor names nobody');
   // nothing of the person in what the chain covers: data, actor, nor the owner's e-mail event
   const chained = JSON.stringify(rt.engine.journal.map(({ pii, ...rest }) => rest));

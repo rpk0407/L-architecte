@@ -44,8 +44,10 @@ export default async ({ h, page }) => {
   await page.getByRole('heading', { name: 'Jour J' }).waitFor({ timeout: 8000 });
   const order = await page.locator('.jj-step').evaluateAll((li) => li.map((x) => x.getAttribute('data-step')));
   if (order.join() !== IDS.join()) throw new Error('steps: ' + order.join());
-  const top = await page.evaluate(() => { const c = document.querySelector('.jj'); const w = document.querySelector('.wp'); return c && w ? [...w.children].indexOf(c) : -1; });
-  if (top !== 0) throw new Error('the card is not first on the page (' + top + ')');
+  // first of the cards (the demo's warning about real files sits above it, as a note)
+  const top = await page.evaluate(() => { const c = document.querySelector('.jj'); const w = document.querySelector('.wp'); return c && w ? [...w.children].slice(0, [...w.children].indexOf(c)).filter((x) => x.matches('section, .card')).length : -1; });
+  if (top !== 0) throw new Error('the card is not first on the page (' + top + ' cards before it)');
+  await h.expectText(page, 'Démo publique : n’y dépose jamais de vrais fichiers de clients');
   await expectState('first-run', 'ok');
   await expectState('freeze', 'todo');
   await h.expectText(page, 'client');
@@ -79,8 +81,10 @@ export default async ({ h, page }) => {
 
   // the final sync: the same files again after the freeze (nothing new: recorded as a run of « déjà là »)
   await page.waitForTimeout(300);
-  await page.getByRole('button', { name: 'Tout retirer' }).click();
+  // the same tab, with no reload and no « Tout retirer »: the drop of the first pass has been forgotten
   await drop('wp-bookings-fr.csv');
+  await h.expectText(page, 'Nouveau passage : les fichiers du précédent ont été retirés');
+  if ((await page.locator('.wp-files .li').count()) !== 1) throw new Error('the file list should only hold the new file');
   await h.expectText(page, 'Tout est déjà repris');
   await ready();
   await page.getByRole('button', { name: 'Enregistrer la vérification (rien de nouveau)' }).click();
@@ -103,6 +107,9 @@ export default async ({ h, page }) => {
   await dialog.getByRole('button', { name: 'Annuler' }).click();
   await expectState('switch', 'todo');
   await open.click();
+  // the question is made from the card: what leaves, and nothing here is left undone
+  const asked = await dialog.textContent();
+  if (!/message/.test(asked)) throw new Error('the dialog does not say how many messages leave: ' + asked);
   await dialog.getByRole('button', { name: 'Ouvrir les envois' }).click();
   await expectState('switch', 'ok');
   await h.expectText(page, 'Bascule faite le');
@@ -162,4 +169,25 @@ export default async ({ h, page }) => {
   const tiny = await page.evaluate(() => [...document.querySelectorAll('.mr-feat a')].filter((b) => b.getBoundingClientRect().height < 44).map((b) => b.textContent));
   if (tiny.length) throw new Error('Nouveautés: targets under 44 px: ' + tiny.join(' | '));
   await h.shot(page, 'mise-en-route-nouveautes-phone');
+
+  // the return plan, in the product: the switch is taken back from the phone, everything is to do again and the card says so
+  await page.goto(h.base + '/comptoir/reglages/wordpress');
+  await page.getByRole('heading', { name: 'Jour J' }).waitFor({ timeout: 8000 });
+  await page.locator('.jj-back summary').click();
+  await page.getByRole('button', { name: 'Annuler la bascule' }).click();
+  const why = page.getByLabel('Pourquoi annuler la bascule ?');
+  await why.fill('Le site ne répond plus');
+  await page.locator('.jj-force').getByRole('button', { name: 'Annuler la bascule' }).click();
+  const ask = page.getByRole('dialog', { name: 'Confirmation' });
+  await ask.waitFor();
+  await ask.getByRole('button', { name: 'Annuler la bascule' }).click();
+  await expectState('switch', 'todo');
+  await expectState('freeze', 'todo');
+  await expectState('final-sync', 'todo');
+  await h.expectText(page, 'Bascule annulée le');
+  await h.expectText(page, 'Le site ne répond plus');
+  if ((await h.api('/api/v1/bascule')).json.rolledBack.length !== 1) throw new Error('the history does not keep the rollback');
+  if (await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)) throw new Error('the card scrolls sideways after the rollback');
+  await page.locator('.jj-rollback').scrollIntoViewIfNeeded().catch(() => {});
+  await h.shot(page, 'wp-bascule-rolledback-phone');
 };

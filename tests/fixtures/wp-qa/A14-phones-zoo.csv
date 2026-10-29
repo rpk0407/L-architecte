@@ -1,0 +1,72 @@
+﻿Réservations,de,à
+,"01 Jan 2025","31 Déc 2027"
+
+ID,DATE/HEURE,CRÉÉ,"PRÉNOM DU CLIENT","NOM DU CLIENT","E-MAIL DU CLIENT","TÉL DU CLIENT","Adresse du client",SERVICES,ASSISTANTS,"NOMBRE DE POUR CHAQUE SERVICE","PRIX TOTAL",ÉTAT
+14901,"30 Juil 2026 10:00","27 Juil 2026 20:15",Ange,Peretti,ange.peretti130@wanadoo.fr,0759177397,"153 rue d’Aubagne, 13012 Marseille",Coupe,JKut,1,"20 €",Confirmé
+14902,"01 Aoû 2026 11:30","29 Juil 2026 20:15",Ange,Peretti,ange.peretti130@wanadoo.fr,"07 59 17 73 97","153 rue d’Aubagne, 13012 Marseille",Coupe,JKut,1,"20 €",Confirmé
+14903,"04 Aoû 2026 12:00","01 Aoû 2026 20:15",Ange,Peretti,ange.peretti130@wanadoo.fr,07.59.17.73.97,"153 rue d’Aubagne, 13012 Marseille",Coupe,JKut,1,"20 €",Confirmé
+14904,"04 Aoû 2026 13:30","01 Aoû 2026 20:15",Ange,Peretti,ange.peretti130@wanadoo.fr,07-59-17-73-97,"153 rue d’Aubagne, 13012 Marseille",Coupe,JKut,1,"20 €",Confirmé
+14905,"05 Aoû 2026 14:00","02 Aoû 2026 20:15",Ange,Peretti,ange.peretti130@wanadoo.fr,07/59/17/73/97,"153 rue d’Aubagne, 13012 Marseille",Coupe,JKut,1,"20 €",Confirmé
+14906,"07 Aoû 2026 15:30","04 Aoû 2026 20:15",Ange,Peretti,ange.peretti130@wanadoo.fr,759177397,"153 rue d’Aubagne, 13012 Marseille",Coupe,JKut,1,"20 €",Confirmé
+14907,"08 Aoû 2026 16:00","05 Aoû 2026 20:15",Ange,Peretti,ange.peretti130@wanadoo.fr,"7 59 17 73 97","153 rue d’Aubagne, 13012 Marseille",Coupe,JKut,1,"20 €",Confirmé
+14908,"11 Aoû 2026 17:30","08 Aoû 2026 20:15",Ange,Peretti,ange.peretti130@wanadoo.fr,+33759177397,"153 rue d’Aubagne, 13012 Marseille",Coupe,JKut,1,"20 €",Confirmé
+14909,"11 Aoû 2026 10:00","08 Aoû 2026 20:15",Ange,Peretti,ange.peretti130@wanadoo.fr,"+33 7 59 17 73 97","153 rue d’Aubagne, 13012 Marseille",Coupe,JKut,1,"20 €",Confirmé
+14910,"13 Aoû 2026 11:30","10 Aoû 2026 20:15",Ange,Peretti,ange.peretti130@wanadoo.fr,"+33 (0)759177397","153 rue d’Aubagne, 13012 Marseille",Coupe,JKut,1,"20 €",Confirmé
+14911,"14 Aoû 2026 12:00","11 Aoû 2026 20:15",Ange,Peretti,ange.peretti130@wanadoo.fr,"+33 0759177397","153 rue d’Aubagne, 13012 Marseille",Coupe,JKut,1,"20 €",Confirmé
+14912,"18 Aoû 2026 13:30","15 Aoû 2026 20:15",Ange,Peretti,ange.peretti130@wanadoo.fr,0033759177397,"153 rue d’Aubagne, 13012 Marseille",Coupe,JKut,1,"20 €",Confirmé
+14913,"18 Aoû 2026 14:00","15 Aoû 2026 20:15",Ange,Peretti,ange.peretti130@wanadoo.fr,"0033 (0)759177397","153 rue d’Aubagne, 13012 Marseille",Coupe,JKut,1,"20 €",Confirmé
+14914,"19 Aoû 2026 15:30","16 Aoû 2026 20:15",Ange,Peretti,ange.peretti130@wanadoo.fr,33759177397,"153 rue d’Aubagne, 13012 Marseille",Coupe,JKut,1,"20 €",Confirmé
+14915,"20 Aoû 2026 16:00","17 Aoû 2026 20:15",Ange,Peretti,ange.peretti130@wanadoo.fr,"tel: 0759177397","153 rue d’Aubagne, 13012 Marseille",Coupe,JKut,1,"20 €",Confirmé
+14916,"22 Aoû 2026 17:30","19 Aoû 2026 20:15",Ange,Peretti,ange.peretti130@wanadoo.fr,"07 59 17 73 97 (Papa)","153 rue d’Aubagne, 13012 Marseille",Coupe,JKut,1,"20 €",Confirmé
+14917,"25 Aoû 2026 10:00","22 Aoû 2026 20:15",Ange,Peretti,ange.peretti130@wanadoo.fr,'0759177397,"153 rue d’Aubagne, 13012 Marseille",Coupe,JKut,1,"20 €",Confirmé
+14918,"25 Aoû 2026 11:30","22 Aoû 2026 20:15",Ange,Peretti,ange.peretti130@wanadoo.fr,"07 59 17 73 97","153 rue d’Aubagne, 13012 Marseille",Coupe,JKut,1,"20 €",Confirmé
+14919,"26 Aoû 2026 12:00","23 Aoû 2026 20:15",Anis,Laurent,p14.18@exemple.fr,"0612345678 / 0698765432","177 chemin de Saint-Menet, 13014 Marseille",Coupe,JKut,1,"20 €",Confirmé
+14920,"28 Aoû 2026 13:30","25 Aoû 2026 20:15",Quentin,Marchetti,p14.19@exemple.fr,"06 12 34 56","111 traverse du Moulin, 13009 Marseille",Coupe,JKut,1,"20 €",Confirmé
+14921,"29 Aoû 2026 14:00","26 Aoû 2026 20:15",Sébastien,Sow,p14.20@exemple.fr,0612345678912,"158 rue Paradis, 13014 Marseille",Coupe,JKut,1,"20 €",Confirmé
+14922,"01 Sep 2026 15:30","29 Aoû 2026 20:15",Lucas,Fournier,p14.21@exemple.fr,"+33 6 12 34 56 78 78","119 boulevard Longchamp, 13015 Marseille",Coupe,JKut,1,"20 €",Confirmé
+14923,"01 Sep 2026 16:00","29 Aoû 2026 20:15",Sofiane,Leca,p14.22@exemple.fr,"3,36123E+11","89 avenue du Prado, 13007 Marseille",Coupe,JKut,1,"20 €",Confirmé
+14924,"03 Sep 2026 17:30","31 Aoû 2026 20:15",Jean-Baptiste,Petit,p14.23@exemple.fr,3.36123E+11,"131 traverse du Moulin, 13012 Marseille",Coupe,JKut,1,"20 €",Confirmé
+14925,"04 Sep 2026 10:00","01 Sep 2026 20:15",Marius,Rodriguez,p14.24@exemple.fr,#ERROR!,"116 rue de la République, 13005 Marseille",Coupe,JKut,1,"20 €",Confirmé
+14926,"08 Sep 2026 11:30","05 Sep 2026 20:15",Raphaël,Traoré,p14.25@exemple.fr,N/A,"4 rue de la République, 13001 Marseille",Coupe,JKut,1,"20 €",Confirmé
+14927,"08 Sep 2026 12:00","05 Sep 2026 20:15",Oussama,Fournier,p14.26@exemple.fr,-,"103 place Pélabon, 13015 Marseille",Coupe,JKut,1,"20 €",Confirmé
+14928,"09 Sep 2026 13:30","06 Sep 2026 20:15",Idriss,Navarro,p14.27@exemple.fr,0,"10 avenue du Prado, 13013 Marseille",Coupe,JKut,1,"20 €",Confirmé
+14929,"10 Sep 2026 14:00","07 Sep 2026 20:15",Tom,Bernard,p14.28@exemple.fr,0000000000,"162 rue Paradis, 13003 Marseille",Coupe,JKut,1,"20 €",Confirmé
+14930,"12 Sep 2026 15:30","09 Sep 2026 20:15",Romain,Vincent,p14.29@exemple.fr,néant,"3 rue Paradis, 13007 Marseille",Coupe,JKut,1,"20 €",Confirmé
+14931,"15 Sep 2026 16:00","12 Sep 2026 20:15",Corentin,Marchetti,p14.30@exemple.fr,0600000000,"59 avenue du Prado, 13010 Marseille",Coupe,JKut,1,"20 €",Confirmé
+14932,"15 Sep 2026 17:30","12 Sep 2026 20:15",Ilyes,Giraud,p14.31@exemple.fr,0612345678,"10 place Pélabon, 13016 Marseille",Coupe,JKut,1,"20 €",Confirmé
+14933,"16 Sep 2026 10:00","13 Sep 2026 20:15",Jordan,Navarro,p14.32@exemple.fr,0123456789,"96 rue de la République, 13009 Marseille",Coupe,JKut,1,"20 €",Confirmé
+14934,"18 Sep 2026 11:30","15 Sep 2026 20:15",Aymeric,Kaci,p14.33@exemple.fr,"+32 470 12 34 56","116 rue de la République, 13003 Marseille",Coupe,JKut,1,"20 €",Confirmé
+14935,"19 Sep 2026 12:00","16 Sep 2026 20:15",Toussaint,Garcia,p14.34@exemple.fr,"0032 470 12 34 56","177 boulevard Longchamp, 13004 Marseille",Coupe,JKut,1,"20 €",Confirmé
+14936,"22 Sep 2026 13:30","19 Sep 2026 20:15",Farid,Ferrari,p14.35@exemple.fr,"0470 12 34 56","107 chemin de Saint-Menet, 13014 Marseille",Coupe,JKut,1,"20 €",Confirmé
+14937,"22 Sep 2026 14:00","19 Sep 2026 20:15",Dimitri,Konaté,p14.36@exemple.fr,"+212 6 61 23 45 67","20 boulevard de la Libération, 13012 Marseille",Coupe,JKut,1,"20 €",Confirmé
+14938,"24 Sep 2026 15:30","21 Sep 2026 20:15",Marius,Navarro,p14.37@exemple.fr,00212661234567,"154 boulevard de la Libération, 13011 Marseille",Coupe,JKut,1,"20 €",Confirmé
+14939,"25 Sep 2026 16:00","22 Sep 2026 20:15",Noah,Dubois,p14.38@exemple.fr,"+213 555 12 34 56","39 chemin de Saint-Menet, 13001 Marseille",Coupe,JKut,1,"20 €",Confirmé
+14940,"29 Sep 2026 17:30","26 Sep 2026 20:15",Mathéo,Michel,p14.39@exemple.fr,"+216 20 123 456","142 boulevard Longchamp, 13006 Marseille",Coupe,JKut,1,"20 €",Confirmé
+14941,"29 Sep 2026 10:00","26 Sep 2026 20:15",Mohamed,Bianchi,p14.40@exemple.fr,"+1 415 555 2671","84 rue Saint-Ferréol, 13001 Marseille",Coupe,JKut,1,"20 €",Confirmé
+14942,"30 Sep 2026 11:30","27 Sep 2026 20:15",Anis,Saidi,p14.41@exemple.fr,"+44 7911 123456","148 avenue de Mazargues, 13006 Marseille",Coupe,JKut,1,"20 €",Confirmé
+14943,"01 Oct 2026 12:00","28 Sep 2026 20:15",Clément,Colin,p14.42@exemple.fr,"+49 151 23456789","167 rue Paradis, 13002 Marseille",Coupe,JKut,1,"20 €",Confirmé
+14944,"03 Oct 2026 13:30","30 Sep 2026 20:15",Paul,Benali,p14.43@exemple.fr,"+39 333 1234567","99 avenue de Mazargues, 13014 Marseille",Coupe,JKut,1,"20 €",Confirmé
+14945,"06 Oct 2026 14:00","03 Oct 2026 20:15",Sami,Durand,p14.44@exemple.fr,"+34 612 34 56 78","145 boulevard de la Libération, 13008 Marseille",Coupe,JKut,1,"20 €",Confirmé
+14946,"06 Oct 2026 15:30","03 Oct 2026 20:15",Alexandre,Guérin,p14.45@exemple.fr,"+351 912 345 678","126 chemin de Saint-Menet, 13007 Marseille",Coupe,JKut,1,"20 €",Confirmé
+14947,"07 Oct 2026 16:00","04 Oct 2026 20:15",Aymeric,Chérif,p14.46@exemple.fr,"+377 6 12 34 56 78","7 rue d’Aubagne, 13003 Marseille",Coupe,JKut,1,"20 €",Confirmé
+14948,"09 Oct 2026 17:30","06 Oct 2026 20:15",Ange,Olivier,p14.47@exemple.fr,"+221 77 123 45 67","12 avenue du Prado, 13003 Marseille",Coupe,JKut,1,"20 €",Confirmé
+14949,"10 Oct 2026 10:00","07 Oct 2026 20:15",Djamel,Gomez,p14.48@exemple.fr,"+223 76 12 34 56","93 place Pélabon, 13011 Marseille",Coupe,JKut,1,"20 €",Confirmé
+14950,"13 Oct 2026 11:30","10 Oct 2026 20:15",Luca,Petit,p14.49@exemple.fr,"+225 07 12 34 56 78","132 place Pélabon, 13007 Marseille",Coupe,JKut,1,"20 €",Confirmé
+14951,"13 Oct 2026 12:00","10 Oct 2026 20:15",Marius,Garnier,p14.50@exemple.fr,"+237 6 71 23 45 67","31 boulevard Longchamp, 13015 Marseille",Coupe,JKut,1,"20 €",Confirmé
+14952,"15 Oct 2026 13:30","12 Oct 2026 20:15",Noah,Saidi,p14.51@exemple.fr,"+961 3 123 456","49 rue d’Aubagne, 13008 Marseille",Coupe,JKut,1,"20 €",Confirmé
+14953,"16 Oct 2026 14:00","13 Oct 2026 20:15",Ethan,Perrin,p14.52@exemple.fr,"+90 532 123 45 67","148 cours Julien, 13016 Marseille",Coupe,JKut,1,"20 €",Confirmé
+14954,"20 Oct 2026 15:30","17 Oct 2026 20:15",Omar,Lemoine,p14.53@exemple.fr,"+40 721 234 567","126 rue d’Aubagne, 13008 Marseille",Coupe,JKut,1,"20 €",Confirmé
+14955,"20 Oct 2026 16:00","17 Oct 2026 20:15",Anis,Leroy,p14.54@exemple.fr,"+48 512 345 678","106 boulevard de la Libération, 13004 Marseille",Coupe,JKut,1,"20 €",Confirmé
+14956,"21 Oct 2026 17:30","18 Oct 2026 20:15",Thomas,Muller,p14.55@exemple.fr,"+269 321 23 45","56 boulevard de la Libération, 13004 Marseille",Coupe,JKut,1,"20 €",Confirmé
+14957,"22 Oct 2026 10:00","19 Oct 2026 20:15",Corentin,Bouzid,p14.56@exemple.fr,"+262 692 12 34 56","152 rue Saint-Ferréol, 13007 Marseille",Coupe,JKut,1,"20 €",Confirmé
+14958,"24 Oct 2026 11:30","21 Oct 2026 20:15",Adam,Barry,p14.57@exemple.fr,"04 91 12 34 56","91 rue d’Aubagne, 13011 Marseille",Coupe,JKut,1,"20 €",Confirmé
+14959,"27 Oct 2026 12:00","24 Oct 2026 20:15",Hakim,Faure,p14.58@exemple.fr,"09 72 12 34 56","138 cours Julien, 13004 Marseille",Coupe,JKut,1,"20 €",Confirmé
+14960,"27 Oct 2026 13:30","24 Oct 2026 20:15",Loïc,Haddad,p14.59@exemple.fr,06,"106 rue d’Aubagne, 13003 Marseille",Coupe,JKut,1,"20 €",Confirmé
+14961,"28 Oct 2026 14:00","25 Oct 2026 20:15",Franck,Laurent,p14.60@exemple.fr,"   ","83 rue Saint-Ferréol, 13006 Marseille",Coupe,JKut,1,"20 €",Confirmé
+14962,"29 Oct 2026 15:30","26 Oct 2026 20:15",Amine,Esposito,p14.61@exemple.fr,,"177 avenue de Mazargues, 13015 Marseille",Coupe,JKut,1,"20 €",Confirmé
+14963,"31 Oct 2026 16:00","28 Oct 2026 20:15",Karim,Benali,p14.62@exemple.fr,"06 66 54 61 88","130 avenue du Prado, 13004 Marseille",Coupe,JKut,1,"20 €",Confirmé
+14964,"03 Nov 2026 17:30","28 Oct 2026 20:15",Yanis,Benali,yanis.benali132@gmail.com,0666546188,"10 cours Julien, 13014 Marseille",Coupe,JKut,1,"20 €",Confirmé
+14965,"03 Nov 2026 10:30","28 Oct 2026 20:15",Sarah,Roux,famille.roux@exemple.fr,0681283770,"108 traverse du Moulin, 13012 Marseille",Coupe,JKut,1,"20 €",Confirmé
+14966,"04 Nov 2026 11:30","28 Oct 2026 20:15",Julien,Roux,famille.roux@exemple.fr,0688652561,"111 boulevard de la Libération, 13005 Marseille",Coupe,JKut,1,"20 €",Confirmé
+14967,"06 Nov 2026 12:00","28 Oct 2026 20:15",Nassim,Cherif,nassim.cherif135@outlook.fr,0796021352,"134 cours Julien, 13010 Marseille",Coupe,JKut,1,"20 €",Confirmé
+14968,"07 Nov 2026 13:30","28 Oct 2026 20:15",Nassim,Cherif,nassim.cherif135@outlook.fr,0603390143,"71 traverse du Moulin, 13016 Marseille",Coupe,JKut,1,"20 €",Confirmé

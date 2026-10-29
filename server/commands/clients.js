@@ -93,12 +93,14 @@ export const mergeClients = {
     const from = getClient(s, input.from), into = getClient(s, input.into);
     if (from.id === into.id) fail(400, 'invalid', 'Ce sont déjà les mêmes fiches.');
     if (from.erased || into.erased) fail(409, 'erased', 'Une fiche effacée ne se fusionne pas.');
-    const fill = mergedFill(from, into);
+    // what the kept file holds is the owner's choice from now on: an import no longer follows the old site over it (judge), it only lists
+    const fill = { ...mergedFill(from, into) };
+    const forget = { ...(into.wpPhone ? { wpPhone: '' } : {}), ...(into.wpEmail ? { wpEmail: '' } : {}) };
     // FID-02: the cards both files' stamps complete become rewards now; a file that opted out keeps the person out
     loyaltyAfterMerge(s, ctx, from, into);
     const off = from.loyaltyOff && !into.loyaltyOff ? { loyaltyOff: true } : {};
     ctx.emit('client.merged', { from: from.id, into: into.id });
-    if (Object.keys(fill).length || off.loyaltyOff) ctx.emit('client.updated', { id: into.id, cid: into.id, patch: off, fields: Object.keys(fill) }, Object.keys(fill).length ? fill : undefined);
+    if (Object.keys(fill).length || Object.keys(forget).length || off.loyaltyOff) ctx.emit('client.updated', { id: into.id, cid: into.id, patch: off, fields: Object.keys(fill) }, Object.keys(fill).length || Object.keys(forget).length ? { ...fill, ...forget } : undefined);
     return { id: into.id };
   }
 };

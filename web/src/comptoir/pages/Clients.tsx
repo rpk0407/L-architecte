@@ -27,7 +27,7 @@ type ListData = { total: number; counts: Record<string, number>; excludedNoConse
 type FileClient = ClientFull & { marketingSrc?: string; marketingAt?: number | null };
 type FileData = {
   client: FileClient;
-  appts: { id: string; day: string; start: number; dur: number; status: string; services: string[]; staffId: string; price: number; source: string; saleId: string | null; note: string }[];
+  appts: { id: string; day: string; start: number; dur: number; status: string; services: string[]; staffId: string; price: number; source: string; saleId: string | null; note: string; typed?: string }[];
   sales: { id: string; ref: string; day: string; due: number; revenue: number; refunded: number; lines: string[] }[];
   packs: { id: string; name: string; used: number; total: number; expires: string; soldAt: number }[];
   messages: { id: string; channel?: 'sms' | 'email'; template: string; status: string; at: number }[];
@@ -39,7 +39,7 @@ type Open = {
   packs: { id: string; name: string; left: number; expires: string }[];
   memberships?: { id: string; plan: string; status: string; until: string | null }[];
   giftcards: { id: string; last4: string; balance: number; expires: string }[];
-  sms: boolean; smsLive?: boolean; email?: boolean;
+  sms: boolean; smsLive?: boolean; email?: boolean; old?: boolean;
 };
 
 // rare: shown only when it has someone (or is open), for whoever can act on it
@@ -389,7 +389,7 @@ function ClientFile({ id }: { id: string }) {
               return (
                 <li key={a.id}><button type="button" className="li" onClick={() => navigate('/agenda?day=' + a.day + '&rdv=' + a.id)}>
                   <span className="cl-date"><b>{dates.dayParts(a.day).d}</b><small>{dates.MONTHS_SH[dates.dayParts(a.day).m - 1].replace('.', '')}{a.day.slice(0, 4) !== boot.today.slice(0, 4) ? ' ' + a.day.slice(2, 4) : ''}</small></span>
-                  <span className="li-main"><b>{a.services.join(' + ')}</b><small>{time(a.start)}{st ? ' · ' + st.name : ''}{a.note ? ' · « ' + a.note + ' »' : ''}</small></span>
+                  <span className="li-main"><b>{a.services.join(' + ')}{a.typed ? <span className="faint"> · pour {a.typed}</span> : null}</b><small>{time(a.start)}{st ? ' · ' + st.name : ''}{a.note ? ' · « ' + a.note + ' »' : ''}</small></span>
                   <span className="li-end"><span className={'badge ' + (a.status === 'done' ? '' : a.status === 'no_show' ? 'badge-danger' : a.status === 'cancelled' ? 'badge-warn' : 'badge-info')}>{a.status === 'done' ? eur(a.price) : STATUS[a.status]}</span></span>
                 </button></li>
               );
@@ -664,6 +664,7 @@ function EraseModal({ c, onClose }: { c: FileClient; onClose: () => void }) {
     <Modal open onClose={onClose} label={'Effacer ' + c.first + ' ' + c.last}>
       <h2>Effacer {c.first} {c.last} ?</h2>
       <p>Son nom, son numéro, ses notes et sa fiche technique sont supprimés définitivement (droit à l’effacement, RGPD). Les tickets restent dans la comptabilité, sans son nom.</p>
+      {data?.old ? <Note tone="warn" icon="info">Il reste dans l’ancien site et sa copie complète : efface-le aussi là-bas.</Note> : null}
       {!data ? <Skeleton h={60} /> : n || data.packs.length || data.giftcards.length || data.memberships?.length ? (
         <div className="cl-open">
           <b className="section-k">Encore ouvert sur sa fiche</b>

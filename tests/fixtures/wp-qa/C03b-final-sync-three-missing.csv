@@ -1,0 +1,69 @@
+﻿Réservations,de,à
+,"30 Juin 2026","25 Fév 2027"
+
+ID,DATE/HEURE,CRÉÉ,"PRÉNOM DU CLIENT","NOM DU CLIENT","E-MAIL DU CLIENT","TÉL DU CLIENT","Adresse du client",SERVICES,ASSISTANTS,"NOMBRE DE POUR CHAQUE SERVICE","PRIX TOTAL",ÉTAT
+31001,"14 Aoû 2026 10:00","11 Aoû 2026 20:15",Franck,Belkacem,franck.belkacem531@outlook.fr,0614062588,"120 cours Julien, 13016 Marseille",Coupe,JKut,1,"20 €",Confirmé
+31002,"18 Aoû 2026 13:30","15 Aoû 2026 20:15",Mourad,Coulibaly,mourad.coulibaly532@orange.fr,0621431379,"53 traverse du Moulin, 13007 Marseille","Formule Coupe + Contour Barbe 25€",Soldat,1,"25 €",Confirmé
+31003,"22 Aoû 2026 16:00","19 Aoû 2026 20:15",Jean-Pierre,Navarro,jean.pierre.navarro533@free.fr,0628800170,"103 place Pélabon, 13002 Marseille","Coupe + barbe",Frank,1,"40 € (10 € déjà payé en acompte)",Payant
+31004,"26 Aoû 2026 11:30","23 Aoû 2026 20:15",Gaspard,Thomas,gaspard.thomas534@sfr.fr,0636168961,"58 boulevard Longchamp, 13009 Marseille","Coupe junior",Esteban,1,"15 €",Annulé
+31005,"01 Sep 2026 14:00","29 Aoû 2026 20:15",Younes,Fontaine,younes.fontaine535@icloud.com,0743537752,"126 boulevard de la Libération, 13004 Marseille","Formule Taille de Barbe 18€",JKut,1,"18 €",Annulé
+31006,"03 Sep 2026 17:30","31 Aoû 2026 20:15",Mamadou,Fernandez,mamadou.fernandez536@laposte.net,0650906543,"180 cours Julien, 13003 Marseille",Coupe,Soldat,1,"20 €",Confirmé
+31007,"08 Sep 2026 12:00","05 Sep 2026 20:15",Omar,Chérif,omar.cherif537@live.fr,0658275334,"176 rue Saint-Ferréol, 13007 Marseille","Formule Coupe + Contour Barbe 25€",Frank,1,"25 €","En attente"
+31008,"11 Sep 2026 15:30","08 Sep 2026 20:15",Enzo,Fournier,enzo.fournier538@wanadoo.fr,0665644125,"162 avenue de Mazargues, 13004 Marseille","Coupe + barbe",Esteban,1,"40 €",Confirmé
+31009,"15 Sep 2026 10:00","12 Sep 2026 20:15",Florian,Haddad,florian.haddad539@proton.me,0673012916,"69 chemin de Saint-Menet, 13004 Marseille","Coupe junior",JKut,1,"15 €",Confirmé
+31010,"19 Sep 2026 13:30","16 Sep 2026 20:15",Nathan,Roussel,nathan.roussel540@gmail.com,0780381707,"174 rue Saint-Ferréol, 13002 Marseille","Formule Taille de Barbe 18€",Soldat,1,"18 €",Confirmé
+31011,"23 Sep 2026 16:00","20 Sep 2026 20:15",Anis,Ferrari,anis.ferrari541@hotmail.fr,0687750498,"81 rue de la République, 13006 Marseille",Coupe,Frank,1,"20 € (10 € déjà payé en acompte)",Payant
+31012,"29 Sep 2026 11:30","26 Sep 2026 20:15",Jordan,Belkacem,jordan.belkacem542@yahoo.fr,0695119289,"9 avenue de Mazargues, 13007 Marseille","Formule Coupe + Contour Barbe 25€",Esteban,1,"25 €","Payer plus tard"
+31013,"01 Oct 2026 14:00","28 Sep 2026 20:15",Frédéric,Sylla,frederic.sylla543@outlook.fr,0602488080,"30 boulevard de la Libération, 13008 Marseille","Coupe + barbe",JKut,1,"40 €",Annulé
+31014,"06 Oct 2026 17:30","03 Oct 2026 20:15",Karim,Peretti,karim.peretti544@orange.fr,0609856871,"43 boulevard de la Libération, 13008 Marseille","Coupe junior",Soldat,1,"15 €",Confirmé
+31015,"09 Oct 2026 12:00","06 Oct 2026 20:15",Sofiane,Petit,sofiane.petit545@free.fr,0717225662,"145 chemin de Saint-Menet, 13008 Marseille","Formule Taille de Barbe 18€",Frank,1,"18 €","En attente"
+31016,"13 Oct 2026 15:30","10 Oct 2026 20:15",Dimitri,Garnier,dimitri.garnier546@sfr.fr,0624594453,"29 boulevard Longchamp, 13001 Marseille",Coupe,Esteban,1,"20 €",Confirmé
+31017,"03 Nov 2026 11:00","28 Oct 2026 20:15",Gaspard,Hamidi,gaspard.hamidi547@icloud.com,0631963244,"73 rue Saint-Ferréol, 13004 Marseille","Formule Coupe + Contour Barbe 25€",JKut,1,"25 €",Confirmé
+31018,"03 Nov 2026 13:30","28 Oct 2026 20:15",Amine,Barry,amine.barry548@laposte.net,0639332035,"90 boulevard de la Libération, 13010 Marseille","Coupe + barbe",Soldat,1,"40 € (10 € déjà payé en acompte)",Payant
+31019,"03 Nov 2026 16:00","28 Oct 2026 20:15",Ethan,Leca,ethan.leca549@live.fr,0646700826,"97 place Pélabon, 13003 Marseille","Coupe junior",Frank,1,"15 €","Payer plus tard"
+31020,"04 Nov 2026 12:00","28 Oct 2026 20:15",Said,Leroy,said.leroy550@wanadoo.fr,0754069617,"75 boulevard Longchamp, 13012 Marseille","Formule Taille de Barbe 18€",Esteban,1,"18 €",Confirmé
+31021,"05 Nov 2026 16:00","28 Oct 2026 20:15",Walid,Boyer,walid.boyer551@proton.me,0661438408,"107 rue de la République, 13016 Marseille",Coupe,JKut,1,"20 €",Annulé
+31022,"10 Nov 2026 17:30","28 Oct 2026 20:15",Clément,Mansouri,clement.mansouri552@gmail.com,0668807199,"154 traverse du Moulin, 13008 Marseille","Formule Coupe + Contour Barbe 25€",Soldat,1,"25 €",Confirmé
+31023,"07 Nov 2026 13:00","28 Oct 2026 20:15",Victor,Konaté,victor.konate553@hotmail.fr,0676175990,"175 rue d’Aubagne, 13007 Marseille","Coupe + barbe",JKut,1,"40 €",Confirmé
+31024,"11 Nov 2026 15:30","28 Oct 2026 20:15",Hugo,Faure,hugo.faure554@yahoo.fr,0683544781,"84 rue Saint-Ferréol, 13005 Marseille","Coupe junior",Esteban,1,"15 €",Confirmé
+31027,"11 Nov 2026 16:00","28 Oct 2026 20:15",Franck,Rossi,franck.rossi557@free.fr,0605651154,"166 avenue du Prado, 13009 Marseille","Formule Coupe + Contour Barbe 25€",Frank,1,"25 €",Confirmé
+31028,"12 Nov 2026 11:30","28 Oct 2026 20:15",Younes,Camara,younes.camara558@sfr.fr,0613019945,"64 rue d’Aubagne, 13013 Marseille","Coupe + barbe",Esteban,1,"45 € (10 € déjà payé en acompte)",Payant
+31029,"13 Nov 2026 14:30","28 Oct 2026 20:15",Jean-Baptiste,Caron,jean.baptiste.caron559@icloud.com,0620388736,"148 boulevard Longchamp, 13014 Marseille","Coupe + barbe",JKut,1,"40 €","Payer plus tard"
+31030,"14 Nov 2026 17:30","28 Oct 2026 20:15",Zinedine,Martin,zinedine.martin560@laposte.net,0600998877,"63 traverse du Moulin, 13003 Marseille","Formule Taille de Barbe 18€",Soldat,1,"18 €",Confirmé
+31031,"17 Nov 2026 12:00","28 Oct 2026 20:15","Prénom corrigé","Nom corrigé",leo.lefebvre561@live.fr,0635126318,"24 place Pélabon, 13007 Marseille",Coupe,Frank,1,"20 €",Confirmé
+31032,"17 Nov 2026 15:30","28 Oct 2026 20:15",Moussa,Lopez,moussa.lopez562@wanadoo.fr,0642495109,"34 avenue du Prado, 13012 Marseille","Formule Coupe + Contour Barbe 25€",Esteban,1,"25 € (10 € déjà payé en acompte)",Payant
+31033,"17 Nov 2026 12:30","28 Oct 2026 20:15",Idriss,Diallo,idriss.diallo563@proton.me,0649863900,"128 place Pélabon, 13005 Marseille","Coupe + barbe",JKut,1,"40 € (10 € déjà payé en acompte)",Payant
+31034,"18 Nov 2026 13:30","28 Oct 2026 20:15",Bilal,Morel,bilal.morel564@gmail.com,0657232691,"139 boulevard Longchamp, 13012 Marseille","Coupe junior",Soldat,1,"15 €",ERREUR
+31035,"19 Nov 2026 16:00","28 Oct 2026 20:15",Valentin,Martin,valentin.martin565@hotmail.fr,0764601482,"67 chemin de Saint-Menet, 13012 Marseille","Formule Taille de Barbe 18€",Frank,1,"18 €",Annulé
+31036,"20 Nov 2026 11:30","28 Oct 2026 20:15",Corentin,Richard,corentin.richard566@yahoo.fr,0671970273,"167 cours Julien, 13016 Marseille",Coupe,Esteban,1,"20 €",Confirmé
+31037,"21 Nov 2026 14:00","28 Oct 2026 20:15",Hugo,Guérin,hugo.guerin567@outlook.fr,0679339064,"34 avenue de Mazargues, 13006 Marseille","Formule Coupe + Contour Barbe 25€",JKut,1,"25 €",Confirmé
+31038,"24 Nov 2026 17:30","28 Oct 2026 20:15",Hakim,Mansouri,hakim.mansouri568@orange.fr,0686707855,"89 rue Paradis, 13001 Marseille","Coupe + barbe",Soldat,1,"40 € (10 € déjà payé en acompte)",Payant
+31039,"24 Nov 2026 12:00","28 Oct 2026 20:15",Sébastien,Barry,sebastien.barry569@free.fr,0694076646,"129 rue Paradis, 13003 Marseille","Coupe junior",Frank,1,"15 €","Payer plus tard"
+31040,"24 Nov 2026 15:30","28 Oct 2026 20:15",Ange,Bastiani,ange.bastiani570@sfr.fr,0701445437,"123 avenue de Mazargues, 13001 Marseille","Formule Taille de Barbe 18€",Esteban,1,"18 €",Confirmé
+31044,"28 Nov 2026 11:30","28 Oct 2026 20:15",Raphaël,Giraud,raphael.giraud574@wanadoo.fr,0630920601,"46 rue de la République, 13006 Marseille","Coupe junior",Esteban,1,"15 €","Payer plus tard"
+31045,"01 Déc 2026 14:00","28 Oct 2026 20:15",Franck,Belkacem,franck.belkacem531@outlook.fr,0614062588,"120 cours Julien, 13016 Marseille","Formule Taille de Barbe 18€",JKut,1,"18 €",Confirmé
+31046,"01 Déc 2026 17:30","28 Oct 2026 20:15",Mourad,Coulibaly,mourad.coulibaly532@orange.fr,0621431379,"53 traverse du Moulin, 13007 Marseille",Coupe,Soldat,1,"20 €",Confirmé
+31047,"01 Déc 2026 12:00","28 Oct 2026 20:15",Jean-Pierre,Navarro,jean.pierre.navarro533@free.fr,0628800170,"103 place Pélabon, 13002 Marseille","Formule Coupe + Contour Barbe 25€",Frank,1,"25 €",Confirmé
+31048,"02 Déc 2026 15:30","28 Oct 2026 20:15",Gaspard,Thomas,gaspard.thomas534@sfr.fr,0636168961,"58 boulevard Longchamp, 13009 Marseille","Coupe + barbe",Esteban,1,"40 € (10 € déjà payé en acompte)",Payant
+31049,"03 Déc 2026 10:00","28 Oct 2026 20:15",Younes,Fontaine,younes.fontaine535@icloud.com,0743537752,"126 boulevard de la Libération, 13004 Marseille","Coupe junior",JKut,1,"15 €","Payer plus tard"
+31050,"04 Déc 2026 13:30","28 Oct 2026 20:15",Mamadou,Fernandez,mamadou.fernandez536@laposte.net,0650906543,"180 cours Julien, 13003 Marseille","Formule Taille de Barbe 18€",Soldat,1,"18 €",Confirmé
+31051,"05 Déc 2026 16:00","28 Oct 2026 20:15",Omar,Chérif,omar.cherif537@live.fr,0658275334,"176 rue Saint-Ferréol, 13007 Marseille",Coupe,Frank,1,"20 €",Confirmé
+31052,"08 Déc 2026 11:30","28 Oct 2026 20:15",Enzo,Fournier,enzo.fournier538@wanadoo.fr,0665644125,"162 avenue de Mazargues, 13004 Marseille","Formule Coupe + Contour Barbe 25€",Esteban,1,"25 €",Confirmé
+31053,"08 Déc 2026 14:00","28 Oct 2026 20:15",Florian,Haddad,florian.haddad539@proton.me,0673012916,"69 chemin de Saint-Menet, 13004 Marseille","Coupe + barbe",JKut,1,"40 € (10 € déjà payé en acompte)",Payant
+31054,"08 Déc 2026 17:30","28 Oct 2026 20:15",Nathan,Roussel,nathan.roussel540@gmail.com,0780381707,"174 rue Saint-Ferréol, 13002 Marseille","Coupe junior",Soldat,1,"15 €","Payer plus tard"
+31055,"09 Déc 2026 12:00","28 Oct 2026 20:15",Anis,Ferrari,anis.ferrari541@hotmail.fr,0687750498,"81 rue de la République, 13006 Marseille","Formule Taille de Barbe 18€",Frank,1,"18 €",Confirmé
+31056,"10 Déc 2026 15:30","28 Oct 2026 20:15",Jordan,Belkacem,jordan.belkacem542@yahoo.fr,0695119289,"9 avenue de Mazargues, 13007 Marseille",Coupe,Esteban,1,"20 €",Confirmé
+31057,"11 Déc 2026 10:00","28 Oct 2026 20:15",Frédéric,Sylla,frederic.sylla543@outlook.fr,0602488080,"30 boulevard de la Libération, 13008 Marseille","Formule Coupe + Contour Barbe 25€",JKut,1,"25 €",Confirmé
+31058,"12 Déc 2026 13:30","28 Oct 2026 20:15",Karim,Peretti,karim.peretti544@orange.fr,0609856871,"43 boulevard de la Libération, 13008 Marseille","Coupe + barbe",Soldat,1,"40 € (10 € déjà payé en acompte)",Payant
+31059,"15 Déc 2026 16:00","28 Oct 2026 20:15",Sofiane,Petit,sofiane.petit545@free.fr,0717225662,"145 chemin de Saint-Menet, 13008 Marseille","Coupe junior",Frank,1,"15 €","Payer plus tard"
+31060,"15 Déc 2026 11:30","28 Oct 2026 20:15",Dimitri,Garnier,dimitri.garnier546@sfr.fr,0624594453,"29 boulevard Longchamp, 13001 Marseille","Formule Taille de Barbe 18€",Esteban,1,"18 €",Confirmé
+31101,"11 Nov 2026 17:30","28 Oct 2026 20:15",Oussama,Vidal,oussama.vidal575@proton.me,0738289392,"36 rue de la République, 13016 Marseille",Coupe,JKut,1,"20 €",Confirmé
+31102,"12 Nov 2026 17:30","28 Oct 2026 20:15",Gaspard,Thomas,gaspard.thomas534@sfr.fr,0636168961,"58 boulevard Longchamp, 13009 Marseille",Coupe,Soldat,1,"20 €",Confirmé
+31103,"13 Nov 2026 17:30","28 Oct 2026 20:15",Ali,Roux,ali.roux576@gmail.com,0645658183,"16 chemin de Saint-Menet, 13008 Marseille","Soin visage",Frank,1,"20 €",Confirmé
+31104,"07 Nov 2026 10:00","28 Oct 2026 20:15",Tom,Fontaine,tom.fontaine577@hotmail.fr,0653026974,"111 boulevard Longchamp, 13016 Marseille",Coupe,JKut,1,"20 €",Confirmé
+31105,"14 Nov 2026 17:30","28 Oct 2026 20:15",Florian,Bianchi,florian.bianchi578@yahoo.fr,0660395765,"29 rue Saint-Ferréol, 13014 Marseille",Coupe,"Ancien stagiaire",1,"20 €",Confirmé
+31106,"17 Nov 2026 17:30","28 Oct 2026 20:15",Mickaël,Camara,mickael.camara579@outlook.fr,0667764556,"48 cours Julien, 13001 Marseille",Coupe,Esteban,1,"20 €",Annulé
+31107,"27 Oct 2026 11:00","24 Oct 2026 20:15",Sami,Gauthier,sami.gauthier580@orange.fr,0775133347,"156 avenue du Prado, 13013 Marseille",Coupe,JKut,1,"20 €",Confirmé
+31108,"17 Nov 2026 17:30","28 Oct 2026 20:15",Raphaël,Giraud,raphael.giraud574@wanadoo.fr,0630920601,"46 rue de la République, 13006 Marseille",Coupe,Frank,1,"20 €",Confirmé
+31109,"17 Nov 2026 17:30","28 Oct 2026 20:15",Jordan,Girard,jordan.girard581@free.fr,0682502138,"112 cours Julien, 13005 Marseille",Coupe,Soldat,1,"20 € (10 € déjà payé en acompte)",Payant
+31110,"18 Nov 2026 17:30","28 Oct 2026 20:15",Élias,Bertrand,elias.bertrand582@sfr.fr,0689870929,"46 cours Julien, 13005 Marseille",Coupe,Esteban,1,"20 €","Paiement en attente"

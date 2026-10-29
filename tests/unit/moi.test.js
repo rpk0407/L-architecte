@@ -24,6 +24,7 @@ import { moiRoutes } from '../../server/http/routes-moi.js';
 import { CLIENT_ACTOR, personaOf } from '../../server/commands/accounts.js';
 import { SALON_ONLY } from '../../server/commands/me.js';
 import { fileIds } from '../../server/commands/clients.js';
+import { piiOf } from '../../server/core/journal.js';
 
 Object.assign(ACCOUNT_TIMING, { minMs: 0, jitterMs: 0, verifyMs: 0 });
 const DEMO_SAYS = { ok: true, demo: true, message: 'Démo : rien n’est changé' };
@@ -178,7 +179,7 @@ test('profile: name and birthday, never the phone or the e-mail; personal words 
   assert.deepEqual(ev.data, { id: y.id, cid: y.id, patch: {}, fields: ['first', 'last', 'birthday'] });
   assert.ok(!JSON.stringify(ev.data).includes('Karim') && !JSON.stringify(ev.data).includes('14-03'));
   const stored = (await t.store.read(0)).events.find((e) => e.id === ev.id);
-  assert.deepEqual(stored.pii, { first: 'Yanis-karim', last: 'Martin-Diaz', birthday: '14-03' });
+  assert.deepEqual(piiOf(stored.pii), { first: 'Yanis-karim', last: 'Martin-Diaz', birthday: '14-03' });
   assert.equal((await y.b.get('/api/me/home')).json.birthday, '14-03');
   // the same values again: nothing written
   const n = rt.engine.journal.length;

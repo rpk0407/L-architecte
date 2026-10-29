@@ -85,13 +85,28 @@ export function clientFull(s, c, caps, stats, now = Date.now()) {
   };
 }
 
+/** « Mourad C. », or « Ilyes (fiche de Mourad C.) » for a booking made on the old site under another first name than the file's (a father booking for his son). */
+function nameOn(a, c) {
+  const card = (c.first + ' ' + (c.last ? c.last.charAt(0) + '.' : '')).trim();
+  const typed = typedFor(a, c);
+  return typed ? typed + ' (fiche de ' + card + ')' : card;
+}
+/** The first name typed on the old site for a booking when it is not the file's (Ilyes on Mourad's file), else ''. */
+export function typedFor(a, c) {
+  if (a.source !== 'import' || !a.name || !c || c.erased) return '';
+  const typed = a.name.trim().split(/\s+/)[0];
+  const f = (t) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const x = f(typed), y = f(c.first);
+  return x && y && !x.startsWith(y) && !y.startsWith(x) ? typed : '';
+}
+
 export function apptView(s, a, caps, stats, now = Date.now()) {
   const c = a.clientId ? s.clients.get(a.clientId) : null;
   return {
     id: a.id, code: a.code, staffId: a.staffId, anyStaff: a.anyStaff, day: a.day, start: a.start, dur: a.dur, services: a.services, price: a.price,
-    status: a.status, source: a.source, note: a.note || '', name: c ? (c.first + ' ' + (c.last ? c.last.charAt(0) + '.' : '')).trim() : a.name || 'Client',
+    status: a.status, source: a.source, note: a.note || '', name: c ? nameOn(a, c) : a.name || 'Client',
     client: c ? clientCard(s, c, caps, stats, now) : null, deposit: a.deposit, guarantee: a.guarantee || null, saleId: a.saleId, createdAt: a.createdAt,
-    statusAt: a.statusAt || {}, cancel: a.cancel, moves: a.moves || 0, demo: !!a.demo, legacy: !!a.legacy
+    statusAt: a.statusAt || {}, cancel: a.cancel, moves: a.moves || 0, demo: !!a.demo, legacy: !!a.legacy, paidOld: a.ext && a.ext.paid && !a.saleId ? a.ext.paid : 0
   };
 }
 

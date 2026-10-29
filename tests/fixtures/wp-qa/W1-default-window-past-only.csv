@@ -1,0 +1,15 @@
+﻿Réservations,de,à
+"","27 Sep 2026","27 Oct 2026"
+
+ID,DATE/HEURE,CRÉÉ,"PRÉNOM DU CLIENT","NOM DU CLIENT","E-MAIL DU CLIENT","TÉL DU CLIENT","Adresse du client",SERVICES,ASSISTANTS,"NOMBRE DE POUR CHAQUE SERVICE","PRIX TOTAL",ÉTAT
+11001,"14 Aoû 2026 10:00","11 Aoû 2026 20:15",Farid,Chevalier,farid.chevalier1@hotmail.fr,0608603358,"16 rue de la République, 13002 Marseille",Coupe,JKut,1,"20 €",Confirmé
+11002,"28 Aoû 2026 11:00","25 Aoû 2026 20:15",Pierre-Louis,Marchetti,pierre.louis.marchetti2@yahoo.fr,0615972149,"175 avenue du Prado, 13010 Marseille","Formule Coupe + Contour Barbe 25€",Soldat,1,"25 €",Confirmé
+11003,"11 Sep 2026 14:30","08 Sep 2026 20:15",Don,Fofana,don.fofana3@outlook.fr,0623340940,"13 chemin de Saint-Menet, 13002 Marseille","Coupe + barbe",Frank,1,"40 € (10 € déjà payé en acompte)",Payant
+11004,"18 Sep 2026 09:30","15 Sep 2026 20:15",Samir,Caron,samir.caron4@orange.fr,0630709731,"171 boulevard de la Libération, 13015 Marseille",Coupe,Esteban,1,"20 €","Payer plus tard"
+11005,"25 Sep 2026 16:00","22 Sep 2026 20:15",Oussama,Lorenzi,oussama.lorenzi5@free.fr,0738078522,"172 chemin de Saint-Menet, 13011 Marseille","Coupe junior",JKut,1,"15 €",Confirmé
+11006,"02 Oct 2026 10:30","29 Sep 2026 20:15",Eliott,Lefebvre,eliott.lefebvre6@sfr.fr,0645447313,"129 boulevard de la Libération, 13012 Marseille","Formule Taille de Barbe 18€",Soldat,1,"18 €",Annulé
+11007,"09 Oct 2026 15:00","06 Oct 2026 20:15",Gabriel,Chauvin,gabriel.chauvin7@icloud.com,0652816104,"137 rue de la République, 13015 Marseille",Coupe,John,1,"20 €",Confirmé
+11008,"16 Oct 2026 17:30","13 Oct 2026 20:15",Farid,Chevalier,farid.chevalier1@hotmail.fr,0608603358,"16 rue de la République, 13002 Marseille",Coupe,JKut,1,"20 €",Confirmé
+11009,"20 Oct 2026 12:00","17 Oct 2026 20:15",Florian,Konaté,florian.konate8@laposte.net,0660184895,"179 rue d’Aubagne, 13010 Marseille","Formule Coupe + Contour Barbe 25€",Frank,1,"25 €","En attente"
+11010,"20 Oct 2026 10:00","17 Oct 2026 20:15",Mohamed,Faure,mohamed.faure9@live.fr,0667553686,"119 traverse du Moulin, 13006 Marseille",Coupe,Soldat,1,"20 €",ERREUR
+11011,"20 Oct 2026 11:00","17 Oct 2026 20:15",Walid,Vidal,walid.vidal10@wanadoo.fr,0774922477,"69 rue de la République, 13011 Marseille",Coupe,Soldat,1,"20 €","Paiement en attente"

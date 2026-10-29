@@ -22,7 +22,7 @@ export const importsExtension = {
   on: {
     'import.started': (s, e, d) => {
       const { id, ...rest } = d;
-      s.imports.runs.set(id, { id, at: e.at, startedAt: e.at, by: e.actor.id, ...rest, batches: 0, lastIndex: -1, counts: {}, skip: {}, review: [], reviewTotal: 0, finishedAt: null, undoneAt: null });
+      s.imports.runs.set(id, { id, at: e.at, startedAt: e.at, by: e.actor.id, ...rest, batches: 0, lastIndex: -1, counts: {}, skip: {}, review: [], reviewTotal: 0, lastAt: e.at, finishedAt: null, undoneAt: null });
       s.imports.order.push(id);
       s.imports.seen.set(id, new Set());
     },
@@ -30,6 +30,7 @@ export const importsExtension = {
       const r = s.imports.runs.get(d.run);
       if (!r) return;
       r.batches++;
+      r.lastAt = e.at;
       if (typeof d.i === 'number' && d.i > r.lastIndex) r.lastIndex = d.i;
       sum(r.counts, d.counts);
       sum(r.skip, d.skip);

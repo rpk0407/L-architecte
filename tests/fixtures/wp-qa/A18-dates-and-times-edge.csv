@@ -1,0 +1,31 @@
+﻿Réservations,de,à
+,"01 Jan 2019","31 Déc 2099"
+
+ID,DATE/HEURE,CRÉÉ,"PRÉNOM DU CLIENT","NOM DU CLIENT","E-MAIL DU CLIENT","TÉL DU CLIENT","Adresse du client",SERVICES,ASSISTANTS,"NOMBRE DE POUR CHAQUE SERVICE","PRIX TOTAL",ÉTAT
+18901,"31 Jun 2026 10:00","25 Jun 2026 09:00",Rayan,Fabre,rayan.fabre251@proton.me,0650801108,"168 avenue de Mazargues, 13014 Marseille",Coupe,JKut,1,"20 €",Confirmé
+18902,"29 Fév 2027 10:00","20 Fév 2027 09:00",Alexandre,Lefebvre,alexandre.lefebvre252@gmail.com,0658169899,"171 avenue de Mazargues, 13012 Marseille",Coupe,JKut,1,"20 €",Confirmé
+18903,"29 Fév 2028 10:00","01 Mar 2027 09:00",Zacharie,Garnier,zacharie.garnier253@hotmail.fr,0665538690,"46 boulevard Longchamp, 13008 Marseille",Coupe,JKut,1,"20 €",Confirmé
+18904,"13 Déc 2025 24:00","10 Déc 2025 09:00",Yanis,Chérif,yanis.cherif254@yahoo.fr,0672907481,"117 rue Paradis, 13013 Marseille",Coupe,JKut,1,"20 €",Confirmé
+18905,"13 Déc 2025 25:61","10 Déc 2025 09:00",Farid,Lambert,farid.lambert255@outlook.fr,0780276272,"147 boulevard de la Libération, 13005 Marseille",Coupe,JKut,1,"20 €",Confirmé
+18906,"13 Déc 2025","10 Déc 2025 09:00",Jean-Pierre,Mattei,jean.pierre.mattei256@orange.fr,0687645063,"89 boulevard Longchamp, 13001 Marseille",Coupe,JKut,1,"20 €",Confirmé
+18907,"1er Déc 2025 09:00","28 Nov 2025 09:00",Kylian,Laurent,kylian.laurent257@free.fr,0695013854,"15 rue de la République, 13014 Marseille",Coupe,JKut,1,"20 €",Confirmé
+18908,"Mar 09 Déc 2025 09:30","28 Nov 2025 09:00",Noah,Blanc,noah.blanc258@sfr.fr,0602382645,"105 traverse du Moulin, 13015 Marseille",Coupe,JKut,1,"20 €",Confirmé
+18909,"13/12/25 10:00","10/12/25 09:00",Ismaël,Bouzid,ismael.bouzid259@icloud.com,0609751436,"135 cours Julien, 13003 Marseille",Coupe,JKut,1,"20 €",Confirmé
+18910,"00/00/0000 00:00",,Omar,Fofana,omar.fofana260@laposte.net,0717120227,"28 traverse du Moulin, 13009 Marseille",Coupe,JKut,1,"20 €",Confirmé
+18911,"2026-13-45 10:00",,Bilal,Lemoine,bilal.lemoine261@live.fr,0624489018,"69 chemin de Saint-Menet, 13009 Marseille",Coupe,JKut,1,"20 €",Confirmé
+18912,"13 Foo 2025 10:00",,Romain,Richard,romain.richard262@wanadoo.fr,0631857809,"138 boulevard de la Libération, 13012 Marseille",Coupe,JKut,1,"20 €",Confirmé
+18913,"14 Nov 2019 10:00","10 Nov 2019 09:00",Victor,Bertrand,victor.bertrand263@proton.me,0639226600,"170 place Pélabon, 13009 Marseille",Coupe,JKut,1,"20 €",Confirmé
+18914,"14 Nov 2099 10:00","10 Nov 2026 09:00",Adam,Marchetti,adam.marchetti264@gmail.com,0646595391,"31 place Pélabon, 13007 Marseille",Coupe,JKut,1,"20 €",Confirmé
+18915,"01 Jan 1970 01:00","01 Jan 1970 01:00",Hakim,Konaté,hakim.konate265@hotmail.fr,0753964182,"113 traverse du Moulin, 13003 Marseille",Coupe,JKut,1,"20 €",Confirmé
+18916,"12 Nov 2025 10:00","14 Nov 2025 10:00",Loïc,Lemoine,loic.lemoine266@yahoo.fr,0661332973,"145 rue Paradis, 13014 Marseille",Coupe,JKut,1,"20 €",Confirmé
+18917,"12 Nov 2026 10:00","14 Nov 2030 10:00",Mathieu,Girard,mathieu.girard267@outlook.fr,0668701764,"26 rue de la République, 13001 Marseille",Coupe,JKut,1,"20 €",Confirmé
+18918,"12 Nov 2026 10:00",,Samir,Fontaine,samir.fontaine268@orange.fr,0676070555,"36 cours Julien, 13013 Marseille",Coupe,JKut,1,"20 €",Confirmé
+18919,"12 Nov 2026 10:00",n/a,Mamadou,Rodriguez,mamadou.rodriguez269@free.fr,0683439346,"5 rue Saint-Ferréol, 13009 Marseille",Coupe,JKut,1,"20 €",Confirmé
+18920,"12 Nov 2025 10:00","01 Jan 1960 10:00",Kylian,Fofana,kylian.fofana270@sfr.fr,0790808137,"57 avenue du Prado, 13005 Marseille",Coupe,JKut,1,"20 €",Confirmé
+18921,"29 Mar 2026 02:30","20 Mar 2026 09:00",Louis,Rousseau,louis.rousseau271@icloud.com,0698176928,"136 avenue de Mazargues, 13003 Marseille",Coupe,JKut,1,"20 €",Confirmé
+18922,"25 Oct 2026 02:30","20 Oct 2026 09:00",Axel,Benali,axel.benali272@laposte.net,0605545719,"132 rue de la République, 13003 Marseille",Coupe,JKut,1,"20 €",Confirmé
+18923,"14 Nov 2026 00:00","10 Nov 2026 09:00",Nathan,Garcia,nathan.garcia273@live.fr,0612914510,"157 rue d’Aubagne, 13009 Marseille",Coupe,JKut,1,"20 €",Confirmé
+18924,"14 Nov 2026 23:59","10 Nov 2026 09:00",Tom,Rossi,tom.rossi274@wanadoo.fr,0620283301,"70 rue Paradis, 13007 Marseille",Coupe,JKut,1,"20 €",Confirmé
+18925,"01 Nov 2026 10:00","20 Oct 2026 09:00",Florian,Mansouri,florian.mansouri275@proton.me,0727652092,"53 traverse du Moulin, 13001 Marseille",Coupe,JKut,1,"20 €",Confirmé
+18926,"06 Oct 2025 08:15","01 Oct 2025 09:00",Anthony,Morel,anthony.morel276@gmail.com,0635020883,"47 rue Saint-Ferréol, 13002 Marseille",Coupe,JKut,1,"20 €",Confirmé
+18927,"06 Oct 2025 19:45","01 Oct 2025 09:00",Yanis,Casanova,yanis.casanova277@hotmail.fr,0642389674,"86 rue d’Aubagne, 13005 Marseille",Coupe,JKut,1,"20 €",Confirmé

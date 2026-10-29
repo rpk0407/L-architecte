@@ -27,6 +27,7 @@ import { fileStore } from '../../server/store/file.js';
 import { mkdtempSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { piiOf } from '../../server/core/journal.js';
 
 const d = (n) => addDays(DAY, n);
 /** the words with plain spaces (fmtEur puts a no-break space before €) */
@@ -319,7 +320,7 @@ test('stamps by hand: one a day at the till for a forgotten stamp, any number by
   // the owner: any number, any reason, kept as personal data
   await t.e.run(adjustLoyalty, { clientId: karim, units: 1, reason: 'Venu avec son frère Karim Benali' }, t.asOwner());
   const last = t.ev('loyalty.earned').at(-1);
-  assert.deepEqual(last.pii, { note: 'Venu avec son frère Karim Benali' });
+  assert.deepEqual(piiOf(last.pii), { note: 'Venu avec son frère Karim Benali' });
   assert.ok(!JSON.stringify(last.data).includes('frère'));
   assert.equal(last.data.reason, 'adjust');
   assert.equal(cardOf(t.s(), karim, DAY).units, 2);
@@ -394,7 +395,7 @@ test('referral: two persons, a new client, a referrer who came, perYear a year; 
   assert.equal((await till(n0)).why, 'twice');
   const referred = t.ev('loyalty.referred').at(-1);
   assert.deepEqual(referred.data, { id: ok.id, cid: n0, peer: karim, via: 'till', day: DAY, year: 2026 });
-  assert.deepEqual(referred.pii, { by: karim });
+  assert.deepEqual(piiOf(referred.pii), { by: karim });
   const welcome = t.ev('loyalty.rewarded').at(-1);
   assert.deepEqual([welcome.data.source, welcome.data.clientId, welcome.data.expires, welcome.data.reward], ['referee', n0, addDays(DAY, 60), { kind: 'amount', amount: 500 }]);
   assert.equal(cardOf(t.s(), n0, DAY).referredBy, karim);
@@ -408,7 +409,7 @@ test('referral: two persons, a new client, a referrer who came, perYear a year; 
   const first = await t.pay(n0, [t.cut()], { due: 2500 });
   const rw = t.ev('loyalty.rewarded').at(-1);
   assert.deepEqual([rw.data.source, rw.data.clientId, rw.data.cid, rw.data.peer, rw.data.saleId, rw.data.year], ['referrer', karim, karim, n0, first.id, 2026]);
-  assert.deepEqual(rw.pii, { for: n0 });
+  assert.deepEqual(piiOf(rw.pii), { for: n0 });
   // not on his second
   t.go(d(2));
   await t.pay(n0, [t.cut()], { due: 2500 });

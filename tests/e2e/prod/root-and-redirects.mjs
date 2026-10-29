@@ -97,7 +97,8 @@ export default async ({ h, page }) => {
   // the Jour J card's own check of the old addresses, on the address this salon is served on (PUBLIC_URL), owner only
   const card = await h.api('/api/v1/bascule?refresh=1');
   const redirects = card.json && card.json.steps.find((x) => x.id === 'redirects');
-  if (!redirects || redirects.state !== 'ok') throw new Error('Jour J › anciennes adresses: ' + JSON.stringify(redirects));
+  // every address answers as planned; the step stays « à faire » because no domain points here yet (it tested the provisional address)
+  if (!redirects || redirects.state !== 'todo' || !/anciennes adresses redirigent comme prévu sur localhost:\d+, mais ton domaine n’est pas encore indiqué/.test(redirects.line)) throw new Error('Jour J › anciennes adresses: ' + JSON.stringify(redirects));
 
   // chains end on a real page, never in a loop
   async function follow(from) {

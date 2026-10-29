@@ -1,0 +1,40 @@
+﻿Réservations,de,à
+,"01 Jan 2021","31 Déc 2027"
+
+ID,DATE/HEURE,CRÉÉ,"PRÉNOM DU CLIENT","NOM DU CLIENT","E-MAIL DU CLIENT","TÉL DU CLIENT","Adresse du client",SERVICES,ASSISTANTS,"NOMBRE DE POUR CHAQUE SERVICE","PRIX TOTAL",ÉTAT
+21001,"11 Aoû 2026 10:00","08 Aoû 2026 20:15",Karim,Benali,karim.benali@exemple.fr,0698765432,"69 rue Paradis, 13016 Marseille",Coupe,JKut,1,"20 €",Confirmé
+21002,"19 Aoû 2026 10:00","16 Aoû 2026 20:15",Karim,Benali,Karim.Benali@Exemple.FR,"+33 6 98 76 54 32","69 rue Paradis, 13016 Marseille",Coupe,JKut,1,"20 €",Confirmé
+21003,"29 Aoû 2026 10:00","26 Aoû 2026 20:15",Karim,Benali,,698765432,"69 rue Paradis, 13016 Marseille",Coupe,JKut,1,"20 €",Confirmé
+21004,"08 Sep 2026 10:00","05 Sep 2026 20:15",Karim,Benali,karim.benali@exemple.fr,,"69 rue Paradis, 13016 Marseille",Coupe,JKut,1,"20 €",Confirmé
+21005,"18 Sep 2026 10:00","15 Sep 2026 20:15",karim,BENALI,karim.benali@exemple.fr,0033698765432,"69 rue Paradis, 13016 Marseille",Coupe,JKut,1,"20 €",Confirmé
+21006,"29 Sep 2026 11:00","26 Sep 2026 20:15",Karim,Benali,karim.benali297@live.fr,0689765494,"32 avenue de Mazargues, 13013 Marseille",Coupe,JKut,1,"20 €",Confirmé
+21007,"14 Aoû 2026 12:00","11 Aoû 2026 20:15",Yanis,Lopez,yanis.lopez298@wanadoo.fr,0697134285,"167 rue d’Aubagne, 13010 Marseille",Coupe,Soldat,1,"20 €",Confirmé
+21008,"15 Sep 2026 12:00","12 Sep 2026 20:15",Yanis,Lopez,yanis.lopez298@wanadoo.fr,0755001122,"167 rue d’Aubagne, 13010 Marseille",Coupe,Soldat,1,"20 €",Confirmé
+21009,"13 Oct 2026 12:00","10 Oct 2026 20:15",Yanis,Lopez,,0755001122,"146 rue d’Aubagne, 13012 Marseille",Coupe,Soldat,1,"20 €",Confirmé
+21010,"18 Aoû 2026 14:00","15 Aoû 2026 20:15",Mourad,Chikh,mourad.chikh@exemple.fr,0601020304,"7 cours Julien, 13001 Marseille",Coupe,Frank,1,"20 €",Confirmé
+21011,"27 Aoû 2026 14:00","24 Aoû 2026 20:15",Ilyes,Chikh,,0601020304,"144 rue Paradis, 13007 Marseille","Coupe junior",Frank,1,"15 €",Confirmé
+21012,"08 Sep 2026 14:00","05 Sep 2026 20:15",Ilyes,Chikh,,0601020304,"144 rue Paradis, 13007 Marseille","Coupe junior",Frank,1,"15 €",Confirmé
+21013,"06 Nov 2026 14:00","28 Oct 2026 20:15",Ilyes,Chikh,,0601020304,"144 rue Paradis, 13007 Marseille","Coupe junior",Frank,1,"15 €",Confirmé
+21014,"21 Aoû 2026 15:00","18 Aoû 2026 20:15",Sarah,Roux,famille.roux@exemple.fr,0626609449,"160 rue d’Aubagne, 13016 Marseille",Coupe,Esteban,1,"20 €",Confirmé
+21015,"01 Sep 2026 15:00","29 Aoû 2026 20:15",Julien,Roux,famille.roux@exemple.fr,0633978240,"107 cours Julien, 13003 Marseille",Coupe,Esteban,1,"20 €",Confirmé
+21016,"07 Nov 2026 15:00","28 Oct 2026 20:15",Julien,Roux,famille.roux@exemple.fr,0633978240,"107 cours Julien, 13003 Marseille",Coupe,Esteban,1,"20 €",Confirmé
+21017,"25 Aoû 2026 16:00","22 Aoû 2026 20:15",Élodie,Marchand,elodie.marchand304@orange.fr,0641347031,"172 rue de la République, 13002 Marseille",Coupe,JKut,1,"20 €",Confirmé
+21018,"02 Sep 2026 16:00","30 Aoû 2026 20:15",Elodie,Marchand,elodie.marchand304@orange.fr,0641347031,"172 rue de la République, 13002 Marseille",Coupe,JKut,1,"20 €",Confirmé
+21019,"12 Sep 2026 16:00","09 Sep 2026 20:15",ÉLODIE,MARCHAND,elodie.marchand304@orange.fr,0641347031,"172 rue de la République, 13002 Marseille",Coupe,JKut,1,"20 €",Confirmé
+21020,"22 Sep 2026 16:00","19 Sep 2026 20:15","élodie ",,elodie.marchand304@orange.fr,0641347031,"172 rue de la République, 13002 Marseille",Coupe,JKut,1,"20 €",Confirmé
+21021,"02 Oct 2026 16:00","29 Sep 2026 20:15",Elo,Marchand,elodie.marchand304@orange.fr,0641347031,"172 rue de la République, 13002 Marseille",Coupe,JKut,1,"20 €",Confirmé
+21022,"07 Oct 2026 16:00","04 Oct 2026 20:15",Mohamed,Said,mohamed.said305@free.fr,0611223399,"180 traverse du Moulin, 13016 Marseille",Coupe,JKut,1,"20 €",Confirmé
+21023,"08 Oct 2026 16:00","05 Oct 2026 20:15",Mohammed,Said,mohamed.said305@free.fr,0611223399,"180 traverse du Moulin, 13016 Marseille",Coupe,JKut,1,"20 €",Confirmé
+21024,"09 Oct 2026 16:00","06 Oct 2026 20:15",Med,Said,mohamed.said305@free.fr,0611223399,"180 traverse du Moulin, 13016 Marseille",Coupe,JKut,1,"20 €",Confirmé
+21025,"10 Oct 2026 16:00","07 Oct 2026 20:15",Jean,,mohamed.said305@free.fr,0611223399,"180 traverse du Moulin, 13016 Marseille",Coupe,JKut,1,"20 €",Confirmé
+21026,"13 Oct 2026 16:00","10 Oct 2026 20:15",Jean,Orsini,jean.pierre.orsini306@sfr.fr,0611223388,"56 rue Saint-Ferréol, 13014 Marseille",Coupe,JKut,1,"20 €",Confirmé
+21027,"13 Oct 2026 16:00","10 Oct 2026 20:15",Jean-Pierre,Orsini,jean.pierre.orsini306@sfr.fr,0611223388,"56 rue Saint-Ferréol, 13014 Marseille",Coupe,JKut,1,"20 €",Confirmé
+21028,"24 Sep 2026 12:30","21 Sep 2026 20:15",Anis,Boudiaf,anis.boudiaf307@icloud.com,0663453404,"92 rue d’Aubagne, 13003 Marseille",Coupe,Soldat,1,"20 €",Confirmé
+21029,"06 Oct 2026 12:30","03 Oct 2026 20:15",Anis,Boudiaf,anis.pro@exemple.fr,0663453404,"92 rue d’Aubagne, 13003 Marseille",Coupe,Soldat,1,"20 €",Confirmé
+21030,"20 Oct 2026 12:30","17 Oct 2026 20:15",Anis,Boudiaf,,0663453404,"92 rue d’Aubagne, 13003 Marseille",Coupe,Soldat,1,"20 €",Confirmé
+21031,"25 Sep 2026 13:30","22 Sep 2026 20:15",Lina,Haddad,lina.haddad@exemple.fr,,"46 boulevard Longchamp, 13002 Marseille",Coupe,Frank,1,"20 €",Confirmé
+21032,"06 Oct 2026 13:30","03 Oct 2026 20:15",Lina,Haddad,lina.h@exemple.fr,,"46 boulevard Longchamp, 13002 Marseille",Coupe,Frank,1,"20 €",Confirmé
+21033,"14 Oct 2026 17:00","11 Oct 2026 20:15",,Seulnom,,0678190986,"153 boulevard de la Libération, 13005 Marseille",Coupe,Soldat,1,"20 €",Confirmé
+21034,"15 Oct 2026 17:00","12 Oct 2026 20:15",Walid,Passage,,,"150 rue d’Aubagne, 13012 Marseille",Coupe,Soldat,1,"20 €",Confirmé
+21035,"16 Oct 2026 17:00","13 Oct 2026 20:15",Walid,Passage,,,"9 traverse du Moulin, 13016 Marseille",Coupe,Soldat,1,"20 €",Confirmé
+21036,"10 Nov 2026 17:00","28 Oct 2026 20:15",Walid,Passage,,,"150 rue d’Aubagne, 13012 Marseille",Coupe,Soldat,1,"20 €",Confirmé

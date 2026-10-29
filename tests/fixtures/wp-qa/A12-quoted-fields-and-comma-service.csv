@@ -1,0 +1,21 @@
+﻿Réservations,de,à
+,"01 Jan 2025","31 Déc 2027"
+
+ID,DATE/HEURE,CRÉÉ,"PRÉNOM DU CLIENT","NOM DU CLIENT","E-MAIL DU CLIENT","TÉL DU CLIENT","Adresse du client",SERVICES,ASSISTANTS,"NOMBRE DE POUR CHAQUE SERVICE","PRIX TOTAL",ÉTAT
+12901,"29 Aoû 2026 10:00","26 Aoû 2026 20:15","Jean ""JP""",Dupont,samir.richard79@icloud.com,0683369056,"145 rue Paradis, 13012 Marseille",Coupe,JKut,1,"20 €",Confirmé
+12902,"03 Sep 2026 10:30","31 Aoû 2026 20:15",Marie,"Dupont
+fils",giovanni.chauvin80@laposte.net,0790737847,"80 rue Paradis, 13005 Marseille",Coupe,JKut,1,"20 €",Confirmé
+12903,"08 Sep 2026 11:00","05 Sep 2026 20:15","Pierre, Paul",Jacques,kylian.merabet81@live.fr,0698106638,"154 traverse du Moulin, 13011 Marseille",Coupe,JKut,1,"20 €",Confirmé
+12904,"15 Sep 2026 11:30","12 Sep 2026 20:15",Anne;Sophie,Martin,louis.perrin82@wanadoo.fr,0605475429,"135 chemin de Saint-Menet, 13015 Marseille",Coupe,JKut,1,"20 €",Confirmé
+12905,"18 Sep 2026 12:00","15 Sep 2026 20:15",Mathéo,Caron,matheo.caron83@proton.me,0612844220,"12, rue Paradis
+Bât. B, 3e étage
+13001 Marseille",Coupe,JKut,1,"20 €",Confirmé
+12906,"23 Sep 2026 12:30","20 Sep 2026 20:15","Tab	ulation",Test,nathan.bernard84@gmail.com,0620213011,"162 rue Paradis, 13004 Marseille",Coupe,JKut,1,"20 €",Confirmé
+12907,"29 Sep 2026 14:00","26 Sep 2026 20:15","CrOnly",Test,enzo.blanc85@hotmail.fr,0727581802,"159 avenue de Mazargues, 13003 Marseille",Coupe,JKut,1,"20 €",Confirmé
+12908,"03 Oct 2026 14:30","30 Sep 2026 20:15",Romain,Bianchi,romain.bianchi86@yahoo.fr,0634950593,"124 traverse du Moulin, 13007 Marseille","Coloration, décoloration (à partir de 20€)",JKut,1,"60 €",Confirmé
+12909,"08 Oct 2026 15:00","05 Oct 2026 20:15",Adrien,Doucouré,adrien.doucoure87@outlook.fr,0642319384,"167 rue Saint-Ferréol, 13005 Marseille","Coupe, Soin, barbe & huile","JKut, JKut","1, 1","35 €",Confirmé
+12910,"13 Oct 2026 15:30","10 Oct 2026 20:15",,"""""",nolan.picard88@orange.fr,0649688175,"162 avenue de Mazargues, 13006 Marseille",Coupe,JKut,1,"20 €",Confirmé
+12911,"14 Oct 2026 16:00","11 Oct 2026 20:15","   ",Espaces,"   ",0657056966,"36 place Pélabon, 13005 Marseille",Coupe,JKut,1,"20 €",Confirmé
+12912,"15 Oct 2026 16:30","12 Oct 2026 20:15","Quote""Milieu","O""Brien",jean.baptiste.david90@sfr.fr,0764425757,"98 boulevard de la Libération, 13006 Marseille",Coupe,JKut,1,"20 €",Confirmé
+12913,"06 Nov 2026 10:00","28 Oct 2026 20:15","Jean ""JP""",Dupont,samir.richard79@icloud.com,0683369056,"145 rue Paradis, 13012 Marseille",Coupe,JKut,1,"20 €",Confirmé
+12914,"07 Nov 2026 10:30","28 Oct 2026 20:15",Romain,Bianchi,romain.bianchi86@yahoo.fr,0634950593,"124 traverse du Moulin, 13007 Marseille","Coloration, décoloration (à partir de 20€)",Soldat,1,"60 €",Confirmé
