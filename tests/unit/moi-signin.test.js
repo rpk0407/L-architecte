@@ -209,9 +209,12 @@ test('the footer says what the static pages say, and strands no separator at the
 
 test('at 320 px the first-name hint, the main button and the quiet link keep their lines', () => {
   const css = read('web/src/moi/moi.css');
-  // the main button never wraps its words; under 360 px it is a notch smaller, and the hint of the name field too
+  // the main button never wraps its words; under 360 px it is a notch smaller. The hint of the name field is 16 px up to 389 px (at 20 px it
+  // is 250 px wide, in a field with 247 px at 360 px: the real widths are measured in tests/e2e/demo/moi.mjs), and ends in an ellipsis if still too long
   assert.match(css, /\.ms-form \.c-btn \{ white-space: nowrap; \}/);
-  assert.match(css, /@media \(max-width: 359px\) \{\s*\.ms-inp::placeholder \{ font-size: 16px; letter-spacing: 0; \}\s*\.ms-form \.c-btn \{ padding: 0 14px; font-size: 15\.5px; \}/);
+  assert.match(css, /@media \(max-width: 389px\) \{\s*\.ms-inp::placeholder \{ font-size: 16px; letter-spacing: 0; \}\s*\}/);
+  assert.match(css, /@media \(max-width: 359px\) \{\s*\.ms-form \.c-btn \{ padding: 0 14px; font-size: 15\.5px; \}/);
+  assert.match(css, /\.ms-inp \{[^}]*text-overflow: ellipsis;/);
   // « Reçois son lien. » stays in its sentence (a block of text, the link inline); its 44 px is padding around it, not line height
   assert.match(css, /\.ms-quiet \{ display: block;/);
   assert.match(css, /\.ms-quiet a \{ display: inline; padding: 13px 2px;/);

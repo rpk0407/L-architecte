@@ -6,6 +6,8 @@
 export const name = 'client space: sign in, next visit, move, carnet, history, receipt, sign out, « Ouvrir mon espace »';
 export const viewport = { width: 390, height: 844 };
 
+import { focusRing } from '../ring.mjs';
+
 const DESKTOP = { width: 1440, height: 900 };
 
 async function noSideScroll(page, where) {
@@ -376,18 +378,26 @@ export default async ({ h, page }) => {
   await narrow.locator('#m-code').focus();
   await narrow.keyboard.type('123456');
   await narrow.locator('#m-first').waitFor();
-  const hint = await narrow.locator('#m-first').evaluate((e) => {
+  // at every width from a 320 px phone to a big one (360 px, the commonest Android width, once clipped its last letter): the hint fits with room to spare
+  const hintAt = () => narrow.locator('#m-first').evaluate((e) => {
     const f = getComputedStyle(e), p = getComputedStyle(e, '::placeholder');
     const c = document.createElement('canvas').getContext('2d');
     c.font = p.fontWeight + ' ' + p.fontSize + ' ' + p.fontFamily;
     const text = e.getAttribute('placeholder') || '';
     return { need: c.measureText(text).width + (parseFloat(p.letterSpacing) || 0) * text.length, room: e.clientWidth - parseFloat(f.paddingLeft) - parseFloat(f.paddingRight) };
   });
-  if (hint.need > hint.room) throw new Error('the first-name hint is clipped at 320 px: ' + JSON.stringify(hint));
+  for (let w = 320; w <= 430; w++) {
+    await narrow.setViewportSize({ width: w, height: 640 });
+    const hint = await hintAt();
+    if (hint.need > hint.room - 8) throw new Error('the first-name hint is clipped or touches the edge at ' + w + ' px: ' + JSON.stringify(hint));
+  }
+  await narrow.setViewportSize({ width: 320, height: 640 });
   await narrow.unroute('**/api/public/account/start');
   await narrow.unroute('**/api/public/account/verify');
   await narrow.goto(h.base + '/moi');
   await narrow.getByLabel('Ton numéro de mobile').waitFor();
+  // the focus ring of the skip link, the way to book and the main button, light: a ring the page's ink, 3:1 against what is behind it
+  for (const sel of ['a.ms-skip', 'a.ms-btn', 'button.c-btn']) await focusRing(narrow, sel, 'light: /moi sign-in');
   // the phone and the e-mail never share a line with a separator that a break could strand: there is none, and each fits its line
   if ((await text(narrow, '.ms-ft address')).includes('·')) throw new Error('a separator in the footer’s address line');
   const ways = await narrow.locator('.ms-ft-ways a').evaluateAll((els) => els.map((e) => { const r = e.getBoundingClientRect(); return { right: r.right, t: e.textContent }; }));
@@ -426,6 +436,8 @@ export default async ({ h, page }) => {
   // the field, the cells and the buttons are drawn for it (dark text on the red button, light text on the dark field)
   const numberField = await paint(narrow, '.ms-inp');
   if (!numberField.startsWith('rgb(23, 21, 19)')) throw new Error('dark: the number field is ' + numberField);
+  // and the focus ring is the light ink on the dark paper (it was the text colour of the control: the dark ink of the red button, invisible)
+  for (const sel of ['a.ms-skip', 'a.ms-btn', 'button.c-btn']) await focusRing(narrow, sel, 'dark: /moi sign-in');
   // the signed-in space is dark with it: nothing flips between the sign-in, « C'est bon » and the home (the page behind, the body, every sample)
   await narrow.evaluate(() => {
     window.__paint = [];
@@ -447,6 +459,7 @@ export default async ({ h, page }) => {
   if (home.book !== 'rgb(15, 14, 13)' || home.bookBg !== 'rgb(235, 70, 57)') throw new Error('dark: the « Réserver » button is ' + home.book + ' on ' + home.bookBg);
   if (!/rgba\(23, 21, 19/.test(home.tabs)) throw new Error('dark: the tab bar is ' + home.tabs);
   if (home.bars.join(' ') !== '#ECE8E0@(prefers-color-scheme: light) #0F0E0D@(prefers-color-scheme: dark)') throw new Error('dark: the browser bar is ' + home.bars);
+  for (const sel of ['a.m-book', '.m-hero .m-act', '.m-tabs a']) await focusRing(narrow, sel, 'dark: /moi home');
   await h.shot(narrow, 'moi-home-dark-320');
   // a sheet, the profile's fields and a switch are dark as well, and each field's border is the 3:1 grey
   await narrow.getByRole('button', { name: /Carnet/ }).first().click();
@@ -459,6 +472,7 @@ export default async ({ h, page }) => {
   await narrow.locator('.mp-input').first().waitFor();
   const profileField = await narrow.locator('.mp-input').first().evaluate((e) => { const c = getComputedStyle(e); return c.backgroundColor + ' | ' + c.boxShadow; });
   if (!profileField.startsWith('rgb(31, 28, 25)') || !profileField.includes('rgb(122, 116, 108)')) throw new Error('dark: the profile field is ' + profileField);
+  for (const sel of ['.mp-chip[aria-pressed="true"]', '.mp-chip[aria-pressed="false"]', '.mp-switch']) await focusRing(narrow, sel, 'dark: /moi/profil');
   await h.shot(narrow, 'moi-profile-dark-320');
   // the pages reached by a link are dark too, and a printed receipt stays black on white whatever the phone says
   await narrow.goto(h.base + '/moi/historique');
@@ -476,4 +490,8 @@ export default async ({ h, page }) => {
   await narrow.getByRole('heading', { name: /^Salut / }).waitFor({ timeout: 10000 });
   const lightHome = await narrow.evaluate(() => ({ page: getComputedStyle(document.body).backgroundColor, ticket: getComputedStyle(document.querySelector('.m-hero')).backgroundColor }));
   if (lightHome.page !== 'rgb(236, 232, 224)' || lightHome.ticket !== 'rgb(15, 14, 13)') throw new Error('light: the home is ' + JSON.stringify(lightHome));
+  for (const sel of ['a.m-book', '.m-hero .m-act', '.m-tabs a']) await focusRing(narrow, sel, 'light: /moi home');
+  await narrow.goto(h.base + '/moi/profil');
+  await narrow.locator('.mp-chip').first().waitFor();
+  for (const sel of ['.mp-chip[aria-pressed="true"]', '.mp-chip[aria-pressed="false"]']) await focusRing(narrow, sel, 'light: /moi/profil');
 };

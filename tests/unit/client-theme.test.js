@@ -2,7 +2,7 @@
 // in the light values and in the dark ones, against every surface they sit on. Read from the CSS itself, so a token that drifts fails here.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 const ROOT = resolve(new URL('../..', import.meta.url).pathname);
@@ -58,7 +58,23 @@ for (const [name, t] of [['light', light], ['dark', dark]]) {
   test('client space, ' + name + ': a field’s border and a switch’s track are 3:1 against what is around them', () => {
     const edge = rgb(t.edge).c;
     for (const k of ['paper', 'card', 'field']) assert.ok(ratio(edge, rgb(t[k]).c) >= 3, 'edge on ' + k + ' is ' + ratio(edge, rgb(t[k]).c).toFixed(2));
-    // and the focus ring (the ink) on the paper and the card
-    for (const k of ['paper', 'card']) assert.ok(ratio(rgb(t.ink).c, rgb(t[k]).c) >= 3);
+    // and the focus ring: the ink on the paper, the card and the field, and on the ticket (ink in both themes) the ticket's own light
+    for (const k of ['paper', 'card', 'field']) assert.ok(ratio(rgb(t.ink).c, rgb(t[k]).c) >= 3, 'the ring (ink) on ' + k);
+    assert.ok(ratio(rgb(t.tk).c, rgb(t['tk-bg']).c) >= 3, 'the ring (tk) on the ticket');
   });
 }
+
+// The ring is a token of the theme, never the control's own text colour: on the brand red, on the skip link and on an ink-filled chip that
+// colour is the one of what lies behind the ring (1:1, no ring at all). The pages' real rings are measured in tests/e2e/demo/moi.mjs.
+test('client space: no focus ring takes the control’s own text colour', () => {
+  const dirs = ['web/src/moi', 'web/src/client'];
+  const files = dirs.flatMap((d) => readdirSync(join(ROOT, d), { recursive: true }).filter((f) => String(f).endsWith('.css')).map((f) => join(d, String(f))));
+  assert.ok(files.length >= 4, 'the stylesheets of the client space are found');
+  const bad = [];
+  for (const f of files) {
+    for (const m of readFileSync(join(ROOT, f), 'utf8').matchAll(/([^{}]*:focus(?:-visible)?[^{}]*)\{([^}]*)\}/g)) {
+      if (/outline[^;]*currentcolor/i.test(m[2])) bad.push(f + ': ' + m[1].trim());
+    }
+  }
+  assert.deepEqual(bad, []);
+});

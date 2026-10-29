@@ -7,7 +7,11 @@
 .m-page [hidden] { display: none !important; }
 .m-page { padding-bottom: calc(28px + env(safe-area-inset-bottom)); }
 .m-page.m-tabbed { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
-.m-page :focus-visible, .m-sheet :focus-visible { outline: 2.5px solid currentColor; outline-offset: 3px; }
+/* the ring is the page's ink (light in the dark theme, dark in the light one: 3:1 and more on the paper and the card), never the
+   control's own text colour, which on the brand red or on an ink-filled chip is the very colour of what lies behind the ring.
+   The ticket is ink in both themes: its ring is the ticket's light (--tk). */
+.m-page :focus-visible, .m-sheet :focus-visible { outline: 2.5px solid var(--ink); outline-offset: 3px; }
+.m-page .c-ticket :focus-visible, .m-sheet .c-ticket :focus-visible { outline-color: var(--tk); }
 /* the client pages' text links (« Retour », « Non, je garde ») as big as a thumb here */
 .m-page .c-link { display: inline-flex; align-items: center; min-height: 44px; }
 /* the footer's two links: a thumb's height, and the client pages' second ink so they read */
@@ -84,7 +88,7 @@
 
 /* the sign-in, signed out: the site's page frame (as /mon-rendez-vous and /resilier have it), the step card, the footer */
 .ms { --pad: clamp(16px, 5.4vw, 80px); min-height: 100dvh; display: flex; flex-direction: column; background: var(--paper); color: var(--ink); font: 400 17px/1.55 var(--sans); }
-.ms :focus-visible { outline: 2.5px solid currentColor; outline-offset: 3px; }
+.ms :focus-visible { outline: 2.5px solid var(--ink); outline-offset: 3px; }
 .ms a { color: inherit; }
 .ms-skip { position: fixed; left: 12px; top: -60px; z-index: 10; padding: 12px 18px; border-radius: 999px; background: var(--ink); color: var(--paper) !important; font-weight: 600; text-decoration: none; }
 .ms-skip:focus { top: 12px; }
@@ -135,12 +139,17 @@
 
 .ms-form { display: flex; flex-direction: column; gap: 12px; }
 .ms-form label { margin-bottom: -4px; font: 600 15px/1.3 var(--sans); }
-.ms-inp { display: block; width: 100%; min-height: 56px; margin: 0; padding: 0 16px; border: 1.5px solid var(--edge); border-radius: 16px; background: var(--card); color: var(--ink); font: 500 20px/1 var(--sans); letter-spacing: .02em; -webkit-appearance: none; appearance: none; transition: border-color .2s, box-shadow .2s; }
+.ms-inp { display: block; width: 100%; min-height: 56px; margin: 0; padding: 0 16px; border: 1.5px solid var(--edge); border-radius: 16px; background: var(--card); color: var(--ink); font: 500 20px/1 var(--sans); letter-spacing: .02em; text-overflow: ellipsis; -webkit-appearance: none; appearance: none; transition: border-color .2s, box-shadow .2s; }
 .ms-inp::placeholder { color: var(--ink3); opacity: 1; }
-/* a narrow phone: the first-name hint (« Comme sur ta réservation ») and the main button's words each stay on one line */
+/* a narrow phone: the first-name hint (« Comme sur ta réservation », 250 px at 20 px) and the main button's words each stay on one line
+   (a hint that still would not fit, a bigger system font, ends in an ellipsis rather than mid-letter).
+   The hint is set smaller up to 389 px: the field's room is 247 px at 360 (the commonest Android width), 261 at 375, 274 at 390, so at
+   20 px it was clipped at 360 and touched the edge up to 363; at 16 px it has 18 px or more to spare from 320 to 389 */
 .ms-form .c-btn { white-space: nowrap; }
-@media (max-width: 359px) {
+@media (max-width: 389px) {
   .ms-inp::placeholder { font-size: 16px; letter-spacing: 0; }
+}
+@media (max-width: 359px) {
   .ms-form .c-btn { padding: 0 14px; font-size: 15.5px; }
 }
 .ms-inp:focus { outline: none; border-color: var(--ink); box-shadow: 0 0 0 3px var(--halo); }
