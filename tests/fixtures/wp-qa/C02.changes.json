@@ -1,0 +1,144 @@
+{
+  "U1-cancelled": {
+    "i": 20,
+    "id": 31021,
+    "what": "upcoming booking cancelled on WordPress",
+    "wp": 31021
+  },
+  "U2-moved-day": {
+    "i": 21,
+    "id": 31022,
+    "what": "moved two days later, same barber",
+    "wp": 31022
+  },
+  "U3-moved-barber": {
+    "i": 22,
+    "id": 31023,
+    "what": "same slot, other barber",
+    "wp": 31023
+  },
+  "U4-moved-both-sides": {
+    "i": 23,
+    "id": 31024,
+    "what": "moved on WordPress; in the Comptoir the test first moves it somewhere else",
+    "wp": 31024
+  },
+  "U5-deleted": {
+    "i": 24,
+    "id": 31025,
+    "what": "trashed on WordPress: absent from the export",
+    "wp": 31025
+  },
+  "U6-deleted-but-handled": {
+    "i": 25,
+    "id": 31026,
+    "what": "absent from the export; in the Comptoir the test first checks the client in / cashes it",
+    "wp": 31026
+  },
+  "U7-pending-to-confirmed": {
+    "i": 26,
+    "id": 31027,
+    "what": "En attente → Confirmé",
+    "wp": 31027
+  },
+  "U8-price-changed": {
+    "i": 27,
+    "id": 31028,
+    "what": "price +5 €",
+    "wp": 31028
+  },
+  "U9-service-changed": {
+    "i": 28,
+    "id": 31029,
+    "what": "service changed to Coupe + barbe, price 40 €",
+    "wp": 31029
+  },
+  "U10-phone-fixed": {
+    "i": 29,
+    "id": 31030,
+    "what": "the client’s phone corrected on WordPress (typo)",
+    "wp": 31030
+  },
+  "U11-name-fixed": {
+    "i": 30,
+    "id": 31031,
+    "what": "name corrected on WordPress",
+    "wp": 31031
+  },
+  "U12-deposit-paid-since": {
+    "i": 31,
+    "id": 31032,
+    "what": "Paiement en attente / Confirmé → Payant with a 10 € deposit: paid online after the first pass",
+    "wp": 31032
+  },
+  "U13-paylater-now-paid": {
+    "i": 32,
+    "id": 31033,
+    "what": "Payer plus tard → Payant with a 10 € deposit",
+    "wp": 31033
+  },
+  "U14-became-error": {
+    "i": 33,
+    "id": 31034,
+    "what": "status ERREUR after the first pass",
+    "wp": 31034
+  },
+  "U15-cancelled-but-handled": {
+    "i": 34,
+    "id": 31035,
+    "what": "cancelled on WordPress; in the Comptoir the test first checks the client in",
+    "wp": 31035
+  },
+  "P1-past-now-cancelled": {
+    "i": 3,
+    "id": 31004,
+    "what": "a visit already in the past, cancelled afterwards on WordPress",
+    "wp": 31004
+  },
+  "P2-past-unchanged": {
+    "i": 5,
+    "id": 31006,
+    "what": "control",
+    "wp": 31006
+  },
+  "N1": {
+    "id": 31101,
+    "wp": 31101
+  },
+  "N2": {
+    "id": 31102,
+    "wp": 31102
+  },
+  "N3": {
+    "id": 31103,
+    "wp": 31103
+  },
+  "N4": {
+    "id": 31104,
+    "wp": 31104
+  },
+  "N5": {
+    "id": 31105,
+    "wp": 31105
+  },
+  "N6": {
+    "id": 31106,
+    "wp": 31106
+  },
+  "N7": {
+    "id": 31107,
+    "wp": 31107
+  },
+  "N8": {
+    "id": 31108,
+    "wp": 31108
+  },
+  "N9": {
+    "id": 31109,
+    "wp": 31109
+  },
+  "N10": {
+    "id": 31110,
+    "wp": 31110
+  }
+}

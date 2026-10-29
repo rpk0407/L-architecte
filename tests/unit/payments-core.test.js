@@ -16,6 +16,7 @@ import { emptyState, evolve } from '../../server/core/state.js';
 import { browser } from '../api/client.js';
 import { at } from '../helpers.js';
 import { addDays } from '../../shared/dates.js';
+import { piiOf } from '../../server/core/journal.js';
 
 const DAY = '2026-11-03'; // a Tuesday
 const LATER = addDays(DAY, 1);
@@ -120,7 +121,7 @@ test('the customer and card ids leave the chain: in pii under the file, dropped 
   const ev = t.rt.engine.journal.find((e) => e.type === 'payment.succeeded' && e.data.id === py.id);
   assert.equal(ev.data.cid, appt.clientId);
   assert.ok(!('customer' in ev.data) && !('pm' in ev.data), JSON.stringify(ev.data));
-  assert.deepEqual(ev.pii, { customer: 'cus_9' });
+  assert.deepEqual(piiOf(ev.pii), { customer: 'cus_9' });
   assert.equal(py.customer, 'cus_9');
   assert.equal(t.rt.engine.journal.find((e) => e.type === 'payment.created' && e.data.id === py.id).data.cid, appt.clientId);
   // a QR at the till has no file: the processor's ids are not kept at all

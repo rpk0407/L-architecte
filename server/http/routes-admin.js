@@ -81,7 +81,7 @@ function memberSummary(s, type, d) {
 }
 
 /** Z CSV columns, written out: a gift card used or a deposit settles a ticket without money coming in that day. */
-const Z_CSV_METHOD = { card: 'Encaissé carte (TPE)', cash: 'Encaissé espèces', online: 'Encaissé paiement en ligne', deposit: 'Réglé par acompte en ligne', giftcard: 'Réglé par carte cadeau' };
+const Z_CSV_METHOD = { card: 'Encaissé carte (TPE)', cash: 'Encaissé espèces', online: 'Encaissé paiement en ligne', deposit: 'Réglé par acompte en ligne', ancien: 'Réglé par acompte de l’ancien site', giftcard: 'Réglé par carte cadeau' };
 
 function summary(s, e) {
   const d = e.data || {};

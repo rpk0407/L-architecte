@@ -167,7 +167,7 @@ export function meRoutes(app) {
       return { ok: true, first: res.first };
     }
     // the right code at a first opening: one more question, the code still good
-    if (res.ask) return { ok: false, ask: res.ask, ...(res.wrong ? { message: 'Ce n’est pas le prénom de la fiche. Réessaie.' } : { message: 'Ton prénom ?' }) };
+    if (res.ask) return { ok: false, ask: res.ask, ...(res.wrong ? { message: 'Ce n’est pas le prénom qu’on a pour ce numéro. Réessaie.' } : { message: 'Ton prénom ?' }) };
     ipGuard.fail(); fileGuard.fail();
     // the 5th wrong code in this instance kills every live code of that file, everywhere
     let burst = false;

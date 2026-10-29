@@ -19,7 +19,7 @@ state = evolve(state, event)              the projection every screen reads
 
 Each event carries `p` (the previous event's hash) and `h` (its own SHA-256 over the previous hash and its content). Changing or removing any past event breaks every hash after it: `verifyChain` (Réglages › Données) walks the whole journal and says exactly where. Z closures store the hash of the journal at the moment of closing (their seal) and a perpetual grand total.
 
-Personal data (names, phone numbers, notes) travel next to the event in a `pii` field. Only its hash is chained. Erasing a client (GDPR) blanks the `pii` of their events: the chain still verifies, the accounting stays intact, the person is gone.
+Personal data (names, phone numbers, notes) travel next to the event in a `pii` field. Only its hash (`ph`) is chained, and that hash is salted: `seal` puts a random nonce (`_n`, 16 hex digits) inside every pii object before hashing it, so the `ph` of an erased event, or of one in the journal export, cannot be tried against guesses (a French mobile number has too few possibilities for an unsalted hash). The reducers never see the nonce (`piiOf`, `core/state.js`); it is not data and leaves with the pii. Erasing a client (GDPR) blanks the `pii` of their events: the chain still verifies, the accounting stays intact, the person is gone. Events sealed before the nonce existed keep their unsalted `ph` and still verify (`verifyChain` hashes whatever the pii holds); a journal that began that way is not free of guessable hashes until it is started again on salted events, which is why the salt is in before the first production import. A client file made or filled by an import of the old WordPress site also remembers, in pii, the number and the e-mail it was given (`wpPhone`, `wpEmail`): no view shows them and erasure drops them; they let a later pass tell the old site's correction from the owner's own edit (`judge` in `commands/import.js`).
 
 ## Concurrency and idempotency
 
@@ -56,7 +56,7 @@ The scheduler (`server/http/scheduler.js`) sends reminders, expires holds and un
 
 ## The Comptoir (web/)
 
-React 19 + TypeScript (strict), built by Vite into `dist/`. No UI library: a small design system (`web/src/ui`) with its own icon set, self-hosted fonts (Instrument Sans and Serif), dark and light themes, and a privacy mode that blurs amounts when a client looks at the screen.
+React 19 + TypeScript (strict), built by Vite into `dist/`. No UI library: a small design system (`web/src/ui`) with its own icon set, self-hosted fonts (Instrument Sans and Serif), dark and light themes, and a privacy mode that blurs amounts when a client looks at the screen. The client's own pages (`/moi`, `/r/`, `/abo/`, `/cadeau/`, `/recu/`, `/paiement/`) have one palette of tokens (`web/src/client/client.css`), light by default and dark with the phone, the values of the static pages' (`public/pages.css`); a printed receipt or gift card keeps the light ones.
 
 - `state.tsx` loads the bootstrap (who is signed in, settings, team, catalogue) and polls `/api/v1/pulse` every 4 s: when the journal version moves, cached queries refresh and new bookings show up in the feed with a toast.
 - Pages are lazy-loaded; the agenda and the till load first. React vendor ≈ 70 KB gzip, each page 5 to 25 KB.

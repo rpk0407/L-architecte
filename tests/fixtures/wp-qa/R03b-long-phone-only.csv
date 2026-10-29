@@ -1,0 +1,6 @@
+﻿Réservations,de,à
+,"01 Jan 2024","31 Déc 2027"
+
+ID,DATE/HEURE,CRÉÉ,PRÉNOM DU CLIENT,NOM DU CLIENT,E-MAIL DU CLIENT,TÉL DU CLIENT,Adresse du client,SERVICES,ASSISTANTS,NOMBRE DE POUR CHAQUE SERVICE,PRIX TOTAL,ÉTAT
+92000,04 Nov 2026 10:00,20 Oct 2026 20:00,Junk0,Case,ok1@ex.fr,06 12 34 56 78 (mobile - de préférence le soir svp merci),,Formule Coupe Classique 20€,JKut,1,20 €,Confirmé
+92001,05 Nov 2026 10:00,20 Oct 2026 20:00,Junk1,Case,ok2@ex.fr,+33 6 12 34 56 79 appeler Marie si pas de réponse,,Formule Coupe Classique 20€,JKut,1,20 €,Confirmé

@@ -357,6 +357,7 @@ export function MemberPanel({ source, initial, back, onChange }: { source: Membe
           ) : null}
         </section>
       ) : null}
+      {back === 'ok' ? <EspaceHint /> : null}
       <p className="c-muted c-small mb-help">Une question ? {m.shop.phone ? <>Appelle le salon au <a href={'tel:' + m.shop.phone.replace(/\s/g, '')}>{m.shop.phone}</a>.</> : 'Passe au salon.'} <a href="/cgv#abonnement">Conditions de l’abonnement</a></p>
     </>
   );
@@ -371,4 +372,11 @@ export default function Member({ token }: { token: string }) {
   // the address keeps nothing but the link (a shared screenshot does not reopen the recap)
   useEffect(() => { document.title = 'Mon abonnement · Barber L’Architecte'; if (location.search) history.replaceState(null, '', location.pathname); }, []);
   return <MemberPanel source={source} initial={initial} back={back} />;
+}
+
+/** Back from the checkout, once the salon has opened the client space: where the month's cuts are followed (AC-03a). */
+function EspaceHint() {
+  const [on, setOn] = useState(false);
+  useEffect(() => { api.get<{ enabled: boolean }>('/api/public/account').then((a) => setOn(!!a.enabled)).catch(() => { /* nothing said */ }); }, []);
+  return on ? <p className="c-muted c-small mb-help">Retrouve tes coupes du mois dans <a href="/moi">ton espace</a>.</p> : null;
 }

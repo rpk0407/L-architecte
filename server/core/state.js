@@ -1,7 +1,7 @@
 // @ts-check
 // The projection: what the journal means right now. `evolve` folds one event into the state.
 // It is the only code that mutates state, and it runs only for events already stored.
-import { GENESIS } from './journal.js';
+import { GENESIS, piiOf } from './journal.js';
 import { TEMPLATES } from './templates.js';
 import { defaultSettings } from '../settings/index.js';
 import { EXTENSIONS } from './extensions.js';
@@ -68,7 +68,7 @@ const FEED = new Set(['appt.booked', 'appt.cancelled', 'appt.moved', 'appt.statu
  */
 export function evolve(s, e) {
   const d = e.data || {};
-  const p = e.pii || {};
+  const p = piiOf(e.pii);
   switch (e.type) {
     case 'shop.initialized':
       s.mode = d.mode; s.createdAt = e.at;
@@ -125,7 +125,9 @@ export function evolve(s, e) {
     case 'stock.adjusted': { const x = s.products.get(d.productId); if (x) x.stock = (x.stock || 0) + d.delta; break; }
 
     case 'client.added': {
-      const c = { id: d.id, first: p.first || '', last: p.last || '', phone: p.phone || '', email: p.email || '', notes: p.notes || '', tech: p.tech || '', birthday: p.birthday || '', tags: d.tags || [], sms: d.sms !== false, marketing: !!d.marketing, source: d.source || 'salon', createdAt: d.createdAt || e.at, erased: false, mergedInto: null, demo: !!d.demo, ...(d.ext ? { ext: d.ext } : {}), ...(d.marketingSrc ? { marketingSrc: d.marketingSrc, marketingAt: d.marketingAt } : {}) };
+      const c = { id: d.id, first: p.first || '', last: p.last || '', phone: p.phone || '', email: p.email || '', notes: p.notes || '', tech: p.tech || '', birthday: p.birthday || '', tags: d.tags || [], sms: d.sms !== false, marketing: !!d.marketing, source: d.source || 'salon', createdAt: d.createdAt || e.at, erased: false, mergedInto: null, demo: !!d.demo, ...(d.ext ? { ext: d.ext } : {}), ...(d.marketingSrc ? { marketingSrc: d.marketingSrc, marketingAt: d.marketingAt } : {}),
+        // what an import of the old site gave this file (WordPress import): personal data, so in pii; no view shows it, it only tells a later pass an old-site correction from an owner's edit
+        ...(p.wpPhone ? { wpPhone: p.wpPhone } : {}), ...(p.wpEmail ? { wpEmail: p.wpEmail } : {}) };
       s.clients.set(d.id, c);
       if (c.phone) s.clientByPhone.set(c.phone, d.id);
       break;
@@ -154,8 +156,9 @@ export function evolve(s, e) {
         if (!c) continue;
         if (c.phone && ids.has(s.clientByPhone.get(c.phone))) s.clientByPhone.delete(c.phone);
         Object.assign(c, { first: 'Client', last: 'effacé', phone: '', email: '', notes: '', tech: '', birthday: '', erased: true, sms: false, marketing: false });
+        delete c.wpPhone; delete c.wpEmail;
       }
-      for (const a of s.appts.values()) if (ids.has(a.clientId)) { a.note = ''; if (a.cancel && a.cancel.by === 'client') a.cancel.reason = ''; }
+      for (const a of s.appts.values()) if (ids.has(a.clientId)) { a.note = ''; delete a.wpFirst; if (a.cancel && a.cancel.by === 'client') a.cancel.reason = ''; }
       for (const m of s.messages.values()) if (ids.has(m.cid)) { m.to = ''; m.body = ''; if (m.mail) m.mail = null; delete m.wa; }
       for (const x of s.sales.values()) if (ids.has(x.clientId)) x.discountNote = '';
       for (const w of s.waitlist.values()) if (ids.has(w.clientId)) { w.first = ''; w.phone = ''; }
@@ -184,6 +187,8 @@ export function evolve(s, e) {
     case 'appt.booked': {
       const a = {
         id: d.id, code: d.code, tokenHash: d.tokenHash || '', clientId: d.clientId || null, name: p.name || '', note: p.note || '',
+        // the first name the old site typed on an imported booking (pii: it goes with the file's erasure), so a later pass tells its correction from a renamed file
+        ...(p.wpFirst ? { wpFirst: p.wpFirst } : {}),
         staffId: d.staffId, anyStaff: !!d.anyStaff, day: d.day, start: d.start, dur: d.dur, services: d.services, price: d.price,
         source: d.source, status: d.status || 'booked', createdAt: d.createdAt || e.at, createdBy: e.actor.id, sms: d.sms !== false,
         deposit: d.deposit || null, saleId: null, cancel: d.cancel ? { ...d.cancel, actor: e.actor.id } : null, moves: 0, demo: !!d.demo, statusAt: {},
@@ -213,6 +218,7 @@ export function evolve(s, e) {
       Object.assign(a, d.patch || {});
       if (p.note !== undefined) a.note = p.note;
       if (p.name !== undefined) a.name = p.name;
+      if (p.wpFirst !== undefined) a.wpFirst = p.wpFirst;
       break;
     }
     case 'appt.status': {

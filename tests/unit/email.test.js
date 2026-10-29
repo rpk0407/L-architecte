@@ -19,6 +19,7 @@ import { brevoEmail, mailHtml, parseFrom } from '../../server/messaging/email.js
 import { buildIcs, fold } from '../../server/lib/ics.js';
 import { memoryStore } from '../../server/store/memory.js';
 import { browser } from '../api/client.js';
+import { piiOf } from '../../server/core/journal.js';
 
 /** Erase a file the way the route does: its bookings to come are cancelled (and texted) first, then the file goes. */
 async function eraseFully(engine, id, ctx) {
@@ -477,7 +478,7 @@ test('the owner’s address and mobile stay out of the chain; a number that cann
   const ev = t.engine.journal.filter((e) => e.type === 'settings.updated').at(-1);
   assert.doesNotMatch(JSON.stringify(ev.data), /salon\.fr|98 76/i);
   assert.deepEqual(ev.data.patch, { notify: { evening: '21:00' } });
-  assert.deepEqual(ev.pii, { notify: { to: 'patron@salon.fr', phone: '06 98 76 54 32' } });
+  assert.deepEqual(piiOf(ev.pii), { notify: { to: 'patron@salon.fr', phone: '06 98 76 54 32' } });
   const N = t.engine.state.settings.notify;
   assert.equal(N.to, 'patron@salon.fr');
   assert.equal(N.phone, '06 98 76 54 32');

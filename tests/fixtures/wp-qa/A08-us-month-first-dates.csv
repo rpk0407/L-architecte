@@ -1,0 +1,18 @@
+﻿Réservations,de,à
+,01/01/2025,12/31/2027
+
+ID,DATE/HEURE,CRÉÉ,"PRÉNOM DU CLIENT","NOM DU CLIENT","E-MAIL DU CLIENT","TÉL DU CLIENT","Adresse du client",SERVICES,ASSISTANTS,"NOMBRE DE POUR CHAQUE SERVICE","PRIX TOTAL",ÉTAT
+18001,"09/22/2026 10:00","09/19/2026 20:15",Hakim,Fabre,hakim.fabre63@outlook.fr,0665468400,"177 rue Paradis, 13013 Marseille",Coupe,JKut,1,"20 €",Confirmé
+18002,"09/23/2026 10:30","09/20/2026 20:15",Sébastien,Bertrand,sebastien.bertrand64@orange.fr,0672837191,"41 place Pélabon, 13006 Marseille",Coupe,JKut,1,"20 €",Confirmé
+18003,"10/06/2026 10:00","10/03/2026 20:15",Ange,Bouzid,ange.bouzid65@free.fr,0780205982,"155 avenue du Prado, 13007 Marseille",Coupe,JKut,1,"20 €",Confirmé
+18004,"10/13/2026 10:30","10/10/2026 20:15",Samir,Coulibaly,samir.coulibaly66@sfr.fr,0687574773,"136 rue Saint-Ferréol, 13015 Marseille",Coupe,JKut,1,"20 €",Confirmé
+18005,"10/14/2026 10:00","10/11/2026 20:15",Giovanni,Caron,giovanni.caron67@icloud.com,0694943564,"115 rue d’Aubagne, 13002 Marseille",Coupe,JKut,1,"20 €",Confirmé
+18006,"10/15/2026 10:30","10/12/2026 20:15",Soufiane,Roux,soufiane.roux68@laposte.net,0602312355,"156 traverse du Moulin, 13015 Marseille",Coupe,JKut,1,"20 €",Confirmé
+18007,"11/03/2026 10:00","10/28/2026 20:15",Hakim,Fabre,hakim.fabre63@outlook.fr,0665468400,"177 rue Paradis, 13013 Marseille",Coupe,JKut,1,"20 €",Confirmé
+18008,"11/04/2026 10:30","10/28/2026 20:15",Sébastien,Bertrand,sebastien.bertrand64@orange.fr,0672837191,"41 place Pélabon, 13006 Marseille",Coupe,JKut,1,"20 €",Confirmé
+18009,"11/05/2026 10:30","10/28/2026 20:15",Ange,Bouzid,ange.bouzid65@free.fr,0780205982,"155 avenue du Prado, 13007 Marseille",Coupe,JKut,1,"20 €",Confirmé
+18010,"11/12/2026 10:30","10/28/2026 20:15",Samir,Coulibaly,samir.coulibaly66@sfr.fr,0687574773,"136 rue Saint-Ferréol, 13015 Marseille",Coupe,JKut,1,"20 €",Confirmé
+18011,"11/13/2026 10:00","10/28/2026 20:15",Giovanni,Caron,giovanni.caron67@icloud.com,0694943564,"115 rue d’Aubagne, 13002 Marseille",Coupe,JKut,1,"20 €",Confirmé
+18012,"11/24/2026 10:30","10/28/2026 20:15",Soufiane,Roux,soufiane.roux68@laposte.net,0602312355,"156 traverse du Moulin, 13015 Marseille",Coupe,JKut,1,"20 €",Confirmé
+18013,"12/08/2026 10:00","10/28/2026 20:15",Hakim,Fabre,hakim.fabre63@outlook.fr,0665468400,"177 rue Paradis, 13013 Marseille",Coupe,JKut,1,"20 €",Confirmé
+18014,"12/18/2026 10:30","10/28/2026 20:15",Sébastien,Bertrand,sebastien.bertrand64@orange.fr,0672837191,"41 place Pélabon, 13006 Marseille",Coupe,JKut,1,"20 €",Confirmé

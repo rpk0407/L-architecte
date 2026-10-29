@@ -49,7 +49,8 @@ export function clientStats(s, today, now) {
         x.visits++; x.days.push(a.day);
         // a visit from the old site has no ticket here: its price is what the client paid then
         if (a.legacy && !a.saleId) x.spend += a.price || 0;
-        for (const sv of a.services) x.svc.set(sv.id, (x.svc.get(sv.id) || 0) + 1);
+        // « Ancienne prestation » (the old site's labels nobody matched) is no favourite service
+        for (const sv of a.services) if (!(s.services.get(sv.id) || {}).legacy) x.svc.set(sv.id, (x.svc.get(sv.id) || 0) + 1);
         x.staff.set(a.staffId, (x.staff.get(a.staffId) || 0) + 1);
       } else if (a.status === 'no_show') x.noShows++;
       else if (a.status === 'cancelled') { if (a.cancel && a.cancel.by === 'client') x.cancels++; }

@@ -6,6 +6,8 @@
 export const name = 'membership: subscribe, member page, covered cut, cancel in 3 taps (link, /resilier by number, by e-mail, fallback), renounce';
 export const viewport = { width: 390, height: 844 };
 
+import { focusRing } from '../ring.mjs';
+
 const PHONE = { width: 390, height: 844 }, DESKTOP = { width: 1440, height: 900 };
 
 export default async ({ browser, h, page }) => {
@@ -98,6 +100,12 @@ export default async ({ browser, h, page }) => {
   /* ---------- 2 · cancel from the member page: at most 3 taps ---------- */
   await page.goto(a.url);
   await page.locator('.mb-card').waitFor();
+  // a keyboard user sees where he is on the ticket's red button and on the page's links, in the phone's light and dark (3:1 against what is behind)
+  for (const scheme of ['light', 'dark']) {
+    await page.emulateMedia({ colorScheme: scheme });
+    for (const sel of ['a.mb-book', 'button.mb-link', 'button.mb-act']) await focusRing(page, sel, scheme + ': the member page');
+  }
+  await page.emulateMedia({ colorScheme: 'light' });
   let taps = 0;
   await page.getByRole('button', { name: 'Résilier mon abonnement' }).click(); taps++;
   await h.expectText(page, 'tes coupes restent incluses jusque-là. Aucun autre prélèvement.');

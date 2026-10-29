@@ -1,0 +1,5 @@
+﻿Réservations,de,à
+"","01 Jan 2024","31 Déc 2024"
+
+ID,DATE/HEURE,CRÉÉ,"PRÉNOM DU CLIENT","NOM DU CLIENT","E-MAIL DU CLIENT","TÉL DU CLIENT","Adresse du client",SERVICES,ASSISTANTS,"NOMBRE DE POUR CHAQUE SERVICE","PRIX TOTAL",ÉTAT
+10001,"14 Aoû 2024 10:00","11 Aoû 2024 20:15",Farid,Chevalier,farid.chevalier1@hotmail.fr,0608603358,"16 rue de la République, 13002 Marseille",Coupe,JKut,1,"20 €",Confirmé

@@ -1,0 +1,14 @@
+RÃ©servations,de,Ã 
+,"01 Jan 2025","31 DÃ©c 2025"
+
+ID,DATE/HEURE,CRÃ‰Ã‰,"PRÃ‰NOM DU CLIENT","NOM DU CLIENT","E-MAIL DU CLIENT","TÃ‰L DU CLIENT","Adresse du client",SERVICES,ASSISTANTS,"NOMBRE DE POUR CHAQUE SERVICE","PRIX TOTAL",Ã‰TAT
+19501,"01 Jan 2026 10:00","29 DÃ©c 2025 20:15",Ã‰loÃ¯se,MÃ¼ller,thomas.casanova73@hotmail.fr,0639156310,"50 chemin de Saint-Menet, 13004 Marseille",Coupe,JKut,1,"20 â‚¬",ConfirmÃ©
+19502,"20 FÃ©v 2026 10:00","17 FÃ©v 2026 20:15",ZoÃ«,LefÃ¨vre,mickael.laurent74@yahoo.fr,0646525101,"56 avenue du Prado, 13005 Marseille",Coupe,JKut,1,"20 â‚¬",ConfirmÃ©
+19503,"11 Avr 2026 10:00","08 Avr 2026 20:15",NoÃ«l,BrÃ»lÃ©,sami.esposito75@outlook.fr,0753893892,"167 rue de la RÃ©publique, 13012 Marseille",Coupe,JKut,1,"20 â‚¬",ConfirmÃ©
+Réservations,de,à
+,"01 Jan 2026","31 Déc 2026"
+
+ID,DATE/HEURE,CRÉÉ,"PRÉNOM DU CLIENT","NOM DU CLIENT","E-MAIL DU CLIENT","TÉL DU CLIENT","Adresse du client",SERVICES,ASSISTANTS,"NOMBRE DE POUR CHAQUE SERVICE","PRIX TOTAL",ÉTAT
+19504,"21 Juil 2026 11:00","18 Juil 2026 20:15",Hélène,Dupré,alexandre.merabet76@orange.fr,0661262683,"142 boulevard Longchamp, 13012 Marseille","Formule Coupe + Contour Barbe 25€",Soldat,1,"25 €",Confirmé
+19505,"08 Sep 2026 11:00","05 Sep 2026 20:15",Gaël,Mélenchon,stephane.pagnol77@free.fr,0668631474,"37 cours Julien, 13004 Marseille","Formule Coupe + Contour Barbe 25€",Soldat,1,"25 €",Confirmé
+19506,"06 Nov 2026 11:30","28 Oct 2026 20:15",Joël,Lécuyer,ange.peretti78@sfr.fr,0676000265,"60 rue de la République, 13009 Marseille","Formule Coupe + Contour Barbe 25€",Soldat,1,"25 €",Confirmé

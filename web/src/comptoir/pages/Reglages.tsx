@@ -42,6 +42,7 @@ function Comptabilite() { const { can } = useApp(); return can('settings') ? com
 type Section = { id: string; label: string; hint: string; icon: string; group: string; component: () => ReactNode };
 const SECTIONS: Section[] = [
   { id: 'mise-en-route', label: 'Mise en route', hint: 'Ce qu’il reste avant d’ouvrir, et la santé', icon: 'check', group: 'Démarrage', component: () => <MiseEnRoute /> },
+  { id: 'wordpress', label: 'Reprendre WordPress', hint: 'Clients, rendez-vous, cartes cadeaux', icon: 'download', group: 'Démarrage', component: () => <Wordpress /> },
   { id: 'compte', label: 'Mon compte', hint: 'Code, mot de passe, profil', icon: 'user', group: 'Moi', component: () => <Account /> },
   { id: 'salon', label: 'Le salon', hint: 'Coordonnées, mentions du ticket', icon: 'map', group: 'Salon', component: salon(() => import('./reglages/sections/Salon')) },
   { id: 'horaires', label: 'Horaires et fermetures', hint: 'Semaine type, jours fériés, congés', icon: 'clock', group: 'Salon', component: salon(() => import('./reglages/sections/Horaires')) },
@@ -55,7 +56,6 @@ const SECTIONS: Section[] = [
   { id: 'compta', label: 'Comptabilité', hint: 'TVA, plan de comptes, ton comptable', icon: 'euro', group: 'Salon', component: () => <Comptabilite /> },
   { id: 'appareils', label: 'Appareils', hint: 'Postes autorisés à la connexion par code', icon: 'device', group: 'Sécurité', component: system('appareils') },
   { id: 'donnees', label: 'Données et intégrité', hint: 'Santé, vérification, exports, système', icon: 'shieldOk', group: 'Sécurité', component: system('donnees') },
-  { id: 'wordpress', label: 'Reprendre WordPress', hint: 'Clients, rendez-vous, cartes cadeaux', icon: 'download', group: 'Sécurité', component: () => <Wordpress /> },
   { id: 'journal', label: 'Journal d’activité', hint: 'Qui a fait quoi, quand', icon: 'journal', group: 'Sécurité', component: system('journal') }
 ];
 

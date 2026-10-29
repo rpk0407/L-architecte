@@ -4,7 +4,10 @@
 .gd-root,.gd-bub{--encre:#0F0E0D;--os:#ECE8E0;--cendre2:#58534C;--rouge:#EB4639;--ease:cubic-bezier(.2,.7,.2,1);--f-serif:'Times New Roman',Times,serif;--f-sans:system-ui,-apple-system,'Segoe UI',sans-serif;font:400 15.5px/1.45 var(--f-sans);-webkit-font-smoothing:antialiased;box-sizing:border-box}
 .gd-root *,.gd-root *::before,.gd-root *::after,.gd-bub *,.gd-bub *::before,.gd-bub *::after{box-sizing:border-box}
 .gd-root button,.gd-bub button{font:inherit;color:inherit;background:none;border:0;padding:0;margin:0;cursor:pointer;-webkit-tap-highlight-color:transparent;text-align:inherit}
-.gd-root :focus-visible,.gd-bub :focus-visible{outline:2.5px solid currentColor;outline-offset:3px}
+/* the ring is the colour of the text of the surface it lies on (bone on the ink bubble, ink on the bone card), never the control's own text
+   colour: on the red buttons that is the very colour of what lies behind the ring */
+.gd-bub :focus-visible{outline:2.5px solid var(--os);outline-offset:3px}
+.gd-root :focus-visible{outline:2.5px solid var(--encre);outline-offset:3px}
 .gd-vh{position:absolute!important;width:1px!important;height:1px!important;overflow:hidden!important;clip:rect(0 0 0 0)!important;clip-path:inset(50%)!important;white-space:nowrap!important;margin:-1px!important;padding:0!important;border:0!important}
 
 /* the invitation: above the booking button on a phone, bottom-left on a screen */

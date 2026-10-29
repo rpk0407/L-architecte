@@ -46,6 +46,16 @@ export default async ({ h, page }) => {
   await page.locator('.wr').first().evaluate((el) => el.scrollIntoView());
   await h.shot(page, 'wp-report-desktop');
 
+  // the same tab, with no reload and no « Tout retirer »: the next drop starts from an empty list, so what the old site deleted since is seen
+  await drop('wp-bookings-fr-delta.csv');
+  await h.expectText(page, 'Ce qui va être repris');
+  await h.expectText(page, 'Nouveau passage : les fichiers du précédent ont été retirés');
+  const listed = await page.locator('.wp-files .li b').allTextContents();
+  if (listed.join() !== 'wp-bookings-fr-delta.csv') throw new Error('the file list after a finished run: ' + listed.join(' | '));
+  await h.expectText(page, '1 supprimé sur l’ancien site');
+  await page.waitForFunction(() => !document.body.textContent.includes('Vérification des fiches'), null, { timeout: 15000 });
+  if (await page.locator('.note.ok', { hasText: 'Tout est compté' }).count()) throw new Error('the old report still stands over the new drop');
+
   // the report is the server's: a reload shows the same
   await page.reload();
   await h.expectText(page, 'Tout est compté ✓', 15000);
@@ -91,12 +101,13 @@ export default async ({ h, page }) => {
   await h.shot(page, 'wp-report-delta-desktop');
 
   // the final sync that changes nothing leaves its trace too: the same export dropped again is recorded as a run of « déjà là »
-  await page.getByRole('button', { name: 'Tout retirer' }).click();
   await drop('wp-bookings-fr-delta.csv');
   await h.expectText(page, 'Tout est déjà repris');
   await ready();
   const empty = page.getByRole('button', { name: 'Enregistrer la vérification (rien de nouveau)' });
   await empty.click();
+  // the toast says what was done: nothing new, not « repris »
+  await h.expectText(page, 'Rien de nouveau');
   await page.waitForFunction(() => document.querySelectorAll('.wr-recent li').length === 3 && document.body.textContent.includes('Tout est compté ✓'), null, { timeout: 20000 });
   const [src, made, already, skipped, left] = (await table())['Réservations'];
   if (made !== 0 || already <= 0 || already + skipped + left !== src) throw new Error('a re-run should only find « déjà là »: ' + [src, made, already, skipped, left]);
@@ -115,14 +126,27 @@ export default async ({ h, page }) => {
   const small = await page.evaluate(() => [...document.querySelectorAll('.wr button, .wr a.btn')].filter((b) => b.offsetParent && (b.getBoundingClientRect().height < 44)).map((b) => b.textContent));
   if (small.length) throw new Error('touch targets under 44 px: ' + small.join(' | '));
 
+  // the button of an export with nothing new carries the longest label: on a phone it wraps inside the button, never spills out of its rounded ends
+  await drop('wp-bookings-fr-delta.csv');
+  await h.expectText(page, 'Tout est déjà repris');
+  await ready();
+  const go = await page.evaluate(() => { const b = document.querySelector('.wp-go button'); const r = b.getBoundingClientRect(); return { label: b.textContent, over: b.scrollWidth - b.clientWidth, h: Math.round(r.height), right: Math.round(r.right), vw: window.innerWidth }; });
+  if (!go.label.includes('Enregistrer la vérification')) throw new Error('not the nothing-new button: ' + go.label);
+  if (go.over > 1) throw new Error('the label spills out of the button on a phone (' + go.over + ' px): ' + go.label);
+  if (go.h < 44 || go.right > go.vw) throw new Error('the button on a phone: ' + JSON.stringify(go));
+  await page.locator('.wp-go').evaluate((el) => el.scrollIntoView({ block: 'center' }));
+  await h.shot(page, 'wp-go-phone');
+
   // a run that stops half way (the second batch is lost): the page says so at once, fits the phone, and going on completes it
   await page.getByRole('button', { name: 'Tout retirer' }).click().catch(() => {});
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.setInputFiles('.wp-drop input[type=file]', [{ name: 'export-delta.csv', mimeType: 'text/csv', buffer: await readFile(join(FIX, 'wp-bookings-fr-delta.csv')) }, { name: 'cartes.csv', mimeType: 'text/csv', buffer: Buffer.from('code;solde;expire_le\nCARTE-0042-AB;50;2027-06-30\n') }]);
   await h.expectText(page, 'Ce qui va être repris');
   await ready();
+  // the staged server error is the one console line this part expects
+  page.expect.push(/status of 500/);
   let cut = true;
-  await page.route('**/api/v1/import/batch', (route) => (cut && (route.request().postData() || '').includes('giftcards') ? route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ error: 'not_found', message: 'Introuvable' }) }) : route.continue()));
+  await page.route('**/api/v1/import/batch', (route) => (cut && (route.request().postData() || '').includes('giftcards') ? route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: { code: 'internal', message: 'Le serveur a eu un souci.' } }) }) : route.continue()));
   await page.getByRole('button', { name: /^Importer 1 carte cadeau/ }).click();
   await h.expectText(page, 'Interrompue à 1/2 paquets', 30000);
   await h.expectText(page, 'rien ne sera compté deux fois');

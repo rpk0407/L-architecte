@@ -31,9 +31,9 @@ export function drawerExpected(s, drawer) {
 }
 
 /** Order in which payment methods are listed on the screen, the Z ticket and the CSV. */
-export const METHODS = ['card', 'cash', 'online', 'deposit', 'giftcard'];
-/** Settled without money coming in that day: a gift card bought earlier, a deposit paid at booking. */
-export const PREPAID = new Set(['deposit', 'giftcard']);
+export const METHODS = ['card', 'cash', 'online', 'deposit', 'ancien', 'giftcard'];
+/** Settled without money coming in that day: a gift card bought earlier, a deposit paid at booking, a deposit paid on the old site (WordPress took the money). */
+export const PREPAID = new Set(['deposit', 'ancien', 'giftcard']);
 
 /**
  * Everything that happened at the till on one day, in the Z layout (screen, print, CSV) and under the
@@ -125,7 +125,7 @@ export function dayWords(day, today) { return diffDays(day, today) <= 6 ? DAYS_F
 /** Whether a day had anything at the till: a day with nothing has no Z to catch up. */
 export const hadTill = (s, day) => !!(s.salesByDay.get(day) || []).length || [...s.refunds.values()].some((r) => r.day === day);
 
-export const METHOD_LABEL = { card: 'Carte (TPE)', cash: 'Espèces', online: 'Paiement en ligne', giftcard: 'Carte cadeau', deposit: 'Acompte en ligne' };
+export const METHOD_LABEL = { card: 'Carte (TPE)', cash: 'Espèces', online: 'Paiement en ligne', giftcard: 'Carte cadeau', deposit: 'Acompte en ligne', ancien: 'Payé sur l’ancien site' };
 export const ticketNo = (n) => 'T' + String(n).padStart(6, '0');
 export const refundNo = (n) => 'A' + String(n).padStart(6, '0');
 export const closureNo = (n) => 'Z' + String(n).padStart(4, '0');

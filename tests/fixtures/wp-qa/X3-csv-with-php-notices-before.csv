@@ -1,0 +1,33 @@
+
+<br />
+<b>Deprecated</b>:  Creation of dynamic property SLN_Plugin::$mailer is deprecated in <b>/homepages/12/d123456789/htdocs/wp-content/plugins/salon-booking-system/src/SLN/Plugin.php</b> on line <b>101</b><br />
+
+<br />
+<b>Deprecated</b>:  Creation of dynamic property SLN_Plugin::$mailer is deprecated in <b>/homepages/12/d123456789/htdocs/wp-content/plugins/salon-booking-system/src/SLN/Plugin.php</b> on line <b>102</b><br />
+
+<br />
+<b>Deprecated</b>:  Creation of dynamic property SLN_Plugin::$mailer is deprecated in <b>/homepages/12/d123456789/htdocs/wp-content/plugins/salon-booking-system/src/SLN/Plugin.php</b> on line <b>103</b><br />
+﻿Réservations,de,à
+,"01 Jan 2025","31 Déc 2027"
+
+ID,DATE/HEURE,CRÉÉ,"PRÉNOM DU CLIENT","NOM DU CLIENT","E-MAIL DU CLIENT","TÉL DU CLIENT","Adresse du client",SERVICES,ASSISTANTS,"NOMBRE DE POUR CHAQUE SERVICE","PRIX TOTAL",ÉTAT
+11001,"14 Aoû 2026 10:00","11 Aoû 2026 20:15",Farid,Chevalier,farid.chevalier1@hotmail.fr,0608603358,"16 rue de la République, 13002 Marseille",Coupe,JKut,1,"20 €",Confirmé
+11002,"28 Aoû 2026 11:00","25 Aoû 2026 20:15",Pierre-Louis,Marchetti,pierre.louis.marchetti2@yahoo.fr,0615972149,"175 avenue du Prado, 13010 Marseille","Formule Coupe + Contour Barbe 25€",Soldat,1,"25 €",Confirmé
+11003,"11 Sep 2026 14:30","08 Sep 2026 20:15",Don,Fofana,don.fofana3@outlook.fr,0623340940,"13 chemin de Saint-Menet, 13002 Marseille","Coupe + barbe",Frank,1,"40 € (10 € déjà payé en acompte)",Payant
+11004,"18 Sep 2026 09:30","15 Sep 2026 20:15",Samir,Caron,samir.caron4@orange.fr,0630709731,"171 boulevard de la Libération, 13015 Marseille",Coupe,Esteban,1,"20 €","Payer plus tard"
+11005,"25 Sep 2026 16:00","22 Sep 2026 20:15",Oussama,Lorenzi,oussama.lorenzi5@free.fr,0738078522,"172 chemin de Saint-Menet, 13011 Marseille","Coupe junior",JKut,1,"15 €",Confirmé
+11006,"02 Oct 2026 10:30","29 Sep 2026 20:15",Eliott,Lefebvre,eliott.lefebvre6@sfr.fr,0645447313,"129 boulevard de la Libération, 13012 Marseille","Formule Taille de Barbe 18€",Soldat,1,"18 €",Annulé
+11007,"09 Oct 2026 15:00","06 Oct 2026 20:15",Gabriel,Chauvin,gabriel.chauvin7@icloud.com,0652816104,"137 rue de la République, 13015 Marseille",Coupe,John,1,"20 €",Confirmé
+11008,"16 Oct 2026 17:30","13 Oct 2026 20:15",Farid,Chevalier,farid.chevalier1@hotmail.fr,0608603358,"16 rue de la République, 13002 Marseille",Coupe,JKut,1,"20 €",Confirmé
+11009,"20 Oct 2026 12:00","17 Oct 2026 20:15",Florian,Konaté,florian.konate8@laposte.net,0660184895,"179 rue d’Aubagne, 13010 Marseille","Formule Coupe + Contour Barbe 25€",Frank,1,"25 €","En attente"
+11010,"20 Oct 2026 10:00","17 Oct 2026 20:15",Mohamed,Faure,mohamed.faure9@live.fr,0667553686,"119 traverse du Moulin, 13006 Marseille",Coupe,Soldat,1,"20 €",ERREUR
+11011,"20 Oct 2026 11:00","17 Oct 2026 20:15",Walid,Vidal,walid.vidal10@wanadoo.fr,0774922477,"69 rue de la République, 13011 Marseille",Coupe,Soldat,1,"20 €","Paiement en attente"
+11012,"03 Nov 2026 10:00","28 Oct 2026 20:15",Pierre-Louis,Marchetti,pierre.louis.marchetti2@yahoo.fr,0615972149,"175 avenue du Prado, 13010 Marseille","Formule Coupe + Contour Barbe 25€",Soldat,1,"25 €",Confirmé
+11013,"04 Nov 2026 11:30","28 Oct 2026 20:15",Quentin,Leroy,quentin.leroy11@proton.me,0682291268,"9 rue Saint-Ferréol, 13015 Marseille","Formule Décoloration  60€",Esteban,1,"60 €",Confirmé
+11014,"05 Nov 2026 14:00","28 Oct 2026 20:15",Farid,Chevalier,farid.chevalier1@hotmail.fr,0608603358,"16 rue de la République, 13002 Marseille",Coupe,JKut,1,"20 € (5 € déjà payé en acompte)",Payant
+11015,"06 Nov 2026 09:30","28 Oct 2026 20:15",Cédric,Guérin,cedric.guerin12@gmail.com,0689660059,"132 avenue de Mazargues, 13005 Marseille","Formule Silver 100€",Esteban,1,"100 €","En attente"
+11016,"07 Nov 2026 16:30","28 Oct 2026 20:15",Hugo,Merabet,hugo.merabet13@hotmail.fr,0697028850,"171 chemin de Saint-Menet, 13005 Marseille","Coupe + barbe",Frank,1,"40 €","Payer plus tard"
+11017,"10 Nov 2026 10:00","28 Oct 2026 20:15",Jordan,Morel,jordan.morel14@yahoo.fr,0604397641,"63 rue de la République, 13009 Marseille",Coupe,Soldat,1,"20 €",Annulé
+11018,"11 Nov 2026 15:30","28 Oct 2026 20:15",Farid,Chevalier,farid.chevalier1@hotmail.fr,0608603358,"16 rue de la République, 13002 Marseille","Formule Taille de Barbe 18€",JKut,1,"18 €",Confirmé
+11019,"17 Nov 2026 10:00","28 Oct 2026 20:15",Oussama,Lorenzi,oussama.lorenzi5@free.fr,0738078522,"172 chemin de Saint-Menet, 13011 Marseille","Coupe junior",Soldat,1,"15 €",Confirmé
+11020,"24 Nov 2026 18:00","28 Oct 2026 20:15",Florian,Konaté,florian.konate8@laposte.net,0660184895,"179 rue d’Aubagne, 13010 Marseille",Coupe,Frank,1,"20 €",Confirmé

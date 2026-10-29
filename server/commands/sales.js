@@ -28,7 +28,7 @@ const lineSchema = obj({
   // FID-02: a reward of the client's loyalty card, taken off this line (commands/loyalty.js withReward)
   rewardId: opt(id())
 });
-const paySchema = obj({ method: oneOf(/** @type {const} */ (['card', 'cash', 'online', 'giftcard', 'deposit'])), amount: money(1000000), given: opt(money(1000000)), ref: opt(str({ max: 40 })) });
+const paySchema = obj({ method: oneOf(/** @type {const} */ (['card', 'cash', 'online', 'giftcard', 'deposit', 'ancien'])), amount: money(1000000), given: opt(money(1000000)), ref: opt(str({ max: 40 })) });
 const checkoutSchema = obj({
   apptId: opt(id()), clientId: opt(id()), lines: arr(lineSchema, { min: 1, max: 30 }),
   discount: opt(obj({ amount: money(500000), reason: opt(str({ max: 40 })) })),
@@ -230,6 +230,12 @@ export const checkout = {
         if (py.amount !== p.amount) fail(400, 'invalid', 'Le montant ne correspond pas au paiement en ligne.');
         usedOnline.add(py.id);
         Object.assign(out, { paymentId: py.id });
+      } else if (p.method === 'ancien') {
+        // a deposit paid on the old site, taken over with the booking (ext.paid): once, and never more than was paid there
+        const old = appt && appt.ext && appt.ext.paid ? appt.ext.paid : 0;
+        if (!appt || !old) fail(409, 'ancien', 'Ce rendez-vous n’a pas d’acompte de l’ancien site.');
+        if (p.amount > old) fail(409, 'ancien', 'Au plus ' + fmtEur(old) + ' : c’est ce qui a été payé sur l’ancien site.', { max: old });
+        if (x.payments.filter((q) => q.method === 'ancien').length > 1 || [...s.sales.values()].some((o) => o.apptId === appt.id && o.payments.some((q) => q.method === 'ancien'))) fail(409, 'ancien', 'Cet acompte de l’ancien site a déjà servi.');
       } else if (p.method === 'giftcard') {
         const g = s.giftcards.get(s.giftByHash.get(sha256(normGiftCode(p.ref))) || '');
         if (!g) fail(404, 'giftcard', 'Carte cadeau inconnue.');

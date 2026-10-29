@@ -102,7 +102,27 @@ test('the seeded demo and the payment flows keep personal data out of the chain,
   for (const e of paid) assert.ok(!('customer' in e.data) && !('pm' in e.data), e.type + ' ' + JSON.stringify(e.data));
   const flows = breaches(rt.engine.journal);
   assert.deepEqual(flows, [], flows.join('\n'));
+
+  // the nonce that salts the pii hash (core/journal.js) is not data: no file, no projection and no answer of the API carries it
+  assert.ok(rt.engine.journal.filter((e) => e.pii != null).every((e) => /^[0-9a-f]{16}$/.test(e.pii._n)), 'every pii is sealed with its nonce');
+  assert.deepEqual(nonceAt(rt.engine.state, 'state', new Set()), [], 'the nonce reached the projection');
+  const cid = [...s.clients.keys()].find((id) => s.clients.get(id).phone);
+  for (const path of ['/api/v1/clients', '/api/v1/clients/' + cid, '/api/v1/clients/' + cid + '/open', '/api/v1/export?kind=clients', '/api/v1/export?kind=journal', '/api/v1/audit', '/api/v1/bootstrap']) {
+    const r = await owner.get(path);
+    assert.equal(r.status, 200, path + ' ' + r.text.slice(0, 120));
+    assert.ok(!/"_n"\s*:/.test(r.text), path + ' shows the nonce');
+  }
 });
+
+/** where a pii nonce sits in a projection (any depth, maps and sets included) */
+function nonceAt(x, path, seen) {
+  if (!x || typeof x !== 'object' || seen.has(x)) return [];
+  seen.add(x);
+  const out = [];
+  const kids = x instanceof Map ? [...x] : x instanceof Set ? [...x].map((v, i) => [i, v]) : Object.entries(x);
+  for (const [k, v] of kids) { if (k === '_n') out.push(path + '._n'); out.push(...nonceAt(v, path + '.' + String(k), seen)); }
+  return out;
+}
 
 test('the walk sees a breach: a name in chained data, pii without a file', () => {
   const base = { at: 1, h: 'h', p: 'p', actor: { t: 'system', id: 'x' } };
