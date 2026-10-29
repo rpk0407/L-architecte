@@ -29,6 +29,8 @@ const KEEP_FAIL = 'Ça n’a pas marché. Réessaie dans un instant.';
 
 /** How many steps this page has pushed on top of its own entry (the history state says it). */
 const depth = (): number => (history.state && typeof history.state.moi === 'number' ? history.state.moi : 0);
+/** This entry shows the number: no step of this page is behind it, so the next step pushes its own entry. */
+const flat = () => history.replaceState({ moi: 0 }, '');
 
 export function SignIn({ demo, enabled, loyalty, garder, onIn }: { demo: boolean; enabled: boolean; loyalty: boolean; garder: string | null; onIn: (first: string) => void }) {
   const salon = useSalon();
@@ -66,6 +68,8 @@ export function SignIn({ demo, enabled, loyalty, garder, onIn }: { demo: boolean
   const timers = useRef<{ demo?: ReturnType<typeof setTimeout>; note?: ReturnType<typeof setTimeout> }>({});
   /** said by the step the browser's Back returns to */
   const afterPop = useRef<Problem | null>(null);
+  /** « Changer de numéro » is walking the history back to the number: the entry it lands on is the number, whatever it says */
+  const home = useRef(false);
   const mounted = useRef(false);
 
   // the code was sent: « Renvoyer le code » after 30 s
@@ -91,12 +95,14 @@ export function SignIn({ demo, enabled, loyalty, garder, onIn }: { demo: boolean
     setStep('phone'); setSending(false); setResending(false); setBusy(false); setOkay(false);
     setCode(''); setFirst(''); setToken(null); setProb(null); setLive(''); setNote(''); setWait(0);
     via.current = { phone: '' };
+    flat();
   };
   /** « Changer de numéro » and the arrow of the code step: back to the number */
   const changeNumber = () => {
-    if (link) { setLink(false); history.replaceState({ moi: 0 }, ''); reset(); }
-    else if (depth() > 0) history.go(-depth());
-    else reset();
+    // opened from a booking, the page's own entry is the code step: it becomes the number, only what was pushed above it goes
+    const above = depth() - (link ? 1 : 0);
+    if (link) setLink(false);
+    if (above > 0) { home.current = true; history.go(-above); } else reset();
   };
   const backOne = () => { if (depth() > 0) history.back(); else changeNumber(); };
 
@@ -108,7 +114,8 @@ export function SignIn({ demo, enabled, loyalty, garder, onIn }: { demo: boolean
       clearTimeout(timers.current.demo);
       verifying.current = false;
       setBusy(false); setSending(false); setResending(false);
-      if (n >= 2 && sent.current) { setStep('first'); setProb(null); }
+      if (home.current) { home.current = false; reset(); }
+      else if (n >= 2 && sent.current) { setStep('first'); setProb(null); }
       else if (n === 1 && sent.current) { setStep('code'); setFirst(''); setProb(afterPop.current); afterPop.current = null; }
       else reset();
     };
@@ -154,11 +161,16 @@ export function SignIn({ demo, enabled, loyalty, garder, onIn }: { demo: boolean
         if (id !== run.current) return;
         const p = failed(x, () => keep(tok));
         if (p === 'locked') { lock(); return; }
-        // the link opens nothing (old, wrong, used up): the number form is the way in, with the reason above it
+        // the link opens nothing (old, wrong, used up): the number form is the way in, with the reason above it; its entry
+        // (marked as a step above) is the number now, so the code that follows pushes its own and the arrow comes back to it
+        flat();
         setSending(false); setLink(false); setStep('phone'); setProb(p); setLive('');
       });
   };
   useEffect(() => {
+    // the page opens on the number (or on a booking's code): an entry marked by an earlier visit (reload, Back from another
+    // page) is not a step of this one
+    if (!(enabled && garder) && depth() > 0) flat();
     if (!enabled || !garder || kept.current) return;
     kept.current = true;
     // a reload must not text another code: the link leaves the address bar once used
@@ -350,14 +362,14 @@ export function SignIn({ demo, enabled, loyalty, garder, onIn }: { demo: boolean
                   : busy ? <p className="ms-state">{spin}Vérification…</p>
                   : !code && !focused ? <p className="ms-tip" aria-hidden="true">Touche ici pour saisir le code</p> : null}
               </div>
-              {prob && prob.kind === 'bad' ? (wait > 0
-                ? <p className="ms-wait">Tu pourras en demander un nouveau dans {clock(wait)}.</p>
-                : <button type="button" className="c-btn ghost ms-sm" onClick={resend}>Recevoir un nouveau code</button>) : null}
+              {/* after a wrong code, while the wait runs, « Renvoyer le code dans 0:28 » below says it alone */}
+              {prob && prob.kind === 'bad' && wait === 0 ? <button type="button" className="c-btn ghost ms-sm" onClick={resend}>Recevoir un nouveau code</button> : null}
               {prob && prob.kind === 'net' && prob.retry ? <button type="button" className="c-btn ghost ms-sm" onClick={prob.retry}>Réessayer</button> : null}
               {code.length === 6 && !okay && !busy && !prob && !sending && note !== 'Code reçu' ? <button type="submit" className="c-btn ink">Entrer</button> : null}
               <p className="ms-hint">Le code est valable 10 minutes.</p>
               <div className="ms-sub">
-                <button type="button" className="ms-lnk" disabled={wait > 0 || resending || sending} onClick={resend}>{resending ? 'Envoi…' : wait > 0 ? 'Renvoyer le code dans ' + clock(wait) : 'Renvoyer le code'}</button>
+                {prob && prob.kind === 'bad' && wait === 0 ? null
+                  : <button type="button" className="ms-lnk" disabled={wait > 0 || resending || sending} onClick={resend}>{resending ? 'Envoi…' : wait > 0 ? 'Renvoyer le code dans ' + clock(wait) : 'Renvoyer le code'}</button>}
                 <button type="button" className="ms-lnk" onClick={changeNumber}>Changer de numéro</button>
               </div>
               {sent.current && wait === 0 && !sending ? (

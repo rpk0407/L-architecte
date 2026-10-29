@@ -77,6 +77,28 @@
 .m-line b { font: 600 16px/1.25 var(--sans); }
 .m-line small { font-size: 13.5px; line-height: 1.4; color: var(--ink2); }
 
+/* the signed-out page's own tokens: client.css's, with the few it needs added. The frame follows the phone's dark mode with the
+   values of the site's static pages (public/pages.css: --bg, --sf, --tx, --tx2, --ln, --ln2) so going from /mon-rendez-vous to
+   here changes nothing. The signed-in space has no dark theme and keeps client.css's (the page behind it says so: .m-lit). */
+.ms, .ms-boot {
+  /* a field's border (3:1 against what is around it), text on red, error and success text, the tints on paper, a button's hover */
+  --edge: #837D74; --on-red: #0F0E0D; --err: #9E2A21; --on-ok: #fff;
+  --tint: rgba(15, 14, 13, .07); --tint-h: rgba(15, 14, 13, .14); --halo: rgba(15, 14, 13, .08); --ink-h: #2a2825;
+  /* the second grey and the green, a notch darker than the client pages' so the small text that uses them reads at 4.5:1 */
+  --ink3: #6B665E; --ok: #1D6F3E;
+}
+@media (prefers-color-scheme: dark) {
+  html:not(.m-lit) { color-scheme: dark; }
+  html:not(.m-lit), html:not(.m-lit) body { background: #0F0E0D; }
+  .ms, .ms-boot {
+    --paper: #0F0E0D; --card: #171513; --ink: #ECE8E0; --ink2: #ABA59C; --ink3: #948E85; --line: rgba(236, 232, 224, .14); --line2: rgba(236, 232, 224, .28);
+    --edge: #7A746C; --ok: #5CCB8A; --ok-bg: rgba(92, 203, 138, .12); --warn: #F5B544; --warn-bg: rgba(245, 181, 68, .14);
+    --err: #FF8579; --on-ok: #0F0E0D;
+    --tint: rgba(236, 232, 224, .09); --tint-h: rgba(236, 232, 224, .18); --halo: rgba(236, 232, 224, .12); --ink-h: #D3D0C8;
+    color-scheme: dark;
+  }
+}
+
 /* the page while the first answer is awaited: nothing of either frame, so neither flashes */
 .ms-boot { min-height: 100dvh; display: grid; place-items: center; background: var(--paper); }
 .ms-boot .m-live { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
@@ -91,7 +113,9 @@
 .ms-wm { display: flex; flex-direction: column; justify-content: center; min-height: 44px; line-height: 1; text-decoration: none; }
 .ms-wm-a { font: italic 400 26px/1 var(--serif); letter-spacing: -.005em; }
 .ms-wm-b { margin-top: 4px; font: 500 11px/1 var(--sans); letter-spacing: .06em; opacity: .7; }
-.ms-btn { display: inline-flex; align-items: center; justify-content: center; min-height: 48px; padding: 0 24px; border-radius: 999px; background: var(--red); color: var(--ink); font: 600 16px/1 var(--sans); text-decoration: none; white-space: nowrap; transition: background-color .25s, color .25s; }
+.ms-btn { display: inline-flex; align-items: center; justify-content: center; min-height: 48px; padding: 0 24px; border-radius: 999px; background: var(--red); color: var(--on-red); font: 600 16px/1 var(--sans); text-decoration: none; white-space: nowrap; transition: background-color .25s, color .25s; }
+/* (`.ms a` lets a link take its parent's ink: the dark ink on red is said again here, above the hover that swaps them) */
+.ms .ms-btn { color: var(--on-red); }
 .ms-btn:hover { background: var(--ink); color: var(--paper); }
 @media (max-width: 420px) { .ms-btn { min-height: 44px; padding: 0 18px; font-size: 15px; } }
 
@@ -107,12 +131,12 @@
 .ms-quiet { order: 6; }
 .ms-k { display: flex; align-items: center; gap: 12px; margin: 0 0 18px; font: 600 12.5px/1 var(--sans); letter-spacing: .1em; text-transform: uppercase; color: var(--ink2); }
 .ms-k::after { content: ''; width: 34px; height: 1px; background: currentColor; opacity: .45; }
-.ms-k.red { margin: 0; color: var(--red); }
+.ms-k.red { margin: 0; color: var(--err); }
 .ms-k.red::after { display: none; }
 .ms-head h1 { margin: 0; font: 400 clamp(46px, 10vw, 92px)/.95 var(--serif); letter-spacing: -.015em; text-wrap: balance; }
 .ms-head.compact h1 { font-size: clamp(38px, 8.6vw, 76px); }
 .ms-head h1 em { color: var(--red); }
-.ms-head h1:focus { outline: none; }
+.ms-head h1:focus, .ms-ok h1:focus { outline: none; }
 .ms-lead { margin: 20px 0 0; max-width: 34em; color: var(--ink2); font-size: clamp(16.5px, 1.7vw, 19px); line-height: 1.5; }
 .ms-head.compact .ms-lead { margin-top: 14px; }
 .ms-head .ms-acts { margin-top: 28px; }
@@ -122,8 +146,8 @@
 .ms-card { display: flex; flex-direction: column; gap: 18px; padding: clamp(20px, 3.2vw, 32px); border-radius: 24px; background: var(--paper); box-shadow: inset 0 0 0 1.5px var(--line2); }
 .ms-stp { display: flex; align-items: center; gap: 12px; min-height: 24px; }
 .ms-stp-k { font: 600 12px/1.25 var(--sans); letter-spacing: .09em; text-transform: uppercase; color: var(--ink2); }
-.ms-back { flex: none; display: grid; place-items: center; width: 44px; height: 44px; margin: -6px 0 -6px -6px; border-radius: 50%; background: rgba(15, 14, 13, .07); transition: background-color .2s; }
-.ms-back:hover { background: rgba(15, 14, 13, .14); }
+.ms-back { flex: none; display: grid; place-items: center; width: 44px; height: 44px; margin: -6px 0 -6px -6px; border-radius: 50%; background: var(--tint); transition: background-color .2s; }
+.ms-back:hover { background: var(--tint-h); }
 .ms-prog { display: grid; gap: 5px; margin-top: -6px; }
 .ms-prog i { position: relative; display: block; height: 3px; border-radius: 3px; background: var(--line); overflow: hidden; }
 .ms-prog i::after { content: ''; position: absolute; inset: 0; background: var(--ink); transform: scaleX(0); transform-origin: 0 50%; transition: transform .5s cubic-bezier(.2, .7, .2, 1); }
@@ -132,18 +156,21 @@
 
 .ms-form { display: flex; flex-direction: column; gap: 12px; }
 .ms-form label { margin-bottom: -4px; font: 600 15px/1.3 var(--sans); }
-.ms-inp { display: block; width: 100%; min-height: 56px; margin: 0; padding: 0 16px; border: 1.5px solid var(--line2); border-radius: 16px; background: var(--card); color: var(--ink); font: 500 20px/1 var(--sans); letter-spacing: .02em; -webkit-appearance: none; appearance: none; transition: border-color .2s, box-shadow .2s; }
-.ms-inp::placeholder { color: var(--ink3); opacity: .8; }
-.ms-inp:focus { outline: none; border-color: var(--ink); box-shadow: 0 0 0 3px rgba(15, 14, 13, .08); }
+.ms-inp { display: block; width: 100%; min-height: 56px; margin: 0; padding: 0 16px; border: 1.5px solid var(--edge); border-radius: 16px; background: var(--card); color: var(--ink); font: 500 20px/1 var(--sans); letter-spacing: .02em; -webkit-appearance: none; appearance: none; transition: border-color .2s, box-shadow .2s; }
+.ms-inp::placeholder { color: var(--ink3); opacity: 1; }
+.ms-inp:focus { outline: none; border-color: var(--ink); box-shadow: 0 0 0 3px var(--halo); }
+/* a number the phone filled in keeps the field's own paper (and its text) instead of the browser's yellow or blue */
+.ms-inp:-webkit-autofill, .ms-inp:-webkit-autofill:focus { -webkit-box-shadow: 0 0 0 60px var(--card) inset; -webkit-text-fill-color: var(--ink); caret-color: var(--ink); }
 .ms-inp[aria-invalid='true'] { border-color: var(--red); box-shadow: 0 0 0 3px rgba(235, 70, 57, .14); }
 .ms-hint { margin: 0; font: 400 13.5px/1.4 var(--sans); color: var(--ink2); }
-.ms .m-err { display: flex; align-items: baseline; gap: 10px; margin: 0; font: 600 15px/1.4 var(--sans); color: #9E2A21; }
+.ms .m-err { display: flex; align-items: baseline; gap: 10px; margin: 0; font: 600 15px/1.4 var(--sans); color: var(--err); }
 .ms .m-err:not(:empty)::before { content: ''; flex: none; width: 9px; height: 9px; border-radius: 50%; background: var(--red); transform: translateY(-1px); }
 .ms .m-live { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.ms .c-btn:not(.ghost):not(.ink) { color: var(--on-red); }
 .ms .c-btn:not(.ghost):not(.ink):hover { background: var(--ink); color: var(--paper); }
 .ms .c-btn.ghost:hover { background: var(--line); }
 .ms .c-btn.ink { background: var(--ink); color: var(--paper); }
-.ms .c-btn.ink:hover { background: #2a2825; }
+.ms .c-btn.ink:hover { background: var(--ink-h); }
 .ms .c-btn[aria-busy='true'] { cursor: progress; }
 .ms .c-btn.ms-sm { align-self: flex-start; min-height: 48px; padding: 0 22px; font-size: 15.5px; }
 .ms-spin { flex: none; width: 18px; height: 18px; border-width: 2.5px; }
@@ -156,7 +183,7 @@
 /* the six cells over the one real input */
 .ms-otp { position: relative; }
 .ms-cells { display: flex; gap: 8px; pointer-events: none; }
-.ms-cell { position: relative; flex: 1 1 0; min-width: 0; display: grid; place-items: center; height: 64px; border-radius: 14px; background: var(--card); box-shadow: inset 0 0 0 1.5px var(--line2); font: 400 32px/1 var(--serif); font-variant-numeric: tabular-nums; transition: box-shadow .15s, background-color .15s, color .15s; }
+.ms-cell { position: relative; flex: 1 1 0; min-width: 0; display: grid; place-items: center; height: 64px; border-radius: 14px; background: var(--card); box-shadow: inset 0 0 0 1.5px var(--edge); font: 400 32px/1 var(--serif); font-variant-numeric: tabular-nums; transition: box-shadow .15s, background-color .15s, color .15s; }
 .ms-cell:nth-child(4) { margin-left: 6px; }
 .ms-cell.on { box-shadow: inset 0 0 0 2px var(--ink); }
 .ms-cell.on:not(.full)::after { content: ''; position: absolute; left: 50%; bottom: 15px; width: 18px; height: 3px; margin-left: -9px; border-radius: 2px; background: var(--ink); animation: ms-blink 1.1s steps(1) infinite; }
@@ -164,7 +191,7 @@
 .ms-otp-in { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0; border: 0; border-radius: 14px; background: transparent; color: transparent; caret-color: transparent; font: 400 28px/1 var(--sans); text-align: center; -webkit-appearance: none; appearance: none; outline: none; cursor: text; }
 .ms-otp-in::selection { background: transparent; }
 .ms-otp[data-state='busy'] .ms-cell { opacity: .65; }
-.ms-otp[data-state='bad'] .ms-cell { box-shadow: inset 0 0 0 2px var(--red); background: rgba(235, 70, 57, .07); color: #9E2A21; }
+.ms-otp[data-state='bad'] .ms-cell { box-shadow: inset 0 0 0 2px var(--red); background: rgba(235, 70, 57, .09); color: var(--err); }
 .ms-otp[data-state='bad'] .ms-cells { animation: ms-shake .42s cubic-bezier(.36, .07, .19, .97) both; }
 @keyframes ms-shake { 10%, 90% { transform: translateX(-2px); } 20%, 80% { transform: translateX(4px); } 30%, 50%, 70% { transform: translateX(-7px); } 40%, 60% { transform: translateX(7px); } }
 .ms-otp[data-state='ok'] .ms-cell { box-shadow: inset 0 0 0 2px var(--ok); background: var(--ok-bg); color: var(--ok); }
@@ -172,7 +199,6 @@
 .ms-state { display: flex; align-items: center; gap: 10px; margin: 0; font: 600 14.5px/1.3 var(--sans); color: var(--ink2); }
 .ms-state.ok { color: var(--ok); }
 .ms-tip { margin: 0; text-align: center; font: 500 14px/1.3 var(--sans); color: var(--ink3); }
-.ms-wait { margin: 0; font: 500 14.5px/1.4 var(--sans); color: var(--ink2); }
 .ms-sub { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0 18px; margin-top: -4px; }
 .ms-lnk { display: inline-flex; align-items: center; min-height: 44px; padding: 0 2px; font: 600 14.5px/1.3 var(--sans); color: var(--ink); text-align: left; text-decoration: underline; text-underline-offset: 4px; }
 .ms-lnk:disabled { opacity: 1; color: var(--ink2); text-decoration: none; cursor: default; }
@@ -200,11 +226,11 @@
 @media (max-width: 959px) { .ms-perks.aside { display: none; } }
 .ms-perks li { display: flex; align-items: center; gap: 14px; padding: 14px 0; border-top: 1px solid var(--line); font: 500 16.5px/1.4 var(--sans); }
 .ms-perks li:first-child { border-top: 0; padding-top: 4px; }
-.ms-pi { flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; background: rgba(15, 14, 13, .06); }
+.ms-pi { flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; background: var(--tint); }
 
 /* « C'est bon, Yanis. » between the code and the home */
 .ms-ok { display: flex; flex-direction: column; align-items: flex-start; gap: 22px; padding: clamp(24px, 6vw, 72px) 0; }
-.ms-ok-c { display: grid; place-items: center; width: 72px; height: 72px; border-radius: 50%; background: var(--ok); color: #fff; animation: ms-pop .5s cubic-bezier(.2, .9, .3, 1.25) both; }
+.ms-ok-c { display: grid; place-items: center; width: 72px; height: 72px; border-radius: 50%; background: var(--ok); color: var(--on-ok); animation: ms-pop .5s cubic-bezier(.2, .9, .3, 1.25) both; }
 .ms-ok h1 { margin: 0; font: 400 clamp(46px, 10vw, 92px)/.95 var(--serif); letter-spacing: -.015em; }
 .ms-ok h1 em { color: var(--red); }
 .ms-ok p { margin: 0; color: var(--ink2); }
@@ -215,7 +241,8 @@
 .ms-ft-g { display: grid; gap: 22px; max-width: 1320px; margin: 0 auto; }
 .ms-ft-n { display: block; color: var(--ink); font: italic 400 24px/1 var(--serif); }
 .ms-ft address { margin-top: 8px; font-style: normal; line-height: 1.5; }
-.ms-ft address a { display: inline-flex; align-items: center; min-height: 44px; text-decoration: none; }
+.ms-ft-ways { display: flex; flex-wrap: wrap; column-gap: 22px; }
+.ms-ft address a { display: inline-flex; align-items: center; min-width: 0; min-height: 44px; overflow-wrap: anywhere; text-decoration: none; }
 .ms-ft address a:hover, .ms-ft-l a:hover, .ms-ft-l a[aria-current='page'] { text-decoration: underline; text-underline-offset: 4px; }
 .ms-ft-l { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 18px; margin: 0; padding: 0; list-style: none; }
 .ms-ft-l a { display: inline-flex; align-items: center; min-width: 44px; min-height: 44px; color: var(--ink); text-decoration: none; }

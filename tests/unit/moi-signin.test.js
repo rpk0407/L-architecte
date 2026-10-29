@@ -85,11 +85,15 @@ test('the sign-in says what it promised, in « tu »', () => {
     'Ce SMS ne sert qu’à te connecter. Rien n’est vendu ni partagé à des fins publicitaires.', '/confidentialite#t-space',
     'Tu n’es encore jamais venu ? Ton espace s’ouvre avec ta première réservation.', 'Tu veux seulement retrouver un rendez-vous ?',
     'Si ce numéro est connu du salon, un code arrive par SMS au ', 'Rien reçu ?', 'Vérifie que c’est bien le numéro de ta réservation.', 'Tu peux demander jusqu’à 3 codes par jour.',
-    'Ce code n’est pas le bon, ou il a expiré.', 'Tu pourras en demander un nouveau dans ', 'Recevoir un nouveau code', 'Pas de connexion. Vérifie ton réseau, puis réessaie.',
+    'Ce code n’est pas le bon, ou il a expiré.', 'Recevoir un nouveau code', 'Pas de connexion. Vérifie ton réseau, puis réessaie.',
     'Trop d’essais pour le ', 'Par sécurité, on fait une pause. Réessaie dans quelques minutes, ou appelle le salon.', 'Appeler le salon', 'Retour au site',
     'Donne ton numéro de mobile pour recevoir ton code.', 'Une petite ', 'Une seule fois, pour être sûr que ce numéro est bien le tien : quel prénom as-tu donné au salon ?',
     'Comme sur ta réservation', 'Numéro retrouvé sur cet appareil. Ce n’est pas le tien ? Modifie-le.', 'Nouveau code envoyé', 'Le code est valable 10 minutes.'
   ]) assert.ok(s.includes(t), t);
+  // after a wrong code the wait is counted once (« Renvoyer le code dans 0:28 »), not twice a few lines apart
+  assert.doesNotMatch(s, /Tu pourras en demander un nouveau/);
+  assert.equal((s.match(/'Renvoyer le code dans ' \+ clock\(wait\)/g) || []).length, 1);
+  assert.doesNotMatch(s, /\{clock\(wait\)\}/);
   // the server's own sentence is no longer shown as it is, and the number form never stands in for a booking's code
   assert.doesNotMatch(s, /tu reçois un code par SMS/);
   assert.doesNotMatch(s, /Code incorrect ou expiré/);
@@ -108,4 +112,58 @@ test('the first name is asked in the salon’s words, not in its jargon', () => 
   assert.doesNotMatch(r, /prénom de la fiche/);
   // the server's own answer to a start is untouched: the same words for every number
   assert.match(r, /export const START_MESSAGE = 'Si ce numéro est connu du salon, tu reçois un code par SMS\.';/);
+});
+
+test('the history entry always says what the page shows: a stale or used link leaves a number step whose next step pushes its own entry', () => {
+  const s = read('web/src/moi/SignIn.tsx');
+  // the entry of the number step carries { moi: 0 }: one helper, used where the page comes back to the number
+  assert.match(s, /const flat = \(\) => history\.replaceState\(\{ moi: 0 \}, ''\);/);
+  // a link that opens nothing (the entry was marked as the code step before the answer came) flattens it before showing the number
+  assert.match(s, /flat\(\);\s*\n\s*setSending\(false\); setLink\(false\); setStep\('phone'\)/);
+  // reset() ends on the number too, and a page that opens on the number does not trust a mark left by an earlier visit
+  assert.match(s, /via\.current = \{ phone: '' \};\s*\n\s*flat\(\);/);
+  assert.match(s, /if \(!\(enabled && garder\) && depth\(\) > 0\) flat\(\);/);
+  // the step that follows pushes its own entry only when none is marked: that is what the arrow's history.back() relies on
+  assert.match(s, /if \(depth\(\) < 1\) history\.pushState\(\{ moi: 1 \}, ''\);/);
+});
+
+test('the signed-out frame follows the phone’s dark mode with the values of the static pages', () => {
+  const css = read('web/src/moi/moi.css');
+  const pages = read('public/pages.css');
+  // pages.css's dark tokens: --bg, --sf, --tx, --tx2, --ln, --ln2
+  const dark = /@media \(prefers-color-scheme:dark\)\{\s*:root\{([^}]*)\}/.exec(pages);
+  assert.ok(dark, 'pages.css has no dark tokens');
+  const pc = {};
+  for (const m of pages.matchAll(/--(encre2?|os|cendre):(#[0-9A-Fa-f]{6})/g)) pc[m[1]] = m[2].toUpperCase();
+  assert.match(dark[1], /--bg:var\(--encre\);--sf:var\(--encre2\);--tx:var\(--os\);--tx2:var\(--cendre\);--ln:rgba\(236,232,224,\.14\);--ln2:rgba\(236,232,224,\.28\)/);
+  const mine = /@media \(prefers-color-scheme: dark\) \{\s*html:not\(\.m-lit\)[\s\S]*?\n\}\n/.exec(css);
+  assert.ok(mine, 'moi.css has no dark block for the signed-out frame');
+  const b = mine[0].toUpperCase().replace(/\s+/g, ' ');
+  assert.ok(b.includes('--PAPER: ' + pc.encre), 'paper is the pages’ --bg');
+  assert.ok(b.includes('--CARD: ' + pc.encre2), 'card is the pages’ --sf');
+  assert.ok(b.includes('--INK: ' + pc.os), 'ink is the pages’ --tx');
+  assert.ok(b.includes('--INK2: ' + pc.cendre), 'ink2 is the pages’ --tx2');
+  assert.ok(b.includes('--LINE: RGBA(236, 232, 224, .14)') && b.includes('--LINE2: RGBA(236, 232, 224, .28)'), 'lines are the pages’');
+  // the signed-in space keeps its light: the page behind it is marked, and the frame never hard-codes a light-only colour
+  assert.match(read('web/src/moi/main.tsx'), /function Shell\(.*\) \{\s*useLit\(\);/);
+  assert.match(read('web/src/moi/lit.ts'), /classList\.add\('m-lit'\)/);
+  // (the spinner on a red button is the one dark tint: it sits on red in both themes)
+  const frame = css.slice(css.indexOf('/* the sign-in, signed out'), css.indexOf('/* the tab bar */')).replace(/\.c-btn \.ms-spin[^\n]*/, '');
+  assert.doesNotMatch(frame, /#9E2A21|#2a2825|color: #fff|rgba\(15, 14, 13/, 'a light-only colour in the signed-out frame');
+  // the title of the success moment is focused by script: no focus rectangle on it, as on the other titles
+  assert.match(css, /\.ms-head h1:focus, \.ms-ok h1:focus \{ outline: none; \}/);
+  assert.match(read('web/moi/index.html'), /content="#0F0E0D" media="\(prefers-color-scheme: dark\)"/);
+});
+
+test('the footer says what the static pages say, and strands no separator at the end of a line', () => {
+  const f = read('web/src/moi/SitePage.tsx');
+  const p = read('public/pages.js');
+  // « © 2026 L’Architecte SAS · Pas de pistage, pas de mesure d’audience. »: the editor’s (legal) name, as pages.js writes it
+  assert.ok(p.includes("'© ' + new Date().getFullYear() + ' ', h('span', { 'data-f': 'editor' }") && p.includes("var editor = sh.legalName || sh.name || '';"));
+  assert.ok(p.includes(' · Pas de pistage, pas de mesure d’audience.'));
+  assert.match(f, /© \{new Date\(\)\.getFullYear\(\)\} \{salon\.editor\} \{'·' \+ NB\}Pas de pistage, pas de mesure d’audience\./);
+  assert.match(read('web/src/moi/salon.ts'), /editor: String\(sh\.legalName \|\| sh\.name \|\| DEFAULTS\.editor\)/);
+  // the phone and the e-mail wrap as two items of a row; there is no « · » between them to be left at a line end
+  assert.match(f, /<span className="ms-ft-ways">/);
+  assert.doesNotMatch(f, /<\/a> · <\/>/);
 });

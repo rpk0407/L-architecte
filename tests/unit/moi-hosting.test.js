@@ -36,7 +36,9 @@ test('every /moi/<tab> is served by the /moi page, /moi itself by its own index'
   const html = read('web/moi/index.html');
   assert.match(html, /<script type="module" src="\/src\/moi\/main\.tsx"><\/script>/);
   assert.match(html, /<title>Mon espace · L’Architecte<\/title>/);
-  assert.match(html, /<meta name="theme-color" content="#ECE8E0">/);
+  // the browser's bar follows the phone like the signed-out frame does (the signed-in space puts the light one first, web/src/moi/lit.ts)
+  assert.match(html, /<meta name="theme-color" content="#ECE8E0" media="\(prefers-color-scheme: light\)">/);
+  assert.match(html, /<meta name="theme-color" content="#0F0E0D" media="\(prefers-color-scheme: dark\)">/);
   // AC-03b adds the manifest and the touch icon with its files
   assert.doesNotMatch(html, /rel="manifest"|apple-touch-icon/);
 });

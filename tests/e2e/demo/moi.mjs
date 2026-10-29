@@ -107,7 +107,9 @@ export default async ({ h, page }) => {
   page.expect.push(/status of 400/);
   await page.keyboard.type('000000');
   await page.getByText('Ce code n’est pas le bon, ou il a expiré.').waitFor({ timeout: 8000 });
-  await page.getByText(/Tu pourras en demander un nouveau dans \d:\d\d\./).waitFor();
+  // the wait is counted once, by the greyed « Renvoyer le code dans 0:28 » below: the message above does not say it a second time
+  if ((await page.getByText(/\d:\d\d/).count()) !== 1) throw new Error('the wait shows ' + (await page.getByText(/\d:\d\d/).count()) + ' times after a wrong code');
+  if (await page.getByText('Tu pourras en demander un nouveau').count()) throw new Error('the wrong-code message counts the wait again');
   if ((await page.locator('.ms-otp').getAttribute('data-state')) !== 'bad') throw new Error('the cells do not show the wrong code');
   if ((await cells()) !== '') throw new Error('the wrong code stays in the cells: ' + (await cells()));
   if (!(await page.evaluate(() => document.activeElement && document.activeElement.id === 'm-code'))) throw new Error('the code field lost the focus after a wrong code');
@@ -137,6 +139,35 @@ export default async ({ h, page }) => {
   await h.shot(page, 'moi-locked-phone');
   await page.goto(h.base + '/moi');
   await page.getByRole('heading', { name: 'Ouvre ton espace' }).waitFor();
+
+  // a link that opens nothing (old, wrong): the number form with the reason on top, and the code step that follows has the
+  // number behind it: its arrow comes back to the number, it does not leave /moi
+  page.expect.push(/status of 404/);
+  const toCode = async () => {
+    await page.getByLabel('Ton numéro de mobile').fill('06 97 11 22 33');
+    await page.getByRole('button', { name: 'Recevoir mon code par SMS' }).click();
+    await page.getByRole('button', { name: /Renvoyer le code dans \d:\d\d/ }).waitFor();
+  };
+  // the arrow stays on the page (a window flag survives it, a trip to another page loses it) and shows the number
+  const arrowBack = async (where) => {
+    await page.evaluate(() => { window.__stays = true; });
+    await page.getByRole('button', { name: 'Retour au numéro' }).click();
+    await page.getByRole('heading', { name: 'Ouvre ton espace' }).waitFor();
+    if (!/\/moi$/.test(page.url()) || !(await page.evaluate(() => window.__stays === true))) throw new Error('the arrow of the code step left /moi ' + where + ': ' + page.url());
+  };
+  // (another page before it, so that a Back that leaves /moi shows)
+  await page.goto(h.base + '/mon-rendez-vous');
+  await page.goto(h.base + '/moi?garder=ancien-lien');
+  await h.expectText(page, 'Ce lien n’est pas (ou plus) valable.');
+  if (/garder=/.test(page.url())) throw new Error('the used-up link stays in the address bar: ' + page.url());
+  await toCode();
+  await arrowBack('after a link that opens nothing');
+  // the page reloaded on the code step keeps the mark the step left on its history entry: what follows pushes its own
+  await toCode();
+  await page.reload();
+  await page.getByRole('heading', { name: 'Ouvre ton espace' }).waitFor();
+  await toCode();
+  await arrowBack('after a reload on the code step');
 
   /* ---------- the demo's client ---------- */
   await page.getByRole('button', { name: 'Essayer avec un client de démo' }).click();
@@ -295,6 +326,9 @@ export default async ({ h, page }) => {
   await h.shot(desk, 'moi-garder-desktop');
   release();
   await desk.getByRole('heading', { name: 'C’est bon, Yanis.' }).waitFor({ timeout: 10000 });
+  // the title is focused by script for a screen reader: it shows no focus rectangle (it is not interactive)
+  const ring = await desk.evaluate(() => { const e = document.querySelector('.ms-ok h1'); return e ? { focused: document.activeElement === e, outline: getComputedStyle(e).outlineStyle } : null; });
+  if (ring && ring.focused && ring.outline !== 'none') throw new Error('the success title shows a focus rectangle (' + ring.outline + ')');
   await h.shot(desk, 'moi-opened-desktop');
   if (await desk.evaluate(() => !!window.__sawPhone)) throw new Error('the number form showed while the code of a booking was on its way');
   await desk.getByRole('heading', { name: 'Salut Yanis' }).waitFor({ timeout: 10000 });
@@ -317,4 +351,45 @@ export default async ({ h, page }) => {
   await desk.locator('a.tb-me[aria-label*="Yanis"]').waitFor({ timeout: 8000 });
   await desk.locator('.tb-ch').click();
   await desk.locator('a.mn-me').getByText('Salut Yanis').waitFor({ timeout: 8000 });
+
+  /* ---------- the footer at 320 px, and the frame in the phone's dark mode, the site's own pages' way ---------- */
+  const narrow = await h.newPage({ viewport: { width: 320, height: 640 } });
+  const ready = (pg) => pg.waitForSelector('html[data-ready="1"]', { state: 'attached' });
+  const text = async (pg, sel) => (await pg.locator(sel).first().textContent()).replace(/\s+/g, ' ').trim();
+  await narrow.goto(h.base + '/moi');
+  await narrow.getByLabel('Ton numéro de mobile').waitFor();
+  await narrow.waitForFunction(() => /SAS/.test((document.querySelector('.ms-ft-c') || {}).textContent || ''));
+  await noSideScroll(narrow, '/moi sign-in at 320 px');
+  await bigEnough(narrow, '.ms-ft a', '/moi footer at 320 px');
+  // the phone and the e-mail never share a line with a separator that a break could strand: there is none, and each fits its line
+  if ((await text(narrow, '.ms-ft address')).includes('·')) throw new Error('a separator in the footer’s address line');
+  const ways = await narrow.locator('.ms-ft-ways a').evaluateAll((els) => els.map((e) => { const r = e.getBoundingClientRect(); return { right: r.right, t: e.textContent }; }));
+  if (ways.length !== 2 || ways.some((w) => w.right > 320)) throw new Error('the footer’s phone and e-mail do not fit at 320 px: ' + JSON.stringify(ways));
+  // the © line says what the static pages say (the legal name), word for word
+  const ftMine = await text(narrow, '.ms-ft-c');
+  await narrow.goto(h.base + '/confidentialite');
+  await ready(narrow);
+  const ftTheirs = await text(narrow, '.ft-c');
+  if (ftMine !== ftTheirs) throw new Error('the footer’s © line is « ' + ftMine + ' », the static pages say « ' + ftTheirs + ' »');
+  if (!/^© \d{4} L’Architecte SAS · Pas de pistage, pas de mesure d’audience\.$/.test(ftMine)) throw new Error('the © line: ' + ftMine);
+
+  await narrow.emulateMedia({ colorScheme: 'dark' });
+  const paint = (pg, sel) => pg.locator(sel).first().evaluate((e) => { const c = getComputedStyle(e); return c.backgroundColor + ' | ' + c.color; });
+  await narrow.goto(h.base + '/mon-rendez-vous');
+  await ready(narrow);
+  const site = { page: await paint(narrow, 'body'), foot: await paint(narrow, '.ft'), link: await paint(narrow, '.ft-l a'), btn: await paint(narrow, '.tb .btn') };
+  await narrow.goto(h.base + '/moi');
+  await narrow.getByLabel('Ton numéro de mobile').waitFor();
+  const frame = { page: await paint(narrow, '.ms'), foot: await paint(narrow, '.ms-ft'), link: await paint(narrow, '.ms-ft-l a'), btn: await paint(narrow, '.ms-btn') };
+  for (const k of Object.keys(site)) if (site[k] !== frame[k]) throw new Error('dark: /moi ' + k + ' is ' + frame[k] + ', the static pages’ is ' + site[k]);
+  if (!frame.page.startsWith('rgb(15, 14, 13)')) throw new Error('dark: the frame is not the site’s dark: ' + frame.page);
+  if (!(await narrow.evaluate(() => getComputedStyle(document.documentElement).backgroundColor === 'rgb(15, 14, 13)'))) throw new Error('dark: the page behind the frame stays light');
+  // the field, the cells and the buttons are drawn for it (dark text on the red button, light text on the dark field)
+  const numberField = await paint(narrow, '.ms-inp');
+  if (!numberField.startsWith('rgb(23, 21, 19)')) throw new Error('dark: the number field is ' + numberField);
+  // the signed-in space has no dark theme: it stays light, whatever the phone says
+  await narrow.getByRole('button', { name: 'Essayer avec un client de démo' }).click();
+  await narrow.getByRole('heading', { name: /^Salut / }).waitFor({ timeout: 10000 });
+  const lit = await narrow.evaluate(() => ({ lit: document.documentElement.classList.contains('m-lit'), bg: getComputedStyle(document.body).backgroundColor, bar: (document.querySelector('meta[name="theme-color"]') || {}).content }));
+  if (!lit.lit || lit.bg !== 'rgb(236, 232, 224)' || lit.bar !== '#ECE8E0') throw new Error('dark: the signed-in space is not light: ' + JSON.stringify(lit));
 };

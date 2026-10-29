@@ -25,9 +25,12 @@ export function SitePage({ children, solo, space = true }: { children: ReactNode
           <div>
             <span className="ms-ft-n">{salon.name}</span>
             <address>
-              {salon.address}<br />
-              {tel ? <><a href={tel}>{showPhone(salon.phone).replace(/ /g, NB)}</a> · </> : null}
-              <a href={'mailto:' + salon.email}>{salon.email}</a>
+              {salon.address}
+              {/* side by side when they fit, one under the other when they do not: no separator that a line break could strand */}
+              <span className="ms-ft-ways">
+                {tel ? <a href={tel}>{showPhone(salon.phone).replace(/ /g, NB)}</a> : null}
+                <a href={'mailto:' + salon.email}>{salon.email}</a>
+              </span>
             </address>
           </div>
           <nav aria-label="Pages du site">
@@ -35,7 +38,8 @@ export function SitePage({ children, solo, space = true }: { children: ReactNode
               {links.map(([href, label]) => <li key={href}><a href={href} aria-current={href === '/moi' ? 'page' : undefined}>{label}</a></li>)}
             </ul>
           </nav>
-          <p className="ms-ft-c">© {new Date().getFullYear()} {salon.name} · Pas de pistage, pas de mesure d’audience.</p>
+          {/* public/pages.js's wording; the dot stays with the words after it, so no line ends on it */}
+          <p className="ms-ft-c">© {new Date().getFullYear()} {salon.editor} {'·' + NB}Pas de pistage, pas de mesure d’audience.</p>
         </div>
       </footer>
     </div>

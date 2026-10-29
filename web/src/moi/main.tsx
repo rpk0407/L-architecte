@@ -10,6 +10,7 @@ import { tabCards } from './registry';
 import { PATHS, safeNext, tabOf, type Tab } from './paths';
 import { SignIn } from './SignIn';
 import { SitePage } from './SitePage';
+import { useLit } from './lit';
 import { Guard, dayWords, todayKey } from './kit';
 import { MoiTour, MoiWelcome } from './guide/MoiTour';
 import type { AccountState, Me } from './types';
@@ -23,6 +24,7 @@ const TAB_WORDS: Record<Tab, { label: string; icon: string; title: string }> = {
 };
 
 function Shell({ children, tab, onTab }: { children: ReactNode; tab?: Tab; onTab?: (t: Tab) => void }) {
+  useLit();
   return (
     <div className={'c-page m-page' + (tab ? ' m-tabbed' : '')}>
       <header className="c-top m-top">
@@ -47,7 +49,8 @@ function Shell({ children, tab, onTab }: { children: ReactNode; tab?: Tab; onTab
 /** « C'est bon, Yanis. »: the moment between the right code and the home, so that the opening is seen. */
 function Opened({ first }: { first: string }) {
   const head = useRef<HTMLHeadingElement>(null);
-  useEffect(() => { head.current?.focus(); }, []);
+  // from the top: the page the person was on (the number, down at its button) was longer than this one
+  useEffect(() => { window.scrollTo(0, 0); head.current?.focus({ preventScroll: true }); }, []);
   return (
     <SitePage solo>
       <section className="ms-ok" aria-labelledby="m-ok-t">

@@ -5,14 +5,17 @@ import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 
 export type SalonInfo = {
-  name: string; phone: string; email: string; address: string;
+  name: string;
+  /** the name the © line gives, as public/pages.js writes it: the legal name when the salon has one */
+  editor: string;
+  phone: string; email: string; address: string;
   /** a carnet is sold (at the salon, or online) */
   carnet: boolean;
   /** the monthly membership is sold online right now */
   membership: boolean;
 };
 
-const DEFAULTS: SalonInfo = { name: 'Barber L’Architecte', phone: '', email: 'larchitectebarber@gmail.com', address: '16, place Pélabon, 13013 Marseille', carnet: false, membership: false };
+const DEFAULTS: SalonInfo = { name: 'Barber L’Architecte', editor: 'Barber L’Architecte', phone: '', email: 'larchitectebarber@gmail.com', address: '16, place Pélabon, 13013 Marseille', carnet: false, membership: false };
 let once: Promise<SalonInfo> | null = null;
 
 export function loadSalon(): Promise<SalonInfo> {
@@ -25,6 +28,7 @@ export function loadSalon(): Promise<SalonInfo> {
     const packs = ((s && s.services) || []).some((x: any) => x && x.pack && x.pack.credits);
     return {
       name: String(sh.name || sh.legalName || DEFAULTS.name),
+      editor: String(sh.legalName || sh.name || DEFAULTS.editor),
       phone: String(sh.phone || ''),
       email: String(sh.email || DEFAULTS.email),
       address: addr || DEFAULTS.address,
