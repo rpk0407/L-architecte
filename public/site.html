@@ -354,10 +354,20 @@ position:relative;font:400 17px/1.5 var(--f-sans);color:var(--os);background:var
 :where(.lp) img{display:block;max-width:100%}
 :where(.lp) input{font:inherit;color:inherit}
 :where(.lp) sup{font-size:.62em;line-height:0;vertical-align:.45em}
-.lp :focus-visible{outline:2.5px solid currentColor;outline-offset:3px}
+/* The focus ring is the colour of the text of the surface it is drawn on, never the control's own text colour: on the red button, on the
+   ink-filled chip and on the skip link that is the very colour of what lies behind the ring (1:1, no ring at all). The sections say their
+   tone (data-tone), the booking sheet is bone, the menu and the success layer of « Glisse pour raser » are ink. */
+.lp{--ring:var(--os)}
+.lp [data-tone="light"],.lp .bk,.lp .tb.light,.lp .fin-fresh{--ring:var(--encre)}
+.lp [data-tone="dark"],.lp .mn,.lp .tb.dark,.lp .fin-grown{--ring:var(--os)}
+.lp :focus-visible{outline:2.5px solid var(--ring);outline-offset:3px}
 .vh{position:absolute!important;width:1px!important;height:1px!important;overflow:hidden!important;clip:rect(0 0 0 0)!important;clip-path:inset(50%)!important;white-space:nowrap!important;margin:-1px!important;padding:0!important;border:0!important}
 .skip{position:fixed;left:12px;top:-60px;z-index:100;padding:12px 18px;border-radius:999px;background:var(--os);color:var(--encre);font-weight:600}
 .skip:focus{top:12px}
+/* over the hero or an ink section alike, and over a photograph: a bone ring with an ink band inside it, so one of the two stands out from whatever is behind */
+.lp .skip:focus-visible,.lp .ct-zoom:focus-visible{outline-color:var(--os);box-shadow:0 0 0 3px var(--encre)}
+/* the bar that follows the page is over every section in turn: the same two bands, its own shadow kept */
+.lp .cta .btn:focus-visible{outline-color:var(--os);box-shadow:0 0 0 3px var(--encre),0 16px 44px rgba(0,0,0,.3)}
 .wrap{width:100%;max-width:1320px;margin:0 auto;padding:0 var(--pad)}
 .h2{font:400 clamp(48px,13.4vw,136px)/.92 var(--f-serif);letter-spacing:-.015em;text-wrap:balance}
 .ht{display:block;width:100%}

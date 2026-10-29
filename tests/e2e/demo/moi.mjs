@@ -6,7 +6,7 @@
 export const name = 'client space: sign in, next visit, move, carnet, history, receipt, sign out, « Ouvrir mon espace »';
 export const viewport = { width: 390, height: 844 };
 
-import { focusRing } from '../ring.mjs';
+import { focusRing, textContrast } from '../ring.mjs';
 
 const DESKTOP = { width: 1440, height: 900 };
 
@@ -472,10 +472,23 @@ export default async ({ h, page }) => {
   await narrow.locator('.mp-input').first().waitFor();
   const profileField = await narrow.locator('.mp-input').first().evaluate((e) => { const c = getComputedStyle(e); return c.backgroundColor + ' | ' + c.boxShadow; });
   if (!profileField.startsWith('rgb(31, 28, 25)') || !profileField.includes('rgb(122, 116, 108)')) throw new Error('dark: the profile field is ' + profileField);
-  for (const sel of ['.mp-chip[aria-pressed="true"]', '.mp-chip[aria-pressed="false"]', '.mp-switch']) await focusRing(narrow, sel, 'dark: /moi/profil');
+  for (const sel of ['.mp-chip[aria-pressed="true"]', '.mp-chip[aria-pressed="false"]', '.mp-switch', '.lyr-sw']) await focusRing(narrow, sel, 'dark: /moi/profil');
+  // the birthday's hint is the page's second ink, not the browser's grey (3.7:1 on the dark field); the loyalty switch sits in a card of its own
+  await textContrast(narrow, '#mp-bday', 'dark: /moi/profil', { pseudo: '::placeholder' });
+  if (!(await narrow.locator('.lyr-sw').evaluate((e) => !!e.closest('.c-card')))) throw new Error('dark: the loyalty switch sits on the bare page, outside a card');
   await h.shot(narrow, 'moi-profile-dark-320');
   // the pages reached by a link are dark too, and a printed receipt stays black on white whatever the phone says
+  // (a cancelled visit staged among the real ones: the demo's client has none)
+  await narrow.route('**/api/me/history**', async (route) => {
+    const res = await route.fetch();
+    const body = await res.json();
+    if (body.items.length) body.items = [...body.items, { ...body.items[0], day: '2026-08-18', status: 'cancelled', receipt: null }];
+    await route.fulfill({ response: res, json: body });
+  });
   await narrow.goto(h.base + '/moi/historique');
+  // a cancelled visit's date is dimmed with a colour of the page, not an opacity (4.2:1 on the light card): it reads as text
+  await narrow.locator('.m-rows li.gone').first().waitFor();
+  await textContrast(narrow, '.m-rows li.gone .m-rows-t b', 'dark: /moi/historique');
   const receipt = await narrow.locator('a.m-rec').first().getAttribute('href');
   await narrow.goto(receipt);
   await narrow.locator('.c-rec').waitFor();
@@ -493,5 +506,26 @@ export default async ({ h, page }) => {
   for (const sel of ['a.m-book', '.m-hero .m-act', '.m-tabs a']) await focusRing(narrow, sel, 'light: /moi home');
   await narrow.goto(h.base + '/moi/profil');
   await narrow.locator('.mp-chip').first().waitFor();
-  for (const sel of ['.mp-chip[aria-pressed="true"]', '.mp-chip[aria-pressed="false"]']) await focusRing(narrow, sel, 'light: /moi/profil');
+  for (const sel of ['.mp-chip[aria-pressed="true"]', '.mp-chip[aria-pressed="false"]', '.lyr-sw']) await focusRing(narrow, sel, 'light: /moi/profil');
+  await textContrast(narrow, '#mp-bday', 'light: /moi/profil', { pseudo: '::placeholder' });
+  await narrow.goto(h.base + '/moi/historique');
+  await narrow.locator('.m-rows li.gone').first().waitFor();
+  await textContrast(narrow, '.m-rows li.gone .m-rows-t b', 'light: /moi/historique');
+  await narrow.unroute('**/api/me/history**');
+
+  /* ---------- what the page's own rule does not reach, on a phone's default look (a mobile-emulated light context) ---------- */
+  // the loyalty sheet is drawn outside the page (a portal in the body) and /r/ is a page of its own: neither may fall back on the browser's ring,
+  // which on Android is thin and amber (2.2:1 on the card in the light theme)
+  const phone = await h.newPage({ viewport: { width: 390, height: 844 }, mobile: true });
+  await phone.emulateMedia({ colorScheme: 'light' });
+  await phone.goto(manage);
+  await phone.getByRole('link', { name: 'Ouvrir mon espace' }).waitFor({ timeout: 8000 });
+  for (const sel of ['a.c-brand', '.c-espace a.c-btn', '.c-foot a']) await focusRing(phone, sel, 'light, phone: /r/');
+  await phone.goto(h.base + '/moi');
+  await phone.getByRole('button', { name: 'Essayer avec un client de démo' }).click();
+  await phone.getByRole('heading', { name: /^Salut / }).waitFor({ timeout: 10000 });
+  await phone.locator('.lyr').click();
+  await phone.locator('.lyr-sheet').waitFor();
+  for (const sel of ['.lyr-sheet .lyr-btn.ghost', '.lyr-sheet summary', '.lyr-sheet .lyr-close']) await focusRing(phone, sel, 'light, phone: the loyalty sheet');
+  await h.shot(phone, 'moi-loyalty-sheet-light-390');
 };

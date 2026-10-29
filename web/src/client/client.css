@@ -42,6 +42,12 @@ h1, h2, p { margin: 0; }
 a { color: inherit; }
 button { font: inherit; color: inherit; border: 0; background: none; cursor: pointer; padding: 0; }
 button:disabled { opacity: .5; cursor: default; }
+/* The ring of every control of the client pages (/r, /abo, /cadeau, /recu, /paiement, and /moi on top of them): the page's ink (light in the
+   dark theme, dark in the light one: 3:1 and more on the paper, the card and the field), never the browser's own, which is amber on a phone in
+   the light theme (2.2:1 on the card) and never the control's own text colour, which on the brand red or on an ink-filled chip is the very
+   colour of what lies behind the ring. The ticket is ink in both themes: its ring is the ticket's light (--tk). */
+.c-page :focus-visible { outline: 2.5px solid var(--ink); outline-offset: 3px; }
+.c-page .c-ticket :focus-visible { outline-color: var(--tk); }
 .c-page { min-height: 100dvh; display: flex; flex-direction: column; max-width: 560px; margin: 0 auto; padding: 0 16px calc(24px + env(safe-area-inset-bottom)); }
 .c-top { padding: calc(18px + env(safe-area-inset-top)) 4px 18px; }
 .c-brand { display: inline-flex; flex-direction: column; text-decoration: none; }

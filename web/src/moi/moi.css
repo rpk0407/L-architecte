@@ -7,11 +7,9 @@
 .m-page [hidden] { display: none !important; }
 .m-page { padding-bottom: calc(28px + env(safe-area-inset-bottom)); }
 .m-page.m-tabbed { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
-/* the ring is the page's ink (light in the dark theme, dark in the light one: 3:1 and more on the paper and the card), never the
-   control's own text colour, which on the brand red or on an ink-filled chip is the very colour of what lies behind the ring.
-   The ticket is ink in both themes: its ring is the ticket's light (--tk). */
-.m-page :focus-visible, .m-sheet :focus-visible { outline: 2.5px solid var(--ink); outline-offset: 3px; }
-.m-page .c-ticket :focus-visible, .m-sheet .c-ticket :focus-visible { outline-color: var(--tk); }
+/* the page's ring (client.css) for the sheet, which is drawn outside the page; the ticket is ink in both themes, its ring is the ticket's light */
+.m-sheet :focus-visible { outline: 2.5px solid var(--ink); outline-offset: 3px; }
+.m-sheet .c-ticket :focus-visible { outline-color: var(--tk); }
 /* the client pages' text links (« Retour », « Non, je garde ») as big as a thumb here */
 .m-page .c-link { display: inline-flex; align-items: center; min-height: 44px; }
 /* the footer's two links: a thumb's height, and the client pages' second ink so they read */
@@ -69,7 +67,7 @@
 .m-rows-t { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .m-rows-t b { font: 600 15.5px/1.3 var(--sans); }
 .m-rows-t small { font-size: 13.5px; color: var(--ink2); }
-.m-rows li.gone .m-rows-t b { opacity: .55; }
+.m-rows li.gone .m-rows-t b { color: var(--ink2); }
 .m-rec { flex: none; display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px; border-radius: 999px; box-shadow: inset 0 0 0 1.5px var(--line2); font: 600 14.5px/1 var(--sans); text-decoration: none; }
 .m-rec:hover { background: var(--ink); color: var(--paper); box-shadow: none; }
 .m-more { min-height: 48px; }

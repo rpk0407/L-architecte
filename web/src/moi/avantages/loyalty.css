@@ -12,6 +12,8 @@
 .lyr-veil { position: fixed; inset: 0; z-index: 60; background: var(--scrim, rgba(15, 14, 13, .45)); }
 .lyr-sheet { position: fixed; z-index: 61; left: 0; right: 0; bottom: 0; max-height: calc(100dvh - 24px); overflow: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 16px; padding: 22px 20px calc(22px + env(safe-area-inset-bottom)); border-radius: 26px 26px 0 0; background: var(--card, #F6F3EE); color: var(--ink, #0F0E0D); box-shadow: 0 -18px 50px -20px rgba(15, 14, 13, .4), var(--rim, 0 0 0 0 transparent); outline: none; }
 @media (min-width: 640px) { .lyr-sheet { left: 50%; bottom: auto; top: 50%; width: min(480px, calc(100% - 28px)); transform: translate(-50%, -50%); border-radius: 26px; } }
+/* the ring of the sheet's controls: the page's ink, as client.css gives the page (the sheet is drawn outside it, in the body) */
+.lyr-sheet :focus-visible { outline: 2.5px solid var(--ink, #0F0E0D); outline-offset: 3px; }
 .lyr-k { font: 600 12px/1 var(--sans, system-ui, sans-serif); letter-spacing: .1em; text-transform: uppercase; color: var(--ink2, #58534C); }
 .lyr-h { font: 400 32px/1.05 var(--serif, serif); letter-spacing: -.01em; margin: 6px 0 0; }
 .lyr-head { font: 400 26px/1.15 var(--serif, serif); }
@@ -34,5 +36,8 @@
 .lyr-k2 i { position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%; background: var(--on-ok, #fff); box-shadow: 0 1px 3px rgba(15, 14, 13, .3); transition: transform .2s; }
 .lyr-sw[aria-checked='true'] .lyr-k2 { background: var(--ok, #1A6838); }
 .lyr-sw[aria-checked='true'] .lyr-k2 i { transform: translateX(20px); }
+/* « Participer à la carte fidélité » in Profil: a card like its neighbours; the message under the switch takes no room while empty */
+.lyr-opt { gap: 8px; }
+.lyr-opt .lyr-small:empty { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .lyr-note { padding: 12px 14px; border-radius: 14px; background: var(--tint, rgba(15, 14, 13, .06)); font-size: 14px; }
 @media (prefers-reduced-motion: reduce) { .lyr-btn, .lyr-k2, .lyr-k2 i { transition: none; } .lyr-btn:active { transform: none; } }

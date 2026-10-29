@@ -66,9 +66,11 @@ for (const [name, t] of [['light', light], ['dark', dark]]) {
 
 // The ring is a token of the theme, never the control's own text colour: on the brand red, on the skip link and on an ink-filled chip that
 // colour is the one of what lies behind the ring (1:1, no ring at all). The pages' real rings are measured in tests/e2e/demo/moi.mjs.
+const cssOf = (dirs) => dirs.flatMap((d) => readdirSync(join(ROOT, d), { recursive: true }).filter((f) => String(f).endsWith('.css')).map((f) => join(d, String(f))));
+const rules = (src) => [...src.matchAll(/([^{}]*)\{([^}]*)\}/g)].map((m) => ({ sel: m[1].replace(/\/\*[\s\S]*?\*\//g, '').trim(), body: m[2] }));
+
 test('client space: no focus ring takes the control’s own text colour', () => {
-  const dirs = ['web/src/moi', 'web/src/client'];
-  const files = dirs.flatMap((d) => readdirSync(join(ROOT, d), { recursive: true }).filter((f) => String(f).endsWith('.css')).map((f) => join(d, String(f))));
+  const files = cssOf(['web/src/moi', 'web/src/client']);
   assert.ok(files.length >= 4, 'the stylesheets of the client space are found');
   const bad = [];
   for (const f of files) {
@@ -77,4 +79,61 @@ test('client space: no focus ring takes the control’s own text colour', () => 
     }
   }
   assert.deepEqual(bad, []);
+});
+
+// Every control is drawn a ring of the page's own, never the browser's: on a phone in the light theme that one is thin and amber (2.2:1 on the card).
+// The page, the sheets drawn outside it (the loyalty sheet and /moi's sheet are portals in the body) each say it; the ticket, ink in both themes, has its light.
+test('client space: the page and each sheet drawn outside it give their controls the page’s ink as a ring', () => {
+  const ring = (f, sel) => {
+    const r = rules(readFileSync(join(ROOT, f), 'utf8')).find((x) => x.sel.split(',').map((y) => y.trim()).includes(sel));
+    assert.ok(r, f + ' has no « ' + sel + ' » rule');
+    return r.body;
+  };
+  for (const [f, sel] of [['web/src/client/client.css', '.c-page :focus-visible'], ['web/src/moi/avantages/loyalty.css', '.lyr-sheet :focus-visible'], ['web/src/moi/moi.css', '.m-sheet :focus-visible']]) {
+    assert.match(ring(f, sel), /outline:\s*2\.5px solid var\(--ink(,[^)]*)?\)/, f + ': « ' + sel + ' » is not the page’s ink');
+  }
+  for (const [f, sel] of [['web/src/client/client.css', '.c-page .c-ticket :focus-visible'], ['web/src/moi/moi.css', '.m-sheet .c-ticket :focus-visible']]) {
+    assert.match(ring(f, sel), /outline-color:\s*var\(--tk\)/, f + ': « ' + sel + ' » is not the ticket’s light');
+  }
+});
+
+// The same on the site's own pages (the ones the client space links to, and the home): the ring is a colour of the page or of the surface it is
+// drawn on, never the control's own text colour. The few controls that float over every section or a photograph carry two bands (an ink band
+// inside a bone ring), so that one of them stands out from whatever is behind.
+test('public pages: no focus ring takes the control’s own text colour', () => {
+  const files = ['public/pages.css', 'public/guide.css', 'public/demande.css', 'public/site.html', 'public/404.html', 'public/ancien-lien.html', 'public/mon-rendez-vous.html', 'public/resilier.html', 'public/carte-cadeau.html'];
+  const bad = [];
+  for (const f of files) {
+    for (const m of readFileSync(join(ROOT, f), 'utf8').matchAll(/([^{}]*:focus(?:-visible)?[^{}]*)\{([^}]*)\}/g)) {
+      if (/outline[^;]*currentcolor/i.test(m[2])) bad.push(f + ': ' + m[1].trim());
+    }
+  }
+  assert.deepEqual(bad, []);
+  const pages = rules(readFileSync(join(ROOT, 'public/pages.css'), 'utf8')).find((x) => x.sel === 'a:focus-visible,button:focus-visible');
+  assert.match(pages.body, /outline:\s*2\.5px solid var\(--tx\)/, 'the static pages’ ring is the page’s ink');
+  const site = readFileSync(join(ROOT, 'public/site.html'), 'utf8');
+  assert.match(site, /\.lp :focus-visible\{outline:2\.5px solid var\(--ring\)/, 'the site’s ring is the surface’s');
+  assert.match(site, /\.lp \.skip:focus-visible,\.lp \.ct-zoom:focus-visible\{outline-color:var\(--os\);box-shadow:0 0 0 3px var\(--encre\)\}/, 'the skip link and the photo’s pill have two bands');
+  assert.match(site, /\.lp \.cta \.btn:focus-visible\{outline-color:var\(--os\);box-shadow:0 0 0 3px var\(--encre\),/, 'the bar that follows the page has two bands');
+});
+
+// A field's hint and a dimmed line are text: a token of the theme at full opacity (the browser's grey hint is 3.7:1 on the dark field, and
+// ink at 55 % is 4.2:1 on the light card). The tokens themselves are held at 4.5:1 above, on the paper, the card and the field.
+test('client space: a hint and a dimmed line take a token of the theme, never the browser’s grey nor an opacity', () => {
+  const bySel = {};
+  for (const f of cssOf(['web/src/moi', 'web/src/client'])) {
+    for (const r of rules(readFileSync(join(ROOT, f), 'utf8').replace(/@media[^{]*\{/g, ''))) {
+      for (const sel of r.sel.split(',').map((x) => x.trim()).filter((x) => x.includes('::placeholder'))) bySel[sel] = (bySel[sel] || '') + r.body;
+    }
+  }
+  assert.ok(Object.keys(bySel).includes('.mp-input::placeholder') && Object.keys(bySel).includes('.ms-inp::placeholder'), 'the fields of the profile and of the sign-in have a hint rule');
+  for (const [sel, body] of Object.entries(bySel)) {
+    assert.match(body, /color:\s*var\(--ink[23]\)/, sel + ' takes a token of the theme');
+    assert.match(body, /opacity:\s*1\b/, sel + ' is not dimmed');
+  }
+  const bad = [];
+  for (const f of cssOf(['web/src/moi', 'web/src/client'])) {
+    for (const r of rules(readFileSync(join(ROOT, f), 'utf8'))) if (/\.m-rows/.test(r.sel) && /\bopacity:/.test(r.body)) bad.push(f + ': ' + r.sel);
+  }
+  assert.deepEqual(bad, [], 'the lines of the history are dimmed with a colour, not an opacity');
 });

@@ -9,6 +9,7 @@
 .mp-field { display: flex; flex-direction: column; gap: 6px; }
 .mp-field > span { font: 600 13px/1.2 var(--sans); color: var(--ink2); }
 .mp-input { width: 100%; min-height: 48px; padding: 0 14px; border: 0; border-radius: 14px; background: var(--field); box-shadow: inset 0 0 0 1.5px var(--edge); font: 400 17px/1.2 var(--sans); color: var(--ink); }
+.mp-input::placeholder { color: var(--ink3); opacity: 1; }
 .mp-input[aria-invalid='true'] { box-shadow: inset 0 0 0 1.5px var(--warn); }
 .mp-err { font: 500 13px/1.3 var(--sans); font-style: normal; color: var(--warn); }
 .mp-known { margin: 0; display: flex; flex-direction: column; gap: 4px; font-size: 14px; }

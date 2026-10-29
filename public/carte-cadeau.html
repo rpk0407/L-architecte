@@ -62,6 +62,8 @@ textarea.inp{min-height:88px;padding:14px 16px;line-height:1.4;resize:vertical}
 .pay .btn{flex:none}
 .pay p b{display:block;font:400 30px/1 var(--f-serif)}
 .pay .btn:hover{background:var(--bg);color:var(--tx)}
+/* the bar is ink-filled: the ring of its button is the page's paper, not the ink it lies on */
+.pay :focus-visible{outline-color:var(--bg)}
 .btn[disabled]{opacity:.65;cursor:progress}
 .legal{margin-top:16px;color:var(--tx2);font-size:14px}
 .note{margin:22px 0 0;padding:14px 18px;border-radius:16px;background:var(--sf);box-shadow:inset 0 0 0 1px var(--ln);font-weight:500}
