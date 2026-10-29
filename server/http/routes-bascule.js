@@ -100,6 +100,7 @@ async function dnsStep(rt, domain) {
   const resolve = rt.dnsResolve || ((h, t) => dns.promises.resolve(h, t));
   const hosts = [domain, 'www.' + domain];
   const jobs = hosts.flatMap((h) => ['A', 'AAAA', 'CNAME'].map((t) => within(Promise.resolve().then(() => resolve(h, t)), CHECK_MS).then((v) => ({ h, t, v: [].concat(v).map(String) }), (e) => ({ h, t, v: /** @type {string[]} */ ([]), e }))));
+  /** @type {{ h: string, t: string, v: string[], e?: any }[]} */
   const got = await Promise.all(jobs);
   const of = (h, t) => got.find((x) => x.h === h && x.t === t) || { v: [] };
   const at = (h) => ({ a: of(h, 'A').v, aaaa: of(h, 'AAAA').v.filter((x) => x.includes(':')), cname: of(h, 'CNAME').v });
@@ -253,7 +254,7 @@ export function takenHere(s) {
 export function changedHere(s) {
   const since = s.bascule.sinceAt || s.bascule.frozenAt || s.bascule.switchedAt;
   if (!since) return [];
-  const out = [];
+  const out = /** @type {{ a: any, how: 'cancelled' | 'moved' }[]} */ ([]);
   for (const a of s.appts.values()) {
     if (a.source !== 'import' || a.demo || !a.ext || !a.ext.wp) continue;
     if (a.status === 'cancelled' && a.cancel && a.cancel.at > since && !(a.cancel.by === 'salon' && (a.cancel.reason === CANCEL_REASON || a.cancel.reason === GONE_REASON))) out.push({ a, how: 'cancelled' });

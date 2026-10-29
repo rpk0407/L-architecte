@@ -1,7 +1,7 @@
 // @ts-check
 // The projection: what the journal means right now. `evolve` folds one event into the state.
 // It is the only code that mutates state, and it runs only for events already stored.
-import { GENESIS } from './journal.js';
+import { GENESIS, piiOf } from './journal.js';
 import { TEMPLATES } from './templates.js';
 import { defaultSettings } from '../settings/index.js';
 import { EXTENSIONS } from './extensions.js';
@@ -68,7 +68,7 @@ const FEED = new Set(['appt.booked', 'appt.cancelled', 'appt.moved', 'appt.statu
  */
 export function evolve(s, e) {
   const d = e.data || {};
-  const p = e.pii || {};
+  const p = piiOf(e.pii);
   switch (e.type) {
     case 'shop.initialized':
       s.mode = d.mode; s.createdAt = e.at;
