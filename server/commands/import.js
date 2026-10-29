@@ -37,6 +37,11 @@ export const KIND_TEXT = {
   pending: 'En attente sur l’ancien site : confirme avec le client',
   paid: 'Acompte de {amount} payé sur l’ancien site : à la caisse, encaisse-le avec « Payé sur l’ancien site »',
   'paid:full': 'Déjà payé en entier sur l’ancien site ({amount}) : à la caisse, encaisse-le avec « Payé sur l’ancien site »',
+  'paid:late': 'Acompte de {amount} payé sur l’ancien site depuis le premier import : à la caisse, encaisse-le avec « Payé sur l’ancien site »',
+  'paid:fulllate': 'Payé en entier sur l’ancien site depuis le premier import ({amount}) : à la caisse, encaisse-le avec « Payé sur l’ancien site »',
+  refund: 'Annulé sur l’ancien site alors qu’un acompte[ de {amount}] y était payé : rembourse-le si besoin, depuis l’ancien site',
+  changed: 'Modifié sur l’ancien site depuis le premier import[ ({names})] : mis à jour ici, vérifie',
+  'changed:handled': 'Modifié sur l’ancien site[ ({names})], mais déjà pris en charge ici : pas changé, vérifie',
   overlap: 'Chevauche un autre rendez-vous',
   today: 'Terminé aujourd’hui sur l’ancien site : s’il y a été encaissé, ne l’encaisse pas ici',
   moved: 'Déplacé sur l’ancien site[ : était {was}]',
@@ -57,6 +62,7 @@ export const KIND_TEXT = {
   'pack:expired': 'Carnet expiré[ le {day}]',
   'pack:nofile': 'Aucun client avec ce numéro : ajoute son prénom',
   error: 'État « Erreur » sur l’ancien site : ignoré',
+  'error:since': 'État « Erreur » sur l’ancien site depuis le premier import : rendez-vous gardé ici, vérifie avec le client',
   unpaid: 'Paiement en ligne jamais terminé sur l’ancien site : ignoré',
   retention: 'Plus de 3 ans sans visite : pas repris (règle de conservation)',
   gone: 'Supprimé sur l’ancien site : annulé ici, sans SMS',
@@ -64,6 +70,7 @@ export const KIND_TEXT = {
   name: 'Même numéro, autre prénom[ (« {typed} »)] : mis sur la fiche[ de {file}]. Famille ?',
   'email-elsewhere': 'Cet e-mail est déjà sur la fiche[ de {other}] : pas copié',
   'new-number': 'Nouveau numéro sur l’ancien site[ pour {file}] : numéro gardé, à vérifier',
+  'new-number:fixed': 'Numéro changé sur l’ancien site[ pour {file}] : mis sur la fiche, vérifie',
   'status-unknown': 'État inconnu sur l’ancien site : ligne ignorée',
   reopened: 'Rétabli sur l’ancien site : remis dans l’agenda, vérifie le créneau',
   person: 'Même e-mail que[ {other}] mais une autre personne : fiche séparée, à vérifier',
@@ -72,9 +79,9 @@ export const KIND_TEXT = {
   email: 'E-mail illisible[ : « {email} »] : pas gardé'
 };
 /** The kinds that ask the owner to do something (« À faire »); the rest is « Pour info ». */
-export const TODO_KINDS = new Set(['pending', 'paid', 'overlap', 'today', 'moved', 'cancelled', 'gone-handled', 'name', 'new-number', 'staff', 'giftcard', 'pack', 'reopened', 'person', 'unreadable']);
-/** Variants of a kind that ask something of the owner although the kind is only « Pour info »: an upcoming booking lost to its service label. */
-const TODO_VARIANTS = new Set(['service:upcoming']);
+export const TODO_KINDS = new Set(['pending', 'paid', 'refund', 'changed', 'overlap', 'today', 'moved', 'cancelled', 'gone-handled', 'name', 'new-number', 'staff', 'giftcard', 'pack', 'reopened', 'person', 'unreadable']);
+/** Variants of a kind that ask something of the owner although the kind is only « Pour info »: an upcoming booking lost to its service label, a booking that turned « Erreur » after it came in. */
+const TODO_VARIANTS = new Set(['service:upcoming', 'error:since']);
 const isTodo = (kind, v) => TODO_KINDS.has(kind) || TODO_VARIANTS.has(kind + ':' + (v || ''));
 
 /** The kinds about a client file rather than a booking. */
@@ -177,7 +184,8 @@ export function rowTomb(s, x, tombKey) {
 
 /**
  * Where the bookings an earlier run brought in stand now, for the wizard's preview of a delta run (the same rules
- * as delta() below decide; this only reads). open: nobody handled it here yet; movedHere: moved in the agenda since.
+ * as delta() below decide; this only reads). open: nobody handled it here yet; movedHere: moved in the agenda since; live: still in the
+ * agenda and not paid at the till (a deposit paid on the old site since can still be taken).
  * @param {any} s @param {number[]} wps
  */
 export function priorView(s, wps) {
@@ -185,7 +193,9 @@ export function priorView(s, wps) {
   for (const w of wps) {
     const a = s.appts.get(s.apptByWp.get(String(w)) || '');
     if (!a) continue;
-    out.push({ wp: w, day: a.day, start: a.start, dur: a.dur, staffId: a.staffId, status: a.status, open: isOpen(a), movedHere: movedHere(a), cancelledByImport: cancelledByImport(a) });
+    const x = a.ext || {};
+    // price, services and deposit as the old site last said them (what the preview compares the new export to), and whether a deposit can still be cashed
+    out.push({ wp: w, day: a.day, start: a.start, dur: a.dur, staffId: a.staffId, status: a.status, open: isOpen(a), movedHere: movedHere(a), cancelledByImport: cancelledByImport(a), price: x.wpPrice ?? a.price, paid: x.paid || 0, svc: x.wpSvc ?? sortedIds(a.services.map((v) => v.id)), live: ACTIVE.has(a.status) && !a.saleId && !a.legacy });
   }
   return out;
 }
@@ -357,6 +367,58 @@ function people(s, ctx, out, rid) {
     if (x.wpUser) byWp.set(x.wpUser, cid);
     return cid;
   }
+  /**
+   * A booking an earlier run brought in, seen again while nobody handled it here: what the old site corrected about the person. What the file
+   * lacks (an e-mail, a last name, a number) is filled in, as find() does. A number fixed on the booking goes to a file an import made, from
+   * bookings with a higher WordPress number each time (ext.pw: the newest booking wins, so two bookings never undo each other); on a file of the
+   * salon, or a number another file has, it is only listed. A first name that is not the file's stays on the booking, and is said (the family case).
+   * @param {any} x the row @param {any} row @param {any} a the booking in the state
+   * @returns {{ name?: string, touched: boolean }} name: the name the booking keeps now
+   */
+  function revisit(x, row, a) {
+    const res = /** @type {{ name?: string, touched: boolean }} */ ({ touched: false });
+    const typed = [x.first, x.last].filter(Boolean).join(' ').slice(0, 40);
+    if (!a.clientId) {
+      // no file: the booking keeps the name the old site gives, corrected when it was
+      if (typed && typed !== a.name) { res.name = typed; res.touched = true; }
+      return res;
+    }
+    const cid = file(a.clientId).id, c = file(cid);
+    if (c.erased) return res;
+    const phone = phoneOf(x), email = emailOf(x);
+    let now = c.phone;
+    if (!filled.has(cid)) {
+      filled.add(cid);
+      const fill = {}, patch = {};
+      if (email && !c.email && !byEmail.has(email) && !K.email.has(email)) fill.email = email;
+      if (x.last && !c.last) fill.last = capFirst(x.last).slice(0, 40);
+      if (phone && phone !== c.phone) {
+        const other = byPhone.get(phone) || s.clientByPhone.get(phone);
+        if (other && other !== cid) out.review.push({ ...row, kind: 'new-number', text: say('new-number', { file: fileName(c) }), cid });
+        else if (!c.phone) fill.phone = phone;
+        else if (c.source === 'wordpress' && !((c.ext && c.ext.pw) >= x.wp)) {
+          fill.phone = phone;
+          patch.ext = { ...(c.ext || {}), pw: x.wp };
+          out.review.push({ ...row, kind: 'new-number', text: say('new-number', { file: fileName(c) }, 'fixed'), v: 'fixed', cid });
+        }
+      }
+      if (Object.keys(fill).length) {
+        ctx.emit('client.updated', { id: cid, cid, patch, fields: Object.keys(fill), ...run }, fill);
+        res.touched = true;
+        if (fill.phone) { now = fill.phone; byPhone.set(fill.phone, cid); }
+        if (fill.email) byEmail.set(fill.email, cid);
+      }
+    }
+    // the same number, another first name (a father booking for his sons): the booking keeps the name that was typed
+    if (x.first && c.first && c.first !== 'Client' && (!phone || phone === now)) {
+      const p = fold(x.first), q = fold(c.first);
+      if (p && q && !p.startsWith(q) && !q.startsWith(p) && typed !== a.name) {
+        res.name = typed; res.touched = true;
+        out.review.push({ ...row, kind: 'name', text: say('name', { typed: capFirst(x.first), file: fileName(c) }), cid });
+      }
+    }
+    return res;
+  }
   /** Is the file this e-mail leads to somebody else? It has another number than the row's, and another first name. */
   function sameEmailOtherPerson(cid, x, phone) {
     const c = file(cid);
@@ -390,7 +452,7 @@ function people(s, ctx, out, rid) {
   }
   /** Does this person already have a file (in the salon, or made earlier in this batch)? */
   const has = (x) => !!lookup(x);
-  return { find, gone, has, meet, created, met, since, settle };
+  return { find, revisit, gone, has, meet, created, met, since, settle };
 }
 
 /** The old barbers who left (John, JBlades…): one archived profile without a chair (out of the team's figures), created when first needed. */
@@ -457,7 +519,7 @@ function snapshot(s, ids, total) {
 }
 
 /** One row of the review list: its text from KIND_TEXT, plus the variant that was used (the report rebuilds the same words). */
-function note(out, row, kind, vars = {}, v = '') { out.review.push({ ...row, kind, text: say(kind, vars, v), ...(v ? { v } : {}) }); }
+function note(out, row, kind, vars = {}, v = '') { out.review.push({ ...row, kind, text: say(kind, vars, v), ...(v ? { v } : {}), ...(kind === 'changed' && vars.names ? { names: vars.names } : {}) }); }
 
 const fmtDay = (k) => dayShort(k) + ' ' + k.slice(0, 4);
 const fmtSlot = (a, s) => dayShort(a.day) + ' ' + fmtTime(a.start) + ' · ' + ((s.staff.get(a.staffId) || {}).name || '?');
@@ -472,11 +534,17 @@ function overlaps(s, mine, b, ignore) {
   return hit;
 }
 
+/** The deposit sentence at the start of an upcoming booking's note, as the first run wrote it: a new amount replaces it, the rest of the note stays. */
+const PAID_NOTE = /^(?:Déjà payé en entier sur l’ancien site \([^)]*\)|Acompte de [^·]*? déjà payé sur l’ancien site)(?: · |$)/;
+const paidNote = (paid, price) => (paid ? (paid >= price ? 'Déjà payé en entier sur l’ancien site (' + fmtEur(paid) + ')' : 'Acompte de ' + fmtEur(paid) + ' déjà payé sur l’ancien site') : '');
+const sortedIds = (ids) => [...ids].sort().join(',');
+
 /**
  * The cut-over day's re-run, for a booking a first run already brought in: what the old site changed since is carried
- * over (cancelled, moved, taken place), but only while nobody handled it here (checked in, paid, moved in the agenda);
+ * over (cancelled, moved, taken place; for one still to come also its price and services, the deposit paid since, its note,
+ * the corrected number and name, see carry), but only while nobody handled it here (checked in, paid, moved in the agenda);
  * otherwise it is listed for a look. What the first run lacked (often the CSV alone) is filled in: link secret, note.
- * @returns {'cancelled'|'moved'|'closed'|'updated'|'already'}
+ * @returns {'cancelled'|'moved'|'closed'|'changed'|'updated'|'already'}
  */
 function delta(s, ctx, r, a, row, run) {
   const out = run.out, today = ctx.local.day, tag = run.tag;
@@ -491,9 +559,14 @@ function delta(s, ctx, r, a, row, run) {
   const ext2 = { ...ext };
   if (r.uniq && !ext.uniq) ext2.uniq = sha256(r.uniq.toLowerCase());
   if (r.note && !a.note) pii.note = r.note.slice(0, 300);
-  let did = /** @type {'cancelled'|'moved'|'closed'|'updated'|'already'} */ ('already');
+  let did = /** @type {'cancelled'|'moved'|'closed'|'changed'|'updated'|'already'} */ ('already');
+  /** where the booking stands once this run is through (a longer visit may now run into the next one) */
+  let slot = { day: a.day, start: a.start, staffId: a.staffId };
   if (open && status === 'cancelled') {
     ctx.emit('appt.cancelled', { id: a.id, by: 'salon', reason: CANCEL_REASON, cid: a.clientId || undefined, ...tag });
+    // a deposit paid there: nothing gives it back on its own, the client may be owed it
+    const prepaid = Math.max(ext.paid || 0, r.paid || 0);
+    if (prepaid) { ext2.paid = prepaid; note(out, row, 'refund', { amount: fmtEur(prepaid) }); }
     did = 'cancelled';
   } else if (open && (status === 'done' || status === 'no_show')) {
     // it took place on the old site between the two runs; today's stays for the till, which may still cash it
@@ -514,6 +587,7 @@ function delta(s, ctx, r, a, row, run) {
         ext2.slot = wpSlot;
         note(out, row, 'moved', { was });
         if (overlaps(s, run.mine, to, a.id)) note(out, row, 'overlap');
+        slot = { day: to.day, start: to.start, staffId: to.staffId };
         did = 'moved';
       }
     } else if (to.dur !== a.dur) patch.dur = to.dur; // the WXR's real length, after a CSV-only first run
@@ -523,12 +597,79 @@ function delta(s, ctx, r, a, row, run) {
     ctx.emit('appt.status', { id: a.id, status: 'no_show', prev: a.status, cid: a.clientId || undefined, ...tag });
     did = 'closed';
   }
-  if (ext2.uniq !== ext.uniq || ext2.moves !== ext.moves || ext2.slot !== ext.slot) patch.ext = ext2;
+  // what else changed on a booking still in the agenda; or an « Erreur » it was given since
+  const payable = ACTIVE.has(a.status) && !a.saleId && !a.legacy;
+  let changed = false;
+  if (status === 'booked' && payable) {
+    changed = carry(s, ctx, r, a, row, run, { free: open && !moved, ext2, patch, pii });
+    // a longer visit (other services) may now run into the next booking
+    if (patch.dur && patch.dur > a.dur && did !== 'moved' && open && overlaps(s, run.mine, { ...slot, dur: patch.dur }, a.id)) note(out, row, 'overlap');
+  } else if (r.status === 'error' && payable) note(out, row, 'error', {}, 'since');
+  if (changed && did === 'already') did = 'changed';
+  if (Object.keys(ext2).some((k) => ext2[k] !== ext[k])) patch.ext = ext2;
   if (Object.keys(patch).length || Object.keys(pii).length) {
     ctx.emit('appt.updated', { id: a.id, patch, cid: a.clientId || undefined, ...tag }, Object.keys(pii).length ? pii : undefined);
     if (did === 'already') did = 'updated';
   }
   return did;
+}
+
+/**
+ * What the old site changed on a booking still in the agenda since an earlier run. The deposit paid since is always carried (until it is
+ * cashed): it is money the client already gave. The price, the services, the note, the corrected number and name only while nobody handled
+ * the booking here (`free`); otherwise a line asks for a look and nothing changes. What the old site said last time is kept on the booking
+ * (ext.wpPrice, ext.wpSvc), so a change made here in the agenda is never taken for the old site's.
+ * @returns {boolean} something was carried over
+ */
+function carry(s, ctx, r, a, row, run, { free, ext2, patch, pii }) {
+  const out = run.out, ext = a.ext || {};
+  let changed = false;
+  // services and price
+  const ids = r.serviceIds.length && r.serviceIds.every((sid) => sid !== LEGACY_SERVICE && s.services.has(sid)) ? r.serviceIds : [];
+  const have = a.services.map((v) => v.id);
+  const svcNew = ids.length > 0 && sortedIds(ids) !== (ext.wpSvc ?? sortedIds(have));
+  const priceNew = r.price != null && r.price !== (ext.wpPrice ?? a.price);
+  let price = a.price;
+  if (svcNew || priceNew) {
+    const services = snapshot(s, svcNew ? ids : have, r.price ?? null);
+    price = r.price ?? services.reduce((t, v) => t + v.price, 0);
+    const bits = [];
+    if (svcNew) bits.push('prestation : ' + a.services.map((v) => v.name).join(' + ') + ' → ' + services.map((v) => v.name).join(' + '));
+    if (price !== a.price) bits.push('prix : ' + fmtEur(a.price) + ' → ' + fmtEur(price));
+    if (!free) { if (bits.length) note(out, row, 'changed', { names: bits.join(' · ').slice(0, 160) }, 'handled'); price = a.price; }
+    else {
+      if (bits.length) {
+        patch.services = services; patch.price = price;
+        if (svcNew && !r.dur) patch.dur = totalDur(services);
+        note(out, row, 'changed', { names: bits.join(' · ').slice(0, 160) });
+        changed = true;
+      }
+      if (svcNew) ext2.wpSvc = sortedIds(ids);
+      if (r.price != null) ext2.wpPrice = r.price;
+    }
+  }
+  // the deposit paid since (or paid up): to be cashed at the till with « Payé sur l’ancien site »
+  const paid = ext.paid || 0, deposit = !!r.paid && r.paid > paid;
+  if (deposit) {
+    ext2.paid = r.paid;
+    note(out, row, 'paid', { amount: fmtEur(r.paid) }, (r.paid >= price ? 'full' : '') + 'late');
+    changed = true;
+  }
+  // the note: the deposit sentence first, the old site's note added when it is new
+  if (deposit || (free && r.note)) {
+    let text = pii.note ?? a.note ?? '';
+    if (deposit) text = [paidNote(r.paid, price), text.replace(PAID_NOTE, '')].filter(Boolean).join(' · ');
+    if (free && r.note && !text.includes(r.note.slice(0, 100))) text = [text, r.note].filter(Boolean).join(' · ');
+    text = text.slice(0, 300);
+    if (text !== (a.note || '')) pii.note = text;
+  }
+  // the number or the name corrected on the old site
+  if (free) {
+    const who = run.P.revisit(r, row, a);
+    if (who.name !== undefined) pii.name = who.name;
+    if (who.touched) changed = true;
+  }
+  return changed;
 }
 
 export const importBatch = {
@@ -539,8 +680,8 @@ export const importBatch = {
     if (rid && !runOpen(s, rid)) fail(409, 'run_closed', 'Cette reprise est terminée : relance l’import, rien ne sera compté deux fois.');
     const out = {
       clients: { added: 0, merged: /** @type {string[]} */ ([]), again: 0 },
-      // updated: details filled in; moved, closed (took place there), cancelled: what the old site changed since a first run
-      appts: /** @type {Record<string, number>} */ ({ done: 0, noShow: 0, cancelled: 0, booked: 0, skipped: 0, already: 0, updated: 0, moved: 0, closed: 0 }),
+      // updated: details filled in; moved, closed (took place there), cancelled, changed (price, services, deposit, number, name): what the old site changed since a first run
+      appts: /** @type {Record<string, number>} */ ({ done: 0, noShow: 0, cancelled: 0, booked: 0, skipped: 0, already: 0, updated: 0, moved: 0, closed: 0, changed: 0 }),
       giftcards: { added: 0, already: 0, skipped: 0 }, packs: { added: 0, already: 0, skipped: 0 },
       /** why rows were skipped: the report's « Ignorés » */
       skip: { error: 0, unpaid: 0, service: 0, staff: 0, erased: 0, retention: 0, phone: 0, giftcard: 0, pack: 0 },
@@ -574,7 +715,7 @@ export const importBatch = {
     const seen = new Set(), codes = new Set();
     /** upcoming bookings of this run, per chair and day, to report overlaps between them too */
     const mine = new Map();
-    const pass = { out, mine, tag: rid ? { run: rid } : {} };
+    const pass = { out, mine, P, tag: rid ? { run: rid } : {} };
     for (const r of x.appts || []) {
       const key = String(r.wp);
       if (seen.has(key)) continue;
@@ -627,7 +768,7 @@ export const importBatch = {
       const createdAt = pastInstant(r.createdAt, ctx.now);
       P.since(clientId, createdAt);
       const price = r.price ?? services.reduce((t, v) => t + v.price, 0);
-      const paidText = !past && r.paid ? (r.paid >= price ? 'Déjà payé en entier sur l’ancien site (' + fmtEur(r.paid) + ')' : 'Acompte de ' + fmtEur(r.paid) + ' déjà payé sur l’ancien site') : '';
+      const paidText = past ? '' : paidNote(r.paid, price);
       // the deposit comes first: a long note of the client would cut it mid-word
       const notes = [paidText, r.note].filter(Boolean).join(' · ');
       const a = {
@@ -635,7 +776,8 @@ export const importBatch = {
         services, price, source: 'import', status, sms: true, deposit: null, cid: clientId || undefined,
         ...(createdAt ? { createdAt } : {}),
         // uniq is the secret of the old e-mail links: only its hash is kept, like any link token
-        ext: { wp: r.wp, slot: r.day + '|' + r.start, ...(r.uniq ? { uniq: sha256(r.uniq.toLowerCase()) } : {}), ...(r.paid ? { paid: r.paid } : {}), ...(rid ? { run: rid } : {}) },
+        // wpPrice and wpSvc: what the old site said, so a later run tells its changes from the ones made here
+        ext: { wp: r.wp, slot: r.day + '|' + r.start, ...(r.uniq ? { uniq: sha256(r.uniq.toLowerCase()) } : {}), ...(r.paid ? { paid: r.paid } : {}), ...(r.price != null ? { wpPrice: r.price } : {}), wpSvc: sortedIds(ids), ...(rid ? { run: rid } : {}) },
         ...(past ? { legacy: true } : {}),
         ...(status === 'cancelled' ? { cancel: { by: 'salon', reason: CANCEL_REASON, at: createdAt || ctx.now, late: false } } : {})
       };
@@ -643,6 +785,8 @@ export const importBatch = {
       const pii = { ...(clientId && !named.named ? {} : { name: name.slice(0, 40) || 'Client' }), ...(notes ? { note: notes.slice(0, 300) } : {}) };
       ctx.emit('appt.booked', a, Object.keys(pii).length ? pii : undefined);
       out.appts[status === 'no_show' ? 'noShow' : status]++;
+      // cancelled before it was due, after a deposit: the client may be owed it back
+      if (status === 'cancelled' && r.paid && !past) note(out, row, 'refund', { amount: fmtEur(r.paid) });
       if (status !== 'booked') continue;
       if (reopened) { out.appts.reopened = (out.appts.reopened || 0) + 1; note(out, row, 'reopened'); }
       if (r.status === 'pending' || r.status === 'pendingpayment') note(out, row, 'pending');
@@ -713,7 +857,7 @@ export const importBatch = {
   replay(events) {
     const b = events.find((e) => e.type === 'import.batch');
     const n = (t) => events.filter((e) => e.type === t).length;
-    if (!b) return { clients: { added: n('client.added'), merged: [], again: 0 }, appts: { done: 0, noShow: 0, cancelled: 0, booked: n('appt.booked'), skipped: 0, already: 0, updated: 0, moved: 0, closed: 0 }, giftcards: { added: n('giftcard.issued'), already: 0, skipped: 0 }, packs: { added: n('pack.sold'), already: 0, skipped: 0 }, skip: {}, review: [] };
+    if (!b) return { clients: { added: n('client.added'), merged: [], again: 0 }, appts: { done: 0, noShow: 0, cancelled: 0, booked: n('appt.booked'), skipped: 0, already: 0, updated: 0, moved: 0, closed: 0, changed: 0 }, giftcards: { added: n('giftcard.issued'), already: 0, skipped: 0 }, packs: { added: n('pack.sold'), already: 0, skipped: 0 }, skip: {}, review: [] };
     const c = b.data.counts;
     return { clients: { added: c.clients.added, merged: [], again: c.clients.again }, appts: c.appts, giftcards: c.giftcards, packs: c.packs, skip: b.data.skip, review: b.data.review.map((r) => ({ ...r, text: say(r.kind, {}, r.v), name: '' })) };
   }
@@ -833,7 +977,7 @@ export function runLines(s, r) {
     const st = a ? s.staff.get(a.staffId) : null;
     // about the file itself: once the client is erased there is nothing left to do
     const done = f && f.erased && FILE_KINDS.has(ref.kind);
-    const text = done ? 'Client effacé : rien à faire' : say(ref.kind, { typed, file: f ? fileName(f) : '', other: other ? fileName(getClient(s, other.id)) : '', amount: paid, day: ref.day ? fmtDay(ref.day) : '', names: ref.kind === 'service' ? ref.names || '' : '' }, ref.v);
+    const text = done ? 'Client effacé : rien à faire' : say(ref.kind, { typed, file: f ? fileName(f) : '', other: other ? fileName(getClient(s, other.id)) : '', amount: paid, day: ref.day ? fmtDay(ref.day) : '', names: ref.names || '' }, ref.v);
     // a card or a carnet is named by its masked identifier (the last digits: not personal), the other lines by the client file
     const label = (ref.kind === 'giftcard' || ref.kind === 'pack') && ref.names ? ref.names : name;
     return { kind: ref.kind, wp: ref.wp || 0, day: ref.day || (a ? a.day : ''), start: ref.start ?? (a ? a.start : null), name: label, staff: st ? st.name : '', text, todo: isTodo(ref.kind, ref.v) && !done };

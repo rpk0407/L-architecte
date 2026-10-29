@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs';
 import { salon, rejects, DAY, at } from '../helpers.js';
 import * as W from '../../web/src/lib/wpimport.ts';
 import { importBatch, importGiftcard, priorView, LEGACY_STAFF } from '../../server/commands/import.js';
-import { moveAppointment } from '../../server/commands/agenda.js';
+import { moveAppointment, setStatus, updateAppointment } from '../../server/commands/agenda.js';
 import { addStaff } from '../../server/commands/team.js';
 import { addService } from '../../server/commands/catalog.js';
 import { clientStats, report } from '../../server/domain/insights.js';
@@ -48,7 +48,7 @@ function mapping(t, p) {
 const priors = (t, p) => new Map(priorView(t.engine.state, p.bookings.map((b) => b.wp)).map((a) => [a.wp, a]));
 const chairsOf = (t) => new Set([...t.engine.state.staff.values()].filter((x) => x.active && x.chair).map((x) => x.id));
 async function send(t, rows) {
-  const total = { clients: { added: 0, merged: new Set() }, appts: { done: 0, noShow: 0, cancelled: 0, booked: 0, skipped: 0, already: 0, updated: 0, moved: 0, closed: 0 }, giftcards: { added: 0, already: 0, skipped: 0 }, packs: { added: 0, already: 0, skipped: 0 }, review: [] };
+  const total = { clients: { added: 0, merged: new Set() }, appts: { done: 0, noShow: 0, cancelled: 0, booked: 0, skipped: 0, already: 0, updated: 0, moved: 0, closed: 0, changed: 0 }, giftcards: { added: 0, already: 0, skipped: 0 }, packs: { added: 0, already: 0, skipped: 0 }, review: [] };
   const parts = [...W.chunks(rows.clients).map((x) => ({ clients: x })), ...W.chunks(rows.appts).map((x) => ({ appts: x })), ...W.chunks(rows.giftcards).map((x) => ({ giftcards: x })), ...W.chunks(rows.packs).map((x) => ({ packs: x }))];
   for (const body of parts) {
     const r = await t.engine.run(importBatch, body, t.asOwner());
@@ -109,7 +109,7 @@ test('importing the export: client files, past visits, upcoming bookings, nothin
   const pv0 = W.preview(p, map, t.clock.now);
   const known = new Set(pv0.identities.map((ids, g) => (ids.some((k) => k.phone && normPhoneImport(k.phone, k.prefix) === '+33612345678') ? g : -1)).filter((g) => g >= 0));
   const pv = W.preview(p, map, t.clock.now, { known });
-  assert.deepEqual(pv.counts, { newClients: 5, merged: 1, past: 7, noShow: 0, upcoming: 4, cancelled: 2, skipped: 1, unmapped: 0, already: 0, toCancel: 0, toMove: 0, toClose: 0, toReopen: 0, erased: 0, giftcards: 0, packs: 0 });
+  assert.deepEqual(pv.counts, { newClients: 5, merged: 1, past: 7, noShow: 0, upcoming: 4, cancelled: 2, skipped: 1, unmapped: 0, already: 0, toCancel: 0, toMove: 0, toClose: 0, toReopen: 0, toUpdate: 0, erased: 0, giftcards: 0, packs: 0 });
   assert.ok(pv.review.some((r) => r.wp === 1315 && /Numéro illisible/.test(r.text)));
   assert.ok(pv.review.some((r) => r.wp === 1361 && /Chevauche/.test(r.text)));
 
@@ -119,7 +119,7 @@ test('importing the export: client files, past visits, upcoming bookings, nothin
   const res = await send(t, W.toRows(p, map));
   assert.equal(res.clients.added, 5);
   assert.deepEqual([...res.clients.merged], [t.ids.yanis], 'same number as an existing file: merged into it');
-  assert.deepEqual(res.appts, { done: 7, noShow: 0, cancelled: 2, booked: 4, skipped: 1, already: 0, updated: 0, moved: 0, closed: 0 }, 'ERREUR is sent too: the server counts it, by reason');
+  assert.deepEqual(res.appts, { done: 7, noShow: 0, cancelled: 2, booked: 4, skipped: 1, already: 0, updated: 0, moved: 0, closed: 0, changed: 0 }, 'ERREUR is sent too: the server counts it, by reason');
   assert.equal(s.clients.size, clients0 + 5);
 
   // phones normalised: '612345678' and '0033612345678' both land on Yanis's file (+33612345678)
@@ -243,6 +243,106 @@ test('the delta run, through the wizard: what the old site cancelled, moved or s
   assert.equal(byWp(t, 1310).status, 'no_show', 'a past visit the WXR says was a no-show');
 });
 
+test('the final sync carries what the old site changed on a booking still to come: price, services, deposit paid since, number, name (QA C02 U8-U14)', async () => {
+  const t = await shop();
+  const s = t.engine.state;
+  const row = (wp, when, first, last, phone, svc, price, status = 'Confirmé', staff = 'JKut') => `${wp},"${when}","01 Nov 2026 08:00",${first},${last},${first.toLowerCase()}@exemple.fr,${phone},"${svc}",${staff},1,"${price}",${status}\n`;
+  const rows = {
+    1401: ['20 Nov 2026 10:00', 'Idris', 'Chaib', '0600000401', 'Coupe', '20 €'],
+    1402: ['20 Nov 2026 11:00', 'Malik', 'Rey', '0600000402', 'Coupe', '20 €'],
+    1403: ['20 Nov 2026 12:00', 'Nadir', 'Saidi', '0600000403', 'Coupe', '20 €'],
+    1404: ['20 Nov 2026 14:00', 'Hamid', 'Zian', '0600000404', 'Coupe', '20 €'],
+    1405: ['20 Nov 2026 15:00', 'Samir', 'Lahcen', '0600000405', 'Formule Coupe + Contour Barbe 25€', '25 €', 'Paiement en attente'],
+    1406: ['20 Nov 2026 16:00', 'Yacine', 'Ouali', '0600000406', 'Coupe + barbe', '40 €', 'Payer plus tard'],
+    1407: ['21 Nov 2026 10:00', 'Ismael', 'Kone', '0600000407', 'Coupe', '20 €'],
+    1408: ['21 Nov 2026 11:00', 'Bruno', 'Vidal', '0600000408', 'Coupe', '20 €'],
+    1409: ['21 Nov 2026 12:00', 'Tarek', 'Meziane', '0600000409', 'Coupe', '20 € (10 € déjà payé en acompte)', 'Payant'],
+    1410: ['21 Nov 2026 14:00', 'Oussama', 'Daoud', '0600000410', 'Coupe', '20 €'],
+    1411: ['21 Nov 2026 15:00', 'Ines', 'Bouzid', '0600000411', 'Coupe', '20 €']
+  };
+  const first = CSV + Object.entries(rows).map(([wp, r]) => row(wp, ...r)).join('');
+  const p = W.readFiles([{ name: 'export.csv', text: first }]);
+  const map = mapping(t, p);
+  await send(t, W.toRows(p, map));
+  for (const wp of [1401, 1402, 1403, 1404, 1405, 1406, 1407, 1408, 1409, 1410, 1411]) assert.equal(byWp(t, wp).status, 'booked', String(wp));
+  assert.deepEqual([byWp(t, 1401).ext.wpPrice, byWp(t, 1401).ext.wpSvc], [2000, t.ids.cut], 'what the old site said is kept on the booking');
+  // in the Comptoir meanwhile: 1408 gets another service in the agenda (the old site does not change it), 1410 is checked in
+  await t.engine.run(updateAppointment, { id: byWp(t, 1408).id, serviceIds: [t.ids.cc] }, t.asOwner());
+  await t.engine.run(setStatus, { id: byWp(t, 1410).id, status: 'arrived' }, t.asOwner());
+  const price1408 = byWp(t, 1408).price;
+  // the final sync's export: the old site changed U8 the price, U9 the service, U10 a number, U11 a name, U12-U13 a deposit paid, U14 an error, 1409 cancelled
+  const swap = (wp, from, to) => (txt) => { const l = txt.split('\n').find((x) => x.startsWith(wp + ',')); return txt.replace(l, l.replace(from, to)); };
+  const text = [
+    swap(1401, '"20 €"', '"25 €"'), swap(1402, '"Coupe",JKut,1,"20 €"', '"Formule Coupe + Contour Barbe 25€",JKut,1,"25 €"'), swap(1403, '0600000403', '0600000433'), swap(1404, 'Hamid', 'Hakim'),
+    swap(1405, '"25 €",Paiement en attente', '"25 € (10 € déjà payé en acompte)",Payant'), swap(1406, '"40 €",Payer plus tard', '"40 € (10 € déjà payé en acompte)",Payant'), swap(1407, 'Confirmé', 'ERREUR'),
+    swap(1409, 'Payant', 'Annulé'), swap(1410, '"20 €",Confirmé', '"25 € (10 € déjà payé en acompte)",Payant'),
+    swap(1411, '0600000411', '0600000408'), swap(1350, '0033612345678', '0612345600')
+  ].reduce((txt, f) => f(txt), first);
+  const later = W.readFiles([{ name: 'export.csv', text }]);
+  const imported = priors(t, later);
+  // the preview says it before anything is sent: the money and the services (the corrected number and name are told in the report)
+  const pv = W.preview(later, map, t.clock.now, { imported, chairs: chairsOf(t) });
+  assert.equal(pv.counts.toUpdate, 5, 'price, service, two deposits, and a deposit on a booking already checked in');
+  assert.equal(pv.counts.toCancel, 1);
+  const said = (wp) => pv.review.filter((r) => r.wp === wp).map((r) => r.text).join(' | ');
+  assert.match(said(1401), /prix/); assert.match(said(1402), /prestation, prix/); assert.match(said(1405), /acompte/); assert.match(said(1410), /acompte/);
+  assert.match(said(1409), /rembourse-le/, 'a cancelled booking that had a deposit: the client may be owed it');
+  assert.match(said(1407), /Erreur.*gardé/);
+  const res = await send(t, W.toRows(later, map, imported));
+  const lines = (wp) => res.review.filter((r) => r.wp === wp);
+  assert.equal(res.appts.cancelled, 1);
+  assert.equal(res.appts.changed, 7, 'U8-U13 and the deposit on the booking checked in');
+  assert.equal(res.clients.added, 0);
+  // U8 price
+  assert.deepEqual([byWp(t, 1401).price, byWp(t, 1401).services.map((v) => v.id), byWp(t, 1401).services[0].price, byWp(t, 1401).ext.wpPrice], [2500, [t.ids.cut], 2500, 2500]);
+  assert.match(lines(1401)[0].text, /Modifié sur l’ancien site depuis le premier import \(prix : 20.€ → 25.€\)/);
+  // U9 service: the services, the price and the length follow
+  const m2 = byWp(t, 1402);
+  assert.deepEqual([m2.services.map((v) => v.id), m2.price, m2.dur, m2.ext.wpSvc], [[t.ids.cc], 2500, s.services.get(t.ids.cc).dur, t.ids.cc]);
+  assert.match(lines(1402)[0].text, /prestation : .* → Coupe \+ contour de barbe · prix : 20.€ → 25.€/);
+  // U10 a corrected number: the file an import made takes it (and the old number is free again); U11 a corrected name stays on the booking
+  const nadir = s.clients.get(byWp(t, 1403).clientId);
+  assert.equal(nadir.phone, '+33600000433');
+  assert.equal(s.clientByPhone.get('+33600000433'), nadir.id);
+  assert.equal(s.clientByPhone.get('+33600000403'), undefined);
+  assert.deepEqual(lines(1403).map((r) => [r.kind, r.v]), [['new-number', 'fixed']]);
+  assert.match(lines(1403)[0].text, /Numéro changé sur l’ancien site pour Nadir Saidi : mis sur la fiche/);
+  assert.deepEqual([byWp(t, 1404).name, s.clients.get(byWp(t, 1404).clientId).first], ['Hakim Zian', 'Hamid']);
+  assert.deepEqual(lines(1404).map((r) => r.kind), ['name']);
+  // a number fixed on a file of the salon is not copied (Yanis), nor one that another file already has
+  assert.equal(s.clients.get(t.ids.yanis).phone, '+33612345678');
+  assert.equal(s.clients.get(byWp(t, 1411).clientId).phone, '+33600000411');
+  assert.deepEqual(lines(1411).map((r) => [r.kind, r.v]), [['new-number', undefined]]);
+  assert.match(lines(1411)[0].text, /numéro gardé/);
+  // U12 and U13: the deposit paid since is on the booking, so the till takes it off (« Payé sur l’ancien site »), and the note says it
+  for (const wp of [1405, 1406]) {
+    const a = byWp(t, wp);
+    assert.equal(a.ext.paid, 1000, String(wp));
+    assert.match(a.note, /^Acompte de 10.€ déjà payé sur l’ancien site$/, String(wp));
+    assert.ok(lines(wp).some((r) => r.kind === 'paid' && r.v === 'late' && /Acompte de 10.€ payé sur l’ancien site depuis le premier import/.test(r.text)), String(wp));
+  }
+  assert.equal(byWp(t, 1406).price, 4000);
+  // U14 turned « Erreur »: kept, and said
+  assert.equal(byWp(t, 1407).status, 'booked');
+  assert.deepEqual(lines(1407).map((r) => [r.kind, r.v]), [['error', 'since']]);
+  // cancelled after a deposit: cancelled here, and the refund is said
+  assert.equal(byWp(t, 1409).status, 'cancelled');
+  assert.equal(byWp(t, 1409).ext.paid, 1000);
+  assert.deepEqual(lines(1409).map((r) => r.kind), ['refund']);
+  assert.match(lines(1409)[0].text, /acompte de 10.€ y était payé : rembourse-le/);
+  // handled here: a booking already checked in keeps its price (listed for a look), yet the deposit is carried; a service changed in the agenda is not undone
+  const checked = byWp(t, 1410);
+  assert.deepEqual([checked.status, checked.price, checked.ext.paid], ['arrived', 2000, 1000]);
+  assert.deepEqual(lines(1410).map((r) => [r.kind, r.v]).sort(), [['changed', 'handled'], ['paid', 'late']]);
+  assert.deepEqual([byWp(t, 1408).services.map((v) => v.id), byWp(t, 1408).price, lines(1408).length], [[t.ids.cc], price1408, 0], 'the old site did not change it: what was done here stays');
+  // and a third run changes nothing more
+  const v = s.version;
+  const third = await send(t, W.toRows(later, map, priors(t, later)));
+  assert.equal(s.version, v);
+  assert.equal(third.appts.changed, 0);
+  assert.equal(third.appts.updated, 0);
+});
+
 test('an upcoming booking needs an active chair: never the archived profile, which has no lane in the agenda', async () => {
   const t = await shop();
   t.clock.now = at('2026-10-27', 10);
@@ -358,7 +458,7 @@ test('the API: preview, batch, paper gift cards in the liabilities and in no Z, 
   }
   const pre2 = await owner.post('/api/v1/import/preview', { keys: [{ phone: '0698765432' }, { email: 'personne@exemple.fr' }], wp: [1350, 9999] });
   assert.deepEqual([pre2.json.known, pre2.json.again, pre2.json.imported], [[], [0], [1350]], 'a file an earlier run created is not counted as merged');
-  assert.deepEqual(pre2.json.appts, [{ wp: 1350, day: '2026-11-10', start: 600, dur: 45, staffId: ids.jkut, status: 'booked', open: true, movedHere: false, cancelledByImport: false }]);
+  assert.deepEqual(pre2.json.appts, [{ wp: 1350, day: '2026-11-10', start: 600, dur: 45, staffId: ids.jkut, status: 'booked', open: true, movedHere: false, cancelledByImport: false, price: 4000, paid: 1000, svc: ids.cut, live: true }]);
 
   // the cut-over day itself: this morning's visit, already over and paid on the old till, is history, not to be paid here
   const head = 'ID,DATE/HEURE,CRÉÉ,"PRÉNOM DU CLIENT","NOM DU CLIENT","E-MAIL DU CLIENT","TÉL DU CLIENT",SERVICES,ASSISTANTS,"PRIX TOTAL",ÉTAT\n';

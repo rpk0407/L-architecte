@@ -131,7 +131,8 @@ function Lines({ lines, truncated, finished }: { lines: ReportLine[]; truncated:
   const [more, setMore] = useState<Record<string, boolean>>({});
   const todo = lines.filter((l) => l.todo).length;
   const shown = lines.filter((l) => view === 'all' || (view === 'todo') === l.todo);
-  const groups = [...shown.reduce((m, l) => m.set(l.kind, [...(m.get(l.kind) || []), l]), new Map<string, ReportLine[]>())].sort((a, b) => Number(b[1][0].todo) - Number(a[1][0].todo) || b[1].length - a[1].length);
+  // one group per reason and per « À faire » / « Pour info » (a kind can be both: a service nobody matched is history for a past visit, to do for an upcoming one)
+  const groups = [...shown.reduce((m, l) => { const k = l.kind + (l.todo ? '!' : ''); return m.set(k, [...(m.get(k) || []), l]); }, new Map<string, ReportLine[]>())].sort((a, b) => Number(b[1][0].todo) - Number(a[1][0].todo) || b[1].length - a[1].length);
   // an interrupted run has not looked at everything yet: no « all is in place » for it
   if (!lines.length) return finished ? <Card title="Lignes à regarder" icon="eye"><Note tone="ok" icon="check">Rien à regarder : tout est en place.</Note></Card> : null;
   return (
@@ -141,17 +142,17 @@ function Lines({ lines, truncated, finished }: { lines: ReportLine[]; truncated:
         <Chip on={view === 'todo'} onClick={() => setView('todo')}>À faire <small>{todo}</small></Chip>
         <Chip on={view === 'info'} onClick={() => setView('info')}>Pour info <small>{lines.length - todo}</small></Chip>
       </div>
-      {groups.length ? groups.map(([kind, list]) => {
-        const all = more[kind], rows = all ? list : list.slice(0, 20);
+      {groups.length ? groups.map(([key, list]) => {
+        const all = more[key], rows = all ? list : list.slice(0, 20);
         return (
-          <div key={kind} className="wr-group">
-            <div className="wr-gh"><h3>{group(kind)}</h3><span className="badge">{list.length}</span><span className={'badge ' + (list[0].todo ? 'badge-warn' : 'badge-info')}>{list[0].todo ? 'À faire' : 'Pour info'}</span></div>
+          <div key={key} className="wr-group">
+            <div className="wr-gh"><h3>{group(list[0].kind)}</h3><span className="badge">{list.length}</span><span className={'badge ' + (list[0].todo ? 'badge-warn' : 'badge-info')}>{list[0].todo ? 'À faire' : 'Pour info'}</span></div>
             <ul className="list wr-list">{rows.map((l, i) => (
               <li key={i} className="li">
                 <span className="li-main"><b>{l.name || 'Ligne'}{l.wp ? <span className="faint"> · n° {l.wp}</span> : null}</b><small>{[when(l), l.staff, l.text].filter(Boolean).join(' · ')}</small></span>
               </li>
             ))}</ul>
-            {list.length > rows.length ? <Button variant="ghost" block onClick={() => setMore({ ...more, [kind]: true })}>Voir les {list.length}</Button> : null}
+            {list.length > rows.length ? <Button variant="ghost" block onClick={() => setMore({ ...more, [key]: true })}>Voir les {list.length}</Button> : null}
           </div>
         );
       }) : <Empty icon="check" title="Aucune ligne dans cette vue" />}
@@ -169,7 +170,7 @@ function Recent({ runs, id, onPick, halted }: { runs: Summary[]; id: string; onP
   return (
     <Card title="Les dernières reprises" icon="clock">
       <ul className="list wr-recent">{runs.slice(0, 5).map((r) => {
-        const a = r.counts.appts || {}, made = (a.done || 0) + (a.noShow || 0) + (a.cancelled || 0) + (a.booked || 0) + (a.moved || 0) + (a.closed || 0);
+        const a = r.counts.appts || {}, made = (a.done || 0) + (a.noShow || 0) + (a.cancelled || 0) + (a.booked || 0) + (a.moved || 0) + (a.closed || 0) + (a.changed || 0);
         const bits = [sourceWords(r), plural(made, 'rendez-vous repris', 'rendez-vous repris'), plural(r.counts.clients?.added || 0, 'nouveau client', 'nouveaux clients'), plural(a.already || 0, 'déjà là', 'déjà là'), a.gone ? plural(a.gone, 'supprimé', 'supprimés') : ''].filter(Boolean);
         return (
           <li key={r.id} className="li">

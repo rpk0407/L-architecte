@@ -204,7 +204,7 @@ export default function Wordpress() {
   const c = pv?.counts;
   // what this run brings: new bookings, what changed on the old site since an earlier run, cards, carnets
   const nAppts = c ? c.past + c.noShow + c.upcoming + c.cancelled : 0;
-  const nChanges = c && pv ? c.toCancel + c.toMove + c.toClose + c.toReopen + pv.goneOpen : 0;
+  const nChanges = c && pv ? c.toCancel + c.toMove + c.toClose + c.toReopen + c.toUpdate + pv.goneOpen : 0;
   const work = c ? nAppts + nChanges + c.giftcards + c.packs + c.newClients + c.merged : 0;
   // nothing new, but the files still say that the final sync happened: it can be recorded as a run of « déjà là »
   const sendable = !!rows && rows.appts.length + rows.clients.length + rows.giftcards.length + rows.packs.length + rows.gone.length > 0;
@@ -237,21 +237,21 @@ export default function Wordpress() {
       const { id } = await post<{ id: string }>('/api/v1/import/runs', W.runBody(parsed, pv, map, shas, parts.length), 'wp-' + rid + '-start');
       opened = id;
       let made = 0, clientsAdded = 0;
-      const changed = { moved: 0, closed: 0, gone: 0, cancelledNow: 0, reopened: 0 };
+      const changed = { moved: 0, closed: 0, gone: 0, cancelledNow: 0, reopened: 0, changed: 0 };
       for (const [i, body] of parts.entries()) {
         // one id per request; clicking again after a failure starts a new run, which adds nothing twice (ext.wp, phone, code)
         const r = await post<{ clients: { added: number }; appts: Record<string, number> }>('/api/v1/import/batch', { ...body, run: id, i }, 'wp-' + rid + '-' + i);
         clientsAdded += r.clients.added;
         // what the old site cancelled since an earlier run is counted apart from the bookings it brings in
         made += (r.appts.done || 0) + (r.appts.booked || 0) + (r.appts.cancelled || 0) - (r.appts.cancelledNow || 0) + (r.appts.noShow || 0);
-        for (const k of ['moved', 'closed', 'gone', 'cancelledNow', 'reopened'] as const) changed[k] += r.appts[k] || 0;
+        for (const k of ['moved', 'closed', 'gone', 'cancelledNow', 'reopened', 'changed'] as const) changed[k] += r.appts[k] || 0;
         setProgress({ done: i + 1, total: parts.length });
       }
       await post('/api/v1/import/runs/' + id + '/finish', {}, 'wp-' + rid + '-end');
       putDone({ id, next: first?.day });
       setPicked(id);
       void check(parsed);
-      const bits = [made ? plural(made, 'rendez-vous') : '', clientsAdded ? plural(clientsAdded, 'nouveau client', 'nouveaux clients') : '', changed.cancelledNow ? plural(changed.cancelledNow, 'annulé', 'annulés') : '', changed.gone ? plural(changed.gone, 'supprimé', 'supprimés') : '', changed.moved ? plural(changed.moved, 'déplacé', 'déplacés') : '', changed.closed ? plural(changed.closed, 'passé', 'passés') : '', changed.reopened ? plural(changed.reopened, 'rétabli', 'rétablis') : ''].filter(Boolean);
+      const bits = [made ? plural(made, 'rendez-vous') : '', clientsAdded ? plural(clientsAdded, 'nouveau client', 'nouveaux clients') : '', changed.cancelledNow ? plural(changed.cancelledNow, 'annulé', 'annulés') : '', changed.gone ? plural(changed.gone, 'supprimé', 'supprimés') : '', changed.moved ? plural(changed.moved, 'déplacé', 'déplacés') : '', changed.closed ? plural(changed.closed, 'passé', 'passés') : '', changed.reopened ? plural(changed.reopened, 'rétabli', 'rétablis') : '', changed.changed ? plural(changed.changed, 'modifié', 'modifiés') : ''].filter(Boolean);
       toast({ title: bits.length ? 'WordPress est repris' : 'Rien de nouveau', sub: bits.length ? bits.join(' · ') : 'Les fichiers n’ont rien apporté de plus : la vérification est enregistrée.', icon: 'check' });
       refreshAll();
       await reloadBoot();
@@ -318,7 +318,7 @@ export default function Wordpress() {
             </div>
             <p className="muted wp-also">
               {[
-                c.already ? plural(c.already, 'rendez-vous déjà repris', 'rendez-vous déjà repris') : '', c.toMove ? plural(c.toMove, 'déplacé', 'déplacés') + ' sur l’ancien site' : '',
+                c.already ? plural(c.already, 'rendez-vous déjà repris', 'rendez-vous déjà repris') : '', c.toMove ? plural(c.toMove, 'déplacé', 'déplacés') + ' sur l’ancien site' : '', c.toUpdate ? plural(c.toUpdate, 'modifié', 'modifiés') + ' sur l’ancien site (prix, prestation ou acompte payé depuis)' : '',
                 c.toReopen ? plural(c.toReopen, 'à rétablir', 'à rétablir') + ' (annulés ici, de nouveau confirmés sur l’ancien site)' : '',
                 pv.gone.length ? plural(pv.gone.length, 'supprimé', 'supprimés') + ' sur l’ancien site (annulés ici, sans SMS)' : '',
                 pv.excluded.retention ? plural(pv.excluded.retention, 'personne', 'personnes') + ' sans visite depuis 3 ans : pas reprise' + (pv.excluded.retention > 1 ? 's' : '') + ' (règle de conservation)' : '',
@@ -330,7 +330,7 @@ export default function Wordpress() {
             </p>
             {pv.warning ? <Note tone="warn" icon="alert">{pv.warning}</Note> : null}
             {pv.notes.map((t) => <Note key={t} tone="warn" icon="alert">{t}</Note>)}
-            {nothingNew ? <Note tone="ok" icon="check">Tout est déjà repris : ces fichiers n’apportent rien de nouveau.{sendable ? ' Tu peux enregistrer la vérification : le rapport gardera la trace de cette synchro.' : ''}</Note> : null}
+            {nothingNew ? <Note tone="ok" icon="check">Tout est déjà repris : ces fichiers n’apportent rien de nouveau.{sendable ? ' Tu peux enregistrer la vérification : le rapport gardera la trace de cette synchro, et reprendra au passage un numéro ou un prénom corrigé sur l’ancien site.' : ''}</Note> : null}
           </section>
 
           {pv.review.length ? <Review title="À regarder" rows={pv.review} /> : null}

@@ -618,6 +618,36 @@ test('no personal data in the run record, and the lines say « Client effacé »
   assert.ok(!after.text.includes('Kader') && !after.text.includes('Karim'));
 });
 
+test('the final sync’s report: what the old site changed since the first pass is listed, adds up, and keeps no personal data', async () => {
+  const t = await shop();
+  const row = (wp, first, last, phone, price, status = 'Confirmé') => `${wp},"20 Nov 2026 1${wp % 10}:00","01 Nov 2026 08:00",${first},${last},${first.toLowerCase()}@exemple.fr,${phone},"Coupe",JKut,1,"${price}",${status}\n`;
+  const first = CSV + row(1501, 'Idris', 'Chaib', '0600000501', '20 €') + row(1502, 'Samir', 'Lahcen', '0600000502', '20 €', 'Paiement en attente') + row(1503, 'Tarek', 'Meziane', '0600000503', '20 € (10 € déjà payé en acompte)', 'Payant') + row(1504, 'Ismael', 'Kone', '0600000504', '20 €');
+  const one = await wizard(t, [{ name: 'export.csv', text: first }]);
+  assert.ok(W.reconcile(one.run).every((x) => x.gap === 0));
+  const sw = (txt, wp, from, to) => { const l = txt.split('\n').find((x) => x.startsWith(wp + ',')); return txt.replace(l, l.replace(from, to)); };
+  let text = sw(first, 1501, '"20 €"', '"25 €"');
+  text = sw(text, 1502, '"20 €",Paiement en attente', '"20 € (10 € déjà payé en acompte)",Payant');
+  text = sw(text, 1503, 'Payant', 'Annulé');
+  text = sw(text, 1504, 'Confirmé', 'ERREUR');
+  const v0 = t.engine.state.version;
+  const two = await wizard(t, [{ name: 'export.csv', text }]);
+  const a = summed(two.answers).appts;
+  assert.deepEqual([a.changed, a.cancelled, a.updated], [2, 1, 0], 'a price and a deposit are carried; one cancelled; the « Erreur » one is only listed');
+  assert.ok(t.engine.journal.slice(v0).filter((e) => e.type === 'appt.updated').length >= 2);
+  // the run adds up: the changed rows are rows of the export like any other
+  assert.ok(W.reconcile(two.run).every((x) => x.gap === 0), JSON.stringify(W.reconcile(two.run)));
+  const lines = runLines(t.engine.state, two.run);
+  const of = (kind) => lines.filter((l) => l.kind === kind && l.wp >= 1501).map((l) => [l.wp, l.todo, l.text.replace(/\s/g, ' ')]);
+  assert.deepEqual(of('changed'), [[1501, true, 'Modifié sur l’ancien site depuis le premier import (prix : 20 € → 25 €) : mis à jour ici, vérifie']]);
+  assert.deepEqual(of('paid'), [[1502, true, 'Acompte de 10 € payé sur l’ancien site depuis le premier import : à la caisse, encaisse-le avec « Payé sur l’ancien site »']]);
+  assert.deepEqual(of('refund'), [[1503, true, 'Annulé sur l’ancien site alors qu’un acompte de 10 € y était payé : rembourse-le si besoin, depuis l’ancien site']]);
+  assert.deepEqual(of('error'), [[1504, true, 'État « Erreur » sur l’ancien site depuis le premier import : rendez-vous gardé ici, vérifie avec le client']]);
+  assert.equal(byWp(t, 1504).status, 'booked');
+  // the report has nothing personal in it: only the services and the prices
+  const dump = JSON.stringify(t.engine.journal.filter((e) => e.type === 'import.batch').map((e) => e.data));
+  for (const x of ['Idris', 'Chaib', 'Samir', 'Tarek', 'Meziane', 'exemple.fr', '600000501']) assert.ok(!dump.includes(x), x);
+});
+
 test('the words of the review list: one text per kind, the variants and the to-do split', () => {
   assert.equal(say('service', { names: 'Coupe, Barbe' }), 'Prestation inconnue : Coupe, Barbe (ligne ignorée)');
   assert.equal(say('service'), 'Prestation inconnue (ligne ignorée)', 'a missing detail takes its words with it');

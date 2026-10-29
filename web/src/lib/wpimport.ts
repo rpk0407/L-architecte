@@ -709,7 +709,12 @@ export const LEGACY = 'legacy';
 export type ReviewRow = { wp?: number; day?: string; start?: number; name: string; text: string; kind?: string };
 export type Identity = { phone?: string; prefix?: string; email?: string; wpUser?: number };
 /** Where a booking an earlier run brought in stands now (POST /api/v1/import/preview). */
-export type Prior = { wp: number; day: string; start: number; dur: number; staffId: string; status: string; open: boolean; movedHere: boolean; /** this import cancelled it (annulé or supprimé sur l’ancien site): it comes back if the old site confirms it again */ cancelledByImport?: boolean };
+export type Prior = {
+  wp: number; day: string; start: number; dur: number; staffId: string; status: string; open: boolean; movedHere: boolean;
+  /** this import cancelled it (annulé or supprimé sur l’ancien site): it comes back if the old site confirms it again */ cancelledByImport?: boolean;
+  /** what the old site said last time: the price (cents), the deposit paid (cents), the services (their ids, sorted, joined by a comma) */ price?: number; paid?: number; svc?: string;
+  /** still in the agenda and not paid at the till: a deposit paid on the old site since can still be taken */ live?: boolean
+};
 type Has = { has(wp: number): boolean };
 
 const cut = (s: string | undefined, n: number) => (s ? s.trim().slice(0, n) : undefined) || undefined;
@@ -793,16 +798,32 @@ const mapped = (b: WpBooking, map: Mapping) => b.services.length > 0 && b.servic
  * What a re-run does to a booking an earlier run brought in: the same rules as the server's delta()
  * (commands/import.js). Nothing once it was handled here (checked in, paid, moved in the agenda).
  */
-export function change(b: WpBooking, k: Prior, staffId: string, now: number, today: string, chairs?: Set<string>): 'cancel' | 'move' | 'close' | 'reopen' | null {
+export function change(b: WpBooking, k: Prior, staffId: string, now: number, today: string, chairs?: Set<string>, map?: Mapping): 'cancel' | 'move' | 'close' | 'reopen' | 'update' | null {
   // cancelled here by an earlier run, confirmed again and still to come on the old site: back in the agenda (a new booking, the cancelled one stays in the history)
   if (k.cancelledByImport) return b.status !== 'error' && outcome(b, now, k.dur) === 'booked' ? 'reopen' : null;
-  if (!k.open) return null;
   const out = outcome(b, now, k.dur);
+  // handled here: nothing changes, but a deposit paid on the old site since is still taken (the till can cash it)
+  if (!k.open) return out === 'booked' && edits(b, k, map).includes('acompte') ? 'update' : null;
   if (out === 'cancelled') return 'cancel';
   if (out === 'done' || out === 'no_show') return k.day < today ? 'close' : null;
   if (out !== 'booked') return null;
   const sid = staffId && staffId !== LEGACY && (!chairs || chairs.has(staffId)) ? staffId : k.staffId;
-  return (b.day !== k.day || b.start !== k.start || sid !== k.staffId) && !k.movedHere ? 'move' : null;
+  if ((b.day !== k.day || b.start !== k.start || sid !== k.staffId) && !k.movedHere) return 'move';
+  return edits(b, k, map).length ? 'update' : null;
+}
+
+/**
+ * What the old site changed on a booking an earlier run brought in, besides its slot and state (the server's carry()): the deposit paid since,
+ * and, while nobody moved it here, the price and the services. Said in words, for the preview's line.
+ */
+export function edits(b: WpBooking, k: Prior, map?: Mapping): string[] {
+  const out: string[] = [];
+  if (b.paid && b.paid > (k.paid || 0) && k.live !== false) out.push('acompte');
+  if (!k.open || k.movedHere) return out;
+  const ids = map && b.services.length ? b.services.map((n) => svcOf(map, n)) : [];
+  if (ids.length && ids.every((id) => id && id !== LEGACY) && k.svc != null && [...new Set(ids)].sort().join(',') !== k.svc) out.push('prestation');
+  if (b.price != null && k.price != null && b.price !== k.price) out.push('prix');
+  return out;
 }
 
 /**
@@ -970,7 +991,7 @@ export function preview(p: Parsed, map: Mapping, now: number, o: PreviewOpts = {
   const { P, g, cg, out: left, left: isLeft } = plan(p, { known, again, erased, today, map, now, chairs: o.chairs });
   const eff = effective(p);
   const groups = new Set<number>();
-  const counts = { newClients: 0, merged: 0, past: 0, noShow: 0, upcoming: 0, cancelled: 0, skipped: 0, unmapped: 0, already: 0, toCancel: 0, toMove: 0, toClose: 0, toReopen: 0, erased: 0, giftcards: p.giftcards.filter((_, i) => !o.haveCards?.has(i)).length, packs: p.packs.filter((_, i) => !o.haveCarnets?.has(i)).length };
+  const counts = { newClients: 0, merged: 0, past: 0, noShow: 0, upcoming: 0, cancelled: 0, skipped: 0, unmapped: 0, already: 0, toCancel: 0, toMove: 0, toClose: 0, toReopen: 0, toUpdate: 0, erased: 0, giftcards: p.giftcards.filter((_, i) => !o.haveCards?.has(i)).length, packs: p.packs.filter((_, i) => !o.haveCarnets?.has(i)).length };
   const review: ReviewRow[] = [];
   /** the chairs' bookings per day: the agenda's first, then this run's own */
   const lanes = new Map<string, { start: number; dur: number }[]>();
@@ -987,7 +1008,7 @@ export function preview(p: Parsed, map: Mapping, now: number, o: PreviewOpts = {
     const row = { wp: b.wp, day: b.day, start: b.start, name: nameOf(b) };
     // cancelled here by an earlier run and confirmed again on the old site: counted as a booking to put back, through the normal path
     const k0 = imported.get(b.wp);
-    const reopen = !!k0 && b.status !== 'error' && change(b, k0, staffOf(map, b.staff), now, today, o.chairs) === 'reopen';
+    const reopen = !!k0 && b.status !== 'error' && change(b, k0, staffOf(map, b.staff), now, today, o.chairs, map) === 'reopen';
     const k = reopen ? undefined : k0;
     // retention: not brought in, as the rows sent leave it out (an earlier run's booking is carried over whatever its age)
     if (!k0 && isLeft(b, i)) { retentionRows++; return; }
@@ -999,10 +1020,14 @@ export function preview(p: Parsed, map: Mapping, now: number, o: PreviewOpts = {
       return;
     }
     if (k) {
-      const ch = b.status === 'error' ? null : change(b, k, staffOf(map, b.staff), now, today, o.chairs);
-      if (ch === 'cancel') { counts.toCancel++; review.push({ ...row, kind: 'cancel', text: 'Annulé sur l’ancien site depuis le premier import : sera annulé ici' }); }
+      const ch = b.status === 'error' ? null : change(b, k, staffOf(map, b.staff), now, today, o.chairs, map);
+      // « Erreur » since it came in: kept here, and said (the server lists it as « À faire »)
+      if (b.status === 'error' && k.live !== false) review.push({ ...row, kind: 'error', text: 'État « Erreur » sur l’ancien site depuis le premier import : rendez-vous gardé ici, vérifie avec le client' });
+      // a deposit paid there: the client may be owed it back
+      if (ch === 'cancel') { counts.toCancel++; review.push({ ...row, kind: 'cancel', text: 'Annulé sur l’ancien site depuis le premier import : sera annulé ici' + ((k.paid || 0) || b.paid ? '. Un acompte y était payé : rembourse-le si besoin, depuis l’ancien site' : '') }); }
       else if (ch === 'move') { counts.toMove++; review.push({ ...row, kind: 'move', text: 'Déplacé sur l’ancien site depuis le premier import : sera déplacé ici' }); }
       else if (ch === 'close') counts.toClose++;
+      else if (ch === 'update') { counts.toUpdate++; review.push({ ...row, kind: 'update', text: 'Modifié sur l’ancien site depuis le premier import (' + edits(b, k, map).join(', ') + ') : sera mis à jour ici' }); }
       else counts.already++;
       return;
     }
@@ -1187,7 +1212,7 @@ export function reconcile(run: Pick<RunRecord, 'totals' | 'excluded' | 'counts' 
     const pending = run.finishedAt === null ? Math.max(0, source - sum) : 0;
     rows.push({ type, label, source, made, already, skipped, reasons: reasons.filter(([, v]) => v > 0).map(([key, v]) => ({ key, n: v })), left, gap: source - sum - pending, pending });
   };
-  add('bookings', 'Réservations', run.totals.bookings, ['done', 'noShow', 'cancelled', 'booked', 'moved', 'closed', 'updated'].reduce((t, r) => t + n(a[r]), 0), n(a.already), bookingsSkipped,
+  add('bookings', 'Réservations', run.totals.bookings, ['done', 'noShow', 'cancelled', 'booked', 'moved', 'closed', 'changed', 'updated'].reduce((t, r) => t + n(a[r]), 0), n(a.already), bookingsSkipped,
     [['error', n(k.error)], ['unpaid', n(k.unpaid)], ['service', n(k.service)], ['staff', n(k.staff)], ['retention', n(k.retention)], ['erased', erasedB]], n(by.bookings));
   const made = n(cl.added), already = n(cl.merged) + n(cl.again), left = n(by.clients), erased = n(run.skippedPeople);
   // people whose file was erased are named; what is left is grouped differently here and there (a person with two numbers) and shown as such, not hidden
@@ -1205,7 +1230,8 @@ const KIND_TITLE: Record<string, string> = {
   giftcard: 'Cartes cadeaux non reprises', pack: 'Carnets non repris', error: 'État « Erreur » sur l’ancien site', unpaid: 'Paiement en ligne jamais terminé', retention: 'Plus de 3 ans sans visite',
   gone: 'Supprimés sur l’ancien site', 'gone-handled': 'Supprimés sur l’ancien site mais déjà pris en charge', name: 'Même numéro, autre prénom', 'email-elsewhere': 'E-mail déjà sur une autre fiche',
   'new-number': 'Nouveau numéro sur l’ancien site', 'status-unknown': 'État inconnu sur l’ancien site', reopened: 'Rétablis sur l’ancien site', person: 'Même e-mail, autre personne',
-  landline: 'Numéros fixes : pas de SMS', unreadable: 'Lignes illisibles', email: 'E-mails illisibles'
+  landline: 'Numéros fixes : pas de SMS', unreadable: 'Lignes illisibles', email: 'E-mails illisibles',
+  changed: 'Modifiés sur l’ancien site', refund: 'Acomptes à rembourser (annulés sur l’ancien site)'
 };
 export const kindTitle = (k: string) => KIND_TITLE[k] || k;
 

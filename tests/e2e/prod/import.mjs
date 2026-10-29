@@ -1,7 +1,8 @@
 // Production: the owner takes over the WordPress salon. Réglages › Reprendre WordPress, the French bookings export and
 // the WXR dropped at once, the preview, the import; the agenda shows an imported booking on its date, and an old
 // e-mail link (/ancien-lien) opens that booking's own page. Then the cut-over day: the export again, with a booking
-// cancelled on the old site since and a new one; only those are carried over, and a third drop has nothing new.
+// cancelled on the old site since, a deposit paid since on another, and a new one; only those are carried over (the till
+// then offers « Payé sur l’ancien site » for the deposit), and a third drop has nothing new.
 // Run by tests/e2e/prod.mjs: export default async ({ h, page }), h = { base, setup(), loginOwner(page), api() }.
 import { join } from 'node:path';
 import { readFileSync } from 'node:fs';
@@ -69,15 +70,20 @@ export default async ({ h, page }) => {
   await seen(page, 'Ton rendez-vous a déménagé avec nous.');
   if (/\/r\//.test(page.url())) throw new Error('a wrong secret opened the booking');
 
-  // the cut-over day: the export again, Karim's 15 Dec booking cancelled on the old site since, and one new booking
-  const csv = readFileSync(join(FIX, 'wp-bookings-fr.csv'), 'utf8');
-  const was = csv.split('\n').find((l) => l.startsWith('1360,'));
-  const cutover = csv.replace(was, was.replace(/Confirmé$/, 'Annulé')) + '1395,"16 Déc 2026 10:00","01 Nov 2026 09:00",Sami,Kaci,sami.kaci@exemple.fr,0644556677,Coupe,Soldat,1,"20 €",Confirmé\n';
+  // the cut-over day: the export again, Karim's 15 Dec booking cancelled on the old site since, Lucas's booking prepaid 10 € there
+  // since (« Payer plus tard » → « Payant »), and one new booking
+  const csv0 = readFileSync(join(FIX, 'wp-bookings-fr.csv'), 'utf8');
+  const was = csv0.split('\n').find((l) => l.startsWith('1360,'));
+  const lucas = csv0.split('\n').find((l) => l.startsWith('1361,'));
+  const csv = csv0.replace(was, was.replace(/Confirmé$/, 'Annulé')).replace(lucas, lucas.replace('"20 €","Payer plus tard"', '"20 € (10 € déjà payé en acompte)",Payant'));
+  if (csv === csv0 || !csv.includes('1361,') || !csv.includes('déjà payé en acompte)",Payant\n1370')) throw new Error('the cut-over export was not built as planned');
+  const cutover = csv + '1395,"16 Déc 2026 10:00","01 Nov 2026 09:00",Sami,Kaci,sami.kaci@exemple.fr,0644556677,Coupe,Soldat,1,"20 €",Confirmé\n';
   const drop = () => page.setInputFiles('.wp-drop input[type=file]', [{ name: 'wp-bookings-fr.csv', mimeType: 'text/csv', buffer: Buffer.from(cutover) }, { name: 'wp-bookings.wxr.xml', mimeType: 'text/xml', buffer: readFileSync(join(FIX, 'wp-bookings.wxr.xml')) }]);
   await page.goto(base + '/comptoir/reglages/wordpress');
   await drop();
   await seen(page, 'depuis le premier import');
-  const delta = page.getByRole('button', { name: 'Importer 1 rendez-vous, 1 changement' });
+  await seen(page, 'Modifié sur l’ancien site depuis le premier import (acompte)');
+  const delta = page.getByRole('button', { name: 'Importer 1 rendez-vous, 2 changements' });
   await delta.waitFor({ timeout: 10000 });
   await page.waitForFunction(() => { const b = [...document.querySelectorAll('.wp-go button')][0]; return b && !b.disabled; }, null, { timeout: 10000 });
   await delta.click();
@@ -85,6 +91,10 @@ export default async ({ h, page }) => {
   const dec = must(await call(page, '/api/v1/agenda?day=2026-12-15'), 'agenda 15 Dec');
   const k = (dec.appts || []).find((a) => a.name.startsWith('Karim'));
   if (!k || k.status !== 'cancelled') throw new Error('Karim’s booking cancelled on the old site is still ' + (k && k.status));
+  // Lucas's deposit paid since is on his booking: the till offers « Payé sur l’ancien site » (paidOld), and the report says so, « À faire »
+  const luc = (dec.appts || []).find((a) => a.name.startsWith('Lucas') && a.status === 'booked');
+  if (!luc || luc.paidOld !== 1000) throw new Error('Lucas’s deposit paid on the old site since the first import is not on his booking: ' + JSON.stringify(luc));
+  await seen(page, 'Acompte de 10 € payé sur l’ancien site depuis le premier import');
   const dec16 = must(await call(page, '/api/v1/agenda?day=2026-12-16'), 'agenda 16 Dec');
   if (!(dec16.appts || []).some((a) => a.name.startsWith('Sami') && a.status === 'booked')) throw new Error('the new booking of the cut-over export is missing');
 
