@@ -106,6 +106,8 @@ export default async ({ h, page }) => {
   await ready();
   const empty = page.getByRole('button', { name: 'Enregistrer la vérification (rien de nouveau)' });
   await empty.click();
+  // the toast says what was done: nothing new, not « repris »
+  await h.expectText(page, 'Rien de nouveau');
   await page.waitForFunction(() => document.querySelectorAll('.wr-recent li').length === 3 && document.body.textContent.includes('Tout est compté ✓'), null, { timeout: 20000 });
   const [src, made, already, skipped, left] = (await table())['Réservations'];
   if (made !== 0 || already <= 0 || already + skipped + left !== src) throw new Error('a re-run should only find « déjà là »: ' + [src, made, already, skipped, left]);

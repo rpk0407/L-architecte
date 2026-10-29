@@ -79,7 +79,7 @@
 .wp-files .wp-info { color: var(--tx2); font-style: normal; }
 .wp-reading { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 13px; color: var(--tx2); }
 .wp-wait { margin: 0; font-size: 13px; color: var(--tx2); }
-.wp-models { display: inline-flex; flex-wrap: wrap; gap: 8px; margin: 6px 0; vertical-align: top; }
+.wp-models { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
 .wp-sample { display: flex; flex-direction: column; gap: 8px; padding-top: 10px; border-top: 1px solid var(--line); }
 .wp-sample h3 { margin: 0; font: 600 15px/1.3 var(--sans); }
 .wp-sample p { margin: 0; font-size: 13px; color: var(--tx2); }
