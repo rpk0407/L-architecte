@@ -1,14 +1,40 @@
-/* The client's pages: the same paper, ink and red as the site. */
+/* The client's pages: the same paper, ink and red as the site. Light by default, dark when the phone is: the dark values are
+   the static pages' (public/pages.css: --bg, --sf, --tx, --tx2, --ln, --ln2), so nothing flips on the way between the site,
+   /moi, /r/, /abo/, /cadeau/ and /recu/. Every colour a rule needs sits behind a token below; a rule never says a hex.
+   A printed page (a receipt, a gift card) keeps the light values: the dark ones are for the screen only. */
 @import '@fontsource/instrument-sans/latin-400.css';
 @import '@fontsource/instrument-sans/latin-500.css';
 @import '@fontsource/instrument-sans/latin-600.css';
 @import '@fontsource/instrument-serif/latin-400.css';
 
 :root {
-  --paper: #ECE8E0; --card: #F6F3EE; --ink: #0F0E0D; --ink2: #58534C; --ink3: #8A847B; --line: rgba(15, 14, 13, .1); --line2: rgba(15, 14, 13, .18);
-  --red: #EB4639; --ok: #23824B; --ok-bg: rgba(35, 130, 75, .1); --warn: #9A5B0F; --warn-bg: rgba(217, 119, 6, .12);
+  --paper: #ECE8E0; --card: #F6F3EE; --ink: #0F0E0D; --ink2: #58534C; --ink3: #6B665E; --line: rgba(15, 14, 13, .1); --line2: rgba(15, 14, 13, .18);
+  --red: #EB4639; --ok: #1A6838; --ok-bg: rgba(26, 104, 56, .1); --warn: #864E0B; --warn-bg: rgba(217, 119, 6, .12);
+  /* text on red (the brand red is light enough for dark ink in both themes), error text, text on a solid green or amber */
+  --on-red: #0F0E0D; --err: #9E2A21; --on-ok: #fff;
+  /* a field's border and the off track of a switch: 3:1 against the paper, the card and the field */
+  --edge: #837D74; --field: #fff;
+  /* a soft wash on the paper (a pill, a note, the chip of an icon), its hover, the halo of a focused field, the hover of the dark button */
+  --tint: rgba(15, 14, 13, .06); --tint-h: rgba(15, 14, 13, .13); --halo: rgba(15, 14, 13, .08); --ink-h: #2a2825;
+  /* the veil behind a sheet, the tab bar, the lift of a card, the rim that tells a sheet from the dimmed page in the dark */
+  --rim: 0 0 0 0 transparent; --scrim: rgba(15, 14, 13, .52); --bar: rgba(246, 243, 238, .94); --lift: 0 1px 0 rgba(15, 14, 13, .04), 0 18px 40px -24px rgba(15, 14, 13, .25);
+  /* the ticket (the next appointment, the member's month, the gift card): ink in both themes, a notch raised in the dark one */
+  --tk-bg: #0F0E0D; --tk: #ECE8E0; --tk-1: rgba(236, 232, 224, .88); --tk-2: rgba(236, 232, 224, .72); --tk-3: rgba(236, 232, 224, .62);
+  --tk-ln: rgba(236, 232, 224, .25); --tk-chip: rgba(236, 232, 224, .1); --tk-chip-h: rgba(236, 232, 224, .2); --tk-lift: var(--lift);
   --serif: 'Instrument Serif', 'Times New Roman', serif; --sans: 'Instrument Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
   color-scheme: light;
+}
+@media screen and (prefers-color-scheme: dark) {
+  :root {
+    --paper: #0F0E0D; --card: #171513; --ink: #ECE8E0; --ink2: #ABA59C; --ink3: #948E85; --line: rgba(236, 232, 224, .14); --line2: rgba(236, 232, 224, .28);
+    --ok: #5CCB8A; --ok-bg: rgba(92, 203, 138, .12); --warn: #F5B544; --warn-bg: rgba(245, 181, 68, .14);
+    --err: #FF8579; --on-ok: #0F0E0D;
+    --edge: #7A746C; --field: #1F1C19;
+    --tint: rgba(236, 232, 224, .09); --tint-h: rgba(236, 232, 224, .18); --halo: rgba(236, 232, 224, .12); --ink-h: #D3D0C8;
+    --rim: 0 0 0 1px var(--line); --scrim: rgba(0, 0, 0, .62); --bar: rgba(23, 21, 19, .94); --lift: inset 0 0 0 1px var(--line);
+    --tk-bg: #221F1C; --tk-lift: inset 0 0 0 1px rgba(236, 232, 224, .1);
+    color-scheme: dark;
+  }
 }
 *, *::before, *::after { box-sizing: border-box; }
 html, body { margin: 0; background: var(--paper); color: var(--ink); font: 400 16px/1.45 var(--sans); -webkit-font-smoothing: antialiased; -webkit-text-size-adjust: 100%; }
@@ -16,6 +42,12 @@ h1, h2, p { margin: 0; }
 a { color: inherit; }
 button { font: inherit; color: inherit; border: 0; background: none; cursor: pointer; padding: 0; }
 button:disabled { opacity: .5; cursor: default; }
+/* The ring of every control of the client pages (/r, /abo, /cadeau, /recu, /paiement, and /moi on top of them): the page's ink (light in the
+   dark theme, dark in the light one: 3:1 and more on the paper, the card and the field), never the browser's own, which is amber on a phone in
+   the light theme (2.2:1 on the card) and never the control's own text colour, which on the brand red or on an ink-filled chip is the very
+   colour of what lies behind the ring. The ticket is ink in both themes: its ring is the ticket's light (--tk). */
+.c-page :focus-visible { outline: 2.5px solid var(--ink); outline-offset: 3px; }
+.c-page .c-ticket :focus-visible { outline-color: var(--tk); }
 .c-page { min-height: 100dvh; display: flex; flex-direction: column; max-width: 560px; margin: 0 auto; padding: 0 16px calc(24px + env(safe-area-inset-bottom)); }
 .c-top { padding: calc(18px + env(safe-area-inset-top)) 4px 18px; }
 .c-brand { display: inline-flex; flex-direction: column; text-decoration: none; }
@@ -24,7 +56,7 @@ button:disabled { opacity: .5; cursor: default; }
 .c-main { flex: 1; display: flex; flex-direction: column; gap: 14px; }
 .c-foot { padding: 28px 4px 0; text-align: center; font-size: 13px; color: var(--ink3); }
 .c-foot a { text-decoration: none; }
-.c-card { padding: 22px 20px; border-radius: 24px; background: var(--card); box-shadow: 0 1px 0 rgba(15, 14, 13, .04), 0 18px 40px -24px rgba(15, 14, 13, .25); display: flex; flex-direction: column; gap: 14px; }
+.c-card { padding: 22px 20px; border-radius: 24px; background: var(--card); box-shadow: var(--lift); display: flex; flex-direction: column; gap: 14px; }
 .c-center { align-items: center; text-align: center; padding: 34px 22px; }
 .c-k { font: 600 12px/1 var(--sans); letter-spacing: .1em; text-transform: uppercase; color: var(--ink2); }
 .c-h { font: 400 38px/1.05 var(--serif); letter-spacing: -.01em; }
@@ -32,11 +64,11 @@ button:disabled { opacity: .5; cursor: default; }
 .c-muted { color: var(--ink2); font-size: 15px; }
 .c-small { font-size: 13.5px; }
 .c-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-.c-btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 56px; padding: 0 26px; border-radius: 999px; background: var(--red); color: var(--ink); font: 600 17px/1 var(--sans); text-decoration: none; transition: transform .15s, background-color .2s; }
+.c-btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 56px; padding: 0 26px; border-radius: 999px; background: var(--red); color: var(--on-red); font: 600 17px/1 var(--sans); text-decoration: none; transition: transform .15s, background-color .2s; }
 .c-btn:active { transform: scale(.98); }
-.c-btn.ghost { background: transparent; box-shadow: inset 0 0 0 1.5px var(--line2); }
+.c-btn.ghost { background: transparent; color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--line2); }
 .c-link { font: 600 15px/1 var(--sans); text-decoration: underline; text-underline-offset: 4px; padding: 10px 2px; }
-.c-pill { display: inline-flex; align-items: center; gap: 8px; padding: 7px 12px; border-radius: 999px; background: rgba(15, 14, 13, .06); font: 600 13px/1 var(--sans); }
+.c-pill { display: inline-flex; align-items: center; gap: 8px; padding: 7px 12px; border-radius: 999px; background: var(--tint); font: 600 13px/1 var(--sans); }
 .c-pill::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--ink3); }
 .c-pill.ok { background: var(--ok-bg); color: var(--ok); }
 .c-pill.ok::before { background: var(--ok); }
@@ -44,27 +76,28 @@ button:disabled { opacity: .5; cursor: default; }
 .c-pill.warn::before { background: var(--warn); }
 .c-code { font-size: 14px; color: var(--ink2); }
 .c-code b { color: var(--ink); letter-spacing: .04em; }
-.c-ticket { background: var(--ink); color: var(--paper); }
-.c-ticket .c-k, .c-ticket .c-code { color: rgba(236, 232, 224, .6); }
-.c-ticket .c-code b { color: var(--paper); }
-.c-ticket .c-pill { background: rgba(236, 232, 224, .1); color: var(--paper); }
+.c-ticket { background: var(--tk-bg); color: var(--tk); box-shadow: var(--tk-lift); }
+.c-ticket .c-k, .c-ticket .c-code { color: var(--tk-3); }
+.c-ticket .c-code b { color: var(--tk); }
+.c-ticket .c-pill { background: var(--tk-chip); color: var(--tk); }
+.c-ticket .c-pill::before { background: var(--tk-3); }
 .c-ticket .c-pill.ok { color: #86EFAC; }
 .c-ticket .c-pill.ok::before { background: #4ADE80; }
 .c-ticket .c-pill.warn { color: #FCD38D; }
 .c-ticket .c-pill.warn::before { background: #F5B544; }
 .c-when { font: 400 46px/1.02 var(--serif); letter-spacing: -.015em; }
 .c-when.gone { text-decoration: line-through; text-decoration-thickness: 2px; opacity: .6; }
-.c-what { display: flex; flex-direction: column; gap: 10px; padding-top: 14px; border-top: 1px dashed rgba(236, 232, 224, .25); }
+.c-what { display: flex; flex-direction: column; gap: 10px; padding-top: 14px; border-top: 1px dashed var(--tk-ln); }
 .c-what > span:first-child { font: 600 17px/1.3 var(--sans); }
-.c-what small { display: block; margin-top: 3px; font: 500 14px/1.3 var(--sans); color: rgba(236, 232, 224, .7); }
+.c-what small { display: block; margin-top: 3px; font: 500 14px/1.3 var(--sans); color: var(--tk-2); }
 .c-staff { display: inline-flex; align-items: center; gap: 10px; font-size: 15px; }
-.c-staff i { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; color: var(--ink); font: 400 15px/1 var(--serif); font-style: normal; }
-.c-dep { font-size: 14px; color: rgba(236, 232, 224, .85); }
-.c-addr { font-size: 14px; color: rgba(236, 232, 224, .6); }
+.c-staff i { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; color: var(--on-red); font: 400 15px/1 var(--serif); font-style: normal; }
+.c-dep { font-size: 14px; color: var(--tk-1); }
+.c-addr { font-size: 14px; color: var(--tk-3); }
 .c-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .c-actions .c-change, .c-actions .c-small { grid-column: 1 / -1; justify-content: center; text-align: center; }
 .c-change { gap: 28px; }
-.c-note { padding: 14px 16px; border-radius: 16px; font: 500 15px/1.4 var(--sans); background: rgba(15, 14, 13, .06); }
+.c-note { padding: 14px 16px; border-radius: 16px; font: 500 15px/1.4 var(--sans); background: var(--tint); }
 .c-note.ok { background: var(--ok-bg); color: var(--ok); }
 .c-note.warn { background: var(--warn-bg); color: var(--warn); }
 .c-days { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
@@ -74,7 +107,7 @@ button:disabled { opacity: .5; cursor: default; }
 .c-days button b { font: 400 26px/1 var(--serif); }
 .c-days button span { font-size: 11px; color: var(--ink3); }
 .c-days button[aria-pressed='true'] { background: var(--ink); color: var(--paper); box-shadow: none; }
-.c-days button[aria-pressed='true'] small, .c-days button[aria-pressed='true'] span { color: rgba(236, 232, 224, .7); }
+.c-days button[aria-pressed='true'] small, .c-days button[aria-pressed='true'] span { color: color-mix(in srgb, var(--paper) 72%, transparent); }
 .c-days button.full { opacity: .45; }
 .c-slots { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; }
 .c-slots button { min-height: 48px; border-radius: 14px; box-shadow: inset 0 0 0 1.5px var(--line2); font: 600 15px/1 var(--sans); }
@@ -84,11 +117,11 @@ button:disabled { opacity: .5; cursor: default; }
 .c-pay { align-items: stretch; text-align: center; }
 .c-test { align-self: center; padding: 6px 12px; border-radius: 999px; background: var(--warn-bg); color: var(--warn); font: 600 12.5px/1.2 var(--sans); }
 .c-amount { font: 400 64px/1 var(--serif); }
-.c-cardfield { display: flex; flex-direction: column; gap: 4px; padding: 16px; border-radius: 16px; background: #fff; box-shadow: inset 0 0 0 1.5px var(--line2); text-align: left; }
+.c-cardfield { display: flex; flex-direction: column; gap: 4px; padding: 16px; border-radius: 16px; background: var(--field); box-shadow: inset 0 0 0 1.5px var(--edge); text-align: left; }
 .c-cardfield span { font: 600 12px/1 var(--sans); color: var(--ink3); text-transform: uppercase; letter-spacing: .08em; }
 .c-cardfield b { font: 500 19px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .06em; }
 .c-cardfield small { color: var(--ink2); }
-.c-check { display: grid; place-items: center; width: 72px; height: 72px; border-radius: 50%; background: var(--ok); color: #fff; font: 600 34px/1 var(--sans); }
+.c-check { display: grid; place-items: center; width: 72px; height: 72px; border-radius: 50%; background: var(--ok); color: var(--on-ok); font: 600 34px/1 var(--sans); }
 .c-check.no { background: var(--warn); }
 .c-rec .c-lines { display: flex; flex-direction: column; gap: 8px; padding: 14px 0; border-top: 1px dashed var(--line2); border-bottom: 1px dashed var(--line2); }
 .c-rec .c-lines p { display: flex; justify-content: space-between; gap: 12px; font-size: 15.5px; }
@@ -99,6 +132,7 @@ button:disabled { opacity: .5; cursor: default; }
 @media print { .c-noprint, .c-foot { display: none; } .c-card { box-shadow: none; } body { background: #fff; } }
 .c-actions .c-btn { min-height: 52px; padding: 0 14px; font-size: 15.5px; text-align: center; }
 .c-espace p { font-size: 15.5px; }
+.c-espace .c-h2 { font-size: 26px; }
 .c-espace .c-btn { align-self: flex-start; min-height: 50px; padding: 0 22px; font-size: 15.5px; }
 .c-espace-in { text-align: center; }
 .c-espace-in a { padding: 12px 2px; font-weight: 600; text-underline-offset: 4px; }

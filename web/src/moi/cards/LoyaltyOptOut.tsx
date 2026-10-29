@@ -23,7 +23,7 @@ export default function LoyaltyOptOut(_: CardProps) {
     } catch (e) { setMsg((e as Error)?.message || 'Impossible de changer ton choix pour le moment.'); } finally { setBusy(false); }
   };
   return (
-    <div data-guide="moi.loyalty-off">
+    <div className="c-card lyr-opt" data-guide="moi.loyalty-off">
       <button type="button" role="switch" aria-checked={on} className="lyr-sw" disabled={busy} onClick={flip}>
         <span><b>Participer à la carte fidélité</b><small>{on ? 'Tu cumules un tampon à chaque passage payé. Coupe ici si tu ne veux plus participer : tes récompenses déjà gagnées restent valables.' : 'Tes passages ne sont plus comptés. Tes récompenses déjà gagnées restent valables jusqu’à leur fin.'}</small></span>
         <span className="lyr-k2" aria-hidden><i /></span>

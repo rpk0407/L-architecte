@@ -1,8 +1,12 @@
 /* GUIDE-01a · /moi's welcome card (MoiTour.tsx): the site's paper card, its red pill and its underlined link. */
 .m-welcome { margin-bottom: 14px; animation: m-welcome-in .32s cubic-bezier(.16, 1, .3, 1) both; }
-.m-welcome .c-muted { margin: 0; }
+.m-welcome .c-h2 { margin-top: -2px; }
+.m-welcome-ticks { display: flex; flex-direction: column; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.m-welcome-ticks li { display: flex; align-items: flex-start; gap: 12px; font: 500 15.5px/1.4 var(--sans); }
+.m-tick { flex: none; display: grid; place-items: center; width: 22px; height: 22px; margin-top: 0; border-radius: 50%; background: var(--ok-bg); color: var(--ok); }
 .m-welcome-acts { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 18px; }
 .m-welcome-acts .c-btn { min-height: 52px; padding: 0 22px; font-size: 16px; }
+.m-welcome-acts .c-btn.ghost:hover { background: var(--line); }
 .m-welcome-acts .c-link { min-height: 44px; border: 0; background: none; color: var(--ink); cursor: pointer; }
 @keyframes m-welcome-in { from { opacity: 0; transform: translateY(8px); } }
 @media (prefers-reduced-motion: reduce) { .m-welcome { animation: none; } }

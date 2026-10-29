@@ -5,7 +5,7 @@
      data-if / data-unless="path"   shown when the value is set (not '', 0, false, 'none'), or when it is not
      data-list="services" the price list (data-list-note: shown with it);  data-list="plans" the membership's formules
      (/api/public/memberships, read only by a page that has such a list or a data-if on membership.*)
-     data-footer  the shared footer;  data-forget  clears what the site keeps on this phone
+     data-footer  the shared footer (with « Mon espace » while the salon has the client space open);  data-forget  clears what the site keeps on this phone
    Without the API (offline, blocked), the text written in the page stays: the defaults.
    Everything goes in through textContent, never as HTML. */
 (function () {
@@ -120,9 +120,12 @@
         h('div', {}, [
           h('span', { class: 'ft-n', 'data-f': 'shop.name' }, ['Barber L’Architecte']),
           h('address', {}, [
-            h('span', { 'data-f': 'address' }, ['16, place Pélabon, 13013 Marseille']), h('br'),
-            h('span', { 'data-opt': '', hidden: '' }, [h('a', { 'data-f': 'phone', 'data-link': 'tel' }), ' · ']),
-            h('a', { 'data-f': 'shop.email', 'data-link': 'mail', href: 'mailto:larchitectebarber@gmail.com' }, ['larchitectebarber@gmail.com'])
+            h('span', { 'data-f': 'address' }, ['16, place Pélabon, 13013 Marseille']),
+            // two items of a row that wraps, no « · » between them: a line break can strand no separator (the phone is hidden while the salon has none)
+            h('span', { class: 'ft-ways' }, [
+              h('span', { 'data-opt': '', hidden: '' }, [h('a', { 'data-f': 'phone', 'data-link': 'tel' })]),
+              h('a', { 'data-f': 'shop.email', 'data-link': 'mail', href: 'mailto:larchitectebarber@gmail.com' }, ['larchitectebarber@gmail.com'])
+            ])
           ])
         ]),
         h('nav', { 'aria-label': 'Pages du site' }, [h('ul', { class: 'ft-l' }, links.map(function (l) {
@@ -130,7 +133,7 @@
           if (l[0] === here) a.setAttribute('aria-current', 'page');
           return h('li', {}, [a]);
         }))]),
-        h('p', { class: 'ft-c' }, ['© ' + new Date().getFullYear() + ' ', h('span', { 'data-f': 'editor' }, ['Barber L’Architecte']), ' · Pas de pistage, pas de mesure d’audience.'])
+        h('p', { class: 'ft-c' }, ['© ' + new Date().getFullYear() + ' ', h('span', { 'data-f': 'editor' }, ['Barber L’Architecte']), ' ·' + NB + 'Pas de pistage, pas de mesure d’audience.'])
       ]));
     });
   }
@@ -148,13 +151,25 @@
     });
   }
 
+  /** « Mon espace » joins the footer's links once the salon has opened the client space (the answer is the site's own, /api/public/account). */
+  function space(a) {
+    if (!a || !a.enabled) return;
+    each(document, '.ft-l', function (ul) {
+      if (ul.querySelector('a[href="/moi"]')) return;
+      var at = ul.querySelector('a[href="/mon-rendez-vous"]');
+      var li = h('li', {}, [h('a', { href: '/moi' }, ['Mon espace'])]);
+      if (at && at.parentNode && at.parentNode.parentNode === ul) ul.insertBefore(li, at.parentNode.nextSibling); else ul.appendChild(li);
+    });
+  }
+
   footer();
   forget();
   var json = function (u) { return fetch(u).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }); };
   var wantsPlans = !!document.querySelector('[data-list="plans"],[data-if^="membership."],[data-unless^="membership."],[data-if="pack"]');
-  Promise.all([json('/api/public/salon'), wantsPlans ? json('/api/public/memberships') : null]).then(function (x) {
+  Promise.all([json('/api/public/salon'), wantsPlans ? json('/api/public/memberships') : null, json('/api/public/account')]).then(function (x) {
     var s = x[0];
     if (s && s.shop) { fill(document, view(s, x[1])); prices(s); plans(x[1]); }
+    space(x[2]);
   }).catch(function () { /* keep the page's own text */ }).then(function () {
     document.documentElement.setAttribute('data-ready', '1');
   });

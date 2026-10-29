@@ -36,7 +36,9 @@ test('every /moi/<tab> is served by the /moi page, /moi itself by its own index'
   const html = read('web/moi/index.html');
   assert.match(html, /<script type="module" src="\/src\/moi\/main\.tsx"><\/script>/);
   assert.match(html, /<title>Mon espace · L’Architecte<\/title>/);
-  assert.match(html, /<meta name="theme-color" content="#ECE8E0">/);
+  // the browser's bar follows the phone, signed out and signed in (the space has a dark theme as well, client.css)
+  assert.match(html, /<meta name="theme-color" content="#ECE8E0" media="\(prefers-color-scheme: light\)">/);
+  assert.match(html, /<meta name="theme-color" content="#0F0E0D" media="\(prefers-color-scheme: dark\)">/);
   // AC-03b adds the manifest and the touch icon with its files
   assert.doesNotMatch(html, /rel="manifest"|apple-touch-icon/);
 });
@@ -82,7 +84,17 @@ const r_ = () => read('web/src/client/main.tsx');
 
 test('the site, /r/ and /mon-rendez-vous lead to the space, only while the salon has it open', () => {
   const site = read('public/site.html');
-  assert.match(site, /<sc-if value="\{\{espaceNew\}\}"[^>]*><div class="card espace" data-guide="site.espace"><h3>Crée ton espace<\/h3><p>Tous tes rendez-vous et tes reçus au même endroit, sur ce téléphone\.<\/p><a class="btn" href="\{\{espaceUrl\}\}">Créer mon espace<\/a><\/div><\/sc-if>/);
+  // the card sits right under the ticket (and the deposit's block), before the text preview: never below the fold of the sheet
+  assert.match(site, /<sc-if value="\{\{espaceNew\}\}"[^>]*><div class="card espace" data-guide="site.espace"><h3>Garde tout au même endroit<\/h3><p>\{\{espaceText\}\}<\/p><a class="btn" href="\{\{espaceUrl\}\}">Ouvrir mon espace<\/a><small>Facultatif&nbsp;: ton rendez-vous est déjà confirmé\.<\/small><\/div><\/sc-if>/);
+  assert.ok(site.indexOf('data-guide="site.espace"') < site.indexOf('<p class="sms-k">'), 'the card is above the text preview');
+  assert.ok(site.indexOf('class="tk"') < site.indexOf('data-guide="site.espace"'), 'the card is below the ticket');
+  // optional, and says how it opens (a code by SMS, no password); the loyalty card is promised only where the salon runs it
+  assert.match(site, /espaceText: s\.acct && s\.acct\.loyalty && s\.acct\.loyalty\.on \? 'Ton prochain rendez-vous, tes reçus et ta carte fidélité\. Un code par SMS, pas de mot de passe\.' : 'Ton prochain rendez-vous et tes reçus\. Un code par SMS, pas de mot de passe\.'/);
+  // the Sommaire and the top bar lead to it too, only while the space is open, « Salut Yanis » once signed in
+  assert.match(site, /<sc-if value="\{\{espaceOn\}\}"[^>]*><a class="mn-me" href="\/moi">/);
+  assert.match(site, /<sc-if value="\{\{espaceOn\}\}"[^>]*><a class="tb-me" href="\/moi" aria-label="\{\{meAria\}\}"/);
+  assert.match(site, /meName: s\.acct && s\.acct\.signedIn && s\.acct\.first \? 'Salut ' \+ s\.acct\.first : 'Mon espace'/);
+  assert.match(site, /<sc-if value="\{\{espaceOn\}\}"[^>]*><p class="ab-esp">Ton abonnement, ton carnet et tes coupes restantes se suivent dans <a href="\/moi">Mon espace<\/a>\.<\/p><\/sc-if>/);
   assert.match(site, /<sc-if value="\{\{espaceOn\}\}"[^>]*><li><a href="\/moi"[^>]*>Mon espace<\/a><\/li><\/sc-if>/);
   assert.match(site, /espaceUrl: '\/moi\?garder=' \+ encodeURIComponent\(/);
   // « C’est dans ton espace » only for a booking that is his (booked with another number, it is not)
@@ -90,8 +102,13 @@ test('the site, /r/ and /mon-rendez-vous lead to the space, only while the salon
   assert.match(r_(), /setMine\(\(m\.upcoming \|\| \[\]\)\.some\(\(u\) => u\.token === token\)\)/);
   const r = read('web/src/client/main.tsx');
   assert.match(r, /if \(!acc \|\| !acc\.enabled\) return null;/);
-  assert.match(r, /href=\{'\/moi\?garder=' \+ encodeURIComponent\(token\)\}>Créer mon espace</);
+  assert.match(r, /href=\{'\/moi\?garder=' \+ encodeURIComponent\(token\)\}>Ouvrir mon espace</);
+  assert.match(r, /<h2 className="c-h2" id="c-espace-t">Ouvre ton espace<\/h2>/);
+  assert.match(r, /Un code par SMS, pas de mot de passe\./);
   const mrdv = read('public/mon-rendez-vous.html');
-  assert.match(mrdv, /<p id="lk-espace" class="hint espace" hidden>/);
+  assert.match(mrdv, /<div id="lk-espace" class="espace" role="group" aria-labelledby="lk-et" hidden>/);
+  assert.match(mrdv, /<h2 id="lk-et">Tu reviens souvent&nbsp;\?<\/h2>/);
+  // the footer of every static page carries « Mon espace » once the salon has opened it (pages.js)
+  assert.match(read('public/pages.js'), /function space\(a\) \{\s+if \(!a \|\| !a\.enabled\) return;/);
   assert.match(mrdv, /if \(a && a\.enabled\) document\.getElementById\('lk-espace'\)\.hidden = false;/);
 });

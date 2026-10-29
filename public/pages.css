@@ -12,16 +12,20 @@
 --f-serif:'Instrument Serif','Times New Roman',Times,serif;--f-sans:'Instrument Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
 --pad:clamp(16px,5.4vw,80px);--ease:cubic-bezier(.2,.7,.2,1);
 --bg:var(--os);--sf:var(--blanc);--tx:var(--encre);--tx2:var(--cendre2);--ln:rgba(15,14,13,.12);--ln2:rgba(15,14,13,.3);--ac:var(--rouge);--on-ac:var(--encre);
+/* a field's border: 3:1 against the page and the card around it (the same as /moi's) */
+--edge:#837D74;
 color-scheme:light
 }
 @media (prefers-color-scheme:dark){
-:root{--bg:var(--encre);--sf:var(--encre2);--tx:var(--os);--tx2:var(--cendre);--ln:rgba(236,232,224,.14);--ln2:rgba(236,232,224,.28);color-scheme:dark}
+:root{--bg:var(--encre);--sf:var(--encre2);--tx:var(--os);--tx2:var(--cendre);--ln:rgba(236,232,224,.14);--ln2:rgba(236,232,224,.28);--edge:#7A746C;color-scheme:dark}
 }
 *,*::before,*::after{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 body{margin:0;min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;background:var(--bg);color:var(--tx);font:400 17px/1.6 var(--f-sans);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;overflow-wrap:break-word}
 a{color:inherit}
-a:focus-visible,button:focus-visible{outline:2.5px solid currentColor;outline-offset:3px}
+/* the ring is the page's ink (the bone in the dark theme): 3:1 and more on the page and the card. Never the control's own text colour: on the
+   red .btn, on the skip link and on the current page of the nav (ink-filled) that is the very colour of what lies behind the ring */
+a:focus-visible,button:focus-visible{outline:2.5px solid var(--tx);outline-offset:3px}
 [hidden]{display:none!important}
 .vh{position:absolute!important;width:1px!important;height:1px!important;overflow:hidden!important;clip-path:inset(50%)!important;white-space:nowrap!important}
 .skip{position:fixed;left:12px;top:-60px;z-index:10;padding:12px 18px;border-radius:999px;background:var(--tx);color:var(--bg);font-weight:600;text-decoration:none}
@@ -92,7 +96,8 @@ dd{margin:0;font-weight:500;overflow-wrap:anywhere}
 .prices .d{color:var(--tx2);font-size:14.5px}
 
 .box{margin-top:16px;padding:16px 18px;border-radius:18px;background:var(--sf);box-shadow:inset 0 0 0 1px var(--ln)}
-.box .btn{margin-top:12px}
+/* a long label (« Oublier mes infos sur ce téléphone ») wraps under 340 px rather than push the page sideways */
+.box .btn{margin-top:12px;max-width:100%;padding-top:12px;padding-bottom:12px;line-height:1.25;white-space:normal;text-align:center}
 .done{margin:10px 0 0;font-weight:600}
 
 /* footer, shared by every page (pages.js) */
@@ -100,7 +105,9 @@ dd{margin:0;font-weight:500;overflow-wrap:anywhere}
 .ft-g{display:grid;gap:22px;max-width:1320px;margin:0 auto}
 .ft-n{display:block;color:var(--tx);font:italic 400 24px/1 var(--f-serif)}
 .ft address{margin-top:8px;font-style:normal;line-height:1.5}
-.ft address a{text-decoration:none}
+/* the phone and the e-mail: two items of a row that wraps (side by side when they fit, one under the other when not), no separator to strand at a line's end */
+.ft-ways{display:flex;flex-wrap:wrap;column-gap:22px}
+.ft address a{display:inline-flex;align-items:center;min-width:0;min-height:44px;overflow-wrap:anywhere;text-decoration:none}
 .ft address a:hover{text-decoration:underline;text-underline-offset:4px}
 .ft-l{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 18px;margin:0;padding:0;list-style:none}
 .ft-l li{margin:0}

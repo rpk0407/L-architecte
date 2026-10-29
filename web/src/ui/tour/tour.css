@@ -9,7 +9,7 @@
 }
 .tour[data-skin='site'] {
   --t-dim: rgba(15, 14, 13, .52); --t-card: var(--card, #F6F3EE); --t-tx: var(--ink, #0F0E0D); --t-tx2: var(--ink2, #58534C); --t-tx3: var(--ink3, #8A847B);
-  --t-line: var(--line2, rgba(15, 14, 13, .18)); --t-accent: var(--red, #EB4639); --t-on: var(--ink, #0F0E0D); --t-ring: rgba(235, 70, 57, .85);
+  --t-line: var(--line2, rgba(15, 14, 13, .18)); --t-accent: var(--red, #EB4639); --t-on: var(--on-red, #0F0E0D); --t-ring: rgba(235, 70, 57, .85);
   --t-r: 24px; --t-shadow: 0 24px 60px -18px rgba(15, 14, 13, .45);
 }
 :root[data-theme='light'] .tour[data-skin='comptoir'] { --t-dim: rgba(15, 14, 13, .5); --t-shadow: 0 24px 60px rgba(15, 14, 13, .25); }
@@ -49,6 +49,11 @@
 
 .tour-arrow { position: absolute; width: 14px; height: 14px; background: var(--t-card); border: 1px solid var(--t-line); transform: rotate(45deg); pointer-events: none; }
 .tour[data-skin='site'] .tour-arrow { border-color: transparent; }
+/* the card of the site's skin on a dark page: its lines (the client pages' --line2) say where it ends, on the dimmed page too */
+@media screen and (prefers-color-scheme: dark) {
+  .tour[data-skin='site'] { --t-dim: rgba(0, 0, 0, .66); --t-shadow: 0 24px 60px -18px rgba(0, 0, 0, .7); }
+  .tour[data-skin='site'] .tour-card, .tour[data-skin='site'] .tour-arrow { border-color: var(--line2, rgba(236, 232, 224, .28)); }
+}
 .tour-arrow[data-side='top'] { top: -8px; margin-left: -7px; border-right: 0; border-bottom: 0; }
 .tour-arrow[data-side='bottom'] { bottom: -8px; margin-left: -7px; border-left: 0; border-top: 0; }
 .tour-arrow[data-side='left'] { left: -8px; margin-top: -7px; border-top: 0; border-right: 0; }
