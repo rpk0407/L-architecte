@@ -10,7 +10,6 @@ import { tabCards } from './registry';
 import { PATHS, safeNext, tabOf, type Tab } from './paths';
 import { SignIn } from './SignIn';
 import { SitePage } from './SitePage';
-import { useLit } from './lit';
 import { Guard, dayWords, todayKey } from './kit';
 import { MoiTour, MoiWelcome } from './guide/MoiTour';
 import type { AccountState, Me } from './types';
@@ -24,7 +23,6 @@ const TAB_WORDS: Record<Tab, { label: string; icon: string; title: string }> = {
 };
 
 function Shell({ children, tab, onTab }: { children: ReactNode; tab?: Tab; onTab?: (t: Tab) => void }) {
-  useLit();
   return (
     <div className={'c-page m-page' + (tab ? ' m-tabbed' : '')}>
       <header className="c-top m-top">

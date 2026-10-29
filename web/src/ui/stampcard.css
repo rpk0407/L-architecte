@@ -1,6 +1,6 @@
 /* StampCard (FID-03): the loyalty card as a row of rings, or a bar. It takes its colours from the page it is on: the
-   Comptoir's --accent / --ink, the client pages' --red / --ink; ring and text follow currentColor. */
-.stampcard { --sc: var(--accent, var(--red, #EB4639)); --sc-ink: var(--ink, #0F0E0D); --sc-d: 22px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; max-width: 100%; }
+   Comptoir's --accent / --ink, the client pages' --red / --on-red (the stamp is on red in both themes); ring and text follow currentColor. */
+.stampcard { --sc: var(--accent, var(--red, #EB4639)); --sc-ink: var(--on-red, var(--ink, #0F0E0D)); --sc-d: 22px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; max-width: 100%; }
 .stampcard.sm { --sc-d: 14px; gap: 4px; }
 .stampcard i { display: grid; place-items: center; flex: none; width: var(--sc-d); height: var(--sc-d); border-radius: 50%; box-shadow: inset 0 0 0 1.5px color-mix(in srgb, currentColor 30%, transparent); }
 .stampcard i.on { background: var(--sc); box-shadow: none; color: var(--sc-ink); }

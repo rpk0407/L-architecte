@@ -56,7 +56,7 @@ The scheduler (`server/http/scheduler.js`) sends reminders, expires holds and un
 
 ## The Comptoir (web/)
 
-React 19 + TypeScript (strict), built by Vite into `dist/`. No UI library: a small design system (`web/src/ui`) with its own icon set, self-hosted fonts (Instrument Sans and Serif), dark and light themes, and a privacy mode that blurs amounts when a client looks at the screen.
+React 19 + TypeScript (strict), built by Vite into `dist/`. No UI library: a small design system (`web/src/ui`) with its own icon set, self-hosted fonts (Instrument Sans and Serif), dark and light themes, and a privacy mode that blurs amounts when a client looks at the screen. The client's own pages (`/moi`, `/r/`, `/abo/`, `/cadeau/`, `/recu/`, `/paiement/`) have one palette of tokens (`web/src/client/client.css`), light by default and dark with the phone, the values of the static pages' (`public/pages.css`); a printed receipt or gift card keeps the light ones.
 
 - `state.tsx` loads the bootstrap (who is signed in, settings, team, catalogue) and polls `/api/v1/pulse` every 4 s: when the journal version moves, cached queries refresh and new bookings show up in the feed with a toast.
 - Pages are lazy-loaded; the agenda and the till load first. React vendor ≈ 70 KB gzip, each page 5 to 25 KB.

@@ -120,9 +120,12 @@
         h('div', {}, [
           h('span', { class: 'ft-n', 'data-f': 'shop.name' }, ['Barber L’Architecte']),
           h('address', {}, [
-            h('span', { 'data-f': 'address' }, ['16, place Pélabon, 13013 Marseille']), h('br'),
-            h('span', { 'data-opt': '', hidden: '' }, [h('a', { 'data-f': 'phone', 'data-link': 'tel' }), ' · ']),
-            h('a', { 'data-f': 'shop.email', 'data-link': 'mail', href: 'mailto:larchitectebarber@gmail.com' }, ['larchitectebarber@gmail.com'])
+            h('span', { 'data-f': 'address' }, ['16, place Pélabon, 13013 Marseille']),
+            // two items of a row that wraps, no « · » between them: a line break can strand no separator (the phone is hidden while the salon has none)
+            h('span', { class: 'ft-ways' }, [
+              h('span', { 'data-opt': '', hidden: '' }, [h('a', { 'data-f': 'phone', 'data-link': 'tel' })]),
+              h('a', { 'data-f': 'shop.email', 'data-link': 'mail', href: 'mailto:larchitectebarber@gmail.com' }, ['larchitectebarber@gmail.com'])
+            ])
           ])
         ]),
         h('nav', { 'aria-label': 'Pages du site' }, [h('ul', { class: 'ft-l' }, links.map(function (l) {
@@ -130,7 +133,7 @@
           if (l[0] === here) a.setAttribute('aria-current', 'page');
           return h('li', {}, [a]);
         }))]),
-        h('p', { class: 'ft-c' }, ['© ' + new Date().getFullYear() + ' ', h('span', { 'data-f': 'editor' }, ['Barber L’Architecte']), ' · Pas de pistage, pas de mesure d’audience.'])
+        h('p', { class: 'ft-c' }, ['© ' + new Date().getFullYear() + ' ', h('span', { 'data-f': 'editor' }, ['Barber L’Architecte']), ' ·' + NB + 'Pas de pistage, pas de mesure d’audience.'])
       ]));
     });
   }

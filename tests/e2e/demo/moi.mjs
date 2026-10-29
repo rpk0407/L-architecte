@@ -361,6 +361,33 @@ export default async ({ h, page }) => {
   await narrow.waitForFunction(() => /SAS/.test((document.querySelector('.ms-ft-c') || {}).textContent || ''));
   await noSideScroll(narrow, '/moi sign-in at 320 px');
   await bigEnough(narrow, '.ms-ft a', '/moi footer at 320 px');
+  // the main button keeps its words on one line, and the quiet sentence has no tall gap where its link wraps (the link's 44 px is padding)
+  const btn = await narrow.getByRole('button', { name: 'Recevoir mon code par SMS' }).evaluate((e) => { const r = document.createRange(); r.selectNodeContents(e); return { h: e.getBoundingClientRect().height, lines: new Set([...r.getClientRects()].map((x) => Math.round(x.top))).size, over: e.scrollWidth > e.clientWidth }; });
+  if (btn.lines !== 1 || btn.over || btn.h < 44) throw new Error('the main button at 320 px: ' + JSON.stringify(btn));
+  const quiet = await narrow.locator('.ms-quiet').evaluate((e) => { const a = e.querySelector('a').getBoundingClientRect(); return { h: e.getBoundingClientRect().height, lh: parseFloat(getComputedStyle(e).lineHeight), link: a.height }; });
+  if (quiet.h > 3 * quiet.lh + 1) throw new Error('« Reçois son lien » leaves a tall gap at 320 px: ' + JSON.stringify(quiet));
+  if (quiet.link < 43.5) throw new Error('the quiet link is under 44 px: ' + JSON.stringify(quiet));
+  // the first-name hint fits the field (the answers of the number and the code steps are staged: the server's codes are limited)
+  await narrow.route('**/api/public/account/start', (r) => r.fulfill({ json: { ok: true, message: 'Si ce numéro est connu du salon, un code arrive par SMS.' } }));
+  await narrow.route('**/api/public/account/verify', (r) => r.fulfill({ json: { ok: false, ask: 'first', message: 'Ton prénom ?' } }));
+  await narrow.getByLabel('Ton numéro de mobile').fill('06 99 88 77 66');
+  await narrow.getByRole('button', { name: 'Recevoir mon code par SMS' }).click();
+  await narrow.locator('#m-code').waitFor();
+  await narrow.locator('#m-code').focus();
+  await narrow.keyboard.type('123456');
+  await narrow.locator('#m-first').waitFor();
+  const hint = await narrow.locator('#m-first').evaluate((e) => {
+    const f = getComputedStyle(e), p = getComputedStyle(e, '::placeholder');
+    const c = document.createElement('canvas').getContext('2d');
+    c.font = p.fontWeight + ' ' + p.fontSize + ' ' + p.fontFamily;
+    const text = e.getAttribute('placeholder') || '';
+    return { need: c.measureText(text).width + (parseFloat(p.letterSpacing) || 0) * text.length, room: e.clientWidth - parseFloat(f.paddingLeft) - parseFloat(f.paddingRight) };
+  });
+  if (hint.need > hint.room) throw new Error('the first-name hint is clipped at 320 px: ' + JSON.stringify(hint));
+  await narrow.unroute('**/api/public/account/start');
+  await narrow.unroute('**/api/public/account/verify');
+  await narrow.goto(h.base + '/moi');
+  await narrow.getByLabel('Ton numéro de mobile').waitFor();
   // the phone and the e-mail never share a line with a separator that a break could strand: there is none, and each fits its line
   if ((await text(narrow, '.ms-ft address')).includes('·')) throw new Error('a separator in the footer’s address line');
   const ways = await narrow.locator('.ms-ft-ways a').evaluateAll((els) => els.map((e) => { const r = e.getBoundingClientRect(); return { right: r.right, t: e.textContent }; }));
@@ -370,6 +397,18 @@ export default async ({ h, page }) => {
   await narrow.goto(h.base + '/confidentialite');
   await ready(narrow);
   const ftTheirs = await text(narrow, '.ft-c');
+  // the static pages' footer wraps its phone and e-mail the same way: two items, no « · » between them, each inside the screen
+  for (const path of ['/confidentialite', '/mon-rendez-vous', '/resilier']) {
+    await narrow.goto(h.base + path);
+    await ready(narrow);
+    if ((await text(narrow, '.ft address')).includes('·')) throw new Error(path + ': a separator in the footer’s address line');
+    const theirWays = await narrow.locator('.ft-ways a').evaluateAll((els) => els.filter((e) => e.offsetParent !== null).map((e) => { const r = e.getBoundingClientRect(); return { right: r.right, h: r.height, t: e.textContent }; }));
+    if (theirWays.length !== 2 || theirWays.some((w) => w.right > 320 || w.h < 44)) throw new Error(path + ': the footer’s phone and e-mail at 320 px: ' + JSON.stringify(theirWays));
+    // the © line's dot is glued to the words after it: a no-break space, never a plain one
+    if (!(await narrow.locator('.ft-c').first().textContent()).includes('·\u00a0Pas de pistage')) throw new Error(path + ': the © line can end on its dot');
+  }
+  await narrow.goto(h.base + '/confidentialite');
+  await ready(narrow);
   if (ftMine !== ftTheirs) throw new Error('the footer’s © line is « ' + ftMine + ' », the static pages say « ' + ftTheirs + ' »');
   if (!/^© \d{4} L’Architecte SAS · Pas de pistage, pas de mesure d’audience\.$/.test(ftMine)) throw new Error('the © line: ' + ftMine);
 
@@ -387,9 +426,54 @@ export default async ({ h, page }) => {
   // the field, the cells and the buttons are drawn for it (dark text on the red button, light text on the dark field)
   const numberField = await paint(narrow, '.ms-inp');
   if (!numberField.startsWith('rgb(23, 21, 19)')) throw new Error('dark: the number field is ' + numberField);
-  // the signed-in space has no dark theme: it stays light, whatever the phone says
+  // the signed-in space is dark with it: nothing flips between the sign-in, « C'est bon » and the home (the page behind, the body, every sample)
+  await narrow.evaluate(() => {
+    window.__paint = [];
+    const t = setInterval(() => window.__paint.push(getComputedStyle(document.documentElement).backgroundColor + ' | ' + getComputedStyle(document.body).backgroundColor), 25);
+    window.__stop = () => clearInterval(t);
+  });
   await narrow.getByRole('button', { name: 'Essayer avec un client de démo' }).click();
   await narrow.getByRole('heading', { name: /^Salut / }).waitFor({ timeout: 10000 });
-  const lit = await narrow.evaluate(() => ({ lit: document.documentElement.classList.contains('m-lit'), bg: getComputedStyle(document.body).backgroundColor, bar: (document.querySelector('meta[name="theme-color"]') || {}).content }));
-  if (!lit.lit || lit.bg !== 'rgb(236, 232, 224)' || lit.bar !== '#ECE8E0') throw new Error('dark: the signed-in space is not light: ' + JSON.stringify(lit));
+  const painted = await narrow.evaluate(() => { window.__stop(); return [...new Set(window.__paint)]; });
+  if (painted.length !== 1 || painted[0] !== 'rgb(15, 14, 13) | rgb(15, 14, 13)') throw new Error('dark: the page changes colour on the way in: ' + JSON.stringify(painted));
+  const home = await narrow.evaluate(() => {
+    const c = (sel, p = 'backgroundColor') => { const e = document.querySelector(sel); return e ? getComputedStyle(e)[p] : null; };
+    return { lit: document.documentElement.classList.contains('m-lit'), page: c('.m-page'), card: c('.m-avs'), ticket: c('.m-hero'), ink: c('.m-hello h1', 'color'), book: c('.m-book', 'color'), bookBg: c('.m-book'), tabs: c('.m-tabs'), bars: [...document.querySelectorAll('meta[name="theme-color"]')].map((m) => m.content + '@' + m.media) };
+  });
+  if (home.lit) throw new Error('dark: the page still carries the light-forcing mark');
+  if (home.card !== 'rgb(23, 21, 19)') throw new Error('dark: a card of the home is ' + home.card);
+  if (home.ticket !== 'rgb(34, 31, 28)') throw new Error('dark: the hero ticket is ' + home.ticket);
+  if (home.ink !== 'rgb(236, 232, 224)') throw new Error('dark: the title is ' + home.ink);
+  if (home.book !== 'rgb(15, 14, 13)' || home.bookBg !== 'rgb(235, 70, 57)') throw new Error('dark: the « Réserver » button is ' + home.book + ' on ' + home.bookBg);
+  if (!/rgba\(23, 21, 19/.test(home.tabs)) throw new Error('dark: the tab bar is ' + home.tabs);
+  if (home.bars.join(' ') !== '#ECE8E0@(prefers-color-scheme: light) #0F0E0D@(prefers-color-scheme: dark)') throw new Error('dark: the browser bar is ' + home.bars);
+  await h.shot(narrow, 'moi-home-dark-320');
+  // a sheet, the profile's fields and a switch are dark as well, and each field's border is the 3:1 grey
+  await narrow.getByRole('button', { name: /Carnet/ }).first().click();
+  await narrow.getByRole('dialog').waitFor();
+  const dim = await narrow.getByRole('dialog').evaluate((e) => getComputedStyle(e).backgroundColor);
+  if (dim !== 'rgb(15, 14, 13)') throw new Error('dark: the sheet is ' + dim);
+  await h.shot(narrow, 'moi-sheet-dark-320');
+  await narrow.keyboard.press('Escape');
+  await narrow.goto(h.base + '/moi/profil');
+  await narrow.locator('.mp-input').first().waitFor();
+  const profileField = await narrow.locator('.mp-input').first().evaluate((e) => { const c = getComputedStyle(e); return c.backgroundColor + ' | ' + c.boxShadow; });
+  if (!profileField.startsWith('rgb(31, 28, 25)') || !profileField.includes('rgb(122, 116, 108)')) throw new Error('dark: the profile field is ' + profileField);
+  await h.shot(narrow, 'moi-profile-dark-320');
+  // the pages reached by a link are dark too, and a printed receipt stays black on white whatever the phone says
+  await narrow.goto(h.base + '/moi/historique');
+  const receipt = await narrow.locator('a.m-rec').first().getAttribute('href');
+  await narrow.goto(receipt);
+  await narrow.locator('.c-rec').waitFor();
+  const onScreen = await narrow.evaluate(() => ({ bg: getComputedStyle(document.body).backgroundColor, card: getComputedStyle(document.querySelector('.c-rec')).backgroundColor, ink: getComputedStyle(document.querySelector('.c-rec h1')).color, bar: document.querySelector('meta[name="theme-color"][media*="dark"]').content }));
+  if (onScreen.bg !== 'rgb(15, 14, 13)' || onScreen.card !== 'rgb(23, 21, 19)' || onScreen.ink !== 'rgb(236, 232, 224)') throw new Error('dark: the receipt is ' + JSON.stringify(onScreen));
+  await narrow.emulateMedia({ colorScheme: 'dark', media: 'print' });
+  const printed = await narrow.evaluate(() => ({ bg: getComputedStyle(document.body).backgroundColor, ink: getComputedStyle(document.querySelector('.c-rec h1')).color }));
+  if (printed.bg !== 'rgb(255, 255, 255)' || printed.ink !== 'rgb(15, 14, 13)') throw new Error('dark: the printed receipt is ' + JSON.stringify(printed));
+  await narrow.emulateMedia({ colorScheme: 'light', media: 'screen' });
+  // and light again with the phone: the same pages, the paper
+  await narrow.goto(h.base + '/moi');
+  await narrow.getByRole('heading', { name: /^Salut / }).waitFor({ timeout: 10000 });
+  const lightHome = await narrow.evaluate(() => ({ page: getComputedStyle(document.body).backgroundColor, ticket: getComputedStyle(document.querySelector('.m-hero')).backgroundColor }));
+  if (lightHome.page !== 'rgb(236, 232, 224)' || lightHome.ticket !== 'rgb(15, 14, 13)') throw new Error('light: the home is ' + JSON.stringify(lightHome));
 };

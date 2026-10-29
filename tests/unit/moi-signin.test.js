@@ -2,7 +2,7 @@
 // promising in the source (one real code input, no maxLength that truncates a paste, the words the audit asked for).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { codeOf, typedPhone, showPhone, validPhone, clock, telHref } from '../../web/src/moi/phone.ts';
 import { perksLine } from '../../web/src/moi/perks.ts';
@@ -127,8 +127,8 @@ test('the history entry always says what the page shows: a stale or used link le
   assert.match(s, /if \(depth\(\) < 1\) history\.pushState\(\{ moi: 1 \}, ''\);/);
 });
 
-test('the signed-out frame follows the phone’s dark mode with the values of the static pages', () => {
-  const css = read('web/src/moi/moi.css');
+test('the whole client space follows the phone’s dark mode with the values of the static pages', () => {
+  const client = read('web/src/client/client.css');
   const pages = read('public/pages.css');
   // pages.css's dark tokens: --bg, --sf, --tx, --tx2, --ln, --ln2
   const dark = /@media \(prefers-color-scheme:dark\)\{\s*:root\{([^}]*)\}/.exec(pages);
@@ -136,23 +136,56 @@ test('the signed-out frame follows the phone’s dark mode with the values of th
   const pc = {};
   for (const m of pages.matchAll(/--(encre2?|os|cendre):(#[0-9A-Fa-f]{6})/g)) pc[m[1]] = m[2].toUpperCase();
   assert.match(dark[1], /--bg:var\(--encre\);--sf:var\(--encre2\);--tx:var\(--os\);--tx2:var\(--cendre\);--ln:rgba\(236,232,224,\.14\);--ln2:rgba\(236,232,224,\.28\)/);
-  const mine = /@media \(prefers-color-scheme: dark\) \{\s*html:not\(\.m-lit\)[\s\S]*?\n\}\n/.exec(css);
-  assert.ok(mine, 'moi.css has no dark block for the signed-out frame');
+  // client.css (every client page, /moi signed in and out included) has the one dark block; the screen only, so a printed page stays light
+  const mine = /@media screen and \(prefers-color-scheme: dark\) \{\s*:root \{[\s\S]*?\n  \}\n\}\n/.exec(client);
+  assert.ok(mine, 'client.css has no dark block for :root');
   const b = mine[0].toUpperCase().replace(/\s+/g, ' ');
   assert.ok(b.includes('--PAPER: ' + pc.encre), 'paper is the pages’ --bg');
   assert.ok(b.includes('--CARD: ' + pc.encre2), 'card is the pages’ --sf');
   assert.ok(b.includes('--INK: ' + pc.os), 'ink is the pages’ --tx');
   assert.ok(b.includes('--INK2: ' + pc.cendre), 'ink2 is the pages’ --tx2');
   assert.ok(b.includes('--LINE: RGBA(236, 232, 224, .14)') && b.includes('--LINE2: RGBA(236, 232, 224, .28)'), 'lines are the pages’');
-  // the signed-in space keeps its light: the page behind it is marked, and the frame never hard-codes a light-only colour
-  assert.match(read('web/src/moi/main.tsx'), /function Shell\(.*\) \{\s*useLit\(\);/);
-  assert.match(read('web/src/moi/lit.ts'), /classList\.add\('m-lit'\)/);
-  // (the spinner on a red button is the one dark tint: it sits on red in both themes)
-  const frame = css.slice(css.indexOf('/* the sign-in, signed out'), css.indexOf('/* the tab bar */')).replace(/\.c-btn \.ms-spin[^\n]*/, '');
-  assert.doesNotMatch(frame, /#9E2A21|#2a2825|color: #fff|rgba\(15, 14, 13/, 'a light-only colour in the signed-out frame');
+  assert.ok(b.includes('COLOR-SCHEME: DARK'));
+  // the field's border is the same grey on the static pages and in the client space (3:1 against what is around it), both themes
+  assert.match(client, /--edge: #837D74;/);
+  assert.match(client, /--edge: #7A746C;/);
+  assert.match(pages, /--edge:#837D74;/);
+  assert.match(pages, /--edge:#7A746C;/);
+  for (const f of ['public/mon-rendez-vous.html', 'public/resilier.html', 'public/carte-cadeau.html', 'public/demande.css']) assert.match(read(f), /\.inp\{[^}]*box-shadow:inset 0 0 0 1\.5px var\(--edge\)/, f + ': a field’s border is --edge');
+  assert.match(read('web/src/moi/moi.css'), /\.ms-inp \{[^}]*border: 1\.5px solid var\(--edge\)/);
+  assert.match(read('web/src/moi/cards/profile.css'), /\.mp-input \{[^}]*inset 0 0 0 1\.5px var\(--edge\)/);
+  assert.match(read('web/src/client/abonnement/member.css'), /\.mb-field select \{[^}]*inset 0 0 0 1\.5px var\(--edge\)/);
+  // there is no light-forcing left: nothing marks <html>, no screen has its own copy of the tokens
+  assert.ok(!existsSync(join(ROOT, 'web/src/moi/lit.ts')), 'lit.ts is gone');
+  assert.ok(!existsSync(join(ROOT, 'web/src/client/abonnement/member-kit.css')), 'the scoped light copy of the kit is gone');
+  assert.doesNotMatch(read('web/src/moi/main.tsx'), /useLit|m-lit/);
+  assert.doesNotMatch(read('web/src/moi/moi.css'), /m-lit|--paper:|--ink:|--card:/);
+  // the browser's bar follows the phone on every client page
+  for (const f of ['web/moi/index.html', 'web/client/index.html']) {
+    const html = read(f);
+    assert.match(html, /content="#ECE8E0" media="\(prefers-color-scheme: light\)"/, f);
+    assert.match(html, /content="#0F0E0D" media="\(prefers-color-scheme: dark\)"/, f);
+  }
+  // a rule never hard-codes a colour that only fits one theme: the client space's CSS says tokens (the few that are the same in both
+  // themes, a colour on red or on the ink ticket, and the printed gift card, are allowed; a var()'s fallback is its token's light value)
+  const SAME = /rgba\(235, 70, 57, \.\d+\)|rgba\(15, 14, 13, \.(22|3|4)\)|#86EFAC|#4ADE80|#FCD38D|#F5B544|#EB4639|#0F0E0D|#ECE8E0|#fff|#000|#333|#ccc/g;
+  const files = ['web/src/moi/moi.css', 'web/src/moi/cards/profile.css', 'web/src/moi/guide/welcome.css', 'web/src/moi/avantages/loyalty.css', 'web/src/client/abonnement/member.css', 'web/src/client/cadeau.css', 'web/src/ui/stampcard.css'];
+  for (const f of files) {
+    // (a print rule is for white paper: its own colours)
+    const css = read(f).replace(/@media print \{[\s\S]*?\n\}/g, '').replace(/\/\*[\s\S]*?\*\//g, '').replace(/var\((?:[^()]|\([^()]*\))*\)/g, '').replace(SAME, '');
+    const left = css.match(/#[0-9A-Fa-f]{3,8}\b|rgba?\([^)]*\)/g) || [];
+    // what remains is a shadow's black or a veil: neutral in both themes
+    const bad = left.filter((c) => !/^rgba\(15, 14, 13, \.\d+\)$|^rgba\(0, 0, 0, \.\d+\)$/.test(c));
+    assert.deepEqual(bad, [], f + ' hard-codes a colour of one theme');
+  }
+  // the text on the brand red is dark ink in both themes (the red is light enough): a button, a badge, a stamp, a staff initial
+  assert.match(client, /--on-red: #0F0E0D;/);
+  assert.match(client, /\.c-btn \{[^}]*background: var\(--red\); color: var\(--on-red\)/);
+  assert.match(client, /\.c-staff i \{[^}]*color: var\(--on-red\)/);
+  assert.match(read('web/src/ui/stampcard.css'), /--sc-ink: var\(--on-red/);
+  assert.match(read('web/src/ui/tour/tour.css'), /--t-on: var\(--on-red/);
   // the title of the success moment is focused by script: no focus rectangle on it, as on the other titles
-  assert.match(css, /\.ms-head h1:focus, \.ms-ok h1:focus \{ outline: none; \}/);
-  assert.match(read('web/moi/index.html'), /content="#0F0E0D" media="\(prefers-color-scheme: dark\)"/);
+  assert.match(read('web/src/moi/moi.css'), /\.ms-head h1:focus, \.ms-ok h1:focus \{ outline: none; \}/);
 });
 
 test('the footer says what the static pages say, and strands no separator at the end of a line', () => {
@@ -160,10 +193,26 @@ test('the footer says what the static pages say, and strands no separator at the
   const p = read('public/pages.js');
   // « © 2026 L’Architecte SAS · Pas de pistage, pas de mesure d’audience. »: the editor’s (legal) name, as pages.js writes it
   assert.ok(p.includes("'© ' + new Date().getFullYear() + ' ', h('span', { 'data-f': 'editor' }") && p.includes("var editor = sh.legalName || sh.name || '';"));
-  assert.ok(p.includes(' · Pas de pistage, pas de mesure d’audience.'));
+  assert.ok(p.includes(" ·' + NB + 'Pas de pistage, pas de mesure d’audience."), 'the dot stays with the words after it');
   assert.match(f, /© \{new Date\(\)\.getFullYear\(\)\} \{salon\.editor\} \{'·' \+ NB\}Pas de pistage, pas de mesure d’audience\./);
   assert.match(read('web/src/moi/salon.ts'), /editor: String\(sh\.legalName \|\| sh\.name \|\| DEFAULTS\.editor\)/);
   // the phone and the e-mail wrap as two items of a row; there is no « · » between them to be left at a line end
   assert.match(f, /<span className="ms-ft-ways">/);
   assert.doesNotMatch(f, /<\/a> · <\/>/);
+  // the static pages' footer is the same row (public/pages.js, pages.css): two items that wrap, no « · » in the address, the phone hidden while the salon has none
+  assert.match(p, /h\('span', \{ class: 'ft-ways' \}, \[\s*h\('span', \{ 'data-opt': '', hidden: '' \}, \[h\('a', \{ 'data-f': 'phone', 'data-link': 'tel' \}\)\]\),/);
+  assert.doesNotMatch(p, /\}\), ' · '\]\)/);
+  const pc = read('public/pages.css');
+  assert.match(pc, /\.ft-ways\{display:flex;flex-wrap:wrap;column-gap:22px\}/);
+  assert.match(read('web/src/moi/moi.css'), /\.ms-ft-ways \{ display: flex; flex-wrap: wrap; column-gap: 22px; \}/);
+});
+
+test('at 320 px the first-name hint, the main button and the quiet link keep their lines', () => {
+  const css = read('web/src/moi/moi.css');
+  // the main button never wraps its words; under 360 px it is a notch smaller, and the hint of the name field too
+  assert.match(css, /\.ms-form \.c-btn \{ white-space: nowrap; \}/);
+  assert.match(css, /@media \(max-width: 359px\) \{\s*\.ms-inp::placeholder \{ font-size: 16px; letter-spacing: 0; \}\s*\.ms-form \.c-btn \{ padding: 0 14px; font-size: 15\.5px; \}/);
+  // « Reçois son lien. » stays in its sentence (a block of text, the link inline); its 44 px is padding around it, not line height
+  assert.match(css, /\.ms-quiet \{ display: block;/);
+  assert.match(css, /\.ms-quiet a \{ display: inline; padding: 13px 2px;/);
 });

@@ -12,10 +12,12 @@
 --f-serif:'Instrument Serif','Times New Roman',Times,serif;--f-sans:'Instrument Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
 --pad:clamp(16px,5.4vw,80px);--ease:cubic-bezier(.2,.7,.2,1);
 --bg:var(--os);--sf:var(--blanc);--tx:var(--encre);--tx2:var(--cendre2);--ln:rgba(15,14,13,.12);--ln2:rgba(15,14,13,.3);--ac:var(--rouge);--on-ac:var(--encre);
+/* a field's border: 3:1 against the page and the card around it (the same as /moi's) */
+--edge:#837D74;
 color-scheme:light
 }
 @media (prefers-color-scheme:dark){
-:root{--bg:var(--encre);--sf:var(--encre2);--tx:var(--os);--tx2:var(--cendre);--ln:rgba(236,232,224,.14);--ln2:rgba(236,232,224,.28);color-scheme:dark}
+:root{--bg:var(--encre);--sf:var(--encre2);--tx:var(--os);--tx2:var(--cendre);--ln:rgba(236,232,224,.14);--ln2:rgba(236,232,224,.28);--edge:#7A746C;color-scheme:dark}
 }
 *,*::before,*::after{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
@@ -100,7 +102,9 @@ dd{margin:0;font-weight:500;overflow-wrap:anywhere}
 .ft-g{display:grid;gap:22px;max-width:1320px;margin:0 auto}
 .ft-n{display:block;color:var(--tx);font:italic 400 24px/1 var(--f-serif)}
 .ft address{margin-top:8px;font-style:normal;line-height:1.5}
-.ft address a{text-decoration:none}
+/* the phone and the e-mail: two items of a row that wraps (side by side when they fit, one under the other when not), no separator to strand at a line's end */
+.ft-ways{display:flex;flex-wrap:wrap;column-gap:22px}
+.ft address a{display:inline-flex;align-items:center;min-width:0;min-height:44px;overflow-wrap:anywhere;text-decoration:none}
 .ft address a:hover{text-decoration:underline;text-underline-offset:4px}
 .ft-l{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 18px;margin:0;padding:0;list-style:none}
 .ft-l li{margin:0}
