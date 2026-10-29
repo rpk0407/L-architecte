@@ -102,7 +102,10 @@ export default async ({ h, page }) => {
   const step = (id) => page.locator('.jj-step[data-step="' + id + '"]');
   const waitState = async (id, want) => { for (const t0 = Date.now(); Date.now() - t0 < 20000; await page.waitForTimeout(200)) if ((await step(id).getAttribute('data-state')) === want) return; throw new Error(id + ' is ' + (await step(id).getAttribute('data-state')) + ', expected ' + want); };
   await waitState('first-run', 'ok');
-  await waitState('redirects', 'ok');
+  // the old addresses answer on this server's own address, but without a domain pointing here they are still « à faire »
+  await waitState('redirects', 'todo');
+  await seen(page, 'redirigent comme prévu sur');
+  await seen(page, 'ton domaine n’est pas encore indiqué');
   await waitState('dns', 'todo');
   if (await page.getByLabel('Ton domaine').count() !== 1) throw new Error('the card does not ask for the domain');
   // a typed domain is checked as a name, not as an address

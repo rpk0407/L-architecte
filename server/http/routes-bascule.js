@@ -331,7 +331,7 @@ export async function basculeOf(rt, o = {}) {
     // the old addresses were tried on the public address (maybe still Vercel's own, or the old site's): they only count once the domain points here
     const host = (() => { try { return new URL(rt.cfg.publicUrl).host; } catch { return ''; } })();
     const redir = redirS.state === 'ok' && dnsS.state !== 'ok'
-      ? { id: 'redirects', state: /** @type {const} */ ('todo'), line: redirS.line.replace(/\.$/, '') + ' sur ' + host + ', mais ' + domain + ' ne pointe pas encore vers le nouveau site : refais la vérification une fois les DNS changés.' }
+      ? { id: 'redirects', state: /** @type {const} */ ('todo'), line: redirS.line.replace(/\.$/, '') + ' sur ' + host + ', mais ' + (domain ? domain + ' ne pointe pas encore vers le nouveau site' : 'ton domaine n’est pas encore indiqué (étape DNS)') + ' : refais la vérification une fois les DNS changés.' }
       : redirS.state === 'ok' ? { ...redirS, line: redirS.line.replace(/\.$/, '') + ' (testées sur ' + host + ').' } : redirS;
     steps.push(dnsS, redir);
     // the owner's word when the check cannot say (IONOS blocks the request, the page is behind a login)
