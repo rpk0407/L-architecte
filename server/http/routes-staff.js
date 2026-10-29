@@ -554,7 +554,7 @@ export function staffRoutes(app) {
 
   // what erasing this file would close, shown before anything happens; smsLive: does a text really leave (a provider,
   // or the demo)? Otherwise the owner tells the client himself
-  app.get('/api/v1/clients/:id/open', (r) => ({ ...C.openItems(r.s, fileOf(r), r.local), smsLive: !!r.rt.sms || r.s.mode === 'demo' }), { cap: 'client.erase' });
+  app.get('/api/v1/clients/:id/open', (r) => ({ ...C.openItems(r.s, fileOf(r), r.local), smsLive: !!r.rt.sms || r.s.mode === 'demo', old: r.s.mode === 'production' && !!r.s.imports && r.s.imports.runs.size > 0 }), { cap: 'client.erase' });
   app.post('/api/v1/clients/:id/erase', async (r) => {
     const input = { id: r.params.id, cancelUpcoming: r.body.cancelUpcoming === true };
     const out = { cancelled: 0, texted: 0, unsent: 0, refunded: 0 };

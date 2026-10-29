@@ -149,7 +149,7 @@ export type ZFigures = {
 };
 export type ZRow = { k: string; v?: number; t?: string; tone?: 'total' | 'sub' | 'head' };
 
-const ORDER = ['card', 'cash', 'online', 'deposit', 'giftcard'];
+const ORDER = ['card', 'cash', 'online', 'deposit', 'ancien', 'giftcard'];
 const rate = (r: number) => String(r / 100).replace('.', ',') + ' %';
 const tk = (n: number) => 'T' + String(n).padStart(6, '0');
 
@@ -166,7 +166,7 @@ export function zRows(z: ZFigures): ZRow[] {
     // a day with no sale has no rate to show: one plain line rather than a made-up "0 %"
     ...(z.vatNet.length ? z.vatNet.map((x): ZRow => ({ k: 'dont TVA ' + rate(x.rate), v: x.tax, tone: 'sub' })) : [{ k: 'dont TVA', v: 0, tone: 'sub' } as ZRow]),
     { k: 'Règlements, remboursements déduits', tone: 'head' },
-    ...methods(z.paymentsNet).map((m): ZRow => ({ k: METHOD[m] || m, v: z.paymentsNet[m] })),
+    ...methods(z.paymentsNet).map((m): ZRow => ({ k: (m === 'ancien' ? 'Acomptes de l’ancien site' : METHOD[m]) || m, v: z.paymentsNet[m] })),
     { k: 'Total des règlements', v: z.paidTotal, tone: 'total' },
     // a gift card used or a deposit settles the ticket, but that money came in on another day
     ...(z.prepaid ? [{ k: 'dont carte cadeau et acompte', v: z.prepaid, tone: 'sub' } as ZRow] : []),

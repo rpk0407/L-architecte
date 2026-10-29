@@ -106,7 +106,7 @@ export function apptView(s, a, caps, stats, now = Date.now()) {
     id: a.id, code: a.code, staffId: a.staffId, anyStaff: a.anyStaff, day: a.day, start: a.start, dur: a.dur, services: a.services, price: a.price,
     status: a.status, source: a.source, note: a.note || '', name: c ? nameOn(a, c) : a.name || 'Client',
     client: c ? clientCard(s, c, caps, stats, now) : null, deposit: a.deposit, guarantee: a.guarantee || null, saleId: a.saleId, createdAt: a.createdAt,
-    statusAt: a.statusAt || {}, cancel: a.cancel, moves: a.moves || 0, demo: !!a.demo, legacy: !!a.legacy
+    statusAt: a.statusAt || {}, cancel: a.cancel, moves: a.moves || 0, demo: !!a.demo, legacy: !!a.legacy, paidOld: a.ext && a.ext.paid && !a.saleId ? a.ext.paid : 0
   };
 }
 

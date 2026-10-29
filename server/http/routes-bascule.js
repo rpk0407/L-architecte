@@ -7,12 +7,13 @@
 // ticks and the list of features waiting for the switch (domain/features.js). Owner only ('settings').
 import dns from 'node:dns';
 import { HttpError, guard } from './kit.js';
-import { cutoverHold, heldByCutover, finalSync, lateBookings } from '../projections/bascule.js';
-import { freezeWordpress, markSwitched, tickBascule } from '../commands/bascule.js';
+import { cutoverHold, heldByCutover, finalSync, lateBookings, exportOf, STALE_EXPORT_MS } from '../projections/bascule.js';
+import { freezeWordpress, markSwitched, tickBascule, rollbackBascule } from '../commands/bascule.js';
+import { CANCEL_REASON, GONE_REASON } from '../commands/import.js';
 import { featuresOf } from '../domain/features.js';
 import { staleReason } from './scheduler.js';
 import { CASES } from '../../shared/redirects.js';
-import { localParts, dayParts, MONTHS_FR, hhmm } from '../../shared/dates.js';
+import { localParts, dayParts, MONTHS_FR, MONTHS_SH, hhmm } from '../../shared/dates.js';
 import { fmtPhone } from '../lib/util.js';
 import { csv } from '../lib/csv.js';
 
@@ -72,18 +73,60 @@ function local(loc, origin) {
 
 /** @typedef {{ id: string, state: 'ok'|'todo'|'warn'|'err'|'info', line: string, at?: number, field?: string }} Step */
 
-/** The DNS of the domain: Vercel's address or CNAME, else the old host's. @returns {Promise<Step>} */
+/** « 29 oct. 00:31 » */
+const stamp = (ms) => { const p = localParts(ms); const d = dayParts(p.day); return d.d + ' ' + MONTHS_SH[d.m - 1] + ' ' + hhmm(p.min); };
+/**
+ * The final sync's line: which export it was made from. An export older than the freeze (less ten minutes) cannot hold what changed
+ * after it: the step reads « à vérifier », the switch is not blocked and its confirmation says it again.
+ * @param {any} run @param {number} frozenAt @returns {Step}
+ */
+function finalLine(run, frozenAt) {
+  const ex = exportOf(run);
+  const done = hhmm(localParts(run.finishedAt).min);
+  if (!ex.at) return { id: 'final-sync', state: 'ok', at: run.finishedAt, line: 'Faite à ' + done + ', après le gel.' };
+  if (ex.at < frozenAt - STALE_EXPORT_MS) return { id: 'final-sync', state: 'warn', at: run.finishedAt, line: 'Export du ' + stamp(ex.at) + ' : plus ancien que le gel de WordPress (' + stamp(frozenAt) + '). Refais l’export après le gel et dépose-le, sinon ce qui a changé depuis n’est pas repris.' };
+  return { id: 'final-sync', state: 'ok', at: run.finishedAt, line: 'Export du ' + stamp(ex.at) + ' · ' + pl(ex.rows, 'rendez-vous', 'rendez-vous') + (ex.newest ? ' · le plus récent pris le ' + stamp(ex.newest) : '') + ' · repris à ' + done + ', après le gel.' };
+}
+
+/** What a DNS error says: no such record (a step to do) or a doubt (a timeout, a refusing resolver). */
+const noRecord = (e) => !!e && (e.code === 'ENODATA' || e.code === 'ENOTFOUND');
+/**
+ * The DNS of the domain, and of www: everything that answers must be Vercel's. An A record or an AAAA that still points to the old host
+ * sends part of the visitors to WordPress, so one such record is enough for « à faire », whatever else is right (the old IONOS record
+ * left beside Vercel's, an IPv6 address nobody removed, www still at IONOS).
+ * @returns {Promise<Step>}
+ */
 async function dnsStep(rt, domain) {
   const resolve = rt.dnsResolve || ((h, t) => dns.promises.resolve(h, t));
-  const [a, c] = await Promise.allSettled([within(resolve(domain, 'A'), CHECK_MS), within(resolve(domain, 'CNAME'), CHECK_MS)]);
-  const ips = a.status === 'fulfilled' ? a.value.map(String) : [];
-  const names = c.status === 'fulfilled' ? c.value.map(String) : [];
-  if (ips.some((ip) => VERCEL_A.includes(ip)) || names.some((n) => VERCEL_CNAME.test(n))) return { id: 'dns', state: 'ok', line: domain + ' pointe vers le nouveau site.' };
-  if (ips.length || names.length) return { id: 'dns', state: 'todo', line: domain + ' pointe vers ' + [...ips, ...names].join(', ') + ', pas vers le nouveau site : change les DNS chez IONOS, tableau du jour J.' };
-  // neither answered: an unknown name is a step to do, anything else (a timeout, a refusing resolver) is a doubt
-  const errs = [a, c].map((x) => (x.status === 'rejected' ? x.reason : null)).filter(Boolean);
-  if (errs.every((e) => e && (e.code === 'ENODATA' || e.code === 'ENOTFOUND'))) return { id: 'dns', state: 'todo', line: domain + ' n’a pas d’adresse pour l’instant : change les DNS chez IONOS, tableau du jour J.' };
-  return { id: 'dns', state: 'warn', line: 'Vérification impossible : ' + reason(errs[0]) };
+  const hosts = [domain, 'www.' + domain];
+  const jobs = hosts.flatMap((h) => ['A', 'AAAA', 'CNAME'].map((t) => within(Promise.resolve().then(() => resolve(h, t)), CHECK_MS).then((v) => ({ h, t, v: [].concat(v).map(String) }), (e) => ({ h, t, v: /** @type {string[]} */ ([]), e }))));
+  const got = await Promise.all(jobs);
+  const of = (h, t) => got.find((x) => x.h === h && x.t === t) || { v: [] };
+  const at = (h) => ({ a: of(h, 'A').v, aaaa: of(h, 'AAAA').v.filter((x) => x.includes(':')), cname: of(h, 'CNAME').v });
+  const apex = at(domain), www = at('www.' + domain);
+  const mine = (ip) => VERCEL_A.includes(ip);
+  const line = (state, text) => ({ id: 'dns', state, line: text });
+  // nothing at all for the domain: an unknown name is a step to do, anything else (a timeout, a refusing resolver) is a doubt
+  if (!apex.a.length && !apex.cname.length && !apex.aaaa.length) {
+    const errs = got.filter((x) => x.h === domain && x.e).map((x) => x.e);
+    if (errs.every(noRecord)) return line('todo', domain + ' n’a pas d’adresse pour l’instant : change les DNS chez IONOS (les valeurs sont plus bas).');
+    return line('warn', 'Vérification impossible : ' + reason(errs.find((e) => !noRecord(e))));
+  }
+  const strayA = apex.a.filter((ip) => !mine(ip)), strayC = apex.cname.filter((n) => !VERCEL_CNAME.test(n));
+  if ((strayA.length || strayC.length) && !apex.a.some(mine) && !apex.cname.some((n) => VERCEL_CNAME.test(n))) return line('todo', domain + ' pointe vers ' + [...apex.a, ...apex.cname].join(', ') + ', pas vers le nouveau site : change les DNS chez IONOS (les valeurs sont plus bas).');
+  if (strayA.length) return line('todo', strayA.join(', ') + (strayA.length > 1 ? ' sont encore dans les A de ' : ' est encore dans les A de ') + domain + ' : supprime-' + (strayA.length > 1 ? 'les' : 'le') + ' chez IONOS, sinon une partie des visiteurs arrive encore sur WordPress.');
+  if (strayC.length) return line('todo', domain + ' a encore un CNAME vers ' + strayC.join(', ') + ' : supprime-le chez IONOS.');
+  if (apex.aaaa.length) return line('todo', domain + ' a encore une adresse IPv6 (AAAA) ' + apex.aaaa.join(', ') + ' : supprime-la chez IONOS, sinon une partie des visiteurs arrive encore sur WordPress.');
+  // www must lead to Vercel too (a CNAME, or the same addresses)
+  const wStray = [...www.a.filter((ip) => !mine(ip)), ...www.cname.filter((n) => !VERCEL_CNAME.test(n))];
+  if (wStray.length) return line('todo', 'www.' + domain + ' pointe encore chez IONOS (' + wStray.join(', ') + ') : remplace-le par le CNAME www → cname.vercel-dns.com.');
+  if (www.aaaa.length) return line('todo', 'www.' + domain + ' a encore une adresse IPv6 (AAAA) ' + www.aaaa.join(', ') + ' : supprime-la chez IONOS.');
+  if (!www.a.length && !www.cname.length) {
+    const errs = got.filter((x) => x.h === 'www.' + domain && x.e).map((x) => x.e);
+    if (errs.some((e) => !noRecord(e))) return line('warn', 'Vérification impossible : ' + reason(errs.find((e) => !noRecord(e))));
+    return line('todo', 'www.' + domain + ' n’a pas d’adresse : ajoute chez IONOS le CNAME www → cname.vercel-dns.com.');
+  }
+  return line('ok', domain + ' pointe vers le nouveau site.');
 }
 
 /** Every old address on the live domain answers with its redirect (the cases of the end-to-end test). @returns {Promise<Step>} */
@@ -196,10 +239,27 @@ async function cached(rt, key, refresh, fn, id) {
  * @param {any} s
  */
 export function takenHere(s) {
-  const since = s.bascule.frozenAt || s.bascule.switchedAt;
+  const since = s.bascule.sinceAt || s.bascule.frozenAt || s.bascule.switchedAt;
   if (!since) return [];
   return [...s.appts.values()].filter((a) => a.source !== 'import' && !a.demo && a.createdAt > since && (a.status === 'booked' || a.status === 'pending'))
     .sort((a, b) => (a.day < b.day ? -1 : a.day > b.day ? 1 : a.start - b.start));
+}
+
+/**
+ * The bookings of the old site that changed here since the freeze: cancelled (by the client, or by hand: not by the import itself)
+ * or moved in the agenda. WordPress still has them as they were: if the switch is taken back, a barber would wait for a client who cancelled.
+ * @param {any} s @returns {{ a: any, how: 'cancelled' | 'moved' }[]}
+ */
+export function changedHere(s) {
+  const since = s.bascule.sinceAt || s.bascule.frozenAt || s.bascule.switchedAt;
+  if (!since) return [];
+  const out = [];
+  for (const a of s.appts.values()) {
+    if (a.source !== 'import' || a.demo || !a.ext || !a.ext.wp) continue;
+    if (a.status === 'cancelled' && a.cancel && a.cancel.at > since && !(a.cancel.by === 'salon' && (a.cancel.reason === CANCEL_REASON || a.cancel.reason === GONE_REASON))) out.push({ a, how: 'cancelled' });
+    else if ((a.status === 'booked' || a.status === 'pending') && a.moves > (a.ext.moves || 0)) out.push({ a, how: 'moved' });
+  }
+  return out.sort((x, y) => (x.a.day < y.a.day ? -1 : x.a.day > y.a.day ? 1 : x.a.start - y.a.start));
 }
 
 /** Texts waiting for the switch: queued for a client, not expired. @param {any} s @param {number} now */
@@ -207,6 +267,13 @@ export function heldQueued(s, now) {
   if (!cutoverHold(s)) return 0;
   let n = 0;
   for (const m of s.messages.values()) if (m.status === 'queued' && heldByCutover(m) && !staleReason(s, m, now)) n++;
+  return n;
+}
+/** Texts that waited for the switch so long that they would be dropped as expired when it opens (more than 6 h late): lost, and said before the switch. */
+export function lostQueued(s, now) {
+  if (!cutoverHold(s)) return 0;
+  let n = 0;
+  for (const m of s.messages.values()) if (m.status === 'queued' && heldByCutover(m) && staleReason(s, m, now)) n++;
   return n;
 }
 
@@ -221,17 +288,18 @@ export async function basculeOf(rt, o = {}) {
   const B = s.bascule;
   const demo = s.mode !== 'production';
   const runs = [...s.imports.order].map((id) => s.imports.runs.get(id)).filter((r) => r && r.finishedAt && !r.undoneAt);
-  const first = runs[0];
+  // the first pass that brought something in: a run that made nothing (an empty catalogue, files nobody could read) is not one
+  const made = (r) => { const a = (r.counts || {}).appts || {}; return (a.done || 0) + (a.noShow || 0) + (a.cancelled || 0) + (a.booked || 0); };
+  const first = runs.find((r) => made(r) + (((r.counts || {}).clients || {}).added || 0) > 0);
   const domain = domainOf(s, rt.cfg, o.domain || '', o.remembered || '');
   const tick = (id) => B.ticks[id] || 0;
   /** @type {Step[]} */
   const steps = [];
 
   if (first) {
-    const c = first.counts || {}, a = c.appts || {}, cl = c.clients || {};
-    const made = (a.done || 0) + (a.noShow || 0) + (a.cancelled || 0) + (a.booked || 0);
-    steps.push({ id: 'first-run', state: 'ok', at: first.finishedAt, line: pl(cl.added || 0, 'client') + ', ' + pl(made, 'rendez-vous') + ' · ' + dm(first.finishedAt) });
-  } else steps.push({ id: 'first-run', state: 'todo', line: 'Pas de premier passage : dépose les exports de WordPress.' });
+    const cl = (first.counts || {}).clients || {};
+    steps.push({ id: 'first-run', state: 'ok', at: first.finishedAt, line: pl(cl.added || 0, 'client') + ', ' + pl(made(first), 'rendez-vous') + ' · ' + dm(first.finishedAt) });
+  } else steps.push({ id: 'first-run', state: 'todo', line: runs.length ? 'Le premier passage n’a rien repris : 0 client, 0 rendez-vous. Vérifie le catalogue, les barbiers et les correspondances, puis refais-le.' : 'Pas de premier passage : dépose les exports de WordPress.' });
 
   steps.push(B.frozenAt ? { id: 'freeze', state: 'ok', at: B.frozenAt, line: 'WordPress est bloqué depuis le ' + dm(B.frozenAt) + ' à ' + hhmm(localParts(B.frozenAt).min) + '.' }
     : { id: 'freeze', state: 'todo', line: 'Dès que c’est fait sur WordPress, dis-le ici : la synchro finale devra venir après.' });
@@ -243,7 +311,7 @@ export async function basculeOf(rt, o = {}) {
   const sync = finalSync(s);
   const late = lateBookings(s);
   steps.push(late ? { id: 'final-sync', state: 'err', at: sync.finishedAt, line: pl(late, 'rendez-vous pris') + ' sur WordPress après le gel : la réservation en ligne est-elle bien coupée ? Coupe-la, puis refais la synchro.' }
-    : sync ? { id: 'final-sync', state: 'ok', at: sync.finishedAt, line: 'Faite à ' + hhmm(localParts(sync.finishedAt).min) + ', après le gel.' }
+    : sync ? finalLine(sync, B.frozenAt)
       : { id: 'final-sync', state: 'todo', line: B.frozenAt ? 'Refais l’export de WordPress et dépose-le : seul ce qui a changé depuis le gel est repris.' : 'Elle vient après le gel de WordPress : refais l’export et dépose-le.' });
 
   steps.push(tick('cold-backup') ? { id: 'cold-backup', state: 'ok', at: tick('cold-backup'), line: 'Copie rangée hors ligne, chiffrée. À effacer dans 12 mois.' }
@@ -259,7 +327,12 @@ export async function basculeOf(rt, o = {}) {
         : { id: 'redirects', state: /** @type {const} */ ('todo'), line: 'L’adresse du site (PUBLIC_URL) n’est pas réglée : rien à vérifier.' },
       domain ? cached(rt, 'ancien|' + domain, refresh, () => ancienStep(rt, domain), 'ancien') : { id: 'ancien', state: /** @type {const} */ ('todo'), line: 'Indique ton domaine pour vérifier l’ancien site.', field: 'domain' }
     ]);
-    steps.push(dnsS, redirS);
+    // the old addresses were tried on the public address (maybe still Vercel's own, or the old site's): they only count once the domain points here
+    const host = (() => { try { return new URL(rt.cfg.publicUrl).host; } catch { return ''; } })();
+    const redir = redirS.state === 'ok' && dnsS.state !== 'ok'
+      ? { id: 'redirects', state: /** @type {const} */ ('todo'), line: redirS.line.replace(/\.$/, '') + ' sur ' + host + ', mais ' + domain + ' ne pointe pas encore vers le nouveau site : refais la vérification une fois les DNS changés.' }
+      : redirS.state === 'ok' ? { ...redirS, line: redirS.line.replace(/\.$/, '') + ' (testées sur ' + host + ').' } : redirS;
+    steps.push(dnsS, redir);
     // the owner's word when the check cannot say (IONOS blocks the request, the page is behind a login)
     steps.push(parked.state !== 'ok' && tick('ancien-noindex') ? { id: 'ancien', state: 'ok', at: tick('ancien-noindex'), line: 'Confirmé à la main : l’ancien site reste hors de Google.' } : parked);
   }
@@ -274,7 +347,7 @@ export async function basculeOf(rt, o = {}) {
     : miss.length ? { id: 'providers', state: 'todo', line: 'Il manque : ' + miss.join(', ') + '.' } : { id: 'providers', state: 'ok', line: 'SMS, e-mail et adresse du site sont branchés.' });
 
   steps.push(tick('app-password') ? { id: 'app-password', state: 'ok', at: tick('app-password'), line: 'Mot de passe d’application révoqué.' }
-    : { id: 'app-password', state: B.switchedAt ? 'todo' : 'info', line: 'Révoque-le dans WordPress (Utilisateurs › Profil) le lendemain de la bascule.' });
+    : { id: 'app-password', state: B.switchedAt ? 'todo' : 'info', line: 'Si tu en as créé un : révoque-le dans WordPress (Utilisateurs › Profil) le lendemain de la bascule.' });
 
   const due = B.switchedAt ? B.switchedAt + 30 * DAY : 0;
   steps.push(tick('licences') ? { id: 'licences', state: 'ok', at: tick('licences'), line: 'Licences et hébergement résiliés.' }
@@ -282,25 +355,41 @@ export async function basculeOf(rt, o = {}) {
   steps.push(tick('ancien-removed') ? { id: 'ancien-removed', state: 'ok', at: tick('ancien-removed'), line: 'Sous-domaine de l’ancien site supprimé.' }
     : { id: 'ancien-removed', state: 'info', line: 'Une fois les licences résiliées, ton prestataire supprime le sous-domaine ancien.' });
 
-  const taken = takenHere(s);
-  return { steps, hold: { on: cutoverHold(s), queued: held }, since: { at: B.frozenAt || B.switchedAt || 0, count: taken.length }, domain, demo };
+  const taken = takenHere(s), changes = changedHere(s);
+  return {
+    steps, hold: { on: cutoverHold(s), queued: held, lost: lostQueued(s, now) },
+    since: { at: B.sinceAt || B.frozenAt || B.switchedAt || 0, count: taken.length + changes.length, changes: changes.length }, rolledBack: B.history.slice(-3), domain, demo
+  };
 }
 
 // UTF-8 BOM, `;`, CRLF, no formula run in Excel (a foreign phone number, +41 79…, kept as typed): the shared writer
 export { csv };
 const dmy = (day) => day.split('-').reverse().join('/');
 
-/** The return plan's CSV: date;heure;barbier;prestations;client;téléphone;e-mail;état;pris le. @param {any} s */
+/**
+ * The return plan's CSV: date;heure;barbier;prestations;client;téléphone;e-mail;état;pris le;n° WordPress;changement. First what was taken here
+ * since the freeze (WordPress does not know it), then what changed here on a booking WordPress brought (cancelled, moved).
+ * @param {any} s
+ */
 export function sinceCsv(s) {
-  const rows = [['date', 'heure', 'barbier', 'prestations', 'client', 'téléphone', 'e-mail', 'état', 'pris le']];
-  for (const a of takenHere(s)) {
+  const rows = [['date', 'heure', 'barbier', 'prestations', 'client', 'téléphone', 'e-mail', 'état', 'pris le', 'n° WordPress', 'changement']];
+  const who = (a) => {
     const c = a.clientId ? s.clients.get(a.clientId) : null;
     const f = c && c.mergedInto ? s.clients.get(c.mergedInto) || c : c;
     const gone = !!f && f.erased;
-    const st = s.staff.get(a.staffId);
+    return [gone ? 'Client effacé' : f ? [f.first, f.last].filter(Boolean).join(' ') : a.name || '', f && !gone ? fmtPhone(f.phone) : '', f && !gone ? f.email : ''];
+  };
+  const common = (a) => { const st = s.staff.get(a.staffId); return [dmy(a.day), hhmm(a.start), st ? st.name : '', a.services.map((x) => x.name).join(' + ')]; };
+  for (const a of takenHere(s)) {
     const made = localParts(a.createdAt);
-    rows.push([dmy(a.day), hhmm(a.start), st ? st.name : '', a.services.map((x) => x.name).join(' + '), gone ? 'Client effacé' : f ? [f.first, f.last].filter(Boolean).join(' ') : a.name || '',
-      f && !gone ? fmtPhone(f.phone) : '', f && !gone ? f.email : '', a.status === 'pending' ? 'en attente d’acompte' : 'confirmé', dmy(made.day) + ' ' + hhmm(made.min)]);
+    rows.push([...common(a), ...who(a), a.status === 'pending' ? 'en attente d’acompte' : 'confirmé', dmy(made.day) + ' ' + hhmm(made.min), '', '']);
+  }
+  for (const { a, how } of changedHere(s)) {
+    const made = localParts(a.createdAt);
+    const slot = String((a.ext && a.ext.slot) || '').split('|');
+    const was = slot[0] && slot[1] ? dmy(slot[0]) + ' ' + hhmm(+slot[1]) : '';
+    const by = a.cancel ? (a.cancel.by === 'client' ? 'par le client' : 'au salon') : '';
+    rows.push([...common(a), ...who(a), how === 'cancelled' ? 'annulé' : 'confirmé', dmy(made.day) + ' ' + hhmm(made.min), a.ext.wp, how === 'cancelled' ? 'annulé ' + by + ', à retirer de WordPress' : 'déplacé' + (was ? ', était ' + was : '') + ' : à changer dans WordPress']);
   }
   return csv(rows);
 }
@@ -333,6 +422,8 @@ export function basculeRoutes(app) {
     return out;
   }, { cap: 'settings' });
   app.post('/api/v1/bascule/switch', (r) => r.run(markSwitched, r.body), { cap: 'settings' });
+  // the return plan: the owner takes the switch back (a reason, 3 characters at least); everything is to do again
+  app.post('/api/v1/bascule/rollback', (r) => r.run(rollbackBascule, r.body), { cap: 'settings' });
   app.post('/api/v1/bascule/tick', (r) => r.run(tickBascule, r.body), { cap: 'settings' });
 
   // Mise en route › Nouveautés: the switches that wait for something, from each settings section's `golive`

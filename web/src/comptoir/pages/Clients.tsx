@@ -39,7 +39,7 @@ type Open = {
   packs: { id: string; name: string; left: number; expires: string }[];
   memberships?: { id: string; plan: string; status: string; until: string | null }[];
   giftcards: { id: string; last4: string; balance: number; expires: string }[];
-  sms: boolean; smsLive?: boolean; email?: boolean;
+  sms: boolean; smsLive?: boolean; email?: boolean; old?: boolean;
 };
 
 // rare: shown only when it has someone (or is open), for whoever can act on it
@@ -664,6 +664,7 @@ function EraseModal({ c, onClose }: { c: FileClient; onClose: () => void }) {
     <Modal open onClose={onClose} label={'Effacer ' + c.first + ' ' + c.last}>
       <h2>Effacer {c.first} {c.last} ?</h2>
       <p>Son nom, son numéro, ses notes et sa fiche technique sont supprimés définitivement (droit à l’effacement, RGPD). Les tickets restent dans la comptabilité, sans son nom.</p>
+      {data?.old ? <Note tone="warn" icon="info">Il reste dans l’ancien site et sa copie complète : efface-le aussi là-bas.</Note> : null}
       {!data ? <Skeleton h={60} /> : n || data.packs.length || data.giftcards.length || data.memberships?.length ? (
         <div className="cl-open">
           <b className="section-k">Encore ouvert sur sa fiche</b>

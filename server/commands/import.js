@@ -35,8 +35,8 @@ const IMPORT_CANCELS = new Set([CANCEL_REASON, GONE_REASON]);
  */
 export const KIND_TEXT = {
   pending: 'En attente sur l’ancien site : confirme avec le client',
-  paid: 'Acompte de {amount} déjà payé sur l’ancien site : à déduire en caisse',
-  'paid:full': 'Déjà payé en entier sur l’ancien site ({amount}) : à déduire en caisse',
+  paid: 'Acompte de {amount} payé sur l’ancien site : à la caisse, encaisse-le avec « Payé sur l’ancien site »',
+  'paid:full': 'Déjà payé en entier sur l’ancien site ({amount}) : à la caisse, encaisse-le avec « Payé sur l’ancien site »',
   overlap: 'Chevauche un autre rendez-vous',
   today: 'Terminé aujourd’hui sur l’ancien site : s’il y a été encaissé, ne l’encaisse pas ici',
   moved: 'Déplacé sur l’ancien site[ : était {was}]',

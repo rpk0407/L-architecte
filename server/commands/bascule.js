@@ -16,6 +16,21 @@ export const freezeWordpress = {
   }
 };
 
+const rollbackSchema = obj({ reason: str({ min: 3, max: 200 }) });
+/**
+ * The return plan, in the product: the switch is taken back (WordPress is back on its own domain). The freeze, the final sync and the
+ * switch are to do again; the sends are held again; what was changed here since the first freeze stays in the list for WordPress.
+ */
+export const rollbackBascule = {
+  run(s, input, ctx) {
+    ctx.need('settings');
+    const x = parse(rollbackSchema, input || {});
+    if (!s.bascule.frozenAt && !s.bascule.switchedAt) fail(409, 'not_frozen', 'Rien à annuler : WordPress n’est pas encore bloqué.');
+    ctx.emit('bascule.rolledback', { at: ctx.now, reason: x.reason });
+    return { at: ctx.now };
+  }
+};
+
 const switchedSchema = obj({ force: opt(bool()), reason: opt(str({ max: 200 })) });
 /**
  * The new salon starts sending: the texts that waited for the switch leave (those more than 6 h late are expired).

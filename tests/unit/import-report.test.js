@@ -581,7 +581,7 @@ test('fidelity: overlaps against the agenda, the newest file wins a repeated id,
   const t3 = await shop();
   const out = await wizard(t3, [{ name: 'a.csv', text: csv }, { name: 'r.xml', text: WXR }]);
   assert.equal(byWp(t3, 1350).ext.paid, 1000);
-  assert.ok(out.answers.flatMap((a) => a.review).some((x) => x.kind === 'paid' && /Acompte de 10\s€ déjà payé/.test(x.text)));
+  assert.ok(out.answers.flatMap((a) => a.review).some((x) => x.kind === 'paid' && /Acompte de 10\s€ payé sur l’ancien site/.test(x.text)));
 });
 
 /* ---------------- no personal data in the run ---------------- */

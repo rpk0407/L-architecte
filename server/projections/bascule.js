@@ -12,10 +12,24 @@ export const ITEMS = /** @type {const} */ (['reminders-off', 'cold-backup', 'app
 
 /** @type {import('../core/extensions.js').Extension} */
 export const basculeExtension = {
-  init(s) { s.bascule = { frozenAt: 0, switchedAt: 0, forced: null, ticks: {} }; },
+  init(s) { s.bascule = { frozenAt: 0, switchedAt: 0, forced: null, ticks: {}, sinceAt: 0, history: [] }; },
   on: {
-    // each moment counts once: a replayed or repeated event keeps the first
-    'bascule.frozen': (s, e, d) => { if (!s.bascule.frozenAt) s.bascule.frozenAt = (d && d.at) || e.at; },
+    // each moment counts once: a replayed or repeated event keeps the first. `sinceAt` is the first freeze ever: the list of what
+    // changed here since then stays whole through a rolled-back switch and a second try
+    'bascule.frozen': (s, e, d) => {
+      if (s.bascule.frozenAt) return;
+      s.bascule.frozenAt = (d && d.at) || e.at;
+      if (!s.bascule.sinceAt) s.bascule.sinceAt = s.bascule.frozenAt;
+    },
+    // the owner takes the switch back (the return plan): freeze, final sync and switch are all to do again, the sends are held again
+    // (cutoverHold reads switchedAt), what was ticked after the switch is not true any more, the history keeps what was undone
+    'bascule.rolledback': (s, e, d) => {
+      const B = s.bascule;
+      B.history.push({ at: (d && d.at) || e.at, reason: String((d && d.reason) || ''), frozenAt: B.frozenAt, switchedAt: B.switchedAt, forced: !!B.forced });
+      if (!B.sinceAt) B.sinceAt = B.frozenAt || B.switchedAt;
+      B.frozenAt = 0; B.switchedAt = 0; B.forced = null;
+      for (const k of ['reminders-off', 'app-password', 'licences', 'ancien-removed']) delete B.ticks[k];
+    },
     'bascule.switched': (s, e, d) => {
       if (s.bascule.switchedAt) return;
       s.bascule.switchedAt = (d && d.at) || e.at;
@@ -44,12 +58,33 @@ export function heldByCutover(m) {
 /** @param {any} s @param {{ cid?: string|null, owner?: boolean, template: string }} m */
 export const cutoverHeld = (s, m) => cutoverHold(s) && heldByCutover(m);
 
-/** The latest run finished after the freeze: the final sync, or null. @param {any} s */
+/** A bookings export or the XML of the plugin, with something in it. */
+const isBookings = (f) => (f.kind === 'bookings' || f.kind === 'wxr') && f.rows > 0;
+/** Did this run read an export of the bookings? A run of gift cards only, or of an empty file, carries nothing of what changed on the old site. @param {any} r */
+export const holdsBookings = (r) => (r.files || []).some(isBookings);
+/**
+ * What a run's bookings export says about itself: how many bookings, when the file was made (its own date: the browser's File.lastModified,
+ * 0 when unknown) and the newest booking it holds (the old site's creation time).
+ * @param {any} r
+ */
+export function exportOf(r) {
+  const fs = (r.files || []).filter(isBookings);
+  const csv = fs.filter((f) => f.kind === 'bookings');
+  return { rows: (csv.length ? csv : fs).reduce((t, f) => t + f.rows, 0), at: Math.max(0, ...fs.map((f) => f.at || 0)), newest: Math.max(0, ...fs.map((f) => f.newest || 0)) };
+}
+/** An export made more than this long before the freeze cannot hold what changed after it. */
+export const STALE_EXPORT_MS = 10 * 60000;
+
+/**
+ * The latest run finished after the freeze that read an export of the bookings: the final sync, or null. A run made of
+ * gift cards, or of nothing, is not one.
+ * @param {any} s
+ */
 export function finalSync(s) {
   const frozen = s.bascule && s.bascule.frozenAt;
   if (!frozen || !s.imports) return null;
   let best = null;
-  for (const r of s.imports.runs.values()) if (r.finishedAt > frozen && !r.undoneAt && (!best || r.finishedAt > best.finishedAt)) best = r;
+  for (const r of s.imports.runs.values()) if (r.finishedAt > frozen && !r.undoneAt && holdsBookings(r) && (!best || r.finishedAt > best.finishedAt)) best = r;
   return best;
 }
 

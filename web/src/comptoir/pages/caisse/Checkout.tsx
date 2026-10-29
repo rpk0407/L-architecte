@@ -21,11 +21,11 @@ type Kind = 'service' | 'product' | 'giftcard' | 'pack' | 'fee';
 type Line = { key: string; kind: Kind; ref: string | null; name: string; qty: number; unit: number; base: number; now: number; booked?: boolean; from: boolean; staffId: string | null; packId: string | null; discount: number; vat: number; recipient?: string; rewardId?: string;
   // PAY-05: the membership that pays the cut (0 €, the month is already paid), what the till said of it, and the cuts the person decided himself
   memberId?: string | null; force?: boolean; memberOff?: boolean; auto?: boolean; cover?: { label: string; note: string; canForce: boolean; retry?: boolean } };
-type Pay = { key: string; method: 'card' | 'cash' | 'online' | 'giftcard' | 'deposit'; amount: number; given?: number; ref?: string; label: string };
+type Pay = { key: string; method: 'card' | 'cash' | 'online' | 'giftcard' | 'deposit' | 'ancien'; amount: number; given?: number; ref?: string; label: string };
 const k = () => Math.random().toString(36).slice(2, 9);
 /** the badges TillChips shows itself (membership, carnet, loyalty reward: its own plain badge when no reward chip is passed) */
 const CHIPPED = ['abonné', 'carnet', 'récompense'];
-const METHOD_ICON: Record<string, string> = { card: 'card', cash: 'cash', online: 'qr', giftcard: 'gift', deposit: 'globe' };
+const METHOD_ICON: Record<string, string> = { card: 'card', cash: 'cash', online: 'qr', giftcard: 'gift', deposit: 'globe', ancien: 'globe' };
 /** The test checkout takes no real money: outside the demo, a QR needs Stripe (the server refuses it too). */
 export const qrOff = (boot: Pick<Boot, 'mode' | 'providers'>) => boot.mode !== 'demo' && boot.providers.payments === 'simulated';
 
@@ -179,6 +179,7 @@ export function Checkout({ apptId, drawerOpen, onClose }: { apptId: string | nul
           <Button size="sm" variant="ghost" icon="x" onClick={async () => { if (!lines.length || await confirm({ title: 'Abandonner ce ticket ?', ok: 'Abandonner', danger: true })) onClose(); }}>Fermer</Button>
         </div>
       </div>
+      {appt && (appt.paidOld || appt.note) ? <Note icon="info"><span data-guide="tk-old">{appt.paidOld ? <b>Acompte de {eur(appt.paidOld, { decimals: appt.paidOld % 100 !== 0 })} déjà payé sur l’ancien site.</b> : null}{appt.paidOld && appt.note ? ' ' : ''}{appt.note ? <>Note : « {appt.note} »</> : null}</span></Note> : null}
       {client?.badges.length ? <div className="row wrap" style={{ gap: 6, marginTop: -6 }}>{client.badges.filter((b) => !CHIPPED.includes(b)).map((b) => <span key={b} className={'badge ' + (b === 'fidèle' ? 'badge-ok' : b === 'nouveau' ? 'badge-info' : '')}>{b}</span>)}<TillChips client={client} />{client.visits ? <span className="badge">{client.visits} visite{client.visits > 1 ? 's' : ''} · {rhythmWords(client.cadence)}</span> : null}</div> : null}
       <RewardChip client={client} lines={lines} setLines={setLines} />
 
@@ -238,6 +239,8 @@ export function Checkout({ apptId, drawerOpen, onClose }: { apptId: string | nul
             <button type="button" className="method" disabled={!S.cash} onClick={() => setModal('cash')}><Icon name="cash" /><span><b>Espèces</b><small>{drawerOpen ? 'Calcule la monnaie' : 'Caisse fermée'}</small></span></button>
             <button type="button" className="method" disabled={!S.qr || noQr} onClick={() => setModal('qr')}><Icon name="qr" /><span><b>QR code</b><small>{noQr ? 'Branche Stripe pour le QR' : 'Apple Pay, carte'}</small></span></button>
             <button type="button" className="method" disabled={!S.giftcard || lines.some((l) => l.kind === 'giftcard')} onClick={() => setModal('gift')}><Icon name="gift" /><span><b>Carte cadeau</b><small>Saisir le code</small></span></button>
+            {/* an imported booking with a deposit paid on the old site: once, never more than was paid there */}
+            {appt?.paidOld && !pays.some((p) => p.method === 'ancien') ? <button type="button" className="method" data-method="ancien" onClick={() => addPay({ method: 'ancien', amount: Math.min(appt.paidOld!, left), label: 'Payé sur l’ancien site' })}><Icon name="globe" /><span><b>Payé sur l’ancien site</b><small>{eur(appt.paidOld, { decimals: appt.paidOld % 100 !== 0 })} déjà payés</small></span></button> : null}
           </div>
         </>
       ) : left < 0 ? <Note tone="warn" icon="alert">Les paiements dépassent le total de {eur(-left)}. Retire un paiement.</Note> : null}
