@@ -32,4 +32,8 @@ Any task that touches what a person **sees, taps, reads or waits for** (the book
 5. **Honest numbers.** No fake urgency, no invented scarcity; a demo is labelled as one.
 6. **Generated files are not edited by hand:** `design/programme/01-personas.md`, `02-moments.md`, `03-tensions.md` come from the data (`npm run ux:atlas`).
 
-`npm run ux:test` (27 pure-logic tests) and `npm run ux:calibrate` (the instruments judged on labelled pages) must pass before the harness itself is changed.
+### Redesign work: the studio (`design/redesign/`)
+
+The goal of the current phase is **at least two genuinely different alternative redesigns of the public site**, made by a studio and not a template. `design/redesign/BRIEF.md` binds every designer (R1–R10, what to protect, the anti-generic rules); `CONTENT.md` is the shop's real content (invent nothing). Order of work: **concepts first, the owner chooses, then build**: never build a site the owner has not picked. A concept lives in `design/redesign/concepts/<slug>/` (`CONCEPT.md`, `board.html`); `node design/redesign/audit-board.mjs <board.html>` screenshots a board and measures it with the harness's instruments. The studio's roles are in `.claude/agents/`: `concept-designer`, `creative-director`, `type-designer`, `graphic-designer`, `copywriter`, `creative-developer`, alongside the eight critics.
+
+`npm run ux:test` (34 pure-logic tests) and `npm run ux:calibrate` (the instruments judged on labelled pages) must pass before the harness itself is changed.

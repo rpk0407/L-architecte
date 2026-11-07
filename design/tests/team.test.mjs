@@ -31,21 +31,42 @@ function frontmatter(path) {
 const agents = readdirSync(join(ROOT, '.claude/agents')).filter((f) => f.endsWith('.md'));
 const skills = readdirSync(join(ROOT, '.claude/skills'));
 
-test('the eight specialists are all there', () => {
-  assert.deepEqual(agents.map((f) => f.replace(/\.md$/, '')).sort(), ['access-lead', 'art-director', 'content-designer', 'craft-engineer', 'motion-director', 'owner-advocate', 'persona-voice', 'ux-architect']);
+const CRITICS = ['access-lead', 'art-director', 'content-designer', 'craft-engineer', 'motion-director', 'owner-advocate', 'persona-voice', 'ux-architect'];
+const STUDIO = ['concept-designer', 'copywriter', 'creative-developer', 'creative-director', 'graphic-designer', 'type-designer'];
+const WRITES = ['Write', 'Edit', 'Bash'];
+
+test('the eight critics and the six studio roles are all there', () => {
+  assert.deepEqual(agents.map((f) => f.replace(/\.md$/, '')).sort(), [...CRITICS, ...STUDIO].sort());
 });
 
-test('every agent has a valid frontmatter, a name that matches its file, read-only tools and a known colour', () => {
+test('every agent has a valid frontmatter, a name that matches its file, known tools and a known colour', () => {
   for (const f of agents) {
-    const { fields, body } = frontmatter(`.claude/agents/${f}`);
+    const { fields } = frontmatter(`.claude/agents/${f}`);
     assert.equal(fields.name, f.replace(/\.md$/, ''));
     assert.ok(fields.description.length > 80, `${f}: the description is what decides when it is used`);
     assert.ok(COLORS.includes(fields.color), `${f}: colour ${fields.color}`);
     const tools = fields.tools.split(',').map((t) => t.trim());
     assert.ok(tools.every((t) => TOOLS.includes(t)), `${f}: ${tools}`);
-    assert.ok(!tools.some((t) => ['Write', 'Edit', 'Bash'].includes(t)), `${f}: a critic is read-only`);
-    assert.match(body, /panel-protocol\.md/, `${f}: every critic follows the protocol`);
   }
+});
+
+test('the critics are read-only and follow the panel protocol', () => {
+  for (const name of CRITICS) {
+    const { fields, body } = frontmatter(`.claude/agents/${name}.md`);
+    assert.ok(!fields.tools.split(',').some((t) => WRITES.includes(t.trim())), `${name}: a critic is read-only`);
+    assert.match(body, /panel-protocol\.md/, `${name}: every critic follows the protocol`);
+  }
+});
+
+test('the studio roles follow the redesign brief, and the ones that can write say where they may', () => {
+  for (const name of STUDIO) {
+    const { fields, body } = frontmatter(`.claude/agents/${name}.md`);
+    assert.match(body, /design\/redesign\/BRIEF\.md/, `${name}: it must read the brief`);
+    const canWrite = fields.tools.split(',').some((t) => ['Write', 'Edit'].includes(t.trim()));
+    if (canWrite) assert.match(body, /(Write only inside|New work goes in its own folder|one folder)/i, `${name}: a maker that can write says where`);
+    else assert.ok(!fields.tools.split(',').some((t) => WRITES.includes(t.trim())), `${name}`);
+  }
+  assert.ok(!frontmatter('.claude/agents/creative-director.md').fields.tools.includes('Write'), 'the creative director decides, and does not edit');
 });
 
 test('every skill has a valid frontmatter, a name that matches its folder, and stays short enough to read', () => {

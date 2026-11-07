@@ -2,7 +2,7 @@
 
 The design harness of Barber L’Architecte: a senior design team, written down so that it survives the session that wrote it.
 
-It has three parts and one rule.
+It has three parts and one rule, and a studio that uses them to make things (see `design/redesign/`).
 
 ```
  THE PROGRAMME          THE INSTRUMENTS               THE PANEL                 THE DOSSIER
@@ -41,7 +41,8 @@ Then, in Claude Code: `/cabinet` for a full review, `/cabinet-walk ancien` for o
 | `design/calibration/` | 25 labelled pages and the verdict each instrument must reach on them. |
 | `design/tests/` | 27 pure-logic tests (WCAG arithmetic against published values, scoring, the ratchet, roster integrity, drift guards). |
 | `design/baseline.json` | The ratchet’s memory: what was good when a human last accepted a run. |
-| `.claude/agents/`, `.claude/skills/` | The panel (eight agents) and the four workflows. |
+| `.claude/agents/`, `.claude/skills/` | The panel (eight critics, read-only) and the studio (six makers: concept designer, creative director, type designer, graphic designer, copywriter, creative developer), and the four workflows. |
+| `design/redesign/` | The redesign phase: [`BRIEF.md`](redesign/BRIEF.md) (R1–R10, what to protect, the anti-generic rules), [`CONTENT.md`](redesign/CONTENT.md) (the shop’s real content), `concepts/<slug>/` (one concept each: `CONCEPT.md` and a visual `board.html`) and `audit-board.mjs`, which screenshots a board and measures it with the harness’s instruments. |
 
 ## The personas are executable
 
