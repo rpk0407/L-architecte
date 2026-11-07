@@ -1,0 +1,620 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Les quatre mains · concept board</title>
+<meta name="description" content="Barber L’Architecte, redesign concept 04 : une maison, quatre mains. Choisir un barbier, c’est choisir un site.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:ital,wght@0,400..700;1,400..700&family=Azeret+Mono:wght@100..900&family=Libre+Caslon+Text:ital,wght@0,400;0,700;1,400&family=Big+Shoulders+Display:wght@100..900&family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,100..900,0..100,0..1&display=swap">
+<style>
+/* ───────── the board's own chrome: quiet, so the five lights read ───────── */
+:root{
+  --paper:#E9E7E1; --ink:#16161A; --ink-2:#4C4C52; --rule:#C9C6BE; --card:#F5F4F0;
+  --mono:"Azeret Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+  --sans:"Familjen Grotesk","Helvetica Neue",Arial,sans-serif;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.5 var(--sans);overflow-x:hidden}
+img{max-width:100%;display:block}
+a{color:inherit}
+h1,h2,h3,h4,p,dl,dd,figure{margin:0}
+button{font:inherit;color:inherit;cursor:pointer}
+:focus-visible{outline:3px solid var(--fg,var(--ink));outline-offset:3px}
+.wrap{max-width:1180px;margin:0 auto;padding:0 16px}
+.board-head{padding:40px 0 24px;border-bottom:1px solid var(--rule)}
+.kicker{font:500 14px/1.4 var(--mono);letter-spacing:.04em;text-transform:uppercase;color:var(--ink-2)}
+.board-head h1{font:700 clamp(34px,7vw,72px)/.98 var(--sans);letter-spacing:-.035em;margin:12px 0 18px;max-width:14ch}
+.lede{font-size:clamp(17px,2vw,21px);line-height:1.4;max-width:62ch;color:var(--ink)}
+.triad{display:grid;gap:16px;margin-top:28px;grid-template-columns:1fr}
+@media(min-width:760px){.triad{grid-template-columns:repeat(3,1fr)}}
+.triad > div{background:var(--card);border:1px solid var(--rule);padding:18px;border-radius:4px}
+.triad h3{font:500 14px/1.3 var(--mono);text-transform:uppercase;letter-spacing:.04em;color:var(--ink-2);margin-bottom:8px}
+.triad p{font-size:17px;line-height:1.4}
+section.part{padding:48px 0 8px}
+section.part > .wrap > h2{font:700 clamp(26px,4vw,40px)/1.05 var(--sans);letter-spacing:-.03em;margin:8px 0 14px}
+.num{font:500 14px/1.4 var(--mono);color:var(--ink-2);letter-spacing:.04em}
+.note{max-width:66ch;color:var(--ink-2);font-size:16px}
+.note strong{color:var(--ink)}
+.two{display:grid;gap:28px;grid-template-columns:minmax(0,1fr);align-items:start;margin-top:24px}
+.two > div{min-width:0}
+sup{font-size:.85em;line-height:0}
+@media(min-width:900px){.two{grid-template-columns:minmax(300px,420px) 1fr}}
+.caption{font-size:14px;color:var(--ink-2);margin-top:10px;max-width:60ch}
+
+/* ───────── the five hands: one shell, five lightings ───────── */
+.hand,[data-main]{
+  background:var(--bg);color:var(--fg);
+  transition:background-color var(--dur) var(--ease),color var(--dur) var(--ease)
+}
+[data-main="maison"],.h-maison{
+  --bg:#121212;--fg:#EFEBE3;--mute:#B8B3A9;--acc:#E8392B;--btn-bg:#EFEBE3;--btn-fg:#121212;--chip:#1E1E1E;
+  --radius:6px;--disp:var(--sans);--disp-w:700;--disp-ls:-.035em;--disp-tt:none;--disp-fs:normal;--fvs:normal;
+  --dur:400ms;--ease:cubic-bezier(.4,0,.2,1)
+}
+[data-main="jkut"],.h-jkut{
+  --bg:#F4F3EE;--fg:#15161A;--mute:#55565C;--acc:#F2C200;--btn-bg:#F2C200;--btn-fg:#15161A;--chip:#FFFFFF;
+  --radius:0px;--disp:var(--mono);--disp-w:300;--disp-ls:-.02em;--disp-tt:none;--disp-fs:normal;--fvs:normal;
+  --dur:160ms;--ease:steps(4,end)
+}
+[data-main="frank"],.h-frank{
+  --bg:#F1EBDD;--fg:#1B2A22;--mute:#4E5C53;--acc:#1E4B3B;--btn-bg:#1E4B3B;--btn-fg:#F1EBDD;--chip:#F8F4EA;
+  --radius:2px;--disp:"Libre Caslon Text",Georgia,"Times New Roman",serif;--disp-w:400;--disp-ls:-.01em;--disp-tt:none;--disp-fs:italic;--fvs:normal;
+  --dur:700ms;--ease:cubic-bezier(.45,0,.2,1)
+}
+[data-main="soldat"],.h-soldat{
+  --bg:#000000;--fg:#FFFFFF;--mute:#B4B9BF;--acc:#C7CCD2;--btn-bg:#FFFFFF;--btn-fg:#000000;--chip:#111214;
+  --radius:0px;--disp:"Big Shoulders Display","Arial Narrow",Impact,sans-serif;--disp-w:800;--disp-ls:.01em;--disp-tt:uppercase;--disp-fs:normal;--fvs:normal;
+  --dur:120ms;--ease:linear
+}
+[data-main="esteban"],.h-esteban{
+  --bg:#2A1030;--fg:#F7EDE6;--mute:#DCC6D3;--acc:#F4A871;--btn-bg:#F4A871;--btn-fg:#2A1030;--chip:#3A1C40;
+  --radius:24px;--disp:"Fraunces",Georgia,serif;--disp-w:500;--disp-ls:-.02em;--disp-tt:none;--disp-fs:normal;--fvs:"SOFT" 100,"WONK" 1,"opsz" 144;
+  --dur:600ms;--ease:cubic-bezier(.34,1.56,.64,1)
+}
+.disp{font-family:var(--disp);font-weight:var(--disp-w);letter-spacing:var(--disp-ls);text-transform:var(--disp-tt);font-style:var(--disp-fs);font-variation-settings:var(--fvs);line-height:1}
+/* the mark: each barber's line, drawn from how he cuts */
+.mark{position:relative;height:18px;width:100%;margin:10px 0 12px}
+.mark::before{content:"";position:absolute;inset:0;transition:none;border:0;box-shadow:none;background:none}
+[data-main="maison"] .mark::before,.h-maison .mark::before{top:8px;height:2px;border:0;background:var(--acc);box-shadow:0 0 14px 3px rgba(232,57,43,.55)}
+[data-main="jkut"] .mark::before,.h-jkut .mark::before{
+  top:0;height:auto;border:0;box-shadow:none;
+  background:
+    repeating-linear-gradient(90deg,var(--fg) 0 1px,transparent 1px 5px) 0 100%/100% 7px no-repeat,
+    repeating-linear-gradient(90deg,var(--fg) 0 1px,transparent 1px 25px) 0 100%/100% 14px no-repeat,
+    linear-gradient(var(--fg),var(--fg)) 0 100%/100% 1px no-repeat}
+[data-main="frank"] .mark::before,.h-frank .mark::before{top:5px;height:7px;box-shadow:none;background:none;border:0;border-top:1px solid var(--acc);border-bottom:3px double var(--acc)}
+[data-main="soldat"] .mark::before,.h-soldat .mark::before{top:3px;height:12px;box-shadow:none;border:1px solid #fff;
+  background:linear-gradient(90deg,#000 0 12.5%,#262729 0 25%,#4A4D51 0 37.5%,#73777C 0 50%,#9AA0A6 0 62.5%,#C7CCD2 0 75%,#E6E8EA 0 87.5%,#fff 0)}
+[data-main="esteban"] .mark::before,.h-esteban .mark::before{
+  top:0;height:auto;border:0;box-shadow:none;
+  background:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='56' height='18' viewBox='0 0 56 18'><path d='M0 9 C 7 -1 14 -1 21 9 C 26 16 30 16 35 9 C 42 -1 49 -1 56 9' fill='none' stroke='%23F4A871' stroke-width='2.2' stroke-linecap='round'/></svg>") repeat-x 0 0/56px 18px}
+/* photographs: the same four, re-treated by the hand; never attributed */
+.photo{overflow:hidden;border-radius:var(--radius);background:#222}
+.photo img{width:100%;height:100%;object-fit:cover;transition:filter var(--dur) var(--ease)}
+[data-main="jkut"] .photo img{filter:grayscale(.25) contrast(1.05)}
+[data-main="frank"] .photo img{filter:sepia(.4) saturate(.7) contrast(.95)}
+[data-main="soldat"] .photo img{filter:grayscale(1) contrast(1.35)}
+[data-main="esteban"] .photo img{filter:saturate(1.35) contrast(1.05)}
+/* buttons, chips, rows */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 18px;border:1px solid transparent;border-radius:calc(var(--radius) + 6px);background:var(--btn-bg);color:var(--btn-fg);font-weight:600;font-size:16px;text-decoration:none;transition:background-color var(--dur) var(--ease),color var(--dur) var(--ease),border-radius var(--dur) var(--ease)}
+.btn.ghost{background:transparent;color:var(--fg);border-color:var(--fg)}
+.btn-s{display:inline-flex;align-items:center;justify-content:center;min-height:44px;min-width:44px;padding:0 14px;border:1px solid var(--fg);border-radius:calc(var(--radius) + 6px);text-decoration:none;font-weight:600;font-size:15px;color:var(--fg)}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{min-height:44px;padding:0 14px;border:1px solid transparent;border-radius:calc(var(--radius) + 6px);background:var(--bg);color:var(--fg);font-family:var(--disp);font-weight:var(--disp-w);font-style:var(--disp-fs);text-transform:var(--disp-tt);letter-spacing:var(--disp-ls);font-variation-settings:var(--fvs);font-size:17px;line-height:1}
+.chip.h-soldat{font-size:20px}
+.chip.h-frank{font-size:18px}
+.chip[aria-pressed="true"]{box-shadow:0 0 0 3px var(--acc)}
+.chip.h-jkut{box-shadow:inset 0 0 0 1px #15161A}
+.chip.h-jkut[aria-pressed="true"]{box-shadow:inset 0 0 0 1px #15161A,0 0 0 3px #F2C200}
+
+/* ───────── the phone frame (live) ───────── */
+.phone{position:relative;width:min(390px,100%);border-radius:28px;padding:10px;background:#0a0a0a;box-shadow:0 20px 60px rgba(0,0,0,.25)}
+.screen{position:relative;overflow:hidden;border-radius:20px;padding:14px 16px 16px;min-height:720px;display:flex;flex-direction:column;gap:10px;background:var(--bg);color:var(--fg);transition:background-color var(--dur) var(--ease),color var(--dur) var(--ease)}
+.sweep{position:absolute;inset:0;pointer-events:none;overflow:hidden;border-radius:28px}
+.sweep::before{content:"";position:absolute;top:0;bottom:0;left:-30px;width:3px;background:var(--sw,#fff);box-shadow:0 0 26px 8px var(--sw,#fff);opacity:0}
+.sweep.go::before{animation:sweep var(--dur,400ms) var(--ease,ease) forwards}
+@keyframes sweep{0%{left:-30px;opacity:1}100%{left:calc(100% + 30px);opacity:1}}
+.pbar{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:44px}
+.wordmark{font-weight:600;letter-spacing:-.02em;font-size:16px;line-height:1.1}
+.wordmark em{font-style:normal;display:block;font-weight:400;color:var(--mute);font-size:14px}
+.open{font-size:14px;color:var(--fg);line-height:1.3}
+.open .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#47B86A;margin-right:6px;vertical-align:1px}
+.plate{font:500 14px/1.2 var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--mute)}
+.screen .disp{font-size:clamp(28px,9vw,36px);max-width:12ch}
+.screen .sub{font-size:15px;line-height:1.35;color:var(--fg)}
+.screen .photo{height:120px}
+.facts{font-size:15px;line-height:1.35;display:flex;flex-wrap:wrap;gap:4px 12px}
+.facts b{font-weight:600}
+.next{font-size:15px;color:var(--mute)}
+.next b{color:var(--fg);font-weight:600}
+.cta{display:grid;grid-template-columns:1fr auto;gap:8px}
+.cta .btn{width:100%}
+.hands{margin-top:auto;padding-top:8px;border-top:1px solid color-mix(in srgb,var(--fg) 25%,transparent)}
+.hands-l{font:500 14px/1.2 var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--mute);margin-bottom:8px}
+.rebook{border:1px solid color-mix(in srgb,var(--fg) 30%,transparent);border-radius:var(--radius);padding:12px;display:grid;gap:6px;background:var(--chip)}
+.rebook .q{font:500 14px/1.2 var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--mute)}
+.rebook .l1{font-weight:600;font-size:17px}
+.rebook .l2{font-size:15px;color:var(--mute)}
+.rebook .btn{margin-top:4px}
+[data-mode="inconnu"] .only-habitue{display:none}
+[data-mode="habitue"] .only-inconnu{display:none}
+/* segmented control above the phone */
+.seg{display:flex;flex-wrap:wrap;max-width:min(390px,100%);border:1px solid var(--ink);border-radius:26px;padding:3px;gap:3px;margin:16px 0 14px;background:var(--card)}
+.seg button{flex:1 1 auto;min-height:44px;padding:0 14px;border:0;border-radius:999px;background:transparent;font-weight:600;font-size:15px}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+
+/* ───────── desktop frame (static, scaled) ───────── */
+.desk-wrap{width:100%;overflow:hidden;margin-top:24px}
+.desk{width:1280px;transform-origin:0 0;border-radius:10px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.2)}
+.desk .top{display:flex;align-items:center;justify-content:space-between;padding:18px 40px;border-bottom:1px solid color-mix(in srgb,var(--fg) 20%,transparent)}
+.desk .top nav{display:flex;gap:26px;font-size:16px;white-space:nowrap}
+.desk .top .wordmark{white-space:nowrap}
+.desk .top .right{display:flex;gap:10px;align-items:center}
+.fake{display:inline-flex;align-items:center;min-height:46px;padding:0 18px;white-space:nowrap;border-radius:calc(var(--radius) + 6px);background:var(--btn-bg);color:var(--btn-fg);font-weight:600}
+.fake.ghost{background:transparent;color:var(--fg);border:1px solid var(--fg)}
+.desk .hero{display:grid;grid-template-columns:600px 1fr;gap:40px;padding:36px 40px 32px}
+.desk .hero .disp{font-size:84px;margin:8px 0 6px;max-width:10ch}
+.desk .hero .sub{font-size:20px;line-height:1.35;max-width:40ch;margin-top:10px}
+.desk .hero .facts{font-size:18px;margin-top:22px}
+.desk .hero .next{font-size:18px;margin-top:10px}
+.desk .hero .ctas{display:flex;gap:10px;margin-top:22px}
+.desk .hero .photo{height:420px;align-self:stretch}
+.doors{display:grid;grid-template-columns:repeat(5,1fr);border-top:1px solid color-mix(in srgb,var(--fg) 20%,transparent)}
+.door{padding:22px 20px 24px;min-height:190px;display:flex;flex-direction:column;gap:8px}
+.door + .door{border-left:1px solid rgba(0,0,0,.12)}
+.door .name{font-family:var(--disp);font-weight:var(--disp-w);font-style:var(--disp-fs);text-transform:var(--disp-tt);letter-spacing:var(--disp-ls);font-variation-settings:var(--fvs);font-size:38px;line-height:1}
+.door.h-soldat .name{font-size:46px}
+.door .bio{font-size:15px;line-height:1.35;color:var(--fg)}
+.door .slot{margin-top:auto;font-size:15px;color:var(--mute)}
+.door .slot b{color:var(--fg)}
+.door .mark{margin:4px 0 2px}
+
+/* ───────── hand cards (palette + type specimen) ───────── */
+.cards{display:grid;gap:14px;grid-template-columns:1fr;margin-top:22px}
+@media(min-width:700px){.cards{grid-template-columns:repeat(2,1fr)}}
+@media(min-width:1100px){.cards{grid-template-columns:repeat(5,minmax(0,1fr))}}
+.card{padding:20px 18px 18px;border-radius:var(--radius);min-height:420px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.card dd{min-width:0;overflow-wrap:anywhere}
+.card .name{font-size:clamp(30px,11vw,44px);line-height:1;overflow-wrap:anywhere}
+.card.h-soldat .name{font-size:clamp(38px,14vw,54px)}
+.card .bio{font-size:15px;line-height:1.35}
+.card dl{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:14px;margin-top:6px}
+.card dt{color:var(--mute);font:500 14px/1.5 var(--mono);text-transform:uppercase;letter-spacing:.04em}
+.card dd{line-height:1.4}
+.sw{display:flex;gap:6px;margin-top:auto;padding-top:8px}
+.sw span{flex:1;height:38px;border-radius:calc(var(--radius) / 2);border:1px solid color-mix(in srgb,var(--fg) 35%,transparent);display:flex;align-items:flex-end;padding:3px 5px;font:400 14px/1 var(--mono)}
+.card .demo{font-size:15px;margin-top:4px}
+
+/* ───────── booking & confirmation frames ───────── */
+.frames{display:grid;gap:24px;grid-template-columns:1fr;margin-top:22px;align-items:start}
+@media(min-width:900px){.frames{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(min-width:1200px){.frames.three{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.sheet{width:min(390px,100%);border-radius:20px;padding:16px;display:flex;flex-direction:column;gap:12px;box-shadow:0 20px 60px rgba(0,0,0,.2)}
+.sheet .head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.sheet .step{font:500 14px/1.2 var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--mute)}
+.sheet .q{font-size:30px;margin-top:4px}
+.sheet .hint{font-size:15px;color:var(--mute)}
+.x{min-width:44px;min-height:44px;border:1px solid var(--fg);background:transparent;border-radius:calc(var(--radius) + 6px);font-size:18px}
+.row{display:grid;grid-template-columns:1fr auto;align-items:center;gap:10px;text-align:left;width:100%;min-height:64px;padding:10px 14px;border:1px solid color-mix(in srgb,var(--fg) 25%,transparent);border-radius:var(--radius);background:var(--chip);color:var(--fg)}
+.row .who{font-family:var(--disp);font-weight:var(--disp-w);font-style:var(--disp-fs);text-transform:var(--disp-tt);letter-spacing:var(--disp-ls);font-variation-settings:var(--fvs);font-size:22px;line-height:1.05}
+.row.h-soldat .who{font-size:26px}
+.row .free{font-size:14px;color:var(--mute);margin-top:3px}
+.row .free b{color:var(--fg);font-weight:600}
+.row .radio{width:22px;height:22px;border-radius:50%;border:2px solid var(--fg);display:inline-block}
+.row[aria-checked="true"] .radio{background:var(--fg);box-shadow:inset 0 0 0 4px var(--chip)}
+.row .mark{height:14px;margin:6px 0 0}
+.foot{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-top:10px;border-top:1px solid color-mix(in srgb,var(--fg) 25%,transparent);margin-top:auto}
+.price{font-size:22px;font-weight:600}
+.price small{display:block;font-size:14px;font-weight:400;color:var(--mute)}
+.held{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 14px;border-radius:var(--radius);background:var(--chip);border:1px solid color-mix(in srgb,var(--fg) 25%,transparent);font-size:15px}
+.held b{font-variant-numeric:tabular-nums}
+.field{display:grid;gap:4px}
+.field label{font-size:15px;font-weight:600}
+.field .in{min-height:48px;border:1px solid color-mix(in srgb,var(--fg) 45%,transparent);border-radius:var(--radius);padding:0 12px;display:flex;align-items:center;font-size:16px;background:var(--chip);color:var(--fg)}
+.field .why{font-size:14px;color:var(--mute)}
+.rule-line{font-size:15px;line-height:1.4;padding:12px 14px;border-left:3px solid var(--acc);background:var(--chip);border-radius:0 var(--radius) var(--radius) 0}
+.ticket{border:1px solid color-mix(in srgb,var(--fg) 30%,transparent);border-radius:var(--radius);overflow:hidden}
+.ticket .t-top{padding:16px 16px 12px;display:grid;gap:4px}
+.ticket .when{font-size:28px}
+.ticket .what{font-size:17px;font-weight:600;margin-top:6px}
+.ticket .line{font-size:15px;color:var(--mute)}
+.ticket .line b{color:var(--fg);font-weight:600}
+.ticket .t-mid{padding:12px 16px;border-top:1px dashed color-mix(in srgb,var(--fg) 40%,transparent);display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.sheet,.sheet > *{min-width:0}
+.ticket .t-mid .btn{min-height:46px;font-size:15px;padding:0 10px}
+.sms{padding:12px 16px;border-top:1px solid color-mix(in srgb,var(--fg) 25%,transparent)}
+.sms .lab{font:500 14px/1.2 var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--mute);margin-bottom:6px}
+.sms p{font-size:15px;line-height:1.4;font-family:var(--mono);font-weight:400;overflow-wrap:anywhere}
+.duo{padding:14px;border-radius:var(--radius);background:var(--chip);border:1px solid color-mix(in srgb,var(--fg) 25%,transparent);display:grid;gap:8px}
+.duo .l1{font-weight:600;font-size:16px}
+.duo .l2{font-size:15px;color:var(--mute)}
+.chk{display:flex;align-items:center;gap:10px;font-size:15px;color:var(--mute)}
+.chk::before{content:"✓";font-weight:700;color:var(--fg)}
+
+/* ───────── voice, table ───────── */
+.voice{display:grid;gap:12px;grid-template-columns:1fr;margin-top:22px}
+@media(min-width:760px){.voice{grid-template-columns:repeat(2,1fr)}}
+.voice blockquote{margin:0;padding:18px 20px;border-radius:4px;font-size:clamp(19px,2.4vw,24px);line-height:1.25;letter-spacing:-.015em}
+.voice blockquote small{display:block;margin-top:10px;font-size:14px;letter-spacing:0;opacity:.85}
+code{overflow-wrap:anywhere;font-family:var(--mono);font-size:.92em}
+.tbl{width:100%;border-collapse:collapse;margin-top:18px;font-size:15px;table-layout:fixed}
+.tbl th:first-child,.tbl td:first-child{width:3.2em}
+.tbl th:last-child,.tbl td:last-child{width:5.6em}
+.tbl th,.tbl td{text-align:left;vertical-align:top;padding:12px 10px;border-top:1px solid var(--rule)}
+.tbl th{font:500 14px/1.5 var(--mono);text-transform:uppercase;letter-spacing:.05em;color:var(--ink-2)}
+.tbl td:first-child{font:500 15px/1.5 var(--mono);white-space:nowrap}
+.tbl td.ok{color:#1E4B3B;font-weight:600}
+.tbl td.meh{color:#8A4B00;font-weight:600}
+.list{padding-left:20px;margin:12px 0 0;max-width:70ch}
+.list li{margin:6px 0}
+footer.board-foot{padding:36px 0 60px;color:var(--ink-2);font-size:14px;border-top:1px solid var(--rule);margin-top:48px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{transition:none!important;animation:none!important}
+  .sweep{display:none}
+}
+</style>
+</head>
+<body>
+
+<header class="board-head">
+  <div class="wrap">
+    <p class="kicker">Barber L’Architecte · redesign · concept 04 · graine « Les quatre mains »</p>
+    <h1>Une maison, quatre mains.</h1>
+    <p class="lede">On est fidèle à un barbier, pas à une boutique. Le site d’aujourd’hui montre quatre initiales dans des ronds. Il n’y a pas de portraits : <strong>tant mieux</strong>. Ici chaque barbier a sa <em>main</em>, une façon de couper devenue une façon d’écrire, de tracer, de bouger. Tu touches un nom, le salon se rallume autour de lui. Tu ne touches rien : c’est la maison qui te prend, et c’est très bien comme ça.</p>
+    <div class="triad">
+      <div><h3>L’idée en quatre mots</h3><p><strong>Choisir sa main, c’est choisir son site.</strong> Ce n’est pas un quiz, pas quatre couleurs, pas quatre pages : une seule coque (prix, adresse, bouton) et cinq éclairages.</p></div>
+      <div><h3>Le risque, dit tout haut</h3><p>Cinq lettrages sur un site de quatre fauteuils. Le danger est la cacophonie. On le tient en gardant <strong>la coque immobile</strong> : seule la lumière change (lettre, trait, angle, mouvement, couleur), jamais les prix, jamais l’adresse, jamais le bouton.</p></div>
+      <div><h3>Ce qu’on tord dans la graine</h3><p>Pas de « mood » décoratif : chaque main est tirée <strong>mot pour mot des quatre bios</strong>. Au millimètre → la graduation. À l’ancienne → le double filet. Contours nets → le dégradé par paliers. Boucles → la courbe. Et la cinquième main est la pièce elle-même : le liseré LED rouge du miroir.</p></div>
+    </div>
+  </div>
+</header>
+
+<!-- ───────────────────────── 01 · first screen (live) ───────────────────────── -->
+<section class="part" id="premier-ecran">
+  <div class="wrap">
+    <p class="num">01 — Le premier écran · téléphone 390 px · démonstration vivante</p>
+    <h2>L’inconnu voit la maison. L’habitué arrive chez son barbier.</h2>
+    <p class="note">Deux premiers écrans, une seule page. <strong>L’inconnu</strong> n’a pas à choisir : les sept réponses de la rue sont là (où, ouvert, combien, quand, avis, appeler, itinéraire) et la maison est déjà la main choisie. <strong>L’habitué</strong> ouvre le site et il est <em>chez Frank</em> : le téléphone se souvient (le même mécanisme que « Comme la dernière fois ? », sans compte). Touche un nom dans le téléphone : c’est l’interaction signature, <strong>le rallumage</strong>.</p>
+    <div class="two">
+      <div>
+        <div class="seg" role="group" aria-label="Qui ouvre le site">
+          <button type="button" data-mode="inconnu" aria-pressed="true">Inconnu, première fois</button>
+          <button type="button" data-mode="habitue" aria-pressed="false">Habitué de Frank</button>
+        </div>
+
+        <div class="phone" id="phone" data-main="maison" data-mode="inconnu">
+          <div class="screen">
+            <header class="pbar">
+              <span class="wordmark">Barber L’Architecte <em>Place Pélabon · Marseille 13<sup>e</sup></em></span>
+              <a class="btn-s" href="tel:0491000000">Appeler</a>
+            </header>
+            <p class="open"><span class="dot" aria-hidden="true"></span>Ouvert · jusqu’à 18&nbsp;h&nbsp;30 · sans rendez-vous, on te prend tout de suite</p>
+            <p class="plate" data-f="plate">La maison</p>
+            <h3 class="disp" data-f="h">Choisis une main. Ou laisse faire la maison.</h3>
+            <div class="mark" aria-hidden="true"></div>
+            <div class="rebook only-habitue">
+              <p class="q">Comme la dernière fois&nbsp;?</p>
+              <p class="l1">Coupe classique · 20&nbsp;€ · avec Frank</p>
+              <p class="l2">jeudi 27 novembre · 18&nbsp;h · 30&nbsp;min · le même jeudi, après le taf</p>
+              <button type="button" class="btn">Reprendre · 20&nbsp;€</button>
+            </div>
+            <p class="sub only-inconnu" data-f="sub">Quatre barbiers, quatre façons de couper. Sans préférence, on te prend le premier libre.</p>
+            <figure class="photo"><img src="../../../../public/img/fade.jpg" alt="Client de profil : cheveux décolorés, dégradé à blanc net sur les côtés"></figure>
+            <p class="facts"><span><b>16 place Pélabon</b> · Marseille 13<sup>e</sup></span><span>★ <b>5,0</b> · 316 avis Google</span></p>
+            <p class="next" data-f="next">Prochain créneau · <b>aujourd’hui 16&nbsp;h</b></p>
+            <div class="cta">
+              <button type="button" class="btn" data-f="btn">Réserver · dès 15&nbsp;€</button>
+              <a class="btn ghost" href="https://www.google.com/maps/search/?api=1&query=16+place+P%C3%A9labon+13013+Marseille">Itinéraire</a>
+            </div>
+            <nav class="hands" aria-label="Les quatre mains">
+              <p class="hands-l">Quatre mains · touche un nom</p>
+              <div class="chips">
+                <button type="button" class="chip h-maison" data-hand="maison" aria-pressed="true">Sans préférence</button>
+                <button type="button" class="chip h-jkut" data-hand="jkut" aria-pressed="false">JKut</button>
+                <button type="button" class="chip h-frank" data-hand="frank" aria-pressed="false">Frank</button>
+                <button type="button" class="chip h-soldat" data-hand="soldat" aria-pressed="false">Le Soldat</button>
+                <button type="button" class="chip h-esteban" data-hand="esteban" aria-pressed="false">Esteban</button>
+              </div>
+            </nav>
+          </div>
+          <div class="sweep" aria-hidden="true"></div>
+        </div>
+        <p class="caption">Le rallumage : un trait de la couleur du barbier traverse l’écran comme le liseré LED du miroir, et derrière lui la lettre, le filet, l’angle des boutons et le rythme changent. Avec <code>prefers-reduced-motion</code> : pas de trait, le changement est immédiat. La coque (Appeler, adresse, avis, prochain créneau, Réserver · dès 15 €, Itinéraire) ne bouge jamais.</p>
+      </div>
+      <div>
+        <p class="note"><strong>Ce qui est protégé, visible ici :</strong> le prix dans le bouton · le prochain créneau en direct · « Sans préférence » en première main · « Comme la dernière fois ? » en premier pour l’habitué · le téléphone qui appelle · l’itinéraire.</p>
+        <ul class="list">
+          <li><strong>Pourquoi barbier-premier.</strong> Dans ce salon, le barbier est la marque : le Fidèle dit « mon barbier », le Passionné demande « c’est qui qui fait les dégradés à blanc ». Le site le dit dès le premier écran au lieu de l’apprendre à l’étape 2 de la réservation.</li>
+          <li><strong>Pourquoi la maison reste sombre et rouge.</strong> C’est la pièce : sol noir, cuir noir piqué de rouge, un long liseré LED rouge au-dessus du miroir (voir la photo du salon). Le rouge n’est pas un « pop » de bouton : c’est une <em>ligne</em>, celle du miroir. Le bouton de la maison est os, pas rouge.</li>
+          <li><strong>Pourquoi l’habitué n’a rien à faire.</strong> Un code SMS a déjà reconnu son téléphone la dernière fois ; le site rouvre chez Frank et propose de reprendre. Il peut changer de main d’un geste : les quatre noms restent en bas.</li>
+          <li><strong>Lien profond lisible.</strong> <code>/?barbier=frank</code> ouvre chez Frank ; <code>/?reserver&amp;barbier=frank&amp;prestation=coupe-classique</code> ouvre la réservation déjà posée (codes courts <code>cl</code> toujours acceptés).</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ───────────────────────── 02 · desktop ───────────────────────── -->
+<section class="part" id="bureau">
+  <div class="wrap">
+    <p class="num">02 — Le premier écran · ordinateur 1280 px · la maison · vendredi 17 h, le Passionné juge</p>
+    <h2>Quatre portes en bas de l’écran.</h2>
+    <p class="note">Sur grand écran, la largeur sert l’idée : la coque en haut, la photo du travail à droite, et en bas <strong>cinq portes</strong>, chacune déjà dans sa main. Survoler une porte rallume la page ; cliquer entre chez le barbier.</p>
+    <div class="desk-wrap"><div class="desk" data-main="maison">
+      <div class="top">
+        <span class="wordmark" style="font-size:20px">Barber L’Architecte <em style="display:inline;font-size:16px"> · place Pélabon, Marseille 13<sup>e</sup></em></span>
+        <nav aria-hidden="true"><span>Les mains</span><span>Sorti du fauteuil</span><span>La carte</span><span>Formations</span><span>Carte cadeau</span></nav>
+        <div class="right"><span class="fake ghost">Appeler · 04 91 00 00 00</span><span class="fake">Réserver · dès 15&nbsp;€</span></div>
+      </div>
+      <div class="hero">
+        <div>
+          <p class="open"><span class="dot" aria-hidden="true"></span>Ouvert · jusqu’à 18&nbsp;h&nbsp;30 · sans rendez-vous, on te prend tout de suite</p>
+          <p class="plate" style="margin-top:18px">La maison</p>
+          <p class="disp">Choisis une main. Ou laisse faire la maison.</p>
+          <div class="mark" aria-hidden="true"></div>
+          <p class="sub">Ici, on prend le temps. On t’écoute, on regarde ce qui te va, on te conseille. Puis on construit ta coupe au millimètre, pour qu’elle tienne et que tu saches la coiffer chez toi.</p>
+          <p class="facts"><span><b>16 place Pélabon</b> · 13013 Marseille</span><span>★ <b>5,0</b> · 316 avis Google</span><span>mar.–sam. · 9&nbsp;h – 18&nbsp;h&nbsp;30</span></p>
+          <p class="next">Prochain créneau · <b>aujourd’hui 16&nbsp;h</b> · Sans préférence · Le plus tôt</p>
+          <div class="ctas"><span class="fake">Réserver · dès 15&nbsp;€</span><span class="fake ghost">Itinéraire</span></div>
+        </div>
+        <figure class="photo"><img src="../../../../public/img/sidepart.jpg" alt="Raie marquée sur le côté, dégradé bas, nuque tatouée"></figure>
+      </div>
+      <div class="doors">
+        <div class="door h-maison hand"><p class="plate">05 · La maison</p><p class="name">Sans préférence</p><div class="mark" aria-hidden="true"></div><p class="bio">Le premier libre. La maison te prend, et c’est très bien comme ça.</p><p class="slot">Le plus tôt · <b>aujourd’hui 16&nbsp;h</b></p></div>
+        <div class="door h-jkut hand"><p class="plate">01 · Chez JKut</p><p class="name">JKut</p><div class="mark" aria-hidden="true"></div><p class="bio">Dégradés à la précision chirurgicale. Le fondateur de la méthode « construction au millimètre ».</p><p class="slot">Libre · <b>demain 12&nbsp;h</b></p></div>
+        <div class="door h-frank hand"><p class="plate">02 · Chez Frank</p><p class="name">Frank</p><div class="mark" aria-hidden="true"></div><p class="bio">Coupes classiques et barbes taillées à l’ancienne.</p><p class="slot">Libre · <b>demain 9&nbsp;h</b></p></div>
+        <div class="door h-soldat hand"><p class="plate">03 · Chez Le Soldat</p><p class="name">Le Soldat</p><div class="mark" aria-hidden="true"></div><p class="bio">Skin fade, contours nets, couleur et silver.</p><p class="slot">Libre · <b>demain 9&nbsp;h&nbsp;30</b></p></div>
+        <div class="door h-esteban hand"><p class="plate">04 · Chez Esteban</p><p class="name">Esteban</p><div class="mark" aria-hidden="true"></div><p class="bio">Textures, boucles et transformations.</p><p class="slot">Libre · <b>jeu. 29 oct. · 9&nbsp;h&nbsp;30</b></p></div>
+      </div>
+    </div></div>
+    <p class="caption">Les trois photos de coupes restent « Sorti du fauteuil », avec les légendes du site. Aucune n’est attribuée à un barbier : le salon doit d’abord confirmer qui a fait quoi (voir CONCEPT.md).</p>
+  </div>
+</section>
+
+<!-- ───────────────────────── 03 · the five hands ───────────────────────── -->
+<section class="part" id="mains">
+  <div class="wrap">
+    <p class="num">03 — Les cinq mains · palette, lettre, trait, angle, mouvement</p>
+    <h2>Une main, c’est cinq choses. Jamais seulement une couleur.</h2>
+    <p class="note">Chaque main est dérivée de la bio réelle du barbier, rien d’autre : pas de portrait, pas de ciseaux, pas de rasoir. La lettre de la maison, <strong>Familjen Grotesk</strong>, porte tout le texte courant partout ; chaque barbier n’apporte qu’une lettre de titre, chargée seulement quand on entre chez lui.</p>
+    <div class="cards">
+      <article class="card h-maison hand">
+        <p class="plate">La maison · Sans préférence</p>
+        <p class="name disp">Prends place.</p>
+        <div class="mark" aria-hidden="true"></div>
+        <p class="bio">La pièce elle-même : sol noir, cuir, et le liseré LED rouge du long miroir.</p>
+        <dl><dt>Lettre</dt><dd>Familjen Grotesk 700, serrée</dd><dt>Trait</dt><dd>un filet rouge qui luit, le LED</dd><dt>Angle</dt><dd>6 px</dd><dt>Mouvement</dt><dd>400 ms, fondu calme</dd></dl>
+        <p class="demo">0 1 2 3 4 5 6 7 8 9 · 20&nbsp;€ · 18&nbsp;h&nbsp;30</p>
+        <div class="sw"><span style="background:#121212;color:#EFEBE3">121212</span><span style="background:#EFEBE3;color:#121212">EFEBE3</span><span style="background:#E8392B;color:#fff">E8392B</span></div>
+      </article>
+      <article class="card h-jkut hand">
+        <p class="plate">01 · Chez JKut</p>
+        <p class="name disp">Au millimètre.</p>
+        <div class="mark" aria-hidden="true"></div>
+        <p class="bio">Dégradés à la précision chirurgicale. Le fondateur de la méthode « construction au millimètre ».</p>
+        <dl><dt>Lettre</dt><dd>Azeret Mono 300, chiffres tabulaires</dd><dt>Trait</dt><dd>la graduation : 1 px, un repère tous les 5</dd><dt>Angle</dt><dd>0 px, filets d’un pixel</dd><dt>Mouvement</dt><dd>160 ms, par crans</dd></dl>
+        <p class="demo disp" style="font-size:15px">0,5&nbsp;mm · 1&nbsp;mm · 3&nbsp;mm · 6&nbsp;mm</p>
+        <div class="sw"><span style="background:#F4F3EE;color:#15161A">F4F3EE</span><span style="background:#15161A;color:#F4F3EE">15161A</span><span style="background:#F2C200;color:#15161A">F2C200</span></div>
+      </article>
+      <article class="card h-frank hand">
+        <p class="plate">02 · Chez Frank</p>
+        <p class="name disp">À l’ancienne.</p>
+        <div class="mark" aria-hidden="true"></div>
+        <p class="bio">Coupes classiques et barbes taillées à l’ancienne.</p>
+        <dl><dt>Lettre</dt><dd>Libre Caslon Text, italique</dd><dt>Trait</dt><dd>le double filet du vieux tarif</dd><dt>Angle</dt><dd>2 px</dd><dt>Mouvement</dt><dd>700 ms, lent, rien ne saute</dd></dl>
+        <p class="demo disp" style="font-size:19px">Coupe &amp; barbe, 30&nbsp;€</p>
+        <div class="sw"><span style="background:#F1EBDD;color:#1B2A22">F1EBDD</span><span style="background:#1B2A22;color:#F1EBDD">1B2A22</span><span style="background:#1E4B3B;color:#F1EBDD">1E4B3B</span></div>
+      </article>
+      <article class="card h-soldat hand">
+        <p class="plate">03 · Chez Le Soldat</p>
+        <p class="name disp">Contours nets.</p>
+        <div class="mark" aria-hidden="true"></div>
+        <p class="bio">Skin fade, contours nets, couleur et silver.</p>
+        <dl><dt>Lettre</dt><dd>Big Shoulders Display 800, capitales</dd><dt>Trait</dt><dd>le dégradé par paliers, du noir à la peau</dd><dt>Angle</dt><dd>0 px, bordures 1 px blanc</dd><dt>Mouvement</dt><dd>120 ms, coupe franche</dd></dl>
+        <p class="demo disp" style="font-size:22px">Silver · 100&nbsp;€ · 1&nbsp;h</p>
+        <div class="sw"><span style="background:#000;color:#fff">000000</span><span style="background:#fff;color:#000">FFFFFF</span><span style="background:#C7CCD2;color:#000">C7CCD2</span></div>
+      </article>
+      <article class="card h-esteban hand">
+        <p class="plate">04 · Chez Esteban</p>
+        <p class="name disp">Boucles.</p>
+        <div class="mark" aria-hidden="true"></div>
+        <p class="bio">Textures, boucles et transformations.</p>
+        <dl><dt>Lettre</dt><dd>Fraunces 500, SOFT 100, WONK 1</dd><dt>Trait</dt><dd>la courbe qui revient</dd><dt>Angle</dt><dd>24 px, tout est rond</dd><dt>Mouvement</dt><dd>600 ms, élastique, un léger dépassement</dd></dl>
+        <p class="demo disp" style="font-size:19px">Transformation · 50&nbsp;€</p>
+        <div class="sw"><span style="background:#2A1030;color:#F7EDE6">2A1030</span><span style="background:#F7EDE6;color:#2A1030">F7EDE6</span><span style="background:#F4A871;color:#2A1030">F4A871</span></div>
+      </article>
+    </div>
+    <p class="caption">Test de propriété : cache le nom. Un dentiste n’a pas de main « au millimètre » ni de « skin fade ». À Lyon, il n’y aurait ni place Pélabon ni ce miroir rouge. Les cinq lettres sont les cinq phrases du salon.</p>
+  </div>
+</section>
+
+<!-- ───────────────────────── 04 · booking ───────────────────────── -->
+<section class="part" id="reservation">
+  <div class="wrap">
+    <p class="num">04 — La réservation · la feuille se rallume à l’étape « Avec qui ? »</p>
+    <h2>La feuille garde son contrat. Elle change de main en route.</h2>
+    <p class="note">Forme : une feuille plein écran sur téléphone, un panneau à droite sur ordinateur, qui suit l’ordre réel de l’API (quoi → qui → quand → à ton nom). L’inconnu entre par « Réserver · dès 15 € » et voit le prix d’abord. L’habitué entre par « Réserver avec Frank » : l’étape « Avec qui ? » est déjà répondue, la feuille s’ouvre <em>chez Frank</em>. Dès qu’un nom est touché, <strong>la feuille se rallume</strong> et reste dans cette main jusqu’au ticket. Retour ferme la feuille sans quitter le site ; Échap aussi ; le focus revient sur le bouton.</p>
+    <div class="frames">
+      <div class="sheet" data-main="maison">
+        <div class="head"><div><p class="step">Étape 2 sur 4 · Barbier</p><p class="q disp">Avec qui&nbsp;?</p><p class="hint">Un barbier, ou « Sans préférence ». Tu peux changer après.</p></div><button type="button" class="x" aria-label="Fermer">×</button></div>
+        <button type="button" class="row h-maison" role="radio" aria-checked="true"><span><span class="who">Sans préférence</span><span class="free" style="display:block">Le plus tôt : <b>demain · 9&nbsp;h</b> avec Frank</span></span><span class="radio" aria-hidden="true"></span></button>
+        <button type="button" class="row h-jkut" role="radio" aria-checked="false"><span><span class="who">JKut</span><span class="free" style="display:block">Libre <b>demain · 12&nbsp;h</b> · au millimètre</span><span class="mark" aria-hidden="true" style="display:block"></span></span><span class="radio" aria-hidden="true"></span></button>
+        <button type="button" class="row h-frank" role="radio" aria-checked="false"><span><span class="who">Frank</span><span class="free" style="display:block">Libre <b>demain · 9&nbsp;h</b> · à l’ancienne</span><span class="mark" aria-hidden="true" style="display:block"></span></span><span class="radio" aria-hidden="true"></span></button>
+        <button type="button" class="row h-soldat" role="radio" aria-checked="false"><span><span class="who">Le Soldat</span><span class="free" style="display:block">Libre <b>demain · 9&nbsp;h&nbsp;30</b> · contours nets</span><span class="mark" aria-hidden="true" style="display:block"></span></span><span class="radio" aria-hidden="true"></span></button>
+        <button type="button" class="row h-esteban" role="radio" aria-checked="false"><span><span class="who">Esteban</span><span class="free" style="display:block">Libre <b>jeu. 29 oct. · 9&nbsp;h&nbsp;30</b> · boucles</span><span class="mark" aria-hidden="true" style="display:block"></span></span><span class="radio" aria-hidden="true"></span></button>
+        <div class="foot"><p class="price">20&nbsp;€<small>Coupe classique · 30&nbsp;min</small></p><button type="button" class="btn">Continuer</button></div>
+      </div>
+
+      <div class="sheet" data-main="esteban">
+        <div class="head"><div><p class="step">Étape 4 sur 4 · Chez Esteban</p><p class="q disp">À ton nom.</p><p class="hint">Transformation · 50&nbsp;€ · 1&nbsp;h · avec Esteban</p></div><button type="button" class="x" aria-label="Fermer">×</button></div>
+        <div class="held"><span>Créneau gardé pour toi<br><b>samedi 29 novembre · 10&nbsp;h</b></span><b aria-live="polite">4&nbsp;min&nbsp;32</b></div>
+        <div class="field"><label for="prenom">Prénom</label><div class="in" id="prenom">Théo</div></div>
+        <div class="field"><label for="tel">Téléphone</label><div class="in" id="tel">06 12 34 56 78</div><p class="why">Pour la confirmation et le rappel, rien d’autre.</p></div>
+        <div class="field"><label for="mot">Un mot pour ton barbier <span style="font-weight:400;color:var(--mute)">· facultatif</span></label><div class="in" id="mot" style="min-height:56px;color:var(--mute)">Mariage samedi, je suis témoin. Je garde la longueur.</div></div>
+        <p class="rule-line">Un acompte de <strong>15&nbsp;€</strong> est demandé pour cette prestation, déduit au salon. Annulé plus de 12&nbsp;h avant, il est remboursé.</p>
+        <div class="foot"><p class="price">50&nbsp;€<small>dont 15&nbsp;€ maintenant</small></p><button type="button" class="btn">Réserver et régler l’acompte · 15&nbsp;€</button></div>
+      </div>
+    </div>
+    <p class="caption">Si le créneau est encore <em>gardé</em>, la feuille dit « gardé pour toi » et le temps qui reste ; elle ne dit « Ce créneau vient d’être pris » que si le salon l’a vraiment donné à quelqu’un d’autre. Hors ligne : « Pas de connexion. Vérifie ton réseau et réessaie. » et tout ce qui est tapé reste là.</p>
+  </div>
+</section>
+
+<!-- ───────────────────────── 05 · confirmation ───────────────────────── -->
+<section class="part" id="confirmation">
+  <div class="wrap">
+    <p class="num">05 — La confirmation · le ticket, dans la main de Frank</p>
+    <h2>C’est réservé. Chez Frank.</h2>
+    <p class="note">Le meilleur moment du produit garde ses neuf choses : le jour et l’heure en toutes lettres, la coupe et son prix, le barbier, l’adresse, le SMS mot pour mot, le calendrier, l’itinéraire, Déplacer, Annuler. Et une dixième pour le parent : une deuxième personne, même jour, le fauteuil d’à côté.</p>
+    <div class="frames">
+      <div class="sheet" data-main="frank">
+        <div class="head"><div><p class="step">Confirmé · code LA-BXUF</p><p class="q disp">C’est réservé, Sofiane.</p></div><button type="button" class="x" aria-label="Fermer">×</button></div>
+        <div class="ticket">
+          <div class="t-top">
+            <p class="plate">Ton rendez-vous · chez Frank</p>
+            <p class="when disp">jeudi 27 novembre · 18&nbsp;h</p>
+            <div class="mark" aria-hidden="true"></div>
+            <p class="what">Coupe classique · 20&nbsp;€ · 30&nbsp;min</p>
+            <p class="line">Avec <b>Frank</b> · coupes classiques et barbes taillées à l’ancienne</p>
+            <p class="line"><b>16, place Pélabon</b> · 13013 Marseille</p>
+          </div>
+          <div class="t-mid"><button type="button" class="btn ghost">Ajouter au calendrier</button><a class="btn ghost" href="https://www.google.com/maps/search/?api=1&query=16+place+P%C3%A9labon+13013+Marseille">Itinéraire</a></div>
+          <div class="sms"><p class="lab">Le SMS que tu reçois</p><p>L’Architecte : c’est noté Sofiane ! Jeu. 27 nov. à 18 h avec Frank. Gérer : https://larchitecte.fr/r/LA-BXUF</p></div>
+          <div class="t-mid"><button type="button" class="btn ghost">Déplacer</button><button type="button" class="btn ghost">Annuler</button></div>
+        </div>
+        <div class="duo">
+          <p class="l1">Quelqu’un vient avec toi&nbsp;?</p>
+          <p class="l2">Une deuxième personne, le même jour, le fauteuil d’à côté. Même téléphone, pas de compte.</p>
+          <button type="button" class="btn">Réserver pour une deuxième personne</button>
+        </div>
+        <p class="chk">Rien à payer aujourd’hui · carte acceptée au salon</p>
+      </div>
+      <div>
+        <ul class="list">
+          <li><strong>Le ticket est dans la main du barbier</strong>, pas dans celle de la maison : c’est la promesse tenue (« avec Frank ») et c’est ce que le Fidèle relit dans le tram.</li>
+          <li><strong>En toutes lettres</strong>, pour l’Ancien : jeudi 27 novembre, 18 h, Frank, place Pélabon ; rien n’est une icône seule.</li>
+          <li><strong>« Garde tout au même endroit »</strong> (Mon espace, facultatif) vient sous le ticket, jamais avant : le rendez-vous est déjà confirmé.</li>
+          <li><strong>Le partage</strong> du Passionné : le ticket s’exporte en image carrée dans la main du barbier, avec son nom et son Instagram. Un moment qui vaut une story, sans photo inventée.</li>
+          <li><strong>Build :</strong> un seul composant <code>Ticket</code> ; la main n’est qu’un attribut <code>data-main</code> hérité de la feuille.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ───────────────────────── 06 · voice ───────────────────────── -->
+<section class="part" id="voix">
+  <div class="wrap">
+    <p class="num">06 — La voix · tu, court, concret · six lignes</p>
+    <h2>Le salon parle. Les mains ne parlent pas à sa place.</h2>
+    <p class="note">Une seule voix, celle du salon : le tutoiement, une idée par phrase, les mots des clients. Les mains changent la lettre, jamais le ton. Les lignes ci-dessous sont posées chacune dans une main pour montrer que la voix tient.</p>
+    <div class="voice">
+      <blockquote class="hand h-maison disp">Choisis une main. Ou laisse faire la maison.<small>Le premier écran, pour l’inconnu.</small></blockquote>
+      <blockquote class="hand h-jkut disp">Chez JKut, on construit au millimètre. Le dégradé tient trois semaines, pas trois jours.<small>La porte de JKut, à partir de sa bio.</small></blockquote>
+      <blockquote class="hand h-frank disp">Sans préférence, c’est le premier libre. Et c’est très bien comme ça.<small>Le choix du barbier, pour que l’inconnu ne se sente pas testé.</small></blockquote>
+      <blockquote class="hand h-soldat disp">Le salon se rallume autour de ton barbier. Les prix, eux, ne bougent pas.<small>La carte, en entrant chez quelqu’un.</small></blockquote>
+      <blockquote class="hand h-esteban disp">Créneau gardé pour toi, cinq minutes. Le temps de finir ton sandwich.<small>Le créneau tenu, sans compte à rebours qui presse.</small></blockquote>
+      <blockquote class="hand h-frank disp">C’est réservé, Sofiane. Chez Frank, jeudi, 18&nbsp;h.<small>Le ticket.</small></blockquote>
+    </div>
+  </div>
+</section>
+
+<!-- ───────────────────────── 07 · R1–R10 ───────────────────────── -->
+<section class="part" id="r1r10">
+  <div class="wrap">
+    <p class="num">07 — Ce que le concept doit résoudre · R1 à R10</p>
+    <h2>Un produit d’abord. Le reste est de la lumière.</h2>
+    <table class="tbl">
+      <thead><tr><th>#</th><th>Comment ce concept répond</th><th>État</th></tr></thead>
+      <tbody>
+        <tr><td>R1</td><td>Sept réponses dans le premier écran de la maison : adresse, Ouvert · jusqu’à 18 h 30, dès 15 € dans le bouton, prochain créneau en direct, 5,0 · 316 avis, Appeler, Itinéraire. La photo est une bande de 120 px pour ne rien pousser sous le pli.</td><td class="ok">tenu</td></tr>
+        <tr><td>R2</td><td>La feuille pousse un état d’historique ; Retour et Échap la ferment ; le focus revient au bouton d’origine. Liens lisibles : <code>?reserver&amp;barbier=frank&amp;prestation=coupe-classique</code>, codes courts acceptés.</td><td class="ok">tenu</td></tr>
+        <tr><td>R3</td><td>Rien de fixe au-dessus du contenu ; cibles ≥ 44 px, 48 px sur Réserver et l’acompte ; la bande des mains passe à deux lignes à 320 px, elle ne chevauche rien.</td><td class="ok">tenu</td></tr>
+        <tr><td>R4</td><td>« Appeler » en haut à droite de chaque main, un vrai <code>tel:</code>, et le numéro écrit dans « Venir ».</td><td class="ok">tenu</td></tr>
+        <tr><td>R5</td><td>La coque (nom, adresse, horaires, téléphone, lien Réserver) est du HTML statique ; les mains sont des attributs CSS ; le JS n’ajoute que le rallumage et la feuille.</td><td class="ok">tenu</td></tr>
+        <tr><td>R6</td><td>« Réserver pour une deuxième personne » sur le ticket : même jour, fauteuil d’à côté, même téléphone.</td><td class="ok">tenu</td></tr>
+        <tr><td>R7</td><td>Neuf choses sur le ticket ; l’acompte dit une fois, en mots, avant le bouton « Réserver et régler l’acompte · 15 € ».</td><td class="ok">tenu</td></tr>
+        <tr><td>R8</td><td>« Créneau gardé pour toi · 4 min 32 » tant que la tenue court ; « vient d’être pris » seulement sur un vrai refus du serveur.</td><td class="ok">tenu</td></tr>
+        <tr><td>R9</td><td>Aucun texte sur photo ; cinq paires fond/texte à ≥ 7:1 ; 14 px minimum ; en mouvement réduit, pas de trait, rien ne boucle, rien ne reste caché.</td><td class="ok">tenu</td></tr>
+        <tr><td>R10</td><td>Cinq familles, c’est le vrai coût : la maison ne charge que Familjen (2 fichiers) ; la lettre d’un barbier (1 fichier woff2 sous-ensemble latin) ne se charge qu’en entrant chez lui. Zéro tiers ; polices auto-hébergées au build.</td><td class="meh">à prouver</td></tr>
+      </tbody>
+    </table>
+    <p class="caption">R10 est le point que la maquette ne peut pas prouver : cinq fontes affichées ici par Google Fonts, pour la planche seulement. Au build, on mesure le premier rendu de la maison sur 4G lente ; si une lettre de barbier dépasse 40 Ko, on la remplace par sa variante système (Caslon → Georgia, Big Shoulders → Arial Narrow) jusqu’à ce qu’elle arrive.</p>
+  </div>
+</section>
+
+<!-- ───────────────────────── 08 · the build, honestly ───────────────────────── -->
+<section class="part" id="chantier">
+  <div class="wrap">
+    <p class="num">08 — Honnête sur le chantier</p>
+    <h2>Ce qu’on simplifierait en construisant.</h2>
+    <ul class="list">
+      <li><strong>Le rallumage</strong> devient un attribut sur <code>&lt;html&gt;</code> et cinq blocs de variables ; le trait lumineux est un seul élément. Sans JS, la maison s’affiche : les liens <code>?barbier=</code> sont rendus côté serveur dans la bonne main.</li>
+      <li><strong>Les photos</strong> : les mêmes quatre, re-traitées au CSS (filtre, rayon), jamais recadrées en portrait. Les légendes restent celles du site. Qui a fait quelle coupe : <strong>à confirmer par le salon</strong> avant toute attribution ; tant que ce n’est pas confirmé, la galerie dit « coupe du salon ».</li>
+      <li><strong>Si une main ne convainc pas</strong> le barbier concerné, elle se replie sur la maison : le site tourne avec deux mains comme avec cinq. On montre d’abord les cinq à l’équipe, un soir, et on écoute.</li>
+      <li><strong>Ce qu’on coupe en premier</strong> si le temps manque : l’export image du ticket, le survol des portes sur ordinateur, les filtres photo.</li>
+    </ul>
+  </div>
+</section>
+
+<footer class="board-foot"><div class="wrap">Planche de concept, pas un site. Contenu réel du salon (CONTENT.md), quatre photographies réelles, aucune attribution inventée. Polices par Google Fonts pour la planche uniquement. Concept « Les quatre mains », studio pod quatre-mains.</div></footer>
+
+<script>
+(function(){
+  var HANDS={
+    maison:{plate:'La maison',h:'Choisis une main. Ou laisse faire la maison.',sub:'Quatre barbiers, quatre façons de couper. Sans préférence, on te prend le premier libre.',next:'Prochain créneau · <b>aujourd’hui 16 h</b>',btn:'Réserver · dès 15 €'},
+    jkut:{plate:'Chez JKut',h:'Au millimètre.',sub:'Dégradés à la précision chirurgicale. Le fondateur de la méthode « construction au millimètre ».',next:'Prochain créneau avec JKut · <b>demain 12 h</b>',btn:'Réserver avec JKut · dès 15 €'},
+    frank:{plate:'Chez Frank',h:'À l’ancienne.',sub:'Coupes classiques et barbes taillées à l’ancienne.',next:'Prochain créneau avec Frank · <b>demain 9 h</b>',btn:'Réserver avec Frank · dès 15 €'},
+    soldat:{plate:'Chez Le Soldat',h:'Contours nets.',sub:'Skin fade, contours nets, couleur et silver.',next:'Prochain créneau avec Le Soldat · <b>demain 9 h 30</b>',btn:'Réserver avec Le Soldat · dès 15 €'},
+    esteban:{plate:'Chez Esteban',h:'Boucles et transformations.',sub:'Textures, boucles et transformations.',next:'Prochain créneau avec Esteban · <b>jeu. 29 oct. · 9 h 30</b>',btn:'Réserver avec Esteban · dès 15 €'}
+  };
+  var phone=document.getElementById('phone');
+  var reduced=window.matchMedia('(prefers-reduced-motion: reduce)');
+  function fill(key){
+    var d=HANDS[key];
+    phone.querySelectorAll('[data-f]').forEach(function(el){
+      var f=el.getAttribute('data-f');
+      if(f==='next'){el.innerHTML=d.next;}else{el.textContent=d[f];}
+    });
+    phone.querySelectorAll('.chip').forEach(function(c){c.setAttribute('aria-pressed',String(c.getAttribute('data-hand')===key));});
+  }
+  function relight(key){
+    if(phone.getAttribute('data-main')===key) return;
+    phone.setAttribute('data-main',key);
+    fill(key);
+    if(reduced.matches) return;
+    var sweep=phone.querySelector('.sweep');
+    var acc=getComputedStyle(phone).getPropertyValue('--acc').trim();
+    sweep.classList.remove('go'); void sweep.offsetWidth;
+    sweep.style.setProperty('--sw',acc);
+    sweep.classList.add('go');
+  }
+  phone.addEventListener('click',function(e){
+    var chip=e.target.closest('.chip'); if(!chip) return;
+    relight(chip.getAttribute('data-hand'));
+  });
+  document.querySelectorAll('.seg button').forEach(function(b){
+    b.addEventListener('click',function(){
+      var mode=b.getAttribute('data-mode');
+      document.querySelectorAll('.seg button').forEach(function(x){x.setAttribute('aria-pressed',String(x===b));});
+      phone.setAttribute('data-mode',mode);
+      relight(mode==='habitue'?'frank':'maison');
+    });
+  });
+  // the desktop frame: scaled to fit, never scrolled sideways
+  function fit(){
+    document.querySelectorAll('.desk-wrap').forEach(function(w){
+      var d=w.firstElementChild, s=Math.min(1,w.clientWidth/1280);
+      d.style.transform='scale('+s+')';
+      w.style.height=Math.ceil(d.offsetHeight*s)+'px';
+    });
+  }
+  window.addEventListener('resize',fit); fit();
+  if(document.fonts&&document.fonts.ready) document.fonts.ready.then(fit);
+})();
+</script>
+</body>
+</html>

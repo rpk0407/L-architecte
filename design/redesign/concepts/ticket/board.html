@@ -1,0 +1,764 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Le Ticket · concept board · Barber L’Architecte</title>
+<meta name="description" content="Concept board : le site entier est un ticket qui s’imprime pour toi, ligne à ligne. Paper, ink, one red.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:ital,wdth,wght@0,62..125,100..900;1,62..125,100..900&family=Allerta+Stencil&display=swap" rel="stylesheet">
+<style>
+/* ───────────── tokens : papier, encre, un rouge ───────────── */
+:root{
+  --papier:#F3F2ED;      /* le ticket : un blanc de papier, pas une crème */
+  --papier-2:#E7E6DF;    /* le plateau : papier posé sur papier */
+  --encre:#17160F;       /* l’encre pleine */
+  --encre-2:#5B5951;     /* l’encre claire : les mentions, 6,3:1 sur papier */
+  --trait:#CBC9BF;       /* les perforations, les filets */
+  --rouge:#C8161D;       /* l’encre du tampon : 5,2:1 sur papier, 5,9:1 sous du blanc */
+  --comptoir:#141311;    /* le comptoir sur lequel le ticket est posé */
+  --comptoir-txt:#D9D6CC;
+  --vert:#2E7D4F;        /* « ouvert » : un seul emploi */
+  --w:400px;             /* la largeur d’un ticket : 80 mm à l’écran */
+  --fs:15px;
+  --radius:2px;
+  --machine:"Archivo","Archivo Narrow","Helvetica Neue",Arial,sans-serif;
+  --tampon:"Allerta Stencil","Stencil","Impact",sans-serif;
+  color-scheme:light;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{
+  background:var(--papier);color:var(--encre);
+  font-family:var(--machine);font-size:var(--fs);line-height:1.4;
+  font-variation-settings:"wdth" 100;font-variant-numeric:tabular-nums;
+  overflow-x:hidden;
+}
+img{display:block;max-width:100%}
+a{color:inherit}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+:focus-visible{outline:3px solid var(--rouge);outline-offset:2px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* ───────────── the printer’s modes : one family, three widths ───────────── */
+.cond{font-variation-settings:"wdth" 70;font-weight:600;text-transform:uppercase;letter-spacing:.06em}
+.wide{font-variation-settings:"wdth" 112;font-weight:800;letter-spacing:-.02em;line-height:.95}
+.light{color:var(--encre-2)}
+.tampon{font-family:var(--tampon);text-transform:uppercase;letter-spacing:.04em}
+
+/* ───────────── the board around the frames ───────────── */
+.board{max-width:1180px;margin:0 auto;padding:0 16px}
+.board-head{padding:40px 0 24px;border-bottom:2px dashed var(--trait)}
+.board-head .kicker{font-size:14px}
+.board-head h1{font-size:clamp(40px,8vw,88px);margin:12px 0 8px}
+.board-head p{max-width:62ch;font-size:17px;margin-top:8px}
+.board-head .twist{margin-top:14px;padding:12px 14px;border-left:3px solid var(--rouge);font-size:15px;max-width:70ch}
+section.part{padding:40px 0 24px;border-bottom:2px dashed var(--trait)}
+section.part>h2{font-size:clamp(28px,4vw,44px);margin:6px 0 6px}
+section.part>.lead{max-width:66ch;font-size:16px;color:var(--encre-2);margin-bottom:22px}
+.num{font-size:14px;color:var(--rouge)}
+.counter{background:var(--comptoir);color:var(--comptoir-txt);padding:24px 16px;margin:0 -16px;border-radius:0}
+.row{display:grid;gap:24px;align-items:start}
+@media(min-width:900px){.row.two{grid-template-columns:1fr 1fr}.row.phone-desk{grid-template-columns:minmax(300px,420px) 1fr}}
+.cap{font-size:14px;color:var(--comptoir-txt);margin-top:10px;max-width:52ch}
+.cap.on-paper{color:var(--encre-2)}
+
+/* ───────────── frames ───────────── */
+.phone{width:min(390px,100%);margin:0 auto;background:var(--comptoir);border:1px solid #2a2824;border-radius:0;position:relative;overflow:hidden;color:var(--encre)}
+.phone.h844{height:844px}.phone.h800{height:800px}
+.screen{position:absolute;inset:0;overflow:hidden;background:var(--comptoir)}
+.screen>.bg{position:absolute;left:0;top:0;width:100%;height:320px;object-fit:cover;object-position:62% 30%;filter:grayscale(1) contrast(1.06)}
+.desk{width:100%;aspect-ratio:1280/800;position:relative;overflow:hidden;background:var(--comptoir)}
+.desk-in{width:1280px;height:800px;position:absolute;left:0;top:0;transform-origin:0 0;transform:scale(var(--s,0.9));background:var(--comptoir);color:var(--encre)}
+
+/* ───────────── the ticket (paper) ───────────── */
+.paper{
+  background:var(--papier);color:var(--encre);position:relative;
+  -webkit-mask:
+    radial-gradient(11px at 0 0,#0000 97%,#000) 0 0/51% 51% no-repeat,
+    radial-gradient(11px at 100% 0,#0000 97%,#000) 100% 0/51% 51% no-repeat,
+    radial-gradient(11px at 0 100%,#0000 97%,#000) 0 100%/51% 51% no-repeat,
+    radial-gradient(11px at 100% 100%,#0000 97%,#000) 100% 100%/51% 51% no-repeat;
+  mask:
+    radial-gradient(11px at 0 0,#0000 97%,#000) 0 0/51% 51% no-repeat,
+    radial-gradient(11px at 100% 0,#0000 97%,#000) 100% 0/51% 51% no-repeat,
+    radial-gradient(11px at 0 100%,#0000 97%,#000) 0 100%/51% 51% no-repeat,
+    radial-gradient(11px at 100% 100%,#0000 97%,#000) 100% 100%/51% 51% no-repeat;
+}
+.paper.no-bottom{-webkit-mask:
+    radial-gradient(11px at 0 0,#0000 97%,#000) 0 0/51% 101% no-repeat,
+    radial-gradient(11px at 100% 0,#0000 97%,#000) 100% 0/51% 101% no-repeat;
+  mask:
+    radial-gradient(11px at 0 0,#0000 97%,#000) 0 0/51% 101% no-repeat,
+    radial-gradient(11px at 100% 0,#0000 97%,#000) 100% 0/51% 101% no-repeat}
+.t-pad{padding:16px 18px}
+@media(max-width:340px){.t-pad{padding:14px 14px}}
+.perf{height:0;border-top:2px dashed var(--trait);margin:12px 0}
+.perf.strong{border-top-color:var(--encre);border-top-style:dashed}
+.t-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.mark{font-family:var(--tampon);font-size:19px;letter-spacing:.06em;text-transform:uppercase;line-height:1}
+.mark small{display:block;font-family:var(--machine);font-weight:600;font-variation-settings:"wdth" 70;letter-spacing:.06em;font-size:14px;margin-top:4px;color:var(--encre-2);text-transform:uppercase}
+.open{font-size:14px;text-align:right;line-height:1.3;white-space:nowrap}
+.open b{display:block;font-variation-settings:"wdth" 70;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+.open b::before{content:"";display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--vert);margin-right:6px;vertical-align:1px}
+.t-h1{font-size:clamp(34px,10vw,44px);margin:10px 0 10px}
+.phone .t-h1{font-size:40px}
+@media(max-width:340px){.phone .t-h1{font-size:33px}}
+
+/* a line of the ticket : label … value */
+.lines{list-style:none}
+.line{display:flex;align-items:baseline;gap:8px;min-height:30px;padding:3px 0;font-size:15px}
+.line .k{flex:none;font-variation-settings:"wdth" 70;font-weight:600;text-transform:uppercase;letter-spacing:.06em;font-size:14px}
+.line .dots{flex:1;border-bottom:2px dotted var(--trait);transform:translateY(-5px);min-width:14px}
+.line .v{flex:none;text-align:right;font-weight:600;max-width:62%}
+.line .v small{display:block;font-weight:400;color:var(--encre-2);font-size:14px}
+.line.big{flex-wrap:wrap;row-gap:0}
+.line.big .v{font-size:24px;font-variation-settings:"wdth" 112;font-weight:800;letter-spacing:-.02em;flex-basis:100%;max-width:100%;line-height:1.1;padding-bottom:4px}
+code{overflow-wrap:anywhere}
+sup{font-size:14px;line-height:0;vertical-align:.35em}
+.btn.tel{flex-direction:column;gap:0;line-height:1.15;padding:6px 8px}
+.btn.tel small{font-weight:600;font-variation-settings:"wdth" 70;letter-spacing:.04em;font-size:14px;color:var(--encre-2);white-space:nowrap}
+.btn.primary.long{font-size:16px}
+[hidden]{display:none!important}
+.btn .px{white-space:nowrap}
+.line.total{border-top:2px solid var(--encre);margin-top:6px;padding-top:8px}
+.line.total .k{font-size:15px;font-weight:800}
+.line.total .v{font-size:26px;font-variation-settings:"wdth" 112;font-weight:800;letter-spacing:-.02em}
+.line.rouge .v,.line.rouge .k{color:var(--rouge)}
+.line.wrap{flex-wrap:wrap}
+
+/* buttons : flat ink, flat red, 48 px where money is */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 16px;border:2px solid var(--encre);font-weight:700;font-size:16px;text-decoration:none;border-radius:var(--radius);background:var(--papier);color:var(--encre)}
+.btn.primary{background:var(--rouge);border-color:var(--rouge);color:#fff;min-height:56px;width:100%;justify-content:space-between;padding:0 18px;font-size:18px}
+.btn.primary .px{font-variation-settings:"wdth" 70;font-weight:700;letter-spacing:.04em;text-transform:uppercase;font-size:15px;border-left:2px solid rgba(255,255,255,.5);padding-left:12px}
+.btn.ghost{background:transparent}
+.btn.ink{background:var(--encre);color:var(--papier);border-color:var(--encre)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btns2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0 10px}
+.btns2 .btn{min-height:48px;padding:0 10px;font-size:15px}
+.btn .arr{font-weight:400}
+
+/* the printer’s rhythm */
+@keyframes print{from{clip-path:inset(0 100% 0 0);opacity:.2}to{clip-path:inset(0 0 0 0);opacity:1}}
+.printing>*{animation:print .42s cubic-bezier(.2,.8,.2,1) both}
+.printing>*:nth-child(1){animation-delay:.05s}.printing>*:nth-child(2){animation-delay:.17s}.printing>*:nth-child(3){animation-delay:.29s}
+.printing>*:nth-child(4){animation-delay:.41s}.printing>*:nth-child(5){animation-delay:.53s}.printing>*:nth-child(6){animation-delay:.65s}
+.printing>*:nth-child(7){animation-delay:.77s}.printing>*:nth-child(8){animation-delay:.89s}
+@media(prefers-reduced-motion:reduce){.printing>*{animation:none}}
+
+/* the stamp */
+.stamp{position:absolute;right:14px;top:14px;transform:rotate(-8deg);font-family:var(--tampon);font-size:30px;line-height:1;letter-spacing:.06em;color:var(--rouge);border:4px double var(--rouge);padding:8px 12px 6px;text-transform:uppercase;pointer-events:none;background:transparent;mix-blend-mode:multiply}
+.stamp small{display:block;font-family:var(--machine);font-variation-settings:"wdth" 70;font-weight:700;font-size:14px;letter-spacing:.08em;text-align:center;margin-top:3px}
+@keyframes slam{from{transform:rotate(-8deg) scale(1.9);opacity:0}60%{opacity:1}to{transform:rotate(-8deg) scale(1)}}
+.stamp.live{animation:slam .22s cubic-bezier(.1,.9,.3,1) both}
+@media(prefers-reduced-motion:reduce){.stamp.live{animation:none}}
+
+/* ───────────── hero ticket in the phone frame ───────────── */
+.t-hero{position:absolute;left:0;right:0;top:268px;min-height:620px}
+.t-hero .t-h1{margin-top:8px}
+.t-hero .next{display:grid;grid-template-columns:1fr auto;align-items:center;gap:10px;margin:2px 0 8px}
+.hero-foot{padding-top:6px;font-size:14px;color:var(--encre-2)}
+.peek{position:absolute;left:0;right:0;top:906px}
+
+/* desktop home */
+.desk .photo{position:absolute;left:0;top:0;width:760px;height:800px;object-fit:cover;object-position:60% 30%;filter:grayscale(1) contrast(1.06)}
+.desk .legend{position:absolute;left:40px;bottom:40px;width:380px;padding:14px 16px;background:var(--papier)}
+.desk .legend .line{min-height:26px}
+.desk .t-home{position:absolute;left:800px;top:0;width:420px;height:800px;overflow:hidden}
+.desk .t-home .t-h1{font-size:44px}
+.desk .t-nav{position:absolute;left:800px;top:0;width:420px;display:flex;gap:18px;justify-content:flex-end;padding:0 18px;font-size:14px;color:var(--comptoir-txt)}
+.desk .mini-nav{position:absolute;left:40px;top:30px;display:flex;gap:16px;align-items:center;color:var(--comptoir-txt);font-size:14px;background:var(--comptoir);padding:8px 12px}
+.desk .mini-nav .mark{color:var(--papier)}
+.fake{display:inline-flex;align-items:center;justify-content:center}
+
+/* ───────────── booking frames ───────────── */
+.book{position:absolute;inset:0;display:flex;flex-direction:column;background:var(--papier-2)}
+.book .top{display:flex;align-items:center;justify-content:space-between;padding:12px 10px 0;gap:8px}
+.book .top .ico{width:44px;height:44px;display:inline-flex;align-items:center;justify-content:center;border:2px solid var(--encre);border-radius:50%;font-size:18px;background:var(--papier)}
+.book .top .step{font-size:14px}
+.book .q{padding:10px 18px 6px}
+.book .q h2{font-size:34px;line-height:1}
+.book .q p{color:var(--encre-2);margin-top:6px;font-size:15px}
+.book .choices{flex:1;overflow:hidden;padding:4px 12px 0;display:flex;flex-direction:column;gap:8px}
+.choice{display:grid;grid-template-columns:44px 1fr auto;gap:12px;align-items:center;min-height:60px;padding:8px 12px;background:var(--papier);border:2px solid transparent;text-align:left;width:100%;border-radius:var(--radius)}
+.choice.on,.choice[aria-pressed="true"]{border-color:var(--encre)}
+.choice .ini{width:44px;height:44px;display:flex;align-items:center;justify-content:center;border:2px solid var(--encre);font-family:var(--tampon);font-size:16px;letter-spacing:0}
+.choice .ini.r{border-color:var(--rouge);color:var(--rouge)}
+.choice .nm{font-weight:700;font-size:16px;line-height:1.15}
+.choice .nm small{display:block;font-weight:400;color:var(--encre-2);font-size:14px;margin-top:2px}
+.choice .nx{text-align:right;font-size:14px;line-height:1.2;white-space:nowrap}
+.choice .nx b{display:block;font-size:16px}
+.t-foot{background:var(--papier);padding:12px 18px 14px;position:relative}
+.t-foot .line{min-height:24px;padding:1px 0}
+.t-foot .btn.primary{margin-top:10px;min-height:56px}
+.held{display:flex;justify-content:space-between;align-items:center;margin:10px 18px 0;padding:8px 12px;border:2px solid var(--encre);background:var(--papier);font-size:14px}
+.held b{font-variation-settings:"wdth" 112;font-weight:800;font-size:18px;letter-spacing:-.01em}
+.field{display:block;padding:0 18px;margin-top:8px}
+.field span{display:block;font-size:14px;font-weight:600;margin-bottom:4px}
+.field span i{font-style:normal;font-weight:400;color:var(--encre-2)}
+.field .in{height:48px;border:2px solid var(--encre);background:var(--papier);padding:0 12px;display:flex;align-items:center;font-size:16px}
+.field small{display:block;font-size:14px;color:var(--encre-2);margin-top:4px}
+.rule{font-size:14px;line-height:1.35;margin:8px 0 2px}
+.rule b{color:var(--rouge)}
+
+/* ───────────── confirmation ───────────── */
+.conf{position:absolute;inset:0;overflow:hidden;background:var(--comptoir)}
+.conf .paper{margin:10px 0 0}
+.conf .t-h1{font-size:30px;margin:6px 0 10px}
+.conf .t-head{min-height:76px;align-items:flex-start}
+.conf .stamp,.demo-ticket .stamp{top:10px;right:14px;font-size:27px;padding:7px 10px 5px}
+@media(max-width:340px){.conf .stamp,.demo-ticket .stamp{font-size:22px;right:10px}}
+.phone.h1000{height:1000px}
+.conf .perf.strong{border-top-color:#6B6860}
+.sms{border:2px solid var(--encre);padding:10px 12px;font-size:14px;line-height:1.45;margin:6px 0 8px;background:var(--papier)}
+.sms .k{display:block;font-size:14px;color:var(--encre-2);margin-bottom:4px;font-variation-settings:"wdth" 70;font-weight:600;text-transform:uppercase;letter-spacing:.06em}
+.conf .btns2 .btn{font-size:15px}
+.fid{display:flex;gap:6px;margin:8px 0 4px;flex-wrap:wrap}
+.fid span{width:28px;height:28px;border:2px solid var(--encre);display:flex;align-items:center;justify-content:center;font-family:var(--tampon);font-size:14px;color:var(--rouge)}
+.fid span.o{border-style:dashed;border-color:var(--trait)}
+.talon{background:var(--papier);margin-top:10px}
+.talon .line{min-height:24px}
+
+/* ───────────── live demo ───────────── */
+.demo{display:grid;gap:24px}
+@media(min-width:900px){.demo{grid-template-columns:1fr minmax(320px,var(--w))}}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 18px}
+.chip{min-height:48px;padding:0 14px;border:2px solid var(--encre);background:var(--papier);font-weight:600;font-size:15px;display:inline-flex;align-items:center;gap:10px;border-radius:var(--radius)}
+.chip .p{font-variation-settings:"wdth" 70;font-weight:700;letter-spacing:.04em;color:var(--encre-2)}
+.chip[aria-pressed="true"]{background:var(--encre);color:var(--papier)}
+.chip[aria-pressed="true"] .p{color:var(--papier)}
+.demo h3{font-size:20px;margin-top:6px}
+.demo h3 small{font-weight:400;color:var(--encre-2);font-size:15px;margin-left:8px}
+.demo-ticket{position:sticky;bottom:0;align-self:start;max-width:var(--w);width:100%;margin:0 auto}
+@media(min-width:900px){.demo-ticket{position:sticky;top:16px;bottom:auto}}
+.demo-ticket .paper{box-shadow:0 2px 0 var(--trait)}
+#demo-lines .line{min-height:28px}
+#demo-lines .line .v.cursor{color:var(--encre-2);font-weight:400}
+.blink{display:inline-block;width:10px;height:16px;background:var(--encre);vertical-align:-2px;animation:blink 1s steps(2) infinite}
+@keyframes blink{to{opacity:0}}
+@media(prefers-reduced-motion:reduce){.blink{animation:none}}
+.demo-note{font-size:14px;color:var(--encre-2);margin-top:10px}
+
+/* ───────────── palette & type ───────────── */
+.swatches{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px}
+.sw{height:120px;padding:12px;display:flex;flex-direction:column;justify-content:space-between;border:2px solid var(--encre);font-size:14px}
+.sw b{font-size:16px}
+.type{display:grid;gap:18px;margin-top:24px}
+@media(min-width:900px){.type{grid-template-columns:1fr 1fr}}
+.spec{border:2px solid var(--encre);padding:18px}
+.spec .k{font-size:14px;color:var(--encre-2);margin-bottom:8px}
+.spec .s1{font-size:clamp(40px,7vw,72px)}
+.spec .s2{font-size:28px;margin-top:8px}
+.spec .s3{font-size:16px;margin-top:8px}
+.spec .s4{font-family:var(--tampon);font-size:42px;color:var(--rouge);text-transform:uppercase;letter-spacing:.06em;line-height:1}
+.photos{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:18px}
+.photos img{aspect-ratio:3/4;object-fit:cover;filter:grayscale(1) contrast(1.06);width:100%}
+.photos figcaption{font-size:14px;margin-top:6px;color:var(--encre-2)}
+@media(max-width:600px){.photos{grid-template-columns:1fr 1fr}}
+
+/* ───────────── voice ───────────── */
+.voice{list-style:none;display:grid;gap:14px}
+@media(min-width:900px){.voice{grid-template-columns:1fr 1fr 1fr}}
+.voice li{border-top:2px solid var(--encre);padding-top:10px}
+.voice li b{display:block;font-size:24px;line-height:1.1;font-variation-settings:"wdth" 112;font-weight:800;letter-spacing:-.02em}
+.voice li span{display:block;font-size:14px;color:var(--encre-2);margin-top:6px}
+
+/* ───────────── R table ───────────── */
+table{width:100%;border-collapse:collapse;font-size:15px}
+th,td{text-align:left;vertical-align:top;padding:10px 8px;border-top:2px dashed var(--trait)}
+th{font-variation-settings:"wdth" 70;font-weight:700;text-transform:uppercase;letter-spacing:.06em;font-size:14px;border-top:2px solid var(--encre)}
+td:first-child{font-weight:800;color:var(--rouge);white-space:nowrap}
+.tbl{overflow-x:auto}
+.foot{padding:28px 0 60px;font-size:14px;color:var(--encre-2)}
+</style>
+</head>
+<body>
+
+<div class="board">
+
+<!-- ═══════════════════════════════════════ HEAD ═══════════════════════════════════════ -->
+<header class="board-head">
+  <p class="kicker cond">Concept board · redesign round 2 · slug <code>ticket</code></p>
+  <h1 class="wide">Ton ticket s’imprime.</h1>
+  <p>Le site entier est <strong>un ticket de caisse qui s’imprime pour toi, ligne à ligne</strong> : où, ouvert, combien, quand, avec qui. Réserver, c’est construire ton ticket ; le total ne quitte jamais le bas du papier ; au bout, un tampon rouge : <span class="tampon" style="color:var(--rouge)">Réservé</span>.</p>
+  <p class="twist"><strong>How the seed was twisted.</strong> The ticket is not a nostalgic prop and never a texture: it is a <em>width</em>. One column of paper, 80 mm wide at every screen size, laid on a dark counter, and the photographs live <em>under</em> the paper, not on it. The « printer » is one type family in three widths (condensed, normal, double-width) instead of a monospace costume. The only humour is in the words, and the only red is stamp ink.</p>
+</header>
+
+<!-- ═══════════════════════════════════════ 01 FIRST SCREEN ═══════════════════════════════════════ -->
+<section class="part" id="premier">
+  <p class="num cond">01 · Premier écran</p>
+  <h2 class="wide">Sept réponses, sept lignes.</h2>
+  <p class="lead">The ticket’s head answers the seven street questions before anything scrolls: where, open now, how much, how soon, is it good, phone, directions. The photograph is the counter it lies on; the paper slides up over it as it prints.</p>
+
+  <div class="counter">
+  <div class="row phone-desk">
+    <div>
+      <div class="phone h844" aria-label="Premier écran sur un téléphone 390 × 844">
+        <div class="screen">
+          <img class="bg" src="../../../../public/img/fade.jpg" alt="Client de profil : cheveux décolorés, dégradé à blanc net sur les côtés">
+          <article class="paper no-bottom t-hero">
+            <div class="t-pad">
+              <div class="t-head">
+                <div class="mark">L’Architecte<small>Barber · Marseille 13<sup>e</sup></small></div>
+                <div class="open"><b>Ouvert</b>jusqu’à 18 h 30</div>
+              </div>
+              <div class="perf"></div>
+              <h1 class="t-h1 wide">Prends place.</h1>
+              <ul class="lines printing">
+                <li class="line"><span class="k">Où</span><span class="dots"></span><span class="v">16 place Pélabon<small>13013 Marseille</small></span></li>
+                <li class="line big"><span class="k">Prochain créneau</span><span class="dots"></span><span class="v">Aujourd’hui · 16 h</span></li>
+                <li class="line"><span class="k">Coupe</span><span class="dots"></span><span class="v">dès 20 € · 30 min</span></li>
+                <li class="line"><span class="k">Barbe</span><span class="dots"></span><span class="v">dès 15 €</span></li>
+                <li class="line"><span class="k">Avis Google</span><span class="dots"></span><span class="v">5,0 · 316 avis</span></li>
+              </ul>
+              <div class="btns2">
+                <a class="btn tel" href="tel:+33491000000">Appeler <small>04 91 00 00 00</small></a>
+                <a class="btn" href="https://maps.google.com/?q=16+place+P%C3%A9labon+13013+Marseille" rel="noreferrer">Itinéraire <span class="arr">→</span></a>
+              </div>
+              <button class="btn primary" type="button">Réserver <span class="px">dès 15 €</span></button>
+              <p class="hero-foot">Sans rendez-vous, on te prend tout de suite · Sans compte</p>
+              <div class="perf"></div>
+              <p class="cond light" style="font-size:14px">02 · Sorti du fauteuil</p>
+            </div>
+          </article>
+        </div>
+      </div>
+      <p class="cap">390 × 844. Paper rises over the photograph; the lines print in order (nothing moves under <code>prefers-reduced-motion</code>). Phone and directions are two 48 px buttons on the paper, not icons in a corner.</p>
+    </div>
+
+    <div>
+      <div class="desk" id="desk1" aria-label="Premier écran sur un écran 1280 × 800">
+        <div class="desk-in">
+          <img class="photo" src="../../../../public/img/fade.jpg" alt="">
+          <div class="mini-nav"><span class="mark">L’Architecte</span><span>Sorti du fauteuil</span><span>L’équipe</span><span>La carte</span><span>Venir</span></div>
+          <div class="legend paper">
+            <ul class="lines">
+              <li class="line"><span class="k">Sorti du fauteuil</span><span class="dots"></span><span class="v light" style="font-weight:400">01 / 03</span></li>
+              <li class="line"><span class="k">Dégradé à blanc, décoloré</span><span class="dots"></span><span class="v">dès 80 € · 1 h 30</span></li>
+              <li class="line"><span class="k light">Je veux cette coupe</span><span class="dots"></span><span class="v">→</span></li>
+            </ul>
+          </div>
+          <article class="paper t-home">
+            <div class="t-pad">
+              <div class="t-head">
+                <div class="mark">L’Architecte<small>Barber · 16 place Pélabon · Marseille 13<sup>e</sup></small></div>
+                <div class="open"><b>Ouvert</b>jusqu’à 18 h 30</div>
+              </div>
+              <div class="perf"></div>
+              <h2 class="t-h1 wide">Prends place.</h2>
+              <ul class="lines">
+                <li class="line"><span class="k">Où</span><span class="dots"></span><span class="v">16 place Pélabon<small>13013 Marseille · sans rendez-vous, on te prend tout de suite</small></span></li>
+                <li class="line big"><span class="k">Prochain créneau</span><span class="dots"></span><span class="v">Aujourd’hui · 16 h</span></li>
+                <li class="line"><span class="k">Coupe</span><span class="dots"></span><span class="v">dès 20 € · 30 min</span></li>
+                <li class="line"><span class="k">Barbe</span><span class="dots"></span><span class="v">dès 15 €</span></li>
+                <li class="line"><span class="k">Avis Google</span><span class="dots"></span><span class="v">5,0 · 316 avis</span></li>
+                <li class="line"><span class="k">Appeler</span><span class="dots"></span><span class="v">04 91 00 00 00</span></li>
+                <li class="line"><span class="k">Itinéraire</span><span class="dots"></span><span class="v">→</span></li>
+              </ul>
+              <div class="btn primary fake" style="margin-top:10px">Réserver <span class="px">dès 15 €</span></div>
+              <p class="hero-foot">Sans compte · Les prix, sans surprise.</p>
+              <div class="perf"></div>
+              <p class="cond light" style="font-size:14px">02 · Sorti du fauteuil</p>
+              <ul class="lines" style="margin-top:8px">
+                <li class="line"><span class="k">Dégradé bas, raie tracée</span><span class="dots"></span><span class="v">25 €</span></li>
+                <li class="line"><span class="k">Boucles et barbe</span><span class="dots"></span><span class="v">30 €</span></li>
+              </ul>
+            </div>
+          </article>
+        </div>
+      </div>
+      <p class="cap">1280 × 800. The risk, said out loud: the ticket stays 420 px wide on a desktop. The rest of the screen is the counter and the photograph, and the photograph carries its own caption strip (a cut, a price, « Je veux cette coupe »). Nothing stretches.</p>
+    </div>
+  </div>
+  </div>
+
+  <h3 style="margin:28px 0 8px;font-size:22px">The home, top to bottom (one ticket in nine segments)</h3>
+  <div class="tbl"><table>
+    <tr><th>#</th><th>Segment</th><th>What it prints</th><th>Why there</th></tr>
+    <tr><td>00</td><td>En-tête</td><td>L’ARCHITECTE · Barber · 16 place Pélabon · Marseille 13<sup>e</sup> · ● Ouvert · jusqu’à 18 h 30</td><td>Name, place and state first, in the HTML (R5)</td></tr>
+    <tr><td>01</td><td>Prends place.</td><td>Où · Prochain créneau · Coupe dès 20 € · Barbe dès 15 € · 5,0 · 316 avis · Appeler · Itinéraire · <b>Réserver · dès 15 €</b></td><td>The seven street questions in one viewport (R1)</td></tr>
+    <tr><td>02</td><td>Sorti du fauteuil.</td><td>Three photographs, each a full-bleed gap between paper segments; the caption is the next segment’s first line: cut · price · time · « Je veux cette coupe »</td><td>Proof of work for Yanis, with a price on every picture</td></tr>
+    <tr><td>03</td><td>Avec qui ?</td><td>Sans préférence · Le plus tôt, then JKut, Frank, Le Soldat, Esteban: initials in a stamp square, the bio, the next free slot</td><td>Four barbers are four lines, no portraits needed</td></tr>
+    <tr><td>04</td><td>Les prix, sans surprise.</td><td>The carte as a price list: Coupes / Changer de tête / Barbe, every line name … price · time, « includes » underneath in light ink</td><td>The ticket’s native form; nothing hidden in tabs</td></tr>
+    <tr><td>05</td><td>Ne nous crois pas sur parole.</td><td>5,0 · 316 avis Google · ce qui revient : l’accueil, le professionnalisme, l’hygiène, les produits, l’ambiance, le suivi · Lire les avis</td><td>Trust as a printed line, not a carousel of stock smiles</td></tr>
+    <tr><td>06</td><td>Ta coupe, chaque mois.</td><td>Carnet 5 coupes 80 € (16 € la coupe) as the loyalty card ▢▢▢▢▢ · Hebdo 80 €/mois · Sans engagement · résiliable en 3 clics</td><td>The stamp card is the shop’s own object</td></tr>
+    <tr><td>07</td><td>Tu te demandes ?</td><td>Eight questions, eight answers, as lines that open</td><td>Gérard reads before he taps</td></tr>
+    <tr><td>08</td><td>Le talon</td><td>Perforation · 16, place Pélabon · mar.–sam. 9 h – 18 h 30 · 04 91 00 00 00 · Itinéraire · Instagram · Facebook · YouTube · Écrire au salon · Carte cadeau · Formations · Mon espace · « Merci de ta visite. Reviens dans 28 jours. »</td><td>The tear-off stub holds the address and the phone, so the way there is the last thing in hand</td></tr>
+  </table></div>
+</section>
+
+<!-- ═══════════════════════════════════════ 02 BOOKING ═══════════════════════════════════════ -->
+<section class="part" id="reservation">
+  <p class="num cond">02 · La réservation</p>
+  <h2 class="wide">Construis ton ticket.</h2>
+  <p class="lead">Not a bottom sheet: a page that is the ticket itself. Choices sit on the grey tray above; the paper is pinned at the foot and never exceeds a quarter of the screen. Each choice prints one more line onto it, and the total is always the last line before the button. The deep link (<code>?reserver&amp;barbier=frank&amp;prestation=coupe-classique</code>, codes or readable names) pre-prints the lines; Back and Esc tear the page off and return to the home with focus on « Réserver ».</p>
+
+  <div class="counter">
+  <div class="row two">
+    <div>
+      <div class="phone h800" aria-label="Étape 2 : Avec qui ?">
+        <div class="book">
+          <div class="top">
+            <span class="ico" aria-hidden="true">←</span>
+            <span class="step cond">Étape 2 sur 4 · Avec qui ?</span>
+            <span class="ico" aria-hidden="true">✕</span>
+          </div>
+          <div class="q"><h2 class="wide">Avec qui ?</h2><p>Un barbier, ou « Sans préférence ».</p></div>
+          <div class="choices">
+            <button class="choice" type="button" aria-pressed="true"><span class="ini r">☆</span><span class="nm">Sans préférence<small>Le plus tôt</small></span><span class="nx"><b>Auj. 16 h</b>le premier libre</span></button>
+            <button class="choice" type="button"><span class="ini">JK</span><span class="nm">JKut<small>Dégradés à la précision chirurgicale</small></span><span class="nx"><b>Dem. 9 h 30</b></span></button>
+            <button class="choice" type="button"><span class="ini">F</span><span class="nm">Frank<small>Coupes classiques, barbes à l’ancienne</small></span><span class="nx"><b>Auj. 17 h</b></span></button>
+            <button class="choice" type="button"><span class="ini">LS</span><span class="nm">Le Soldat<small>Skin fade, contours nets, couleur et silver</small></span><span class="nx"><b>Mar. 10 h</b></span></button>
+            <button class="choice" type="button"><span class="ini">E</span><span class="nm">Esteban<small>Textures, boucles et transformations</small></span><span class="nx"><b>Mer. 14 h</b></span></button>
+          </div>
+          <div class="t-foot paper">
+            <ul class="lines">
+              <li class="line"><span class="k">Coupe classique</span><span class="dots"></span><span class="v">20 €</span></li>
+              <li class="line"><span class="k">Avec</span><span class="dots"></span><span class="v cursor light" style="font-weight:400">Sans préférence <span class="blink" aria-hidden="true"></span></span></li>
+              <li class="line total"><span class="k">Total</span><span class="dots"></span><span class="v">20 €</span></li>
+            </ul>
+            <button class="btn primary" type="button">Continuer <span class="px">Le plus tôt · auj. 16 h</span></button>
+          </div>
+        </div>
+      </div>
+      <p class="cap">« Sans préférence · Le plus tôt » is the first line, with a stamp square instead of a portrait. The foot shows what is printed so far (20 €) and the cursor on the line being chosen. Julien’s path: Réserver → Coupe → Continuer → Continuer → prénom, numéro → Réserver. Five taps.</p>
+    </div>
+
+    <div>
+      <div class="phone h800" aria-label="Étape 4 : À ton nom, avec l’acompte">
+        <div class="book">
+          <div class="top">
+            <span class="ico" aria-hidden="true">←</span>
+            <span class="step cond">Étape 4 sur 4 · À ton nom</span>
+            <span class="ico" aria-hidden="true">✕</span>
+          </div>
+          <div class="held"><span>Créneau gardé pour toi</span><b>4:51</b></div>
+          <label class="field"><span>Prénom</span><div class="in">Théo</div></label>
+          <label class="field"><span>Téléphone</span><div class="in">06 00 03 99 00</div><small>Pour la confirmation et le rappel, rien d’autre.</small></label>
+          <label class="field"><span>Un mot pour ton barbier <i>facultatif</i></span><div class="in light">Ex. : blond froid, mariage samedi</div></label>
+          <div style="flex:1"></div>
+          <p class="rule" style="margin:0 18px 10px">Un acompte de <b>15 €</b> est demandé pour cette prestation, déduit au salon. Annulé plus de 12 h avant, il est remboursé.</p>
+          <div class="t-foot paper">
+            <ul class="lines">
+              <li class="line"><span class="k">Transformation · 1 h · JKut</span><span class="dots"></span><span class="v">50 €</span></li>
+              <li class="line"><span class="k">Mar. 27 oct. · 9 h</span><span class="dots"></span><span class="v light" style="font-weight:400">gardé 4:51</span></li>
+              <li class="line rouge"><span class="k">Acompte maintenant</span><span class="dots"></span><span class="v">15 €</span></li>
+              <li class="line total"><span class="k">Au salon</span><span class="dots"></span><span class="v">35 €</span></li>
+            </ul>
+            <button class="btn primary long" type="button">Réserver et régler l’acompte <span class="px">15 €</span></button>
+          </div>
+        </div>
+      </div>
+      <p class="cap">The deposit is a printed line in red ink, and said once in words, just before the paper and its button: amount, reason, refund rule (R7). The held slot sits above the form with its timer in double-width figures, never under a keyboard. At 320 × 568 the foot keeps only the service line and the total, so it stays under a quarter of the screen (R3). If the hold expires, the line reads « Le créneau n’est plus gardé » and keeps every choice: never « vient d’être pris » (R8).</p>
+    </div>
+  </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════ 03 CONFIRMATION ═══════════════════════════════════════ -->
+<section class="part" id="confirmation">
+  <p class="num cond">03 · La confirmation</p>
+  <h2 class="wide">Tamponné.</h2>
+  <p class="lead">The best moment of the product in this language: the ticket is torn off, the red stamp comes down, and the stub below carries the address, the phone and the loyalty card. The nine things are all there: day and hour in words, barber, address, the SMS word for word, calendar, directions, move, cancel, and the code with the price.</p>
+
+  <div class="counter">
+  <div class="row two">
+    <div>
+      <div class="phone h1000" aria-label="Confirmation, le ticket entier">
+        <div class="conf">
+          <article class="paper">
+            <div class="stamp" aria-hidden="true">Réservé<small>LA-BXUF</small></div>
+            <div class="t-pad">
+              <div class="t-head"><div class="mark">L’Architecte<small>Ticket LA-BXUF</small></div></div>
+              <div class="perf"></div>
+              <h2 class="t-h1 wide">C’est réservé, Julien.</h2>
+              <ul class="lines printing">
+                <li class="line big wrap"><span class="k">Quand</span><span class="dots"></span><span class="v">mercredi 28 octobre · 9 h</span></li>
+                <li class="line"><span class="k">Avec</span><span class="dots"></span><span class="v">Frank</span></li>
+                <li class="line"><span class="k">Coupe classique · 30 min</span><span class="dots"></span><span class="v">20 €</span></li>
+                <li class="line"><span class="k">Où</span><span class="dots"></span><span class="v">16, place Pélabon<small>13013 Marseille</small></span></li>
+                <li class="line total"><span class="k">À régler au salon</span><span class="dots"></span><span class="v">20 €</span></li>
+              </ul>
+              <div class="sms"><span class="k">Le SMS que tu reçois</span>L’Architecte : c’est noté Julien ! Mer. 28 oct. à 9 h avec Frank. Gérer : larchitecte.fr/r/LA-BXUF</div>
+              <div class="btns2">
+                <a class="btn" href="#agenda">Agenda <span class="arr light">.ics</span></a>
+                <a class="btn" href="#itineraire">Itinéraire <span class="arr">→</span></a>
+                <a class="btn ghost" href="#deplacer">Déplacer</a>
+                <a class="btn ghost" href="#annuler">Annuler</a>
+              </div>
+              <div class="perf"></div>
+              <ul class="lines">
+                <li class="line wrap"><span class="k">Quelqu’un d’autre à la suite ?</span><span class="dots"></span><span class="v light" style="font-weight:400">9 h 30 avec Frank</span></li>
+              </ul>
+              <button class="btn ink" type="button" style="width:100%;margin-top:4px">Ajouter une personne <span class="arr">→</span></button>
+            </div>
+          </article>
+          <div class="perf strong" style="margin:4px 18px"></div>
+          <article class="paper talon">
+            <div class="t-pad">
+              <ul class="lines">
+                <li class="line"><span class="k">Carte fidélité</span><span class="dots"></span><span class="v">5 / 9</span></li>
+              </ul>
+              <div class="fid" aria-label="Carte fidélité : 5 coupes sur 9"><span>L</span><span>L</span><span>L</span><span>L</span><span>L</span><span class="o"></span><span class="o"></span><span class="o"></span><span class="o"></span></div>
+              <ul class="lines">
+                <li class="line"><span class="k">Si besoin</span><span class="dots"></span><span class="v"><a href="tel:+33491000000" style="text-decoration:none">04 91 00 00 00</a></span></li>
+              </ul>
+              <p class="light" style="font-size:14px;margin-top:6px">Garde ce ticket. On ne te le redemandera pas.</p>
+            </div>
+          </article>
+        </div>
+      </div>
+      <p class="cap">The frame is taller than a phone on purpose: it shows the whole ticket, two viewports long. The stamp is the only decoration on the site. « Ajouter une personne » prints a second ticket right under the first, stapled to the same phone number: Nadia’s three heads in one sitting (R6). The stub keeps the phone for Gérard (R4).</p>
+    </div>
+
+    <div>
+      <div class="phone h844" aria-label="Retour d’un habitué : Comme la dernière fois ?">
+        <div class="screen">
+          <img class="bg" src="../../../../public/img/sidepart.jpg" alt="Raie marquée sur le côté, dégradé bas, nuque tatouée">
+          <article class="paper no-bottom t-hero" style="top:300px">
+            <div class="t-pad">
+              <div class="t-head">
+                <div class="mark">L’Architecte<small>Bon retour, Sofiane</small></div>
+                <div class="open"><b>Ouvert</b>jusqu’à 18 h 30</div>
+              </div>
+              <div class="perf"></div>
+              <h2 class="t-h1 wide">Comme la dernière fois ?</h2>
+              <ul class="lines printing">
+                <li class="line"><span class="k">Coupe + contour de barbe</span><span class="dots"></span><span class="v">25 €</span></li>
+                <li class="line"><span class="k">Avec</span><span class="dots"></span><span class="v">Frank</span></li>
+                <li class="line big"><span class="k">Jeudi</span><span class="dots"></span><span class="v">18 h</span></li>
+                <li class="line"><span class="k">Carte fidélité</span><span class="dots"></span><span class="v">6 / 9 après celle-ci</span></li>
+              </ul>
+              <button class="btn primary" type="button">Reprendre <span class="px">25 €</span></button>
+              <div class="btns2">
+                <button class="btn ghost" type="button">Autre créneau</button>
+                <button class="btn ghost" type="button">Autre chose</button>
+              </div>
+              <p class="hero-foot">Reconnu par ton numéro, rien d’autre. <a href="#pas-moi">Ce n’est pas toi ?</a></p>
+            </div>
+          </article>
+        </div>
+      </div>
+      <p class="cap">The returning client’s ticket is pre-printed: service, barber, usual day and hour, and the stamp card’s count. « Reprendre » is one tap, zero characters: Sofiane’s twenty seconds.</p>
+    </div>
+  </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════ 04 LIVE DEMO ═══════════════════════════════════════ -->
+<section class="part" id="demo">
+  <p class="num cond">04 · Démo en direct · l’interaction signature</p>
+  <h2 class="wide">La ligne s’imprime.</h2>
+  <p class="lead">Choose, and the ticket prints the line with its dot leaders and amount; the total follows; choose a service from 50 € and the deposit line prints in red; press Réserver and the stamp comes down. Real buttons, real prices from the carte. With reduced motion, lines and stamp simply appear.</p>
+
+  <div class="demo">
+    <div>
+      <h3>On te fait quoi ?<small>la carte, sans surprise</small></h3>
+      <div class="chips" role="group" aria-label="Prestation">
+        <button class="chip" type="button" data-k="service" data-v="Coupe classique" data-p="20" data-d="30 min" aria-pressed="false">Coupe classique <span class="p">20 €</span></button>
+        <button class="chip" type="button" data-k="service" data-v="Coupe + contour de barbe" data-p="25" data-d="30 min" aria-pressed="false">Coupe + contour de barbe <span class="p">25 €</span></button>
+        <button class="chip" type="button" data-k="service" data-v="Coupe + taille de barbe" data-p="30" data-d="30 min" aria-pressed="false">Coupe + taille de barbe <span class="p">30 €</span></button>
+        <button class="chip" type="button" data-k="service" data-v="Transformation" data-p="50" data-d="1 h" aria-pressed="false">Transformation <span class="p">50 €</span></button>
+        <button class="chip" type="button" data-k="service" data-v="Entretien barbe" data-p="15" data-d="30 min" aria-pressed="false">Entretien barbe <span class="p">15 €</span></button>
+      </div>
+      <h3>Avec qui ?<small>un barbier, ou « Sans préférence »</small></h3>
+      <div class="chips" role="group" aria-label="Barbier">
+        <button class="chip" type="button" data-k="barber" data-v="Sans préférence" aria-pressed="false">Sans préférence <span class="p">Le plus tôt</span></button>
+        <button class="chip" type="button" data-k="barber" data-v="JKut" aria-pressed="false">JKut</button>
+        <button class="chip" type="button" data-k="barber" data-v="Frank" aria-pressed="false">Frank</button>
+        <button class="chip" type="button" data-k="barber" data-v="Le Soldat" aria-pressed="false">Le Soldat</button>
+        <button class="chip" type="button" data-k="barber" data-v="Esteban" aria-pressed="false">Esteban</button>
+      </div>
+      <h3>Quand ?<small>le plus tôt d’abord</small></h3>
+      <div class="chips" role="group" aria-label="Créneau">
+        <button class="chip" type="button" data-k="slot" data-v="aujourd’hui · 16 h" aria-pressed="false">Aujourd’hui · 16 h</button>
+        <button class="chip" type="button" data-k="slot" data-v="demain · 9 h 30" aria-pressed="false">Demain · 9 h 30</button>
+        <button class="chip" type="button" data-k="slot" data-v="samedi · 11 h" aria-pressed="false">Samedi · 11 h</button>
+      </div>
+      <p class="demo-note">In the build, this is the whole booking: a page, three questions, the paper at the foot. The « Continuer » button is only needed when the next question is not obvious; choosing a service advances by itself, as today.</p>
+    </div>
+
+    <div class="demo-ticket">
+      <article class="paper" id="demo-paper">
+        <div class="stamp" id="demo-stamp" hidden aria-hidden="true">Réservé<small id="demo-code">LA-····</small></div>
+        <div class="t-pad">
+          <div class="t-head" style="min-height:76px">
+            <div class="mark">L’Architecte<small>Ton ticket</small></div>
+          </div>
+          <div class="perf"></div>
+          <ul class="lines" id="demo-lines" aria-live="polite">
+            <li class="line"><span class="k">Prestation</span><span class="dots"></span><span class="v cursor"><span class="blink" aria-hidden="true"></span></span></li>
+          </ul>
+          <ul class="lines">
+            <li class="line total"><span class="k">Total</span><span class="dots"></span><span class="v" id="demo-total">—</span></li>
+          </ul>
+          <p class="rule" id="demo-rule" hidden>Un acompte de <b>15 €</b> est demandé pour cette prestation, déduit au salon. Annulé plus de 12 h avant, il est remboursé.</p>
+          <button class="btn primary" type="button" id="demo-go" disabled style="margin-top:10px">Réserver <span class="px" id="demo-go-px">dès 15 €</span></button>
+          <button class="btn ghost" type="button" id="demo-reset" hidden style="width:100%;margin-top:8px">Recommencer</button>
+          <p class="hero-foot" id="demo-foot">Sans compte · Les prix, sans surprise.</p>
+        </div>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════ 05 PALETTE & TYPE ═══════════════════════════════════════ -->
+<section class="part" id="identite">
+  <p class="num cond">05 · Identité</p>
+  <h2 class="wide">Papier, encre, un rouge.</h2>
+  <p class="lead">Nothing is textured. The paper is a cool white, not a cream; the ink is near-black with a touch of brown; the red is rubber-stamp ink, taken from the piping of the shop’s own sofas and the LED under the mirror, cooled down from the current LED red so that it reads as print.</p>
+  <div class="swatches">
+    <div class="sw" style="background:var(--papier)"><b>Papier</b><span>#F3F2ED · the ticket</span></div>
+    <div class="sw" style="background:var(--papier-2)"><b>Plateau</b><span>#E7E6DF · the tray under the choices</span></div>
+    <div class="sw" style="background:var(--encre);color:var(--papier);border-color:var(--encre)"><b>Encre</b><span>#17160F · full ink</span></div>
+    <div class="sw" style="background:var(--encre-2);color:var(--papier);border-color:var(--encre-2)"><b>Encre claire</b><span>#5B5951 · mentions · 6,3:1</span></div>
+    <div class="sw" style="background:var(--rouge);color:#fff;border-color:var(--rouge)"><b>Tampon</b><span>#C8161D · stamp, deposit, Réserver · 5,2:1</span></div>
+    <div class="sw" style="background:var(--comptoir);color:var(--comptoir-txt);border-color:var(--comptoir)"><b>Comptoir</b><span>#141311 · what the ticket lies on</span></div>
+  </div>
+
+  <div class="type">
+    <div class="spec">
+      <p class="k cond">Archivo · variable width 62 → 125 · the printer’s three modes</p>
+      <p class="s1 wide">Prends place.</p>
+      <p class="s2" style="font-variation-settings:'wdth' 100">Coupe classique · 20 € · 30 min</p>
+      <p class="s3 cond">Condensed caps for the labels · Où · Avec · Total</p>
+      <p class="s3" style="margin-top:14px">One grotesque drawn for newsprint, with a real width axis. Condensed for the labels (a printer’s small mode), normal for the lines, double-width heavy for the figures and the headlines (a printer’s double-width mode). Tabular figures everywhere, so prices line up down the ticket. Not a monospace: the ticket is an idea, not a costume.</p>
+    </div>
+    <div class="spec">
+      <p class="k cond">Allerta Stencil · the stamp and the wordmark only</p>
+      <p class="s4">Réservé</p>
+      <p class="mark" style="margin-top:14px;font-size:28px">L’Architecte</p>
+      <p class="s3" style="margin-top:14px">An architect’s drawing is approved with a stencil stamp (« Bon pour exécution »). This is the shop’s name made literal: the one place where the identity says <em>architecte</em> without drawing a blueprint. Used at two sizes only, never for text.</p>
+      <p class="s3 light" style="margin-top:10px">Fallbacks: Archivo → Archivo Narrow, Helvetica Neue, Arial · Allerta Stencil → Stencil, Impact. Self-hosted in the build (R10).</p>
+    </div>
+  </div>
+
+  <h3 style="margin:28px 0 4px;font-size:22px">The four photographs : printed in ink, under the paper</h3>
+  <p class="lead" style="margin-bottom:12px">Grayscale, a touch more contrast, never cropped to a mood: the paper covers what it covers. Each one is a gap between two segments of the ticket, with its price on the next line. Sequence on the home: fade (hero), sidepart, curls, salon (at the stub, behind « 16, place Pélabon »).</p>
+  <div class="photos">
+    <figure><img src="../../../../public/img/fade.jpg" alt="Client de profil : cheveux décolorés, dégradé à blanc net sur les côtés"><figcaption>Dégradé à blanc, décoloré · dès 80 €</figcaption></figure>
+    <figure><img src="../../../../public/img/sidepart.jpg" alt="Raie marquée sur le côté, dégradé bas, nuque tatouée"><figcaption>Dégradé bas, raie tracée · 25 €</figcaption></figure>
+    <figure><img src="../../../../public/img/curls.jpg" alt="Boucles serrées sur le dessus, dégradé net et barbe taillée, face au miroir du salon"><figcaption>Boucles et barbe · 30 €</figcaption></figure>
+    <figure><img src="../../../../public/img/salon.jpg" alt="Le salon : long miroir bordé de LED rouge, canapés noir et rouge, fauteuils et bacs à shampooing"><figcaption>16, place Pélabon · le talon</figcaption></figure>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════ 06 VOICE ═══════════════════════════════════════ -->
+<section class="part" id="voix">
+  <p class="num cond">06 · La voix</p>
+  <h2 class="wide">Sec, court, tu.</h2>
+  <p class="lead">A receipt’s dry humour, one line at a time, and never on a rule. The rules (deposit, cancellation) stay calm and plain for a boy of seventeen and a man of sixty-seven.</p>
+  <ul class="voice">
+    <li><b>Prends place.</b><span>Head of the ticket, over the first photograph.</span></li>
+    <li><b>Les prix, sans surprise.</b><span>The carte, kept as it is: it is already a ticket’s promise.</span></li>
+    <li><b>Ton ticket s’imprime.</b><span>The booking page’s title while the deep link pre-prints the lines.</span></li>
+    <li><b>Réservé. À mercredi, Julien.</b><span>Under the stamp, with the day in words.</span></li>
+    <li><b>Quelqu’un d’autre à la suite ?</b><span>The second-person line on the confirmation, with the next slot already printed.</span></li>
+    <li><b>Merci de ta visite. Reviens dans 28 jours.</b><span>The last line of the stub, the only joke on the site, and it is also the truth about a fade.</span></li>
+  </ul>
+</section>
+
+<!-- ═══════════════════════════════════════ 07 R1–R10 ═══════════════════════════════════════ -->
+<section class="part" id="r">
+  <p class="num cond">07 · R1 – R10</p>
+  <h2 class="wide">Le produit d’abord.</h2>
+  <div class="tbl"><table>
+    <tr><th>#</th><th>Must</th><th>How the ticket does it</th></tr>
+    <tr><td>R1</td><td>Seven street questions, first viewport</td><td>They are the seven lines of the ticket head: Où, Ouvert, Prochain créneau, Coupe dès 20 €, 5,0 · 316 avis, Appeler, Itinéraire; then Réserver · dès 15 €. Shown above at 390 and measured at 320.</td></tr>
+    <tr><td>R2</td><td>Back closes, deep links, Esc, focus</td><td>The booking is a route (<code>?reserver</code>) pushed on history; Back and Esc tear it off and return focus to Réserver; links take codes (<code>cl</code>) and readable names (<code>coupe-classique</code>, <code>frank</code>).</td></tr>
+    <tr><td>R3</td><td>Nothing under anything at 320 × 568; ≥ 44 px; fixed ≤ 25 %</td><td>No fixed UI on the home at all. In the booking the paper foot is sticky and holds at most four lines + button, ≈ 22 % of 568. All targets ≥ 48 px, money buttons 56 px.</td></tr>
+    <tr><td>R4</td><td>Tappable phone</td><td>« Appeler 04 91 00 00 00 » is a 48 px button on the first screen and a line on the stub; also on the confirmation’s stub (« Si besoin »).</td></tr>
+    <tr><td>R5</td><td>Name, address, hours, phone, booking in HTML before script</td><td>The ticket head is static HTML; the printer animation only reveals, never injects. Without JS the page is a complete ticket with a form that posts.</td></tr>
+    <tr><td>R6</td><td>Book a second person from the confirmation</td><td>« Quelqu’un d’autre à la suite ? » prints the next slot with the same barber; « Ajouter une personne » staples a second ticket to the same number.</td></tr>
+    <tr><td>R7</td><td>Nine things; deposit said once before the button</td><td>Shown above: the deposit is a red line on the paper and one plain sentence (amount, reason, refund) before « Réserver et régler l’acompte ».</td></tr>
+    <tr><td>R8</td><td>Never « vient d’être pris » for a held slot</td><td>Held slot has its own line and timer; on expiry the line reads « Le créneau n’est plus gardé · on regarde s’il est encore libre » and the choices stay printed.</td></tr>
+    <tr><td>R9</td><td>AA incl. over photographs; little text &lt; 14 px; reduced motion</td><td>No text is ever on a photograph: the paper is between them. Smallest text 14 px. Reduced motion: no print animation, no stamp slam, no blink; nothing is hidden behind motion.</td></tr>
+    <tr><td>R10</td><td>Real content early, zero third-party, self-hosted fonts</td><td>Two font files (Archivo variable, Allerta Stencil) self-hosted, ≈ 90 kB; the first screen is text on paper, the photograph loads behind it; no map embed, a link.</td></tr>
+  </table></div>
+</section>
+
+<footer class="foot">
+  <p>Honest about the lab: a board, not a build. What we would simplify when built: the printer animation becomes one keyframe applied to a list; the corner notches become one mask utility; the desktop keeps the 420 px column and gains nothing else. Nothing here is a texture, a shadow or a gradient.</p>
+</footer>
+
+</div>
+
+<script>
+(function(){
+  // scale the desktop frame to its container
+  function fit(){
+    document.querySelectorAll('.desk').forEach(function(d){
+      var s=Math.min(1,d.clientWidth/1280);
+      d.style.setProperty('--s',s);
+    });
+  }
+  fit();addEventListener('resize',fit);
+
+  // ── the signature interaction : a line prints onto the ticket ──
+  var state={service:null,barber:null,slot:null,stamped:false};
+  var reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var lines=document.getElementById('demo-lines'),total=document.getElementById('demo-total'),go=document.getElementById('demo-go'),
+      px=document.getElementById('demo-go-px'),rule=document.getElementById('demo-rule'),stamp=document.getElementById('demo-stamp'),
+      reset=document.getElementById('demo-reset'),foot=document.getElementById('demo-foot'),code=document.getElementById('demo-code');
+  var esc=function(s){return String(s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});};
+  function li(k,v,cls){return '<li class="line'+(cls?' '+cls:'')+'"><span class="k">'+k+'</span><span class="dots"></span><span class="v">'+v+'</span></li>';}
+  function cursor(k){return '<li class="line"><span class="k">'+k+'</span><span class="dots"></span><span class="v cursor"><span class="blink" aria-hidden="true"></span></span></li>';}
+  function render(animateLast){
+    var out=[];
+    if(state.service) out.push(li(esc(state.service.v)+' · '+esc(state.service.d),state.service.p+' €')); else out.push(cursor('Prestation'));
+    if(state.service){ if(state.barber) out.push(li('Avec',esc(state.barber))); else out.push(cursor('Avec')); }
+    if(state.service&&state.barber){ if(state.slot) out.push(li('Quand',esc(state.slot),'big')); else out.push(cursor('Quand')); }
+    var dep=state.service&&state.service.p>=50?Math.round(state.service.p*0.3):0;
+    if(dep) out.push(li('Acompte maintenant',dep+' €','rouge'));
+    lines.innerHTML=out.join('');
+    if(animateLast&&!reduce){
+      var last=lines.querySelectorAll('.line');
+      var el=last[Math.max(0,last.length-(dep?2:1))];
+      if(el){el.style.animation='print .42s cubic-bezier(.2,.8,.2,1) both';}
+      if(dep){var d=last[last.length-1];d.style.animation='print .42s .15s cubic-bezier(.2,.8,.2,1) both';}
+    }
+    if(state.service){
+      total.textContent=(state.service.p)+' €';
+      total.previousElementSibling.previousElementSibling.textContent=dep?'Total · dont '+dep+' € maintenant':'Total';
+    } else { total.textContent='—'; total.previousElementSibling.previousElementSibling.textContent='Total'; }
+    rule.hidden=!dep;
+    var ready=state.service&&state.barber&&state.slot;
+    go.disabled=!ready||state.stamped;
+    go.firstChild.textContent=dep?'Réserver et régler l’acompte ':'Réserver ';
+    go.classList.toggle('long',!!dep);
+    px.textContent=state.service?(dep?dep+' € maintenant':state.service.p+' €'):'dès 15 €';
+  }
+  document.querySelectorAll('.chip').forEach(function(b){
+    b.addEventListener('click',function(){
+      if(state.stamped) return;
+      var k=b.dataset.k;
+      document.querySelectorAll('.chip[data-k="'+k+'"]').forEach(function(o){o.setAttribute('aria-pressed','false');});
+      b.setAttribute('aria-pressed','true');
+      if(k==='service') state.service={v:b.dataset.v,p:+b.dataset.p,d:b.dataset.d};
+      else state[k]=b.dataset.v;
+      render(true);
+    });
+  });
+  go.addEventListener('click',function(){
+    state.stamped=true;
+    var c='LA-'+Math.random().toString(36).slice(2,6).toUpperCase();
+    code.textContent=c;
+    stamp.hidden=false; stamp.classList.remove('live'); void stamp.offsetWidth; stamp.classList.add('live');
+    go.disabled=true; go.hidden=true; reset.hidden=false;
+    foot.textContent='C’est réservé. Le SMS arrive, avec le lien pour déplacer ou annuler.';
+    lines.setAttribute('aria-label','Ticket réservé, code '+c);
+    reset.focus();
+  });
+  reset.addEventListener('click',function(){
+    state={service:null,barber:null,slot:null,stamped:false};
+    document.querySelectorAll('.chip').forEach(function(o){o.setAttribute('aria-pressed','false');});
+    stamp.hidden=true; reset.hidden=true; go.hidden=false; foot.textContent='Sans compte · Les prix, sans surprise.';
+    render(false);
+    document.querySelector('.chip').focus();
+  });
+  render(false);
+})();
+</script>
+</body>
+</html>

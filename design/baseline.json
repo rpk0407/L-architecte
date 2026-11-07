@@ -1,0 +1,576 @@
+{
+ "version": 1,
+ "build": "cb4eb2a",
+ "date": "2026-11-07T21:28:49.441Z",
+ "checks": {
+  "rue.q.where": {
+   "status": "pass",
+   "weight": 2
+  },
+  "rue.q.open": {
+   "status": "fail",
+   "weight": 3
+  },
+  "rue.q.price": {
+   "status": "pass",
+   "weight": 3
+  },
+  "rue.q.soon": {
+   "status": "pass",
+   "weight": 2
+  },
+  "rue.q.proof": {
+   "status": "pass",
+   "weight": 2
+  },
+  "rue.q.call": {
+   "status": "fail",
+   "weight": 2
+  },
+  "rue.q.route": {
+   "status": "fail",
+   "weight": 2
+  },
+  "rue.weight": {
+   "status": "pass",
+   "weight": 2
+  },
+  "rue.first-paint": {
+   "status": "warn",
+   "weight": 3
+  },
+  "rue.cls": {
+   "status": "pass",
+   "weight": 2
+  },
+  "errors.rue": {
+   "status": "pass",
+   "weight": 3
+  },
+  "pouce.chrome.phone": {
+   "status": "warn",
+   "weight": 3
+  },
+  "pouce.targets.phone.home": {
+   "status": "warn",
+   "weight": 4
+  },
+  "pouce.tight.phone.home": {
+   "status": "pass",
+   "weight": 2
+  },
+  "pouce.cover.phone": {
+   "status": "pass",
+   "weight": 3
+  },
+  "pouce.overlap.phone": {
+   "status": "pass",
+   "weight": 3
+  },
+  "pouce.bottom.phone": {
+   "status": "pass",
+   "weight": 3
+  },
+  "pouce.reach.home": {
+   "status": "pass",
+   "weight": 3
+  },
+  "pouce.targets.phone.carte-cadeau": {
+   "status": "pass",
+   "weight": 2
+  },
+  "pouce.targets.phone.formations": {
+   "status": "warn",
+   "weight": 2
+  },
+  "pouce.targets.phone.contact": {
+   "status": "pass",
+   "weight": 2
+  },
+  "pouce.targets.phone.mon-rendez-vous": {
+   "status": "warn",
+   "weight": 2
+  },
+  "pouce.targets.phone.resilier": {
+   "status": "pass",
+   "weight": 2
+  },
+  "pouce.targets.phone.cgv": {
+   "status": "pass",
+   "weight": 2
+  },
+  "pouce.targets.phone.confidentialite": {
+   "status": "warn",
+   "weight": 2
+  },
+  "pouce.targets.phone.mentions-legales": {
+   "status": "warn",
+   "weight": 2
+  },
+  "pouce.targets.phone-small.home": {
+   "status": "warn",
+   "weight": 4
+  },
+  "pouce.tight.phone-small.home": {
+   "status": "pass",
+   "weight": 2
+  },
+  "pouce.cover.phone-small": {
+   "status": "pass",
+   "weight": 2
+  },
+  "pouce.overlap.phone-small": {
+   "status": "pass",
+   "weight": 3
+  },
+  "pouce.bottom.phone-small": {
+   "status": "pass",
+   "weight": 3
+  },
+  "pouce.targets.phone-small.carte-cadeau": {
+   "status": "warn",
+   "weight": 2
+  },
+  "pouce.targets.phone-tiny.home": {
+   "status": "warn",
+   "weight": 4
+  },
+  "pouce.tight.phone-tiny.home": {
+   "status": "pass",
+   "weight": 2
+  },
+  "pouce.cover.phone-tiny": {
+   "status": "pass",
+   "weight": 2
+  },
+  "pouce.overlap.phone-tiny": {
+   "status": "fail",
+   "weight": 3
+  },
+  "pouce.bottom.phone-tiny": {
+   "status": "pass",
+   "weight": 3
+  },
+  "errors.pouce": {
+   "status": "pass",
+   "weight": 3
+  },
+  "chrono.fidele.rebook-card": {
+   "status": "pass",
+   "weight": 4
+  },
+  "chrono.fidele.taps": {
+   "status": "pass",
+   "weight": 4
+  },
+  "chrono.fidele.chars": {
+   "status": "pass",
+   "weight": 3
+  },
+  "chrono.fidele.time": {
+   "status": "pass",
+   "weight": 1
+  },
+  "chrono.nouveau.taps": {
+   "status": "pass",
+   "weight": 4
+  },
+  "chrono.nouveau.chars": {
+   "status": "pass",
+   "weight": 3
+  },
+  "chrono.nouveau.time": {
+   "status": "pass",
+   "weight": 1
+  },
+  "chrono.nouveau.prices": {
+   "status": "pass",
+   "weight": 4
+  },
+  "chrono.nouveau.barbers-next": {
+   "status": "pass",
+   "weight": 2
+  },
+  "chrono.nouveau.price-always": {
+   "status": "pass",
+   "weight": 3
+  },
+  "chrono.nouveau.words": {
+   "status": "pass",
+   "weight": 2
+  },
+  "chrono.presse.taps": {
+   "status": "pass",
+   "weight": 4
+  },
+  "chrono.presse.chars": {
+   "status": "pass",
+   "weight": 3
+  },
+  "chrono.presse.time": {
+   "status": "pass",
+   "weight": 1
+  },
+  "chrono.presse.default": {
+   "status": "pass",
+   "weight": 3
+  },
+  "chrono.presse.quick-pick": {
+   "status": "pass",
+   "weight": 3
+  },
+  "chrono.presse.required-fields": {
+   "status": "pass",
+   "weight": 3
+  },
+  "chrono.confirmation": {
+   "status": "pass",
+   "weight": 3
+  },
+  "chrono.occasion.service-clear": {
+   "status": "pass",
+   "weight": 3
+  },
+  "chrono.occasion.deposit": {
+   "status": "pass",
+   "weight": 4
+  },
+  "chrono.occasion.honest-button": {
+   "status": "pass",
+   "weight": 3
+  },
+  "chrono.occasion.pay-step": {
+   "status": "pass",
+   "weight": 3
+  },
+  "chrono.occasion.taps": {
+   "status": "pass",
+   "weight": 4
+  },
+  "chrono.occasion.chars": {
+   "status": "pass",
+   "weight": 3
+  },
+  "chrono.occasion.time": {
+   "status": "pass",
+   "weight": 1
+  },
+  "errors.chrono": {
+   "status": "pass",
+   "weight": 3
+  },
+  "clavier.field": {
+   "status": "pass",
+   "weight": 3
+  },
+  "clavier.confirm": {
+   "status": "pass",
+   "weight": 3
+  },
+  "errors.clavier": {
+   "status": "pass",
+   "weight": 3
+  },
+  "tram.message": {
+   "status": "pass",
+   "weight": 4
+  },
+  "tram.retained": {
+   "status": "pass",
+   "weight": 4
+  },
+  "tram.retry": {
+   "status": "pass",
+   "weight": 3
+  },
+  "tram.impatient": {
+   "status": "fail",
+   "weight": 3
+  },
+  "tram.interrupt": {
+   "status": "pass",
+   "weight": 3
+  },
+  "errors.tram": {
+   "status": "pass",
+   "weight": 3
+  },
+  "retour.back": {
+   "status": "fail",
+   "weight": 3
+  },
+  "retour.deeplink": {
+   "status": "pass",
+   "weight": 3
+  },
+  "retour.deeplink-readable": {
+   "status": "pass",
+   "weight": 1
+  },
+  "retour.escape": {
+   "status": "pass",
+   "weight": 2
+  },
+  "retour.focus-start": {
+   "status": "pass",
+   "weight": 1
+  },
+  "retour.trap": {
+   "status": "pass",
+   "weight": 3
+  },
+  "errors.retour": {
+   "status": "pass",
+   "weight": 3
+  },
+  "nuit.closed-truth": {
+   "status": "pass",
+   "weight": 4
+  },
+  "nuit.dark-first": {
+   "status": "warn",
+   "weight": 1
+  },
+  "nuit.contrast": {
+   "status": "warn",
+   "weight": 3
+  },
+  "nuit.reduced-motion": {
+   "status": "pass",
+   "weight": 3
+  },
+  "nuit.reveal-visible": {
+   "status": "pass",
+   "weight": 4
+  },
+  "errors.nuit": {
+   "status": "pass",
+   "weight": 3
+  },
+  "ancien.reflow": {
+   "status": "pass",
+   "weight": 4
+  },
+  "ancien.reflow-sheet": {
+   "status": "pass",
+   "weight": 3
+  },
+  "ancien.labels": {
+   "status": "pass",
+   "weight": 3
+  },
+  "ancien.text-size": {
+   "status": "warn",
+   "weight": 3
+  },
+  "ancien.contrast": {
+   "status": "fail",
+   "weight": 3
+  },
+  "ancien.phone": {
+   "status": "fail",
+   "weight": 3
+  },
+  "ancien.zoom": {
+   "status": "pass",
+   "weight": 3
+  },
+  "errors.ancien": {
+   "status": "pass",
+   "weight": 3
+  },
+  "guichet.abonne.path": {
+   "status": "pass",
+   "weight": 4
+  },
+  "guichet.abonne.q.here": {
+   "status": "pass",
+   "weight": 4
+  },
+  "guichet.abonne.q.give": {
+   "status": "pass",
+   "weight": 2
+  },
+  "guichet.abonne.q.next": {
+   "status": "pass",
+   "weight": 3
+  },
+  "guichet.cadeau.q.amount": {
+   "status": "pass",
+   "weight": 3
+  },
+  "guichet.cadeau.q.message": {
+   "status": "pass",
+   "weight": 2
+  },
+  "guichet.cadeau.q.delivery": {
+   "status": "pass",
+   "weight": 3
+  },
+  "guichet.cadeau.q.validity": {
+   "status": "pass",
+   "weight": 3
+  },
+  "guichet.cadeau.q.use": {
+   "status": "pass",
+   "weight": 2
+  },
+  "guichet.futur.q.what": {
+   "status": "pass",
+   "weight": 2
+  },
+  "guichet.futur.q.cost": {
+   "status": "fail",
+   "weight": 3
+  },
+  "guichet.futur.q.when": {
+   "status": "fail",
+   "weight": 3
+  },
+  "guichet.futur.q.valid": {
+   "status": "pass",
+   "weight": 3
+  },
+  "guichet.futur.q.apply": {
+   "status": "pass",
+   "weight": 3
+  },
+  "guichet.futur.q.human": {
+   "status": "pass",
+   "weight": 3
+  },
+  "errors.guichet": {
+   "status": "pass",
+   "weight": 3
+  },
+  "mains.pin.keys": {
+   "status": "pass",
+   "weight": 4
+  },
+  "mains.pin.login": {
+   "status": "pass",
+   "weight": 1
+  },
+  "mains.barber.status-buttons": {
+   "status": "warn",
+   "weight": 3
+  },
+  "mains.barber.targets": {
+   "status": "warn",
+   "weight": 3
+  },
+  "mains.barber.privacy": {
+   "status": "pass",
+   "weight": 3
+  },
+  "mains.barber.next-client": {
+   "status": "pass",
+   "weight": 4
+  },
+  "mains.barber.contrast": {
+   "status": "warn",
+   "weight": 3
+  },
+  "mains.agenda.targets": {
+   "status": "warn",
+   "weight": 3
+  },
+  "mains.till.targets": {
+   "status": "warn",
+   "weight": 4
+  },
+  "mains.till.secondary": {
+   "status": "warn",
+   "weight": 4
+  },
+  "mains.till.contrast": {
+   "status": "warn",
+   "weight": 3
+  },
+  "mains.owner.verdict": {
+   "status": "pass",
+   "weight": 4
+  },
+  "mains.owner.privacy-toggle": {
+   "status": "pass",
+   "weight": 2
+  },
+  "mains.owner.contrast": {
+   "status": "warn",
+   "weight": 3
+  },
+  "errors.mains": {
+   "status": "pass",
+   "weight": 3
+  },
+  "atelier.structure": {
+   "status": "warn",
+   "weight": 3
+  },
+  "atelier.names": {
+   "status": "pass",
+   "weight": 3
+  },
+  "atelier.share-preview": {
+   "status": "warn",
+   "weight": 2
+  },
+  "atelier.focus-visible": {
+   "status": "warn",
+   "weight": 3
+  },
+  "atelier.focus-not-hidden": {
+   "status": "pass",
+   "weight": 3
+  },
+  "atelier.motion-cost": {
+   "status": "pass",
+   "weight": 2
+  },
+  "atelier.images": {
+   "status": "pass",
+   "weight": 2
+  },
+  "atelier.interaction": {
+   "status": "pass",
+   "weight": 2
+  },
+  "atelier.no-js": {
+   "status": "fail",
+   "weight": 3
+  },
+  "errors.atelier": {
+   "status": "pass",
+   "weight": 3
+  },
+  "duo.capability": {
+   "status": "fail",
+   "weight": 3
+  },
+  "errors.duo": {
+   "status": "pass",
+   "weight": 3
+  }
+ },
+ "axes": {
+  "design": 5,
+  "usability": 7.76,
+  "content": 8.77,
+  "craft": 9.26
+ },
+ "personas": {
+  "fidele": 7.54,
+  "nouveau": 8.07,
+  "presse": 7.98,
+  "parent": 8.29,
+  "occasion": 9.12,
+  "passionne": 8.46,
+  "ancien": 7.85,
+  "abonne": 9.5,
+  "cadeau": 9.09,
+  "futur": 6.3,
+  "barbier": 7.58,
+  "accueil": 5.88,
+  "gerant": 9
+ }
+}

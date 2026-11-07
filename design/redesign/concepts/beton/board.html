@@ -1,0 +1,570 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Béton · Bâti, pas dessiné</title>
+<meta name="description" content="Concept board : le site de Barber L’Architecte construit comme une façade de modules en béton, couleur et lumière.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:ital,wdth,wght@0,62..125,100..900;1,62..125,100..900&family=Allerta+Stencil&display=swap" rel="stylesheet">
+<style>
+/* ───────────── Matière ───────────── */
+:root{
+  --beton:#B8B2A7;        /* le béton brut : le fond de tout */
+  --beton-clair:#D6D1C7;  /* la face au soleil */
+  --beton-ombre:#8E887E;  /* le joint, l’ombre entre deux dalles */
+  --coffrage:#6E675F;     /* trace de banche, séparateurs */
+  --brut:#2A2724;         /* l’encre : béton mouillé */
+  --brut-2:#3E3934;       /* texte second, encore AA sur béton */
+  --craie:#F2EEE6;        /* la craie : texte sur couleur et sur brut */
+  --rouge:#B8302A;        /* rouge vermillon : Coupes, Réserver, le salon (LED et canapés) */
+  --bleu:#1F4FA3;         /* outremer : Changer de tête, venir, appeler */
+  --jaune:#E8B22B;        /* jaune vif : Barbe, la preuve, le focus */
+  --vert:#336B42;         /* vert anglais : ouvert, réservé */
+  --joint:6px;
+  --reveal: inset 6px 6px 0 rgba(0,0,0,.16), inset -2px -2px 0 rgba(255,255,255,.14);
+  --wide:'Archivo','Helvetica Neue',Arial,sans-serif;
+  --stencil:'Allerta Stencil','Archivo',Arial,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{background:var(--beton);color:var(--brut);font:16px/1.45 var(--wide);-webkit-text-size-adjust:100%}
+body{background:var(--beton);min-width:300px}
+img{display:block;max-width:100%}
+a{color:inherit}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+:focus-visible{outline:3px solid var(--jaune);outline-offset:2px}
+h1,h2,h3,.wide{font-family:var(--wide);font-stretch:125%;font-weight:900;letter-spacing:-.01em;line-height:.95}
+.st{font-family:var(--stencil);font-weight:400;letter-spacing:.04em}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* ───────────── Le board lui-même ───────────── */
+.board{max-width:1340px;margin:0 auto;padding:16px 16px 80px}
+.mast{display:grid;gap:var(--joint);margin-bottom:40px}
+.mast h1{font-size:clamp(56px,16vw,180px);color:var(--brut);padding:16px 0 8px}
+.mast .idea{font-size:clamp(26px,6vw,56px);color:var(--craie);background:var(--brut);padding:20px;box-shadow:var(--reveal)}
+.mast .idea small{display:block;font:400 16px/1.4 var(--wide);font-stretch:100%;letter-spacing:0;margin-top:14px;max-width:62ch;color:var(--beton-clair)}
+.lede{display:grid;gap:var(--joint)}
+.lede p{background:var(--beton-clair);padding:18px;box-shadow:var(--reveal);max-width:none}
+.lede b{font-weight:700}
+@media(min-width:900px){.lede{grid-template-columns:1fr 1fr 1fr}}
+
+section.part{margin-top:56px}
+.part > h2{font-size:clamp(30px,6vw,64px);margin-bottom:6px;display:flex;gap:14px;align-items:baseline;flex-wrap:wrap}
+.part > h2 .num{font-family:var(--stencil);font-weight:400;font-stretch:100%;letter-spacing:.06em;font-size:.55em;color:var(--craie);background:var(--brut);padding:6px 10px 4px;line-height:1}
+.part > .why{max-width:70ch;margin:10px 0 22px;color:var(--brut-2)}
+.part > .why b{color:var(--brut)}
+
+/* ───────────── Cadres ───────────── */
+.frames{display:grid;gap:24px;align-items:start}
+.frames > div,.demo-wrap > div{min-width:0}
+@media(min-width:900px){.frames.two{grid-template-columns:390px minmax(0,1fr)}}
+.deskwrap{margin-top:28px;min-width:0}
+.cadre-note{font-size:14px;color:var(--brut-2);margin-top:10px;max-width:48ch}
+
+.phone{container-type:inline-size;width:100%;max-width:390px;aspect-ratio:390/844;background:var(--beton-ombre);border:10px solid var(--brut);border-radius:34px;overflow:hidden;position:relative;display:flex;flex-direction:column;box-shadow:0 20px 40px -20px rgba(0,0,0,.45)}
+.phone .ecran{flex:1;overflow:hidden;display:flex;flex-direction:column;gap:var(--joint);padding:var(--joint);padding-bottom:0}
+.phone .ecran > *{flex-shrink:0}
+@container (max-width:340px){
+  .equipe,.opt{display:none}
+  .mod{padding:10px}
+  .hero-line{padding:10px}
+  .steph h3{font-size:22px}
+  .topbar .addr{font-size:14px}
+  .cellule .v{font-size:22px}
+}
+
+/* modules : la grammaire de tout le site */
+.mod{background:var(--beton-clair);color:var(--brut);box-shadow:var(--reveal);padding:14px;position:relative;display:flex;flex-direction:column;justify-content:space-between;gap:6px;min-height:44px;text-decoration:none}
+.mod.rouge{background:var(--rouge);color:var(--craie)}
+.mod.bleu{background:var(--bleu);color:var(--craie)}
+.mod.jaune{background:var(--jaune);color:var(--brut)}
+.mod.vert{background:var(--vert);color:var(--craie)}
+.mod.brut{background:var(--brut);color:var(--craie)}
+.mod.ombre{background:var(--beton-ombre);color:var(--craie)}
+.mod.photo{padding:0;overflow:hidden;background:var(--brut)}
+.mod.photo img{width:100%;height:100%;object-fit:cover}
+.mod.photo::after{content:"";position:absolute;inset:0;box-shadow:var(--reveal);pointer-events:none}
+a.mod:hover,button.mod:hover{filter:brightness(1.06)}
+.mod .k{font-size:14px;font-weight:600;opacity:.92;letter-spacing:.01em;text-transform:uppercase}
+.mod .v{font-stretch:125%;font-weight:900;line-height:1;font-size:22px}
+.mod .t{font-size:15px;line-height:1.3}
+.mod .arrow{position:absolute;right:12px;bottom:10px;font-size:22px;font-weight:900}
+.mod.photo figcaption{position:absolute;left:0;right:0;bottom:0;background:var(--brut);color:var(--craie);font-size:14px;padding:8px 12px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:var(--joint)}
+.row.a{grid-template-columns:3fr 2fr}
+
+/* premier écran, téléphone */
+.topbar{display:flex;justify-content:space-between;align-items:center;gap:10px;background:var(--brut);color:var(--craie);padding:10px 14px;min-height:56px}
+.topbar .mark{font-stretch:125%;font-weight:900;font-size:clamp(16px,6cqw,21px);line-height:1;letter-spacing:-.01em}
+.topbar .addr{font-size:14px;text-align:right;line-height:1.2;color:var(--beton-clair)}
+.hero-line{font-stretch:125%;font-weight:900;font-size:clamp(24px,8.6cqw,34px);line-height:.95;padding:14px;background:var(--beton);box-shadow:var(--reveal)}
+.hero-line .st{display:block;font-size:14px;font-stretch:100%;font-weight:400;letter-spacing:.08em;margin-bottom:8px;color:var(--brut-2)}
+.ouvert .v{font-size:clamp(18px,6cqw,22px)}
+.photo-fade{min-height:150px}
+.photo-fade img{object-position:72% 30%}
+.cta{display:flex;justify-content:space-between;align-items:center;gap:12px;min-height:60px;padding:0 18px;background:var(--rouge);color:var(--craie);font-stretch:125%;font-weight:900;font-size:20px;text-decoration:none;box-shadow:var(--reveal);margin-top:auto}
+.cta .prix{font-stretch:100%;font-weight:700;font-size:16px;background:var(--brut);padding:8px 12px}
+.phone .cta{margin:var(--joint)}
+.equipe{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--joint)}
+.equipe .mod{padding:10px 6px;min-height:52px;align-items:center;justify-content:center;font-weight:700;font-size:14px;text-align:center}
+
+/* desktop */
+.scroller{overflow-x:auto;overflow-y:hidden;padding-bottom:8px;-webkit-overflow-scrolling:touch;max-width:100%}
+.desk{width:1280px;height:800px;overflow:hidden;background:var(--beton-ombre);border:10px solid var(--brut);display:grid;grid-template-columns:repeat(12,minmax(0,1fr));grid-template-rows:56px repeat(6,minmax(0,1fr));gap:var(--joint);padding:var(--joint);container-type:inline-size}
+.desk > *{min-height:0;min-width:0}
+.desk .topbar{grid-column:1/-1;grid-row:1;padding:0 20px}
+.desk .topbar nav{display:flex;gap:4px}
+.desk .topbar nav a{color:var(--craie);text-decoration:none;font-size:15px;padding:12px 14px;min-height:44px;display:inline-flex;align-items:center}
+.desk .hero-line{grid-column:1/8;grid-row:2/4;font-size:64px;display:flex;flex-direction:column;justify-content:flex-end;padding:20px;overflow:hidden}
+.desk .avis .v{font-size:22px}
+.desk .tel .v{font-size:18px;font-stretch:100%;font-weight:700}
+.desk .hero-line .st{font-size:16px}
+.desk .ouvert{grid-column:8/13;grid-row:2/3}
+.desk .ouvert .v{font-size:26px}
+.desk .next{grid-column:8/13;grid-row:3/4}
+.desk .next .v{font-size:30px}
+.desk .ph-fade{grid-column:1/5;grid-row:4/8}
+.desk .ph-fade img{object-position:70% 30%}
+.desk .ph-curls{grid-column:5/8;grid-row:4/6}
+.desk .avis{grid-column:8/10;grid-row:4/5}
+.desk .prix{grid-column:10/13;grid-row:4/5}
+.desk .tel{grid-column:8/10;grid-row:5/6}
+.desk .iti{grid-column:10/13;grid-row:5/6}
+.desk .ph-salon{grid-column:5/10;grid-row:6/8}
+.desk .ph-salon img{object-position:50% 60%}
+.desk .cta{grid-column:10/13;grid-row:6/8;font-size:28px;flex-direction:column;align-items:flex-start;justify-content:flex-end;padding:20px;margin:0}
+.desk .cta .prix{font-size:18px;position:static}
+.desk .mod .v{font-size:24px}
+
+/* ───────────── Booking : la travée ───────────── */
+.travee .linteau{display:flex;justify-content:space-between;align-items:center;gap:10px;background:var(--rouge);color:var(--craie);padding:0 0 0 14px;min-height:48px;box-shadow:var(--reveal)}
+.travee .linteau.ombre{background:var(--coffrage)}
+.travee .linteau span{font-weight:700;font-size:15px}
+.travee .linteau button{min-height:48px;min-width:72px;padding:0 14px;font-size:14px;font-weight:600;background:rgba(0,0,0,.22);color:var(--craie)}
+.steph{display:flex;justify-content:space-between;align-items:center;gap:8px;background:var(--brut);color:var(--craie);padding:8px 8px 8px 14px;min-height:56px}
+.steph h3{font-size:26px;font-stretch:125%}
+.steph .k{font-size:14px;color:var(--beton-clair)}
+.steph button{width:44px;height:44px;background:var(--beton-ombre);color:var(--brut);font-size:20px;font-weight:900;flex:none}
+.jours{display:grid;grid-template-columns:repeat(5,1fr);gap:var(--joint)}
+.jours button{min-height:52px;background:var(--beton-clair);box-shadow:var(--reveal);font-size:14px;line-height:1.1;font-weight:600;padding:6px 2px}
+.jours button b{display:block;font-size:20px;font-stretch:125%;font-weight:900}
+.jours button[aria-pressed="true"]{background:var(--brut);color:var(--craie)}
+.plage{font-size:14px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--craie);padding:4px 2px 0}
+.cases{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--joint)}
+.cases button{min-height:48px;background:var(--beton-clair);box-shadow:var(--reveal);font-size:16px;font-weight:700;position:relative;overflow:hidden}
+.cases button.pris{background:var(--coffrage);color:var(--beton-clair);text-decoration:line-through;cursor:not-allowed}
+.cases button[aria-pressed="true"]{background:var(--rouge);color:var(--craie)}
+.pied{display:flex;justify-content:space-between;align-items:center;gap:10px;background:var(--brut);color:var(--craie);padding:8px 8px 8px 14px;min-height:64px;margin-top:auto}
+.pied .v{font-size:22px;font-stretch:125%;font-weight:900}
+.pied .t{font-size:14px;color:var(--beton-clair)}
+.pied .go{min-height:48px;padding:0 20px;background:var(--rouge);color:var(--craie);font-weight:700;font-size:16px}
+
+/* le brise-soleil : le créneau gardé */
+.loggia{position:relative;background:var(--rouge);color:var(--craie);box-shadow:var(--reveal);padding:18px;min-height:160px;overflow:hidden;display:flex;flex-direction:column;justify-content:space-between}
+.loggia .ombre{position:absolute;top:0;bottom:0;left:0;width:0%;background:rgba(20,16,14,.42);pointer-events:none}
+.loggia .ombre::after{content:"";position:absolute;top:0;bottom:0;right:-3px;width:3px;background:rgba(20,16,14,.6)}
+.loggia > *{position:relative}
+.loggia .k{font-size:14px;text-transform:uppercase;letter-spacing:.04em;font-weight:600}
+.loggia .v{font-size:clamp(24px,5vw,34px);font-stretch:125%;font-weight:900;line-height:1}
+.loggia .until{font-size:16px;font-weight:600;margin-top:10px}
+.loggia.fini{background:var(--coffrage)}
+.demo-ctl{display:flex;gap:var(--joint);flex-wrap:wrap;margin-top:var(--joint)}
+.demo-ctl button{min-height:48px;padding:0 18px;background:var(--brut);color:var(--craie);font-weight:700;box-shadow:var(--reveal)}
+.demo-ctl button.sec{background:var(--beton-clair);color:var(--brut)}
+.demo-ctl .etat{flex:1 1 100%;font-size:15px;color:var(--brut-2);min-height:24px}
+.demo-wrap{display:grid;gap:24px;align-items:start}
+@media(min-width:900px){.demo-wrap{grid-template-columns:minmax(300px,390px) 1fr}}
+.acompte{background:var(--beton-clair);box-shadow:var(--reveal);padding:14px;display:grid;gap:10px}
+.acompte p{font-size:15px}
+.acompte .pied{margin:0}
+
+/* ───────────── Confirmation : la cellule ───────────── */
+.cellule .v{font-size:clamp(22px,6.5cqw,28px)}
+.cellule .etage{border-top:2px solid rgba(0,0,0,.18);padding-top:8px;margin-top:8px;font-size:15px}
+.actions{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--joint)}
+.actions a{min-height:56px;display:flex;align-items:center;justify-content:center;text-align:center;background:var(--beton-clair);box-shadow:var(--reveal);text-decoration:none;font-weight:700;font-size:14px;padding:6px 4px}
+.sms{font-size:14px;background:var(--craie);padding:10px;box-shadow:var(--reveal);line-height:1.4}
+
+/* ───────────── Palette & type ───────────── */
+.swatches{display:grid;grid-template-columns:repeat(2,1fr);gap:var(--joint)}
+@media(min-width:700px){.swatches{grid-template-columns:repeat(5,1fr)}}
+.sw{min-height:120px;padding:12px;box-shadow:var(--reveal);display:flex;flex-direction:column;justify-content:space-between}
+.sw .hex{font-family:var(--stencil);font-size:15px}
+.sw b{font-size:15px}
+.sw small{font-size:14px;line-height:1.3;opacity:.9}
+.spec{display:grid;gap:var(--joint);margin-top:24px}
+.spec > div{background:var(--beton-clair);padding:18px;box-shadow:var(--reveal)}
+.spec .lab{font-size:14px;color:var(--brut-2);margin-bottom:8px}
+.spec .s1{font-size:clamp(30px,9vw,120px);font-stretch:125%;font-weight:900;line-height:.9;overflow-wrap:anywhere}
+.spec .s2{font-size:clamp(22px,4vw,36px);font-weight:700;line-height:1.1}
+.spec .s3{font-size:18px;max-width:60ch}
+.spec .s4{font-family:var(--stencil);font-size:clamp(28px,6vw,64px);letter-spacing:.08em;line-height:1}
+
+/* ───────────── Voix ───────────── */
+.voix{display:grid;gap:var(--joint)}
+@media(min-width:700px){.voix{grid-template-columns:1fr 1fr 1fr}}
+.voix .mod{min-height:140px}
+.voix .v{font-size:clamp(22px,3vw,30px)}
+.voix .t{color:inherit;opacity:.92}
+
+/* ───────────── R1–R10 ───────────── */
+.rtable{width:100%;border-collapse:separate;border-spacing:0 var(--joint)}
+.rtable th,.rtable td{text-align:left;vertical-align:top;padding:12px 14px;background:var(--beton-clair);font-size:15px;box-shadow:var(--reveal)}
+.rtable th{width:64px;font-family:var(--stencil);font-size:18px;background:var(--brut);color:var(--craie)}
+.rtable td.ok{width:60px;font-weight:700}
+code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.95em;overflow-wrap:anywhere;word-break:break-all}
+@media(max-width:699px){
+  .rtable,.rtable tbody,.rtable tr,.rtable td{display:block;width:auto}
+  .rtable tr{margin-bottom:var(--joint)}
+  .rtable th{display:inline-block;min-width:64px;width:auto}
+  .rtable td.ok{display:inline-block;width:auto;margin-left:2px}
+}
+.honnete{background:var(--brut);color:var(--craie);padding:20px;box-shadow:var(--reveal);margin-top:40px;display:grid;gap:10px}
+.honnete li{margin-left:20px;font-size:15px}
+
+@media(prefers-reduced-motion:no-preference){
+  .loggia .ombre{transition:width .4s linear}
+  .mod,.cases button,.jours button{transition:filter .15s,background-color .15s}
+}
+@media(prefers-reduced-motion:reduce){ *{transition:none!important;animation:none!important} }
+</style>
+</head>
+<body>
+<main class="board">
+
+<header class="mast">
+  <h1>Béton</h1>
+  <p class="idea wide">Bâti, pas dessiné.
+    <small>Le site de L’Architecte n’est pas une page : c’est une façade. Des modules en béton, posés au joint près, dans lesquels on a coulé de la couleur et de la lumière. Les photos sont les loggias. Le prix est gravé dans la dalle. Réserver, c’est monter dans la travée. Marseille, Cité Radieuse, 1952 : on construit, on ne décore pas.</small>
+  </p>
+  <div class="lede">
+    <p><b>L’insight.</b> « On construit ta coupe au millimètre » : le salon parle déjà comme un chantier. Marseille a le bâtiment qui a inventé cette phrase. Aucun autre barbier ne peut dire « on construit ».</p>
+    <p><b>La torsion du seed.</b> Pas le Corbusier des plans : le Corbusier de la <b>polychromie</b> et du <b>brise-soleil</b>. La couleur est posée sur les murs, jamais sur les mots ; et le temps se lit comme sur une façade, par l’ombre qui avance, pas par un compte à rebours.</p>
+    <p><b>Le risque.</b> Un site gris béton, à 70 %. Sur un écran bon marché, le béton peut lire « pas fini ». On le tient avec quatre couleurs franches, les photos en pleine couleur et des caractères lourds et larges.</p>
+  </div>
+</header>
+
+<!-- ───────────── 01 · Premier écran ───────────── -->
+<section class="part" aria-labelledby="h-facade">
+  <h2 id="h-facade"><span class="num">01</span>La façade</h2>
+  <p class="why">Le premier écran répond aux sept questions de la rue <b>sans scroller</b> : où (la barre), ouvert et sans rendez-vous (le module rouge), bientôt (la prochaine place), combien (20 € et « dès 15 € »), c’est bien (316 avis), <b>téléphoner</b> et <b>y aller</b> (les deux modules bleus). Rien ne vole à l’arrivée : du béton, ça ne s’anime pas.</p>
+
+  <div class="frames two">
+    <div>
+      <div class="phone" aria-label="Premier écran sur un téléphone">
+        <div class="ecran">
+          <div class="topbar">
+            <span class="mark">L’ARCHITECTE</span>
+            <span class="addr"><span class="opt">Barbier · </span>16 place Pélabon<br><span class="opt">Marseille </span>13<sup>e</sup></span>
+          </div>
+          <a class="mod rouge ouvert" href="#reserver">
+            <span class="k">Ouvert · jusqu’à 18 h 30</span>
+            <span class="v">Sans rendez-vous, on te prend tout de suite.</span>
+            <span class="t">Prochaine place · aujourd’hui 16 h →</span>
+          </a>
+          <p class="hero-line"><span class="st">Place Pélabon · Marseille 13<sup>e</sup></span>Construit au millimètre.</p>
+          <div class="row a">
+            <figure class="mod photo photo-fade">
+              <img src="../../../../public/img/fade.jpg" alt="Client de profil : cheveux décolorés, dégradé à blanc net sur les côtés">
+            </figure>
+            <div style="display:grid;gap:var(--joint)">
+              <a class="mod jaune" href="#avis"><span class="k">Google</span><span class="v">5,0</span><span class="t">316 avis</span></a>
+              <a class="mod" href="#carte"><span class="k">Coupe</span><span class="v">20 €</span><span class="t">30 min</span></a>
+            </div>
+          </div>
+          <div class="row">
+            <a class="mod bleu" href="tel:+33491000000"><span class="k">Appeler</span><span class="t">04 91 00 00 00</span></a>
+            <a class="mod bleu" href="#venir"><span class="k">Itinéraire</span><span class="t">16, place Pélabon</span></a>
+          </div>
+          <div class="equipe" aria-label="Les barbiers">
+            <a class="mod" href="#jkut">JKut</a><a class="mod" href="#frank">Frank</a><a class="mod" href="#soldat">Le Soldat</a><a class="mod" href="#esteban">Esteban</a>
+          </div>
+        </div>
+        <a class="cta" href="#reserver">Réserver <span class="prix">dès 15 €</span></a>
+      </div>
+    </div>
+    <div>
+      <p class="cadre-note" style="max-width:none;font-size:16px;color:var(--brut)">390 × 844. Le bouton « Réserver · dès 15 € » est une dalle posée en bas, la seule chose qui ne bouge pas. Tout le reste est dans le flux : rien de tappable n’est jamais recouvert.</p>
+      <p class="cadre-note" style="max-width:none;font-size:16px;color:var(--brut)"><b>Pourquoi cet ordre.</b> L’inconnu à la porte (Yanis, 22 ans, trois onglets ouverts) décide en cinq secondes : il lit d’abord s’il peut venir maintenant, puis le prix, puis la preuve. Le titre « Construit au millimètre » vient <em>après</em> le module rouge : la promesse ne passe pas avant la réponse.</p>
+      <p class="cadre-note" style="max-width:none;font-size:16px;color:var(--brut)"><b>Fermé.</b> Le module rouge devient brut : « Fermé · ouvre mardi 9 h. » et la prochaine place passe en premier : « Mardi · 9 h · avec Frank ».</p>
+    </div>
+  </div>
+
+  <div class="deskwrap">
+      <div class="scroller">
+        <div class="desk" aria-label="Premier écran sur un ordinateur">
+          <div class="topbar">
+            <span class="mark">L’ARCHITECTE</span>
+            <nav aria-label="Niveaux"><a href="#carte">La carte</a><a href="#equipe">Les barbiers</a><a href="#avis">Avis</a><a href="#venir">Venir</a><a href="tel:+33491000000">04 91 00 00 00</a></nav>
+          </div>
+          <p class="hero-line"><span class="st">16, place Pélabon · Marseille 13<sup>e</sup> · mardi – samedi, 9 h – 18 h 30</span>Construit au millimètre.</p>
+          <a class="mod rouge ouvert" href="#reserver"><span class="k">Ouvert · jusqu’à 18 h 30</span><span class="v">Sans rendez-vous, on te prend tout de suite.</span></a>
+          <a class="mod brut next" href="#reserver"><span class="k">Prochaine place</span><span class="v">Aujourd’hui · 16 h</span><span class="t">Sans préférence · Le plus tôt →</span></a>
+          <figure class="mod photo ph-fade"><img src="../../../../public/img/fade.jpg" alt="Client de profil : cheveux décolorés, dégradé à blanc net sur les côtés"><figcaption>Dégradé à blanc, décoloré · JKut</figcaption></figure>
+          <figure class="mod photo ph-curls"><img src="../../../../public/img/curls.jpg" alt="Boucles serrées sur le dessus, dégradé net et barbe taillée, face au miroir du salon"><figcaption>Boucles et barbe · Esteban</figcaption></figure>
+          <a class="mod jaune avis" href="#avis"><span class="k">Google</span><span class="v">5,0 · 316 avis</span></a>
+          <a class="mod prix" href="#carte"><span class="k">Coupe classique</span><span class="v">20 € · 30 min</span><span class="t">Les prix, sans surprise.</span></a>
+          <a class="mod bleu tel" href="tel:+33491000000"><span class="k">Appeler</span><span class="v">04 91 00 00 00</span></a>
+          <a class="mod bleu iti" href="#venir"><span class="k">Itinéraire</span><span class="v">16, place Pélabon</span><span class="t">Métro Malpassé · bus 32</span></a>
+          <figure class="mod photo ph-salon"><img src="../../../../public/img/salon.jpg" alt="Le salon : long miroir bordé de LED rouge, canapés noir et rouge, fauteuils et bacs à shampooing"><figcaption>Le salon, place Pélabon. Quatre fauteuils.</figcaption></figure>
+          <a class="cta" href="#reserver"><span>Réserver</span><span class="prix">dès 15 € · sans compte</span></a>
+        </div>
+      </div>
+      <p class="cadre-note">1280 × 800 (sur un petit écran, ce cadre défile de côté). La façade est à douze travées. Le grand module photo est la loggia principale ; le salon est le rez-de-chaussée, posé sur pilotis.</p>
+  </div>
+</section>
+
+<!-- ───────────── 02 · Niveaux ───────────── -->
+<section class="part" aria-labelledby="h-niveaux">
+  <h2 id="h-niveaux"><span class="num">02</span>Les niveaux</h2>
+  <p class="why">Sous la façade, la maison se monte étage par étage, chacun numéré au pochoir comme les rues intérieures de la Cité. Chaque niveau est un mur de modules, jamais trois cartes identiques : la couleur dit la catégorie, la taille dit le poids.</p>
+  <div class="voix">
+    <div class="mod"><span class="k st">Niveau 01 · La maison</span><span class="v">Prends place.</span><span class="t">Le texte du salon, mot pour mot : « on construit ta coupe au millimètre, pour qu’elle tienne ». Un seul module, large, en béton clair.</span></div>
+    <div class="mod brut"><span class="k st">Niveau 02 · Le travail</span><span class="v">Sorti du fauteuil.</span><span class="t">Trois loggias : fade, raie, boucles. Chaque photo porte son nom et « Je veux cette coupe » ouvre la travée avec la prestation déjà posée.</span></div>
+    <div class="mod rouge"><span class="k st">Niveau 03 · La carte</span><span class="v">Les prix, sans surprise.</span><span class="t">Un mur de onze modules. Rouge : Coupes. Bleu : Changer de tête. Jaune : Barbe. Le prix est le plus gros caractère de la page, gravé.</span></div>
+    <div class="mod"><span class="k st">Niveau 04 · L’équipe</span><span class="v">Choisis ton barbier.</span><span class="t">« Sans préférence · Le plus tôt » est le premier module, le plus large. Puis JKut, Frank, Le Soldat, Esteban : initiales au pochoir, pas de portraits (il n’y en a pas).</span></div>
+    <div class="mod jaune"><span class="k st">Niveau 05 · La preuve</span><span class="v">Ne nous crois pas sur parole.</span><span class="t">5,0 · 316 avis Google, et les six mots qui reviennent : accueil, professionnalisme, hygiène, produits, ambiance, suivi.</span></div>
+    <div class="mod bleu"><span class="k st">Niveau 06 · Venir</span><span class="v">16, place Pélabon.</span><span class="t">Horaires en tableau, téléphone tappable, itinéraire, Instagram, YouTube. Puis abonnement, carnet, carte cadeau, formations et les huit questions.</span></div>
+  </div>
+</section>
+
+<!-- ───────────── 03 · La travée (booking) ───────────── -->
+<section class="part" aria-labelledby="h-travee" id="reserver">
+  <h2 id="h-travee"><span class="num">03</span>La travée</h2>
+  <p class="why">Réserver n’est pas une feuille qui monte : c’est <b>une colonne de la façade</b> qui s’ouvre (plein écran sur téléphone, le tiers droit sur ordinateur ; Retour et Échap la referment, le lien <code>?reserver&amp;barbier=frank&amp;prestation=coupe-classique</code> l’ouvre pré-remplie). Chaque étape est une dalle. Une étape faite se tasse en <b>linteau</b> coloré qui porte le choix ; l’étape en cours est éclairée ; la suite est encore dans l’ombre. Les créneaux sont une petite façade : clair = libre, foncé = pris.</p>
+
+  <div class="frames two">
+    <div>
+      <div class="phone travee" aria-label="La travée à l’étape du créneau">
+        <div class="ecran">
+          <div class="steph">
+            <button type="button" aria-label="Étape précédente">←</button>
+            <div><span class="k">Étape 3 sur 4</span><h3>Quand ?</h3></div>
+            <button type="button" aria-label="Fermer la réservation">×</button>
+          </div>
+          <div class="linteau" id="lint-serv"><span>Coupe classique · 20 € · 30 min</span><button type="button" data-teinte="rouge">Changer</button></div>
+          <div class="linteau ombre"><span>Avec Frank</span><button type="button">Changer</button></div>
+          <a class="mod brut" href="#confirmation"><span class="k">Le plus tôt</span><span class="v">Demain · 9 h avec Frank</span><span class="t">Choisir →</span></a>
+          <div class="jours" role="group" aria-label="Jours">
+            <button type="button">mar.<b>27</b></button>
+            <button type="button" aria-pressed="true">mer.<b>28</b></button>
+            <button type="button">jeu.<b>29</b></button>
+            <button type="button">ven.<b>30</b></button>
+            <button type="button">sam.<b>31</b></button>
+          </div>
+          <p class="plage">Matin · 4 places</p>
+          <div class="cases" role="group" aria-label="Le matin">
+            <button type="button" aria-pressed="true">9 h</button>
+            <button type="button">9 h 30</button>
+            <button type="button" class="pris" aria-disabled="true">10 h</button>
+            <button type="button">10 h 30</button>
+          </div>
+          <p class="plage">Après-midi · 3 places</p>
+          <div class="cases" role="group" aria-label="L’après-midi">
+            <button type="button" class="pris" aria-disabled="true">14 h</button>
+            <button type="button">14 h 30</button>
+            <button type="button">15 h</button>
+            <button type="button" class="pris" aria-disabled="true">16 h 30</button>
+          </div>
+        </div>
+        <div class="pied"><div><div class="v">20 €</div><div class="t">Coupe classique · avec Frank</div></div><a class="go" href="#confirmation" style="display:inline-flex;align-items:center;text-decoration:none">Continuer</a></div>
+      </div>
+      <p class="cadre-note">Les linteaux gardent ce que tu as choisi ; « Changer » rouvre la dalle. Sur un signal faible, la colonne reprend où elle s’est arrêtée, ce que tu as tapé compris.</p>
+    </div>
+
+    <div>
+      <h3 style="font-size:clamp(22px,3vw,30px);margin-bottom:8px">Le brise-soleil : la signature</h3>
+      <p class="why" style="margin-top:0">Quand tu choisis un créneau, il est <b>gardé cinq minutes</b>. Au lieu d’un compte à rebours qui presse (Gérard, 67 ans, le dit : « un compte à rebours qui me bouscule »), le module devient une loggia dont <b>l’ombre avance</b>, comme le soleil sur une façade. L’heure limite est écrite en toutes lettres, une fois. Quand l’ombre a tout couvert, on dit la vérité : le créneau n’est <em>plus gardé</em> ; on ne dit jamais « vient d’être pris » tant que l’API ne l’a pas dit. <b>Démo accélérée : 5 minutes en 30 secondes.</b></p>
+      <div class="loggia" id="loggia" aria-live="off">
+        <div class="ombre" id="ombre"></div>
+        <span class="k" id="log-k">Créneau</span>
+        <span class="v" id="log-v">mer. 28 oct. · 9 h · avec Frank</span>
+        <span class="until" id="log-until">Touche « Garder ce créneau » pour voir l’ombre avancer.</span>
+      </div>
+      <div class="demo-ctl">
+        <button type="button" id="garder">Garder ce créneau</button>
+        <button type="button" id="lacher" class="sec">Relâcher</button>
+        <p class="etat" id="etat" role="status" aria-live="polite"></p>
+      </div>
+      <p class="cadre-note">Avec <code>prefers-reduced-motion</code>, l’ombre ne glisse pas : elle avance par paliers d’une minute, et la phrase « gardé jusqu’à … » fait le travail seule. Rien ne boucle, rien ne clignote.</p>
+
+      <h3 style="font-size:clamp(22px,3vw,30px);margin:28px 0 8px">L’acompte, dit une fois, avant le bouton</h3>
+      <div class="acompte" aria-label="Fin de l’étape 4 pour une Transformation">
+        <div class="linteau" style="background:var(--bleu);color:var(--craie);display:flex;justify-content:space-between;align-items:center;min-height:48px;padding:0 14px;box-shadow:var(--reveal)"><span style="font-weight:700;font-size:15px">Transformation · 50 € · 1 h · avec JKut</span></div>
+        <p>Un acompte de <b>15 €</b> est demandé pour cette prestation, déduit au salon. Annulé plus de 12 h avant, il est remboursé. Tu as 15 minutes pour le régler, sinon la place est libérée.</p>
+        <div class="pied"><div><div class="v">50 €</div><div class="t">Mardi 27 octobre · 9 h</div></div><a class="go" href="#confirmation" style="display:inline-flex;align-items:center;text-decoration:none">Réserver et régler l’acompte</a></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ───────────── 04 · La cellule (confirmation) ───────────── -->
+<section class="part" aria-labelledby="h-cellule" id="confirmation">
+  <h2 id="h-cellule"><span class="num">04</span>La cellule</h2>
+  <p class="why">La confirmation est une cellule de la Cité : un seul module vert, haut, dans lequel tout est posé étage par étage, <b>en toutes lettres</b>. Les neuf choses : le jour et l’heure, le barbier, l’adresse, le SMS mot pour mot, l’agenda, l’itinéraire, Déplacer, Annuler, et le code. Juste en dessous, la deuxième tête : un parent réserve le fils suivant sans ressortir.</p>
+  <div class="frames two">
+    <div>
+      <div class="phone" aria-label="La confirmation">
+        <div class="ecran">
+          <div class="steph"><div><span class="k">Code LA-BXUF</span><h3>C’est réservé, Julien.</h3></div><button type="button" aria-label="Fermer">×</button></div>
+          <div class="mod vert cellule">
+            <span class="k">Ton rendez-vous</span>
+            <span class="v">Mercredi 28 octobre · 9 h</span>
+            <span class="etage">Coupe classique · 20 € · 30 min</span>
+            <span class="etage">Avec Frank</span>
+            <span class="etage">16, place Pélabon · 13013 Marseille</span>
+          </div>
+          <div class="actions">
+            <a href="#agenda">Agenda</a><a href="#venir">Itinéraire</a><a href="#deplacer">Déplacer</a><a href="#annuler">Annuler</a>
+          </div>
+          <a class="mod bleu" href="#reserver"><span class="k">Une deuxième tête ?</span><span class="t">Réserver pour quelqu’un d’autre · même créneau ou juste après</span><span class="arrow">→</span></a>
+          <div class="mod">
+            <span class="k">Le SMS que tu reçois</span>
+            <p class="sms">L’Architecte : c’est noté Julien ! Mer. 28 oct. à 9 h avec Frank. Gérer : /r/LA-BXUF</p>
+          </div>
+          <a class="mod" href="#moi"><span class="k">Garde tout au même endroit</span><span class="t">Ton prochain rendez-vous, tes reçus. Un code par SMS, pas de mot de passe. Facultatif.</span></a>
+        </div>
+        <a class="cta" href="#" style="background:var(--brut)">Fermer</a>
+      </div>
+    </div>
+    <div>
+      <p class="why" style="margin-top:0"><b>Pourquoi vert.</b> Dans la polychromie, chaque couleur a une fonction : le rouge appelle, le bleu oriente, le jaune prouve, le vert confirme. La cellule est la seule surface verte du parcours : on sait d’un coup d’œil que c’est fait, même sans lire.</p>
+      <p class="why"><b>Pour Nadia.</b> « Une deuxième tête ? » garde le créneau choisi comme point de départ et propose le même barbier juste après, ou un second barbier à la même heure. Chaque réservation reste à son prénom ; un seul SMS récapitule les deux.</p>
+      <p class="why"><b>Pour Gérard.</b> Le jour et l’heure en toutes lettres à 28 px, le numéro du salon dans la barre, et quatre actions de 56 px : il voit que ça a marché et il sait qui appeler si ce n’est pas le cas.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ───────────── 05 · Matière & caractères ───────────── -->
+<section class="part" aria-labelledby="h-matiere">
+  <h2 id="h-matiere"><span class="num">05</span>Matière et caractères</h2>
+  <p class="why">Du béton en trois valeurs et quatre couleurs de la polychromie. <b>La règle :</b> la couleur est posée sur les surfaces, jamais sur les mots. Le texte est de la craie sur couleur, ou du brut sur béton : toujours AA, souvent AAA. Le rouge d’aujourd’hui reste, parce que le salon est rouge (les LED, les canapés) ; il est assombri pour tenir la craie à 5,2:1.</p>
+  <div class="swatches">
+    <div class="sw" style="background:var(--beton)"><b>Béton</b><small>Le fond de tout. 7,0:1 avec le brut.</small><span class="hex">#B8B2A7</span></div>
+    <div class="sw" style="background:var(--beton-clair)"><b>Béton clair</b><small>La face au soleil : les modules neutres.</small><span class="hex">#D6D1C7</span></div>
+    <div class="sw" style="background:var(--brut);color:var(--craie)"><b>Brut</b><small>L’encre, le béton mouillé. Barres et pieds.</small><span class="hex">#2A2724</span></div>
+    <div class="sw" style="background:var(--craie)"><b>Craie</b><small>Le texte sur couleur.</small><span class="hex">#F2EEE6</span></div>
+    <div class="sw" style="background:var(--beton-ombre);color:var(--craie)"><b>Joint</b><small>L’ombre entre deux dalles.</small><span class="hex">#8E887E</span></div>
+    <div class="sw" style="background:var(--rouge);color:var(--craie)"><b>Vermillon</b><small>Coupes · Réserver · appelle.</small><span class="hex">#B8302A</span></div>
+    <div class="sw" style="background:var(--bleu);color:var(--craie)"><b>Outremer</b><small>Changer de tête · venir, appeler : oriente.</small><span class="hex">#1F4FA3</span></div>
+    <div class="sw" style="background:var(--jaune)"><b>Jaune vif</b><small>Barbe · la preuve · le focus clavier.</small><span class="hex">#E8B22B</span></div>
+    <div class="sw" style="background:var(--vert);color:var(--craie)"><b>Vert anglais</b><small>Ouvert · réservé : confirme.</small><span class="hex">#336B42</span></div>
+    <div class="sw" style="background:var(--coffrage);color:var(--craie)"><b>Coffrage</b><small>Créneau pris, étape dans l’ombre.</small><span class="hex">#6E675F</span></div>
+  </div>
+  <div class="spec">
+    <div><p class="lab">Archivo · graisse 900 · chasse 125 % — le titre, le prix, le bouton. Lourd et large : du béton coulé dans un coffrage large.</p><p class="s1">Au millimètre.</p></div>
+    <div><p class="lab">Archivo · 700 · chasse 100 % — les sous-titres et les linteaux. Même matière, coffrage étroit.</p><p class="s2">Mercredi 28 octobre · 9 h · avec Frank · 20 €</p></div>
+    <div><p class="lab">Archivo · 400 · 16 px minimum, 14 px pour les étiquettes — le texte courant. Une seule famille, trois coffrages : une seule matière.</p><p class="s3">Ici, on prend le temps. On t’écoute, on regarde ce qui te va, on te conseille. Puis on construit ta coupe au millimètre, pour qu’elle tienne et que tu saches la coiffer chez toi.</p></div>
+    <div><p class="lab">Allerta Stencil — les numéros de niveau et les codes, seulement : la peinture au pochoir sur le béton, comme les rues intérieures de la Cité. Jamais pour une phrase.</p><p class="s4">01 · 02 · 03 · LA-BXUF · 13013</p></div>
+  </div>
+  <p class="why" style="margin-top:22px"><b>Les photos.</b> Pas de bichromie, pas de trame : les quatre photos sont la couleur de la vie dans les loggias, donc en pleine couleur, cadrées serré sur le travail (le dégradé, la raie, les boucles) et posées dans un module à feuillure profonde (l’ombre portée du linteau). Le salon est toujours le module du bas, large : le rez-de-chaussée. Aucun texte ne passe sur une photo : la légende est une dalle brute sous l’image.</p>
+  <p class="why"><b>Les formes.</b> Zéro rayon. Un joint de 6 px entre toutes les dalles. La feuillure (ombre en haut et à gauche, lumière en bas et à droite) est le seul relief ; elle remplace les ombres portées et les bordures. Le focus clavier est jaune vif, 3 px : la peinture fraîche.</p>
+</section>
+
+<!-- ───────────── 06 · Voix ───────────── -->
+<section class="part" aria-labelledby="h-voix">
+  <h2 id="h-voix"><span class="num">06</span>La voix</h2>
+  <p class="why">Tu, toujours. Des phrases courtes qui pèsent. Le chantier est dans les verbes (construire, poser, tenir), jamais dans le jargon.</p>
+  <div class="voix">
+    <div class="mod"><span class="v">Construit au millimètre.</span><span class="t">Le titre de la façade. Les mots du salon, enfin utilisés.</span></div>
+    <div class="mod rouge"><span class="v">Sans rendez-vous, on te prend tout de suite.</span><span class="t">Le module rouge quand c’est ouvert. Fermé : « Fermé · ouvre mardi 9 h. Prends ta place pour la semaine. »</span></div>
+    <div class="mod brut"><span class="v">Gardé pour toi jusqu’à 16 h 42.</span><span class="t">Le brise-soleil. Une heure, pas un chrono.</span></div>
+    <div class="mod jaune"><span class="v">Ton créneau n’est plus gardé. On regarde s’il est encore libre.</span><span class="t">Quand l’ombre a tout couvert. Jamais « vient d’être pris » sans l’avoir vérifié.</span></div>
+    <div class="mod bleu"><span class="v">Une deuxième tête ? Même créneau, ou juste après.</span><span class="t">La confirmation, pour un parent.</span></div>
+    <div class="mod vert"><span class="v">C’est réservé, Julien. Mercredi 28 octobre, 9 h, avec Frank.</span><span class="t">La cellule : tout en toutes lettres, du premier coup d’œil.</span></div>
+  </div>
+</section>
+
+<!-- ───────────── 07 · R1–R10 ───────────── -->
+<section class="part" aria-labelledby="h-r">
+  <h2 id="h-r"><span class="num">07</span>R1 – R10</h2>
+  <table class="rtable">
+    <tbody>
+      <tr><th scope="row">R1</th><td class="ok">Oui</td><td>Les sept réponses sont sept modules du premier écran, sans scroller à 390 × 844 : adresse (barre), ouvert et sans rendez-vous (rouge), prochaine place, 20 € et « dès 15 € », 5,0 · 316, Appeler (tel:), Itinéraire.</td></tr>
+      <tr><th scope="row">R2</th><td class="ok">Oui</td><td>La travée pousse un état d’historique à l’ouverture ; Retour et Échap la referment et rendent le focus au module qui l’a ouverte. Liens profonds en codes et en noms lisibles (<code>barbier=frank&amp;prestation=coupe-classique</code>).</td></tr>
+      <tr><th scope="row">R3</th><td class="ok">Oui</td><td>Grille de modules, pas de superposition : à 320 × 568 tout reflue en une ou deux colonnes. Une seule dalle fixe (Réserver, 60 px, ≈ 11 % de l’écran). Tous les modules ≥ 48 px, les créneaux 48 px.</td></tr>
+      <tr><th scope="row">R4</th><td class="ok">Oui</td><td>Le module bleu « Appeler · 04 91 00 00 00 » est un <code>tel:</code> au premier écran, 56 px de haut, et le numéro est aussi dans la barre sur ordinateur.</td></tr>
+      <tr><th scope="row">R5</th><td class="ok">Oui</td><td>La façade est du HTML plein : nom, adresse, horaires, téléphone et le lien <code>?reserver</code> sont dans la source. Sans script, la travée devient une page de formulaire ; seuls la prochaine place et le brise-soleil demandent du JS.</td></tr>
+      <tr><th scope="row">R6</th><td class="ok">Oui</td><td>Le module « Une deuxième tête ? » dans la cellule rouvre la travée avec le même créneau pré-posé et propose « juste après » ou « un second barbier à la même heure ».</td></tr>
+      <tr><th scope="row">R7</th><td class="ok">Oui</td><td>Les neuf choses sont les étages de la cellule ; l’acompte est dit une fois, en mots (montant, raison, remboursement), au-dessus de « Réserver et régler l’acompte ».</td></tr>
+      <tr><th scope="row">R8</th><td class="ok">Oui</td><td>Quand l’ombre couvre la loggia : « Ton créneau n’est plus gardé. On regarde s’il est encore libre. » Le mot « pris » n’apparaît qu’après une réponse de l’API qui le dit.</td></tr>
+      <tr><th scope="row">R9</th><td class="ok">Oui</td><td>Texte jamais sur une photo (légendes sur dalle brute). Craie sur vermillon 5,2:1, sur outremer 6,7:1, brut sur jaune 7,6:1, sur béton 7,0:1. Rien sous 14 px. Mouvement réduit : l’ombre avance par paliers, rien ne boucle.</td></tr>
+      <tr><th scope="row">R10</th><td class="ok">Oui</td><td>Pas de JS pour peindre la façade ; les quatre photos en <code>loading="lazy"</code> sauf la première ; deux fichiers de police auto-hébergés (Archivo variable, Allerta Stencil) ; zéro requête tierce (la carte est un lien, pas un embed).</td></tr>
+    </tbody>
+  </table>
+
+  <div class="honnete">
+    <b>Honnête : ce qu’on simplifierait en construisant.</b>
+    <ul>
+      <li>La feuillure (double ombre interne) sur chaque module : garder la version une seule ombre si le rendu bave sur Android bas de gamme.</li>
+      <li>Archivo à 125 % de chasse pèse : sous-ensemble latin, deux instances statiques (900 large, 400 normal) plutôt que la variable complète.</li>
+      <li>Le brise-soleil : une seule propriété animée (la largeur de l’ombre), pilotée par l’horloge du serveur, pas par celle du téléphone.</li>
+      <li>Le desktop à douze travées : six suffisent sous 1100 px.</li>
+    </ul>
+  </div>
+</section>
+
+</main>
+
+<script>
+(function(){
+  // Le brise-soleil : l’ombre avance sur la loggia pendant la garde (5 min → 30 s en démo).
+  var DEMO_MS = 30000, HOLD_MIN = 5;
+  var loggia = document.getElementById('loggia'), ombre = document.getElementById('ombre');
+  var until = document.getElementById('log-until'), etat = document.getElementById('etat'), k = document.getElementById('log-k');
+  var garder = document.getElementById('garder'), lacher = document.getElementById('lacher');
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var timer = null, start = 0;
+  function hm(d){ return d.getHours() + ' h ' + String(d.getMinutes()).padStart(2,'0'); }
+  function reset(){
+    if (timer) { clearInterval(timer); timer = null; }
+    loggia.classList.remove('fini'); ombre.style.width = '0%';
+    k.textContent = 'Créneau';
+    until.textContent = 'Touche « Garder ce créneau » pour voir l’ombre avancer.';
+    etat.textContent = '';
+    garder.disabled = false;
+  }
+  function fini(){
+    clearInterval(timer); timer = null;
+    ombre.style.width = '100%'; loggia.classList.add('fini');
+    k.textContent = 'Plus gardé';
+    until.textContent = 'Ton créneau n’est plus gardé. On regarde s’il est encore libre.';
+    etat.textContent = 'Démo : il est encore libre. Touche « Garder ce créneau » pour le reprendre.';
+    garder.disabled = false;
+  }
+  garder.addEventListener('click', function(){
+    reset();
+    start = Date.now();
+    var fin = new Date(start + HOLD_MIN * 60000);
+    k.textContent = 'Créneau gardé pour toi';
+    until.textContent = 'Gardé pour toi jusqu’à ' + hm(fin) + '.';
+    etat.textContent = 'Démo accélérée : 5 minutes en 30 secondes.';
+    garder.disabled = true;
+    timer = setInterval(function(){
+      var p = Math.min(1, (Date.now() - start) / DEMO_MS);
+      // mouvement réduit : par paliers d’une minute (cinq pas), sinon continu
+      var w = reduce ? Math.floor(p * HOLD_MIN) / HOLD_MIN : p;
+      ombre.style.width = (w * 100) + '%';
+      if (p >= 1) fini();
+    }, reduce ? 1000 : 400);
+  });
+  lacher.addEventListener('click', function(){ reset(); etat.textContent = 'Créneau relâché. Tes choix sont gardés.'; });
+
+  // Dans la travée : « Changer » sur le linteau de la prestation fait tourner la couleur (Coupes → Changer de tête → Barbe).
+  var lint = document.getElementById('lint-serv');
+  if (lint) {
+    var cyc = [['rouge','Coupe classique · 20 € · 30 min'],['bleu','Transformation · 50 € · 1 h'],['jaune','Taille de barbe · 18 € · 30 min']], i = 0;
+    var css = getComputedStyle(document.documentElement);
+    lint.querySelector('button').addEventListener('click', function(){
+      i = (i + 1) % cyc.length;
+      lint.style.background = css.getPropertyValue('--' + cyc[i][0]);
+      lint.style.color = cyc[i][0] === 'jaune' ? css.getPropertyValue('--brut') : css.getPropertyValue('--craie');
+      lint.querySelector('button').style.color = lint.style.color;
+      lint.querySelector('span').textContent = cyc[i][1];
+    });
+  }
+})();
+</script>
+</body>
+</html>

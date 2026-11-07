@@ -14,7 +14,15 @@
     "test:pg": "node scripts/test-pg.mjs",
     "test:e2e": "node tests/e2e/run.mjs; d=$?; node tests/e2e/prod.mjs && exit $d",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p web/tsconfig.json --noEmit",
-    "verify": "npm run typecheck && npm test && npm run build"
+    "verify": "npm run typecheck && npm test && npm run build",
+    "ux": "node design/instruments/cli.mjs run",
+    "ux:report": "node design/instruments/cli.mjs report",
+    "ux:score": "node design/instruments/cli.mjs score",
+    "ux:gate": "node design/instruments/cli.mjs gate",
+    "ux:calibrate": "node design/instruments/cli.mjs calibrate",
+    "ux:atlas": "node design/instruments/cli.mjs atlas",
+    "ux:list": "node design/instruments/cli.mjs list",
+    "ux:test": "node --test --test-reporter=spec \"design/tests/*.test.mjs\""
   },
   "dependencies": {
     "@vercel/blob": "2.8.2",

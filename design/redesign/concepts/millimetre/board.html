@@ -1,0 +1,590 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Au millimètre · concept board · Barber L’Architecte</title>
+<meta name="description" content="Concept 02 · Au millimètre : le site mesuré en millimètres, la typographie qui pousse comme le cheveu, la fiche comme réservation.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anybody:wdth,wght@50..150,100..900&family=Fraunces:opsz,wght@9..144,300..700&display=swap" rel="stylesheet">
+<style>
+/* ———————————————————————————————————————————————————————————
+   Au millimètre — every token is a length in millimetres (CSS mm).
+   Six levels, taken from the posterised fade : 0 · 0,5 · 1 · 3 · 6 · 12.
+   One line of colour : the red LED of the mirror, never a fill, never text.
+   ——————————————————————————————————————————————————————————— */
+:root{
+  --papier:#F2F1EC;
+  --l0:#E9E8E3; --l05:#CFCEC7; --l1:#A9A8A1; --l3:#777670; --l6:#44433F; --l12:#161614;
+  --encre:var(--l12); --second:#5E5D58; --led:#E2231A;
+  --fond:var(--papier); --carte:#FAFAF7; --ligne:var(--l05);
+  --m1:1mm; --m2:2mm; --m3:3mm; --m4:4mm; --m6:6mm; --m8:8mm; --m12:12mm; --m16:16mm; --m24:24mm;
+  --t-body:4.5mm; --t-small:3.8mm; --t-h2:9mm; --t-h1:clamp(11mm,10vw,20mm);
+  --mesure:'Anybody','Archivo Narrow','Helvetica Neue',Arial,sans-serif;
+  --voix:'Fraunces',Georgia,'Times New Roman',serif;
+  --r:1.5mm;
+}
+@media (prefers-color-scheme:dark){
+  :root{ --papier:#141413; --fond:#141413; --carte:#1C1C1A; --encre:#EDECE7; --second:#B5B3AC; --ligne:#3A3936;
+         --l0:#1C1C1A; --l05:#3A3936; --l1:#5E5D58; --l3:#8F8E87; --l6:#C4C2BB; --l12:#EDECE7; }
+}
+*{box-sizing:border-box;margin:0}
+html{-webkit-text-size-adjust:100%}
+body{background:var(--fond);color:var(--encre);font-family:var(--voix);font-variation-settings:"opsz" 12,"wght" 400;font-size:var(--t-body);line-height:1.5;padding:0;overflow-x:hidden}
+img{display:block;max-width:100%}
+h1,h2,h3,.mes,button,.btn,.num,.price,dt{font-family:var(--mesure);font-variation-settings:"wdth" 100,"wght" 600;letter-spacing:-0.005em;line-height:1.05}
+h2{font-size:var(--t-h2);font-variation-settings:"wdth" 95,"wght" 700;margin:0 0 var(--m4)}
+h3{font-size:5.6mm;font-variation-settings:"wdth" 100,"wght" 650;margin:0 0 var(--m2)}
+p{max-width:62ch}
+.small{font-size:var(--t-small);color:var(--second)}
+.lead{font-size:5.4mm;font-variation-settings:"opsz" 18,"wght" 400;line-height:1.35;max-width:36ch}
+:focus-visible{outline:2px solid var(--led);outline-offset:2px}
+a{color:inherit}
+
+/* page frame : a left gutter that carries the measure, a column of content */
+.page{max-width:1440px;margin:0 auto;padding:0 var(--m4) var(--m24)}
+header.top{display:flex;flex-wrap:wrap;gap:var(--m2) var(--m6);align-items:baseline;padding:var(--m4) 0;border-bottom:1px solid var(--ligne)}
+header.top .num{font-size:4mm;color:var(--second)}
+header.top h1{font-size:6mm;font-variation-settings:"wdth" 110,"wght" 800}
+nav.sommaire{display:flex;flex-wrap:wrap;gap:var(--m1) var(--m2);padding:var(--m3) 0;border-bottom:1px solid var(--ligne)}
+nav.sommaire a{font-family:var(--mesure);font-variation-settings:"wdth" 95,"wght" 500;text-decoration:none;font-size:var(--t-small);color:var(--second);min-height:44px;min-width:48px;display:inline-flex;align-items:center;justify-content:center;padding:0 var(--m2)}
+sup{font-size:max(.7em,14px);line-height:0}
+code{font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace;font-size:1em;overflow-wrap:anywhere}
+section.mm > .body{min-width:0}
+td{overflow-wrap:anywhere}
+td:first-child{overflow-wrap:normal;white-space:nowrap;width:1%;padding-right:var(--m3)}
+nav.sommaire a:hover{color:var(--encre)}
+
+section.mm{display:grid;grid-template-columns:1fr;gap:var(--m3);padding:var(--m12) 0;border-bottom:1px solid var(--ligne)}
+section.mm > .cote{display:flex;align-items:baseline;gap:var(--m2);color:var(--second)}
+.cote .num{font-size:9mm;line-height:1;color:var(--encre)}
+.cote .unit{font-family:var(--mesure);font-size:var(--t-small);font-variation-settings:"wdth" 100,"wght" 500}
+.cote .what{font-family:var(--mesure);font-size:var(--t-small);font-variation-settings:"wdth" 100,"wght" 500;text-transform:uppercase;letter-spacing:.08em}
+.cote::before{content:"";display:block;width:12mm;height:1px;background:var(--encre);align-self:center}
+section.mm > .body{display:grid;gap:var(--m6)}
+@media (min-width:1024px){
+  .page{padding-left:40mm}
+  section.mm{grid-template-columns:34mm 1fr;gap:var(--m8)}
+  section.mm > .cote{flex-direction:column;align-items:flex-start;position:relative}
+  section.mm > .cote::before{position:absolute;left:-32mm;top:5mm;width:28mm}
+  /* the ruler : one line down the left edge, ticks only where the sections are. A cote, not wallpaper. */
+  .page{position:relative}
+  .page::before{content:"";position:absolute;left:8mm;top:0;bottom:0;width:1px;background:var(--l1)}
+  .page::after{content:"";position:absolute;left:8mm;top:0;width:12mm;height:1px;background:var(--led)}
+}
+/* the six weights : the section number weighs what it measures */
+.w0{font-variation-settings:"wdth" 70,"wght" 100 !important}
+.w05{font-variation-settings:"wdth" 78,"wght" 180 !important}
+.w1{font-variation-settings:"wdth" 86,"wght" 260 !important}
+.w3{font-variation-settings:"wdth" 96,"wght" 400 !important}
+.w6{font-variation-settings:"wdth" 108,"wght" 600 !important}
+.w12{font-variation-settings:"wdth" 125,"wght" 900 !important}
+
+/* the word that is itself a fade : one letter per level */
+.fade-word span{font-variation-settings:"wdth" var(--wd),"wght" var(--wg)}
+
+/* columns */
+.cols{display:grid;gap:var(--m6)}
+@media (min-width:760px){.cols-2{grid-template-columns:1fr 1fr}.cols-3{grid-template-columns:1fr 1fr 1fr}}
+.card{background:var(--carte);border:1px solid var(--ligne);border-radius:var(--r);padding:var(--m4)}
+.note{border-left:1px solid var(--encre);padding-left:var(--m3)}
+
+/* ——— the phone frame : exactly one first viewport, 390×844 ——— */
+.phone{width:100%;max-width:390px;aspect-ratio:390/844;background:var(--papier);border:1px solid var(--l1);border-radius:3mm;overflow:hidden;position:relative;color:#161614;display:flex;flex-direction:column}
+.phone.light{--papier:#F2F1EC}
+.site{display:flex;flex-direction:column;height:100%;padding:3.5mm 4mm 0;background:#F2F1EC;color:#161614;font-family:var(--voix)}
+.site .bar{display:flex;justify-content:space-between;align-items:flex-start;gap:var(--m2)}
+.site .mark{font-family:var(--mesure);font-size:5.2mm;font-variation-settings:"wdth" 115,"wght" 850;line-height:1}
+.site .mark small{display:block;font-family:var(--mesure);font-size:3.7mm;font-variation-settings:"wdth" 100,"wght" 450;color:#5E5D58;margin-top:1mm;letter-spacing:0}
+.site .open{display:flex;align-items:center;gap:1.5mm;font-family:var(--mesure);font-size:3.7mm;font-variation-settings:"wdth" 100,"wght" 500;margin-top:3mm}
+.site .open::before{content:"";width:2mm;height:2mm;border-radius:50%;background:#1B7F3B}
+.site h1.hero{font-size:13.5mm;font-variation-settings:"wdth" 100,"wght" 500;line-height:.98;margin:3.5mm 0 2.5mm;letter-spacing:-0.01em}
+.site .proof{font-family:var(--mesure);font-size:3.7mm;font-variation-settings:"wdth" 100,"wght" 550;display:flex;gap:2mm;align-items:center}
+.site .proof .stars{letter-spacing:.05em}
+.site .slot{display:flex;justify-content:space-between;align-items:center;border-top:1px solid #161614;border-bottom:1px solid #161614;padding:2.2mm 0;margin-top:3mm;font-family:var(--mesure)}
+.site .slot b{font-size:4.6mm;font-variation-settings:"wdth" 100,"wght" 700;display:block;line-height:1.1}
+.site .slot span{font-size:3.7mm;color:#5E5D58;font-variation-settings:"wdth" 100,"wght" 500}
+.btn{font-family:var(--mesure);font-variation-settings:"wdth" 100,"wght" 650;font-size:4.4mm;text-decoration:none;border-radius:var(--r);min-height:48px;display:inline-flex;align-items:center;justify-content:center;gap:2mm;padding:0 4mm;border:1px solid #161614;color:#161614;background:transparent;cursor:pointer;line-height:1}
+.btn.ink{background:#161614;color:#F2F1EC}
+.btn.ink .price{font-variation-settings:"wdth" 100,"wght" 400;opacity:.9}
+.btn.main{width:100%;min-height:56px;font-size:4.8mm;justify-content:space-between;margin-top:3mm}
+.site .row{display:grid;grid-template-columns:1.55fr 1fr;gap:2mm;margin-top:2mm}
+.site .row .btn{min-height:46px;font-size:3.7mm;padding:0 1.5mm;white-space:nowrap}
+@media (max-width:379px){.phone{aspect-ratio:auto;min-height:700px}.site .row .btn{font-size:3.7mm}}
+.site .photo{margin:3mm -4mm 0;flex:1;position:relative;min-height:0;overflow:hidden}
+.site .photo img{width:100%;height:100%;object-fit:cover;object-position:62% 30%}
+.poster{filter:url(#p6)}
+.chip{position:absolute;font-family:var(--mesure);font-size:3.7mm;font-variation-settings:"wdth" 100,"wght" 600;background:#F2F1EC;color:#161614;padding:1.2mm 2mm;border-radius:1mm;line-height:1}
+.chip.c0{left:3mm;bottom:3mm}.chip.c12{left:3mm;top:3mm}
+.chip.c0::after,.chip.c12::after{content:"";position:absolute;left:100%;top:50%;width:14mm;height:1px;background:#F2F1EC}
+.phone .ruler-v{position:absolute;right:3mm;top:3mm;bottom:3mm;width:1px;background:#F2F1EC;opacity:.9}
+
+/* ——— the desktop frame, scaled to fit ——— */
+.desk-wrap{width:100%;overflow:hidden}
+.desk{width:1280px;height:800px;transform-origin:top left;background:#F2F1EC;color:#161614;border:1px solid var(--l1);display:grid;grid-template-columns:14mm 1fr 1fr;font-family:var(--voix)}
+.desk .rule{border-right:1px solid #161614;position:relative}
+.desk .rule i{position:absolute;left:0;width:100%;height:1px;background:#161614}
+.desk .rule b{position:absolute;left:2mm;font-family:var(--mesure);font-size:3.8mm;font-variation-settings:"wdth" 100,"wght" 500;transform:translateY(-120%)}
+.desk .rule .zero{background:var(--led);height:2px}
+.desk .left{padding:10mm 12mm;display:flex;flex-direction:column}
+.desk .left .mark{font-family:var(--mesure);font-size:6.5mm;font-variation-settings:"wdth" 115,"wght" 850;line-height:1}
+.desk .left .mark small{display:block;font-size:4mm;font-variation-settings:"wdth" 100,"wght" 450;color:#5E5D58;margin-top:1.5mm}
+.desk .left h1{font-size:26mm;line-height:.95;margin:14mm 0 8mm;letter-spacing:-0.015em;font-variation-settings:"wdth" 100,"wght" 500}
+.desk .left .open,.desk .left .proof{font-family:var(--mesure);font-size:4.4mm;font-variation-settings:"wdth" 100,"wght" 550;display:flex;gap:2mm;align-items:center}
+.desk .left .open::before{content:"";width:2.2mm;height:2.2mm;border-radius:50%;background:#1B7F3B}
+.desk .left .slot{border-top:1px solid #161614;border-bottom:1px solid #161614;padding:3mm 0;margin:auto 0 5mm;font-family:var(--mesure);display:flex;justify-content:space-between;align-items:center}
+.desk .left .slot b{font-size:6mm;font-variation-settings:"wdth" 100,"wght" 700;display:block}
+.desk .left .slot span{font-size:4mm;color:#5E5D58}
+.desk .left .actions{display:grid;grid-template-columns:1.7fr 1fr 1fr;gap:3mm}
+.desk .left .actions .btn{min-height:56px;font-size:4.6mm;white-space:nowrap}
+.desk .right{position:relative;overflow:hidden;border-left:1px solid #161614}
+.desk .right img{width:100%;height:100%;object-fit:cover;object-position:60% 25%}
+.desk .right .chip{font-size:4.2mm}
+.desk .right .chip.c12{left:auto;right:6mm;top:6mm}.desk .right .chip.c0{left:auto;right:6mm;bottom:6mm}
+.desk .right .chip.c12::after,.desk .right .chip.c0::after{left:auto;right:100%}
+
+/* ——— la fiche : the booking as a technical sheet ——— */
+.fiche{display:flex;flex-direction:column;height:100%;background:#F2F1EC;color:#161614;font-family:var(--voix)}
+.fiche .head{display:flex;align-items:center;justify-content:space-between;padding:3mm 3mm 2mm;border-bottom:1px solid #161614}
+.fiche .head .btn{min-width:44px;min-height:44px;padding:0 3mm;font-size:3.8mm}
+.fiche .head .title{text-align:center;font-family:var(--mesure)}
+.fiche .head .title small{display:block;font-size:3.7mm;color:#5E5D58;font-variation-settings:"wdth" 100,"wght" 500;letter-spacing:.06em;text-transform:uppercase}
+.fiche .head .title b{font-size:5.6mm;font-variation-settings:"wdth" 100,"wght" 700}
+.steps{list-style:none;padding:3mm 4mm 0 4mm;display:grid;gap:0}
+.steps li{display:flex;gap:2.5mm;align-items:baseline;position:relative;padding:1.6mm 0 1.6mm;font-family:var(--mesure);font-size:3.8mm;font-variation-settings:"wdth" 100,"wght" 500;color:#5E5D58;line-height:1.25}
+.steps li::before{content:"";flex:none;width:1.6mm;height:1.6mm;border-radius:50%;background:#A9A8A1;position:relative;top:-.3mm}
+.steps li.done::before{background:#161614}
+.steps li.now{color:#161614;font-variation-settings:"wdth" 100,"wght" 700}
+.steps li.now::before{background:var(--led);box-shadow:0 0 0 1.2mm #F2F1EC,0 0 0 1.5mm var(--led)}
+.steps li b{color:#161614;font-variation-settings:"wdth" 100,"wght" 650}
+.fiche .first{margin:3mm 4mm 0;display:flex;align-items:center;justify-content:space-between;gap:2mm;border:1px solid #161614;border-radius:var(--r);padding:2.5mm 2.5mm 2.5mm 3.5mm}
+.fiche .first small{display:block;font-family:var(--mesure);font-size:3.7mm;text-transform:uppercase;letter-spacing:.06em;color:#5E5D58;font-variation-settings:"wdth" 100,"wght" 550}
+.fiche .first b{font-family:var(--mesure);font-size:4.8mm;font-variation-settings:"wdth" 100,"wght" 700;line-height:1.1}
+.fiche .first .btn{min-height:46px;min-width:46px}
+.days{display:grid;grid-template-columns:repeat(5,1fr);gap:1.5mm;margin:3mm 4mm 0;list-style:none;padding:0}
+.days li{border:1px solid #A9A8A1;border-radius:var(--r);min-height:50px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:var(--mesure);font-size:3.7mm;font-variation-settings:"wdth" 100,"wght" 500;line-height:1.1;gap:.6mm}
+.days li b{font-size:5.4mm;font-variation-settings:"wdth" 100,"wght" 750}
+.days li.on{background:#161614;color:#F2F1EC;border-color:#161614}
+.days li.full{color:#777670;border-style:dashed}
+.hours{display:grid;grid-template-columns:repeat(3,1fr);gap:1.5mm;margin:2mm 4mm 0;list-style:none;padding:0}
+.hours li{border:1px solid #A9A8A1;border-radius:var(--r);min-height:46px;display:flex;align-items:center;justify-content:center;font-family:var(--mesure);font-size:4.2mm;font-variation-settings:"wdth" 100,"wght" 600}
+.held{margin:auto 4mm 0;padding:2.5mm 0 0;font-family:var(--mesure);font-size:3.8mm;font-variation-settings:"wdth" 100,"wght" 550;display:flex;justify-content:space-between;align-items:baseline}
+.held .timer{position:relative;display:block;height:1px;background:#CFCEC7;margin-top:1.5mm}
+.held .timer::after{content:"";position:absolute;left:0;top:0;height:2px;width:72%;background:var(--led)}
+.fiche .foot{display:flex;align-items:center;justify-content:space-between;gap:3mm;padding:3mm 4mm 3.5mm;border-top:1px solid #161614;margin-top:2mm}
+.fiche .foot .sum b{font-family:var(--mesure);font-size:6mm;font-variation-settings:"wdth" 100,"wght" 800;display:block;line-height:1}
+.fiche .foot .sum span{font-family:var(--mesure);font-size:3.7mm;color:#5E5D58;display:block;margin-top:1mm}
+.fiche .foot .btn{min-height:52px;flex:1;max-width:60%}
+
+/* ——— confirmation ——— */
+.ticket{display:flex;flex-direction:column;height:100%;background:#F2F1EC;color:#161614;padding:4mm 4mm 3mm;font-family:var(--voix);overflow:hidden}
+.ticket .ok{font-family:var(--mesure);font-size:3.7mm;letter-spacing:.08em;text-transform:uppercase;color:#5E5D58;font-variation-settings:"wdth" 100,"wght" 600}
+.ticket h2{font-size:8.5mm;font-variation-settings:"wdth" 100,"wght" 700;margin:1mm 0 3mm;letter-spacing:-0.01em}
+.ticket .when{border-top:1px solid #161614;padding-top:2.5mm}
+.ticket .when b{display:block;font-family:var(--mesure);font-size:7.6mm;line-height:1;font-variation-settings:"wdth" 110,"wght" 900;letter-spacing:-0.015em}
+.ticket dl{display:grid;grid-template-columns:auto 1fr;gap:1.2mm 3mm;margin:2.5mm 0 0;font-size:3.9mm}
+.ticket dt{font-size:3.7mm;text-transform:uppercase;letter-spacing:.06em;color:#5E5D58;font-variation-settings:"wdth" 100,"wght" 600;padding-top:.8mm}
+.ticket dd{font-family:var(--mesure);font-variation-settings:"wdth" 100,"wght" 550;font-size:4mm}
+.ticket .acts{display:grid;grid-template-columns:1fr 1fr;gap:1.5mm;margin-top:3mm}
+.ticket .acts .btn{min-height:44px;font-size:3.8mm;padding:0 2mm}
+.ticket .sms{margin-top:3mm;border-left:1px solid #161614;padding-left:2.5mm;font-size:3.7mm;line-height:1.4}
+.ticket .sms small{display:block;font-family:var(--mesure);font-size:3.7mm;text-transform:uppercase;letter-spacing:.06em;color:#5E5D58;font-variation-settings:"wdth" 100,"wght" 600;margin-bottom:.6mm}
+.ticket .espace{margin-top:3mm;border:1px solid #CFCEC7;border-radius:var(--r);padding:2.5mm 3mm;display:grid;gap:1.5mm;font-size:3.7mm;line-height:1.35}
+.ticket .espace b{font-family:var(--mesure);font-size:4.2mm;font-variation-settings:"wdth" 100,"wght" 650}
+.ticket .espace .btn{justify-self:start;min-height:44px;font-size:3.8mm}
+.ticket .espace .small{color:#5E5D58}
+.ticket .duo{margin-top:auto;border-top:1px solid #161614;padding-top:2.5mm;display:flex;justify-content:space-between;align-items:center;gap:2mm;font-family:var(--mesure);font-size:3.9mm;font-variation-settings:"wdth" 100,"wght" 600}
+.ticket .duo .btn{min-height:44px;font-size:3.8mm}
+
+/* ——— le sabot : the live demo ——— */
+.sabot{display:grid;gap:var(--m4);align-items:start}
+@media (min-width:760px){.sabot{grid-template-columns:1fr 1fr}}
+.sabot .readout{font-family:var(--mesure);display:flex;align-items:baseline;gap:var(--m2);line-height:.9}
+.sabot .readout output{font-size:clamp(28mm,24vw,52mm);font-variation-settings:"wdth" 60,"wght" 100;letter-spacing:-0.02em;transition:font-variation-settings .45s cubic-bezier(.3,.7,.2,1);font-variant-numeric:tabular-nums}
+.sabot .readout .unit{font-size:8mm;font-variation-settings:"wdth" 100,"wght" 400;color:var(--second)}
+.sabot .range{display:block;width:100%;height:56px;appearance:none;-webkit-appearance:none;background:transparent;margin:var(--m2) 0 0;cursor:pointer}
+.sabot .range::-webkit-slider-runnable-track{height:1px;background:var(--encre)}
+.sabot .range::-moz-range-track{height:1px;background:var(--encre)}
+.sabot .range::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:44px;height:44px;border-radius:50%;background:var(--carte);border:1px solid var(--encre);margin-top:-22px;box-shadow:inset 0 0 0 3px var(--carte),inset 0 0 0 4px var(--led)}
+.sabot .range::-moz-range-thumb{width:44px;height:44px;border-radius:50%;background:var(--carte);border:1px solid var(--encre);box-shadow:inset 0 0 0 3px var(--carte),inset 0 0 0 4px var(--led)}
+.sabot .ticks{display:flex;justify-content:space-between;font-family:var(--mesure);font-size:var(--t-small);font-variation-settings:"wdth" 100,"wght" 500;color:var(--second);padding:0 18px;margin-top:-2mm}
+.sabot .ticks span{position:relative;min-width:7mm;text-align:center}
+.sabot .ticks span::before{content:"";position:absolute;left:50%;top:-5mm;height:2.5mm;width:1px;background:var(--l1)}
+.sabot .says{margin-top:var(--m3);font-size:5mm;font-variation-settings:"opsz" 18,"wght" 400;min-height:2.6em}
+.sabot .writes{margin-top:var(--m2);border:1px solid var(--ligne);border-radius:var(--r);padding:var(--m3);background:var(--carte)}
+.sabot .writes small{display:block;font-family:var(--mesure);font-size:3.7mm;text-transform:uppercase;letter-spacing:.06em;color:var(--second);font-variation-settings:"wdth" 100,"wght" 600;margin-bottom:1mm}
+.sabot .writes b{font-family:var(--mesure);font-variation-settings:"wdth" 100,"wght" 600}
+.sabot figure{position:relative;border:1px solid var(--l1);border-radius:var(--r);overflow:hidden;aspect-ratio:4/5;max-height:520px;background:#CFCEC7}
+.sabot figure img{width:100%;height:100%;object-fit:cover;object-position:70% 28%}
+.sabot figcaption{position:absolute;left:3mm;bottom:3mm;font-family:var(--mesure);font-size:3.7mm;font-variation-settings:"wdth" 100,"wght" 600;background:#F2F1EC;color:#161614;padding:1.2mm 2mm;border-radius:1mm}
+
+/* palette & type */
+.levels{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--m2);list-style:none;padding:0}
+@media (min-width:760px){.levels{grid-template-columns:repeat(6,1fr)}}
+.levels li{border:1px solid var(--ligne);border-radius:var(--r);overflow:hidden;font-family:var(--mesure);font-size:var(--t-small)}
+.levels li i{display:block;height:18mm}
+.levels li div{padding:1.5mm 2mm;line-height:1.3}
+.levels li b{display:block;font-variation-settings:"wdth" 100,"wght" 650}
+.levels li span{color:var(--second)}
+.spec{display:grid;gap:var(--m3)}
+.spec .row{display:grid;grid-template-columns:12mm 1fr;align-items:baseline;gap:var(--m3);border-bottom:1px solid var(--ligne);padding-bottom:var(--m2)}
+.spec .row .num{font-size:var(--t-small);color:var(--second);font-variation-settings:"wdth" 100,"wght" 500}
+.spec .row .mes{font-size:clamp(9mm,7vw,14mm);line-height:1}
+.spec p.voice{font-size:5.2mm;font-variation-settings:"opsz" 18,"wght" 400}
+
+/* voice */
+.voice-list{list-style:none;padding:0;display:grid;gap:var(--m3)}
+@media (min-width:760px){.voice-list{grid-template-columns:1fr 1fr 1fr}}
+.voice-list li{border-top:1px solid var(--encre);padding-top:var(--m2)}
+.voice-list li b{display:block;font-family:var(--mesure);font-size:6.2mm;font-variation-settings:"wdth" 100,"wght" 700;line-height:1.05;margin-bottom:1.5mm;letter-spacing:-0.01em}
+.voice-list li span{font-size:var(--t-small);color:var(--second)}
+
+/* table R1–R10 */
+table{border-collapse:collapse;width:100%;font-size:var(--t-small)}
+th,td{text-align:left;vertical-align:top;padding:var(--m2) var(--m2) var(--m2) 0;border-bottom:1px solid var(--ligne)}
+th{font-family:var(--mesure);font-variation-settings:"wdth" 100,"wght" 650}
+td:first-child,th:first-child{width:10mm;font-family:var(--mesure);font-variation-settings:"wdth" 100,"wght" 700}
+.ok{font-family:var(--mesure);font-variation-settings:"wdth" 100,"wght" 650;white-space:nowrap}
+
+/* deposit card */
+.depot{border:1px solid var(--encre);border-radius:var(--r);padding:var(--m3);display:grid;gap:var(--m2)}
+.depot .btn{justify-self:start;min-height:52px}
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{transition:none !important;animation:none !important}
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
+  <filter id="p2" color-interpolation-filters="sRGB"><feColorMatrix type="saturate" values="0"/><feComponentTransfer><feFuncR type="discrete" tableValues="0.1 0.86"/><feFuncG type="discrete" tableValues="0.1 0.86"/><feFuncB type="discrete" tableValues="0.1 0.86"/></feComponentTransfer></filter>
+  <filter id="p3" color-interpolation-filters="sRGB"><feColorMatrix type="saturate" values="0"/><feComponentTransfer><feFuncR type="discrete" tableValues="0.1 0.5 0.86"/><feFuncG type="discrete" tableValues="0.1 0.5 0.86"/><feFuncB type="discrete" tableValues="0.1 0.5 0.86"/></feComponentTransfer></filter>
+  <filter id="p4" color-interpolation-filters="sRGB"><feColorMatrix type="saturate" values="0"/><feComponentTransfer><feFuncR type="discrete" tableValues="0.1 0.36 0.62 0.86"/><feFuncG type="discrete" tableValues="0.1 0.36 0.62 0.86"/><feFuncB type="discrete" tableValues="0.1 0.36 0.62 0.86"/></feComponentTransfer></filter>
+  <filter id="p5" color-interpolation-filters="sRGB"><feColorMatrix type="saturate" values="0"/><feComponentTransfer><feFuncR type="discrete" tableValues="0.1 0.3 0.5 0.68 0.86"/><feFuncG type="discrete" tableValues="0.1 0.3 0.5 0.68 0.86"/><feFuncB type="discrete" tableValues="0.1 0.3 0.5 0.68 0.86"/></feComponentTransfer></filter>
+  <filter id="p6" color-interpolation-filters="sRGB"><feColorMatrix type="saturate" values="0"/><feComponentTransfer><feFuncR type="discrete" tableValues="0.09 0.27 0.46 0.63 0.78 0.9"/><feFuncG type="discrete" tableValues="0.09 0.27 0.46 0.63 0.78 0.9"/><feFuncB type="discrete" tableValues="0.09 0.27 0.46 0.63 0.78 0.9"/></feComponentTransfer></filter>
+  <filter id="p7" color-interpolation-filters="sRGB"><feColorMatrix type="saturate" values="0"/><feComponentTransfer><feFuncR type="discrete" tableValues="0.08 0.22 0.37 0.52 0.66 0.79 0.9"/><feFuncG type="discrete" tableValues="0.08 0.22 0.37 0.52 0.66 0.79 0.9"/><feFuncB type="discrete" tableValues="0.08 0.22 0.37 0.52 0.66 0.79 0.9"/></feComponentTransfer></filter>
+</svg>
+
+<div class="page">
+<header class="top">
+  <span class="num">Concept 02 · board</span>
+  <h1>Au millimètre</h1>
+  <span class="small">Barber L’Architecte · 16 place Pélabon · Marseille 13<sup>e</sup></span>
+</header>
+<nav class="sommaire" aria-label="Sommaire du board">
+  <a href="#idee">Idée</a><a href="#porte">Premier écran</a><a href="#home">La home</a><a href="#fiche">La fiche</a><a href="#sabot">Le sabot (démo)</a><a href="#confirmation">Confirmation</a><a href="#identite">Palette &amp; type</a><a href="#voix">Voix</a><a href="#r">R1–R10</a>
+</nav>
+
+<!-- ———————————————— 0 · L’IDÉE ———————————————— -->
+<section class="mm" id="idee">
+  <div class="cote"><span class="num w0">0</span><span class="unit">mm</span><span class="what">L’idée</span></div>
+  <div class="body">
+    <p class="lead"><strong>Tout est mesuré.</strong> Le salon dit « on construit ta coupe au millimètre ». Alors le site aussi : six longueurs (0 · 0,5 · 1 · 3 · 6 · 12 mm), six niveaux de gris tirés du dégradé décoloré, six graisses d’un seul caractère. La typographie pousse comme le cheveu : un trait à 0 mm, pleine à 12 mm.</p>
+    <div class="cols cols-3">
+      <div class="note"><h3>Ce que ce n’est pas</h3><p class="small">Ni une table à dessin, ni une frise de film, ni un quiz. Pas de règle en papier peint : une seule ligne à gauche, graduée où sont les sections. Rien de décoratif : tout ce qui est écrit est une mesure, un prix, une heure, un nom.</p></div>
+      <div class="note"><h3>Le risque</h3><p class="small">Un seul : le titre <em>est</em> un dégradé de graisses, lettre par lettre, de 100 à 900. Il peut être lu comme une erreur de rendu. Tout le reste est calme pour qu’il ne le soit pas.</p></div>
+      <div class="note"><h3>Le twist sur la graine</h3><p class="small">Pas de graisse pilotée par le scroll : ça coûte la lisibilité. La graisse de chaque section est <strong>fixée</strong> par ce qu’elle mesure. La main du visiteur est à un seul endroit : <strong>le sabot</strong>, dans la fiche de réservation, facultatif.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ———————————————— 0,5 · LA PORTE ———————————————— -->
+<section class="mm" id="porte">
+  <div class="cote"><span class="num w05">0,5</span><span class="unit">mm</span><span class="what">Premier écran</span></div>
+  <div class="body">
+    <p class="lead">La porte, 390 × 844. Les sept questions de la rue tiennent au-dessus du pli, en toutes lettres. La photo est posterisée en six niveaux : le dégradé se lit comme une courbe de niveaux.</p>
+    <div class="cols cols-2" style="align-items:start">
+      <div class="phone light" aria-label="Premier écran sur un téléphone">
+        <div class="site">
+          <div class="bar">
+            <div class="mark">L’Architecte<small>Barber · place Pélabon · Marseille 13<sup>e</sup></small></div>
+          </div>
+          <div class="open">Ouvert · jusqu’à 18 h 30 · sans rendez-vous</div>
+          <h1 class="hero">Ta coupe, <span class="fade-word" aria-label="au millimètre">au <span style="--wd:70;--wg:100">m</span><span style="--wd:76;--wg:190">i</span><span style="--wd:82;--wg:280">l</span><span style="--wd:88;--wg:370">l</span><span style="--wd:94;--wg:460">i</span><span style="--wd:100;--wg:550">m</span><span style="--wd:106;--wg:640">è</span><span style="--wd:112;--wg:730">t</span><span style="--wd:118;--wg:820">r</span><span style="--wd:125;--wg:900">e</span></span>.</h1>
+          <div class="proof"><span class="stars" aria-hidden="true">★★★★★</span><span>5,0 · 316 avis Google</span></div>
+          <div class="slot"><div><span>Prochain créneau · sans préférence</span><b>Aujourd’hui · 16 h</b></div><span>30 min</span></div>
+          <a class="btn ink main" href="#fiche">Réserver <span class="price">dès 15 €</span></a>
+          <div class="row">
+            <a class="btn" href="tel:+33491000000">Appeler · 04 91 00 00 00</a>
+            <a class="btn" href="#venir">Itinéraire</a>
+          </div>
+          <div class="photo">
+            <img class="poster" src="../../../../public/img/fade.jpg" alt="Client de profil : cheveux décolorés, dégradé à blanc net sur les côtés, posterisé en six niveaux" width="1100" height="1072">
+            <span class="chip c12">12 mm</span><span class="chip c0">0 mm</span>
+          </div>
+        </div>
+      </div>
+      <div>
+        <h3>Ce que l’écran répond, dans l’ordre</h3>
+        <table aria-label="Les sept questions de la rue">
+          <tbody>
+            <tr><td>Où</td><td>« place Pélabon · Marseille 13<sup>e</sup> » sous le nom, première ligne.</td></tr>
+            <tr><td>Ouvert</td><td>« Ouvert · jusqu’à 18 h 30 · sans rendez-vous », point vert, servi dans le HTML.</td></tr>
+            <tr><td>Combien</td><td>Le prix dans le bouton : « Réserver · dès 15 € ».</td></tr>
+            <tr><td>Bientôt</td><td>La ligne « Prochain créneau · Aujourd’hui 16 h », vivante.</td></tr>
+            <tr><td>Bon</td><td>« 5,0 · 316 avis Google », à côté de l’adresse.</td></tr>
+            <tr><td>Téléphoner</td><td>Un bouton « Appeler » avec le numéro écrit, <code>tel:</code>.</td></tr>
+            <tr><td>Y aller</td><td>Un bouton « Itinéraire », même rang.</td></tr>
+          </tbody>
+        </table>
+        <p class="small" style="margin-top:var(--m3)">La photo n’est jamais sous du texte : les deux cotes « 0 mm » et « 12 mm » sont sur des pastilles papier. Le mot « millimètre » est le seul endroit où la graisse bouge, et il ne bouge pas : il est <em>posé</em> en dégradé.</p>
+      </div>
+    </div>
+
+    <h3 style="margin-top:var(--m4)">Le même écran, sur un ordinateur (1280 px)</h3>
+    <div class="desk-wrap" id="deskwrap">
+      <div class="desk" id="desk" aria-label="Premier écran sur un ordinateur">
+        <div class="rule" aria-hidden="true">
+          <i class="zero" style="top:10mm"></i><b style="top:10mm">0</b>
+          <i style="top:30%"></i><b style="top:30%">0,5</b>
+          <i style="top:46%"></i><b style="top:46%">1</b>
+          <i style="top:62%"></i><b style="top:62%">3</b>
+          <i style="top:78%"></i><b style="top:78%">6</b>
+          <i style="top:94%"></i><b style="top:94%">12</b>
+        </div>
+        <div class="left">
+          <div class="mark">L’Architecte<small>Barber · 16 place Pélabon · Marseille 13<sup>e</sup></small></div>
+          <h1>Ta coupe,<br><span class="fade-word">au <span style="--wd:70;--wg:100">m</span><span style="--wd:76;--wg:190">i</span><span style="--wd:82;--wg:280">l</span><span style="--wd:88;--wg:370">l</span><span style="--wd:94;--wg:460">i</span><span style="--wd:100;--wg:550">m</span><span style="--wd:106;--wg:640">è</span><span style="--wd:112;--wg:730">t</span><span style="--wd:118;--wg:820">r</span><span style="--wd:125;--wg:900">e</span></span>.</h1>
+          <div class="open">Ouvert · jusqu’à 18 h 30 · sans rendez-vous, on te prend tout de suite</div>
+          <div class="proof" style="margin-top:3mm"><span aria-hidden="true">★★★★★</span><span>5,0 · 316 avis Google</span></div>
+          <div class="slot"><div><span>Prochain créneau · sans préférence</span><b>Aujourd’hui · 16 h</b></div><span>30 min · 20 €</span></div>
+          <div class="actions">
+            <span class="btn ink">Réserver <span class="price">· dès 15 €</span></span>
+            <span class="btn">Appeler</span>
+            <span class="btn">Itinéraire</span>
+          </div>
+        </div>
+        <div class="right">
+          <img class="poster" src="../../../../public/img/fade.jpg" alt="" width="1100" height="1072">
+          <span class="chip c12">12 mm</span><span class="chip c0">0 mm</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ———————————————— 1 · LA HOME ———————————————— -->
+<section class="mm" id="home">
+  <div class="cote"><span class="num w1">1</span><span class="unit">mm</span><span class="what">La home</span></div>
+  <div class="body">
+    <p class="lead">Six sections, numérotées en millimètres. Le numéro de chaque section pèse ce qu’il mesure : 0 est un trait, 12 est noir. Lue de haut en bas, la page est un dégradé.</p>
+    <div class="spec">
+      <div class="row"><span class="num">0</span><div><span class="mes w0">La porte</span><p class="small">Le premier écran ci-dessus. On part de zéro : la peau, l’adresse, l’heure, le prix, le prochain créneau, le téléphone.</p></div></div>
+      <div class="row"><span class="num">0,5</span><div><span class="mes w05">La méthode</span><p class="small">« Ici, on prend le temps. On t’écoute, on regarde ce qui te va, on te conseille. Puis on construit ta coupe au millimètre, pour qu’elle tienne et que tu saches la coiffer chez toi. » Un paragraphe, une photo (curls.jpg, posterisée), rien d’autre.</p></div></div>
+      <div class="row"><span class="num">1</span><div><span class="mes w1">Le travail</span><p class="small">« Sorti du fauteuil. » Les trois coupes, chacune avec sa cote écrite : « Dégradé bas, raie tracée », « Boucles et barbe », « Dégradé à blanc, décoloré ». Bouton « Je veux cette coupe » : il ouvre la fiche avec la prestation.</p></div></div>
+      <div class="row"><span class="num">3</span><div><span class="mes w3">L’équipe</span><p class="small">« Choisis ton barbier. » JKut, Frank, Le Soldat, Esteban : initiales en Anybody, une ligne de bio, « Touche un nom pour voir ses prochains créneaux », « Le premier libre » en tête.</p></div></div>
+      <div class="row"><span class="num">6</span><div><span class="mes w6">La carte</span><p class="small">« Les prix, sans surprise. » Une table à chiffres tabulaires : prestation · ce qui est compris · durée · prix. Coupes / Changer de tête / Barbe. Carnet 80 €, Hebdo 80 €/mois, sans engagement. Puis les huit questions, courtes.</p></div></div>
+      <div class="row"><span class="num">12</span><div><span class="mes w12">Venir</span><p class="small" id="venir">« 16, place Pélabon. » Horaires en toutes lettres, « Appeler », « Itinéraire », Instagram, YouTube, « Écrire au salon », carte cadeau, formations, résilier. Tout ce qui doit être trouvable l’est ici, en noir plein.</p></div></div>
+    </div>
+    <p class="small">Pourquoi cet ordre : l’inconnu à la porte lit d’abord où, quand, combien ; puis ce qu’on lui fera et par qui ; puis la preuve des prix ; puis comment venir. Le fidèle, lui, saute tout : « Comme la dernière fois ? » l’attend dès le bouton.</p>
+  </div>
+</section>
+
+<!-- ———————————————— 3 · LA FICHE ———————————————— -->
+<section class="mm" id="fiche">
+  <div class="cote"><span class="num w3">3</span><span class="unit">mm</span><span class="what">La fiche</span></div>
+  <div class="body">
+    <p class="lead">Quand l’unité du site est le millimètre, la réservation est une <strong>fiche technique</strong> : quatre lignes (Quoi · Qui · Quand · Toi) et une cinquième, facultative, mesurée. Une page pleine sur téléphone, une colonne à droite sur ordinateur. Elle pousse une entrée d’historique : Retour la ferme, Échap la ferme, le focus revient au bouton.</p>
+    <div class="cols cols-2" style="align-items:start">
+      <div class="phone light" aria-label="La fiche, étape Quand">
+        <div class="fiche">
+          <div class="head">
+            <a class="btn" href="#porte" aria-label="Retour">← Retour</a>
+            <div class="title"><small>Fiche · 3 sur 4</small><b>Quand ?</b></div>
+            <a class="btn" href="#porte" aria-label="Fermer">✕</a>
+          </div>
+          <ol class="steps" aria-label="Les lignes de la fiche">
+            <li class="done"><span style="white-space:nowrap">Quoi ·</span> <b>Coupe classique · 20 € · 30 min</b></li>
+            <li class="done"><span style="white-space:nowrap">Qui ·</span> <b>Sans préférence</b></li>
+            <li class="now">Quand</li>
+            <li>Toi · prénom, téléphone</li>
+          </ol>
+          <div class="first"><div><small>Le plus tôt</small><b>Demain · 9 h · avec Frank</b></div><a class="btn ink" href="#confirmation">Choisir</a></div>
+          <ul class="days" aria-label="Jours">
+            <li class="full">auj.<b>27</b>complet</li><li class="on">mer.<b>28</b>17 libres</li><li>jeu.<b>29</b>15 libres</li><li>ven.<b>30</b>16 libres</li><li>sam.<b>31</b>14 libres</li>
+          </ul>
+          <ul class="hours" aria-label="Heures du matin">
+            <li>9 h</li><li>9 h 30</li><li>10 h 30</li><li>11 h 30</li><li>14 h</li><li>15 h 30</li>
+          </ul>
+          <div class="held"><span>Créneau gardé pour toi</span><span>4 min 52</span><span class="timer" aria-hidden="true"></span></div>
+          <div class="foot"><div class="sum"><b>20 €</b><span>Coupe classique · Sans préférence</span></div><a class="btn ink" href="#confirmation">Continuer</a></div>
+        </div>
+      </div>
+      <div class="cols">
+        <div class="card">
+          <h3>Comme la dernière fois ?</h3>
+          <p class="small">Le fidèle est reconnu par son téléphone. La fiche s’ouvre déjà remplie, <strong>avec la mesure que son barbier a notée</strong> :</p>
+          <p style="font-family:var(--mesure);font-variation-settings:'wdth' 100,'wght' 650;font-size:4.6mm;margin:var(--m2) 0">Coupe classique · JKut · jeudi 18 h · côtés 0,5 mm</p>
+          <a class="btn ink" href="#confirmation" style="min-height:52px">Reprendre · 20 €</a>
+        </div>
+        <div class="depot">
+          <h3>Quand il y a de l’argent avant le bouton</h3>
+          <p class="small">Un acompte de 15 € est demandé pour cette prestation, déduit au salon. Annulé plus de 12 h avant, il est remboursé.</p>
+          <a class="btn ink" href="#confirmation">Réserver et régler l’acompte · 50 €</a>
+        </div>
+        <div class="note">
+          <h3>Ce que la fiche protège</h3>
+          <p class="small">Le prix dans chaque bouton · « Sans préférence · Le plus tôt » en premier · le créneau gardé 5 minutes avec sa ligne rouge qui décroît (jamais un compte à rebours criard : une ligne, et le chiffre en minutes) · hors ligne, « Pas de connexion. Vérifie ton réseau et réessaie. » et tout ce qui est tapé reste · un créneau <em>gardé</em> n’est jamais annoncé « pris ».</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ———————————————— 6 · LE SABOT ———————————————— -->
+<section class="mm" id="sabot">
+  <div class="cote"><span class="num w6">6</span><span class="unit">mm</span><span class="what">Le sabot · démo</span></div>
+  <div class="body">
+    <p class="lead">L’interaction signature. La cinquième ligne de la fiche : <strong>« Les côtés, à combien ? »</strong> Six crans, en millimètres. Le chiffre pousse comme le cheveu, la photo se lit par niveaux, et la réponse s’écrit toute seule dans le mot pour ton barbier. Facultatif : celui qui ne sait pas laisse « le barbier décide ».</p>
+    <div class="sabot">
+      <div>
+        <div class="readout" aria-live="polite"><output id="mmOut" for="mmRange">0,5</output><span class="unit">mm</span></div>
+        <label for="mmRange" class="small">Les côtés, à combien ? Fais glisser.</label>
+        <input class="range" type="range" id="mmRange" min="0" max="5" step="1" value="1" list="mmTicks" aria-valuetext="0,5 millimètre">
+        <datalist id="mmTicks"><option value="0"></option><option value="1"></option><option value="2"></option><option value="3"></option><option value="4"></option><option value="5"></option></datalist>
+        <div class="ticks" aria-hidden="true"><span>0</span><span>0,5</span><span>1</span><span>3</span><span>6</span><span>12</span></div>
+        <p class="says" id="mmSays">L’ombre. Presque la peau, mais on devine le cheveu.</p>
+        <div class="writes"><small>Un mot pour ton barbier · écrit pour toi</small><b id="mmNote">côtés 0,5 mm</b> <span class="small">· tu peux compléter</span></div>
+        <p class="small" style="margin-top:var(--m3)">Le barbier le retrouve dans la note technique de la fiche client (« sabot 0,5 » existe déjà au Comptoir). À la prochaine visite, « Comme la dernière fois ? » rend la mesure.</p>
+      </div>
+      <figure>
+        <img id="mmPhoto" class="poster" style="filter:url(#p3)" src="../../../../public/img/fade.jpg" alt="Le dégradé à blanc, posterisé : le nombre de niveaux suit la longueur choisie" width="1100" height="1072">
+        <figcaption id="mmCap">3 niveaux · 0,5 mm</figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<!-- ———————————————— 12 · CONFIRMATION ———————————————— -->
+<section class="mm" id="confirmation">
+  <div class="cote"><span class="num w12">12</span><span class="unit">mm</span><span class="what">Confirmation</span></div>
+  <div class="body">
+    <p class="lead">Le meilleur moment du produit. La fiche devient un <strong>ticket coté</strong> : le jour et l’heure en toutes lettres, au poids maximal. Les neuf choses, puis la place pour un deuxième.</p>
+    <div class="cols cols-2" style="align-items:start">
+      <div class="phone light" aria-label="Le ticket de confirmation">
+        <div class="ticket">
+          <span class="ok">Confirmé · code LA-BXUF</span>
+          <h2>C’est réservé, Julien.</h2>
+          <div class="when"><b>mercredi 28 octobre · 9 h</b></div>
+          <dl>
+            <dt>Coupe</dt><dd>Coupe classique · 20 € · 30 min</dd>
+            <dt>Avec</dt><dd>Frank</dd>
+            <dt>Où</dt><dd>16, place Pélabon · 13013 Marseille</dd>
+          </dl>
+          <div class="acts">
+            <a class="btn" href="#confirmation">Agenda (.ics)</a><a class="btn" href="#confirmation">Itinéraire</a>
+            <a class="btn" href="#confirmation">Déplacer</a><a class="btn" href="#confirmation">Annuler</a>
+          </div>
+          <div class="sms"><small>Le SMS que tu reçois</small>L’Architecte : c’est noté Julien ! Mer. 28 oct. à 9 h avec Frank. Gérer : …/r/LA-BXUF</div>
+          <div class="espace">
+            <b>Garde tout au même endroit</b>
+            <p>Ton prochain rendez-vous, tes reçus et ta carte fidélité. Un code par SMS, pas de mot de passe.</p>
+            <a class="btn" href="#confirmation">Ouvrir mon espace</a>
+            <span class="small">Facultatif : ton rendez-vous est déjà confirmé.</span>
+          </div>
+          <div class="duo"><span>Un deuxième, à la suite ?<br><span class="small">Même jour, créneau suivant</span></span><a class="btn ink" href="#fiche">Ajouter</a></div>
+        </div>
+      </div>
+      <div class="cols">
+        <div class="note"><h3>Les neuf choses, dans l’ordre</h3><p class="small">1 jour et heure en mots · 2 la coupe et son prix · 3 le barbier · 4 l’adresse · 5 l’agenda · 6 l’itinéraire · 7 déplacer · 8 annuler · 9 le SMS, mot pour mot. Le code de réservation est dans la ligne de statut, pas en vedette.</p></div>
+        <div class="note"><h3>Le deuxième</h3><p class="small">« Un deuxième, à la suite ? » ouvre la fiche à la ligne Toi, avec le jour, le barbier et le créneau suivant déjà posés ; Nadia ne retape que le prénom du fils. Une seule confirmation pour les deux.</p></div>
+        <div class="note"><h3>Mon espace, après</h3><p class="small">« Garde tout au même endroit » vient <em>sous</em> le ticket, jamais avant : « Facultatif : ton rendez-vous est déjà confirmé. »</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ———————————————— IDENTITÉ ———————————————— -->
+<section class="mm" id="identite">
+  <div class="cote"><span class="num w6">6</span><span class="unit">niveaux</span><span class="what">Palette &amp; type</span></div>
+  <div class="body">
+    <h3>Six niveaux, un papier, une ligne</h3>
+    <ul class="levels" aria-label="Palette">
+      <li><i style="background:#E9E8E3"></i><div><b>0 mm</b><span>#E9E8E3</span></div></li>
+      <li><i style="background:#CFCEC7"></i><div><b>0,5 mm</b><span>#CFCEC7</span></div></li>
+      <li><i style="background:#A9A8A1"></i><div><b>1 mm</b><span>#A9A8A1</span></div></li>
+      <li><i style="background:#777670"></i><div><b>3 mm</b><span>#777670</span></div></li>
+      <li><i style="background:#44433F"></i><div><b>6 mm</b><span>#44433F</span></div></li>
+      <li><i style="background:#161614"></i><div><b>12 mm</b><span>#161614 · encre</span></div></li>
+    </ul>
+    <div class="cols cols-3" style="margin-top:var(--m3)">
+      <div class="card"><b class="mes">Papier · #F2F1EC</b><p class="small">Le mur gris-vert de la photo, décoloré. Pas crème : neutre, froid, mesurable.</p></div>
+      <div class="card" style="border-top:3px solid #E2231A"><b class="mes">LED · #E2231A</b><p class="small">Le trait rouge du miroir du salon. Une ligne, jamais une surface, jamais du texte : le zéro de la règle, le temps du créneau gardé, le focus.</p></div>
+      <div class="card"><b class="mes">Ce qu’on garde d’aujourd’hui</b><p class="small">Le rouge, réduit à une ligne (il est dans le salon). La police serif, non : la voix passe à Fraunces, le reste à Anybody. La trame, non : la posterisation la remplace.</p></div>
+    </div>
+
+    <h3 style="margin-top:var(--m8)">Anybody, pour tout ce qui se mesure</h3>
+    <p class="small">Variable, deux axes : graisse 100→900, chasse 50→150. <code>@fontsource-variable/anybody</code>. Une seule famille fait les six poids du site ; la graisse d’un chiffre dit sa longueur.</p>
+    <div class="spec" style="margin-top:var(--m3)">
+      <div class="row"><span class="num">0</span><span class="mes w0">Dégradé à blanc</span></div>
+      <div class="row"><span class="num">0,5</span><span class="mes w05">Raie tracée</span></div>
+      <div class="row"><span class="num">1</span><span class="mes w1">Contours nets</span></div>
+      <div class="row"><span class="num">3</span><span class="mes w3">Sorti du fauteuil</span></div>
+      <div class="row"><span class="num">6</span><span class="mes w6">Les prix, sans surprise</span></div>
+      <div class="row"><span class="num">12</span><span class="mes w12">Prends place.</span></div>
+    </div>
+    <h3 style="margin-top:var(--m8)">Fraunces, pour la voix</h3>
+    <p class="voice" style="font-size:5.2mm;font-variation-settings:'opsz' 18,'wght' 400">Ici, on prend le temps. On t’écoute, on regarde ce qui te va, on te conseille. Puis on construit ta coupe au millimètre, pour qu’elle tienne et que tu saches la coiffer chez toi.</p>
+    <p class="small">Variable, axe de taille optique 9→144 : la lettre sait à quelle taille elle est imprimée, ce qui est, aussi, une mesure. <code>@fontsource-variable/fraunces</code>. Repli : Georgia. Jamais en titre : pas de crème-plus-serif-plus-terre-cuite.</p>
+    <h3 style="margin-top:var(--m8)">Formes &amp; mouvement</h3>
+    <p class="small">Angles à 1,5 mm, filets de 1 px, pas d’ombre. Les photos : noir et blanc posterisé en six niveaux (un filtre SVG, pas un fichier), cadrées sur le dégradé. Ce qui bouge : la graisse du chiffre du sabot (450 ms), la ligne rouge du créneau gardé (linéaire, 5 min), rien d’autre. Avec <code>prefers-reduced-motion</code> : le chiffre saute d’un cran à l’autre, la ligne reste et le temps est écrit en minutes. Rien ne boucle, rien n’est caché.</p>
+  </div>
+</section>
+
+<!-- ———————————————— VOIX ———————————————— -->
+<section class="mm" id="voix">
+  <div class="cote"><span class="num w3">6</span><span class="unit">lignes</span><span class="what">La voix</span></div>
+  <div class="body">
+    <ul class="voice-list">
+      <li><b>Ta coupe, au millimètre.</b><span>La porte. Le mot du salon, enfin utilisé.</span></li>
+      <li><b>Les côtés, à combien ?</b><span>La cinquième ligne de la fiche. Une question qu’on pose au fauteuil.</span></li>
+      <li><b>Le barbier décide.</b><span>La réponse par défaut au sabot. Personne n’est jugé de ne pas savoir.</span></li>
+      <li><b>Un deuxième, à la suite ?</b><span>Sur le ticket, pour Nadia et les garçons.</span></li>
+      <li><b>Gardé 5 minutes. Pas pris.</b><span>Ce que dit la ligne rouge quand on revient sur la fiche.</span></li>
+      <li><b>Ça tient. Reviens quand ça lâche.</b><span>Le rappel, sans compte à rebours sur la tête de personne.</span></li>
+    </ul>
+  </div>
+</section>
+
+<!-- ———————————————— R1–R10 ———————————————— -->
+<section class="mm" id="r">
+  <div class="cote"><span class="num w12">10</span><span class="unit">points</span><span class="what">R1–R10</span></div>
+  <div class="body">
+    <table>
+      <thead><tr><th>#</th><th>Comment le concept répond</th><th>État</th></tr></thead>
+      <tbody>
+        <tr><td>R1</td><td>Les sept réponses sont au-dessus du pli sur le premier écran, en mots, avant la photo.</td><td class="ok">Oui</td></tr>
+        <tr><td>R2</td><td>La fiche est une route (<code>?reserver&amp;barbier=jkut&amp;prestation=cl</code>, et <code>…&amp;barbier=JKut&amp;prestation=coupe-classique</code> lisibles) : Retour ferme, Échap ferme, le focus revient au bouton d’origine.</td><td class="ok">Oui</td></tr>
+        <tr><td>R3</td><td>Rien de fixe sauf le pied de la fiche (≤ 15 % de l’écran) ; cibles ≥ 44 px, ≥ 52 px dès qu’il y a de l’argent ; vérifié à 320 × 568 sur ce board.</td><td class="ok">Oui</td></tr>
+        <tr><td>R4</td><td>« Appeler · 04 91 00 00 00 » en <code>tel:</code> sur le premier écran et en section 12.</td><td class="ok">Oui</td></tr>
+        <tr><td>R5</td><td>Nom, adresse, horaires, téléphone et le lien « Réserver » (vers la route de la fiche) dans le HTML servi ; le filtre SVG est inline, les polices auto-hébergées.</td><td class="ok">Oui</td></tr>
+        <tr><td>R6</td><td>« Un deuxième, à la suite ? » sur le ticket : même jour, créneau suivant, un prénom à taper.</td><td class="ok">Oui</td></tr>
+        <tr><td>R7</td><td>Neuf choses sur le ticket ; l’acompte dit une fois, en mots (montant, raison, règle), avant « Réserver et régler l’acompte ».</td><td class="ok">Oui</td></tr>
+        <tr><td>R8</td><td>La ligne rouge dit « Créneau gardé pour toi · 4 min 52 » ; « vient d’être pris » n’existe que si le serveur le dit à la confirmation.</td><td class="ok">Oui</td></tr>
+        <tr><td>R9</td><td>Aucun texte sur photo (pastilles papier) ; gris secondaire #5E5D58 (6:1) ; rien sous 14 px ; reduced-motion : rien ne boucle. Le trait à 0 mm est réservé aux grands corps (≥ 34 px).</td><td class="ok">Oui, à tenir</td></tr>
+        <tr><td>R10</td><td>Zéro requête tierce en prod : deux fontes variables auto-hébergées (deux fichiers), une photo posterisée par CSS (pas d’image supplémentaire), le premier écran en HTML pur.</td><td class="ok">Oui</td></tr>
+      </tbody>
+    </table>
+    <p class="small" style="margin-top:var(--m4)">Honnêteté de labo : les « mm » CSS ne sont pas des millimètres physiques sur la plupart des écrans (1 mm CSS = 3,78 px). L’unité est une discipline de tokens, pas une promesse de règle. À la construction : la graisse par lettre devient une seule classe sur le mot ; le sabot garde six crans ; la posterisation reste un filtre.</p>
+  </div>
+</section>
+</div>
+
+<script>
+(function(){
+  // the desktop frame : scale 1280 px to the width available
+  var wrap=document.getElementById('deskwrap'),desk=document.getElementById('desk');
+  function fit(){var s=Math.min(1,wrap.clientWidth/1280);desk.style.transform='scale('+s+')';wrap.style.height=(800*s)+'px';}
+  fit();window.addEventListener('resize',fit);
+  // le sabot : six detents in millimetres
+  var mm=['0','0,5','1','3','6','12'];
+  var says=['À blanc. La peau, le point de départ.','L’ombre. Presque la peau, mais on devine le cheveu.','Un millimètre. Le dégradé démarre ici.','Trois millimètres. Le fondu, là où l’œil ne voit plus la marche.','Six millimètres. Court, qui tient trois semaines.','Douze millimètres. Le dessus, pour coiffer.'];
+  var wg=[100,260,400,550,720,900],wd=[60,72,84,98,112,128],lv=[2,3,4,5,6,7];
+  var r=document.getElementById('mmRange'),out=document.getElementById('mmOut'),s=document.getElementById('mmSays'),n=document.getElementById('mmNote'),ph=document.getElementById('mmPhoto'),cap=document.getElementById('mmCap');
+  function set(){var i=+r.value;out.textContent=mm[i];out.style.fontVariationSettings='"wdth" '+wd[i]+', "wght" '+wg[i];s.textContent=says[i];n.textContent='côtés '+mm[i]+' mm';ph.style.filter='url(#p'+lv[i]+')';cap.textContent=lv[i]+' niveaux · '+mm[i]+' mm';r.setAttribute('aria-valuetext',mm[i]+' millimètre'+(i>2?'s':''));}
+  r.addEventListener('input',set);set();
+})();
+</script>
+</body>
+</html>
