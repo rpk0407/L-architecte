@@ -41,7 +41,7 @@ Each of these was a real finding, or a real near-miss, while measuring this prod
 | **The overlapping pills** | On a 320×568 phone the floating « Réserver » sits on top of the hero’s « Prochain créneau » pill, hiding the most persuasive thing on the first screen | `pouce.overlap.*` |
 | **The Back button** | Opening the booking sheet adds no history entry: the browser’s Back leaves the site and the booking with it | `retour.back` |
 | **The false « slot taken »** | A returning client with remembered details taps « Confirmer » before the hold has answered and is told someone else took the slot | `tram.impatient` |
-| **The keyboard’s shadow** | With the keyboard open, the phone field sits under the sticky « Confirmer » bar | `clavier.field` |
+| **The keyboard’s shadow** | Guarded, not found: with the keyboard open, a phone field could sit under the sticky « Confirmer » bar. On the current site the field stays visible once the browser scrolls it into view (the check passes); the risk comes back with any new sticky footer | `clavier.field` |
 | **The page without its script** | With JavaScript off, the page is its template: `{{chNum}} {{chName}}` | `atelier.no-js` |
 | **The phone that exists and cannot be tapped** | The salon’s number is configured, used in search data and an error message, and nowhere a person can tap | `ancien.phone` |
 | **The documented link that does not work** | The comment in `site.html` shows `prestation=coupe-classique`; only the short codes (`cl`, `cc`…) work | `retour.deeplink-readable` |
