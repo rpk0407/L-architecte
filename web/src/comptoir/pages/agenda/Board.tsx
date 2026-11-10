@@ -27,6 +27,8 @@ export type BoardProps = {
 };
 
 const STEP = 15;
+/** height of the « Chevauchement » band */
+const BAND = 18;
 
 export function Board(p: BoardProps) {
   const phone = useIsPhone();
@@ -107,6 +109,15 @@ export function Board(p: BoardProps) {
   // a real clash is two clients expected at once: a no-show left its slot, it only shares the width
   const clashOf = (a: Appt): Appt[] => (a.status === 'no_show' ? [] : (places.get(a.id)?.clash || []).map((id) => byId.get(id)!).filter((o) => o && o.status !== 'no_show'));
 
+  // one amber band « Chevauchement · 2 clients » across the chair, where the group starts; the cards that start there
+  // begin under it (or it sits just above them when one is too short to give up the room)
+  const bandsOf = (laneId: string) => {
+    const m = new Map<number, Appt[]>();
+    for (const a of appts) if (a.staffId === laneId && clashOf(a).length) { const k = places.get(a.id)!.from; m.set(k, [...(m.get(k) || []), a]); }
+    return [...m.values()].map((list) => { const from = Math.min(...list.map((a) => a.start)); return { from, n: list.length, above: list.some((a) => a.start === from && a.dur * px - 3 < 50) }; });
+  };
+  const insetOf = (a: Appt) => { if (!clashOf(a).length) return 0; const b = bandsOf(a.staffId).find((x) => x.from === a.start); return b && !b.above ? BAND : 0; };
+
   const hours = [];
   for (let m = from; m <= to; m += 60) hours.push(m);
   const nowY = isToday && p.nowMin >= from && p.nowMin <= to ? y(p.nowMin) : null;
@@ -174,8 +185,11 @@ export function Board(p: BoardProps) {
                     <Icon name="globe" size={13} />{h.by === 'waitlist' ? 'Proposé à la liste d’attente' : 'Réservation en cours…'}
                   </div>
                 ))}
+                {bandsOf(l.id).map((b) => (
+                  <div key={'clash' + b.from} className="clash-band" role="status" style={{ top: b.above ? y(b.from) - BAND : y(b.from) + 1 }}><Icon name="alert" size={11} /><span>Chevauchement · {b.n} clients</span></div>
+                ))}
                 {appts.filter((a) => a.staffId === l.id && a.status !== 'cancelled').map((a) => (
-                  <ApptCard key={a.id} a={a} px={px} top={y(a.start)} laneColor={l.color} place={places.get(a.id)} clash={clashOf(a)} selected={p.selected === a.id} dragging={drag?.a.id === a.id}
+                  <ApptCard key={a.id} a={a} px={px} top={y(a.start)} inset={insetOf(a)} laneColor={l.color} place={places.get(a.id)} clash={clashOf(a)} selected={p.selected === a.id} dragging={drag?.a.id === a.id}
                     fresh={Date.now() - a.createdAt < 120000 && a.source === 'site'} showMoney={p.canSeeMoney}
                     onPointerDown={(e) => onPointerDown(e, a)} onPointerMove={onPointerMove} onPointerUp={() => onPointerUp(a)}
                     onClick={() => { if (!justDragged.current) p.onOpen(a); }} />
@@ -192,11 +206,11 @@ export function Board(p: BoardProps) {
   );
 }
 
-function ApptCard({ a, px, top, laneColor, place, clash = [], selected, dragging, ghost, bad, fresh, showMoney, onPointerDown, onPointerMove, onPointerUp, onClick }: {
-  a: Appt; px: number; top: number; laneColor: string; place?: Place; clash?: Appt[]; selected?: boolean; dragging?: boolean; ghost?: boolean; bad?: boolean; fresh?: boolean; showMoney: boolean;
+function ApptCard({ a, px, top, inset = 0, laneColor, place, clash = [], selected, dragging, ghost, bad, fresh, showMoney, onPointerDown, onPointerMove, onPointerUp, onClick }: {
+  a: Appt; px: number; top: number; inset?: number; laneColor: string; place?: Place; clash?: Appt[]; selected?: boolean; dragging?: boolean; ghost?: boolean; bad?: boolean; fresh?: boolean; showMoney: boolean;
   onPointerDown?: (e: React.PointerEvent) => void; onPointerMove?: (e: React.PointerEvent) => void; onPointerUp?: (e: React.PointerEvent) => void; onClick?: () => void;
 }) {
-  const h = a.dur * px - 3;
+  const h = a.dur * px - 3 - inset;
   const short = h < 40;
   const badges = a.client?.badges || [];
   const cls = ['ap', 'st-' + a.status, short ? 'short' : '', selected ? 'sel' : '', dragging ? 'dragging' : '', ghost ? 'ghost' : '', bad ? 'bad' : '', fresh ? 'fresh' : '', clash.length ? 'clash' : '', place && place.cols > 1 ? 'shared' : ''].filter(Boolean).join(' ');
@@ -207,9 +221,8 @@ function ApptCard({ a, px, top, laneColor, place, clash = [], selected, dragging
   // its share of the column when it is not alone at that time
   const share = place && place.cols > 1 ? { left: `calc(5px + (100% - 10px) * ${place.col} / ${place.cols})`, right: 'auto', width: `calc((100% - 10px) / ${place.cols} - ${place.col < place.cols - 1 ? 3 : 0}px)` } : null;
   return (
-    <button type="button" className={cls} style={{ top: top + 1, height: h, ['--lc' as any]: laneColor, ...share }} aria-label={label} data-clash={clash.length ? '1' : undefined}
+    <button type="button" className={cls} style={{ top: top + 1 + inset, height: h, ['--lc' as any]: laneColor, ...share }} aria-label={label} data-clash={clash.length ? '1' : undefined}
       onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onClick={onClick} tabIndex={ghost ? -1 : undefined}>
-      {clash.length ? <span className="ap-clash"><Icon name="alert" size={11} />{short ? '' : 'Chevauchement'}</span> : null}
       <span className="ap-top">
         {short ? <span className="ap-t">{hhmm(a.start)}</span> : null}
         <span className="ap-n">{a.name}</span>

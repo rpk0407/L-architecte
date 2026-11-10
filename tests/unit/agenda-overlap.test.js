@@ -7,14 +7,14 @@ const ap = (id, start, dur) => ({ id, start, dur });
 
 test('an appointment alone keeps the whole column', () => {
   const m = layoutOverlaps([ap('a', 600, 30), ap('b', 630, 30)]);
-  assert.deepEqual(m.get('a'), { col: 0, cols: 1, clash: [] });
-  assert.deepEqual(m.get('b'), { col: 0, cols: 1, clash: [] }, 'back to back is not an overlap');
+  assert.deepEqual(m.get('a'), { col: 0, cols: 1, clash: [], from: 600 });
+  assert.deepEqual(m.get('b'), { col: 0, cols: 1, clash: [], from: 630 }, 'back to back is not an overlap');
 });
 
 test('a double booking: two halves, the earlier on the left, each naming the other', () => {
   const m = layoutOverlaps([ap('doublon', 990, 30), ap('jordan', 990, 45)]);
-  assert.deepEqual(m.get('jordan'), { col: 0, cols: 2, clash: ['doublon'] }, 'same start: the longer one first');
-  assert.deepEqual(m.get('doublon'), { col: 1, cols: 2, clash: ['jordan'] });
+  assert.deepEqual(m.get('jordan'), { col: 0, cols: 2, clash: ['doublon'], from: 990 }, 'same start: the longer one first');
+  assert.deepEqual(m.get('doublon'), { col: 1, cols: 2, clash: ['jordan'], from: 990 });
 });
 
 test('a partial overlap shares the width too, and only real neighbours are named', () => {
@@ -25,13 +25,14 @@ test('a partial overlap shares the width too, and only real neighbours are named
   assert.deepEqual(m.get('samir').clash, ['gabriel']);
   assert.deepEqual(m.get('gabriel').clash.sort(), ['leo', 'samir']);
   assert.deepEqual(m.get('leo').clash, ['gabriel']);
+  assert.deepEqual(['samir', 'gabriel', 'leo'].map((id) => m.get(id).from), [915, 915, 915], 'one group: one « Chevauchement » band, where it starts');
 });
 
 test('three at once: three shares; the rest of the day is untouched', () => {
   const m = layoutOverlaps([ap('a', 600, 60), ap('b', 600, 60), ap('c', 615, 30), ap('later', 700, 30)]);
   assert.deepEqual(['a', 'b', 'c'].map((id) => m.get(id).cols), [3, 3, 3]);
   assert.equal(new Set(['a', 'b', 'c'].map((id) => m.get(id).col)).size, 3, 'no two on the same share');
-  assert.deepEqual(m.get('later'), { col: 0, cols: 1, clash: [] });
+  assert.deepEqual(m.get('later'), { col: 0, cols: 1, clash: [], from: 700 });
 });
 
 test('before forcing: who already sits on that slot, in time order', () => {

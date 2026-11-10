@@ -3,7 +3,7 @@
 
 export type Span = { id: string; start: number; dur: number };
 /** col: which share of the column (0 = left), cols: how many shares its group has, clash: the ids it overlaps */
-export type Place = { col: number; cols: number; clash: string[] };
+export type Place = { col: number; cols: number; clash: string[]; /** when its group starts (minutes): the same for every card of the group */ from: number };
 
 const meets = (a: Span, b: Span) => a.start < b.start + b.dur && b.start < a.start + a.dur;
 
@@ -24,7 +24,7 @@ export function layoutOverlaps(items: Span[]): Map<string, Place> {
       ends[c] = x.start + x.dur;
       cols.set(x.id, c);
     }
-    for (const x of group) out.set(x.id, { col: cols.get(x.id)!, cols: ends.length, clash: group.filter((y) => y.id !== x.id && meets(x, y)).map((y) => y.id) });
+    for (const x of group) out.set(x.id, { col: cols.get(x.id)!, cols: ends.length, clash: group.filter((y) => y.id !== x.id && meets(x, y)).map((y) => y.id), from: group[0].start });
     group = [];
   };
   for (const x of sorted) {
