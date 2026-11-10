@@ -332,14 +332,15 @@ export function CreateSheet({ open, prefill, onClose, onCreated }: { open: boole
 
 /* ---------------- walk-in ---------------- */
 
-export function WalkinSheet({ open, onClose, freeNow }: { open: boolean; onClose: () => void; freeNow: string[] }) {
+/** prefill (the Accueil's « Prendre un passage » on a chair's row): that barber, and a prestation he can take now. */
+export function WalkinSheet({ open, onClose, freeNow, prefill }: { open: boolean; onClose: () => void; freeNow: string[]; prefill?: { staffId?: string; serviceId?: string } | null }) {
   const { boot, staffById } = useApp();
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [svc, setSvc] = useState<string[]>([]);
   const [staff, setStaff] = useState('any');
   const [busy, setBusy] = useState('');
-  useEffect(() => { if (open) { setName(''); setPhone(''); setStaff('any'); setSvc(boot.services.filter((s) => s.slug === 'cl').map((s) => s.id).slice(0, 1)); } }, [open]);
+  useEffect(() => { if (open) { setName(''); setPhone(''); setStaff(prefill?.staffId || 'any'); setSvc(prefill?.serviceId ? [prefill.serviceId] : boot.services.filter((s) => s.slug === 'cl').map((s) => s.id).slice(0, 1)); } }, [open]);
   const add = async (seatWith?: string) => {
     setBusy(seatWith || 'add');
     try {

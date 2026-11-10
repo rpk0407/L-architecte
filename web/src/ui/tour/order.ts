@@ -21,6 +21,7 @@ export type Played = GuideStep & { place: string; label: string };
  */
 export const COMPTOIR_PLACES: readonly Place[] = [
   { path: '/comptoir/reglages/mise-en-route', label: 'Mise en route' },
+  { path: '/comptoir/accueil', label: 'Accueil' },
   { path: '/comptoir/pilotage', label: 'Pilotage' },
   { path: '/comptoir/espace', label: 'Mon espace' },
   { path: '/comptoir/agenda', label: 'Agenda' },

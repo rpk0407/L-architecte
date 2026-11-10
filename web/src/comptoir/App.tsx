@@ -7,7 +7,7 @@ import { useHotkeys, useIsPhone, useLocal } from '../lib/hooks';
 import { Icon } from '../ui/Icon';
 import { Avatar, Button, ConfirmHost, Empty, Menu, Sheet, Stale, Toasts, dismiss, toast, Skeleton } from '../ui/kit';
 import { AppProvider, photoOf, useApp } from './state';
-import { homeOf } from './home';
+import { forgetHome, homeOf } from './home';
 import { Login, linkToken, type AuthState } from './Login';
 import { Palette } from './Palette';
 import { FeedSheet } from './Feed';
@@ -16,6 +16,7 @@ import { GUARD_OPEN, SECTION_CAP } from './pages/reglages/caps';
 import { canOpenPath, navShows, sectionNeed } from './access';
 import { ComptoirTour, GLANCE_PAGES, TourButtons, TourWelcome, startTour } from './guide/ComptoirTour';
 
+const Accueil = lazy(() => import('./pages/Accueil'));
 const Pilotage = lazy(() => import('./pages/Pilotage'));
 const Espace = lazy(() => import('./pages/Espace'));
 const Agenda = lazy(() => import('./pages/Agenda'));
@@ -32,6 +33,7 @@ const Reglages = lazy(() => import('./pages/Reglages'));
 // Équipe and Catalogue are read-only without `team` / `catalog` (own card, prices), Relances refuses its own tabs.
 type Route = { C: ComponentType; title: string; cap?: string; sub?: (id: string) => string | undefined };
 const ROUTES: Record<string, Route> = {
+  accueil: { C: Accueil, title: 'Accueil' },
   pilotage: { C: Pilotage, title: 'Pilotage', cap: 'report.shop' },
   espace: { C: Espace, title: 'Mon espace', cap: 'agenda.own' },
   agenda: { C: Agenda, title: 'Agenda', cap: 'agenda.own' },
@@ -70,7 +72,7 @@ export function Root() {
   if (!auth.me || !boot || linkToken()) return <><Login state={auth} onDone={load} /><Toasts /></>;
   return (
     // signed out (or the phone removed): the sign-in screen starts from the fresh state, never from the stale one
-    <AppProvider initial={boot} onOut={() => { setBoot(null); setAuth(null); load(); }}>
+    <AppProvider initial={boot} onOut={() => { forgetHome(); setBoot(null); setAuth(null); load(); }}>
       <Shell />
       <Toasts />
       <ConfirmHost />
@@ -85,14 +87,15 @@ export function useCanOpen(nav: NavItem[]) {
   return (path: string) => canOpenPath(path, ROUTES, nav, can);
 }
 
-const PHONE_TABS = ['pilotage', 'espace', 'agenda', 'caisse', 'clients', 'rapports'];
+const PHONE_TABS = ['accueil', 'pilotage', 'espace', 'agenda', 'caisse', 'clients', 'rapports'];
 type NavItem = { to: string; page: string; label: string; icon: string; cap?: string; badge?: number; soft?: boolean };
 
 function useNav(): NavItem[] {
   const { can, pulse, boot } = useApp();
   const b = pulse?.badges;
   const items: NavItem[] = [
-    // the owner's and the managers' home (TEAM-05a), then a chair's (TEAM-04); /comptoir alone opens each person's home (home.ts), the Agenda keeps its own address
+    // everyone's Accueil (WP5), then the owner's and the managers' Pilotage (TEAM-05a) and a chair's Mon espace (TEAM-04); /comptoir alone opens each person's home (home.ts)
+    { to: '/accueil', page: 'accueil', label: 'Accueil', icon: 'clock' },
     { to: '/pilotage', page: 'pilotage', label: 'Pilotage', icon: 'target', cap: 'report.shop' },
     { to: '/espace', page: 'espace', label: 'Mon espace', icon: 'chair', cap: 'agenda.own' },
     { to: '/agenda', page: 'agenda', label: 'Agenda', icon: 'agenda', cap: 'agenda.own' },
