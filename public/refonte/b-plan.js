@@ -48,7 +48,7 @@
     set('f-dur', s && dur(s.dur));
     $('f-tot').textContent = s ? LA.eur(s.price, s.from) : '—';
     var step = !s ? 1 : S.m == null ? 2 : 3, lab;
-    if (step === 1) lab = 'Choisissez une formule'; else if (step === 2) lab = 'Touchez un créneau libre'; else lab = 'Confirmer mon rendez-vous';
+    if (step === 1) lab = 'Choisissez une formule'; else if (step === 2) lab = 'Touchez un créneau libre'; else lab = 'Continuer';
     $('cta').textContent = lab; $('cta').disabled = step < 3;
     $('mcta').textContent = step < 3 ? 'Choisir' : 'Continuer';
     $('mt').innerHTML = '<b>' + (s ? esc(s.name) + ' · ' + LA.eur(s.price, s.from) : 'Réservez votre place') + '</b>' + (step === 3 ? esc(b.name) + ' · ' + esc(lowerFirst(LA.dayLabel(S.day))) + ' ' + LA.hhmmShort(S.m) : step === 2 ? 'Touchez un créneau libre' : 'Choisissez une formule');
