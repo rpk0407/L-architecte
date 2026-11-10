@@ -631,7 +631,7 @@
   }
   function resetBooking() {
     if (S.icsUrl) { try { URL.revokeObjectURL(S.icsUrl); } catch (e) { /* ignore */ } }
-    S.result = null; S.icsUrl = ''; S.svc = null; S.staff = 'any'; S.staffSet = false; clearSlot(); S.hold = null; S.err = ''; S.days = null; S.daySel = null; S.f.email = '';
+    S.result = null; S.icsUrl = ''; S.svc = null; S.staff = 'any'; S.staffSet = false; clearSlot(); S.hold = null; S.err = ''; S.days = null; S.daySel = null; S.f.email = ''; S.f.sms = true;
   }
   function goStep(step, keepErr) {
     if (!keepErr) S.err = '';
