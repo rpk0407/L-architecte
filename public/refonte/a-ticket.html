@@ -3,192 +3,269 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Barber L’Architecte · Marseille 13e · Réserve en 3 touches</title>
-<meta name="description" content="Barbier place Pélabon, Marseille 13e. Coupe dès 20 €, barbe, dégradés, silver. Mardi – samedi, 9 h – 18 h 30. Réserve ton créneau en 3 touches.">
-<meta name="theme-color" content="#0b0a0a">
+<title>Barber L’Architecte · Marseille 13e · Prendre rendez-vous</title>
+<meta name="description" content="Barbershop L’Architecte, place Pélabon, Marseille 13e. Coupe dès 20 €, barbe, dégradés, silver. Mardi – samedi, 9 h – 18 h 30. Prenez votre rendez-vous en trois touches.">
+<meta name="theme-color" content="#1A1C20">
 <style>
-.skip{position:absolute;left:-999px;top:8px;z-index:99;background:#fff;color:#000;padding:8px 12px}.skip:focus{left:8px}
-@font-face{font-family:"Barlow Condensed";font-weight:600;font-style:normal;font-display:swap;src:url(fonts/barlow-condensed-latin-600-normal.woff2) format("woff2")}
-@font-face{font-family:"Barlow Condensed";font-weight:700;font-style:normal;font-display:swap;src:url(fonts/barlow-condensed-latin-700-normal.woff2) format("woff2")}
-@font-face{font-family:"Barlow Condensed";font-weight:800;font-style:normal;font-display:swap;src:url(fonts/barlow-condensed-latin-800-normal.woff2) format("woff2")}
-@font-face{font-family:"Barlow";font-weight:400;font-style:normal;font-display:swap;src:url(fonts/barlow-latin-400-normal.woff2) format("woff2")}
-@font-face{font-family:"Barlow";font-weight:500;font-style:normal;font-display:swap;src:url(fonts/barlow-latin-500-normal.woff2) format("woff2")}
-@font-face{font-family:"Barlow";font-weight:600;font-style:normal;font-display:swap;src:url(fonts/barlow-latin-600-normal.woff2) format("woff2")}
-
-:root{--ink:#0b0a0a;--ink2:#151313;--ink3:#201c1c;--line:#2c2727;--bone:#f1ece2;--mute:#b3aca1;--red:#ff3b47;--red2:#d3202c;--blue:#2d5bd6;--paper:#efe9dd;--pt:#17130f;--ok:#46d18a;
---d:"Barlow Condensed","Arial Narrow",Impact,sans-serif;--s:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif}
-*{box-sizing:border-box;margin:0}html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
-body{background:var(--ink);color:var(--bone);font:400 16px/1.5 var(--s);padding-bottom:calc(84px + env(safe-area-inset-bottom))}
-a{color:inherit}button{font:inherit;color:inherit;cursor:pointer;background:none;border:0}
+@font-face{font-family:Kanit;font-weight:300;font-style:normal;font-display:swap;src:url(fonts/kanit-latin-300-normal.woff2) format("woff2")}
+@font-face{font-family:Kanit;font-weight:400;font-style:normal;font-display:swap;src:url(fonts/kanit-latin-400-normal.woff2) format("woff2")}
+@font-face{font-family:Kanit;font-weight:500;font-style:normal;font-display:swap;src:url(fonts/kanit-latin-500-normal.woff2) format("woff2")}
+@font-face{font-family:Kanit;font-weight:600;font-style:normal;font-display:swap;src:url(fonts/kanit-latin-600-normal.woff2) format("woff2")}
+:root{--red:#BE4141;--red2:#A43535;--ink:#000;--ink2:#333;--mute:#6b6b6b;--bg:#F7F7F7;--char:#1A1C20;--line:#d9d9d9;--paper:#fff;--ok:#2f7d4f;--f:Kanit,Helvetica,Arial,Verdana,sans-serif}
+*{box-sizing:border-box;margin:0}
+html{scroll-behavior:smooth;scroll-padding-top:70px;-webkit-text-size-adjust:100%}
+body{font:400 16px/1.55 var(--f);color:var(--ink);background:var(--bg) url(img/halftone.png);background-blend-mode:soft-light;overflow-x:hidden;padding-bottom:76px}
+img{max-width:100%;display:block}
+a{color:var(--red)}a:hover{color:var(--red2)}
+button{font:inherit;cursor:pointer}
 :focus-visible{outline:3px solid var(--red);outline-offset:2px}
-.pole{height:8px;background:repeating-linear-gradient(-45deg,var(--red) 0 10px,#fff 10px 20px,var(--blue) 20px 30px,#fff 30px 40px)}
-.wrap{max-width:1120px;margin:0 auto;padding:0 18px}
-.d{font-family:var(--d);text-transform:uppercase;letter-spacing:.01em;line-height:.95}
-.demo{background:#3a2a00;color:#ffd77a;font-size:13px;text-align:center;padding:6px 12px}
-header.top{position:sticky;top:0;z-index:20;background:rgba(11,10,10,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
-header.top .wrap{display:flex;align-items:center;gap:12px;height:60px}
-.logo{font:800 22px/1 var(--d);text-transform:uppercase;text-decoration:none;letter-spacing:.03em}.logo b{color:var(--red)}
-.status{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:13px;color:var(--mute);white-space:nowrap;min-width:0}#stxt{overflow:hidden;text-overflow:ellipsis}
-.dot{width:10px;height:10px;border-radius:50%;background:var(--mute);flex:none}.open .dot{background:var(--ok);box-shadow:0 0 0 4px rgba(70,209,138,.2)}
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 22px;border-radius:6px;background:var(--red);color:#fff;font:700 18px var(--d);text-transform:uppercase;letter-spacing:.05em;text-decoration:none;transition:transform .12s,background .12s}
-.btn:hover{background:#ff5560}.btn:active{transform:scale(.98)}.btn.ghost{background:none;border:2px solid var(--line);color:var(--bone)}.btn.ghost:hover{border-color:var(--bone);background:none}
-.btn[disabled]{opacity:.45;cursor:not-allowed}
-.hero{position:relative;overflow:hidden;border-bottom:1px solid var(--line)}
-.hero::before{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(11,10,10,.55),rgba(11,10,10,.92) 70%,var(--ink)),url(../img/salon.jpg) center/cover;filter:saturate(.9)}
-.hero::after{content:"";position:absolute;left:0;right:0;top:46%;height:3px;background:var(--red);box-shadow:0 0 24px 6px rgba(255,59,71,.55);opacity:.7}
-.hero .wrap{position:relative;z-index:1;padding-top:44px;padding-bottom:36px}
-.eyebrow{font:600 14px var(--s);letter-spacing:.18em;text-transform:uppercase;color:var(--red)}
-.hero h1{font:800 clamp(52px,15vw,120px)/.9 var(--d);text-transform:uppercase;margin:10px 0 14px}
-.hero h1 em{font-style:normal;color:var(--red)}
-.hero p.lead{font-size:18px;color:#ddd6ca;max-width:34ch}
-.quick{margin-top:26px;background:rgba(21,19,19,.88);border:1px solid var(--line);border-radius:10px;padding:16px;max-width:620px;backdrop-filter:blur(6px)}
-.quick h2{font:700 15px var(--s);letter-spacing:.14em;text-transform:uppercase;color:var(--mute);margin-bottom:10px;display:flex;justify-content:space-between;gap:10px}
-.quick h2 button{font:600 14px var(--s);letter-spacing:0;text-transform:none;color:var(--bone);text-decoration:underline;min-height:24px}
-.fchips{display:flex;gap:8px;overflow-x:auto;margin-bottom:12px;padding-bottom:4px;scrollbar-width:none}.fchip{flex:none;white-space:nowrap}
-.fchip{min-height:44px;padding:0 14px;border-radius:999px;border:1.5px solid var(--line);font-weight:600;font-size:15px;background:var(--ink)}
-.fchip[aria-pressed=true]{border-color:var(--red);background:var(--red2);color:#fff}
-.nexts{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.next{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-height:64px;padding:10px 12px;border-radius:8px;background:var(--ink);border:1.5px solid var(--line);text-align:left;transition:border-color .12s,transform .12s}
-.next:hover:not([disabled]){border-color:var(--red)}.next:active{transform:scale(.98)}
-.next small{color:var(--mute);font-size:13px}.next b{font:700 24px/1 var(--d);letter-spacing:.02em}.next span{font-size:13px;color:var(--bone)}.next[disabled]{opacity:.5}
-.skel{background:linear-gradient(90deg,var(--ink) 0,var(--ink3) 50%,var(--ink) 100%);background-size:200% 100%;animation:sk 1.2s linear infinite;color:transparent!important}
-@keyframes sk{to{background-position:-200% 0}}
-section{padding:56px 0;border-bottom:1px solid var(--line)}
-h2.t{font:800 clamp(38px,9vw,64px)/.95 var(--d);text-transform:uppercase;margin-bottom:8px}
-h2.t em{font-style:normal;color:var(--red)}.sub{color:var(--mute);max-width:56ch;margin-bottom:26px}
-.steps{display:grid;gap:12px;grid-template-columns:repeat(3,1fr);margin-top:6px}
-.steps li{list-style:none;padding:14px;border:1px dashed #4a4242;border-radius:8px}.steps b{display:block;font:800 40px/1 var(--d);color:var(--red)}.steps span{font-size:15px;color:#ddd6ca}
-.work{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:28px}
-.work img{width:100%;aspect-ratio:3/4;object-fit:cover;border-radius:8px;filter:grayscale(.15)}
-.cat{margin-bottom:30px}.cat h3{font:700 22px var(--d);letter-spacing:.12em;text-transform:uppercase;color:var(--red);margin-bottom:6px}
-.row{display:grid;grid-template-columns:1fr auto;gap:2px 14px;align-items:center;width:100%;text-align:left;padding:14px 4px;border-bottom:1px dotted #4a4242;min-height:64px}
-.row:hover .n{color:var(--red)}.row .n{font:700 22px/1.1 var(--d);text-transform:uppercase;letter-spacing:.02em}
-.row .p{font:800 28px/1 var(--d);text-align:right;white-space:nowrap}.row .m{grid-column:1/-1;font-size:14px;color:var(--mute)}
-.row .tag{display:inline-block;margin-left:8px;font:600 12px var(--s);letter-spacing:.08em;background:var(--red2);color:#fff;border-radius:4px;padding:2px 6px;vertical-align:middle}
-.note{font-size:13px;color:var(--mute);margin-top:6px}
-.carnet{display:grid;gap:14px;padding:22px;border-radius:12px;background:var(--paper);color:var(--pt);position:relative;margin-bottom:12px}
-.carnet h3{font:800 34px/1 var(--d);text-transform:uppercase}.carnet .big{font:800 56px/1 var(--d)}.carnet .big small{font:600 18px var(--s)}
-.carnet::after,.ticket::after{content:"";position:absolute;left:0;right:0;bottom:-7px;height:7px;background:linear-gradient(135deg,var(--paper) 50%,transparent 50%) 0 0/14px 14px,linear-gradient(225deg,var(--paper) 50%,transparent 50%) 0 0/14px 14px}
-.barbers{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
-.bar{padding:18px;border:1px solid var(--line);border-radius:10px;background:var(--ink2);display:grid;gap:10px}
-.bar .ph{display:flex;align-items:center;gap:12px}.av{width:56px;height:56px;border-radius:50%;background:var(--ink3);border:2px solid var(--red);display:grid;place-items:center;font:800 22px var(--d)}
-.bar h3{font:800 28px/1 var(--d);text-transform:uppercase}.bar p{color:var(--mute);font-size:15px}
-.bar .next{width:100%}
-.proof{display:flex;gap:20px;align-items:center;flex-wrap:wrap}.proof .score{font:800 90px/1 var(--d)}.stars{color:#ffc23a;letter-spacing:4px;font-size:22px}
-.venir{display:grid;gap:24px;grid-template-columns:1fr}
-.venir address{font-style:normal;font:700 28px/1.15 var(--d);text-transform:uppercase}
-.venir ul{list-style:none;padding:0;color:#ddd6ca;margin:12px 0}.venir li{display:flex;justify-content:space-between;gap:12px;border-bottom:1px dotted #4a4242;padding:6px 0;max-width:380px}
-footer{padding:36px 0 20px;color:var(--mute);font-size:14px}footer .wrap{display:flex;flex-wrap:wrap;gap:8px 22px;justify-content:space-between}
-footer nav{display:flex;gap:6px 18px;flex-wrap:wrap}footer a{min-height:32px;display:inline-flex;align-items:center}
-.bar-bottom{position:fixed;left:0;right:0;bottom:0;z-index:30;background:rgba(11,10,10,.96);border-top:1px solid var(--line);padding:10px 14px calc(10px + env(safe-area-inset-bottom));display:flex;gap:12px;align-items:center;backdrop-filter:blur(8px)}
-.bar-bottom .info{flex:1;min-width:0;line-height:1.2}.bar-bottom small{display:block;color:var(--mute);font-size:12px}.bar-bottom b{font:700 20px var(--d);text-transform:uppercase;letter-spacing:.03em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
-.bar-bottom .btn{min-height:52px;font-size:20px;flex:none}
-/* sheet */
-.veil{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.7);display:none}.veil.on{display:block}
-.sheet{position:fixed;z-index:51;left:0;right:0;bottom:0;top:0;background:var(--ink);display:none;flex-direction:column;max-width:560px;margin:0 auto}
-.sheet.on{display:flex}
-.sh-head{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line);min-height:60px}
-.sh-head h2{font:800 26px/1 var(--d);text-transform:uppercase;flex:1}
-.ib{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;font-size:22px;border:1.5px solid var(--line)}.ib:hover{border-color:var(--bone)}.ib[hidden]{visibility:hidden;display:grid}
-.prog{display:flex;gap:6px;padding:10px 14px 0}.prog i{flex:1;height:4px;border-radius:2px;background:var(--line)}.prog i.on{background:var(--red)}
-.sh-body{flex:1;overflow:auto;padding:14px;-webkit-overflow-scrolling:touch}
-.sh-foot{padding:10px 14px calc(12px + env(safe-area-inset-bottom));border-top:1px solid var(--line);background:var(--ink2)}
-.sh-foot .btn{width:100%;min-height:56px;font-size:22px}
-.opt{display:grid;grid-template-columns:1fr auto;gap:2px 12px;width:100%;text-align:left;padding:13px 14px;margin-bottom:8px;border:1.5px solid var(--line);border-radius:8px;background:var(--ink2);min-height:64px;align-items:center}
-.opt:hover{border-color:var(--red)}.opt .n{font:700 21px/1.1 var(--d);text-transform:uppercase}.opt .p{font:800 26px/1 var(--d);text-align:right}.opt .m{grid-column:1/-1;font-size:13px;color:var(--mute)}
-.opt-h{font:700 14px var(--s);letter-spacing:.14em;text-transform:uppercase;color:var(--red);margin:16px 0 8px}
-.pills{display:flex;gap:8px;overflow:auto;padding-bottom:6px;margin-bottom:10px;scrollbar-width:thin}
-.pill{flex:none;min-height:44px;padding:0 16px;border-radius:999px;border:1.5px solid var(--line);font-weight:600;background:var(--ink2);white-space:nowrap}
-.pill[aria-pressed=true]{background:var(--red2);border-color:var(--red);color:#fff}
-.dpill{flex:none;width:62px;min-height:66px;border-radius:10px;border:1.5px solid var(--line);background:var(--ink2);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0}
-.dpill small{font-size:12px;color:var(--mute);text-transform:uppercase}.dpill b{font:800 26px/1.05 var(--d)}.dpill[aria-pressed=true]{background:var(--red2);border-color:var(--red)}.dpill[aria-pressed=true] small{color:#fff}
-.dpill[disabled]{opacity:.35}
-.slots{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:6px}
-.slot{min-height:52px;border-radius:8px;border:1.5px solid var(--line);background:var(--ink2);font:700 22px var(--d);letter-spacing:.03em}.slot:hover{border-color:var(--red)}
-.slot small{display:block;font:500 11px/1 var(--s);color:var(--mute);letter-spacing:0}
-.empty{padding:22px;border:1px dashed #4a4242;border-radius:8px;color:var(--mute);text-align:center}
-.alert{background:#3a1216;border:1px solid var(--red2);color:#ffd6d9;border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:15px}
-.ticket{position:relative;background:var(--paper);color:var(--pt);padding:16px 18px 20px;margin:0 0 14px;border-radius:6px 6px 0 0;font-family:"Courier New",ui-monospace,monospace}
-.ticket h3{font:800 24px/1 var(--d);text-transform:uppercase;display:flex;justify-content:space-between;gap:10px;font-family:var(--d)}
-.ticket .pole{height:5px;margin:8px 0 10px}
-.ticket dl{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:14px}.ticket dt{opacity:.65}.ticket dd{text-align:right;font-weight:700}
-.ticket .tot{border-top:2px dashed #8b8374;margin-top:10px;padding-top:8px;display:flex;justify-content:space-between;font:800 30px/1 var(--d)}
-.ticket .code{font:800 44px/1 var(--d);letter-spacing:.14em;text-align:center;margin:10px 0 2px}
-.ticket .chg{font:600 13px var(--s);text-decoration:underline;color:var(--pt);min-height:32px}
-.fld{margin-bottom:14px}.fld label{display:block;font-weight:600;margin-bottom:6px;font-size:15px}.fld small{color:var(--mute);display:block;margin-top:4px;font-size:13px}
-.fld input{width:100%;min-height:54px;border-radius:8px;border:1.5px solid #4a4242;background:var(--ink2);color:var(--bone);padding:0 14px;font:500 18px var(--s)}.fld input:focus{border-color:var(--red);outline:0;box-shadow:0 0 0 3px rgba(255,59,71,.3)}
-.fld input[aria-invalid=true]{border-color:var(--red)}.err{color:#ff8f97;font-size:13px;margin-top:4px}
-.ok-list{list-style:none;padding:0;display:grid;gap:8px;margin:14px 0}.ok-list li{display:flex;gap:10px;align-items:flex-start;font-size:15px}.ok-list i{flex:none;width:22px;height:22px;border-radius:50%;background:var(--ok);color:#06210f;display:grid;place-items:center;font-style:normal;font-weight:800;font-size:13px}
-.acts{display:grid;gap:8px;margin-top:10px}
-@media(min-width:760px){body{padding-bottom:0}.bar-bottom{display:none}.nexts{grid-template-columns:repeat(4,1fr)}.venir{grid-template-columns:1fr 1fr}.sheet{top:5vh;bottom:5vh;border-radius:14px;border:1px solid var(--line)}.veil.on{display:block}}
-@media(max-width:420px){.logo{font-size:19px}header.top .wrap{gap:8px}.hero .wrap{padding-top:28px}.hero p.lead{font-size:16px}.quick{margin-top:18px}.steps{grid-template-columns:1fr}.row .p{font-size:26px}}
+.skip{position:absolute;left:-999px;top:8px;z-index:99;background:#fff;color:#000;padding:8px 12px}.skip:focus{left:8px}
+.wrap{max-width:1180px;margin:0 auto;padding:0 18px}
+/* top bar */
+.topbar{background:#000;color:#fff;font-size:13px;font-weight:300}
+.topbar .wrap{display:flex;justify-content:space-between;align-items:center;gap:10px 22px;flex-wrap:wrap;padding-top:7px;padding-bottom:7px}
+.topbar .l,.topbar .r{display:flex;align-items:center;gap:6px 20px;flex-wrap:wrap}
+.topbar a{color:#fff;text-decoration:none}.topbar a:hover{color:#fff;text-decoration:underline}
+.ti{display:inline-flex;align-items:center;gap:7px}.ti svg{width:15px;height:15px;stroke:#fff;fill:none;stroke-width:1.6;flex:none}
+.soc{display:flex;gap:6px}.soc a{width:26px;height:26px;border-radius:50%;background:var(--red);display:grid;place-items:center}.soc a:hover{background:var(--red2)}.soc svg{width:13px;height:13px;fill:#fff}
+@media(max-width:700px){.topbar .mail,.topbar .soc{display:none}.topbar .wrap{justify-content:center;text-align:center}}
+/* header */
+header.top{background:var(--char);position:sticky;top:0;z-index:30}
+header.top .wrap{display:flex;align-items:center;justify-content:space-between;gap:14px;min-height:76px}
+.logo{font:600 26px/1 var(--f);letter-spacing:.08em;color:#fff;text-decoration:none;text-transform:uppercase;display:inline-block}.logo:hover{color:#fff}.logo span{color:var(--red)}
+nav.main{display:flex;gap:6px 26px;align-items:center}
+nav.main a{color:#fff;text-decoration:none;text-transform:uppercase;font-size:17px;font-weight:400;padding:8px 2px;border-bottom:2px solid transparent;white-space:nowrap}
+nav.main a:hover{color:#fff;border-bottom-color:var(--red)}
+.btn{display:inline-flex;align-items:center;justify-content:center;min-height:46px;padding:0 24px;background:var(--red);color:#fff;border:0;border-radius:2px;font:500 16px var(--f);text-transform:uppercase;letter-spacing:.04em;text-decoration:none;cursor:pointer}
+.btn:hover{background:var(--red2);color:#fff}.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn.ghost{background:transparent;color:var(--red);box-shadow:inset 0 0 0 2px var(--red)}.btn.ghost:hover{background:var(--red);color:#fff}
+.btn.sm{min-height:42px;padding:0 18px;font-size:15px}
+@media(max-width:860px){nav.main{display:none}header.top .wrap{min-height:64px}.logo{font-size:22px}}
+.mnav{display:none;background:var(--char);border-top:1px solid #2c2f35;overflow-x:auto}
+.mnav .in{display:flex;gap:22px;padding:0 18px;white-space:nowrap}.mnav a{color:#fff;text-decoration:none;text-transform:uppercase;font-size:14px;padding:11px 0}
+@media(max-width:860px){.mnav{display:block}}
+/* sections */
+section{padding:54px 0 12px}
+h2.t{font:400 clamp(26px,4.4vw,34px)/1.15 var(--f);color:var(--ink2);text-transform:uppercase;text-align:center}
+.sub{text-align:center;color:var(--ink);font-weight:400;margin:6px auto 0;max-width:60ch}
+.rule{border:0;border-top:1px solid #c9c9c9;max-width:960px;margin:44px auto 0}
+.welcome{padding-top:44px;text-align:center}
+.welcome h1{font:400 clamp(26px,5.4vw,36px)/1.15 var(--f);color:var(--ink2);text-transform:uppercase}
+.welcome .tag{font:400 clamp(20px,3.6vw,26px)/1.3 var(--f);color:var(--red);margin:10px 0 18px}
+.welcome p.p{max-width:78ch;margin:0 auto 12px;font-size:17px;font-weight:400}
+/* express */
+.express{background:var(--paper);border:1px solid var(--line);border-top:4px solid var(--red);border-radius:2px;box-shadow:0 4px 16px rgba(0,0,0,.06);max-width:980px;margin:30px auto 0;padding:20px 18px 22px;text-align:left}
+.express h2{display:flex;justify-content:space-between;align-items:center;gap:10px;font:500 15px var(--f);text-transform:uppercase;letter-spacing:.08em;color:var(--ink2)}
+.express h2 button{background:none;border:0;color:var(--red);text-decoration:underline;font:400 15px var(--f);text-transform:none;letter-spacing:0;padding:8px 0}
+.fchips{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 14px}
+.fchip{min-height:44px;padding:0 16px;border-radius:99px;border:2px solid var(--red);background:#fff;color:var(--red);font:400 15px var(--f)}
+.fchip[aria-pressed=true]{background:var(--red);color:#fff}
+.nexts{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media(min-width:760px){.nexts{grid-template-columns:repeat(4,1fr)}}
+.next{display:grid;grid-template-columns:auto 1fr;grid-template-rows:auto auto;column-gap:10px;align-items:center;text-align:left;background:#fff;border:1px solid var(--line);border-radius:2px;padding:10px 12px;min-height:72px;color:var(--ink);font-family:var(--f)}
+button.next:hover{border-color:var(--red);box-shadow:0 0 0 1px var(--red)}
+.next img,.mini{grid-row:1/4;width:44px;height:44px;border-radius:50%;object-fit:cover;background:#fff;border:1px solid var(--line)}
+.next small{font-size:13px;color:var(--red);font-weight:500;line-height:1.2;align-self:end}
+.next b{font:500 22px/1.1 var(--f);align-self:center}
+.next span{font-size:12.5px;color:var(--mute);grid-column:2;line-height:1.2;align-self:start}
+.next.skel{opacity:.45}
+/* services */
+.cat h3{font:400 22px var(--f);color:var(--red);margin:26px 0 4px;padding-bottom:6px;border-bottom:1px solid var(--line)}
+.srv{max-width:860px;margin:30px auto 0}
+.row{display:grid;grid-template-columns:1fr auto;column-gap:14px;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid #e6e6e6;padding:13px 4px;color:var(--ink);align-items:baseline}
+.row:hover{background:rgba(190,65,65,.06)}
+.row .n{font:500 18px var(--f);color:var(--ink2)}.row .n .tg{display:inline-block;margin-left:8px;font:400 12px var(--f);text-transform:uppercase;letter-spacing:.06em;color:#fff;background:var(--red);padding:1px 8px;border-radius:99px;vertical-align:2px}
+.row .p{font:500 20px var(--f);color:var(--red);white-space:nowrap}
+.row .m{grid-column:1/-1;font-size:14px;color:var(--mute);font-weight:300;margin-top:2px}
+.carnet{margin:28px auto 0;max-width:860px;background:var(--char);color:#fff;border-radius:2px;padding:20px 22px;display:grid;gap:4px}
+.carnet h3{font:500 22px var(--f);text-transform:uppercase;letter-spacing:.04em}.carnet .big{font:600 34px/1.1 var(--f);color:#fff}.carnet .big small{font:300 16px var(--f);color:#ddd}.carnet p{font-weight:300;color:#ddd}
+/* barbers */
+.barbers{display:grid;grid-template-columns:repeat(2,1fr);gap:26px 14px;margin-top:34px}
+@media(min-width:860px){.barbers{grid-template-columns:repeat(4,1fr);gap:26px}}
+.bar{text-align:center}
+.bar h3{display:flex;align-items:center;gap:12px;font:400 clamp(22px,4vw,28px) var(--f);color:var(--red);margin-bottom:10px}
+.bar h3::before,.bar h3::after{content:"";flex:1;border-top:1px solid #cfcfcf}
+.bubble{width:min(150px,38vw);aspect-ratio:1;border-radius:50%;background:#fff;margin:0 auto;display:grid;place-items:center;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,.08)}.bubble img{width:88%;height:88%;object-fit:contain}
+.bar p{font-size:14px;color:var(--ink2);font-weight:300;margin:10px auto 8px;max-width:22ch}
+.bar .go{display:inline-block;background:none;border:0;color:var(--red);text-decoration:underline;font:400 15px var(--f);padding:8px 4px;min-height:44px}
+.bar .go b{font-weight:500}
+/* booking */
+.book{max-width:900px;margin:30px auto 0;background:var(--paper);border:1px solid #1a1a1a;padding:10px}
+.panel{background:#fff;box-shadow:0 2px 14px rgba(0,0,0,.1);padding:20px 20px 24px}
+@media(max-width:520px){.panel{padding:16px 14px 20px}.book{padding:6px}}
+.panel h3.ph{font:500 clamp(22px,4vw,26px)/1.15 var(--f);color:var(--red);display:flex;align-items:center;gap:10px}
+.panel .stp{font-size:15px;color:var(--ink2);margin:2px 0 12px}
+.prog{display:flex;gap:6px;margin-bottom:16px}.prog i{flex:1;height:7px;border-radius:99px;background:#ecc9c9}.prog i.on{background:var(--red)}
+.back{background:none;border:0;color:var(--red);text-decoration:underline;font:400 15px var(--f);padding:8px 0;min-height:40px}
+.alert{background:#fbeaea;border-left:4px solid var(--red);color:#5a1a1a;padding:10px 12px;margin-bottom:12px;font-size:15px}
+.opts{display:grid;gap:8px}
+@media(min-width:700px){.opts{grid-template-columns:1fr 1fr}}
+.opt-h{grid-column:1/-1;font:500 14px var(--f);text-transform:uppercase;letter-spacing:.1em;color:var(--mute);margin-top:8px}
+.opt{display:grid;grid-template-columns:1fr auto;column-gap:10px;text-align:left;background:#e9e9e9;border:2px solid transparent;border-radius:2px;padding:12px 14px;min-height:64px;color:var(--ink)}
+.opt:hover{border-color:var(--red);background:#fff}
+.opt .n{font:500 17px/1.2 var(--f);color:var(--red)}.opt .p{font:500 18px var(--f);color:var(--red)}.opt .m{grid-column:1/-1;font-size:13.5px;color:var(--mute);font-weight:300}
+.pills{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+.pill,.dpill{min-height:44px;padding:0 15px;border-radius:99px;border:2px solid var(--red);background:#fff;color:var(--red);font:400 15px var(--f)}
+.pill[aria-pressed=true],.dpill[aria-pressed=true]{background:var(--red);color:#fff}
+.dpill{border-radius:6px;padding:4px 10px;display:grid;line-height:1.1;text-align:center;min-width:52px}.dpill small{font-size:12px;text-transform:uppercase}.dpill b{font:500 20px var(--f)}
+.dpill:disabled{border-color:#ddd;color:#bbb;background:#f5f5f5;cursor:not-allowed}
+.slots{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:8px;margin-top:12px}
+.slot{min-height:52px;border:2px solid var(--line);background:#fff;border-radius:2px;font:500 18px var(--f);color:var(--ink);display:grid;place-items:center;line-height:1.1;padding:4px}
+.slot small{font:300 12px var(--f);color:var(--mute)}.slot:hover{border-color:var(--red);color:var(--red)}
+.slot.skel{background:#eee;color:#eee;border-color:#eee}
+.empty,.note{color:var(--mute);font-size:14.5px;font-weight:300}.empty{padding:18px 0}
+/* ticket */
+.ticket{position:relative;background:#fff;border:1px solid var(--line);border-top:4px solid var(--red);padding:14px 16px 16px;margin:0 0 14px;max-width:420px}
+.ticket::after{content:"";position:absolute;left:12px;right:12px;bottom:-1px;border-bottom:2px dashed #cfcfcf}
+.ticket h4{font:500 14px var(--f);text-transform:uppercase;letter-spacing:.1em;color:var(--mute);display:flex;justify-content:space-between}
+.ticket dl{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;margin:8px 0}.ticket dt{font-weight:300;color:var(--mute);font-size:14px}.ticket dd{font-weight:500}
+.ticket .tot{display:flex;justify-content:space-between;border-top:1px solid var(--line);padding-top:8px;font:500 20px var(--f)}.ticket .tot span:last-child{color:var(--red)}
+.chg{background:none;border:0;color:var(--red);text-decoration:underline;font:400 13px var(--f);padding:6px 4px}
+.code{font:600 30px/1 var(--f);letter-spacing:.14em;color:var(--red);text-align:center;margin:8px 0 4px}
+/* form */
+.fld{margin-bottom:12px}.fld label{display:block;font-weight:500;margin-bottom:4px;font-size:15px}.fld small{display:block;color:var(--mute);font-weight:300;font-size:13px;margin-top:3px}
+.fld input,.fld textarea{width:100%;min-height:48px;padding:10px 12px;border:1px solid #bdbdbd;border-radius:2px;background:#fff;font:400 16px var(--f);color:var(--ink)}
+.fld textarea{min-height:140px;resize:vertical}
+.fld input:focus,.fld textarea:focus{outline:3px solid rgba(190,65,65,.35);border-color:var(--red)}
+.fld [aria-invalid=true]{border-color:var(--red);background:#fff6f6}.err{color:#a02323;font-size:13.5px;margin-top:3px}
+.ok-list{list-style:none;padding:0;display:grid;gap:9px;margin:14px 0}.ok-list li{display:flex;gap:10px;align-items:flex-start;font-size:15.5px}.ok-list i{flex:none;width:22px;height:22px;border-radius:50%;background:var(--ok);color:#fff;display:grid;place-items:center;font-style:normal;font-weight:600;font-size:13px;margin-top:2px}
+.acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.acts .btn{flex:1 1 180px}
+.foot{margin-top:14px;display:flex;gap:8px;flex-wrap:wrap}.foot .btn{flex:1 1 220px}
+/* creations / avis / contact */
+.gal{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:30px}
+@media(min-width:760px){.gal{grid-template-columns:repeat(4,1fr);gap:12px}}
+.gal img{width:100%;aspect-ratio:4/5;object-fit:cover;border-radius:2px;background:#ddd}
+.score{text-align:center;margin-top:20px}.score .n{font:300 clamp(64px,14vw,96px)/1 var(--f);color:var(--ink2)}.stars{color:var(--red);font-size:30px;letter-spacing:5px}.score p{font-size:19px;margin:4px 0 14px}
+.contact{display:grid;gap:20px;max-width:980px;margin:34px auto 0;align-items:start}
+@media(min-width:800px){.contact{grid-template-columns:1fr 1.5fr;gap:44px}.contact h2.t{text-align:left;align-self:center}}
+.hp{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}
+.ok{background:#eaf5ee;border-left:4px solid var(--ok);padding:12px 14px;margin-top:10px}
+/* footer */
+footer{background:var(--char);color:#fff;margin-top:64px}
+footer .cols{display:grid;gap:22px;padding:34px 18px 26px;max-width:1180px;margin:0 auto}
+@media(min-width:720px){footer .cols{grid-template-columns:repeat(3,1fr)}}
+footer h4{font:400 16px var(--f);margin-bottom:8px;color:#fff}footer ul{list-style:none;padding:0;display:grid;gap:5px}
+footer a{color:#fff;font-weight:300;text-decoration:none}footer a:hover{color:#fff;text-decoration:underline}
+footer .bot{background:#111317;text-align:center;font-size:13px;font-weight:300;padding:12px 18px}
+/* sticky mobile bar */
+.bar-bottom{position:fixed;left:0;right:0;bottom:0;z-index:40;background:var(--char);color:#fff;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px calc(10px + env(safe-area-inset-bottom));border-top:3px solid var(--red)}
+.bar-bottom .info small{display:block;font-size:12px;font-weight:300;color:#ddd;line-height:1.2}.bar-bottom .info b{font:500 17px/1.2 var(--f)}
+@media(min-width:860px){body{padding-bottom:0}.bar-bottom{display:none}}
+.demo{background:#fff3cd;color:#5b4a00;text-align:center;font-size:13px;padding:6px 12px}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
 </style>
 </head>
 <body>
-<a class="skip" href="#carte">Aller à la carte</a>
+<a class="skip" href="#rdv">Aller à la réservation</a>
 <div id="demo" class="demo" hidden>Mode démo : créneaux simulés, aucun message n’est envoyé.</div>
-<header class="top"><div class="pole"></div><div class="wrap">
-  <a class="logo" href="#top" aria-label="Barber L’Architecte, accueil">L’Archi<b>tecte</b></a>
-  <div class="status" id="status" aria-live="polite"><span class="dot"></span><span id="stxt">…</span></div>
-  <button class="btn" data-open style="min-height:44px;padding:0 16px;font-size:16px">Réserver</button>
-</div></header>
+<div class="topbar"><div class="wrap">
+  <div class="l">
+    <span class="ti"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.800 12 21 12 21z"/><circle cx="12" cy="9.500" r="2.500"/></svg>16, place Pélabon - 13013 MARSEILLE</span>
+    <a class="ti mail" href="mailto:larchitectebarber@gmail.com"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>larchitectebarber@gmail.com</a>
+  </div>
+  <div class="r">
+    <span class="soc">
+      <a href="https://www.facebook.com/pg/barbershop.larchitecte/" target="_blank" rel="noopener" aria-label="Facebook"><svg viewBox="0 0 24 24"><path d="M14 8V6.500c0-.7.3-1 1-1h2V2h-3c-3 0-4.500 1.800-4.500 4.500V8H7v3.500h2.500V22H14V11.500h2.800L17.300 8z"/></svg></a>
+      <a href="https://www.instagram.com/barbershoplarchitecte/" target="_blank" rel="noopener" aria-label="Instagram"><svg viewBox="0 0 24 24"><path d="M7 2h10a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H7a5 5 0 0 1-5-5V7a5 5 0 0 1 5-5zm0 2a3 3 0 0 0-3 3v10a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3V7a3 3 0 0 0-3-3zm5 3.500A4.500 4.500 0 1 1 7.500 12 4.500 4.500 0 0 1 12 7.500zm0 2A2.500 2.500 0 1 0 14.500 12 2.500 2.500 0 0 0 12 9.500zM17.500 5.800a1.100 1.100 0 1 1-1.100 1.100 1.100 1.100 0 0 1 1.100-1.100z"/></svg></a>
+      <a href="https://www.youtube.com/channel/UCi2oLstkv0IIucLyd211G8A" target="_blank" rel="noopener" aria-label="YouTube"><svg viewBox="0 0 24 24"><path d="M22 8.200a3 3 0 0 0-2.100-2.100C18 5.600 12 5.600 12 5.600s-6 0-7.900.5A3 3 0 0 0 2 8.200 31 31 0 0 0 1.600 12 31 31 0 0 0 2 15.800a3 3 0 0 0 2.100 2.100c1.900.5 7.900.5 7.900.5s6 0 7.900-.5a3 3 0 0 0 2.100-2.100A31 31 0 0 0 22.400 12 31 31 0 0 0 22 8.200zM10 15V9l5.200 3z"/></svg></a>
+    </span>
+    <span class="ti"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Mardi – Samedi 9h – 18h30</span>
+  </div>
+</div></div>
+<header class="top"><div class="wrap">
+  <a class="logo" href="#top" aria-label="Barber L’Architecte, accueil">L’<span>A</span>rchitecte</a>
+  <nav class="main" aria-label="Navigation principale">
+    <a href="#services">Nos services</a><a href="#creations">Créations</a><a href="#rdv">Prendre RDV</a><a href="/formations">Formations de l’Archi</a>
+    <a class="btn sm" href="#rdv" data-go="rdv">RDV</a>
+  </nav>
+  <a class="btn sm nav-m" href="#rdv" data-go="rdv" style="display:none">RDV</a>
+</div>
+<div class="mnav"><div class="in"><a href="#services">Nos services</a><a href="#creations">Créations</a><a href="#rdv">Prendre RDV</a><a href="/formations">Formations</a></div></div>
+</header>
+<style>@media(max-width:860px){.nav-m{display:inline-flex!important}}</style>
+
 <main id="top">
-<div class="hero"><div class="wrap">
-  <p class="eyebrow">Barbier · Place Pélabon · Marseille 13e</p>
-  <h1>Votre lieu dédié à <em>l’homme</em> de tout âge.</h1>
-  <p class="lead">Dégradés, barbe, couleur, silver. Quatre barbiers, un fauteuil libre, et ton créneau en trois touches.</p>
-  <div class="quick" aria-labelledby="qh">
-    <h2 id="qh"><span>Prochain créneau libre</span><button type="button" id="seeAll">Voir tout</button></h2>
+<section class="welcome"><div class="wrap">
+  <h1>Bienvenue chez Barbershop L’Architecte</h1>
+  <p class="tag">Votre lieu dédié à l’homme de tout âge.</p>
+  <p class="p">Nos coiffeurs/barbiers sont à votre disposition pour répondre à vos besoins, prodiguer les meilleurs conseils et vous procurer des soins adaptés afin de sublimer votre apparence et faciliter votre coiffage au quotidien.</p>
+  <p class="p">Nouveau : la prise de rendez-vous en ligne, simple et rapide. Choisissez votre créneau en trois touches, sans compte.</p>
+
+  <div class="express" aria-labelledby="qh">
+    <h2 id="qh"><span>Prochain créneau libre</span><button type="button" id="seeAll">Voir tous les créneaux</button></h2>
     <div class="fchips" role="group" aria-label="Ma formule" id="fchips"></div>
     <div class="nexts" id="nexts" aria-live="polite"></div>
   </div>
-</div></div>
-
-<section id="comment"><div class="wrap">
-  <h2 class="t">Trois touches, <em>c’est tout</em></h2>
-  <ul class="steps" style="padding:0"><li><b>1</b><span>Je choisis ma formule</span></li><li><b>2</b><span>Je touche mon créneau</span></li><li><b>3</b><span>Mon prénom et mon numéro</span></li></ul>
-  <p class="sub" style="margin-top:16px;margin-bottom:0">Sans compte, sans mot de passe. Confirmation par SMS, rappel la veille à 18 h.</p>
-  <div class="work" aria-label="Le travail du salon"><img src="../img/fade.jpg" alt="Dégradé blond, côtés ras" loading="lazy"><img src="../img/curls.jpg" alt="Coupe texturée avec barbe" loading="lazy"><img src="../img/sidepart.jpg" alt="Raie sur le côté, dégradé" loading="lazy"></div>
 </div></section>
 
-<section id="carte"><div class="wrap">
-  <h2 class="t">La <em>carte</em></h2><p class="sub">Touche une ligne : on te propose les créneaux tout de suite.</p>
-  <div id="menu"></div>
-  <div class="carnet" id="carnet"><h3>Carnet 5 coupes</h3><div class="big">80 €<small> · 16 € la coupe</small></div><p>5 coupes sur 5 semaines, sans barbe. Il se prend au salon : on fixe tes coupes avec toi.</p></div>
+<section id="services"><div class="wrap">
+  <hr class="rule" style="margin-top:0;margin-bottom:44px">
+  <h2 class="t">Nos services</h2>
+  <p class="sub">Touchez une prestation : on vous propose les créneaux tout de suite.</p>
+  <div class="srv" id="menu"></div>
+  <div class="carnet" id="carnet"><h3>Carnet 5 coupes</h3><div class="big">80 €<small> · 16 € la coupe</small></div><p>5 coupes sur 5 semaines, sans barbe. Il se prend au salon : on fixe vos coupes avec vous.</p></div>
 </div></section>
 
 <section id="barbiers"><div class="wrap">
-  <h2 class="t">Les <em>quatre</em> fauteuils</h2><p class="sub">Un barbier préféré ? Son prochain créneau est juste dessous.</p>
+  <h2 class="t">Vos coiffeurs barbier</h2>
+  <p class="sub">Frank, JKut, Esteban &amp; le Soldat à votre disposition</p>
   <div class="barbers" id="barbers"></div>
 </div></section>
 
-<section id="avis"><div class="wrap proof">
-  <div class="score d">5,0</div>
-  <div><div class="stars" aria-label="5 étoiles sur 5">★★★★★</div><p style="font:700 26px/1.1 var(--d);text-transform:uppercase">316 avis Google</p><p class="sub" style="margin:6px 0 12px">Des clients qui reviennent chaque semaine.</p><a class="btn ghost" href="https://www.google.com/maps/search/?api=1&query=L%27Architecte%20coiffeur&query_place_id=ChIJJSWkBLy_yRIRbgAQcMwb-JY" target="_blank" rel="noopener">Lire les avis</a></div>
+<section id="rdv"><div class="wrap">
+  <hr class="rule" style="margin-top:0;margin-bottom:44px">
+  <h2 class="t">Prendre un rendez-vous</h2>
+  <p class="sub">Prenez votre rendez-vous en trois touches, sans compte ni mot de passe.</p>
+  <div class="book"><div class="panel" id="panel">
+    <h3 class="ph" id="shT" tabindex="-1">Réservez un rendez-vous</h3>
+    <p class="stp" id="stp"></p>
+    <div class="prog" id="prog"><i></i><i></i><i></i></div>
+    <button class="back" id="shBack" type="button" hidden>← Retour</button>
+    <div id="shB"></div>
+    <div id="shF" hidden></div>
+  </div></div>
 </div></section>
 
-<section id="venir"><div class="wrap venir">
-  <div><h2 class="t">Nous <em>trouver</em></h2>
-    <address>16, place Pélabon<br>13013 Marseille</address>
-    <ul><li><span>Mardi – samedi</span><b>9 h – 18 h 30</b></li><li><span>Dimanche, lundi</span><b>Fermé</b></li></ul>
-    <div style="display:flex;gap:8px;flex-wrap:wrap"><a class="btn" href="https://www.google.com/maps/search/?api=1&query=L%27Architecte%20coiffeur&query_place_id=ChIJJSWkBLy_yRIRbgAQcMwb-JY" target="_blank" rel="noopener">Itinéraire</a><a class="btn ghost" href="mailto:larchitectebarber@gmail.com">Écrire</a></div>
-    <p class="note">Salon formateur agréé · Paiement par carte bancaire</p></div>
-  <div class="work" style="grid-template-columns:1fr;margin:0"><img src="../img/salon.jpg" alt="L’intérieur du salon, fauteuils noirs et lumière rouge" loading="lazy" style="aspect-ratio:4/3"></div>
+<section id="creations"><div class="wrap">
+  <hr class="rule" style="margin-top:0;margin-bottom:44px">
+  <h2 class="t">Créations</h2>
+  <p class="sub">Le travail de l’équipe, à retrouver au quotidien sur <a href="https://www.instagram.com/barbershoplarchitecte/" target="_blank" rel="noopener">Instagram</a>.</p>
+  <div class="gal"><img src="../img/fade.jpg" alt="Dégradé blond, côtés ras" loading="lazy"><img src="../img/curls.jpg" alt="Coupe texturée avec barbe" loading="lazy"><img src="../img/sidepart.jpg" alt="Raie sur le côté, dégradé" loading="lazy"><img src="../img/salon.jpg" alt="L’intérieur du salon" loading="lazy"></div>
+</div></section>
+
+<section id="avis"><div class="wrap">
+  <hr class="rule" style="margin-top:0;margin-bottom:44px">
+  <h2 class="t">Découvrez nos avis Google</h2>
+  <div class="score"><div class="n">5,0</div><div class="stars" aria-label="5 étoiles sur 5">★★★★★</div><p>316 avis Google</p>
+  <a class="btn" href="https://www.google.com/maps/search/?api=1&amp;query=L%27Architecte%20coiffeur&amp;query_place_id=ChIJJSWkBLy_yRIRbgAQcMwb-JY" target="_blank" rel="noopener">Lire les avis</a></div>
+</div></section>
+
+<section id="contact"><div class="wrap">
+  <hr class="rule" style="margin-top:0;margin-bottom:44px">
+  <div class="contact">
+    <h2 class="t">Nous contacter</h2>
+    <form id="cf" novalidate>
+      <div class="fld"><label for="cn">Nom *</label><input id="cn" name="first" autocomplete="name" required><div class="err" id="e-cn" hidden></div></div>
+      <div class="fld"><label for="ce">E-mail *</label><input id="ce" name="email" type="email" autocomplete="email" inputmode="email" required><div class="err" id="e-ce" hidden></div></div>
+      <div class="fld"><label for="cm">Message *</label><textarea id="cm" name="message" required></textarea><div class="err" id="e-cm" hidden></div></div>
+      <div class="hp" aria-hidden="true"><label>Site web<input id="cw" tabindex="-1" autocomplete="off"></label></div>
+      <button class="btn" type="submit" id="cs">Envoyer</button>
+      <div id="cmsg" role="status" aria-live="polite"></div>
+    </form>
+  </div>
 </div></section>
 </main>
-<footer><div class="pole" style="margin-bottom:22px"></div><div class="wrap"><span>© Barber L’Architecte · Marseille 13e</span>
-<nav aria-label="Informations légales"><a href="/cgv">CGV</a><a href="/confidentialite">Confidentialité</a><a href="/mentions-legales">Mentions légales</a><a href="https://www.instagram.com/barbershoplarchitecte/" target="_blank" rel="noopener">Instagram</a><a href="https://www.facebook.com/pg/barbershop.larchitecte/" target="_blank" rel="noopener">Facebook</a></nav></div></footer>
 
-<div class="bar-bottom" id="bb"><div class="info"><small id="bbs">Prochain créneau</small><b id="bbt">…</b></div><button class="btn" data-open>Réserver</button></div>
+<footer>
+  <div class="cols">
+    <div><h4>Nos services :</h4><ul><li><a href="#services">Découvrir</a></li><li><a href="#creations">Créations</a></li><li><a href="/formations">Formations de l’Archi</a></li></ul></div>
+    <div><h4>Votre compte :</h4><ul><li><a href="/mon-rendez-vous">Consultez vos rendez-vous</a></li><li><a href="#rdv">Prendre rendez-vous</a></li></ul></div>
+    <div><h4>Informations :</h4><ul><li><a href="/mentions-legales">Mentions légales</a></li><li><a href="/cgv">CGV</a></li><li><a href="/confidentialite">Confidentialité</a></li></ul></div>
+  </div>
+  <div class="bot">Barber L’Architecte · 16, place Pélabon · 13013 Marseille</div>
+</footer>
 
-<div class="veil" id="veil"></div>
-<div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="shT">
-  <div class="sh-head"><button class="ib" id="shBack" aria-label="Retour">←</button><h2 id="shT">Réserver</h2><button class="ib" id="shX" aria-label="Fermer">✕</button></div>
-  <div class="prog" id="prog"><i></i><i></i><i></i></div>
-  <div class="sh-body" id="shB"></div>
-  <div class="sh-foot" id="shF" hidden></div>
-</div>
+<div class="bar-bottom" id="bb"><div class="info"><small id="bbs">Prochain créneau</small><b id="bbt">…</b></div><a class="btn" href="#rdv" data-go="rdv">Prendre RDV</a></div>
 
 <script src="core.js"></script>
 <script src="a-ticket.js"></script>
