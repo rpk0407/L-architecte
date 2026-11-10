@@ -399,7 +399,7 @@
     for (const m of menu.filter((x) => x.category === S.tab)) {
       const sv = m.slug ? S.bySlug[m.slug] : null;
       const inc = sv && sv.includes && sv.includes.length ? sv.includes.join(' · ') : '';
-      const name = h('span', { class: 'cr-n' }, [m.name, h('small', { text: durText(m.dur) + (inc ? ' · ' + inc : '') }), sv && sv.description ? h('small', { text: sv.description }) : null, sv && sv.tag ? h('em', { text: sv.tag }) : null]);
+      const name = h('span', { class: 'cr-n' }, [m.name, m.online ? h('small', { text: durText(m.dur) + (inc ? ' · ' + inc : '') }) : null, sv && sv.description ? h('small', { text: sv.description }) : null, sv && sv.tag ? h('em', { text: sv.tag }) : null]);
       const price = h('span', { class: 'cr-p' }, [m.from ? h('small', { text: 'dès' }) : null, eur(m.price)]);
       const bookable = sv && m.online;
       const go = bookable ? h('span', { class: 'cr-go' }, ['Réserver', icon('arrow')]) : h('span', { class: 'cr-go off', text: 'Se prend au salon' });
@@ -552,7 +552,7 @@
       S.me = { first: f.first, phone: f.phone, svc: sv.slug, staff: barber ? barber.id : null, staffName: barber ? barber.name : '' };
       writeMe(S.me);
       S.hold = null; S.busy = false; cache.clear();
-      S.icsUrl = res.status === 'pending' ? '' : makeIcs(S.result);
+      S.icsUrl = res.status === 'pending' || S.demo ? '' : makeIcs(S.result);
       goStep('done');
       loadHome();
     } catch (e) {
@@ -615,7 +615,7 @@
     S.step = step;
     clearInterval(holdTimer);
     const done = step === 'done';
-    $('#bk-k').textContent = done ? (S.result.status === 'pending' ? 'Presque' : 'C’est réservé') : 'Étape ' + (STEPS.indexOf(step) + 1) + ' sur 3';
+    $('#bk-k').textContent = done ? (S.result.status === 'pending' ? 'Presque' : S.demo ? 'Mode démo' : 'C’est réservé') : 'Étape ' + (STEPS.indexOf(step) + 1) + ' sur 3';
     $('#bk-t').textContent = done ? (S.result.status === 'pending' ? 'Reste l’acompte.' : 'À très vite, ' + S.result.first + '.') : TITLES[step];
     renderTicket(); renderErr(); renderStep(); renderFoot();
     $('#bk-body').scrollTop = 0;
@@ -651,7 +651,7 @@
     tk.classList.add('done');
     tk.append(
       h('div', { class: 'tk-top' }, [
-        h('span', { class: 'tk-ok' + (pending ? ' wait' : '') }, [h('i', { 'aria-hidden': 'true' }, pending ? null : icon('check')), pending ? 'En attente de l’acompte' : 'Réservé']),
+        h('span', { class: 'tk-ok' + (pending ? ' wait' : '') }, [h('i', { 'aria-hidden': 'true' }, pending ? null : icon('check')), pending ? 'En attente de l’acompte' : S.demo ? 'Simulation' : 'Réservé']),
         h('span', { class: 'tk-code' }, ['Code', h('b', { text: r.code })])
       ]),
       h('p', { class: 'tk-w', text: cap(dayFull(r.day)) + ' · ' + hm(r.start) }),
@@ -769,7 +769,8 @@
       if (sms) list.append(li('sms', when + (pending ? 'confirmation par SMS' : 'Confirmation par SMS'), 'Au ' + r.phone + '.'));
       if (r.email) list.append(li('mail', when + (pending ? 'confirmation par e-mail' : 'Confirmation par e-mail'), 'À ' + r.email + ', avec le rendez-vous pour ton agenda.'));
       else list.append(li('mail', 'Pas d’e-mail', 'Tu n’as pas donné d’adresse : la confirmation ne part pas par e-mail.'));
-      if (sms) list.append(li('bell', 'Rappel par SMS la veille à 18 h', 'Avec un lien pour déplacer ou annuler.'));
+      if (sms && r.day === S.today) list.append(li('bell', 'C’est aujourd’hui', 'Pas de rappel la veille, donc : garde le lien de ton rendez-vous.'));
+      else if (sms) list.append(li('bell', 'Rappel par SMS la veille à 18 h', 'Avec un lien pour déplacer ou annuler.'));
       else list.append(li('bell', 'Pas de SMS', r.sms ? 'Les SMS ne sont pas branchés pour l’instant : garde le lien de ton rendez-vous.' : 'Tu as décoché les SMS : garde le lien de ton rendez-vous.'));
       if (S.sal.mode === 'demo') list.append(li('check', 'Salon de démonstration', 'Ici, aucun SMS ni e-mail ne part vraiment.'));
     }
@@ -837,7 +838,7 @@
       catch (e) { S.demo = true; }
       if (sal && (!Array.isArray(sal.services) || !Array.isArray(sal.barbers))) { sal = null; S.demo = true; }
     }
-    if (S.demo) { sal = sim('/api/public/salon'); $('#demo-b').hidden = false; }
+    if (S.demo) { sal = sim('/api/public/salon'); $('#demo-b').hidden = false; $('#top').classList.add('demo'); window.dispatchEvent(new Event('resize')); }
     S.sal = sal;
     S.today = sal.today || S.today;
     S.skew = sal.now ? sal.now - Date.now() : 0;

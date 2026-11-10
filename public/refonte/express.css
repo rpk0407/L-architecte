@@ -70,9 +70,11 @@ position:relative;font:400 17px/1.5 var(--f-sans);color:var(--os);background:var
 .js [data-rv][data-in]{opacity:1;transform:none}
 
 /* « mode démo » : the API did not answer */
-.demo-b{position:fixed;z-index:95;left:50%;top:calc(74px + env(safe-area-inset-top,0px));transform:translateX(-50%);display:flex;align-items:center;gap:10px;width:max-content;max-width:calc(100vw - 24px);padding:9px 16px 9px 9px;border-radius:999px;background:var(--encre);color:var(--os);box-shadow:0 10px 30px rgba(0,0,0,.3);font:500 13px/1.25 var(--f-sans)}
+.demo-b{position:fixed;z-index:84;left:50%;top:calc(72px + env(safe-area-inset-top,0px));transform:translateX(-50%);display:flex;align-items:center;gap:10px;width:max-content;max-width:calc(100vw - 24px);padding:9px 16px 9px 9px;border-radius:999px;background:var(--encre);color:var(--os);box-shadow:0 10px 30px rgba(0,0,0,.3);font:500 13px/1.25 var(--f-sans)}
 .demo-b b{flex:none;padding:6px 10px;border-radius:999px;background:var(--rouge);color:var(--encre);font:700 11.5px/1 var(--f-sans);letter-spacing:.06em;text-transform:uppercase}
 
+.lp.demo .hr-top{top:calc(122px + env(safe-area-inset-top,0px))}
+@media (min-width:1000px){.lp.demo .hr-top{top:auto}}
 /* top bar */
 .tb{position:fixed;top:0;left:0;right:0;z-index:86;display:flex;align-items:center;justify-content:space-between;gap:12px;height:68px;padding:0 max(12px,calc(var(--pad) - 9px)) 0 var(--pad);padding-top:env(safe-area-inset-top,0px);pointer-events:none;transition:color .4s}
 .tb>*{pointer-events:auto}
@@ -209,7 +211,7 @@ position:relative;font:400 17px/1.5 var(--f-sans);color:var(--os);background:var
 .nx-sk{min-height:148px;border-radius:22px;background:linear-gradient(100deg,rgba(15,14,13,.05) 30%,rgba(15,14,13,.1) 50%,rgba(15,14,13,.05) 70%) 0 0/200% 100%;animation:sk 1.4s linear infinite}
 @keyframes sk{to{background-position:-200% 0}}
 .now-foot{margin-top:18px;font-size:15px;line-height:1.5;color:var(--cendre2)}
-.now-foot .tl{display:inline;min-height:0;padding:12px 0;color:var(--encre);font-size:15px}
+.now-foot .tl{display:inline-block;min-height:0;padding:12px 0;color:var(--encre);font-size:15px}
 /* the monogram: initials in serif, the fade in dots */
 .mono{position:relative;flex:none;display:grid;place-items:center;width:44px;height:44px;border-radius:50%;background:var(--pierre);color:var(--encre);font:400 19px/1 var(--f-serif);letter-spacing:-.02em;overflow:hidden}
 .mono::after{content:"";position:absolute;inset:0;background:radial-gradient(circle,var(--encre) 1.1px,transparent 1.6px) 0 0/5px 5px;-webkit-mask-image:linear-gradient(180deg,transparent 55%,#000);mask-image:linear-gradient(180deg,transparent 55%,#000);opacity:.55}
