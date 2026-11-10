@@ -366,7 +366,10 @@ button.tk-r:hover{background:rgba(236,232,224,.08)}
 .tk-e{font:400 24px/1 var(--f-serif);font-variant-numeric:tabular-nums;white-space:nowrap}
 .tk-e.ed{font:500 13px/1 var(--f-sans);color:var(--cendre);text-decoration:underline;text-underline-offset:4px}
 /* the ticket once booked */
-.tk.done{padding:22px 22px 20px;--notch:calc(100% - 92px);animation:tkIn .7s var(--ease) both}
+.tk.done::before,.tk.done::after{display:none}
+.tk-a::before,.tk-a::after{content:"";position:absolute;top:-10px;width:20px;height:20px;border-radius:50%;background:var(--os)}
+.tk-a::before{left:-32px}.tk-a::after{right:-32px}
+.tk.done{padding:22px 22px 20px;animation:tkIn .7s var(--ease) both}
 @keyframes tkIn{from{opacity:0;transform:translateY(16px) rotate(-1.2deg)}to{opacity:1;transform:none}}
 .tk-top{display:flex;align-items:center;justify-content:space-between;gap:12px}
 .tk-ok{display:inline-flex;align-items:center;gap:8px;font:600 13.5px/1 var(--f-sans);color:#86EFAC}
@@ -379,7 +382,7 @@ button.tk-r:hover{background:rgba(236,232,224,.08)}
 .tk-w{margin-top:16px;font:400 clamp(34px,9.6vw,44px)/1 var(--f-serif);letter-spacing:-.012em}
 .tk-f{margin-top:8px;font:600 16px/1.3 var(--f-sans)}
 .tk-b{margin-top:3px;font-size:15px;color:var(--cendre)}
-.tk-a{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:20px;padding-top:16px;border-top:1px dashed var(--ligne2);font-size:14.5px;line-height:1.35;color:var(--cendre)}
+.tk-a{position:relative;display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:20px;padding-top:16px;border-top:1px dashed var(--ligne2);font-size:14.5px;line-height:1.35;color:var(--cendre)}
 .tk-a b{display:block;font:600 15px/1.3 var(--f-sans);color:var(--os)}
 .tk-bars{flex:none;width:74px;height:40px;background:repeating-linear-gradient(90deg,var(--os) 0 2px,transparent 2px 5px,var(--os) 5px 6px,transparent 6px 10px,var(--os) 10px 13px,transparent 13px 15px);opacity:.75}
 

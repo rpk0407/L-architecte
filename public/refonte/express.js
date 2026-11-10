@@ -155,7 +155,7 @@
   async function api(path, o) {
     if (S.demo) return sim(path, o);
     let res;
-    try { res = await fetch(path, { method: (o && o.method) || 'GET', headers: o && o.body ? { 'content-type': 'application/json' } : undefined, body: o && o.body ? JSON.stringify(o.body) : undefined }); }
+    try { res = await fetch(path, { cache: 'no-store', method: (o && o.method) || 'GET', headers: o && o.body ? { 'content-type': 'application/json' } : undefined, body: o && o.body ? JSON.stringify(o.body) : undefined }); }
     catch (e) { throw { status: 0, code: 'network', message: 'Pas de réseau. Vérifie ta connexion et réessaie.' }; }
     let j = null;
     try { j = await res.json(); } catch (e) { /* not JSON */ }

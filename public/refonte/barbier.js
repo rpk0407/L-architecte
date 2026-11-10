@@ -137,7 +137,7 @@
   };
   try { const f = JSON.parse(window.localStorage.getItem('lx-refonte-me') || 'null'); if (f && typeof f === 'object') ['first', 'last', 'phone', 'email'].forEach((k) => { if (typeof f[k] === 'string') S.form[k] = f[k].slice(0, 120); }); } catch (e) { /* ignore */ }
   const whoName = (w) => (w === 'any' ? 'Le premier de libre' : S.byStaff[w] ? S.byStaff[w].name : '');
-  const whoIni = (w) => (w === 'any' ? '1<sup>er</sup>' : esc(S.byStaff[w] ? S.byStaff[w].initials || S.byStaff[w].name.charAt(0) : ''));
+  const whoIni = (w) => (w === 'any' ? '<span>1<sup>er</sup></span>' : esc(S.byStaff[w] ? S.byStaff[w].initials || S.byStaff[w].name.charAt(0) : ''));
   /* one line per barber: the first sentence of the bio the salon wrote in the Comptoir, nothing invented */
   const lineOf = (b) => { const t = String(b.bio || '').trim().split(/(?<=[.!?])\s+/)[0] || ''; return t ? t.replace(/\.$/, '') : 'Barbier au salon'; };
   function depositOf(sv) {
