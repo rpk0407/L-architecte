@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from '../../../ui/Icon';
 import { Avatar, Chip, Money } from '../../../ui/kit';
 import { hhmm, time } from '../../../lib/format';
-import { useIsPhone } from '../../../lib/hooks';
+import { useIsPhone, useMedia } from '../../../lib/hooks';
 import type { Agenda, Appt, Lane } from '../../types';
 import { layoutOverlaps, type Place } from './overlap';
 
@@ -28,6 +28,8 @@ const STEP = 15;
 
 export function Board(p: BoardProps) {
   const phone = useIsPhone();
+  // the salon tablet shares its width with the side column (agenda.css): the chairs may be a little narrower there
+  const tablet = useMedia('(max-width: 1100px)');
   const px = phone ? 2.1 : 2;
   const { lanes, appts, blocks, holds } = p.data;
   const visible: Lane[] = phone ? lanes.filter((l) => l.id === (p.lane || lanes[0]?.id)) : lanes;
@@ -106,7 +108,7 @@ export function Board(p: BoardProps) {
   const hours = [];
   for (let m = from; m <= to; m += 60) hours.push(m);
   const nowY = isToday && p.nowMin >= from && p.nowMin <= to ? y(p.nowMin) : null;
-  const cols = phone ? '46px minmax(0, 1fr)' : `56px repeat(${visible.length}, minmax(140px, 1fr))`;
+  const cols = phone ? '46px minmax(0, 1fr)' : `56px repeat(${visible.length}, minmax(${tablet ? 112 : 140}px, 1fr))`;
 
   return (
     <section className="board" aria-label="Planning de la journée" data-guide="ag-board">
@@ -137,7 +139,7 @@ export function Board(p: BoardProps) {
       <div className="board-scroll" ref={scrollRef}>
       <div className="tl" style={{ gridTemplateColumns: phone ? '46px minmax(0, 1fr)' : '56px minmax(0, 1fr)', height }}>
         <div className="hours" aria-hidden>{hours.map((m) => <span key={m} style={{ top: y(m) }}>{hhmm(m)}</span>)}</div>
-        <div className="lanes-g" style={{ gridTemplateColumns: `repeat(${visible.length}, minmax(${phone ? 0 : 140}px, 1fr))`, backgroundSize: `100% ${60 * px}px, 100% ${30 * px}px` }}>
+        <div className="lanes-g" style={{ gridTemplateColumns: `repeat(${visible.length}, minmax(${phone ? 0 : tablet ? 112 : 140}px, 1fr))`, backgroundSize: `100% ${60 * px}px, 100% ${30 * px}px` }}>
           {visible.map((l) => {
             const offIv: [number, number][] = [];
             let t = from;

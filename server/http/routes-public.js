@@ -237,6 +237,8 @@ export function publicRoutes(app) {
         console.error('[lx] deposit checkout failed, booking taken back', res.id, e && (/** @type {any} */ (e).detail || /** @type {any} */ (e).message));
         try { await r.rt.engine.run(A.expirePending, { id: res.id, reason: 'Paiement en ligne indisponible' }, { actor: { t: 'system', id: 'payments' }, caps: new Set(), meta: r.meta }); }
         catch (e2) { console.error('[lx] booking not taken back', res.id, e2 && /** @type {any} */ (e2).message); }
+        // the provider's answer already put in French for a client (payments/stripe.js: 502 « réessaie dans un instant »)
+        if (e && /** @type {any} */ (e).expose) throw e;
         throw new HttpError(503, 'pay_unavailable', 'Le paiement en ligne est momentanément indisponible : ton rendez-vous n’est pas enregistré et rien n’est débité. Réessaie dans un instant, ou appelle le salon.', { retry: true, phone: r.s.settings.shop.phone });
       }
     }

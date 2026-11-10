@@ -72,7 +72,10 @@ export type StaffRow = {
 /** Why the team's Chiffre réalisé is not Encaissé: carnets and memberships sold and used, free loyalty cuts, lines without a barber. */
 export type Gap = { prepaidSold: number; prepaidUsed: number; rewards: number; unassigned: number };
 /** goalOf (server/domain/insights.js), with the month's length and the days gone for the Rapports card. */
-export type GoalView = { staffId: string | null; month: string; target: number; auto: boolean; done: number; pct: number; perDay: number; openDaysLeft: number; week: { from: string; to: string; target: number; done: number }; days: number; elapsed: number };
+/** « À ce rythme » (goalOf, server/domain/insights.js): one projection for Pilotage and Rapports. pace: open days elapsed (today pro rata
+ *  of its opening hours already past) of the month's open days; expected: where the bar should be by now (0..1). Optional: an older server. */
+export type GoalPace = { projection?: number | null; pace?: { elapsed: number; total: number }; expected?: number };
+export type GoalView = { staffId: string | null; month: string; target: number; auto: boolean; done: number; pct: number; perDay: number; openDaysLeft: number; week: { from: string; to: string; target: number; done: number }; days: number; elapsed: number } & GoalPace;
 /** GET /api/v1/statements: a barber's month (server/domain/statement.js). */
 export type Statement = {
   month: string; from: string; to: string; label: string; provisional: boolean; staff: { id: string; name: string; color: string };
@@ -119,7 +122,7 @@ export type EspaceCardProps = { data: EspaceData; reload: () => Promise<void>; n
 // TEAM-05a: GET /api/v1/cockpit (server/domain/cockpit.js), the owner's Pilotage. `upTo` is the last day read (today while the
 // period runs); the previous figures cover the same number of days at the start of the period before.
 export type CockpitRange = 'day' | 'week' | 'month';
-export type CockpitGoal = { target: number; done: number; pct: number; perDay: number; openDaysLeft: number; week: { from: string; to: string; target: number; done: number }; projection: number | null; monthLabel: string; month: string };
+export type CockpitGoal = { target: number; done: number; pct: number; perDay: number; openDaysLeft: number; week: { from: string; to: string; target: number; done: number }; projection: number | null; pace: { elapsed: number; total: number }; expected: number; monthLabel: string; month: string };
 export type CockpitTeamRow = StaffRow & {
   active: boolean; photo: number | null; goalPct: number | null; goal: { target: number; done: number; auto: boolean; perDay: number; openDaysLeft: number } | null;
   week: { from: string; to: string; minutes: number; off: { id: string; from: string; to: string; status: 'approved' | 'pending' }[] };
@@ -129,20 +132,37 @@ export type CockpitCash = {
   drawer: 'open' | 'counted' | 'none'; lastDiff: number | null; unpaid: number; z: 'done' | 'due' | 'missed' | 'none'; missedDay: string | null;
   closesAt: number | null; remaining: number; warnings: string[];
 };
+/** What the deltas compare, like for like (compareOf, server/domain/cockpit.js): a null side means no delta is shown. */
+export type CockpitCompare = { cur: { from: string; to: string } | null; prev: { from: string; to: string } | null; curDays: number; prevDays: number; soft: boolean; words: string };
+export type CockpitSide = { cashed: number; performed: number; fill: number; clients: number; newClients: number; noShows: number; noShowRate: number; avgTicket: number; rebookRate: number; returned60: number; tips: number; discounts: number; refunds: number; lost: number };
+/** Today before it happens: minutes worked, booked and still free to sell, per chair; gap: his longest free stretch (an hour or more). */
+export type CockpitToday = {
+  day: string; open: boolean; opensAt: number | null; closesAt: number | null; started: boolean; over: boolean;
+  count: number; planned: number; left: number; expected: number; firstAt: number | null; capMin: number; bookedMin: number; fill: number; freeMin: number;
+  chairs: { id: string; name: string; color: string; capMin: number; bookedMin: number; fill: number; count: number; freeMin: number; gap: [number, number] | null; off: boolean; away: boolean }[];
+};
+/** The next seven days: the salon's day by day, and each chair's fill per day (null: he does not work that day). */
+export type CockpitAhead = {
+  from: string; to: string; capMin: number; bookedMin: number; fill: number; freeMin: number; count: number; planned: number;
+  days: { day: string; label: string; open: boolean; capMin: number; bookedMin: number; fill: number; freeMin: number; count: number; planned: number }[];
+  chairs: { id: string; name: string; color: string; fill: number; freeMin: number; days: (number | null)[] }[];
+};
 export type Cockpit = {
   asOf: number;
-  range: { kind: CockpitRange; day: string; from: string; to: string; upTo: string; label: string; prevLabel: string; prev: { from: string; to: string }; today: string; live: boolean; partial: boolean; closed: boolean };
+  range: { kind: CockpitRange; day: string; from: string; to: string; upTo: string; label: string; prevLabel: string; prev: { from: string; to: string }; today: string; live: boolean; partial: boolean; closed: boolean; compare: CockpitCompare };
   kpis: {
-    cashed: { value: number; prev: number; tickets: number; goal: CockpitGoal | null; series: number[] };
+    /** value: the revenue (Chiffre d’affaires TTC); takings: the money that came in (the Z's); served: tickets with a cut or a product */
+    cashed: { value: number; valueHT: number; prev: number; tickets: number; served: number; prepaidSold: number; takings: number; goal: CockpitGoal | null; series: number[] };
     performed: number; gap: Gap;
     fill: { value: number; prev: number; chairs: { id: string; name: string; color: string; value: number }[] };
     clients: { total: number; new: number; returning: number };
     noShows: { count: number; rate: number; lost: number };
     lateCancels: number; avgTicket: number; rebookRate: number; returned60: number; tips: number; discounts: number; refunds: number;
     outstanding: { giftcards: number; giftcardCount: number; carnets: number; carnetCount: number; cuts: number };
-    prev: { cashed: number; performed: number; fill: number; clients: number; newClients: number; noShows: number; noShowRate: number; avgTicket: number; rebookRate: number; returned60: number; tips: number; discounts: number; refunds: number; lost: number };
+    /** the two sides the deltas read (range.compare); null when nothing compares yet */
+    cmp: CockpitSide | null; prev: CockpitSide | null;
   };
-  team: CockpitTeamRow[]; cash: CockpitCash; equity: CockpitEquity[];
+  team: CockpitTeamRow[]; cash: CockpitCash; equity: CockpitEquity[]; today: CockpitToday; ahead: CockpitAhead;
 };
 /** What a tile of Pilotage is: `export const meta` and a default component in web/src/comptoir/pages/pilotage/tiles/*.tsx.
  *  A tile fetches its own route and renders nothing when it answers 403 or 404; from/to are the days read. */

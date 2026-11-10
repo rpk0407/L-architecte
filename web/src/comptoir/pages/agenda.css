@@ -5,13 +5,31 @@
 .ag-date .today { margin-left: 4px; }
 .ag-date input[type='date'] { position: absolute; opacity: 0; pointer-events: none; width: 1px; }
 .ag-acts { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.ag-grid { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; align-items: start; }
+.ag-grid { display: grid; grid-template-columns: minmax(0, 1fr) 340px; grid-template-areas: 'k k' 'b s'; gap: 16px; align-items: start; }
+.ag-grid > * { grid-area: b; min-width: 0; }
+.ag-grid > .kpis { grid-area: k; }
+.ag-grid > .ag-side { grid-area: s; }
 .ag-side { display: flex; flex-direction: column; gap: 16px; position: sticky; top: 76px; max-height: calc(100vh - 92px); overflow: auto; scrollbar-width: none; }
 .ag-side::-webkit-scrollbar { display: none; }
+.ag-jump { display: none; }
 @media (max-width: 1280px) { .ag-grid { grid-template-columns: minmax(0, 1fr) 300px; } }
-@media (max-width: 1100px) { .ag-grid { grid-template-columns: minmax(0, 1fr); } .ag-side { position: static; max-height: none; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+/* the salon tablet (1024 × 768): the side column climbs beside the figures, which pack into two short rows */
+@media (max-width: 1100px) {
+  .ag-grid { grid-template-columns: minmax(0, 1fr) 280px; grid-template-areas: 'k s' 'b s'; gap: 12px; }
+  .ag-grid > .kpis { gap: 8px; }
+  .ag-grid > .kpis .kpi { min-height: 0; padding: 10px 13px; gap: 3px; border-radius: 16px; }
+  .ag-grid > .kpis .kpi-v { font-size: 26px; }
+  .ag-grid > .kpis .kpi-v.sm, .ag-grid > .kpis .kpi-v .kpi-v.sm { font-size: 20px; }
+  .ag-grid > .kpis .kpi-s { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ag-grid > .kpis .dots, .ag-grid > .kpis .kpi-bar { display: none; }
+  .ag-side { gap: 12px; }
+  .ag-side .card { padding: 14px; }
+}
 @media (max-width: 760px) {
-  .ag-side { grid-template-columns: minmax(0, 1fr); }
+  .ag-grid { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'k' 'b' 's'; gap: 16px; }
+  .ag-side { position: static; max-height: none; }
+  .ag-jump { display: flex; gap: 8px; margin: -4px 0 2px; }
+  .ag-jump .chip { min-height: 44px; }
   .ag-date h2 { font-size: 25px !important; }
   .ag-acts { width: 100%; }
   .ag-acts .seg, .ag-acts .ph-hide { display: none; }

@@ -93,20 +93,28 @@ export default function Agenda() {
         <>
           <AbsentBanner data={data} today={today} />
           {data?.closed ? <div className="note ok"><Icon name="lock" /><div><b>Journée clôturée</b> · {/* the Z's figures only reach whoever closes or reads the salon's money; the others get its number */}{data.closure ? 'Z' + String(data.closure.number).padStart(4, '0') + (typeof data.closure.net === 'number' ? ' · ' + eur(data.closure.net) : '') : ''}. Les ventes de ce jour ne peuvent plus être modifiées.</div></div> : null}
-          <section className="kpis" aria-label="La journée en chiffres" data-guide="ag-kpis">
-            {desk ? null : moneyOk ? <Kpi k={k!.scope === 'own' ? 'Mon chiffre' : 'Encaissé'} v={<Money cents={k!.revenue} />} s={<>sur <Money cents={k!.planned} /> prévus{k!.tips ? <> · <Money cents={k!.tips} /> de pourboires</> : null}</>} bar={k!.planned ? (k!.revenue || 0) / k!.planned : 0} icon="euro" />
-              : <Kpi k="Mes rendez-vous" v={k ? k.total : '—'} s={k ? k.upcoming + ' à venir' : ''} icon="calendar" />}
-            <Kpi k="Rendez-vous" v={k ? <>{k.done}<small>/ {k.total}</small></> : '—'} s={k ? k.upcoming + ' à venir' + (k.noShows ? ' · ' + k.noShows + ' absent' + (k.noShows > 1 ? 's' : '') : '') : ''} icon="calendar" />
-            <Kpi k={desk ? 'Remplissage salon' : 'Remplissage'} v={k ? pct(k.fill) : '—'} dots={k ? k.fill : 0} s={k ? (k.fill > 0.85 ? 'Presque plein' : k.fill > 0.6 ? 'Belle journée' : 'Il reste de la place') : ''} icon="chair" />
-            {desk ? <Kpi k="À encaisser" v={day === today && !data?.closed ? toPay.length : '—'} s={day !== today ? 'Le jour même' : data?.closed ? 'Journée clôturée' : toPay.length ? 'Prestation' + (toPay.length > 1 ? 's' : '') + ' à passer en caisse' : 'Rien en attente'} icon="caisse" /> : null}
-            {day === today && next ? (
-              <Kpi hot k={<><i style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent)', animation: 'pulse 1.8s infinite' }} />Prochain client</>} v={<span className="kpi-v sm">{next.name}</span>} s={time(next.start) + ' · ' + (staffById.get(next.staffId)?.name || '') + (next.start <= nowMin ? ' · en retard de ' + (nowMin - next.start) + ' min' : ' · dans ' + Math.max(0, next.start - nowMin) + ' min')} onClick={() => open(next)} />
-            ) : (
-              <Kpi k="Sans rendez-vous" v={data?.walkin?.minutes != null ? (data.walkin.minutes < 5 ? 'Tout de suite' : '~' + data.walkin.minutes + ' min') : day === today ? 'Fermé' : '—'} s={data?.walkin ? data.walkin.queued + ' en file' : 'Attente estimée'} icon="walk" />
-            )}
-          </section>
-
+          {/* on a phone the file and the tickets to ring up sit under the planning: their counts stay in sight, one tap away */}
+          {day === today && data && !data.closed && ((data.queue || []).length || (toPay.length && can('sale.create'))) ? (
+            <div className="ag-jump">
+              {(data.queue || []).length ? <button type="button" className="chip chip-sm" onClick={() => document.querySelector('[data-guide="ag-queue"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}><Icon name="walk" size={14} />File · {data.queue.length}</button> : null}
+              {toPay.length && can('sale.create') ? <button type="button" className="chip chip-sm" onClick={() => navigate(toPay.length === 1 ? '/caisse?rdv=' + toPay[0].id : '/caisse')}><Icon name="caisse" size={14} />À encaisser · {toPay.length}</button> : null}
+            </div>
+          ) : null}
+          {/* one grid for the figures, the planning and the side column: on the salon tablet (761–1100 px) the file and
+              « À encaisser » stand beside the figures, in sight without scrolling, instead of under the planning */}
           <div className="ag-grid">
+            <section className="kpis" aria-label="La journée en chiffres" data-guide="ag-kpis">
+              {desk ? null : moneyOk ? <Kpi k={k!.scope === 'own' ? 'Mon chiffre' : 'Encaissé'} v={<Money cents={k!.revenue} />} s={<>sur <Money cents={k!.planned} /> prévus{k!.tips ? <> · <Money cents={k!.tips} /> de pourboires</> : null}</>} bar={k!.planned ? (k!.revenue || 0) / k!.planned : 0} icon="euro" />
+                : <Kpi k="Mes rendez-vous" v={k ? k.total : '—'} s={k ? k.upcoming + ' à venir' : ''} icon="calendar" />}
+              <Kpi k="Rendez-vous" v={k ? <>{k.done}<small>/ {k.total}</small></> : '—'} s={k ? k.upcoming + ' à venir' + (k.noShows ? ' · ' + k.noShows + ' absent' + (k.noShows > 1 ? 's' : '') : '') : ''} icon="calendar" />
+              <Kpi k={desk ? 'Remplissage salon' : 'Remplissage'} v={k ? pct(k.fill) : '—'} dots={k ? k.fill : 0} s={k ? (k.fill > 0.85 ? 'Presque plein' : k.fill > 0.6 ? 'Belle journée' : 'Il reste de la place') : ''} icon="chair" />
+              {desk ? <Kpi k="À encaisser" v={day === today && !data?.closed ? toPay.length : '—'} s={day !== today ? 'Le jour même' : data?.closed ? 'Journée clôturée' : toPay.length ? 'Prestation' + (toPay.length > 1 ? 's' : '') + ' à passer en caisse' : 'Rien en attente'} icon="caisse" /> : null}
+              {day === today && next ? (
+                <Kpi hot k={<><i style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent)', animation: 'pulse 1.8s infinite' }} />Prochain client</>} v={<span className="kpi-v sm">{next.name}</span>} s={time(next.start) + ' · ' + (staffById.get(next.staffId)?.name || '') + (next.start <= nowMin ? ' · en retard de ' + (nowMin - next.start) + ' min' : ' · dans ' + Math.max(0, next.start - nowMin) + ' min')} onClick={() => open(next)} />
+              ) : (
+                <Kpi k="Sans rendez-vous" v={data?.walkin?.minutes != null ? (data.walkin.minutes < 5 ? 'Tout de suite' : '~' + data.walkin.minutes + ' min') : day === today ? 'Fermé' : '—'} s={data?.walkin ? data.walkin.queued + ' en file' : 'Attente estimée'} icon="walk" />
+              )}
+            </section>
             {loading ? <Skeleton h={560} r={22} /> : error ? <Empty icon="alert" title="Agenda indisponible">{error.message}</Empty> : data ? (
               !data.lanes.length || (data.lanes.every((l) => !l.work.length) && !data.appts.length) ? <ClosedDay day={day} today={today} onGo={goDay} /> :
               <Board data={data} today={today} nowMin={nowMin} canSeeMoney={moneyOk && k!.scope === 'shop'} myId={boot.me.id} selected={sel} lane={lane} setLane={setLane}

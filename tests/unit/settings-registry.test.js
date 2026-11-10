@@ -81,6 +81,8 @@ const BEFORE = () => {
       quiet: { from: 1200, to: 480, sunday: true, holidays: true }, stopSuffix: ' STOP au 36173', countries: ['+33', '+32', '+41', '+352', '+262', '+590', '+594', '+596', '+508', '+681', '+687', '+689'],
       // WP-02: confirmations and cancellations by e-mail too
       email: true,
+      // added since: the reminder also by e-mail, off until the owner decides
+      reminderEmail: false,
       // MSG-02: WhatsApp off until the owner maps an approved template
       whatsapp: { enabled: false, templates: {} }
     },
@@ -92,7 +94,7 @@ const BEFORE = () => {
     // TEAM-03: each barber's goal (null = automatic) and whether barbers see theirs
     goals: { monthCents: 2400000, staff: {}, showBarbers: true },
     // WP-02: what the owner is told without opening the Comptoir
-    notify: { to: '', phone: '', newBooking: true, cancel: true, evening: '20:00', weekly: true },
+    notify: { to: '', phone: '', newBooking: true, cancel: true, evening: '20:00', weekly: true, alerts: true },
     // the /formations page (WP-05): its modules and certificates
     trainings: trainings.defaults(),
     // PAY-02: the monthly membership, off until the owner switches it on

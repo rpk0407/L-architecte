@@ -105,13 +105,21 @@ test('Stripe down while booking: a clear retryable answer, no ghost booking on t
   const slots = async () => (await other.get(`/api/public/availability?services=${ids.tr}&staff=${ids.ali}&from=${LATER}&days=1`)).json.days[0].slots.map((x) => x.m);
 
   const r1 = await site.post('/api/public/bookings', body);
-  assert.equal(r1.status, 503, JSON.stringify(r1.json));
-  assert.equal(r1.json.error.code, 'pay_unavailable');
-  assert.equal(r1.json.error.extra.retry, true);
+  assert.equal(r1.status, 502, JSON.stringify(r1.json));
+  assert.equal(r1.json.error.code, 'provider');
   assert.match(r1.json.error.message, /réessaie/i);
   const s = rt.engine.state;
   assert.deepEqual([...s.appts.values()].map((a) => a.status), ['cancelled'], 'the unpaid booking is taken back at once');
-  assert.equal([...s.appts.values()][0].cancel.by, 'system');
+  assert.deepEqual([[...s.appts.values()][0].cancel.by, [...s.appts.values()][0].cancel.reason], ['system', 'Paiement en ligne indisponible']);
+  assert.equal((await slots()).includes(600), true);
+
+  // the network itself fails (no answer from the provider at all): the same, said as plainly
+  rt.pay = stripeProvider({ secretKey: 'sk_test_x', webhookSecret: 'whsec_1', fetchImpl: async () => { throw new TypeError('fetch failed'); } });
+  const r0 = await site.post('/api/public/bookings', body);
+  assert.ok([502, 503].includes(r0.status), JSON.stringify(r0.json));
+  assert.match(r0.json.error.message, /réessaie/i);
+  assert.ok(!r0.text.includes('fetch failed'));
+  assert.deepEqual([...s.appts.values()].map((a) => a.status), ['cancelled', 'cancelled']);
   assert.equal([...s.messages.values()].length, 0, 'nobody is told of a booking that never was');
   assert.equal((await slots()).includes(600), true, 'the slot is offered to everyone again');
 
