@@ -136,13 +136,19 @@ test('chairs: « can he take someone now » is what /api/v1/slots answers, at fo
     clock.now = at(DAY, h, m);
     const min = h * 60 + m;
     const v = (await b.get('/api/v1/home')).json;
+    const agenda = (await b.get('/api/v1/agenda?day=' + DAY)).json;
     for (const c of v.day.chairs) {
+      // the one case the agenda's free time does not tell: a client still in the chair after the end of his slot
+      const late = agenda.appts.some((a) => a.staffId === c.staffId && a.status === 'in_chair' && a.start + a.dur <= min);
+      assert.equal(c.state === 'occupe' && c.until === null, late && agenda.lanes.find((l) => l.id === c.staffId).work.some(([x, y]) => min >= x && min < y) && !agenda.appts.some((a) => a.staffId === c.staffId && a.status !== 'cancelled' && a.status !== 'no_show' && a.start <= min && a.start + a.dur > min), c.name + ' at ' + h + ':' + m);
+      if (c.state === 'occupe' && c.until === null) { assert.deepEqual([c.freeMin, c.canTake], [0, []]); pas++; continue; }
       const fits = [];
       for (const sv of services) {
         const sl = (await b.get('/api/v1/slots?day=' + DAY + '&services=' + sv.id + '&staff=' + c.staffId)).json;
-        if (sl.days[0].slots.some((x) => x.m === min)) fits.push(sv.id);
-        // the same rule seen from the minutes: it fits when it is no longer than his free time
-        assert.equal(fits.includes(sv.id), sl.dur <= c.freeMin && (boot.staff.find((x) => x.id === c.staffId).services === 'all' || true) && c.state === 'libre' && sl.days[0].slots.some((x) => x.m === min), c.name + ' ' + sv.name + ' at ' + h + ':' + m);
+        const nowSlot = sl.days[0].slots.some((x) => x.m === min);
+        if (nowSlot) fits.push(sv.id);
+        // the same rule seen from the minutes: the agenda offers « now » exactly when the service is no longer than his free time
+        assert.equal(nowSlot, c.state === 'libre' && sl.dur <= c.freeMin, c.name + ' · ' + sv.name + ' at ' + h + ':' + m + ' (' + c.state + ', ' + c.freeMin + ' min)');
       }
       assert.deepEqual(c.canTake.map((x) => x.serviceId), fits.slice(0, 3), c.name + ' at ' + h + ':' + m + ' (' + c.state + ', ' + c.freeMin + ' min)');
       if (c.state === 'libre') libre++; else pas++;
@@ -151,10 +157,11 @@ test('chairs: « can he take someone now » is what /api/v1/slots answers, at fo
     if (h === 12) { const jk = v.day.chairs.find((c) => c.name === 'JKut'); assert.deepEqual([jk.state, jk.until, jk.freeMin, jk.canTake], ['absent', 780, 0, []], 'JKut on his break'); }
   }
   assert.ok(libre > 0 && pas > 0, 'both answers were met: ' + libre + ' free, ' + pas + ' not');
-  // Esteban does not work on Tuesdays
-  clock.now = at(DAY, 10, 15);
-  const est = (await b.get('/api/v1/home')).json.day.chairs.find((c) => c.name === 'Esteban');
-  assert.deepEqual([est.state, est.until], ['absent', null]);
+  // Esteban does not work on Wednesdays
+  clock.now = at('2026-11-11', 10, 15);
+  const est = (await (await owner()).get('/api/v1/home')).json.day.chairs.find((c) => c.name === 'Esteban');
+  assert.deepEqual([est.state, est.until, est.freeMin, est.canTake], ['absent', null, 0, []]);
+  clock.now = at(DAY, 9, 5);
 });
 
 test('a closed day: moment « ferme », every chair closed, the week ahead as a card', async () => {
