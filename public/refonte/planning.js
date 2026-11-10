@@ -47,7 +47,7 @@
   let freshUntil = 0;
   const RID = {};
   const newRid = () => { try { return window.crypto.randomUUID(); } catch (e) { let s = ''; for (let i = 0; i < 32; i++) s += Math.floor(Math.random() * 16).toString(16); return s; } };
-  function wire(method, path, body) {
+  function netCall(method, path, body) {
     const read = method === 'GET' && path.indexOf('/api/public/availability') === 0 && Date.now() < freshUntil;
     const key = method === 'POST' && (path === '/api/public/holds' || path === '/api/public/bookings') ? path : '';
     const sig = key ? JSON.stringify(body) : '';
@@ -60,7 +60,7 @@
   }
   async function req(method, path, body) {
     let res;
-    const w = wire(method, path, body);
+    const w = netCall(method, path, body);
     try {
       // no-store: the answers allow stale-while-revalidate, and a planning « en direct » must never show a slot someone just took
       res = await fetch(w.path, { method, cache: 'no-store', headers: body ? Object.assign({ 'content-type': 'application/json', accept: 'application/json' }, w.rid ? { 'x-request-id': w.rid } : {}) : { accept: 'application/json' }, body: body ? JSON.stringify(body) : undefined });
@@ -483,7 +483,7 @@
   function setLive(ok) {
     const p = $('pl-live'), d = new Date();
     p.classList.toggle('off', !ok);
-    p.lastElementChild.textContent = ok ? 'En direct · ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) : 'Connexion perdue · nouvel essai…';
+    p.lastElementChild.textContent = ok ? 'En direct · ' + th(d.getHours() * 60 + d.getMinutes()) : 'Connexion perdue · nouvel essai…';
   }
   // the list answers for the chosen barber (or all of them for « Peu importe »), the planning always shows the four chairs
   const scopeStaff = () => (S.view === 'plan' || !S.staff || S.staff === 'any' ? null : S.staff);

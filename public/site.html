@@ -1705,7 +1705,7 @@ const LXE = (function () {
   let freshUntil = 0;
   const RID = {};
   function newRid() { try { return window.crypto.randomUUID(); } catch (e) { let s = ''; for (let i = 0; i < 32; i++) s += Math.floor(Math.random() * 16).toString(16); return s; } }
-  function wire(method, path, body) {
+  function netCall(method, path, body) {
     const read = method === 'GET' && path.indexOf('/api/public/availability') === 0 && Date.now() < freshUntil;
     const key = method === 'POST' && (path === '/api/public/holds' || path === '/api/public/bookings') ? path : '';
     const sig = key ? JSON.stringify(body) : '';
@@ -1719,7 +1719,7 @@ const LXE = (function () {
   function call(method, path, body) {
     const o = { method: method, headers: { accept: 'application/json' }, credentials: 'same-origin', cache: 'no-store' };
     if (body !== undefined) { o.headers['content-type'] = 'application/json'; o.body = JSON.stringify(body); }
-    const w = wire(method, path, body);
+    const w = netCall(method, path, body);
     if (w.rid) o.headers['x-request-id'] = w.rid;
     return fetch(w.path, o).then(function (r) {
       w.done(r.status);

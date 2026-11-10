@@ -161,7 +161,7 @@
   let freshUntil = 0;
   const RID = {};
   const newRid = () => { try { return window.crypto.randomUUID(); } catch (e) { let s = ''; for (let i = 0; i < 32; i++) s += Math.floor(Math.random() * 16).toString(16); return s; } };
-  function wire(method, path, body) {
+  function netCall(method, path, body) {
     const read = method === 'GET' && path.indexOf('/api/public/availability') === 0 && Date.now() < freshUntil;
     const key = method === 'POST' && (path === '/api/public/holds' || path === '/api/public/bookings') ? path : '';
     const sig = key ? JSON.stringify(body) : '';
@@ -175,7 +175,7 @@
   async function api(path, o) {
     if (S.demo) return sim(path, o);
     let res;
-    const w = wire((o && o.method) || 'GET', path, o && o.body);
+    const w = netCall((o && o.method) || 'GET', path, o && o.body);
     try { res = await fetch(w.path, { cache: 'no-store', method: (o && o.method) || 'GET', headers: o && o.body ? Object.assign({ 'content-type': 'application/json' }, w.rid ? { 'x-request-id': w.rid } : {}) : undefined, body: o && o.body ? JSON.stringify(o.body) : undefined }); }
     catch (e) { throw { status: 0, code: 'network', message: 'Pas de réseau. Vérifie ta connexion et réessaie.' }; }
     w.done(res.status);
