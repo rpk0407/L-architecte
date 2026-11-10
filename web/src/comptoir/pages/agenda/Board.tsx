@@ -1,6 +1,6 @@
 // The day, one column per chair. Mouse and pen can drag an appointment to another time or chair;
 // on touch screens the drawer's "Déplacer" does the same job without fighting the scroll.
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from '../../../ui/Icon';
 import { Avatar, Chip, Money } from '../../../ui/kit';
 import { hhmm, time } from '../../../lib/format';
@@ -30,7 +30,7 @@ const STEP = 15;
 /** height of the « Chevauchement » band */
 const BAND = 18;
 
-export function Board(p: BoardProps) {
+export const Board = memo(function Board(p: BoardProps) {
   const phone = useIsPhone();
   // the salon tablet shares its width with the side column (agenda.css): the chairs may be a little narrower there
   const tablet = useMedia('(max-width: 1100px)');
@@ -204,7 +204,7 @@ export function Board(p: BoardProps) {
       </div>
     </section>
   );
-}
+});
 
 function ApptCard({ a, px, top, inset = 0, laneColor, place, clash = [], selected, dragging, ghost, bad, fresh, showMoney, onPointerDown, onPointerMove, onPointerUp, onClick }: {
   a: Appt; px: number; top: number; inset?: number; laneColor: string; place?: Place; clash?: Appt[]; selected?: boolean; dragging?: boolean; ghost?: boolean; bad?: boolean; fresh?: boolean; showMoney: boolean;

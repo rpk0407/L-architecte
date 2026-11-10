@@ -15,9 +15,15 @@
 // Registered in core/extensions.js. No import of the engine or the state here.
 
 /** @typedef {{ v: number, at: string, done: boolean }} TourPrefs */
-/** @typedef {{ home: 'auto'|'espace'|'agenda'|'pilotage', notify: 'mine'|'all'|'none', buzz: boolean, cards: string[], hidden: string[], blur: 'auto'|'on'|'off', cal: number, calName: boolean, tour: TourPrefs }} Prefs */
+// WP3 · the Accueil's own choices, all optional (absent: the role's defaults): homeCards the order he pinned inside a
+//   group, homeHidden the cards he masked, homeDay 'salon' | 'moi' for someone with a chair and the salon's rights
+//   (absent: 'salon'), tabs his three phone tabs after « Accueil », views his saved lists { page, name, query }.
+/** @typedef {{ page: string, name: string, query: string }} SavedView */
+/** @typedef {{ home: 'auto'|'accueil'|'espace'|'agenda'|'pilotage', notify: 'mine'|'all'|'none', buzz: boolean, cards: string[], hidden: string[], blur: 'auto'|'on'|'off', cal: number, calName: boolean, tour: TourPrefs, homeCards?: string[], homeHidden?: string[], homeDay?: 'salon'|'moi', tabs?: string[], views?: SavedView[] }} Prefs */
 
-export const HOMES = /** @type {const} */ (['auto', 'espace', 'agenda', 'pilotage']);
+export const HOMES = /** @type {const} */ (['auto', 'accueil', 'espace', 'agenda', 'pilotage']);
+/** whose day the Accueil shows to someone who has both a chair and the salon's rights */
+export const HOME_DAYS = /** @type {const} */ (['salon', 'moi']);
 export const NOTIFY = /** @type {const} */ (['mine', 'all', 'none']);
 export const BLUR = /** @type {const} */ (['auto', 'on', 'off']);
 /** a phone link lives this long */

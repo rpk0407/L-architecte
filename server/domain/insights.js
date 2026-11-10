@@ -8,12 +8,23 @@ import { payRulesOf } from '../settings/team.js';
 
 /** @typedef {import('../core/state.js').State} State */
 
+// Memoised per `dataVersion` (core/state.js): a hold, a queued text, a preference move the journal and none of these
+// figures, so they keep what was computed. Nothing memoised here may read s.holds, s.messages, s.reviewClicks, s.prefs or
+// the linked phones (the NO_FIGURES list): busyIntervals(), which counts the holds, stays out of this file.
+// A projection built by hand has no dataVersion: it falls back on `version`, as before.
 const cache = new WeakMap();
+/** the keys of a live period carry five minutes of `now`: on a salon where no figure moves they would pile up */
+const MEMO_MAX = 400;
 function memo(s, key, fn) {
+  const v = s.dataVersion ?? s.version;
   let c = cache.get(s);
-  if (!c || c.version !== s.version) { c = { version: s.version, m: new Map() }; cache.set(s, c); }
-  if (!c.m.has(key)) c.m.set(key, fn());
-  return c.m.get(key);
+  if (!c || c.version !== v) { c = { version: v, m: new Map() }; cache.set(s, c); }
+  if (c.m.has(key)) return c.m.get(key);
+  const value = fn();
+  // counted after fn(): a read memoised inside it (report asks teamRows and clientStats) is never dropped under its caller
+  if (c.m.size >= MEMO_MAX) c.m.clear();
+  c.m.set(key, value);
+  return value;
 }
 
 function mode(counts) {

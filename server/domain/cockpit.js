@@ -2,7 +2,7 @@
 // TEAM-05a · Pilotage: the owner's whole salon in one read. A period (day, week or month) in figures against the one before,
 // each barber in chair order, the till's state, and the fairness hints. Every number comes from report() and goalOf(), the
 // reads Rapports, the agenda and the statement already use, so the three screens always say the same thing. Owner and
-// managers only (report.shop). Memoised by (journal version, range, day), for the current minute.
+// managers only (report.shop). Memoised by (range, day), for the current minute: see the two memos below.
 import { addDays, dayParts, dayRange, diffDays, fmtDur, localParts, monthEnd, monthStart, weekStart, MONTHS_FR, MONTHS_SH, DAYS_FR, DAYS_SH } from '../../shared/dates.js';
 import { carnetCutValue, goalOf, openDays, report } from './insights.js';
 import { busyIntervals, occupies, shopIntervals, staffIntervals, subtract, UNDECIDED } from './availability.js';
@@ -20,11 +20,17 @@ const MAX_HINTS = 3;
 /** idle chair time this week that is worth a line, and how much more than the others' average */
 const IDLE_MIN = 180;
 
-const cache = new WeakMap();
-/** @template T @param {any} s @param {string} key @param {number} minute @param {() => T} fn @returns {T} */
-function memo(s, key, minute, fn) {
+// Two memos, because two parts of this view do not age alike (core/state.js NO_FIGURES):
+// - `whole`, on the journal `version`: « libre à vendre » (chairLoad, for today and the days ahead) reads the live holds
+//   through busyIntervals(), so a slot being booked on the site must show here at once: any event puts the view together again;
+// - `figures`, on `dataVersion`: everything else (figuresOf: the period, the team, the till, the hints), which reads no
+//   hold, no message, no preference and no linked phone, and only the minute of `now`. A hold or a queued text keeps it.
+// Nothing under figuresOf may call busyIntervals() or read s.holds, s.messages, s.reviewClicks, s.prefs.
+const whole = new WeakMap(), figures = new WeakMap();
+/** @template T @param {WeakMap<object, any>} cache @param {number} version @param {any} s @param {string} key @param {number} minute @param {() => T} fn @returns {T} */
+function memo(cache, version, s, key, minute, fn) {
   let c = cache.get(s);
-  if (!c || c.version !== s.version) { c = { version: s.version, m: new Map() }; cache.set(s, c); }
+  if (!c || c.version !== version) { c = { version, m: new Map() }; cache.set(s, c); }
   const hit = c.m.get(key);
   if (hit && hit.minute === minute) return hit.value;
   const value = fn();
@@ -323,11 +329,22 @@ function equityOf(s, today, now, chairs) {
  * @param {{ range: 'day'|'week'|'month', day: string, today: string, now: number }} q
  */
 export function cockpit(s, q) {
-  const minute = Math.floor(q.now / 60000);
-  return memo(s, ['cockpit', q.range, q.day, q.today].join('|'), minute, () => build(s, q));
+  const minute = Math.floor(q.now / 60000), key = ['cockpit', q.range, q.day, q.today].join('|');
+  return memo(whole, s.version, s, key, minute, () => {
+    // a projection built by hand has no dataVersion: its figures follow `version`, as the whole view does
+    const f = memo(figures, s.dataVersion ?? s.version, s, key, minute, () => figuresOf(s, q));
+    const { today, now } = q;
+    return {
+      asOf: now, range: f.range, kpis: f.kpis, team: f.team, cash: f.cash,
+      // what is coming, always from now: today's appointments and the next days' fill (only chairs still in the team)
+      today: todayOf(s, today, now, localParts(now).min, f.active), ahead: aheadOf(s, today, now, f.active),
+      equity: f.equity
+    };
+  });
 }
 
-function build(s, q) {
+/** Everything of the view that no hold changes (see the two memos above); `active`: the chairs still in the team, in order. */
+function figuresOf(s, q) {
   const { today, now } = q;
   const p = periodOf(q.range, q.day, today);
   const local = localParts(now);
@@ -387,16 +404,14 @@ function build(s, q) {
   };
 
   return {
-    asOf: now,
     range: {
       kind: p.range, day: p.day, from: p.from, to: p.to, upTo: p.upTo, label: p.label, prevLabel: p.prevLabel, prev: c.prev || p.prev, today, live: p.live, partial: p.partial, closed: p.range === 'day' && !openDays(s, p.from, p.to),
       // what the deltas compare, in words and in days; null sides: no delta is shown
       compare: { cur: c.cur, prev: c.prev, curDays: c.curDays, prevDays: c.prevDays, soft: c.soft, words: c.words }
     },
     kpis, team, cash: cashOf(s, today, local.min),
-    // what is coming, always from now: today's appointments and the next days' fill (only chairs still in the team)
-    today: todayOf(s, today, now, local.min, chairs.filter((x) => x.active)), ahead: aheadOf(s, today, now, chairs.filter((x) => x.active)),
     // built last: it needs the rows above and says nothing below its thresholds
-    equity: equityOf(s, today, now, chairs.filter((x) => x.active))
+    equity: equityOf(s, today, now, chairs.filter((x) => x.active)),
+    active: chairs.filter((x) => x.active)
   };
 }

@@ -9,7 +9,7 @@ import { isFree, eligibleStaff, staffIntervals, bookedMinutes, occupies } from '
 import { queueMessage, apptVars } from '../domain/messages.js';
 import { clientMayChange } from '../domain/policy.js';
 import { moveAppointment, cancelAppointment } from './agenda.js';
-import { HOMES, NOTIFY, BLUR, LINK_MS, PHONE_MISSES, calTopOf, linkUsed, prefsOf } from '../projections/staffprefs.js';
+import { HOMES, HOME_DAYS, NOTIFY, BLUR, LINK_MS, PHONE_MISSES, calTopOf, linkUsed, prefsOf } from '../projections/staffprefs.js';
 import { capsOf } from '../domain/permissions.js';
 
 const roles = /** @type {const} */ (['owner', 'manager', 'desk', 'barber']);
@@ -513,7 +513,13 @@ const prefsSchema = obj({
   cards: opt(arr(str({ min: 1, max: 40, pattern: /^[A-Za-z0-9_-]+$/ }), { max: 20 })), hidden: opt(arr(str({ min: 1, max: 40, pattern: /^[A-Za-z0-9_-]+$/ }), { max: 20 })),
   cal: opt(either([int({ min: 0 }), oneOf(['next'])])),
   // GUIDE-01a: his guided tour, written whole (the version offered, the step id he stopped on, finished or not)
-  tour: opt(obj({ v: int({ min: 0, max: 1000 }), at: str({ max: 80, pattern: /^[A-Za-z0-9_.:-]*$/ }), done: bool() }))
+  tour: opt(obj({ v: int({ min: 0, max: 1000 }), at: str({ max: 80, pattern: /^[A-Za-z0-9_.:-]*$/ }), done: bool() })),
+  // WP3 · the Accueil: the order he pinned and the cards he masked (same rules as cards/hidden), whose day it shows,
+  // his three phone tabs after « Accueil », his saved lists (8 at most: a page, a name, the query string it reopens)
+  homeCards: opt(arr(str({ min: 1, max: 40, pattern: /^[A-Za-z0-9_-]+$/ }), { max: 20 })), homeHidden: opt(arr(str({ min: 1, max: 40, pattern: /^[A-Za-z0-9_-]+$/ }), { max: 20 })),
+  homeDay: opt(oneOf(HOME_DAYS)),
+  tabs: opt(arr(str({ min: 1, max: 40, pattern: /^[a-z0-9-]+$/ }), { max: 3 })),
+  views: opt(arr(obj({ page: str({ min: 1, max: 40, pattern: /^[a-z0-9-]+$/ }), name: str({ min: 1, max: 30 }), query: str({ max: 200 }) }), { max: 8 }))
 });
 /** One's own Comptoir, nobody else's: home page, toasts, card order, amounts on the salon post, calendar feed, guided tour. */
 export const setPrefs = {

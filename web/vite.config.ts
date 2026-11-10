@@ -19,6 +19,8 @@ export default defineConfig({
     reportCompressedSize: true,
     chunkSizeWarningLimit: 300,
     rollupOptions: {
+      // React and its scheduler in their own chunk: it changes with a dependency bump, not with a deploy, so it stays cached
+      output: { manualChunks: (id) => (/[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/.test(id) ? 'vendor' : undefined) },
       input: { comptoir: here('comptoir/index.html'), client: here('client/index.html'), moi: here('moi/index.html') }
     }
   },

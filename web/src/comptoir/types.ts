@@ -4,7 +4,11 @@ export type Staff = { id: string; name: string; initials: string; color: string;
 // calendar feed's generation (0: off); device.personal: one's own linked phone; Staff.photo: the photo's version
 // GUIDE-01a: tour, his guided tour (v: the version offered, 0 never; at: the step id he stopped on; done: finished or skipped)
 export type TourPrefs = { v: number; at: string; done: boolean };
-export type Prefs = { home: 'auto' | 'espace' | 'agenda' | 'pilotage'; notify: 'mine' | 'all' | 'none'; buzz: boolean; cards: string[]; hidden: string[]; blur: 'auto' | 'on' | 'off'; cal: number; calName: boolean; tour?: TourPrefs };
+// WP3 · the Accueil's own choices, all optional: homeCards the order pinned inside a group, homeHidden the cards masked,
+// homeDay whose day it shows to someone with a chair and the salon's rights (absent: 'salon'), tabs the three phone tabs
+// after « Accueil », views the saved lists (8 at most)
+export type SavedView = { page: string; name: string; query: string };
+export type Prefs = { home: 'auto' | 'accueil' | 'espace' | 'agenda' | 'pilotage'; notify: 'mine' | 'all' | 'none'; buzz: boolean; cards: string[]; hidden: string[]; blur: 'auto' | 'on' | 'off'; cal: number; calName: boolean; tour?: TourPrefs; homeCards?: string[]; homeHidden?: string[]; homeDay?: 'salon' | 'moi'; tabs?: string[]; views?: SavedView[] };
 export type Me = Staff & { caps: string[]; device: { id: string; name: string; personal?: boolean } | null; session: 'pwd' | 'pin'; prefs: Prefs };
 export type Service = { id: string; slug: string | null; name: string; short: string; category: string; price: number; from: boolean; dur: number; buffer: number; online: boolean; deposit: number | null; vat: number; order: number; description: string; includes: string[]; pack: { credits: number; days: number; serviceIds?: string[] } | null; tag?: string; active: boolean };
 export type Product = { id: string; name: string; price: number; cost: number; stock: number; low: number; vat: number; sku: string; category: string; active: boolean };
@@ -166,5 +170,25 @@ export type Cockpit = {
 };
 /** What a tile of Pilotage is: `export const meta` and a default component in web/src/comptoir/pages/pilotage/tiles/*.tsx.
  *  A tile fetches its own route and renders nothing when it answers 403 or 404; from/to are the days read. */
+// WP3 · GET /api/v1/home (server/domain/home.js): the Accueil in one read, for every role. Amounts (`amount`, a fact in
+// 'eur') only reach someone with report.shop; a barber's `day` is his own chair and his own appointments.
+export type HomeMoment = 'avant' | 'pendant' | 'apres' | 'ferme';
+/** k: a stable key ('rdv', 'prevus', 'libres', 'encaisse', 'a-venir', 'a-encaisser', 'restants', 'reference', 'pourboires', 'semaine', 'rdv-7j', 'libres-7j'); label: the words to show; v: a count, minutes ('min') or cents ('eur') */
+export type HomeFact = { k: string; label: string; v: number; unit?: 'eur' | 'min' | 'pct' };
+export type HomeLine = { label: string; facts: HomeFact[]; note?: string };
+/** client: first name and initial, as the agenda shows it; services: the short labels, joined; start and dur in minutes */
+export type HomeAppt = { id: string; start: number; dur: number; client: string; services: string; staffId: string; status: 'pending' | 'booked' | 'arrived' | 'in_chair' };
+export type HomeChairState = 'libre' | 'occupe' | 'absent' | 'ferme';
+/** until: the minute of the day this state ends (null: not today, or a client still in the chair past his slot); freeMin: free
+ *  minutes from now (0 unless 'libre'); canTake: the services that fit now, in the catalogue's order, 3 at most */
+export type HomeChair = { staffId: string; name: string; state: HomeChairState; until: number | null; freeMin: number; canTake: { serviceId: string; short: string }[] };
+export type HomeDay = { scope: 'salon' | 'moi'; canSwitch: boolean; appts: HomeAppt[]; more: number; next: HomeAppt | null; chairs: HomeChair[] };
+export type HomeCardId = 'z' | 'encaisser' | 'prochain' | 'absence-demande' | 'orphelins' | 'demandes' | 'relances' | 'semaine' | 'echecs' | 'stock' | 'purge' | 'comptable' | 'objectif';
+export type HomeCardGroup = 'bloque' | 'attend' | 'rapporte' | 'entretien';
+/** to: a path under /comptoir (kind 'go' and 'bulk'); ref: the object a sheet opens on (a time-off id, 'objectif') */
+export type HomeAction = { kind: 'go' | 'sheet' | 'bulk'; label: string; to?: string; ref?: string };
+export type HomeCard = { id: HomeCardId; group: HomeCardGroup; count: number; amount?: number; title: string; why: string; preview: { id: string; text: string }[]; action: HomeAction; canHide: boolean };
+export type Home = { asOf: number; moment: HomeMoment; finDeMois: boolean; line: HomeLine; day: HomeDay; cards: HomeCard[]; quiet: string[] };
+
 export type PilotageTileMeta = { id: string; cap?: string };
 export type PilotageTileProps = { from: string; to: string };

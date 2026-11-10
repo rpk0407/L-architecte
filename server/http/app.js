@@ -32,6 +32,7 @@ import { meMembershipRoutes } from './routes-me-membership.js';
 import { espaceRoutes } from './routes-espace.js';
 import { comptaRoutes } from './routes-compta.js';
 import { cockpitRoutes } from './routes-cockpit.js';
+import { homeRoutes } from './routes-home.js';
 
 // A REGISTRY: one line per route file
 const app = router();
@@ -60,6 +61,7 @@ meMembershipRoutes(app);
 espaceRoutes(app);
 comptaRoutes(app);
 cockpitRoutes(app);
+homeRoutes(app);
 
 const MUTATING = new Set(['POST', 'PATCH', 'PUT', 'DELETE']);
 const READ_DOWN = 'La base de données ne répond pas. Réessaie dans un instant.';

@@ -27,6 +27,7 @@ import { rangeWords, timeoffConflicts } from '../commands/team.js';
 import { parseSearch, searchRank } from '../domain/client-search.js';
 import { teamViewOf } from '../settings/team.js';
 import { attribution } from '../domain/attribution.js';
+import { rebookable } from '../domain/rebook.js';
 import { webhookUrl } from '../messaging/sms.js';
 import { TEMPLATE_FLAGS } from '../core/templates.js';
 import { cutoverHeld } from '../projections/bascule.js';
@@ -280,8 +281,6 @@ export function clientExport(s, c, now) {
   };
 }
 
-/** Can this client get a follow-up text? Agreed to the offers, takes SMS, and not seen in the last week. */
-function rebookable(c, st) { return !c.erased && !c.mergedInto && c.sms && !!c.phone && c.marketing && st.sinceLast != null && st.sinceLast >= 7; }
 
 /* ---------------- day figures ---------------- */
 

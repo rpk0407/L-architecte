@@ -14,6 +14,11 @@ export { TEMPLATES, defaultSettings };
 export function emptyState() {
   const s = {
     version: 0, head: GENESIS, mode: /** @type {null|'demo'|'production'} */ (null), createdAt: 0,
+    /** how many of the folded events were of a NO_FIGURES type (evolve): they moved `version`, and no figure */
+    quiet: 0,
+    /** The version of the figures: what the memoised reads compare (domain/insights.js, domain/loyalty.js). It moves with
+     *  every event but the NO_FIGURES ones, and with `version` itself when a test moves it by hand. Never stored. */
+    get dataVersion() { return this.version - this.quiet; },
     settings: defaultSettings(),
     staff: new Map(), creds: new Map(), devices: new Map(), deviceByHash: new Map(),
     services: new Map(), products: new Map(),
@@ -53,6 +58,24 @@ function unindex(map, key, id) { const s = map.get(key); if (s) s.delete(id); }
 
 /** A message's final states: nothing will send it again. */
 const DONE = new Set(['sent', 'simulated', 'expired', 'skipped']);
+
+/**
+ * The event types that change no figure: folding one leaves `dataVersion` where it was, so the reads memoised on it
+ * (report, clientStats, the goals' shares, the loyalty cards and their totals) keep what they computed. THE list, in one
+ * place; any other type, known or yet to come, moves `dataVersion`: a type missing here costs a recomputation, a type
+ * wrongly here shows a stale figure. Before adding one, read every memoised function of domain/insights.js and
+ * domain/loyalty.js and what they call: none may read what the event writes. What each of these writes, and who reads it:
+ * - appt.held, hold.released: s.holds. Read by availability.js busyIntervals (free slots, never memoised), and through it
+ *   by Pilotage (cockpit.js) and a barber's space (espace.js): those two memos follow `version`, not `dataVersion`.
+ * - message.queued, message.updated: s.messages. Read by the relances (attribution.js, never memoised), the outbox, and
+ *   reviewStats in espace.js (memo on `version`).
+ * - review.clicked: s.reviewClicks (projections/reviews.js). reviewStats again.
+ * - prefs.set, phone.linkIssued, phone.pinMissed, phone.pinCleared, phone.locked: s.prefs, s.calTop, s.phoneLinks,
+ *   s.phoneMisses (projections/staffprefs.js); phone.locked also adds a line to the live feed. No memoised read.
+ * tests/unit/memo-invalidation.test.js replays the demo and compares every memoised read with a recomputation after each.
+ */
+export const NO_FIGURES = new Set(['appt.held', 'hold.released', 'message.queued', 'message.updated', 'prefs.set', 'review.clicked',
+  'phone.linkIssued', 'phone.pinMissed', 'phone.pinCleared', 'phone.locked']);
 
 /** Events that change what the Comptoir loads once at start (settings, team, catalogue). */
 const CFG = /^(shop|settings|staff|timeoff|device|service|product|stock)\./;
@@ -351,6 +374,8 @@ export function evolve(s, e) {
   }
   s.eventIds.add(e.id);
   if (CFG.test(e.type)) s.cfgVersion = e.v;
+  // dataVersion (version − quiet) stands still for these, and only for these
+  if (NO_FIGURES.has(e.type)) s.quiet += e.v - s.version;
   s.version = e.v;
   s.head = e.h;
   // an import writes hundreds of bookings at once: they are not news, and would push the real ones out of the feed

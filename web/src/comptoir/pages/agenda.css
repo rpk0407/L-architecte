@@ -86,7 +86,8 @@
 .ap.st-no_show { background: repeating-linear-gradient(135deg, var(--panel2) 0 6px, transparent 6px 12px); box-shadow: inset 0 0 0 1px var(--line); opacity: .7; }
 .ap.st-no_show .ap-n { text-decoration: line-through; }
 .ap.st-pending { background: transparent; box-shadow: inset 0 0 0 1.5px var(--warn); border-style: dashed; }
-.ap.fresh { animation: pulse 2s var(--ease) 3; }
+.ap.fresh::after { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; box-shadow: inset 0 0 0 2px rgba(235, 70, 57, .8); animation: apFresh 2s var(--ease) 3; }
+@keyframes apFresh { 0% { transform: scale(1); opacity: .9; } 70%, 100% { transform: scale(1.04); opacity: 0; } }
 .ap.dragging { opacity: .35; }
 .ap.ghost { z-index: 5; pointer-events: none; opacity: .92; box-shadow: 0 16px 40px rgba(0, 0, 0, .45), inset 0 0 0 2px var(--tx); transform: rotate(-1deg); }
 .ap.ghost.bad { box-shadow: 0 16px 40px rgba(0, 0, 0, .45), inset 0 0 0 2px var(--danger); }

@@ -23,6 +23,9 @@ const OPEN = new Set(['pending', 'booked', 'arrived', 'in_chair']);
 const NOTE_DAYS = 14;
 const KEEP_ALL = 20;
 
+// On `version`, not `dataVersion` (core/state.js NO_FIGURES): his gaps and « libre jusqu’à » read the live holds
+// (busyIntervals), « Avis » reads the review requests and their clicks (reviewStats: s.messages, s.reviewClicks). His
+// figures and the clients' statistics come from insights.js, memoised on dataVersion: only the rest is put together again.
 const cache = new WeakMap();
 /** @template T @param {any} s @param {string} key @param {() => T} fn @returns {T} */
 function memo(s, key, minute, fn) {
