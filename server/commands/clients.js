@@ -112,6 +112,66 @@ export function mergedFill(from, into) {
   return fill;
 }
 
+/* ---------------- bulk (WP8): one tag on many files, one write ---------------- */
+
+/** The most files one bulk request may name: over it the request is refused whole (http/routes-bulk.js says it in words). */
+export const BULK_MAX = 2000;
+/** the tags one file holds at most (the `tags` field above) */
+const TAGS_MAX = 8;
+const tagSchema = obj({ ids: arr(id(), { min: 1, max: BULK_MAX }), tag: str({ min: 1, max: 24 }), remove: opt(bool()) });
+/**
+ * Add a tag to many files, or take it off (`remove`). One run = one append of the journal: every file that changes gets
+ * the event a single edit writes (client.updated { patch: { tags } }, no personal data), all of them or none. The rights
+ * are those of the single edit (updateClient): `client.edit`, and `agenda.edit` for the tag that spares the deposit.
+ * A file that already has the tag (or never had it) gets no event; an erased, merged or unknown id is counted in
+ * `missing`, a file already at 8 tags in `full`: neither stops the others. `ids`: the files that really changed, which
+ * is what « Annuler » sends back with the inverse (the files that had the tag before keep it).
+ */
+export const tagClients = {
+  run(s, input, ctx) {
+    ctx.need('client.edit');
+    const x = parse(tagSchema, input);
+    // sparing clients the deposit asked of those who missed is a money decision: who edits every booking takes it
+    if (x.tag === TRUSTED) ctx.need('agenda.edit');
+    const remove = !!x.remove;
+    const ids = [...new Set(x.ids)];
+    const changed = [];
+    let unchanged = 0, missing = 0, full = 0;
+    for (const cid of ids) {
+      const c = s.clients.get(cid);
+      if (!c || c.erased || c.mergedInto) { missing++; continue; }
+      const tags = c.tags || [];
+      if (tags.includes(x.tag) !== remove) { unchanged++; continue; }
+      if (!remove && tags.length >= TAGS_MAX) { full++; continue; }
+      ctx.emit('client.updated', { id: c.id, cid: c.id, patch: { tags: remove ? tags.filter((t) => t !== x.tag) : [...tags, x.tag] }, fields: [] });
+      changed.push(c.id);
+    }
+    return { tag: x.tag, remove, matched: ids.length, changed: changed.length, unchanged, missing, full, ids: changed };
+  },
+  /** a retry on an instance that never saw the first answer: the files its events changed (the rest is not in the journal) */
+  replay(events) {
+    const ids = events.filter((e) => e.type === 'client.updated').map((e) => e.data.id);
+    return { matched: ids.length, changed: ids.length, unchanged: 0, missing: 0, full: 0, ids };
+  }
+};
+
+const exportedSchema = obj({ count: int({ min: 1, max: BULK_MAX }), by: str({ min: 1, max: 12, pattern: /^(ids|filter)$/ }), segment: opt(str({ max: 24, pattern: /^[a-z]*$/ })), search: opt(bool()) });
+/**
+ * An export of client files leaves a line in the journal: who, when, how many, by a selection or by a filter (which
+ * segment, and whether a search narrowed it), never whom and never the words searched. Written as the technical log's
+ * « export » entry (tech.logged { kind: 'export' }, projections/fiscal.js): it shows in Réglages › Journal d’activité
+ * under the person's name, and in the technical log. No file is sent unless this was written (http/routes-bulk.js).
+ */
+export const logClientExport = {
+  run(s, input, ctx) {
+    ctx.need('client.export');
+    const x = parse(exportedSchema, input);
+    ctx.emit('tech.logged', { kind: 'export', what: 'clients', count: x.count, by: x.by, ...(x.segment ? { segment: x.segment } : {}), ...(x.search ? { search: true } : {}) });
+    return { ok: true, count: x.count };
+  },
+  replay(events) { const e = events.find((x) => x.type === 'tech.logged'); return { ok: true, count: e ? e.data.count : 0 }; }
+};
+
 const distinctSchema = obj({ a: id(), b: id() });
 /** Two files the duplicate finder pairs, that are in fact two people (two Yanis Benali): never suggested again. */
 export const markDistinct = {

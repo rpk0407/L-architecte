@@ -494,6 +494,9 @@ export function staffRoutes(app) {
     const sort = r.query.get('sort') || 'recent';
     const limit = Math.min(200, Number(r.query.get('limit')) || 60);
     const offset = Math.max(0, Number(r.query.get('offset')) || 0);
+    // WP8 · fields=ids: only the ids of everything the filter matches, in the list's order (« Tout sélectionner (N) »
+    // and the bulk actions of routes-bulk.js, which resolve a filter through this very handler): no card, no counts
+    const idsOnly = r.query.get('fields') === 'ids';
     const month = L.day.slice(5, 7);
     let list = [...s.clients.values()].filter((c) => !c.mergedInto && !c.erased);
     // words in any order, accents ignored, « +33 6 » read as « 06 »; names that start with what was typed come first (below)
@@ -509,7 +512,7 @@ export function staffRoutes(app) {
       vip: (c) => (c.tags || []).includes('VIP'), anniversaires: (c) => c.birthday && c.birthday.slice(3, 5) === month,
       doublons: (c) => dups.has(c.id), inactifs: (c) => inactive.has(c.id)
     };
-    const counts = Object.fromEntries(Object.entries(segs).map(([k, f]) => [k, list.filter(f).length]));
+    const counts = idsOnly ? {} : Object.fromEntries(Object.entries(segs).map(([k, f]) => [k, list.filter(f).length]));
     // the duplicates segment lists pairs: its count says pairs too (of the files the search keeps)
     if (q) { const inList = new Set(list.map((c) => c.id)); counts.doublons = pairs.filter((p) => inList.has(p.a) || inList.has(p.b)).length; } else counts.doublons = pairs.length;
     // late but without consent: counted, not listed (as in Relances)
@@ -527,6 +530,8 @@ export function staffRoutes(app) {
     list.sort(sorters[sort] || sorters.recent);
     // a search in the default order: best match first (« kar »: Karim before Zakaria), the most recent visit among equals
     if (found && sort === 'recent') { const rank = new Map(list.map((c) => [c.id, searchRank(c, found)])); list.sort((a, b) => rank.get(a.id) - rank.get(b.id)); }
+    // BULK_MAX at most: a longer list says so (`truncated`), and its first ids are the first rows of the list
+    if (idsOnly) return { total: list.length, ids: list.slice(0, C.BULK_MAX).map((c) => c.id), truncated: list.length > C.BULK_MAX, max: C.BULK_MAX };
     return { total: list.length, counts, excludedNoConsent, retention, items: list.slice(offset, offset + limit).map((c) => clientCard(s, c, r.caps, stats, r.now)) };
   }, { cap: 'client.view' });
 
