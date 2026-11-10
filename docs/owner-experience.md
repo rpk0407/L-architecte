@@ -116,7 +116,7 @@ Conséquences directes, à appliquer partout :
 
 ### 3.3 L'Accueil du gérant (téléphone d'abord)
 
-Nouvelle page `/comptoir/accueil`, page d'ouverture du gérant et des managers. Un seul appel serveur. Trois zones, dans cet ordre, sur un seul écran quand tout va bien :
+Nouvelle page `/comptoir/accueil`, page d'ouverture du gérant et des managers. Un seul appel serveur. (Amendement : la page sert **tous les rôles** et montre aussi la journée, voir le contrat de WP3 en 5.) Trois zones, dans cet ordre, sur un seul écran quand tout va bien :
 
 ```
 ┌──────────────────────────────────────┐
@@ -342,28 +342,55 @@ Deux lots d'une même vague ne touchent aucun fichier commun (voir « Peut touch
 - **Acceptation** : test : après un hold, `report()` et `clientStats()` rendent **le même objet** (identité) ; après `sale.completed`, un objet neuf et des totaux à jour ; après `message.queued`, `/api/v1/relances` montre bien la relance prévue ; `npm test` entier vert ; mesure jointe : `cockpit` après un hold ≤ 2 ms sur la démo (avant : 18 ms).
 - **Ne pas changer** : `s.version`, le scellement, `engine.js`, la forme des événements, le résultat de n'importe quel calcul.
 
-### WP3 · Serveur : la lecture « home » et les préférences de l'Accueil · M · modèle fort
+### WP3 · Serveur : la lecture « home » et les préférences de l'Accueil · M · modèle fort · **livré**
 
-- **But** : une route qui dit le moment, la phrase et les cartes à traiter de la personne.
-- **Peut toucher** : nouveaux `server/domain/home.js`, `server/http/routes-home.js`, `server/domain/rebook.js` ; `server/http/app.js` (une ligne d'enregistrement, comme `cockpitRoutes`) ; `server/http/routes-staff.js` **uniquement** pour importer `rebookable` depuis `rebook.js` au lieu de le définir ; `server/projections/staffprefs.js` et le `prefsSchema` de `server/commands/team.js` ; `web/src/comptoir/types.ts` (types `Home`, `HomeCard`, et les clés de `Prefs`) ; nouveaux `tests/unit/home.test.js`, `tests/api/home.test.js`.
-- **Contrat** `GET /api/v1/home` (droit `report.shop`) :
+> **Amendement (décidé par le gérant après la rédaction, il prime sur 3.3 et 3.4 là où ils diffèrent).** L'Accueil sert **tous les rôles** au téléphone, pas seulement le gérant, et répond d'un coup d'œil, par des faits, à trois questions : « qu'est-ce qu'on a aujourd'hui », « qu'est-ce qui vient », « est-ce qu'il peut prendre quelqu'un maintenant ». Donc : (a) `GET /api/v1/home` répond à toute personne connectée et se borne lui-même selon le rôle et les droits ; (b) un bloc `day` s'ajoute (rendez-vous à venir, prochain, fauteuils) ; (c) les montants et les cartes du salon demandent toujours `report.shop` et le droit de leur action ; (d) une préférence `homeDay` s'ajoute. L'acceptation « un barbier reçoit 403 » est **remplacée** par « un barbier reçoit 200, sa seule chaise, ses seuls rendez-vous, aucun montant du salon, aucune carte du gérant ». WP5 construit la page sur le contrat ci-dessous, pas sur le dessin de 3.3 seul.
+
+- **But** : une route qui dit à chacun le moment, la phrase, sa journée et ses cartes à traiter.
+- **Fichiers** : `server/domain/home.js` (la lecture), `server/http/routes-home.js` (la route, sans `cap`), `server/domain/rebook.js` (`rebookable`, déplacé mot pour mot, et `relances()`), `server/http/app.js` (enregistrement), `server/projections/staffprefs.js` et `prefsSchema` de `server/commands/team.js`, `web/src/comptoir/types.ts` (`Home`, `HomeCard`, `HomeDay`, `HomeChair`, `HomeAppt`, `Prefs`), `tests/unit/home.test.js`, `tests/api/home.test.js`.
+- **Contrat** `GET /api/v1/home` (toute personne connectée ; 401 sinon) :
 
 ```
 { asOf, moment: 'avant'|'pendant'|'apres'|'ferme', finDeMois: boolean,
-  line: { label, facts: [{ k, v, unit?: 'eur'|'min'|'pct' }] },        // 3 faits au plus
+  line: { label,                                                       // « Mardi 10 novembre · ouverture à 9 h »
+          facts: [{ k, label, v, unit?: 'eur'|'min'|'pct' }],          // 3 au plus ; 'eur' = centimes, seulement avec report.shop
+          note?: string },                                             // « Esteban absent », « Prochain trou : JKut à 16 h (1 h 30) », « Z à faire »
+  day: { scope: 'salon'|'moi', canSwitch: boolean,                     // canSwitch : il a un fauteuil ET les droits du salon (prefs.homeDay)
+         appts: [{ id, start, dur, client, services, staffId,          // aujourd'hui à partir de maintenant, le prochain d'abord, 12 au plus
+                   status: 'pending'|'booked'|'arrived'|'in_chair' }], // client : « Karim B. » comme l'agenda ; services : libellés courts ; jamais de prix
+         more: number,                                                 // ceux qui ne sont pas listés
+         next: { … même forme … } | null,                              // le premier qui n'est pas déjà au fauteuil
+         chairs: [{ staffId, name, state: 'libre'|'occupe'|'absent'|'ferme',
+                    until: number|null,                                // minute du jour où cet état finit
+                    freeMin: number,                                   // minutes libres à partir de maintenant (0 hors 'libre')
+                    canTake: [{ serviceId, short }] }] },              // 3 au plus, dans l'ordre du catalogue
   cards: [{ id, group: 'bloque'|'attend'|'rapporte'|'entretien',
-            count, amount?: number,                                    // centimes, estimation
-            title, why,                                                // phrases prêtes à afficher
+            count, amount?: number,                                    // centimes ; seulement avec report.shop
+            title, why,                                                // phrases prêtes à afficher ; `why` toujours présent
             preview: [{ id, text }],                                   // 3 au plus
             action: { kind: 'go'|'sheet'|'bulk', label, to?: string, ref?: string },
             canHide: boolean }],
-  quiet: string[] }                                                    // « caisse », « stock », « messages »
+  quiet: string[] }                                                    // parmi « caisse », « équipe », « messages », « stock », selon ses droits
 ```
 
-- **Règles** : cartes et conditions du tableau 3.3 ; une carte dont l'action demande un droit absent n'est pas renvoyée ; ordre par groupe puis par `count` ; `prefs.homeHidden` retire une carte sauf si `canHide` est faux ; `prefs.homeCards` fixe l'ordre à l'intérieur d'un groupe. Seuils en constantes exportées (`RELANCES_MIN = 5`). Mémo par minute et par personne.
-- **Préférences ajoutées** (toutes facultatives, mêmes règles que `cards`) : `homeCards`, `homeHidden` (listes d'ids, 20 au plus), `tabs` (3 noms de page au plus), `views` (8 au plus : `{ page, name ≤ 30, query ≤ 200 }`), et `'accueil'` dans `HOMES`.
-- **Acceptation** : tests unitaires par moment (4 horloges) et par carte (présente au seuil, absente dessous, absente sans le droit) ; un barbier reçoit 403 ; le compte de `relances` est **égal** à `badges.relances` du `pulse` au même instant ; réponse ≤ 4 Ko gzip sur la démo ; `tests/unit/phones-prefs.test.js` toujours vert.
+- **Qui voit quoi** (calculé dans `home.js`, nulle part ailleurs) :
+
+| | `day` | Montants (`amount`, faits en `eur`) | Cartes |
+|---|---|---|---|
+| Gérant, manager | tous les fauteuils, tous les rendez-vous (`scope: 'salon'`) ; avec un fauteuil, `prefs.homeDay: 'moi'` ne montre que le sien | oui (`report.shop`) | celles dont il a le droit de l'action |
+| Accueil (`desk`) | tous les fauteuils, tous les rendez-vous | **non** : la phrase compte des rendez-vous et des minutes | `encaisser`, `demandes`, `relances` (sans montant), `echecs` |
+| Barbier | **son** fauteuil, **ses** rendez-vous, même si « voir l'agenda de tous » est ouvert | **non** | `encaisser` (les siens, s'il encaisse) et `prochain`, rien d'autre |
+
+- **`chairs`, sens des états** : `libre` = il peut prendre quelqu'un pendant `freeMin` minutes, jusqu'à `until` ; `occupe` = un client, un bloc de l'agenda ou un créneau retenu sur le site, jusqu'à `until` (`null` : un client est encore au fauteuil après la fin de son créneau, on ne sait pas jusqu'à quand) ; `absent` = le salon est ouvert et lui ne travaille pas (pause ou heures d'absence : retour à `until` ; jour de repos ou absence : `null`) ; `ferme` = le salon n'est pas ouvert à cette heure (ouvre à `until` ; `null` s'il ne rouvre pas aujourd'hui, ou si le Z est fait). Tout vient de `server/domain/availability.js` : `staffIntervals` (horaires, pauses, absences, fermetures, ouvertures exceptionnelles), `busyIntervals` (rendez-vous, blocs, créneaux retenus) et `isFree` pour chaque prestation avec son battement, c'est-à-dire la question que pose `GET /api/v1/slots`. Seule précision ajoutée, déjà celle de Mon espace : un client encore au fauteuil après son créneau garde le fauteuil `occupe`.
+- **La phrase, par moment** (chaque fait vient de `cockpit()`) : `avant` : `rdv`, `prevus` (€), `libres` (min) ; `pendant` : `encaisse` (€), `a-venir` (€), `a-encaisser` ; `apres` : `encaisse` (€), `reference` (le même jour la semaine d'avant, €), `pourboires` (€) ; `ferme` : `semaine` (€), `rdv-7j`, `libres-7j` (min). Sans `report.shop`, l'accueil lit `rdv`/`restants`, `a-encaisser`, `libres` ; un barbier lit les siens (`rdv`, `libres`, `a-encaisser`). `finDeMois` ajoute à `note` l'objectif en pourcentage, ou le mois clos dans les 5 premiers jours.
+- **Cartes** : celles du tableau 3.3, plus `prochain` (son prochain client, pour qui lit sa propre journée ; bouton « Ma journée », `/espace`). Droit demandé : `z` `closure` · `encaisser` `sale.create` · `absence-demande` `team` · `orphelins` `team` + `agenda.edit` · `demandes`, `relances`, `echecs` `marketing` · `semaine` `report.shop` · `stock` `catalog` · `purge` `client.erase` · `comptable` `compta` · `objectif` `settings`. Adresses : `/caisse/cloture`, `/caisse`, `/relances/demandes`, `/relances` (`bulk`), `/relances/envoyes`, `/agenda?vue=semaine`, `/catalogue`, `/clients?segment=inactifs`, `/reglages/compta` ; feuilles : `ref` = l'identifiant de l'absence, ou `'objectif'`. Deux précisions par rapport à 3.3 : `comptable` et `objectif` n'apparaissent que les 5 premiers jours du mois (les fichiers d'octobre ne sont pas une nouvelle le 28 novembre) ; `semaine` peut avoir `count: 0` (une semaine vide est justement l'information).
+- **Règles** : une carte dont l'action demande un droit absent n'est pas calculée ; ordre par groupe, puis l'ordre épinglé (`prefs.homeCards`), puis par `count`, puis l'ordre du catalogue ; `prefs.homeHidden` retire une carte sauf si `canHide` est faux (`z`, `absence-demande`) ; `quiet` se lit avant les masquages. Seuils en constantes exportées (`RELANCES_MIN = 5`, `ECHECS_DAYS = 7`, `MAX_APPTS = 12`, `MAX_TAKE = 3`). Mémo par minute et par personne, sur `s.version` (pas sur le `dataVersion` de WP2 : un créneau retenu change `chairs`, une préférence change les cartes ; les lectures lourdes en dessous gardent leurs propres mémos).
+- **D'où vient chaque nombre** (aucune seconde définition) : la phrase, la caisse et les 7 jours à venir : `cockpit()` ; `encaisser` : `toPayAppts` (le badge de la Caisse) ; `relances` : `relances()` de `rebook.js` = `clientStats` + `rebookable` (le badge du `pulse`), montant = somme des `avgTicket` (dépense ÷ visites) ; `absence-demande` et `orphelins` : `s.timeoffRequests`, `timeoffConflicts` ; `demandes` : le compte `unread` de `/api/v1/inquiries` ; `purge` : `inactiveClients` ; `z` : `cockpit().cash` et `missedZ` ; `stock` : `stock <= low`, la règle du Catalogue ; `day.appts` : le « reste à venir » de `cockpit().cash.remaining`, plus les acomptes encore attendus.
+- **Préférences ajoutées** (toutes facultatives, absentes par défaut) : `homeCards`, `homeHidden` (listes d'ids, 20 au plus), `homeDay` (`'salon'` | `'moi'`, absent = `'salon'`), `tabs` (3 noms de page au plus), `views` (8 au plus : `{ page, name ≤ 30, query ≤ 200 }`), et `'accueil'` dans `HOMES`.
+- **Acceptation** (tenue, `tests/unit/home.test.js` et `tests/api/home.test.js`) : par moment (4 horloges) et par carte (présente au seuil, absente dessous, absente sans le droit) ; **confidentialité par rôle** : un barbier reçoit 200, sa seule chaise, ses seuls rendez-vous, aucun nom ni identifiant d'un client d'un autre fauteuil, aucun montant, aucune carte du gérant ; l'accueil voit tout le salon sans un euro ; `chairs` égal à ce que répondent `isFree`, `freeSlots` et `/api/v1/slots` à des horloges fixes (avant l'ouverture, en journée, pendant une pause, créneau retenu, bloc, absence, jour fermé, fermeture exceptionnelle, après la fermeture, après le Z) ; le compte de `relances` est **égal** à `badges.relances` du `pulse` au même instant (et `encaisser`, `absence-demande`, `purge` à leurs pastilles) ; `tests/unit/phones-prefs.test.js` toujours vert.
+- **Mesuré** sur la démo (10 novembre, gérant) : 3,4 Ko, **1,1 Ko gzip** à 7 h 40 ; 4,1 Ko, **1,4 Ko gzip** à 15 h 10 (budget : 4 Ko gzip). Temps de réponse dans le processus, session comprise : **0,3 ms** à chaud (médiane), 3 à 8 ms après l'écriture d'une préférence, 26 à 47 ms après une vente (budget : 20 ms à chaud, 60 ms après une écriture). Non mesuré à 1 an d'historique.
 - **Ne pas changer** : le sens de `rebookable` (déplacement sans réécriture) ; `cockpit.js` ; aucun calcul de chiffre.
+- **Pour WP5 et WP4** : la page s'ouvre pour tous les rôles (`ROUTES.accueil` sans `cap`) ; l'ordre d'affichage conseillé au téléphone est la phrase, `day.next` et `day.chairs`, puis les cartes ; l'interrupteur « Le salon / Ma journée » n'existe que si `day.canSwitch` et écrit `prefs.homeDay` ; `home.ts` peut ouvrir `accueil` pour chacun.
 
 ### WP7 · La barre de commande · M · modèle économique
 
