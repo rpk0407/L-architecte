@@ -798,11 +798,13 @@
     };
     const form = h('form', { id: 'bk-form', novalidate: true, on: { submit } }, [
       fld('f-first', 'Prénom', false, { type: 'text', autocomplete: 'given-name', autocapitalize: 'words', required: true, maxlength: '40' }, '', 'first'),
-      fld('f-phone', 'Téléphone', false, { type: 'tel', inputmode: 'tel', autocomplete: 'tel', required: true, maxlength: '24' }, 'Pour la confirmation et le rappel par SMS. Exemple : 06 12 34 56 78.', 'phone'),
+      fld('f-phone', 'Téléphone', false, { type: 'tel', inputmode: 'tel', autocomplete: 'tel', required: true, maxlength: '24' }, 'Exemple : 06 12 34 56 78.', 'phone'),
       fld('f-email', 'E-mail', true, { type: 'email', inputmode: 'email', autocomplete: 'email', maxlength: '120' }, 'Pour recevoir aussi la confirmation par e-mail.', 'email'),
+      // service messages of this rendez-vous, not marketing: sent by default (sms: true), with a discreet way out
+      h('p', { class: 'sms-i', id: 'sms-i' }, [icon('sms'), h('span', { text: 'On t’envoie la confirmation par SMS, et un rappel la veille à 18 h, avec un lien pour déplacer ou annuler.' })]),
       h('label', { class: 'ck', for: 'f-nosms' }, [
-        h('input', Object.assign({ id: 'f-nosms', type: 'checkbox', on: { change: (e) => { S.f.sms = !e.target.checked; } } }, S.f.sms ? {} : { checked: true })),
-        h('span', {}, ['Je ne veux pas de SMS', h('small', { text: 'Sans cette case : une confirmation par SMS, et un rappel la veille à 18 h avec un lien pour déplacer ou annuler.' })])
+        h('input', Object.assign({ id: 'f-nosms', type: 'checkbox', 'aria-describedby': 'sms-i', on: { change: (e) => { S.f.sms = !e.target.checked; } } }, S.f.sms ? {} : { checked: true })),
+        h('span', { text: 'Je ne veux pas de SMS' })
       ])
     ]);
     st.append(form);

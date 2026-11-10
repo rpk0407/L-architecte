@@ -414,6 +414,12 @@ sup{font-size:.62em;line-height:0;vertical-align:.45em}
 .opt-l{font-weight:500;color:var(--cendre2)}
 .fld .hint{font-size:13px;line-height:1.35;color:var(--cendre2)}
 .fld .hint.warn{color:#9E2A21;font-weight:600}
+.sms-i{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:0 16px;margin-top:14px;padding:10px 16px 4px;border-radius:16px;background:rgba(15,14,13,.05);font:500 14px/1.4 var(--f-sans)}
+.sms-i>span{flex:1 1 220px}
+.sms-no{display:inline-flex;align-items:center;gap:9px;min-height:44px;font:500 13.5px/1.2 var(--f-sans);color:var(--cendre2);cursor:pointer}
+.sms-no input{width:18px;height:18px;margin:0;accent-color:var(--encre)}
+.sms-no:focus-within{outline:2.5px solid var(--encre);outline-offset:2px;border-radius:8px}
+.sms-no input:focus{outline:none}
 .priv+.priv{margin-top:8px}
 .priv{margin-top:16px;font-size:13.5px;line-height:1.45;color:var(--cendre2)}
 .priv a{display:inline-block;padding:13px 0;margin:-13px 0;color:var(--encre);text-decoration:underline;text-underline-offset:3px}

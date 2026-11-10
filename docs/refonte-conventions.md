@@ -8,7 +8,7 @@ Règle posée par le propriétaire : **la commande (le parcours de réservation)
 2. **Une progression visible** : « Étape 2 sur 4 », et un bouton Retour à chaque étape. On n'enferme jamais le client.
 3. **Un récapitulatif toujours visible** : prestation, barbier, date et heure, durée, prix total. Panneau latéral sur ordinateur, barre fixe sur téléphone.
 4. **Le choix du jour et de l'heure** : bandeau de jours (ou calendrier), jours indisponibles grisés, heures en boutons groupés Matin / Après-midi, au format 24 h « 14:30 ». Si un jour est complet, on propose le prochain jour libre.
-5. **Le formulaire de coordonnées** : une colonne, étiquettes au-dessus, Prénom, Téléphone, E-mail facultatif, bons types de champs (`tel`, `email`) et saisie automatique, erreurs en français clair sous le champ, aucun compte obligatoire, aucune case marketing cochée d'avance.
+5. **Le formulaire de coordonnées** : une colonne, étiquettes au-dessus, Prénom, Téléphone, E-mail facultatif, bons types de champs (`tel`, `email`) et saisie automatique, erreurs en français clair sous le champ, aucun compte obligatoire, aucune case marketing cochée d'avance ; confirmation et rappel SMS sont des messages de service, activés par défaut.
 6. **Un seul bouton principal**, en bas (fixe sur téléphone), qui dit l'action et le prix : « Confirmer le rendez-vous · 25 € ».
 7. **La confirmation** : quoi, avec qui, quand, où ; ajouter à l'agenda ; lien pour déplacer ou annuler ; ce qui se passe ensuite (SMS, e-mail, rappel).
 8. **Prix et durée visibles avant de choisir** une prestation, « dès » pour les prix de départ, aucune surprise à la fin.

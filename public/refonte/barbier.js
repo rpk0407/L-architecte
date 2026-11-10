@@ -135,7 +135,7 @@
   const S = {
     salon: null, svc: [], bySvc: {}, barbers: [], byStaff: {}, first: {}, firstAt: 0, hints: {},
     open: false, step: 'svc', who: null, svcId: null, day: null, start: null, hold: null, av: null, avKey: '', avLoading: false, err: '',
-    form: { first: '', phone: '', email: '' }, busy: false, result: null, tab: null, opener: null
+    form: { first: '', phone: '', email: '' }, noSms: false, busy: false, result: null, tab: null, opener: null
   };
   try { const f = JSON.parse(window.localStorage.getItem('lx-refonte-me') || 'null'); if (f && typeof f === 'object') ['first', 'phone', 'email'].forEach((k) => { if (typeof f[k] === 'string') S.form[k] = f[k].slice(0, 120); }); } catch (e) { /* ignore */ }
   const whoName = (w) => (w === 'any' ? 'Le premier de libre' : S.byStaff[w] ? S.byStaff[w].name : '');
@@ -257,7 +257,7 @@
 
   function openSheet(o, opener) {
     if (!S.salon) return;
-    if (S.result) { S.result = null; S.day = null; S.start = null; S.svcId = null; S.who = null; }
+    if (S.result) { S.result = null; S.day = null; S.start = null; S.svcId = null; S.who = null; S.noSms = false; }
     releaseHold();
     if (o.who !== undefined) S.who = o.who;
     if (o.svc !== undefined) S.svcId = o.svc;
@@ -377,16 +377,20 @@
       (S.err ? '<p class="bk-err" role="alert" id="bkErr" tabindex="-1">' + esc(S.err) + '</p>' : '') +
       '<p class="hold' + (left ? '' : ' gone') + '" id="hold" role="status"><i aria-hidden="true"></i><span>' + (left ? 'Créneau gardé pour toi' : 'Le créneau n’est plus gardé : confirme vite.') + '</span><b id="holdLeft">' + (left ? Math.floor(left / 60) + ':' + pad(left % 60) : '') + '</b></p>' +
       '<div class="fld"><label for="f-first">Prénom</label><input id="f-first" name="first" type="text" autocomplete="given-name" autocapitalize="words" required maxlength="40" value="' + esc(S.form.first) + '" aria-describedby="h-first"><span class="hint warn" id="h-first" hidden></span></div>' +
-      '<div class="fld"><label for="f-phone">Téléphone portable</label><input id="f-phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" required placeholder="06 12 34 56 78" value="' + esc(S.form.phone) + '" aria-describedby="h-phone"><span class="hint" id="h-phone">Pour la confirmation et le rappel, rien d’autre.</span></div>' +
+      '<div class="fld"><label for="f-phone">Téléphone portable</label><input id="f-phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" required placeholder="06 12 34 56 78" value="' + esc(S.form.phone) + '" aria-describedby="h-phone"><span class="hint" id="h-phone">' + PHONE_HINT + '</span></div>' +
+      (smsOn() ? '<p class="sms-i"><span>' + esc(reminderDue(S.day) ? 'On t’envoie la confirmation par SMS, et un rappel la veille à 18' + NB + 'h.' : 'On t’envoie la confirmation par SMS.') + '</span><label class="sms-no" for="f-nosms"><input id="f-nosms" name="noSms" type="checkbox"' + (S.noSms ? ' checked' : '') + '><span>Je ne veux pas de SMS</span></label></p>' : '') +
       '<div class="fld"><label for="f-email">E-mail <span class="opt-l">(facultatif)</span></label><input id="f-email" name="email" type="email" inputmode="email" autocomplete="email" maxlength="120" value="' + esc(S.form.email) + '" aria-describedby="h-email"><span class="hint" id="h-email">Pour recevoir aussi la confirmation par e-mail.</span></div>' +
       (dep ? '<p class="dep">Un acompte de ' + esc(eur(dep)) + ' est demandé pour cette prestation, déduit au salon. Annulé plus de ' + hrs + NB + 'h avant, il est remboursé.</p>' : '') +
       '<p class="priv">Tes coordonnées servent à ce rendez-vous. <a href="/confidentialite" target="_blank" rel="noopener">Comment elles sont traitées</a></p>' +
       '<p class="priv">' + (dep ? 'En réservant, tu acceptes les conditions d’annulation : gratuite jusqu’à ' + hrs + NB + 'h avant, ensuite l’acompte reste au salon. ' : 'En réservant, tu acceptes les conditions du salon. ') + '<a href="/cgv" target="_blank" rel="noopener">Voir les CGV</a></p></form>';
   }
+  /* the confirmation and the reminder are service messages of the appointment: sent unless the client says no (never a promotion) */
+  const PHONE_HINT = 'Pour ce rendez-vous, rien d’autre.';
+  function smsOn() { return !demo && S.salon.sms !== false; }
   function reminderDue(day) { const n = now(), dd = diffDays(n.day, day); return dd > 1 || (dd === 1 && n.min < 18 * 60); }
   function placeLine() { const sh = S.salon.shop || {}; return sh.address ? sh.address + ', ' + [sh.zip, sh.city].filter(Boolean).join(' ') : '16, place Pélabon, 13013 Marseille'; }
   function stepDone() {
-    const r = S.result, sv = S.bySvc[r.svcId], staff = S.byStaff[r.staffId], pend = r.status === 'pending' && r.deposit > 0, sms = !demo && S.salon.sms !== false;
+    const r = S.result, sv = S.bySvc[r.svcId], staff = S.byStaff[r.staffId], pend = r.status === 'pending' && r.deposit > 0, sms = smsOn() && r.sms !== false;
     const li = [];
     if (demo) li.push('<b>Mode démo</b> : rien n’a été envoyé au salon, aucun SMS ne part.');
     else {
@@ -514,16 +518,16 @@
     const e2 = !phoneOk(f.phone) ? 'Un numéro français à 10 chiffres, comme 06 12 34 56 78.' : '';
     const e3 = email && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email) ? 'Cette adresse a l’air incomplète. Corrige-la ou laisse le champ vide.' : '';
     setHint('h-first', $('#f-first'), e1);
-    setHint('h-phone', $('#f-phone'), e2, 'Pour la confirmation et le rappel, rien d’autre.');
+    setHint('h-phone', $('#f-phone'), e2, PHONE_HINT);
     setHint('h-email', $('#f-email'), e3, 'Pour recevoir aussi la confirmation par e-mail.');
     if (e1 || e2 || e3) { $(e1 ? '#f-first' : e2 ? '#f-phone' : '#f-email').focus(); return; }
     S.busy = true; S.err = '';
     const btn = $('#bkGo'); if (btn) { btn.disabled = true; btn.textContent = 'Un instant…'; }
-    const req = { serviceIds: [S.svcId], staffId: S.who, day: S.day, start: S.start, holdId: S.hold ? S.hold.id : undefined, first: first, phone: f.phone.trim(), email: email || undefined, sms: true };
+    const req = { serviceIds: [S.svcId], staffId: S.who, day: S.day, start: S.start, holdId: S.hold ? S.hold.id : undefined, first: first, phone: f.phone.trim(), email: email || undefined, sms: !S.noSms };
     call('POST', API + '/bookings', req).then((r) => {
       S.busy = false; S.hold = null; clearInterval(holdTimer);
       try { window.localStorage.setItem('lx-refonte-me', JSON.stringify({ first: first, phone: f.phone.trim(), email: email })); } catch (e) { /* ignore */ }
-      S.result = { code: r.code, manage: r.manage || '', status: r.status, deposit: r.deposit || 0, payment: r.payment || null, staffId: r.staffId, svcId: S.svcId, day: S.day, start: S.start, first: first, email: email };
+      S.result = { sms: !S.noSms, code: r.code, manage: r.manage || '', status: r.status, deposit: r.deposit || 0, payment: r.payment || null, staffId: r.staffId, svcId: S.svcId, day: S.day, start: S.start, first: first, email: email };
       S.result.ics = S.result.status === 'pending' ? '' : icsOf(S.result);
       S.step = 'done';
       renderSheet(true);
@@ -560,6 +564,7 @@
     else if (a === 'slot') pickSlot(+el.dataset.m);
     else if (a === 'tab') { S.tab = el.dataset.tab; renderCarte(); const t = $('#tabs [aria-selected="true"]'); if (t) t.focus(); }
   });
+  body.addEventListener('change', (ev) => { if (ev.target.name === 'noSms') S.noSms = ev.target.checked; });
   body.addEventListener('input', (ev) => { const n = ev.target.name; if (n && n in S.form) { S.form[n] = ev.target.value; if (ev.target.getAttribute('aria-invalid') === 'true') ev.target.setAttribute('aria-invalid', 'false'); } });
   body.addEventListener('submit', (ev) => { ev.preventDefault(); submit(); });
   document.addEventListener('keydown', (ev) => {

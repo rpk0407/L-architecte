@@ -753,7 +753,8 @@
     const demo = $('bk-demo');
     demo.hidden = !(S.sim || S.salon.mode === 'demo');
     demo.textContent = S.sim ? 'Mode démo : le salon n’est pas joignable d’ici. Rien n’est réservé ni envoyé.' : 'Démo : n’entre pas tes vraies coordonnées, tout est visible. Aucun SMS n’est envoyé, aucun paiement n’est débité.';
-    $('f-sms').closest('.sw').hidden = !(h && reminderPossible(h.day));
+    // confirmation and reminder are service messages, on by default; no reminder is promised for a cut today
+    $('sms-i').textContent = 'On t’envoie la confirmation par SMS' + (h && reminderPossible(h.day) ? ', et un rappel la veille à ' + REMINDER_HOUR + ' h.' : '.');
     showErr('');
     tickHold();
   }
@@ -791,14 +792,14 @@
     ];
     if (ok.includes(false)) { const bad = form.querySelector('[aria-invalid="true"]'); bad.focus(); bad.scrollIntoView({ block: 'center', behavior: calm() ? 'auto' : 'smooth' }); return; }
     const h = S.hold, sv = S.svc;
-    const sms = !$('f-sms').closest('.sw').hidden && $('f-sms').checked;
+    const sms = !$('f-nosms').checked;
     S.sending = true; setGo(); showErr('');
     try {
       const body = { holdId: h.id, serviceIds: [sv.id], staffId: h.staffId, day: h.day, start: h.start, first: v.first, phone: v.phone, sms, marketing: $('f-mkt').checked };
       if (v.email) body.email = v.email;
       if (v.note) body.note = v.note;
       const r = await Api.book(body);
-      S.booked = { r, day: h.day, start: h.start, staffId: r.staffId || h.staffId, sv, email: v.email, sms };
+      S.booked = { r, day: h.day, start: h.start, staffId: r.staffId || h.staffId, sv, email: v.email, sms, reminder: sms && reminderPossible(h.day) };
       S.hold = null; clearInterval(holdTimer);
       S.sending = false;
       showDone();
@@ -843,8 +844,9 @@
     if (S.sim) lines.push('Mode démo : rien n’a été réservé ni envoyé. Sur le vrai site, tu reçois ta confirmation par SMS.');
     else {
       if (pending) lines.push('Ton rendez-vous est confirmé dès que l’acompte est réglé.');
-      else lines.push('Confirmation par SMS' + (k.email ? ' et par e-mail (' + k.email + ').' : '. Pas d’e-mail : tu n’as pas donné d’adresse.'));
-      if (k.sms) lines.push('Rappel par SMS la veille à ' + REMINDER_HOUR + ' h, avec le lien pour déplacer ou annuler.');
+      else if (k.sms) lines.push('Confirmation par SMS' + (k.email ? ' et par e-mail (' + k.email + ').' : '. Pas d’e-mail : tu n’as pas donné d’adresse.'));
+      else lines.push(k.email ? 'Confirmation par e-mail (' + k.email + '). Pas de SMS, comme tu l’as demandé.' : 'Pas de SMS ni d’e-mail, comme tu l’as demandé : garde ton code et le lien pour déplacer ou annuler.');
+      if (k.reminder) lines.push('Rappel par SMS la veille à ' + REMINDER_HOUR + ' h, avec le lien pour déplacer ou annuler.');
       if (S.salon.mode === 'demo') lines.push('Démo : aucun SMS ni e-mail ne part vraiment.');
     }
     const ul = $('done-l'); ul.textContent = '';
