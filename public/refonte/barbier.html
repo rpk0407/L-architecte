@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Barber L’Architecte · Choisis ton barbier et réserve · Marseille 13e</title>
-<meta name="description" content="Barbier place Pélabon, Marseille 13e. Choisis ton barbier, ta formule, ton créneau : la réservation prend moins d’une minute, sans compte.">
+<meta name="description" content="Barbier place Pélabon, Marseille 13e. Ta prestation, ton barbier, ton créneau : la réservation prend moins d’une minute, sans compte.">
 <meta name="robots" content="noindex">
 <meta name="theme-color" content="#D3D0C8">
 <link rel="icon" href="../icon.svg" type="image/svg+xml">
@@ -70,7 +70,7 @@
 <div class="team-hd">
 <p class="kk" data-rv><span>01</span>L’équipe</p>
 <h2 class="h2" id="t-team" data-rv>Choisis ton barbier.</h2>
-<p class="bc-lead" data-rv>Touche un nom : tu réserves avec lui. Ta formule, ton créneau, ton prénom. C’est tout.</p>
+<p class="bc-lead" data-rv>Touche un nom : ton barbier est déjà choisi. Reste ta prestation, ton créneau, ton prénom.</p>
 </div>
 <div class="bc-g" id="cards" aria-live="polite" aria-busy="true"></div>
 <p class="bc-foot" data-rv><span>Sans compte · moins d’une minute</span><span id="avNote"></span></p>
@@ -148,12 +148,14 @@
 <div class="bk-veil" id="veil" data-act="close"></div>
 <div class="bk" id="bk" role="dialog" aria-modal="true" aria-labelledby="bkT" aria-hidden="true">
 <div class="bk-top">
-<button type="button" class="bk-back" id="bkBack" data-act="back" aria-label="Étape précédente"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
-<div class="bk-tt"><p class="bk-k" id="bkK">Réserver</p><h2 class="bk-t" id="bkT" tabindex="-1">Ton barbier</h2></div>
+<button type="button" class="bk-back" id="bkBack" data-act="back" aria-label="Retour"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg><span>Retour</span></button>
+<p class="bk-k" id="bkK">Étape 1 sur 4</p>
 <button type="button" class="bk-x" data-act="close" aria-label="Fermer la réservation"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
 </div>
 <div class="bk-prog" id="bkProg" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+<h2 class="bk-t" id="bkT" tabindex="-1">Choisis ta prestation</h2>
 <div class="bk-body" id="bkBody"></div>
+<aside class="bk-rc" id="bkRc" aria-label="Récapitulatif de ton rendez-vous"></aside>
 <div class="bk-foot" id="bkFoot" hidden></div>
 </div>
 <noscript><p style="position:relative;z-index:99;padding:20px;background:#ECE8E0;color:#0F0E0D">Pour réserver en ligne, active JavaScript. Le salon : 16, place Pélabon, 13013 Marseille, du mardi au samedi, 9 h – 18 h 30.</p></noscript>

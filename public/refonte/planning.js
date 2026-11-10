@@ -1,4 +1,7 @@
 /* « Le salon en direct » : the page's script (no inline script: the server's CSP is script-src 'self').
+   The booking journey is the one clients already know (docs/refonte-conventions.md): prestation → barbier →
+   jour et heure → coordonnées → confirmation. What is new sits around it: the live line, the pill, the salon's planning
+   as a second view of the time step. They are shortcuts into that journey, never another one.
    It reads the real public API (/api/public/salon, /live, /availability), holds a slot while the client types
    (POST /holds) and books it (POST /bookings). When the API cannot be reached (file opened offline), a simulation
    takes over and a « mode démo » banner says so. */
@@ -12,6 +15,7 @@
   const WD = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
   const WDS = ['dim.', 'lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.'];
   const MO = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+  const MOS = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
   const ADDRESS = '16, place Pélabon, 13013 Marseille';
   const REMINDER_HOUR = 18;
 
@@ -20,8 +24,8 @@
   const addDays = (day, n) => { const d = utc(day); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
   const diffDays = (a, b) => Math.round((utc(b) - utc(a)) / 86400000);
   const dow = (day) => utc(day).getUTCDay();
-  const fmtH = (m) => Math.floor(m / 60) + NBSP + 'h' + (m % 60 ? NBSP + pad(m % 60) : '');
   const hm = (m) => pad(Math.floor(m / 60)) + pad(m % 60);
+  const t24 = (m) => pad(Math.floor(m / 60)) + ':' + pad(m % 60);
   const dayLong = (day) => { const d = utc(day); return WD[d.getUTCDay()] + ' ' + (d.getUTCDate() === 1 ? '1er' : d.getUTCDate()) + ' ' + MO[d.getUTCMonth()]; };
   const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
   const eur = (cents) => (cents % 100 ? (cents / 100).toFixed(2).replace('.', ',') : String(cents / 100)) + NBSP + '€';
@@ -109,8 +113,9 @@
       },
       hold: (b) => {
         const sv = SV.find((x) => x.id === b.serviceIds[0]) || SV[0];
-        if (!free(b.day, b.staffId, b.start, sv.dur)) return Promise.reject(new ApiError(409, 'taken', 'Ce créneau vient d’être pris.'));
-        return wait({ holdId: 'sim_h' + Date.now(), staffId: b.staffId, exp: Date.now() + 5 * 60000 });
+        const who = b.staffId === 'any' ? BB.find((x) => free(b.day, x.id, b.start, sv.dur)) : BB.find((x) => x.id === b.staffId && free(b.day, x.id, b.start, sv.dur));
+        if (!who) return Promise.reject(new ApiError(409, 'taken', 'Ce créneau vient d’être pris.'));
+        return wait({ holdId: 'sim_h' + Date.now(), staffId: who.id, exp: Date.now() + 5 * 60000 });
       },
       release: () => wait({ ok: true }),
       book: (b) => {
@@ -124,13 +129,19 @@
   /* ---------- state ---------- */
   let Api = Real;
   const S = {
-    sim: false, salon: null, services: [], barbers: [], svc: null, today: '', nowMin: 0, open: false, skew: 0,
-    from: '', day: '', tab: 0, days: [], /* [{ day, open, by: { staffId: Set(min) } }] */
+    sim: false, salon: null, services: [], barbers: [], today: '', nowMin: 0, open: false, skew: 0,
+    step: 'svc', /* svc → staff → slot → form → done */
+    svc: null, staff: null, /* null, 'any' (« Peu importe ») or a barber's id */
+    view: 'list', /* the time step: 'list' (default) or 'plan' (the salon's planning) */
+    pre: { staff: false, slot: null }, /* what a shortcut filled in advance */
+    from: '', day: '', dayPicked: false, tab: 0, days: [], /* [{ day, open, by: { staffId: Set(min) } }] */
     hold: null, /* { id, staffId, day, start, exp } */
-    seq: 0, sig: '', next: null, msg: '', booked: null, ready: false
+    seq: 0, sig: '', next: null, booked: null, ready: false
   };
+  const STEPS = ['svc', 'staff', 'slot', 'form'];
+  // before a prestation is chosen, the live line and the barbers' next slots are read for the first one of the carte
+  const calcSvc = () => S.svc || S.services[0];
   const SPAN = 14;
-  const wide = () => window.matchMedia('(min-width:700px)').matches;
   const desk = () => window.matchMedia('(min-width:1000px)').matches;
   const barber = (id) => S.barbers.find((b) => b.id === id);
   const dayData = (day) => S.days.find((d) => d.day === day);
@@ -215,8 +226,8 @@
     });
   }
 
-  /* ---------- top bar, Sommaire, sticky « Réserver » ---------- */
-  const tb = $('tb'), menu = $('menu'), menuBtn = $('menu-btn'), cta = $('cta');
+  /* ---------- top bar, Sommaire, sticky « Réserver » and the journey's bottom bar ---------- */
+  const tb = $('tb'), menu = $('menu'), menuBtn = $('menu-btn'), cta = $('cta'), bar = $('bar');
   function setMenu(on) {
     menu.hidden = !on;
     tb.classList.toggle('mo', on);
@@ -233,9 +244,11 @@
     tb.classList.toggle('light', tone === 'light'); tb.classList.toggle('dark', tone === 'dark');
     tb.classList.toggle('scrolled', window.scrollY > 20);
     const vh = window.innerHeight;
-    const rs = $('reserver').getBoundingClientRect(), ft = $('venir').getBoundingClientRect();
-    const inPlan = rs.top < vh * 0.55 && rs.bottom > vh * 0.45;
+    const rs = $('bw').getBoundingClientRect(), ft = $('venir').getBoundingClientRect();
+    // inside the journey the page's « Réserver » gives way to the journey's own bar (recap + the one main button)
+    const inPlan = rs.top < vh * 0.62 && rs.bottom > vh * 0.38;
     cta.classList.toggle('off', inPlan || ft.top < vh * 0.6 || !menu.hidden);
+    bar.classList.toggle('show', inPlan && menu.hidden && S.step !== 'done' && S.ready);
   }
   function bootChrome() {
     menuBtn.addEventListener('click', () => setMenu(menu.hidden));
@@ -246,15 +259,15 @@
     window.addEventListener('resize', onScroll);
     onScroll();
   }
-  // slot: the choice is made (a barber, a day, a formule), so a phone lands on the days and the planning, past the formule
-  function toPlanning(focus, slot) {
-    const top = $('reserver').getBoundingClientRect().top + window.scrollY;
-    const y = desk() ? top : (slot ? document.querySelector('.pl-top') : $('fm')).getBoundingClientRect().top + window.scrollY - 84;
-    window.scrollTo({ top: Math.max(top, y), behavior: window.matchMedia('(prefers-reduced-motion:reduce)').matches ? 'auto' : 'smooth' });
-    if (focus) $('pl-day').focus({ preventScroll: true });
+  const calm = () => window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+  function toJourney(focus) {
+    const y = $('bw').getBoundingClientRect().top + window.scrollY - (desk() ? 100 : 84);
+    window.scrollTo({ top: Math.max(0, y), behavior: calm() ? 'auto' : 'smooth' });
+    if (focus) { const h = $('st-' + S.step).querySelector('.stp-h,.done-k'); if (h) h.focus({ preventScroll: true }); }
   }
 
-  /* ---------- step 1: la formule ---------- */
+  /* ---------- the journey: prestation → barbier → jour et heure → coordonnées → confirmation ---------- */
+  const TITLES = { svc: 'Prestation', staff: 'Barbier', slot: 'Jour et heure', form: 'Coordonnées' };
   function depositOf(sv) {
     const d = S.salon.deposits;
     if (S.sim || (S.salon.payments && S.salon.payments.live === false)) return 0;
@@ -263,47 +276,159 @@
     return Math.min(sv.price, Math.max(500, Math.round((sv.price * d.percent) / 100 / 100) * 100));
   }
   function priceText(sv) { return (sv.from ? 'dès ' : '') + eur(sv.price); }
-  function renderFormules() {
-    const list = $('fm-list');
-    list.textContent = '';
-    let cat = '';
-    S.services.forEach((sv) => {
-      if (sv.category !== cat) { cat = sv.category; list.appendChild(el('p', 'fm-cat', cat)); }
-      const lab = el('label', 'fm-o' + (S.svc && S.svc.id === sv.id ? ' on' : ''));
-      const inp = el('input', 'vh'); inp.type = 'radio'; inp.name = 'formule'; inp.value = sv.id; inp.checked = !!(S.svc && S.svc.id === sv.id);
-      const name = el('span', 'fm-on', sv.name); name.appendChild(el('small', '', durText(sv.dur)));
-      const price = el('span', 'fm-op'); if (sv.from) price.appendChild(el('small', '', 'dès')); price.appendChild(document.createTextNode(eur(sv.price)));
-      lab.append(inp, el('i'), name, price);
-      list.appendChild(lab);
-    });
-    renderFormuleCur();
+  function msg(text) { const p = $('bw-msg'); p.hidden = !text; p.textContent = text || ''; }
+
+  function go(step, keepMsg) {
+    S.step = step;
+    if (!keepMsg) msg('');
+    if (step === 'slot') fixDay();
+    S.sig = '';
+    renderJourney();
+    onScroll();
+    toJourney(true);
   }
-  function renderFormuleCur() {
-    const cur = $('fm-cur'), sv = S.svc;
-    cur.textContent = '';
-    if (!sv) return;
-    cur.appendChild(document.createTextNode(sv.name));
-    cur.appendChild(el('small', '', durText(sv.dur) + ' · ' + priceText(sv)));
-    const dep = depositOf(sv), note = $('fm-note');
-    note.hidden = !(dep > 0 || sv.description);
-    note.textContent = [sv.description, dep > 0 ? 'Un acompte de ' + eur(dep) + ' est demandé pour cette prestation, déduit au salon.' : ''].filter(Boolean).join(' ');
+  function back() {
+    S.pre = { staff: false, slot: null };
+    const i = STEPS.indexOf(S.step);
+    if (i > 0) { go(STEPS[i - 1]); return; }
+    // first step: Retour leaves the journey, back to the top of the page
+    window.scrollTo({ top: 0, behavior: calm() ? 'auto' : 'smooth' });
+    const w = document.querySelector('.wm'); if (w) w.focus({ preventScroll: true });
   }
-  function chooseService(id, scroll) {
-    const sv = S.services.find((x) => x.id === id);
-    if (!sv) return;
-    const changed = !S.svc || S.svc.id !== sv.id;
-    S.svc = sv;
-    document.querySelectorAll('.fm-o').forEach((l) => { const i = l.querySelector('input'); const on = i.value === sv.id; l.classList.toggle('on', on); i.checked = on; });
-    renderFormuleCur();
-    if (!desk()) $('fm').open = false;
-    if (changed) { dropHold(); S.sig = ''; $('pl').setAttribute('aria-busy', 'true'); loadAvail(); }
-    if (scroll) toPlanning(true, true);
+  // after step i is answered: the next step, past the ones a shortcut already filled
+  function nextFrom(i) {
+    if (i === 0 && !(S.pre.staff && S.staff)) { go('staff'); return; }
+    S.pre.staff = false;
+    if (S.pre.slot) { autoHold(); return; }
+    go('slot');
+  }
+  function mainAction() {
+    if (S.picking || S.sending) return;
+    if (S.step === 'svc' && S.svc) nextFrom(0);
+    else if (S.step === 'staff' && S.staff) nextFrom(1);
+    else if (S.step === 'slot' && S.hold) go('form');
+    else if (S.step === 'form') submit();
+  }
+  function setSvc(sv) {
+    if (S.svc && S.svc.id === sv.id) return;
+    dropHold();
+    S.svc = sv; S.sig = '';
+    $('tm').setAttribute('aria-busy', 'true');
+    loadAvail();
+  }
+  function setStaff(id) {
+    if (S.staff === id) return;
+    dropHold();
+    S.staff = id; S.sig = '';
+    if (id !== 'any') { S.tab = Math.max(0, S.barbers.findIndex((b) => b.id === id)); S.tabTouched = true; }
+  }
+  // a shortcut (hero pill, live line, a barber's card, the carte) fills steps of the same journey, then lands on the first empty one
+  function prefill(p) {
+    S.pre = { staff: false, slot: null };
+    if (S.step === 'done') resetJourney();
+    if (p.svc) setSvc(p.svc);
+    if (p.staff) { setStaff(p.staff); S.pre.staff = true; }
+    if (p.slot) { if (S.hold && (S.hold.day !== p.slot.day || S.hold.start !== p.slot.m)) dropHold(); S.pre.slot = p.slot; }
+    if (!S.svc) go('svc');
+    else if (!S.staff) go('staff');
+    else if (S.pre.slot) { S.pre.staff = false; autoHold(); }
+    else go(S.hold ? 'form' : 'slot');
+  }
+  async function autoHold() {
+    const w = S.pre.slot; S.pre.slot = null;
+    if (S.hold && S.hold.day === w.day && S.hold.start === w.m) { go('form'); return; }
+    S.picking = true; setGo();
+    try {
+      await holdSlot(w.day, w.m, S.staff);
+      go('form');
+      loadAvail();
+    } catch (e) {
+      if (!dayData(w.day)) S.from = S.today;
+      S.day = w.day; S.dayPicked = true;
+      go('slot');
+      msg(e.code === 'taken' ? 'Ce créneau n’est pas libre pour cette prestation. Choisis une autre heure : ta prestation et ton barbier sont gardés.' : e.message);
+      await loadAvail();
+    } finally { S.picking = false; setGo(); }
+  }
+  function resetJourney() {
+    S.booked = null; S.hold = null; clearInterval(holdTimer);
+    S.svc = null; S.staff = null; S.step = 'svc'; S.dayPicked = false; S.pre = { staff: false, slot: null };
+    S.sig = '';
+    loadAvail();
   }
 
-  /* ---------- step 2: the days and the planning ---------- */
+  function renderJourney() {
+    const done = S.step === 'done', i = STEPS.indexOf(S.step);
+    ['svc', 'staff', 'slot', 'form', 'done'].forEach((k) => { $('st-' + k).hidden = k !== S.step; });
+    $('bw-nav').hidden = done;
+    $('bw').classList.toggle('is-done', done);
+    if (!done) {
+      $('bw-step').textContent = 'Étape ' + (i + 1) + ' sur 4';
+      $('bw-step').appendChild(el('span', '', TITLES[S.step]));
+      $('bw-prog').style.width = ((i + 1) * 25) + '%';
+      $('bw-back').setAttribute('aria-label', i ? 'Retour à l’étape ' + i + ' : ' + TITLES[STEPS[i - 1]].toLowerCase() : 'Retour en haut de la page');
+    }
+    if (S.step === 'svc') renderSvc();
+    if (S.step === 'staff') renderStaff();
+    if (S.step === 'slot') renderSlot();
+    if (S.step === 'form') renderForm();
+    renderRecap();
+  }
+
+  /* step 1: la prestation (price and duration before the choice) */
+  function optBtn(cls, on) { const b = el('button', 'op ' + cls + (on ? ' on' : '')); b.type = 'button'; b.setAttribute('aria-pressed', String(!!on)); return b; }
+  function renderSvc() {
+    const list = $('svc-list');
+    list.textContent = '';
+    let cat = '', box = null;
+    S.services.forEach((sv) => {
+      if (sv.category !== cat || !box) {
+        cat = sv.category;
+        list.appendChild(el('h4', 'op-cat', cat));
+        box = el('div', 'op-g'); list.appendChild(box);
+      }
+      const b = optBtn('op-s', S.svc && S.svc.id === sv.id); b.dataset.svc = sv.id;
+      const dep = depositOf(sv);
+      const name = el('span', 'op-n', sv.name); name.appendChild(el('small', '', durText(sv.dur) + (dep > 0 ? ' · acompte ' + eur(dep) : '')));
+      const price = el('span', 'op-p'); if (sv.from) price.appendChild(el('small', '', 'dès')); price.appendChild(document.createTextNode(eur(sv.price)));
+      b.append(name, price);
+      box.appendChild(b);
+    });
+  }
+
+  /* step 2: le barbier, « Peu importe » first */
+  function nextOf(bid) {
+    for (const d of S.days) { let best = null; d.by[bid].forEach((m) => { if (best == null || m < best) best = m; }); if (best != null) return { day: d.day, m: best }; }
+    return null;
+  }
+  const shortDay = (day) => dayWord(day).replace(/^(\S+) (\S+) (\S{3})\S*$/, '$1 $2 $3.');
+  function renderStaff() {
+    const list = $('staff-list');
+    const act = document.activeElement, refocus = act && act.dataset && act.dataset.staff && list.contains(act) ? act.dataset.staff : null;
+    list.textContent = '';
+    const box = el('div', 'op-g'); list.appendChild(box);
+    const any = optBtn('op-b', S.staff === 'any'); any.dataset.staff = 'any';
+    const am = el('span', 'pl-mono', '?'); am.setAttribute('aria-hidden', 'true');
+    const an = el('span', 'op-n', 'Peu importe'); an.appendChild(el('small', '', 'Le premier barbier libre'));
+    any.append(am, an);
+    box.appendChild(any);
+    S.barbers.forEach((b) => {
+      const o = optBtn('op-b', S.staff === b.id); o.dataset.staff = b.id;
+      const mono = el('span', 'pl-mono', b.initials || b.name.charAt(0)); mono.setAttribute('aria-hidden', 'true');
+      const n = S.days.length ? nextOf(b.id) : null;
+      const name = el('span', 'op-n', b.name);
+      name.appendChild(el('small', n ? 'has' : '', n ? 'Prochain créneau : ' + shortDay(n.day).toLowerCase() + ' à ' + t24(n.m) : (b.away && b.away.note) || (S.days.length ? 'Complet sur ces deux semaines' : '')));
+      o.append(mono, name);
+      box.appendChild(o);
+    });
+    if (refocus) { const again = list.querySelector('[data-staff="' + refocus + '"]'); if (again) again.focus({ preventScroll: true }); }
+  }
+
+  /* step 3: le jour et l'heure. The list is the default; the salon's planning is the other view of the same slots */
   async function loadAvail() {
-    if (!S.svc || !S.barbers.length) return;
-    const seq = ++S.seq, from = S.from, svc = S.svc;
+    const svc = calcSvc();
+    if (!svc || !S.barbers.length) return;
+    const seq = ++S.seq, from = S.from;
     try {
       const [live, ...res] = await Promise.all([Api.live().catch(() => null)].concat(S.barbers.map((b) => Api.availability(from, SPAN, svc.id, b.id, S.hold ? S.hold.id : ''))));
       if (seq !== S.seq) return;
@@ -318,22 +443,41 @@
       S.days = days;
       if (from === S.today) {
         S.next = null;
-        for (const d of days) { let best = null; for (const b of S.barbers) for (const m of d.by[b.id]) if (best == null || m < best) best = m; if (best != null) { S.next = { day: d.day, m: best, n: S.barbers.filter((b) => d.by[b.id].has(best)).length, bid: S.barbers.find((b) => d.by[b.id].has(best)).id }; break; } }
+        for (const d of days) { let best = null; for (const b of S.barbers) for (const m of d.by[b.id]) if (best == null || m < best) best = m; if (best != null) { S.next = { day: d.day, m: best, n: S.barbers.filter((b) => d.by[b.id].has(best)).length }; break; } }
       }
-      if (!S.day || !dayData(S.day)) { const first = days.find((d) => freeCount(d) > 0) || days.find((d) => d.open) || days[0]; S.day = first ? first.day : from; }
+      if (!S.day || !dayData(S.day)) { S.day = ''; S.dayPicked = false; }
+      fixDay();
       S.ready = true;
       setLive(true);
       render();
+      onScroll();
     } catch (e) {
       if (seq !== S.seq) return;
       setLive(false);
-      if (!S.ready) { const pl = $('pl'); pl.textContent = ''; pl.removeAttribute('aria-busy'); const p = el('p', 'pl-shut', 'Le planning ne répond pas.'); p.appendChild(el('small', '', e.message || 'Réessaie dans un instant.')); pl.appendChild(p); }
+      if (!S.ready) { const t = $('svc-list'); t.textContent = ''; const p = el('p', 'pl-shut', 'Le planning ne répond pas.'); p.appendChild(el('small', '', e.message || 'Réessaie dans un instant.')); t.appendChild(p); }
     }
   }
   function setLive(ok) {
     const p = $('pl-live'), d = new Date();
     p.classList.toggle('off', !ok);
-    p.lastElementChild.textContent = ok ? 'En direct · mis à jour à ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) : 'Connexion perdue · nouvel essai…';
+    p.lastElementChild.textContent = ok ? 'En direct · ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) : 'Connexion perdue · nouvel essai…';
+  }
+  // the list answers for the chosen barber (or all of them for « Peu importe »), the planning always shows the four chairs
+  const scopeStaff = () => (S.view === 'plan' || !S.staff || S.staff === 'any' ? null : S.staff);
+  function timesOf(d) {
+    if (!d) return [];
+    const sid = scopeStaff(), set = new Set();
+    (sid ? [sid] : S.barbers.map((b) => b.id)).forEach((id) => { if (d.by[id]) d.by[id].forEach((m) => set.add(m)); });
+    return [...set].sort((a, b) => a - b);
+  }
+  function nextFreeDay(after) { return S.days.find((d) => d.day > after && timesOf(d).length > 0) || null; }
+  // unless the client picked a day, stand on the first one that has room
+  function fixDay() {
+    if (!S.days.length) return;
+    if (S.hold && dayData(S.hold.day) && !S.dayPicked) { S.day = S.hold.day; return; }
+    if (S.day && dayData(S.day) && (S.dayPicked || timesOf(dayData(S.day)).length)) return;
+    const first = S.days.find((d) => timesOf(d).length > 0) || S.days.find((d) => d.open) || S.days[0];
+    S.day = first.day;
   }
   function rowsOf(day) {
     const sal = S.salon, sp = (sal.openings || []).find((o) => o.day === day);
@@ -347,58 +491,95 @@
   }
   function countText(n) { return n === 0 ? 'Complet' : n + (n > 1 ? ' libres' : ' libre'); }
 
+  // what the poll refreshes: the live bits around the journey, and the step on screen if its data changed
   function render() {
-    const d = dayData(S.day);
-    const sig = JSON.stringify([S.svc.id, S.from, S.day, S.tab, S.hold && [S.hold.staffId, S.hold.day, S.hold.start], S.today, Math.floor(S.nowMin / 30), S.days.map((x) => [x.open, S.barbers.map((b) => [...x.by[b.id]])])]);
     renderStatus();
     renderTeam();
+    if (S.step === 'staff') renderStaff();
+    if (S.step === 'slot') renderSlot();
+    renderRecap();
+  }
+  function renderSlot() {
+    const d = dayData(S.day);
+    if (!d) return; // the days are still loading: the step shows its « Chargement » line
+    const sig = JSON.stringify([calcSvc().id, S.staff, S.view, S.from, S.day, S.tab, S.hold && [S.hold.staffId, S.hold.day, S.hold.start], S.today, Math.floor(S.nowMin / 30), S.days.map((x) => [x.open, S.barbers.map((b) => [...x.by[b.id]])])]);
     if (sig === S.sig) return;
     S.sig = sig;
+    $('vw-list').setAttribute('aria-pressed', String(S.view === 'list'));
+    $('vw-plan').setAttribute('aria-pressed', String(S.view === 'plan'));
     renderDays();
-    renderPlan(d);
+    const title = $('pl-day'), who = S.staff && S.staff !== 'any' && S.view === 'list' ? barber(S.staff) : null;
+    title.textContent = cap(dayLong(S.day));
+    title.appendChild(el('small', '', S.view === 'plan' ? 'Les quatre fauteuils' : who ? 'Avec ' + who.name : 'Tous les barbiers'));
+    const times = timesOf(d), none = $('sl-none');
+    none.textContent = '';
+    none.hidden = times.length > 0 || !S.days.length;
+    if (!none.hidden) {
+      none.appendChild(el('p', '', !d || !d.open ? 'Le salon est fermé ce jour-là.' : who ? 'Complet ce jour-là avec ' + who.name + '.' : 'Complet ce jour-là.'));
+      const nx = nextFreeDay(S.day) || S.days.find((x) => timesOf(x).length > 0);
+      const b = el('button', 'btn small'); b.type = 'button';
+      if (nx) { b.dataset.day = nx.day; b.textContent = 'Prochain jour libre : ' + dayLong(nx.day); }
+      else { b.dataset.shift = '1'; b.textContent = 'Voir les dates suivantes'; }
+      none.appendChild(b);
+    }
+    $('tm').hidden = S.view !== 'list';
+    $('plw').hidden = S.view !== 'plan';
+    if (S.view === 'list') renderTimes(d, times); else renderPlan(d);
   }
-
   function renderDays() {
     const box = $('days'), keep = box.scrollLeft;
+    const act = document.activeElement, refocus = act && box.contains(act) ? act.dataset.day : null;
     box.textContent = '';
     if (S.from > S.today) { const b = el('button', 'ds-more', 'Dates d’avant'); b.type = 'button'; b.dataset.shift = '-1'; box.appendChild(b); }
     S.days.forEach((d) => {
-      const n = freeCount(d), b = el('button', 'ds-d' + (d.open ? '' : ' shut'));
+      const n = timesOf(d).length, b = el('button', 'ds-d' + (!d.open ? ' shut' : n ? '' : ' full'));
       b.type = 'button'; b.dataset.day = d.day;
+      if (!d.open) b.disabled = true;
       b.setAttribute('aria-pressed', String(d.day === S.day));
-      b.setAttribute('aria-label', cap(dayLong(d.day)) + ', ' + (!d.open ? 'fermé' : n ? n + ' créneau' + (n > 1 ? 'x' : '') + ' libre' + (n > 1 ? 's' : '') : 'complet'));
-      b.append(el('span', 'ds-w1', d.day === S.today ? 'auj.' : WDS[dow(d.day)]), el('span', 'ds-n', String(utc(d.day).getUTCDate())), el('span', 'ds-f', !d.open ? 'fermé' : n ? countText(n) : 'complet'));
+      b.setAttribute('aria-label', cap(dayLong(d.day)) + (!d.open ? ', fermé' : n ? '' : ', complet'));
+      b.append(el('span', 'ds-w1', d.day === S.today ? 'auj.' : WDS[dow(d.day)]), el('span', 'ds-n', String(utc(d.day).getUTCDate())), el('span', 'ds-f', !d.open ? 'fermé' : n ? MOS[utc(d.day).getUTCMonth()] : 'complet'));
       box.appendChild(b);
     });
     const max = (S.salon.booking && S.salon.booking.maxDaysAhead) || 60;
     if (diffDays(S.today, addDays(S.from, SPAN)) <= max) { const b = el('button', 'ds-more', 'Dates suivantes'); b.type = 'button'; b.dataset.shift = '1'; box.appendChild(b); }
     box.scrollLeft = keep;
+    if (refocus) { const again = box.querySelector('[data-day="' + refocus + '"]'); if (again) again.focus({ preventScroll: true }); }
   }
-
+  const isMine = (m) => !!(S.hold && S.hold.day === S.day && S.hold.start === m);
+  function renderTimes(d, times) {
+    const tm = $('tm');
+    const act = document.activeElement, refocus = act && tm.contains(act) ? act.dataset.m : null;
+    tm.textContent = '';
+    tm.removeAttribute('aria-busy');
+    if (!S.days.length) { tm.appendChild(el('p', 'pl-wait', 'Chargement des créneaux…')); return; }
+    [['Matin', times.filter((m) => m < 720)], ['Après-midi', times.filter((m) => m >= 720)]].forEach((g) => {
+      if (!g[1].length) return;
+      const id = 'tm-' + (g[0] === 'Matin' ? 'am' : 'pm');
+      const h = el('h5', 'tm-h', g[0]); h.id = id;
+      const box = el('div', 'tm-g'); box.setAttribute('role', 'group'); box.setAttribute('aria-labelledby', id);
+      g[1].forEach((m) => {
+        const mine = isMine(m);
+        const b = el('button', 'tm-b' + (mine ? ' mine' : ''), t24(m)); b.type = 'button'; b.dataset.m = String(m);
+        b.setAttribute('aria-pressed', String(mine));
+        b.setAttribute('aria-label', t24(m) + ', ' + dayLong(S.day) + (mine ? ', ton créneau' : ''));
+        box.appendChild(b);
+      });
+      tm.append(h, box);
+    });
+    if (refocus) { const again = tm.querySelector('[data-m="' + refocus + '"]'); if (again) again.focus({ preventScroll: true }); }
+  }
   function renderPlan(d) {
     const pl = $('pl'), tabs = $('pl-tabs');
     const act = document.activeElement, refocus = act && act.classList && act.classList.contains('pl-c') ? [act.dataset.b, act.dataset.m] : null;
     pl.textContent = ''; tabs.textContent = '';
-    pl.removeAttribute('aria-busy');
-    const title = $('pl-day');
-    title.textContent = dayWord(S.day);
-    title.appendChild(el('small', '', (diffDays(S.today, S.day) < 2 ? cap(dayLong(S.day)) + ' · ' : '') + S.svc.name + ', ' + durText(S.svc.dur)));
-    const total = freeCount(d);
-    $('pl-first').hidden = !S.next;
-    if (!d || !d.open) {
-      tabs.hidden = true;
-      const p = el('p', 'pl-shut', 'Le salon est fermé ce jour-là.');
-      p.appendChild(el('small', '', S.salon.hoursText || ''));
-      pl.appendChild(p);
-      return;
-    }
-    tabs.hidden = false;
-    const rows = rowsOf(S.day);
+    if (!d || !d.open) { tabs.hidden = true; pl.hidden = true; return; }
+    tabs.hidden = false; pl.hidden = false;
+    const rows = rowsOf(S.day), total = freeCount(d);
     const half = Math.ceil(rows.length / 2);
     // on a phone, open the first chair that has room rather than a full one
     if (!freeCount(d, S.barbers[S.tab].id) && total && !S.tabTouched) S.tab = Math.max(0, S.barbers.findIndex((b) => freeCount(d, b.id) > 0));
     const times = el('div', 'pl-times'); times.setAttribute('aria-hidden', 'true');
-    rows.forEach((m) => times.appendChild(el('span', m % 60 ? 'half' : '', fmtH(m))));
+    rows.forEach((m) => times.appendChild(el('span', m % 60 ? 'half' : '', t24(m))));
     pl.appendChild(times);
     const h = S.hold && S.hold.day === S.day ? S.hold : null;
     S.barbers.forEach((b, i) => {
@@ -418,16 +599,16 @@
       const cells = el('div', 'pl-cells'); cells.style.setProperty('--half', String(half));
       rows.forEach((m) => {
         const mine = h && h.staffId === b.id && h.start === m;
-        const cov = h && h.staffId === b.id && m > h.start && m < h.start + S.svc.dur;
+        const cov = h && h.staffId === b.id && m > h.start && m < h.start + calcSvc().dur;
         let c;
         if (d.by[b.id].has(m) || mine) {
           c = el('button', 'pl-c' + (mine ? ' mine' : '')); c.type = 'button'; c.dataset.b = b.id; c.dataset.m = String(m);
-          c.setAttribute('aria-label', fmtH(m) + ' avec ' + b.name + ', ' + dayLong(S.day) + (mine ? ', ton créneau' : ', libre'));
-          c.appendChild(el('span', '', fmtH(m)));
+          c.setAttribute('aria-label', t24(m) + ' avec ' + b.name + ', ' + dayLong(S.day) + (mine ? ', ton créneau' : ', libre'));
+          c.appendChild(el('span', '', t24(m)));
         } else {
           c = el('div', 'pl-c ' + (cov ? 'cov' : 'busy' + (S.day === S.today && m < S.nowMin ? ' past' : '')));
           c.setAttribute('aria-hidden', 'true');
-          if (!cov) c.appendChild(el('span', '', fmtH(m)));
+          if (!cov) c.appendChild(el('span', '', t24(m)));
         }
         cells.appendChild(c);
       });
@@ -437,41 +618,37 @@
     if (refocus) { const again = pl.querySelector('button.pl-c[data-b="' + refocus[0] + '"][data-m="' + refocus[1] + '"]'); if (again) again.focus({ preventScroll: true }); }
   }
 
+  /* ---------- around the journey: the live line, the pill, the team ---------- */
   function renderStatus() {
-    let text, open = S.open;
+    let text; const open = S.open;
     const t = dayData(S.today), nx = S.next;
     if (open) {
-      if (nx && nx.day === S.today) text = 'Ouvert · ' + nx.n + (nx.n > 1 ? ' fauteuils libres' : ' fauteuil libre') + ' à ' + fmtH(nx.m);
+      if (nx && nx.day === S.today) text = 'Ouvert · ' + nx.n + (nx.n > 1 ? ' fauteuils libres' : ' fauteuil libre') + ' à ' + t24(nx.m);
       else text = t || nx ? 'Ouvert · complet en ligne aujourd’hui' : 'Ouvert';
-    } else text = nx ? 'Fermé · prochain créneau ' + dayWord(nx.day).toLowerCase() + ' à ' + fmtH(nx.m) : 'Fermé · ' + (S.salon.hoursText || '');
+    } else text = nx ? 'Fermé · prochain créneau ' + dayWord(nx.day).toLowerCase() + ' à ' + t24(nx.m) : 'Fermé · ' + (S.salon.hoursText || '');
     document.querySelectorAll('[data-live-st]').forEach((p) => { p.classList.toggle('open', open); p.lastElementChild.textContent = text; });
-    $('hero-next-v').textContent = nx ? dayWord(nx.day).replace(/^(\S+) (\S+) (\S{3})\S*$/, '$1 $2 $3.') + ' · ' + fmtH(nx.m) : 'Voir le planning';
+    $('hero-live').setAttribute('aria-label', text + (nx ? '. Réserver ce créneau' : '. Prendre rendez-vous'));
+    $('hero-next-v').textContent = nx ? shortDay(nx.day) + ' · ' + t24(nx.m) : 'Prendre rendez-vous';
   }
-
-  /* ---------- l'équipe: monograms and each barber's next free slot ---------- */
   function renderTeam() {
     const ul = $('team');
     const key = S.barbers.map((b) => { const n = nextOf(b.id); return n ? n.day + n.m : '-'; }).join('|');
     if (ul.dataset.k === key) return;
     ul.dataset.k = key;
     ul.textContent = '';
-    S.barbers.forEach((b, i) => {
+    S.barbers.forEach((b) => {
       const li = el('li', 'bb-i');
       const mono = el('span', 'bb-mono', b.initials || b.name.charAt(0)); mono.setAttribute('aria-hidden', 'true');
       li.append(mono, el('h3', 'bb-n', b.name));
       if (b.bio) li.appendChild(el('p', 'bb-bio', b.bio));
       const n = nextOf(b.id);
-      const go = el('button', 'bb-next' + (n ? '' : ' none')); go.type = 'button'; go.dataset.tab = String(i); if (n) { go.dataset.day = n.day; }
-      go.append(el('i'), document.createTextNode(n ? dayWord(n.day).replace(/^(\S+) (\S+) (\S{3})\S*$/, '$1 $2 $3.') + ' · ' + fmtH(n.m) : (b.away && b.away.note) || 'Voir son planning'));
-      go.firstChild.setAttribute('aria-hidden', 'true');
-      go.setAttribute('aria-label', (n ? 'Prochain créneau de ' + b.name + ' : ' + dayWord(n.day).toLowerCase() + ' à ' + fmtH(n.m) : 'Voir le planning de ' + b.name) + '. Ouvrir le planning');
-      const w = el('p', 'bb-go'); w.appendChild(go); li.appendChild(w);
+      const goB = el('button', 'bb-next' + (n ? '' : ' none')); goB.type = 'button'; goB.dataset.staff = b.id; if (n) { goB.dataset.day = n.day; goB.dataset.m = String(n.m); }
+      goB.append(el('i'), document.createTextNode(n ? shortDay(n.day) + ' · ' + t24(n.m) : (b.away && b.away.note) || 'Réserver avec ' + b.name));
+      goB.firstChild.setAttribute('aria-hidden', 'true');
+      goB.setAttribute('aria-label', n ? 'Réserver avec ' + b.name + ', prochain créneau ' + dayWord(n.day).toLowerCase() + ' à ' + t24(n.m) : 'Réserver avec ' + b.name);
+      const w = el('p', 'bb-go'); w.appendChild(goB); li.appendChild(w);
       ul.appendChild(li);
     });
-  }
-  function nextOf(bid) {
-    for (const d of S.days) { let best = null; d.by[bid].forEach((m) => { if (best == null || m < best) best = m; }); if (best != null) return { day: d.day, m: best }; }
-    return null;
   }
 
   /* ---------- la carte ---------- */
@@ -490,69 +667,96 @@
       name.appendChild(el('small', '', bits.join(' · ')));
       const price = el('p', 'cr-p'); if (it.from) price.appendChild(el('small', '', 'dès')); price.appendChild(document.createTextNode(eur(it.price)));
       row.append(name, price);
-      if (it.online && sv) { const b = el('button', 'btn small ghost cr-go', 'Voir les créneaux'); b.type = 'button'; b.dataset.svc = sv.id; b.setAttribute('aria-label', 'Voir les créneaux pour ' + it.name); row.appendChild(b); }
+      if (it.online && sv) { const b = el('button', 'btn small ghost cr-go', 'Réserver'); b.type = 'button'; b.dataset.svc = sv.id; b.setAttribute('aria-label', 'Réserver : ' + it.name); row.appendChild(b); }
       box.appendChild(row);
     });
     if (S.services.length) { const min = Math.min.apply(null, S.services.map((x) => x.price)); $('cta-sub').textContent = 'dès ' + eur(min); }
   }
 
-  /* ---------- holding a slot, then the sheet ---------- */
-  const bk = $('bk'), form = $('bk-form');
-  let holdTimer = 0;
-  function planMsg(text) {
-    const p = $('pl-msg');
-    p.hidden = !text; p.textContent = text || '';
+  /* ---------- the recap (side panel on a desk, bottom bar on a phone) and the one main button ---------- */
+  function whenText(h) { return cap(WDS[dow(h.day)]) + ' ' + utc(h.day).getUTCDate() + ' ' + MO[utc(h.day).getUTCMonth()] + ' à ' + t24(h.start); }
+  function staffText() {
+    if (!S.staff) return '';
+    if (S.staff !== 'any') return barber(S.staff).name;
+    const b = S.hold && barber(S.hold.staffId);
+    return b ? b.name + ' (peu importe)' : 'Peu importe';
   }
+  function renderRecap() {
+    const sv = S.booked ? S.booked.sv : S.svc, h = S.booked ? { day: S.booked.day, start: S.booked.start } : S.hold;
+    const who = S.booked ? (barber(S.booked.staffId) || {}).name || '' : staffText();
+    const set = (id, v, dash) => { const n = $(id); n.textContent = v || dash || 'À choisir'; n.classList.toggle('todo', !v); };
+    set('rc-svc', sv && sv.name);
+    set('rc-staff', who);
+    set('rc-when', h && whenText(h));
+    set('rc-dur', sv && durText(sv.dur), '–');
+    set('rc-total', sv && priceText(sv), '–');
+    $('bar-a').textContent = sv ? sv.name : 'Ton rendez-vous';
+    const bits = [who, h ? whenText(h) : '', sv ? durText(sv.dur) : ''].filter(Boolean);
+    $('bar-b').textContent = bits.length ? bits.join(' · ') : 'Choisis ta prestation';
+    $('bar-p').textContent = sv ? priceText(sv) : '';
+    setGo();
+  }
+  function setGo() {
+    const sv = S.svc, dep = sv ? depositOf(sv) : 0, form = S.step === 'form';
+    const ok = S.step === 'svc' ? !!sv : S.step === 'staff' ? !!S.staff : S.step === 'slot' ? !!S.hold : form;
+    const label = S.sending || S.picking ? 'Un instant…' : !form ? 'Continuer' : dep > 0 ? 'Confirmer et régler l’acompte · ' + eur(dep) : 'Confirmer le rendez-vous · ' + priceText(sv);
+    const note = form ? (dep > 0 ? 'Total ' + priceText(sv) + ', dont ' + eur(dep) + ' d’acompte en ligne.' : 'À régler au salon.') : '';
+    document.querySelectorAll('.js-go').forEach((b) => { b.textContent = label; b.disabled = !ok || !!S.sending || !!S.picking; b.hidden = S.step === 'done'; });
+    document.querySelectorAll('.js-note').forEach((p) => { p.hidden = !note; p.textContent = note; });
+  }
+
+  /* ---------- holding a slot (before the form), then the coordonnées ---------- */
+  const form = $('bk-form');
+  let holdTimer = 0;
   function dropHold() {
     if (S.hold) { Api.release(S.hold.id); S.hold = null; }
     clearInterval(holdTimer);
   }
-  async function pick(btn) {
+  async function holdSlot(day, m, staffId) {
+    const r = await Api.hold({ serviceIds: [S.svc.id], staffId, day, start: m, ...(S.hold ? { replace: S.hold.id } : {}) });
+    S.hold = { id: r.holdId, staffId: r.staffId || staffId, day, start: m, exp: r.exp };
+    S.day = day;
+    clearInterval(holdTimer); holdTimer = setInterval(tickHold, 1000);
+  }
+  // a time in the list and a free cell of the planning do the same thing: hold the slot, then the coordonnées
+  async function pick(btn, m, staffId) {
     if (S.picking) return;
-    const b = barber(btn.dataset.b), m = Number(btn.dataset.m), day = S.day;
-    if (S.hold && S.hold.staffId === b.id && S.hold.day === day && S.hold.start === m) { openSheet(); return; }
-    S.picking = true; btn.setAttribute('aria-busy', 'true');
-    planMsg('');
+    const day = S.day;
+    if (S.hold && S.hold.day === day && S.hold.start === m && (staffId === 'any' || S.hold.staffId === staffId)) { if (staffId !== 'any') S.staff = staffId; go('form'); return; }
+    S.picking = true; btn.setAttribute('aria-busy', 'true'); setGo();
+    msg('');
     try {
-      const r = await Api.hold({ serviceIds: [S.svc.id], staffId: b.id, day, start: m, ...(S.hold ? { replace: S.hold.id } : {}) });
-      S.hold = { id: r.holdId, staffId: r.staffId || b.id, day, start: m, exp: r.exp };
-      S.sig = ''; render();
-      openSheet();
+      await holdSlot(day, m, staffId);
+      if (staffId !== 'any') setStaffQuiet(staffId);
+      S.picking = false;
+      go('form');
+      loadAvail();
     } catch (e) {
       btn.removeAttribute('aria-busy');
-      if (e.code === 'taken') { planMsg('Ce créneau vient d’être pris. Le planning est à jour : choisis-en un autre, ta formule et ton jour sont gardés.'); S.sig = ''; await loadAvail(); $('pl-day').focus({ preventScroll: true }); }
-      else planMsg(e.message);
-    } finally { S.picking = false; }
+      S.picking = false;
+      if (e.code === 'taken') { msg('Ce créneau vient d’être pris. Choisis une autre heure : ta prestation et ton barbier sont gardés.'); S.sig = ''; await loadAvail(); $('pl-day').focus({ preventScroll: true }); }
+      else msg(e.message);
+      setGo();
+    }
   }
-  function openSheet() {
-    const h = S.hold, b = barber(h.staffId), sv = S.svc;
-    form.hidden = false; $('bk-done').hidden = true;
-    $('bk-t').textContent = 'Ton créneau';
-    $('bk-x').setAttribute('aria-label', 'Fermer et libérer le créneau');
-    $('recap-w').textContent = dayWord(h.day) + (diffDays(S.today, h.day) < 2 ? ', ' + dayLong(h.day).replace(/^\S+ /, '') : '') + ' à ' + fmtH(h.start);
-    $('recap-s').textContent = sv.name + ' · ' + durText(sv.dur) + ' · avec ' + b.name;
-    $('bk-price').textContent = priceText(sv);
+  function setStaffQuiet(id) { S.staff = id; S.tab = Math.max(0, S.barbers.findIndex((b) => b.id === id)); S.tabTouched = true; }
+  // the reminder leaves the eve at 18 h: no promise for a cut today, nor for tomorrow once 18 h has passed
+  function reminderPossible(day) { const n = diffDays(S.today, day); return n > 1 || (n === 1 && S.nowMin < REMINDER_HOUR * 60); }
+  function renderForm() {
+    const sv = S.svc, h = S.hold;
     const dep = depositOf(sv), hours = (S.salon.booking && S.salon.booking.cancelUntilHours) || 12;
-    $('bk-line').textContent = dep > 0 ? 'dont ' + eur(dep) + ' d’acompte en ligne' : 'à régler au salon';
     $('dep').hidden = !(dep > 0);
     $('dep').textContent = dep > 0 ? 'Un acompte de ' + eur(dep) + ' est demandé pour cette prestation, déduit au salon. Annulé plus de ' + hours + ' h avant, il est remboursé.' : '';
-    $('bk-go').textContent = dep > 0 ? 'Réserver et régler l’acompte' : 'Confirmer le rendez-vous';
     const terms = $('bk-terms');
     terms.hidden = !(dep > 0);
     if (dep > 0 && !terms.firstChild) { terms.append('En réservant, tu acceptes les conditions d’annulation : gratuite jusqu’à ' + hours + NBSP + 'h avant, ensuite l’acompte reste au salon. '); const a = el('a', '', 'Voir les CGV'); a.href = '/cgv'; a.target = '_blank'; a.rel = 'noopener'; terms.appendChild(a); }
     const demo = $('bk-demo');
     demo.hidden = !(S.sim || S.salon.mode === 'demo');
     demo.textContent = S.sim ? 'Mode démo : le salon n’est pas joignable d’ici. Rien n’est réservé ni envoyé.' : 'Démo : n’entre pas tes vraies coordonnées, tout est visible. Aucun SMS n’est envoyé, aucun paiement n’est débité.';
-    $('f-sms').closest('.sw').hidden = !reminderPossible(h.day);
+    $('f-sms').closest('.sw').hidden = !(h && reminderPossible(h.day));
     showErr('');
     tickHold();
-    clearInterval(holdTimer); holdTimer = setInterval(tickHold, 1000);
-    if (!bk.open) bk.showModal();
-    bk.scrollTop = 0;
-    $('bk-t').focus({ preventScroll: true });
   }
-  // the reminder leaves the eve at 18 h: no promise for a cut today, nor for tomorrow once 18 h has passed
-  function reminderPossible(day) { const n = diffDays(S.today, day); return n > 1 || (n === 1 && S.nowMin < REMINDER_HOUR * 60); }
   function tickHold() {
     const p = $('hold');
     if (!S.hold) { clearInterval(holdTimer); return; }
@@ -561,14 +765,6 @@
     p.classList.remove('gone');
     $('hold-t').textContent = 'Créneau gardé pour toi pendant que tu écris';
     $('hold-left').textContent = Math.floor(left / 60) + ':' + pad(left % 60);
-  }
-  function closeSheet() {
-    clearInterval(holdTimer);
-    if (bk.open) bk.close();
-    if (S.booked) { S.booked = null; }
-    else if (S.hold) { Api.release(S.hold.id); S.hold = null; }
-    S.sig = '';
-    loadAvail();
   }
   function showErr(text) { const p = $('bk-err'); p.hidden = !text; p.textContent = text || ''; }
   function fieldErr(id, text) {
@@ -585,42 +781,44 @@
     return d.startsWith('+') ? /^\+\d{8,15}$/.test(d) : /^0[1-9]\d{8}$/.test(d);
   }
   async function submit(e) {
-    e.preventDefault();
-    if (S.sending || !S.hold) return;
-    const v = { first: $('f-first').value.trim(), last: $('f-last').value.trim(), phone: $('f-phone').value.trim(), email: $('f-email').value.trim(), note: $('f-note').value.trim() };
+    if (e) e.preventDefault();
+    if (S.sending || !S.hold || S.step !== 'form') return;
+    const v = { first: $('f-first').value.trim(), phone: $('f-phone').value.trim(), email: $('f-email').value.trim(), note: $('f-note').value.trim() };
     const ok = [
       fieldErr('first', v.first.length < 2 ? 'Écris ton prénom (2 lettres au moins).' : /[:/]/.test(v.first) ? 'Sans « : » ni « / » dans le prénom.' : ''),
       fieldErr('phone', phoneOk(v.phone) ? '' : 'Écris un numéro valide, par exemple 06 12 34 56 78.'),
       fieldErr('email', !v.email || /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v.email) ? '' : 'Cette adresse a l’air incomplète. Corrige-la ou laisse vide.')
     ];
-    if (ok.includes(false)) { form.querySelector('[aria-invalid="true"]').focus(); return; }
-    const h = S.hold, sv = S.svc, go = $('bk-go'), label = go.textContent;
+    if (ok.includes(false)) { const bad = form.querySelector('[aria-invalid="true"]'); bad.focus(); bad.scrollIntoView({ block: 'center', behavior: calm() ? 'auto' : 'smooth' }); return; }
+    const h = S.hold, sv = S.svc;
     const sms = !$('f-sms').closest('.sw').hidden && $('f-sms').checked;
-    S.sending = true; go.disabled = true; go.textContent = 'Un instant…'; showErr('');
+    S.sending = true; setGo(); showErr('');
     try {
-      const body = { holdId: h.id, serviceIds: [sv.id], staffId: h.staffId, day: h.day, start: h.start, first: v.first, phone: v.phone, sms: $('f-sms').checked, marketing: $('f-mkt').checked };
-      if (v.last && !/[:/]/.test(v.last)) body.last = v.last;
+      const body = { holdId: h.id, serviceIds: [sv.id], staffId: h.staffId, day: h.day, start: h.start, first: v.first, phone: v.phone, sms, marketing: $('f-mkt').checked };
       if (v.email) body.email = v.email;
       if (v.note) body.note = v.note;
       const r = await Api.book(body);
       S.booked = { r, day: h.day, start: h.start, staffId: r.staffId || h.staffId, sv, email: v.email, sms };
       S.hold = null; clearInterval(holdTimer);
+      S.sending = false;
       showDone();
     } catch (er) {
+      S.sending = false;
       if (er.code === 'taken') {
-        // back to the planning, formule, day and what was typed all kept
+        // back to the time step: prestation, barbier, day and what was typed are all kept
         S.hold = null; clearInterval(holdTimer);
-        if (bk.open) bk.close();
-        planMsg(er.message || 'Ce créneau vient d’être pris. Choisis-en un autre, tes choix sont gardés.');
-        S.sig = ''; await loadAvail();
-        toPlanning(true);
-      } else showErr(er.message);
-    } finally { S.sending = false; go.disabled = false; go.textContent = label; }
+        S.day = h.day; S.dayPicked = true;
+        go('slot');
+        msg('Ce créneau vient d’être pris. Choisis une autre heure : ta prestation, ton barbier et tes coordonnées sont gardés.');
+        await loadAvail();
+      } else { showErr(er.message); $('bk-err').scrollIntoView({ block: 'center', behavior: calm() ? 'auto' : 'smooth' }); }
+      setGo();
+    }
   }
   function icsUrl(k) {
     const d = k.day.replace(/-/g, ''), b = barber(k.staffId);
     const st = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z');
-    const esc = (s) => String(s).replace(/\\/g, '\\\\').replace(/,/g, '\\,').replace(/;/g, '\\;');
+    const esc = (s) => String(s).replace(/\\/g, '\\\\').replace(/,/g, '\\,').replace(/;/g, '\;');
     const ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Barber LArchitecte//Reservation//FR', 'BEGIN:VEVENT',
       'UID:' + k.r.code + '@larchitecte', 'DTSTAMP:' + st, 'DTSTART;TZID=Europe/Paris:' + d + 'T' + hm(k.start) + '00', 'DTEND;TZID=Europe/Paris:' + d + 'T' + hm(k.start + k.sv.dur) + '00',
       'SUMMARY:' + esc('Barber L’Architecte · ' + k.sv.name), 'LOCATION:' + esc(ADDRESS),
@@ -628,14 +826,13 @@
       ...(k.r.manage ? ['URL:' + k.r.manage] : []), 'END:VEVENT', 'END:VCALENDAR'].join('\r\n');
     return URL.createObjectURL(new Blob([ics], { type: 'text/calendar;charset=utf-8' }));
   }
+  /* the confirmation: quoi, avec qui, quand, où; the agenda; the link to move or cancel; what happens next */
   function showDone() {
     const k = S.booked, r = k.r, b = barber(k.staffId), pending = r.status === 'pending' && r.deposit > 0;
-    form.hidden = true; $('bk-done').hidden = false;
-    $('bk-t').textContent = S.sim ? 'Mode démo' : pending ? 'Presque fini' : 'Rendez-vous pris';
-    $('bk-x').setAttribute('aria-label', 'Fermer');
     $('done-k').textContent = S.sim ? 'Démo terminée.' : pending ? 'Il reste l’acompte.' : 'C’est réservé.';
-    $('done-w').textContent = cap(dayLong(k.day)) + ' à ' + fmtH(k.start);
-    $('done-s').textContent = k.sv.name + ' · ' + durText(k.sv.dur) + (b ? ' · avec ' + b.name : '') + ' · ' + ADDRESS;
+    $('done-what').textContent = k.sv.name + ' · ' + durText(k.sv.dur) + ' · ' + priceText(k.sv);
+    $('done-who').textContent = b ? b.name : 'Le salon';
+    $('done-when').textContent = cap(dayLong(k.day)) + ' à ' + t24(k.start);
     const pay = $('done-pay'), payBtn = $('done-paybtn');
     pay.hidden = payBtn.hidden = !pending;
     if (pending) {
@@ -656,74 +853,84 @@
     const mg = $('done-manage');
     mg.hidden = !r.manage; if (r.manage) mg.href = r.manage;
     const code = $('done-code'); code.textContent = 'Ton code : '; code.appendChild(el('b', '', r.code));
-    bk.scrollTop = 0;
-    $('bk-t').focus({ preventScroll: true });
-    S.sig = ''; loadAvail();
+    go('done');
+    loadAvail();
   }
 
   /* ---------- events ---------- */
   function bootEvents() {
-    $('fm-list').addEventListener('change', (e) => { if (e.target.name === 'formule') chooseService(e.target.value, false); });
-    $('fm').addEventListener('toggle', () => { if (desk() && !$('fm').open) $('fm').open = true; });
-    $('days').addEventListener('click', (e) => {
+    $('bw-back').addEventListener('click', back);
+    document.querySelectorAll('.js-go').forEach((b) => b.addEventListener('click', mainAction));
+    $('svc-list').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-svc]'); if (!b || S.picking) return;
+      const sv = S.services.find((x) => x.id === b.dataset.svc); if (!sv) return;
+      setSvc(sv); nextFrom(0);
+    });
+    $('staff-list').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-staff]'); if (!b || S.picking) return;
+      setStaff(b.dataset.staff); S.pre.staff = false; nextFrom(1);
+    });
+    document.querySelector('.vw').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-view]'); if (!b || S.view === b.dataset.view) return;
+      S.view = b.dataset.view; S.sig = ''; renderSlot();
+    });
+    const onDay = (e) => {
       const b = e.target.closest('button'); if (!b) return;
       if (b.dataset.shift) {
         S.from = b.dataset.shift === '1' ? addDays(S.from, SPAN) : (addDays(S.from, -SPAN) < S.today ? S.today : addDays(S.from, -SPAN));
-        S.day = ''; S.tabTouched = false; $('days').scrollLeft = 0; $('pl').setAttribute('aria-busy', 'true'); loadAvail();
+        S.day = ''; S.dayPicked = false; S.tabTouched = S.staff && S.staff !== 'any'; $('days').scrollLeft = 0; $('tm').setAttribute('aria-busy', 'true'); loadAvail();
         return;
       }
-      S.day = b.dataset.day; S.tabTouched = false; planMsg(''); render();
-    });
-    $('pl-tabs').addEventListener('click', (e) => { const t = e.target.closest('[data-tab]'); if (!t) return; S.tab = Number(t.dataset.tab); S.tabTouched = true; render(); const n = $('tab-' + S.tab); if (n) n.focus(); });
+      if (!b.dataset.day) return;
+      S.day = b.dataset.day; S.dayPicked = true; S.tabTouched = S.staff && S.staff !== 'any'; msg(''); S.sig = ''; renderSlot();
+      if (e.currentTarget.id === 'sl-none') { const n = $('days').querySelector('[aria-pressed="true"]'); if (n) { n.scrollIntoView({ block: 'nearest', inline: 'center' }); n.focus({ preventScroll: true }); } }
+    };
+    $('days').addEventListener('click', onDay);
+    $('sl-none').addEventListener('click', onDay);
+    $('tm').addEventListener('click', (e) => { const b = e.target.closest('button.tm-b'); if (b) pick(b, Number(b.dataset.m), S.staff || 'any'); });
+    $('pl-tabs').addEventListener('click', (e) => { const t = e.target.closest('[data-tab]'); if (!t) return; S.tab = Number(t.dataset.tab); S.tabTouched = true; renderSlot(); const n = $('tab-' + S.tab); if (n) n.focus(); });
     $('pl-tabs').addEventListener('keydown', (e) => {
       if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
       e.preventDefault();
-      S.tab = (S.tab + (e.key === 'ArrowRight' ? 1 : S.barbers.length - 1)) % S.barbers.length; S.tabTouched = true; render();
+      S.tab = (S.tab + (e.key === 'ArrowRight' ? 1 : S.barbers.length - 1)) % S.barbers.length; S.tabTouched = true; renderSlot();
       const n = $('tab-' + S.tab); if (n) n.focus();
     });
-    $('pl').addEventListener('click', (e) => { const c = e.target.closest('button.pl-c'); if (c) pick(c); });
-    $('pl-first').addEventListener('click', goNext);
-    $('hero-next').addEventListener('click', (e) => { e.preventDefault(); goNext(); });
+    $('pl').addEventListener('click', (e) => { const c = e.target.closest('button.pl-c'); if (c) pick(c, Number(c.dataset.m), c.dataset.b); });
+    // the shortcuts around the journey: each one fills steps of the same journey
+    const fromNext = (e) => { e.preventDefault(); if (!S.ready) { toJourney(true); return; } prefill(S.next ? { staff: 'any', slot: { day: S.next.day, m: S.next.m } } : {}); };
+    $('hero-next').addEventListener('click', fromNext);
+    $('hero-live').addEventListener('click', fromNext);
     $('team').addEventListener('click', (e) => {
-      const b = e.target.closest('.bb-next'); if (!b) return;
-      S.tab = Number(b.dataset.tab); S.tabTouched = true;
-      if (b.dataset.day && dayData(b.dataset.day)) S.day = b.dataset.day;
-      render(); toPlanning(true, true);
+      const b = e.target.closest('.bb-next'); if (!b || !S.ready) return;
+      prefill({ staff: b.dataset.staff, slot: b.dataset.day ? { day: b.dataset.day, m: Number(b.dataset.m) } : null });
     });
-    $('carte-list').addEventListener('click', (e) => { const b = e.target.closest('[data-svc]'); if (b) chooseService(b.dataset.svc, true); });
+    $('carte-list').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-svc]'); if (!b) return;
+      const sv = S.services.find((x) => x.id === b.dataset.svc); if (sv) prefill({ svc: sv });
+    });
     document.addEventListener('click', (e) => {
       const a = e.target.closest('a[href="#reserver"]'); if (!a || a.id === 'hero-next' || a.classList.contains('skip')) return;
-      e.preventDefault(); toPlanning(true);
+      e.preventDefault(); toJourney(true);
     });
     form.addEventListener('submit', submit);
     ['first', 'phone', 'email'].forEach((id) => $('f-' + id).addEventListener('input', () => { if ($('f-' + id).hasAttribute('aria-invalid')) fieldErr(id, ''); }));
-    $('bk-x').addEventListener('click', closeSheet);
-    $('done-close').addEventListener('click', closeSheet);
-    bk.addEventListener('cancel', (e) => { e.preventDefault(); closeSheet(); });
-    bk.addEventListener('click', (e) => { if (e.target === bk) closeSheet(); });
+    $('done-close').addEventListener('click', () => { resetJourney(); go('svc'); });
     document.addEventListener('visibilitychange', () => { if (!document.hidden && S.ready) loadAvail(); });
     setInterval(() => { if (!document.hidden && S.ready && !S.picking && !S.sending) loadAvail(); }, 30000);
-    // a hold is released when the page is left, so the chair does not stay hatched for nobody
+    // a hold is released when the page is left, so the chair does not stay taken for nobody
     window.addEventListener('pagehide', () => { if (S.hold && !S.sim) { try { fetch('/api/public/holds/' + encodeURIComponent(S.hold.id), { method: 'DELETE', keepalive: true }); } catch (e) { /* the hold expires by itself */ } } });
-  }
-  function goNext() {
-    if (S.next) {
-      if (S.from !== S.today) { S.from = S.today; S.day = ''; loadAvail(); }
-      else { S.day = S.next.day; S.tab = Math.max(0, S.barbers.findIndex((b) => b.id === S.next.bid)); S.tabTouched = true; planMsg(''); render(); }
-    }
-    toPlanning(true, true);
   }
 
   /* ---------- boot ---------- */
+  function shut(text) { const t = $('svc-list'); t.textContent = ''; t.appendChild(el('p', 'pl-shut', text)); }
   async function boot() {
     bootHero();
     bootChrome();
     bootEvents();
-    if (!desk()) $('fm').open = false;
     let salon;
     try { salon = await Real.salon(); }
     catch (e) {
-      if (e.code !== 'network') { const pl = $('pl'); pl.textContent = ''; pl.removeAttribute('aria-busy'); pl.appendChild(el('p', 'pl-shut', e.message)); return; }
+      if (e.code !== 'network') { shut(e.message); return; }
       Api = makeSim(); S.sim = true;
       salon = await Api.salon();
       const b = $('demo-b'); b.hidden = false; b.textContent = 'Mode démo : le salon n’est pas joignable d’ici. Le planning est simulé, rien n’est réservé.';
@@ -733,17 +940,12 @@
     S.barbers = salon.barbers || [];
     S.today = salon.today; S.from = salon.today;
     S.skew = (salon.now || Date.now()) - Date.now();
-    S.svc = S.services[0] || null;
     if (salon.hoursText) $('ft-hours').textContent = salon.hoursText + '.' + (salon.closedText ? ' Fermé ' + salon.closedText + '.' : '');
-    if (salon.shop && salon.shop.mapsUrl) { $('ft-maps').href = salon.shop.mapsUrl; $('pv-link').href = salon.shop.mapsUrl; }
-    renderFormules();
+    if (salon.shop && salon.shop.mapsUrl) { $('ft-maps').href = salon.shop.mapsUrl; $('pv-link').href = salon.shop.mapsUrl; $('done-map').href = salon.shop.mapsUrl; }
     renderCarte();
-    if (salon.booking && salon.booking.enabled === false) {
-      const pl = $('pl'); pl.textContent = ''; pl.removeAttribute('aria-busy');
-      pl.appendChild(el('p', 'pl-shut', 'La réservation en ligne est momentanément fermée.'));
-      return;
-    }
-    if (!S.svc || !S.barbers.length) return;
+    if (salon.booking && salon.booking.enabled === false) { shut('La réservation en ligne est momentanément fermée.'); return; }
+    if (!S.services.length || !S.barbers.length) { shut('La réservation en ligne est momentanément fermée.'); return; }
+    renderJourney();
     await loadAvail();
   }
   boot();

@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Barber L’Architecte · Réserver en trois gestes · Marseille 13e</title>
-<meta name="description" content="Barber L’Architecte, barbier place Pélabon à Marseille. Choisis ta formule, touche une heure, donne ton prénom : c’est réservé.">
+<title>Barber L’Architecte · Réserver en ligne · Marseille 13e</title>
+<meta name="description" content="Barber L’Architecte, barbier place Pélabon à Marseille. Choisis ta formule, ton barbier, le jour et l’heure : c’est réservé, sans compte.">
 <meta name="robots" content="noindex">
 <meta name="theme-color" content="#D3D0C8">
 <link rel="icon" href="../icon.svg" type="image/svg+xml">
@@ -72,10 +72,11 @@
 <p class="kk" data-rv><span>01</span>Réserver</p>
 <div class="now-hd">
 <h2 class="now-h" id="t-now" data-rv>Prends <em>place.</em></h2>
-<ol class="now-3" data-rv aria-label="Réserver en trois gestes">
+<ol class="now-3" data-rv aria-label="Réserver en quatre étapes">
 <li><b>1</b>Ta formule</li>
-<li><b>2</b>Une heure</li>
-<li><b>3</b>Ton prénom, ton numéro</li>
+<li><b>2</b>Ton barbier</li>
+<li><b>3</b>Le jour et l’heure</li>
+<li><b>4</b>Tes coordonnées</li>
 </ol>
 </div>
 <div id="rb-slot"></div>
@@ -188,15 +189,25 @@
 <div class="bk-veil" id="bk-veil"></div>
 <div class="bk" id="bk" role="dialog" aria-modal="true" aria-labelledby="bk-t">
 <div class="bk-top">
-<div class="bk-tt"><p class="bk-k" id="bk-k">Étape 1 sur 3</p><h2 class="bk-t" id="bk-t" tabindex="-1">Ta formule</h2></div>
+<button type="button" class="bk-back" id="bk-back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12H5M11 6l-6 6 6 6"/></svg>Retour</button>
+<p class="bk-k" id="bk-k">Étape 1 sur 4</p>
 <button type="button" class="bk-x" id="bk-x" aria-label="Fermer la réservation"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
 </div>
+<div class="bk-pg" id="bk-pg" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+<div class="bk-main">
+<div class="bk-col">
 <div class="bk-body" id="bk-body">
-<div class="tk" id="tk"></div>
+<h2 class="bk-t" id="bk-t" tabindex="-1">Choisis ta formule</h2>
 <p class="bk-err" id="bk-err" role="alert" hidden></p>
 <div class="st" id="st"></div>
 </div>
-<div class="bk-foot" id="bk-foot" hidden></div>
+<div class="bk-foot" id="bk-foot">
+<div class="rc" id="rc" role="group" aria-label="Ta réservation"></div>
+<div class="bk-act" id="bk-act"></div>
+</div>
+</div>
+<aside class="bk-side" aria-label="Ta réservation"><div class="tk" id="tk"></div></aside>
+</div>
 </div>
 </div>
 <noscript><p class="nojs">La réservation en ligne a besoin de JavaScript. Tu peux aussi passer au salon : 16, place Pélabon, 13013 Marseille.</p></noscript>
