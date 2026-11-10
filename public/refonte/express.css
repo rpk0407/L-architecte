@@ -340,7 +340,9 @@ button.cr-row:hover .cr-go svg{transform:translateX(5px)}
 .bk-back{justify-self:start;display:inline-flex;align-items:center;gap:7px;min-height:46px;padding:0 17px 0 12px;border-radius:999px;background:rgba(15,14,13,.07);font:600 15px/1 var(--f-sans);transition:background-color .2s}
 .bk-back:hover{background:rgba(15,14,13,.14)}
 .bk-back svg{width:18px;height:18px}
-.bk-k{font:600 12.5px/1 var(--f-sans);letter-spacing:.08em;text-transform:uppercase;color:var(--cendre2);text-align:center;white-space:nowrap}
+.bk-back{grid-column:1;grid-row:1}
+.bk-x{grid-column:3;grid-row:1}
+.bk-k{grid-column:2;grid-row:1;font:600 12.5px/1 var(--f-sans);letter-spacing:.08em;text-transform:uppercase;color:var(--cendre2);text-align:center;white-space:nowrap}
 .bk-pg{flex:none;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;padding:0 20px}
 .bk-pg i{height:4px;border-radius:2px;background:rgba(15,14,13,.14);transition:background-color .4s}
 .bk-pg i.on{background:var(--encre)}
