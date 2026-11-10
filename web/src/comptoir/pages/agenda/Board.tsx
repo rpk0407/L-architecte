@@ -6,6 +6,7 @@ import { Avatar, Chip, Money } from '../../../ui/kit';
 import { hhmm, time } from '../../../lib/format';
 import { useIsPhone } from '../../../lib/hooks';
 import type { Agenda, Appt, Lane } from '../../types';
+import { layoutOverlaps, type Place } from './overlap';
 
 export type BoardProps = {
   data: Agenda;
@@ -92,6 +93,16 @@ export function Board(p: BoardProps) {
     if (g && g.ok && (g.start !== a.start || g.staffId !== a.staffId)) p.onMove(a, g.staffId, g.start);
   };
 
+  // two appointments on the same chair at the same time (a forced booking): side by side, never one over the other
+  const places = useMemo(() => {
+    const m = new Map<string, Place>();
+    for (const l of lanes) for (const [id, pl] of layoutOverlaps(appts.filter((a) => a.staffId === l.id && a.status !== 'cancelled'))) m.set(id, pl);
+    return m;
+  }, [lanes, appts]);
+  const byId = useMemo(() => new Map(appts.map((a) => [a.id, a])), [appts]);
+  // a real clash is two clients expected at once: a no-show left its slot, it only shares the width
+  const clashOf = (a: Appt): Appt[] => (a.status === 'no_show' ? [] : (places.get(a.id)?.clash || []).map((id) => byId.get(id)!).filter((o) => o && o.status !== 'no_show'));
+
   const hours = [];
   for (let m = from; m <= to; m += 60) hours.push(m);
   const nowY = isToday && p.nowMin >= from && p.nowMin <= to ? y(p.nowMin) : null;
@@ -112,11 +123,12 @@ export function Board(p: BoardProps) {
           const next = isToday ? mine.find((x) => x.start > p.nowMin && ['booked', 'arrived', 'pending'].includes(x.status)) : null;
           const rev = mine.reduce((t, x) => t + (x.status === 'done' ? x.price : 0), 0);
           const off = !l.work.length;
+          const clashes = mine.filter((x) => clashOf(x).length);
           const line = off ? 'Absent aujourd’hui' : !isToday ? mine.filter((x) => x.status !== 'no_show').length + ' rendez-vous' : live ? 'Au fauteuil · ' + live.name.split(' ')[0] + ' · fin ' + time(live.start + live.dur) : next ? 'Libre jusqu’à ' + time(next.start) : 'Libre';
           return (
             <div key={l.id} className={'lh' + (live ? ' busy' : '')}>
               <Avatar name={l.name} initials={l.initials} color={l.color} />
-              <span className="lh-t"><b>{l.name}</b><small>{line}</small></span>
+              <span className="lh-t"><b>{l.name}</b>{clashes.length ? <small className="lh-clash" role="status"><Icon name="alert" size={12} />{clashOf(clashes[0]).length + 1} clients à {time(Math.min(...clashOf(clashes[0]).map((x) => x.start)))}{clashes.length > clashOf(clashes[0]).length + 1 ? ' · et plus tard' : ''}</small> : <small>{line}</small>}</span>
               {p.canSeeMoney && !phone ? <span className="lh-rev"><Money cents={rev} /></span> : null}
             </div>
           );
@@ -151,7 +163,7 @@ export function Board(p: BoardProps) {
                   </div>
                 ))}
                 {appts.filter((a) => a.staffId === l.id && a.status !== 'cancelled').map((a) => (
-                  <ApptCard key={a.id} a={a} px={px} top={y(a.start)} laneColor={l.color} selected={p.selected === a.id} dragging={drag?.a.id === a.id}
+                  <ApptCard key={a.id} a={a} px={px} top={y(a.start)} laneColor={l.color} place={places.get(a.id)} clash={clashOf(a)} selected={p.selected === a.id} dragging={drag?.a.id === a.id}
                     fresh={Date.now() - a.createdAt < 120000 && a.source === 'site'} showMoney={p.canSeeMoney}
                     onPointerDown={(e) => onPointerDown(e, a)} onPointerMove={onPointerMove} onPointerUp={() => onPointerUp(a)}
                     onClick={() => { if (!justDragged.current) p.onOpen(a); }} />
@@ -168,21 +180,24 @@ export function Board(p: BoardProps) {
   );
 }
 
-function ApptCard({ a, px, top, laneColor, selected, dragging, ghost, bad, fresh, showMoney, onPointerDown, onPointerMove, onPointerUp, onClick }: {
-  a: Appt; px: number; top: number; laneColor: string; selected?: boolean; dragging?: boolean; ghost?: boolean; bad?: boolean; fresh?: boolean; showMoney: boolean;
+function ApptCard({ a, px, top, laneColor, place, clash = [], selected, dragging, ghost, bad, fresh, showMoney, onPointerDown, onPointerMove, onPointerUp, onClick }: {
+  a: Appt; px: number; top: number; laneColor: string; place?: Place; clash?: Appt[]; selected?: boolean; dragging?: boolean; ghost?: boolean; bad?: boolean; fresh?: boolean; showMoney: boolean;
   onPointerDown?: (e: React.PointerEvent) => void; onPointerMove?: (e: React.PointerEvent) => void; onPointerUp?: (e: React.PointerEvent) => void; onClick?: () => void;
 }) {
   const h = a.dur * px - 3;
   const short = h < 40;
   const badges = a.client?.badges || [];
-  const cls = ['ap', 'st-' + a.status, short ? 'short' : '', selected ? 'sel' : '', dragging ? 'dragging' : '', ghost ? 'ghost' : '', bad ? 'bad' : '', fresh ? 'fresh' : ''].filter(Boolean).join(' ');
+  const cls = ['ap', 'st-' + a.status, short ? 'short' : '', selected ? 'sel' : '', dragging ? 'dragging' : '', ghost ? 'ghost' : '', bad ? 'bad' : '', fresh ? 'fresh' : '', clash.length ? 'clash' : '', place && place.cols > 1 ? 'shared' : ''].filter(Boolean).join(' ');
   // a client who already missed: the count in words on the card, not one more icon to decode
   const missed = badges.includes('absences') && a.client && a.client.noShows ? a.client.noShows + (a.client.noShows > 1 ? ' absences' : ' absence') : '';
   const svc = a.services.map((s) => s.name.replace('Coupe + ', '+ ').replace(' de barbe', '')).join(' · ');
-  const label = `${time(a.start)}, ${a.name}, ${a.services.map((s) => s.name).join(' et ')}, ${a.status === 'in_chair' ? 'au fauteuil' : a.status === 'done' ? 'terminé' : a.status === 'no_show' ? 'absent' : a.status === 'arrived' ? 'arrivé' : a.status === 'pending' ? 'acompte en attente' : 'à venir'}${missed ? ', ' + missed : ''}`;
+  const label = `${time(a.start)}, ${a.name}, ${a.services.map((s) => s.name).join(' et ')}, ${a.status === 'in_chair' ? 'au fauteuil' : a.status === 'done' ? 'terminé' : a.status === 'no_show' ? 'absent' : a.status === 'arrived' ? 'arrivé' : a.status === 'pending' ? 'acompte en attente' : 'à venir'}${missed ? ', ' + missed : ''}${clash.length ? ', chevauchement avec ' + clash.map((o) => o.name).join(' et ') : ''}`;
+  // its share of the column when it is not alone at that time
+  const share = place && place.cols > 1 ? { left: `calc(5px + (100% - 10px) * ${place.col} / ${place.cols})`, right: 'auto', width: `calc((100% - 10px) / ${place.cols} - ${place.col < place.cols - 1 ? 3 : 0}px)` } : null;
   return (
-    <button type="button" className={cls} style={{ top: top + 1, height: h, ['--lc' as any]: laneColor }} aria-label={label}
+    <button type="button" className={cls} style={{ top: top + 1, height: h, ['--lc' as any]: laneColor, ...share }} aria-label={label} data-clash={clash.length ? '1' : undefined}
       onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onClick={onClick} tabIndex={ghost ? -1 : undefined}>
+      {clash.length ? <span className="ap-clash"><Icon name="alert" size={11} />{short ? '' : 'Chevauchement'}</span> : null}
       <span className="ap-top">
         {short ? <span className="ap-t">{hhmm(a.start)}</span> : null}
         <span className="ap-n">{a.name}</span>

@@ -23,6 +23,7 @@ import * as C from '../commands/clients.js';
 import * as S from '../commands/sales.js';
 import { sendRebook } from '../commands/messages.js';
 import { rangeWords, timeoffConflicts } from '../commands/team.js';
+import { parseSearch, searchRank } from '../domain/client-search.js';
 import { teamViewOf } from '../settings/team.js';
 import { attribution } from '../domain/attribution.js';
 import { webhookUrl } from '../messaging/sms.js';
@@ -446,14 +447,20 @@ export function staffRoutes(app) {
   app.patch('/api/v1/appointments/:id', (r) => r.run(A.updateAppointment, { ...r.body, id: r.params.id }), { cap: 'agenda.own' });
   app.post('/api/v1/appointments/:id/move', (r) => r.run(A.moveAppointment, { ...r.body, id: r.params.id }), { cap: 'agenda.own' });
   app.post('/api/v1/appointments/:id/status', (r) => r.run(A.setStatus, { id: r.params.id, status: r.body.status }), { cap: 'agenda.own' });
+  // The deposit of a booking the salon cancels goes back only when the person may refund (`sale.refund`: owner, manager)
+  // and asks for it. Refused BEFORE anything is cancelled otherwise, so nothing is half done; and the answer always says
+  // what became of the money: `refunded`, or `depositLeft` (the cents still held, for the owner to keep or give back in
+  // Caisse › En ligne). The Comptoir words its confirmation and its last message from these, never from a guess.
   app.post('/api/v1/appointments/:id/cancel', async (r) => {
+    if (r.body.refundDeposit && !r.caps.has('sale.refund')) throw new HttpError(403, 'forbidden', 'Seul le gérant rembourse un acompte.');
     const res = await r.run(A.cancelAppointment, { id: r.params.id, reason: r.body.reason, notify: r.body.notify });
-    if (r.body.refundDeposit && res.deposit && res.deposit.paymentId) {
-      if (!r.caps.has('sale.refund')) throw new HttpError(403, 'forbidden', 'Seul le gérant rembourse un acompte.');
+    const paid = res.deposit && res.deposit.paymentId ? res.deposit.paid || 0 : 0;
+    if (r.body.refundDeposit && paid) {
       const back = await refundOnline(r, r.s.payments.get(res.deposit.paymentId), 'Annulé par le salon');
       res.refunded = back.ok;
       if (!back.ok) res.refundError = back.error;
     }
+    if (paid && !res.refunded) res.depositLeft = paid;
     return res;
   }, { cap: 'agenda.own' });
 
@@ -477,18 +484,16 @@ export function staffRoutes(app) {
   app.get('/api/v1/clients', (r) => {
     const s = r.s, L = r.local;
     const stats = clientStats(s, L.day, r.now);
-    const q = String(r.query.get('q') || '').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-    const digits = q.replace(/\D/g, '');
+    const q = String(r.query.get('q') || '').trim();
     const seg = r.query.get('segment') || 'all';
     const sort = r.query.get('sort') || 'recent';
     const limit = Math.min(200, Number(r.query.get('limit')) || 60);
     const offset = Math.max(0, Number(r.query.get('offset')) || 0);
     const month = L.day.slice(5, 7);
     let list = [...s.clients.values()].filter((c) => !c.mergedInto && !c.erased);
-    if (q) list = list.filter((c) => {
-      const name = (c.first + ' ' + c.last).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-      return name.includes(q) || (digits.length >= 2 && c.phone.replace(/\D/g, '').replace(/^33/, '0').includes(digits));
-    });
+    // words in any order, accents ignored, « +33 6 » read as « 06 »; names that start with what was typed come first (below)
+    const found = q ? parseSearch(q) : null;
+    if (found) list = list.filter((c) => searchRank(c, found) != null);
     const st = (c) => stats.get(c.id) || {};
     const pairs = C.findDuplicates(s), dups = new Set(pairs.flatMap((p) => [p.a, p.b]));
     const inactive = new Set(C.inactiveClients(s, L.day).map((c) => c.id));
@@ -515,6 +520,8 @@ export function staffRoutes(app) {
       overdue: (a, b) => (st(a).dueIn ?? 999) - (st(b).dueIn ?? 999)
     };
     list.sort(sorters[sort] || sorters.recent);
+    // a search in the default order: best match first (« kar »: Karim before Zakaria), the most recent visit among equals
+    if (found && sort === 'recent') { const rank = new Map(list.map((c) => [c.id, searchRank(c, found)])); list.sort((a, b) => rank.get(a.id) - rank.get(b.id)); }
     return { total: list.length, counts, excludedNoConsent, retention, items: list.slice(offset, offset + limit).map((c) => clientCard(s, c, r.caps, stats, r.now)) };
   }, { cap: 'client.view' });
 

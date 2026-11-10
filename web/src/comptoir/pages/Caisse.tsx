@@ -9,6 +9,7 @@ import { Avatar, Button, Empty, Note, Sheet, Skeleton } from '../../ui/kit';
 import { useApp } from '../state';
 import { PageTitle } from '../App';
 import { Checkout, qrOff } from './caisse/Checkout';
+import { draftsOf, tabStore } from './caisse/draft';
 import { Sales } from './caisse/Sales';
 import { Closing } from './caisse/Closing';
 import { Online } from './caisse/Online';
@@ -99,13 +100,15 @@ function Till() {
     );
   }
 
+  // tickets this person left in progress on this device (kept through the lock): said in the list, one tap to resume
+  const drafts = draftsOf(tabStore(), boot.me.id, today);
   const item = (a: Appt, hot: boolean) => {
     const st = staffById.get(a.staffId);
     return (
       <li key={a.id}>
         <button type="button" className="li" aria-pressed={rdv === a.id} onClick={() => setQuery({ rdv: a.id, vente: null, paiement: null })}>
           {st ? <Avatar name={st.name} initials={st.initials} color={st.color} size="sm" /> : null}
-          <span className="li-main"><b>{a.client ? a.client.first + ' ' + a.client.last : a.name}</b><small>{time(a.start)} · {a.services.map((s) => s.name).join(' + ')}{a.deposit?.paid ? ' · acompte ' + eur(a.deposit.paid) : ''}</small></span>
+          <span className="li-main"><b>{a.client ? a.client.first + ' ' + a.client.last : a.name}</b><small>{time(a.start)} · {a.services.map((s) => s.name).join(' + ')}{a.deposit?.paid ? ' · acompte ' + eur(a.deposit.paid) : ''}</small>{drafts.has(a.id) && rdv !== a.id ? <small><span className="badge badge-warn">ticket en cours</span></small> : null}</span>
           <span className="li-end">
             <b className="money tnum">{eur(a.price)}</b>
             <small className={hot ? '' : 'faint'} style={hot ? { color: 'var(--accent)' } : undefined}>{a.status === 'in_chair' ? 'au fauteuil' : hot ? 'terminé' : st?.name}</small>
@@ -118,7 +121,7 @@ function Till() {
   return (
     <div className={'cs-grid' + (showTicket ? ' has-ticket' : '')}>
       <aside className="col cs-side" style={{ gap: 14 }}>
-        <Button variant={free ? 'solid' : 'primary'} size="lg" block icon="plus" data-guide="cs-free" onClick={() => setQuery({ vente: '1', rdv: null, paiement: null })}>Vente libre</Button>
+        <Button variant={free ? 'solid' : 'primary'} size="lg" block icon="plus" data-guide="cs-free" onClick={() => setQuery({ vente: '1', rdv: null, paiement: null })}>{drafts.has('free') && !free ? 'Vente libre · ticket en cours' : 'Vente libre'}</Button>
         <section className="card cs-list" data-guide="cs-topay">
           <div className="card-h"><h2><Icon name="caisse" size={16} />À encaisser</h2>{toPay.length ? <span className="badge badge-accent">{toPay.length}</span> : null}</div>
           {toPay.length ? <ul className="list">{toPay.map((a) => item(a, true))}</ul> : <p className="muted" style={{ padding: '6px 4px 4px' }}>Personne n’attend. {paid ? paid + ' rendez-vous déjà encaissé' + (paid > 1 ? 's' : '') + ' aujourd’hui.' : ''}</p>}

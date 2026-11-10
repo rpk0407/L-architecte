@@ -83,14 +83,18 @@ test('the figures are Rapports’ and the goal’s own: Encaissé, Réalisé, ea
   assert.equal(month.kpis.cashed.goal.target, g.target);
   assert.equal(month.kpis.cashed.goal.done, g.done);
   assert.equal(month.kpis.cashed.goal.perDay, g.perDay);
-  // three open days are needed before a line is drawn
+  // two open days are needed before a line is drawn (Tuesday the 3rd is the month's first open day)
   assert.equal(month.kpis.cashed.goal.projection, null);
-  // mid-month: a straight line through the open days so far, over the open days of the month, to the euro
+  // mid-month: a straight line through the open days so far, over the open days of the month, to the euro; the day
+  // still running counts for the share of its opening hours already past, and the line is goalOf's own (Rapports reads it too)
   const mid = '2026-10-20';
   const c = cockpit(S(), { range: 'month', day: mid, today: mid, now: at(mid, 15) });
   const gm = goalOf(S(), null, mid, at(mid, 15));
-  const elapsed = openDays(S(), '2026-10-01', mid), total = openDays(S(), '2026-10-01', '2026-10-31');
-  assert.equal(c.kpis.cashed.goal.projection, Math.round((gm.done / elapsed) * total / 100) * 100);
+  const before = openDays(S(), '2026-10-01', '2026-10-19'), total = openDays(S(), '2026-10-01', '2026-10-31');
+  assert.ok(gm.pace.elapsed > before && gm.pace.elapsed < before + 1, 'today is a part of a day at 15:00');
+  assert.equal(gm.pace.total, total);
+  assert.equal(c.kpis.cashed.goal.projection, gm.projection);
+  assert.ok(Math.abs(gm.projection - (gm.done / gm.pace.elapsed) * total) <= 100 + gm.done * 0.01);
   assert.ok(c.kpis.cashed.goal.projection > gm.done);
   // nothing the owner did not already see in Rapports, and no client's name or number
   assert.ok(!/phone|"first"|"last"|email/.test(JSON.stringify(month)));
@@ -126,10 +130,17 @@ test('periods: a week is Monday to Sunday, a month the calendar month, compared 
   assert.deepEqual([past.upTo, past.prev.from, past.prev.to, past.live], ['2026-10-31', '2026-09-01', '2026-09-30', false]);
   assert.equal(periodOf('week', '2026-10-14', DAY).prev.to, '2026-10-11');
   assert.equal(periodOf('day', '2027-01-01', DAY).day, DAY);
+  // Tuesday afternoon after a closed Monday: no open day of the week is finished, so nothing is compared yet
   const c = cockpit(S(), q('week'));
-  const prev = report(S(), { from: c.range.prev.from, to: c.range.prev.to, staffId: null, today: DAY, now: clock.now });
-  assert.equal(c.kpis.prev.cashed, prev.revenue);
+  assert.equal(c.kpis.prev, null);
+  assert.equal(c.range.compare.prev, null);
   assert.equal(dayRange(c.range.from, c.range.upTo).length, 2);
+  // a week over: whole against whole, and the figures of the side before are the report's
+  const old = cockpit(S(), q('week', '2026-10-21'));
+  const prev = report(S(), { from: old.range.compare.prev.from, to: old.range.compare.prev.to, staffId: null, today: DAY, now: clock.now });
+  assert.deepEqual(old.range.compare.prev, { from: '2026-10-12', to: '2026-10-18' });
+  assert.equal(old.kpis.prev.cashed, prev.revenue);
+  assert.equal(old.kpis.cmp.cashed, old.kpis.cashed.value);
 });
 
 test('memoised by (journal version, range, day); a new version computes again', () => {
@@ -143,7 +154,7 @@ test('memoised by (journal version, range, day); a new version computes again', 
   assert.deepEqual(b.kpis, a.kpis);
 });
 
-test('absences lost: a no-show nobody paid for counts, a kept deposit or a fee does not', () => {
+test('absences lost: the price of a no-show less the deposit kept, the same figure as Rapports', () => {
   const s = S();
   const a = [...s.apptsByDay.get(DAY)].map((i) => s.appts.get(i)).find((x) => x.status === 'booked' && !x.saleId);
   const before = cockpit(s, q()).kpis.noShows;
@@ -152,8 +163,12 @@ test('absences lost: a no-show nobody paid for counts, a kept deposit or a fee d
   const lost = cockpit(s, q()).kpis.noShows;
   assert.equal(lost.count, before.count + 1);
   assert.equal(lost.lost, before.lost + 3000);
+  // 10 € kept on 30 €: 20 € lost, not nothing
   a.deposit = { amount: 1000, paid: 1000 }; bump();
-  assert.equal(cockpit(s, q()).kpis.noShows.lost, before.lost, 'the deposit was kept');
+  assert.equal(cockpit(s, q()).kpis.noShows.lost, before.lost + 2000, 'the deposit kept comes off the price');
+  assert.equal(report(s, { from: DAY, to: DAY, staffId: null, today: DAY, now: clock.now }).noShowLost, before.lost + 2000, 'Rapports reads the same figure');
+  a.deposit = { amount: 3000, paid: 3000 }; bump();
+  assert.equal(cockpit(s, q()).kpis.noShows.lost, before.lost, 'a deposit of the whole price: nothing lost');
   Object.assign(a, saved); bump();
   assert.equal(cockpit(s, q()).kpis.noShows.lost, before.lost);
 });

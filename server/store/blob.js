@@ -5,6 +5,7 @@
 // replaced with a conditional write (ETag If-Match), and immutable segments of older events.
 // The conditional write is the compare-and-swap: if anyone wrote since we read, ours is refused.
 import { randomBytes } from 'node:crypto';
+import { follows } from './memory.js';
 
 /** @typedef {import('./memory.js').Store} Store */
 /** @typedef {import('../core/journal.js').JEvent} JEvent */
@@ -118,6 +119,14 @@ export function blobStore(o = {}) {
       if (!list.length) return { ok: true };
       const h = head || (await loadHead());
       if (h.epoch !== ep || list[0].v !== h.version + 1) return { ok: false };
+      // chained to the last event of the head this write replaces (the ETag swap below refuses any other head). With
+      // no tail, that event closes the last segment; one that was compacted away means this head is old: refused too.
+      let last = h.tail[h.tail.length - 1];
+      if (!last && h.sealed.length) {
+        try { const seg = await segment(h.sealed[h.sealed.length - 1].key); last = seg[seg.length - 1]; }
+        catch (e) { if (!/segment manquant/.test(String(e && /** @type {any} */ (e).message))) throw e; head = null; etag = ''; return { ok: false }; }
+      }
+      if (!follows(list, last)) return { ok: false };
       let all = h.tail.concat(list);
       let sealed = h.sealed, tail = all;
       /** @type {string[]} */

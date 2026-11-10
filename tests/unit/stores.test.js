@@ -62,6 +62,43 @@ for (const [name, make] of Object.entries(backends)) {
       assert.equal((await s.append(events(3, 1), 'other-epoch')).ok, false);
     });
 
+    test('refuses an append whose first event is not chained to the last one stored', async () => {
+      const [s, other] = make();
+      const { epoch } = await s.read(0);
+      // an empty journal starts at the genesis hash
+      assert.equal((await s.append(events(1, 1, 'f'.repeat(64)), epoch)).ok, false);
+      const first = events(1, 2);
+      assert.equal((await s.append(first, epoch)).ok, true);
+      // the right version, sealed on events this store never held (a projection ahead of it, an instance that lost a race)
+      const ghost = events(1, 2).map((e) => ({ ...e }));
+      assert.notEqual(ghost[1].h, first[1].h);
+      assert.equal((await s.append(events(3, 1, ghost[1].h), epoch)).ok, false);
+      assert.equal((await s.append(events(3, 1, first[0].h), epoch)).ok, false);
+      assert.equal((await s.read(0)).events.length, 2);
+      assert.equal((await (other || s).append(events(3, 2, first[1].h), epoch)).ok, true);
+      const back = (await s.read(0)).events;
+      assert.equal(back.length, 4);
+      assert.equal(verifyChain(back).ok, true);
+    });
+
+    test('the chain is checked across a compacted history too', async () => {
+      const [s, other] = make();
+      const { epoch } = await s.read(0);
+      // sizes at which the blob store keeps no tail, a short one, and a full one
+      let prev = GENESIS, v = 1;
+      for (const n of [2000, 1, 299, 700, 5]) {
+        assert.equal((await s.append(events(v, n, 'e'.repeat(64)), epoch)).ok, false, 'unchained at ' + v);
+        const ev = events(v, n, prev);
+        const writer = v % 2 && other ? other : s;
+        await writer.read(v - 1); // as an engine does before it writes: the other server may have written since
+        assert.equal((await writer.append(ev, epoch)).ok, true, 'chained at ' + v);
+        prev = ev[ev.length - 1].h; v += n;
+      }
+      const back = (await (other || s).read(0)).events;
+      assert.equal(back.length, v - 1);
+      assert.equal(verifyChain(back).ok, true);
+    });
+
     test('two servers appending the same version: one wins', async (t) => {
       const [a, b] = make();
       if (!b) return t.skip('single-process store');

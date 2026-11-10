@@ -7,6 +7,7 @@ import { clientMayChange, payWindowMin, payDeadline } from '../domain/policy.js'
 import { signLink, checkLink } from '../auth/session.js';
 import { addDays, isDay, diffDays, dayLong } from '../../shared/dates.js';
 import { newId, safeEqual } from '../lib/util.js';
+import { createHmac } from 'node:crypto';
 import * as A from '../commands/agenda.js';
 import { createPayment, paymentSucceeded, paymentEnded } from '../commands/payments.js';
 import { ticketNo } from '../domain/cash.js';
@@ -34,6 +35,11 @@ export const isDemo = (r) => r.rt.cfg.mode === 'demo' && r.s.mode === 'demo';
 export const payLive = (r) => r.rt.pay.name !== 'simulated' || isDemo(r);
 // the actor is chained and can never be erased: no name in it, ever (the client's details travel as pii)
 const CLIENT = (r) => ({ actor: /** @type {const} */ ({ t: 'client', id: 'web', n: '' }), caps: new Set(), meta: { ...r.meta, payLive: payLive(r), payProvider: r.rt.pay.name } });
+/**
+ * Who holds a slot, for the cap on holds (commands/agenda.js holdSlot): the address under the salon's key, cut short and
+ * new every day. Never the address itself: a hold's event is chained and cannot be erased.
+ */
+const visitorOf = (r) => (r.ip ? createHmac('sha256', String(r.rt.secret)).update('lx-hold|' + r.local.day + '|' + r.ip).digest('base64url').slice(0, 12) : '');
 const PROVIDER = (r, id) => ({ actor: /** @type {const} */ ({ t: 'provider', id }), caps: new Set(), meta: r.meta });
 
 // once today's Z is done (an early close), the shop takes nobody else: the site stops saying "Ouvert"
@@ -81,6 +87,13 @@ function apptFromToken(r) {
 }
 
 /**
+ * When a checkout page lapses, on the salon's clock: the provider counts its lifetime on the real one. The two are the
+ * same in production; a demo with its clock moved (LX_FAKE_NOW) keeps a page that lives as long as the provider said.
+ * @param {{ now: number }} r @param {{ exp: number }} co
+ */
+export const lapse = (r, co) => r.now + Math.max(0, co.exp - Date.now());
+
+/**
  * Ask the provider for a checkout page and record it.
  * @param {any} r
  * @param {{ kind: string, amount: number, label: string, apptId: string|null, returnPath: string, email?: string }} o
@@ -91,7 +104,7 @@ export async function startPayment(r, { kind, amount, label, apptId, returnPath,
   const origin = r.origin;
   const payMin = kind === 'deposit' ? payWindowMin(r.s, { stripe: r.rt.pay.name === 'stripe' }) : undefined;
   const co = await r.rt.pay.createCheckout({ id, amount, label, email, payMin, successUrl: origin + returnPath + (returnPath.includes('?') ? '&' : '?') + 'paiement=ok', cancelUrl: origin + returnPath + (returnPath.includes('?') ? '&' : '?') + 'paiement=annule' });
-  await r.rt.engine.run(createPayment, { id, kind, amount, provider: r.rt.pay.name, providerRef: co.ref, url: co.url, apptId, exp: co.exp, label }, { actor: { t: 'system', id: 'payments' }, caps: new Set(['sale.create']), meta: r.meta });
+  await r.rt.engine.run(createPayment, { id, kind, amount, provider: r.rt.pay.name, providerRef: co.ref, url: co.url, apptId, exp: lapse(r, co), label }, { actor: { t: 'system', id: 'payments' }, caps: new Set(['sale.create']), meta: r.meta });
   return { id, url: co.url };
 }
 
@@ -189,13 +202,18 @@ export function publicRoutes(app) {
       // a day sealed early (Z done) is closed, not "complet"
       out.push({ day, open: !s.closures.has(day) && shopIntervals(s, day).length > 0, slots: slots.map((x) => ({ m: x.m, s: x.staffId })) });
     }
-    const cacheable = !ignoreAppt && !q.get('hold');
-    return json({ dur, days: out, now: r.now }, 200, { 'cache-control': cacheable ? 'public, max-age=0, s-maxage=5, stale-while-revalidate=10' : 'no-store' });
+    // fresh: the site's next read after a hold, a booking or a 409 « créneau pris », which must see the journal as it is.
+    // Never stale-while-revalidate here: a salon's traffic is low, the stale copy would be the one nearly everyone gets
+    const cacheable = !ignoreAppt && !q.get('hold') && !q.has('fresh');
+    return json({ dur, days: out, now: r.now }, 200, { 'cache-control': cacheable ? 'public, max-age=0, s-maxage=5' : 'no-store' });
   });
 
   app.post('/api/public/holds', async (r) => {
     guard('hold|' + r.ip, 30, 60000);
-    return r.rt.engine.run(A.holdSlot, r.body, CLIENT(r));
+    // each hold is an event kept for good: a client looking around takes a few dozen at most
+    guard('holdh|' + r.ip, 120, 3600000, 'Trop de créneaux regardés d’un coup. Patiente un peu, ou appelle le salon.');
+    const ctx = CLIENT(r);
+    return r.rt.engine.run(A.holdSlot, r.body, { ...ctx, meta: { ...ctx.meta, visitor: visitorOf(r) } });
   });
   app.del('/api/public/holds/:id', async (r) => r.rt.engine.run(A.releaseHold, { id: r.params.id }, CLIENT(r)));
 
@@ -211,7 +229,16 @@ export function publicRoutes(app) {
     let payment = null;
     if (res.status === 'pending' && res.deposit > 0) {
       const sv = r.s.appts.get(res.id);
-      payment = await startPayment(r, { kind: 'deposit', amount: res.deposit, label: 'Acompte · ' + sv.services.map((x) => x.name).join(' + '), apptId: res.id, returnPath: '/r/' + token, email: r.body.email });
+      try {
+        payment = await startPayment(r, { kind: 'deposit', amount: res.deposit, label: 'Acompte · ' + sv.services.map((x) => x.name).join(' + '), apptId: res.id, returnPath: '/r/' + token, email: r.body.email });
+      } catch (e) {
+        // no page to pay on (the provider is down, or its page could not be recorded): the booking would hold the slot
+        // unpaid, with no link and no text, against its own client's retry. Taken back at once, and said plainly
+        console.error('[lx] deposit checkout failed, booking taken back', res.id, e && (/** @type {any} */ (e).detail || /** @type {any} */ (e).message));
+        try { await r.rt.engine.run(A.expirePending, { id: res.id, reason: 'Paiement en ligne indisponible' }, { actor: { t: 'system', id: 'payments' }, caps: new Set(), meta: r.meta }); }
+        catch (e2) { console.error('[lx] booking not taken back', res.id, e2 && /** @type {any} */ (e2).message); }
+        throw new HttpError(503, 'pay_unavailable', 'Le paiement en ligne est momentanément indisponible : ton rendez-vous n’est pas enregistré et rien n’est débité. Réessaie dans un instant, ou appelle le salon.', { retry: true, phone: r.s.settings.shop.phone });
+      }
     }
     // FID-02: a booking that came through a referrer's link (?parrain=); a refusal never touches the booking
     const ref = r.body && r.body.parrain ? await claimFromLink(r, res.id, r.body.parrain) : null;

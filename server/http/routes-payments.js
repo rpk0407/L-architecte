@@ -53,6 +53,23 @@ async function webhook(r, name) {
 /* ---------------- the till's online refund ---------------- */
 
 /**
+ * What a gift card paid never leaves the till as money (cash, bank card, online): a credit note gives back at most what
+ * the ticket took in money, less what its earlier credit notes already gave back. Without it a card bought 50 € turns
+ * into 50 € from the drawer, its balance spent only on paper.
+ * @param {any} r @param {any} sale @param {any} body
+ */
+function giftcardStaysSpent(r, sale, body) {
+  const onCard = sale.payments.filter((p) => p.method === 'giftcard').reduce((t, p) => t + p.amount, 0);
+  if (!onCard || !Number.isInteger(body && body.amount)) return;
+  const money = sale.payments.reduce((t, p) => t + p.amount, 0) - onCard;
+  const back = (sale.refundIds || []).reduce((t, id) => t + ((r.s.refunds.get(id) || {}).amount || 0), 0);
+  const left = Math.max(0, money - back);
+  if (body.amount > left) {
+    throw new HttpError(409, 'giftcard_paid', 'Ce ticket a été réglé par carte cadeau pour ' + fmtEur(onCard) + ' : cette part ne se rembourse ni en espèces ni par carte. ' + (left > 0 ? 'Au plus ' + fmtEur(left) + ' à rembourser sur ce ticket.' : 'Rien à rembourser en argent sur ce ticket.'), { left, giftcardPaid: onCard });
+  }
+}
+
+/**
  * A credit note paid back on the ticket's online payment. Every rule of the credit note runs before any money moves.
  * What the provider already gave back without one (its dashboard, outsideOpen) is not refunded again: the credit note
  * only records it, as does `outside: true` (« remboursé hors caisse »: the provider no longer plugged in, or a refund
@@ -63,6 +80,7 @@ async function webhook(r, name) {
  * @param {any} r @param {any} sale @param {any} body
  */
 export async function tillRefund(r, sale, body) {
+  if (!replayed(r)) giftcardStaysSpent(r, sale, body);
   if (body.method !== 'online') return r.run(S.refund, { ...body, saleId: sale.id, providerRef: undefined });
   const rq = (r.req && r.req.headers.get('x-request-id')) || '';
   if (replayed(r)) return r.run(S.refund, { ...body, saleId: sale.id });

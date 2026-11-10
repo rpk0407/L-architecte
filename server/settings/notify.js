@@ -14,13 +14,16 @@ export default /** @type {const} */ ({
     // 'HH:MM' Paris time, from noon: the summary tells a day that is done; '' for none
     evening: '20:00',
     // Monday at 8 h, the week before
-    weekly: true
+    weekly: true,
+    // during the day, one e-mail per breakdown and per day (commands/steps/alerts.js): texts failing one after the other,
+    // a scheduler that stayed silent, a backup more than 36 h old
+    alerts: true
   }),
   schema: obj({
     to: opt(str({ max: 120, lower: true, pattern: /^([^@\s]{1,64}@[^@\s]{1,190}\.[^@\s]{2,})?$/ })),
     phone: opt(str({ max: 24, pattern: /^[\d +().-]*$/ })),
     newBooking: opt(bool()), cancel: opt(bool()),
     evening: opt(str({ max: 5, pattern: /^((1[2-9]|2[0-3]):[0-5]\d)?$/ })),
-    weekly: opt(bool())
+    weekly: opt(bool()), alerts: opt(bool())
   })
 });

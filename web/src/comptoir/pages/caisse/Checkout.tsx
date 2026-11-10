@@ -15,6 +15,7 @@ import type { Appt, ApptService, Boot, ClientCard, ClientFull, Cover, Service } 
 import { GiftCode, Receipt, Voucher, printNow, type VoucherCard } from './Receipt';
 import { LoyaltyDone, RewardChip } from './RewardChip';
 import { TillChips } from './TillChips';
+import { clearDraft, draftKey, loadDraft, saveDraft, tabStore } from './draft';
 
 type Kind = 'service' | 'product' | 'giftcard' | 'pack' | 'fee';
 // base: the price the line starts from (the booked one for an appointment), now: today's catalogue price
@@ -26,11 +27,17 @@ const k = () => Math.random().toString(36).slice(2, 9);
 /** the badges TillChips shows itself (membership, carnet, loyalty reward: its own plain badge when no reward chip is passed) */
 const CHIPPED = ['abonné', 'carnet', 'récompense'];
 const METHOD_ICON: Record<string, string> = { card: 'card', cash: 'cash', online: 'qr', giftcard: 'gift', deposit: 'globe', ancien: 'globe' };
+/** What the person himself put on a ticket, as one string: a ticket that says the same as when it was opened is not a
+ *  draft worth keeping. What the till works out alone (the membership's cover, a carnet attached by itself, the deposit) is left out. */
+const draftSig = (ls: Line[], d: { amount: number; reason: string } | null, t: { amount: number; staffId: string } | null, ps: Pay[], clientId: string | null) => JSON.stringify([
+  ls.map((l) => [l.kind, l.ref, l.name, l.qty, l.unit, l.staffId, l.discount, l.rewardId || '', l.recipient || '', l.memberOff ? 1 : 0, l.force ? 1 : 0, l.auto || !l.packId ? '' : l.packId]),
+  d && d.amount ? d : null, t && t.amount ? t : null, ps.filter((p) => p.method !== 'deposit').map((p) => [p.method, p.amount, p.given || 0, p.ref || '']), clientId]);
 /** The test checkout takes no real money: outside the demo, a QR needs Stripe (the server refuses it too). */
 export const qrOff = (boot: Pick<Boot, 'mode' | 'providers'>) => boot.mode !== 'demo' && boot.providers.payments === 'simulated';
 
 export function Checkout({ apptId, drawerOpen, onClose }: { apptId: string | null; drawerOpen: boolean; onClose: () => void }) {
-  const { boot, staffById, serviceById, can, now } = useApp();
+  const { boot, staffById, serviceById, can, now, pulse } = useApp();
+  const today = pulse?.today || boot.today;
   const S = boot.settings.payments;
   const noQr = qrOff(boot);
   const isBoss = ['owner', 'manager'].includes(boot.me.role);
@@ -46,6 +53,38 @@ export function Checkout({ apptId, drawerOpen, onClose }: { apptId: string | nul
   const [modal, setModal] = useState<'' | 'add' | 'discount' | 'cash' | 'qr' | 'gift' | 'client' | 'tip' | 'who'>('');
   const rid = useRef(uuid());
   const loaded = useRef('');
+  // The ticket in progress is kept on this device for this person (draft.ts): leaving the till or the tablet's lock
+  // no longer empties it. `pristine` is the ticket as the server gives it; `resumed` says a draft was put back.
+  const store = tabStore();
+  const dKey = draftKey(boot.me.id, apptId);
+  const pristine = useRef('');
+  const wantClient = useRef<string | null>(null);
+  const [ready, setReady] = useState(false);
+  const [resumed, setResumed] = useState<{ at: number; gift: boolean } | null>(null);
+  const [resetN, setResetN] = useState(0);
+  /** Put the kept draft back over the fresh ticket. base: what the server already says (deposit, client). */
+  const resume = (base: { pays: Pay[]; clientId: string | null }) => {
+    const d = loadDraft<Line, Pay>(store, dKey, today);
+    if (!d) return false;
+    // the same request key as before the interruption: a validation whose answer was lost stays ONE sale when retried
+    rid.current = d.rid;
+    setLines(d.lines); setDisc(d.disc); setTip(d.tip);
+    setPays((ps) => { const have = apptId ? base.pays : ps; return [...have, ...d.pays.filter((p) => !have.some((x) => x.ref && x.ref === p.ref))]; });
+    if (d.clientId && d.clientId !== base.clientId) {
+      wantClient.current = d.clientId;
+      api.get<{ client: ClientCard }>('/api/v1/clients/' + d.clientId).then((r) => setClient(r.client)).catch(() => { wantClient.current = null; });
+    }
+    // money paid online is asked again of the server: a payment already used on a ticket is never counted a second time
+    for (const p of d.pays) if (p.method === 'online' && p.ref) {
+      api.get<{ status: string; usedBy: string | null }>('/api/v1/payments/' + encodeURIComponent(p.ref)).then((x) => {
+        if (x.status === 'paid' && !x.usedBy) return;
+        setPays((ps) => ps.filter((y) => y.ref !== p.ref));
+        toast({ kind: 'info', title: 'Un paiement en ligne est déjà sur un ticket', sub: 'Il a été retiré de celui-ci pour ne pas compter deux fois.', icon: 'alert', ttl: 9000 });
+      }).catch(() => { /* offline: the server refuses a payment used twice anyway */ });
+    }
+    setResumed({ at: d.at, gift: !!d.giftDropped });
+    return true;
+  };
 
   // an appointment's line starts from the price the client booked at, or today's when it went down (the server agrees)
   const svcLine = (b: ApptService, staffId: string | null): Line => {
@@ -63,7 +102,17 @@ export function Checkout({ apptId, drawerOpen, onClose }: { apptId: string | nul
       .catch(toastError);
   }, [apptId, paidOnline]);
   useEffect(() => {
-    if (!apptId) { if (loaded.current !== 'free') { loaded.current = 'free'; setLines([]); setClient(null); } return; }
+    if (!apptId) {
+      if (loaded.current !== 'free') {
+        loaded.current = 'free';
+        rid.current = uuid();
+        setLines([]); setClient(null); setDisc(null); setTip(null); setResumed(null);
+        pristine.current = draftSig([], null, null, [], null);
+        resume({ pays: [], clientId: null });
+        setReady(true);
+      }
+      return;
+    }
     const d = detail.data;
     if (!d || loaded.current === apptId) return;
     loaded.current = apptId;
@@ -77,9 +126,47 @@ export function Checkout({ apptId, drawerOpen, onClose }: { apptId: string | nul
     }
     setLines(ls);
     const dep = d.appt.deposit;
-    setPays(dep && dep.paid && dep.paymentId ? [{ key: k(), method: 'deposit', amount: dep.paid, ref: dep.paymentId, label: 'Acompte payé en ligne' }] : []);
-    setDisc(null); setTip(null); setDone(null);
-  }, [apptId, detail.data]);
+    const depPays: Pay[] = dep && dep.paid && dep.paymentId ? [{ key: k(), method: 'deposit', amount: dep.paid, ref: dep.paymentId, label: 'Acompte payé en ligne' }] : [];
+    setPays(depPays);
+    setDisc(null); setTip(null); setDone(null); setResumed(null);
+    pristine.current = draftSig(ls, null, null, depPays, d.client?.id || null);
+    // already paid (on another device meanwhile): its draft is thrown away, nothing is rung up twice
+    if (d.appt.saleId) clearDraft(store, dKey); else resume({ pays: depPays, clientId: d.client?.id || null });
+    setReady(true);
+  }, [apptId, detail.data, resetN]);
+  // written down at every change, cleared as soon as the ticket is back to what the server says
+  useEffect(() => {
+    if (!ready || done) return;
+    const clientId = client?.id || wantClient.current;
+    if (client) wantClient.current = null;
+    if (draftSig(lines, disc, tip, pays, clientId) === pristine.current) { clearDraft(store, dKey); return; }
+    saveDraft(store, dKey, { day: today, at: resumed?.at || now(), rid: rid.current, lines, disc, tip, pays, clientId });
+  }, [ready, done, lines, disc, tip, pays, client?.id]);
+  /** « Repartir de zéro »: the draft goes, the ticket is read again from the server. */
+  const restart = () => {
+    clearDraft(store, dKey);
+    wantClient.current = null;
+    loaded.current = '';
+    setReady(false); setResumed(null);
+    setPays((ps) => ps.filter((p) => !apptId && p.method === 'online' && p.ref === paidOnline));
+    setResetN((n) => n + 1);
+  };
+  /** A client put on the ticket at the till (a regular who walked in): his carnet covers the cut, his plan and his loyalty card follow. */
+  const attach = (c: ClientCard | null) => {
+    const before = client;
+    const own = (cl: ClientCard | null, ls: Line[]) => ls.map((l) => {
+      // the previous client's carnet, plan and loyalty reward leave with him
+      const base: Line = l.packId && l.packId !== 'new' ? { ...l, packId: null, auto: false } : l;
+      const free: Line = base.memberId || base.cover || base.memberOff ? { ...base, memberId: null, force: false, memberOff: false, cover: undefined } : base;
+      const clean: Line = free.rewardId ? { ...free, rewardId: undefined, discount: 0 } : free;
+      if (!cl || clean.kind !== 'service' || clean.packId) return clean;
+      const pk = cl.packs.find((x) => x.used < x.total && (!x.serviceIds.length || x.serviceIds.includes(clean.ref!)));
+      return pk ? { ...clean, packId: pk.id, auto: true } : clean;
+    });
+    setClient(c);
+    setLines((ls) => own(c, ls));
+    if (c) toast({ title: c.first + ' ' + c.last + ' est sur le ticket', sub: 'Carnet, abonnement et fidélité s’appliquent.', icon: 'user', action: { label: 'Annuler', run: () => { setClient(before); setLines((ls) => own(before, ls)); } } });
+  };
 
   // the membership pays a covered cut before any carnet: asked of the server (its rule, not a copy), in the order of the ticket so
   // the third cut of a plan of two is the one that stays priced. A cut the person decided himself (memberOff, a chosen carnet) is left alone.
@@ -153,6 +240,7 @@ export function Checkout({ apptId, drawerOpen, onClose }: { apptId: string | nul
         payments: pays.length ? pays.map((p) => ({ method: p.method, amount: p.amount, given: p.given, ref: p.ref })) : [{ method: 'card', amount: 0 }]
       };
       const r = await api.post('/api/v1/sales', body, rid.current);
+      clearDraft(store, dKey);
       buzz([20, 60, 20]);
       // the barber picked in « Qui a fait la prestation ? » is on the lines sent, not yet in `performer`
       setDone({ ...r, client, lines: ls, pays, apptId, staffId: ls.find((l) => l.kind === 'service' && l.staffId)?.staffId ?? performer, habit: detail.data?.appt.start ?? dates.localParts(now()).min });
@@ -175,10 +263,12 @@ export function Checkout({ apptId, drawerOpen, onClose }: { apptId: string | nul
           <h2>{client ? client.first + ' ' + client.last : appt ? appt.name : 'Nouveau ticket'}</h2>
         </div>
         <div className="row">
-          {!apptId ? <Button size="sm" variant="ghost" icon="user" onClick={() => setModal('client')}>{client ? 'Changer de client' : 'Associer un client'}</Button> : null}
-          <Button size="sm" variant="ghost" icon="x" onClick={async () => { if (!lines.length || await confirm({ title: 'Abandonner ce ticket ?', ok: 'Abandonner', danger: true })) onClose(); }}>Fermer</Button>
+          {/* also on an appointment without a file (a regular who walked in): his carnet, plan and loyalty then apply */}
+          {can('client.view') && (!apptId || (appt && !appt.client)) ? <Button variant="ghost" icon="user" data-guide="tk-client" onClick={() => setModal('client')}>{client ? 'Changer de client' : 'Associer un client'}</Button> : null}
+          <Button variant="ghost" icon="x" onClick={async () => { if (draftSig(lines, disc, tip, pays, client?.id || null) === pristine.current || await confirm({ title: 'Abandonner ce ticket ?', body: 'Ce que tu as saisi sur ce ticket (lignes, pourboire, paiements posés) est effacé. Rien n’est encaissé.', ok: 'Abandonner', danger: true })) { clearDraft(store, dKey); onClose(); } }}>Fermer</Button>
         </div>
       </div>
+      {resumed ? <Note tone="ok" icon="undo"><span data-guide="tk-resumed" role="status"><b>Ticket repris</b> · commencé à {time(dates.localParts(resumed.at).min)}. Tes lignes, le pourboire et les paiements déjà posés sont revenus : rien à ressaisir, rien n’est compté deux fois.{resumed.gift ? ' Seule la carte cadeau est à repasser (son code n’est jamais gardé).' : ''} {/* money already taken by QR stays on its ticket: no way to drop it by mistake */}{pays.some((p) => p.method === 'online' && p.ref !== paidOnline) ? null : <button type="button" className="link" onClick={restart}>Repartir de zéro</button>}</span></Note> : null}
       {appt && (appt.paidOld || appt.note) ? <Note icon="info"><span data-guide="tk-old">{appt.paidOld ? <b>Acompte de {eur(appt.paidOld, { decimals: appt.paidOld % 100 !== 0 })} déjà payé sur l’ancien site.</b> : null}{appt.paidOld && appt.note ? ' ' : ''}{appt.note ? <>Note : « {appt.note} »</> : null}</span></Note> : null}
       {client?.badges.length ? <div className="row wrap" style={{ gap: 6, marginTop: -6 }}>{client.badges.filter((b) => !CHIPPED.includes(b)).map((b) => <span key={b} className={'badge ' + (b === 'fidèle' ? 'badge-ok' : b === 'nouveau' ? 'badge-info' : '')}>{b}</span>)}<TillChips client={client} />{client.visits ? <span className="badge">{client.visits} visite{client.visits > 1 ? 's' : ''} · {rhythmWords(client.cadence)}</span> : null}</div> : null}
       <RewardChip client={client} lines={lines} setLines={setLines} />
@@ -214,9 +304,9 @@ export function Checkout({ apptId, drawerOpen, onClose }: { apptId: string | nul
         })}
       </div>
       <div className="tk-add" data-guide="tk-add">
-        <Button size="sm" variant="ghost" icon="plus" onClick={() => setModal('add')}>Ajouter</Button>
-        {can('sale.discount') ? <Button size="sm" variant="ghost" icon="percent" onClick={() => setModal('discount')} disabled={!lines.length}>{disc ? 'Remise ' + eur(disc.amount) : 'Remise'}</Button> : null}
-        {S.tips ? <Button size="sm" variant="ghost" icon="heart" onClick={() => setModal('tip')} disabled={!lines.length}>{tip ? 'Pourboire ' + eur(tip.amount) : 'Pourboire'}</Button> : null}
+        <Button variant="ghost" icon="plus" onClick={() => setModal('add')}>Ajouter</Button>
+        {can('sale.discount') ? <Button variant="ghost" icon="percent" onClick={() => setModal('discount')} disabled={!lines.length}>{disc ? 'Remise ' + eur(disc.amount) : 'Remise'}</Button> : null}
+        {S.tips ? <Button variant="ghost" icon="heart" onClick={() => setModal('tip')} disabled={!lines.length}>{tip ? 'Pourboire ' + eur(tip.amount) : 'Pourboire'}</Button> : null}
       </div>
 
       <div className="tk-sum">
@@ -255,7 +345,7 @@ export function Checkout({ apptId, drawerOpen, onClose }: { apptId: string | nul
       {/* the label lands in the chained journal: the salon's name, never the client's */}
       <QrModal open={modal === 'qr'} onClose={() => setModal('')} amount={left} label={boot.settings.shop.name} onPaid={(id, amount) => { addPay({ method: 'online', amount, ref: id, label: 'Payé par QR code' }); setModal(''); }} />
       <GiftModal open={modal === 'gift'} onClose={() => setModal('')} due={left} onPay={(amount, code, last4) => { addPay({ method: 'giftcard', amount, ref: code, label: 'Carte cadeau •••• ' + last4 }); setModal(''); }} />
-      <ClientSheet open={modal === 'client'} onClose={() => setModal('')} onPick={(c) => { setClient(c); setModal(''); }} />
+      <ClientSheet open={modal === 'client'} onClose={() => setModal('')} onPick={(c) => { attach(c); setModal(''); }} />
     </div>
   );
 }
@@ -472,12 +562,19 @@ function GiftModal({ open, onClose, due, onPay }: { open: boolean; onClose: () =
 
 function ClientSheet({ open, onClose, onPick }: { open: boolean; onClose: () => void; onPick: (c: ClientCard) => void }) {
   const [q, setQ] = useState('');
-  const dq = useDebounced(q, 180);
+  const dq = useDebounced(q, 120);
+  useEffect(() => { if (open) setQ(''); }, [open]);
   const r = useQuery<{ items: ClientCard[] }>(open && dq.trim().length >= 2 ? '/api/v1/clients' + qs({ q: dq, limit: 8 }) : null);
+  const items = r.data?.items || [];
   return (
-    <Sheet open={open} onClose={onClose} title="Associer un client">
-      <div className="search"><Icon name="search" /><input className="input" placeholder="Prénom, nom ou numéro" value={q} onChange={(e) => setQ(e.target.value)} data-autofocus /></div>
-      <div className="pick">{r.data?.items.map((c) => <button key={c.id} type="button" className="pick-r" onClick={() => onPick(c)}><Avatar name={c.name} size="sm" /><span className="li-main"><b>{c.first} {c.last}</b><small>{c.phone}</small></span>{c.packs.length ? <span className="badge badge-ok">abonné</span> : null}</button>)}</div>
+    <Sheet open={open} onClose={onClose} title="Associer un client" kicker="Au ticket">
+      <div className="search"><Icon name="search" /><input className="input" placeholder="Prénom ou numéro" value={q} onChange={(e) => setQ(e.target.value)} data-autofocus aria-label="Chercher un client par prénom ou numéro" autoComplete="off" enterKeyHint="search" /></div>
+      {dq.trim().length < 2 ? <p className="muted" style={{ fontSize: 13.5 }}>2 lettres de son prénom ou les premiers chiffres de son numéro suffisent.</p>
+        : r.data && !items.length ? <p className="muted" style={{ fontSize: 13.5 }}>Personne à ce nom ou à ce numéro.</p> : null}
+      <div className="pick">{items.map((c) => {
+        const carnets = c.packs.filter((p) => p.used < p.total).length;
+        return <button key={c.id} type="button" className="pick-r" onClick={() => onPick(c)}><Avatar name={c.name} size="sm" /><span className="li-main"><b>{c.first} {c.last}</b><small>{c.phone || 'sans téléphone'}{c.visits ? ' · ' + c.visits + ' visite' + (c.visits > 1 ? 's' : '') : ''}</small></span>{liveMembers(c.memberships).length ? <span className="badge badge-ok">abonné</span> : null}{carnets ? <span className="badge badge-ok">carnet</span> : null}</button>;
+      })}</div>
     </Sheet>
   );
 }

@@ -57,6 +57,8 @@ function confirmText(s, ctx, a, clientPhone, first, typed) {
 
 /* ---------------- holds: a slot kept for a few minutes while the client types ---------------- */
 
+/** Slots one visitor of the site may keep at once: the one he is on, and two left behind by a tab or a change of mind. */
+export const HOLDS_PER_VISITOR = 3;
 const holdSchema = obj({ serviceIds: serviceIds(), staffId: str({ min: 1, max: 64 }), day: day(), start: minute(), replace: opt(id()), ignoreAppt: opt(id()) });
 export const holdSlot = {
   run(s, input, ctx) {
@@ -67,9 +69,16 @@ export const holdSlot = {
     const slot = onlineSlot(s, ctx, { day: q.day, start: q.start, dur, serviceIds: q.serviceIds, staffId: q.staffId, ignoreHold: q.replace || null, ignoreAppt: q.ignoreAppt || null });
     if (!slot) fail(409, 'taken', 'Ce créneau vient d’être pris.');
     if (q.replace && s.holds.has(q.replace)) ctx.emit('hold.released', { id: q.replace });
+    // one visitor keeps a few slots at most (ctx.meta.visitor: the site's keyed mark of who asks, never an address):
+    // one more gives back his oldest, so a client who changes his mind is never refused and nobody empties a day
+    const vk = ctx.actor.t === 'client' && ctx.meta.visitor ? String(ctx.meta.visitor).slice(0, 24) : '';
+    if (vk) {
+      const mine = [...s.holds.values()].filter((h) => h.vk === vk && h.exp > ctx.now && h.id !== q.replace).sort((a, b) => a.at - b.at || a.exp - b.exp);
+      for (const h of mine.slice(0, Math.max(0, mine.length - (HOLDS_PER_VISITOR - 1)))) ctx.emit('hold.released', { id: h.id });
+    }
     const hid = ctx.id('ho');
     const exp = ctx.now + s.settings.booking.holdMin * 60000;
-    ctx.emit('appt.held', { id: hid, staffId: slot.staffId, day: q.day, start: q.start, dur, serviceIds: q.serviceIds, exp, by: ctx.actor.t });
+    ctx.emit('appt.held', { id: hid, staffId: slot.staffId, day: q.day, start: q.start, dur, serviceIds: q.serviceIds, exp, by: ctx.actor.t, ...(vk ? { vk } : {}) });
     return { holdId: hid, staffId: slot.staffId, exp };
   }
 };
@@ -286,7 +295,8 @@ export const setStatus = {
     needChair(ctx, a.staffId);
     const to = parse(oneOf(/** @type {const} */ (['booked', 'arrived', 'in_chair', 'no_show'])), input.status);
     if (!(FLOW[a.status] || []).includes(to)) fail(409, 'flow', 'Ce changement n’est pas possible depuis « ' + a.status + ' ».');
-    if (to === 'no_show' && a.day === ctx.local.day && a.start > ctx.local.min + 5) fail(409, 'early', 'Le rendez-vous n’a pas encore commencé.');
+    // not before it starts, today or any day to come: an absence counts against the client (domain/risk.js) and frees the slot
+    if (to === 'no_show' && (a.day > ctx.local.day || (a.day === ctx.local.day && a.start > ctx.local.min + 5))) fail(409, 'early', 'Le rendez-vous n’a pas encore commencé.');
     ctx.emit('appt.status', { id: a.id, status: to, prev: a.status, cid: a.clientId || undefined });
     return { ok: true };
   }
@@ -327,12 +337,12 @@ export const cancelByClient = {
     return { ok: true, deposit: a.deposit && a.deposit.paid ? a.deposit : null };
   }
 };
-/** A booking whose deposit was never paid frees its slot. */
+/** A booking whose deposit was never paid frees its slot. reason: why, when it is not the deadline (no page to pay on). */
 export const expirePending = {
   run(s, input, ctx) {
     const a = getAppt(s, input.id);
     if (a.status !== 'pending') return { ok: true };
-    ctx.emit('appt.cancelled', { id: a.id, by: 'system', reason: 'Acompte non réglé', cid: a.clientId || undefined });
+    ctx.emit('appt.cancelled', { id: a.id, by: 'system', reason: input.reason ? String(input.reason).slice(0, 120) : 'Acompte non réglé', cid: a.clientId || undefined });
     return { ok: true };
   }
 };

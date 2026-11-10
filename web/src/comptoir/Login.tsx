@@ -118,10 +118,12 @@ function Pin({ who, demoPin, phone, onBack, onDone, onGone }: { who: AuthState['
       {err ? <p role="alert" style={{ textAlign: 'center', color: 'var(--danger)', fontWeight: 600 }}>{err}</p> : null}
       <div className="keypad" style={{ maxWidth: 340, margin: '0 auto', width: '100%' }}>
         {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((d) => <button key={d} type="button" onClick={() => press(d)} aria-label={d}>{d}</button>)}
-        <button type="button" className="fn" onClick={onBack}>Retour</button>
+        {/* a wrong digit is taken back with a finger; going back to the faces is the link under the pad */}
+        <button type="button" className="fn" onClick={() => { if (busy || !pin) return; buzz(5); setPin(pin.slice(0, -1)); }} disabled={!pin || busy} aria-label="Effacer le dernier chiffre">⌫ Effacer</button>
         <button type="button" onClick={() => press('0')} aria-label="0">0</button>
         <button type="button" className="go" onClick={() => submit()} disabled={pin.length < 4 || busy}>{busy ? '…' : 'Entrer'}</button>
       </div>
+      <div className="row" style={{ justifyContent: 'center' }}><button type="button" className="link pin-back" onClick={onBack}><Icon name="chevL" size={14} />Changer de personne</button></div>
       {phone ? <p className="muted" style={{ textAlign: 'center', fontSize: 13.5 }}>Ton code une fois par jour. Téléphone perdu ? Retire-le depuis le poste du salon.</p> : null}
       {demoPin ? <p className="faint" style={{ textAlign: 'center', fontSize: 12.5 }}>Démo : le code de {who.name} est <b className="muted">{demoPin}</b></p> : null}
     </div>

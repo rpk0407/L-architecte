@@ -55,6 +55,10 @@ export default /** @type {const} */ ({
     countries: [...COUNTRIES],
     // WP-02: the confirmation (with the calendar file) and the cancellation also by e-mail, to clients who gave one
     email: true,
+    // the reminder of the evening before also by e-mail, to clients who gave an address (with the « Gérer mon rendez-vous »
+    // link). Off until the owner decides. Whatever it says, a confirmation or a reminder whose SMS failed for good goes
+    // once by e-mail when `email` is on, and a booking that missed the evening reminder gets the 2-hours one (system.js)
+    reminderEmail: false,
     // MSG-02: by WhatsApp when switched on and the text has an approved template here ({ id: Brevo's template id, params:
     // the variables in the template's order}); a text without one goes by SMS. null takes a mapping out.
     whatsapp: { enabled: false, templates: /** @type {Record<string, { id: number, params: string[] } | null>} */ ({}) }
@@ -68,7 +72,7 @@ export default /** @type {const} */ ({
     // it can be reworded, never removed
     stopSuffix: opt(str({ min: 6, max: 40, trim: false, pattern: /\bSTOP\b/ })),
     countries: opt(arr(str({ min: 2, max: 5, pattern: /^\+\d{1,4}$/ }), { min: 1, max: 40 })),
-    email: opt(bool()),
+    email: opt(bool()), reminderEmail: opt(bool()),
     whatsapp: opt(obj({
       enabled: opt(bool()),
       templates: opt(waTemplates())

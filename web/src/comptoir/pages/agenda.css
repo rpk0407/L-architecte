@@ -71,6 +71,16 @@
 .ap.ghost { z-index: 5; pointer-events: none; opacity: .92; box-shadow: 0 16px 40px rgba(0, 0, 0, .45), inset 0 0 0 2px var(--tx); transform: rotate(-1deg); }
 .ap.ghost.bad { box-shadow: 0 16px 40px rgba(0, 0, 0, .45), inset 0 0 0 2px var(--danger); }
 .ap.sel { box-shadow: inset 0 0 0 2px var(--tx); }
+/* two bookings at the same time on one chair: side by side, both marked */
+.ap.shared { padding-left: 9px; padding-right: 5px; }
+.ap.clash { box-shadow: inset 0 0 0 2px var(--warn); justify-content: flex-start; }
+.ap.clash.sel { box-shadow: inset 0 0 0 2px var(--warn), inset 0 0 0 4px var(--tx); }
+.ap-clash { display: inline-flex; align-items: center; gap: 3px; align-self: flex-start; max-width: 100%; padding: 2px 6px; border-radius: 999px; background: var(--warn); color: var(--ink); font: 700 10px/1.1 var(--sans); letter-spacing: .01em; white-space: nowrap; overflow: hidden; flex: none; }
+.ap-clash svg { flex: none; }
+.ap.short.clash { flex-direction: row; align-items: center; justify-content: flex-start; gap: 5px; }
+.ap.short .ap-clash { padding: 2px 3px; }
+.ap.shared .ap-ic { display: none; }
+.lh-t small.lh-clash { display: inline-flex; align-items: center; gap: 4px; color: var(--warn-tx); font-weight: 700; }
 .bl { position: absolute; left: 5px; right: 5px; z-index: 1; display: flex; align-items: flex-start; gap: 6px; padding: 5px 9px; border-radius: 10px; background: repeating-linear-gradient(135deg, rgba(236, 232, 224, .05) 0 6px, transparent 6px 12px), var(--panel2); box-shadow: inset 0 0 0 1px var(--line); font: 600 11.5px/1.2 var(--sans); color: var(--tx2); overflow: hidden; text-align: left; }
 .bl.hold { background: var(--ok-bg); box-shadow: inset 0 0 0 1.5px var(--ok); color: var(--ok-tx); animation: holdp 1.6s ease-in-out infinite; pointer-events: none; }
 @keyframes holdp { 50% { background: rgba(74, 222, 128, .2); } }
@@ -118,6 +128,7 @@
 .status.arrived i, .status.done i { background: var(--ok); }
 .status.pending i, .status.no_show i { background: var(--warn); }
 .acts-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.acts-row .acts-cancel { margin-left: auto; }
 .tech { padding: 14px 16px; border-radius: 16px; background: var(--panel); box-shadow: inset 3px 0 0 var(--accent); }
 .tech .label { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
 .tech textarea { width: 100%; min-height: 54px; border: 0; background: transparent; resize: none; font: 500 15px/1.45 var(--sans); color: var(--tx); padding: 0; }

@@ -270,12 +270,23 @@ export const eraseClient = {
     if (texts.length) return { ...done, erased: false, texts };
     // nobody to offer a freed slot to any more
     const idSet = new Set(ids);
-    for (const w of s.waitlist.values()) if (idSet.has(w.clientId) && (w.status === 'waiting' || w.status === 'offered')) {
+    // what the same person typed before the file existed, or beside it: a waiting-list entry, a walk-in, a text to that
+    // number carry no file, so the erasure names them by id (drop: their personal data leaves the store with the file's)
+    const phones = new Set(ids.map((cid) => (s.clients.get(cid) || {}).phone).filter(Boolean));
+    const theirs = (x, fileId) => !fileId && !!x && phones.has(x);
+    const loose = [];
+    for (const w of s.waitlist.values()) {
+      const own = idSet.has(w.clientId), same = theirs(w.phone, w.clientId);
+      if (!own && !same) continue;
+      if (same) loose.push(w.id);
+      if (w.status !== 'waiting' && w.status !== 'offered') continue;
       ctx.emit('waitlist.updated', { id: w.id, patch: { status: 'removed' } });
       if (w.offer && w.offer.holdId && s.holds.has(w.offer.holdId)) ctx.emit('hold.released', { id: w.offer.holdId });
     }
+    for (const q of s.queue.values()) if (theirs(q.phone, q.clientId)) loose.push(q.id);
+    for (const m of s.messages.values()) if (theirs(m.to, m.cid)) loose.push(m.id);
     // a referral names the other person too (FID-02): its events are dropped by id, whichever side is erased
-    const linked = referralEventIds(s, ids);
+    const linked = [...referralEventIds(s, ids), ...loose];
     ctx.emit('client.erased', { id: c.id, cid: c.id, ids, tombs: tombsOfFiles(s, ids, ctx.meta.tombKey), ...(linked.length ? { drop: linked } : {}) });
     return { ...done, erased: true, texts };
   }

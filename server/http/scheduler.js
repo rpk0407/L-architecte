@@ -6,9 +6,9 @@ import { tick } from '../commands/system.js';
 import { claimMessage, messageResult } from '../commands/messages.js';
 import { demoTick } from '../domain/seed.js';
 import { startsAt } from '../domain/policy.js';
-import { nightlyBackup, backupsOf, backupState, backupOff, ownBackups, salonOf } from '../core/backup.js';
+import { nightlyBackup, backupsOf, backupState, backupOff, ownBackups, salonOf, keyProblem } from '../core/backup.js';
 import { webhookUrl, gatewayStop } from '../messaging/sms.js';
-import { waMapping, fillBody } from '../domain/messages.js';
+import { waMapping, fillBody, attachmentsOf } from '../domain/messages.js';
 import { TEMPLATE_FLAGS, classOf } from '../core/templates.js';
 import { digestDue } from '../commands/steps/digest.js';
 import { localParts } from '../../shared/dates.js';
@@ -53,6 +53,11 @@ async function tickMeta(rt, meta) {
   const out = { ...meta, providers: { sms: !!rt.sms, email: !!rt.email } };
   // CPT-01a: the closures' signing key and the version the technical log records (commands/steps/fiscal.js)
   Object.assign(out, { signer: rt.signer, software: SOFTWARE });
+  // the owner's alerts of the day (commands/steps/alerts.js): which channels can send, and the last backup this instance
+  // knows of once it has looked tonight (nightlyBackup lists the store again while that one is old): no lookup here
+  const known = backupState(rt);
+  const watched = !backupOff(rt) && !!backupsOf(rt) && !keyProblem(rt.cfg.backupKey) && !!known.tried;
+  Object.assign(out, { health: { providers: { sms: !!rt.sms || !!rt.whatsapp, email: !!rt.email }, backup: watched && known.last ? { at: known.last.at, off: '', error: known.error || '' } : null } });
   const local = localParts(e.clock());
   if (!digestDue(e.state, local)) return out;
   const off = backupOff(rt), blob = off ? null : backupsOf(rt), st = backupState(rt);
@@ -66,6 +71,8 @@ async function tickMeta(rt, meta) {
 }
 
 const STALE_MS = 6 * 3600000;
+/** Worth sending however late: the month's files for the accountant (commands/steps/compta-pack.js). */
+const LATE_OK = new Set(['compta_pack']);
 
 /**
  * A message that waited too long (no provider yet, a long outage) is no longer worth sending:
@@ -74,7 +81,7 @@ const STALE_MS = 6 * 3600000;
  */
 export function staleReason(s, m, now) {
   // a contract's acknowledgement is owed whatever the delay (legal, core/templates.js)
-  if ((TEMPLATE_FLAGS[m.template] || {}).legal) return '';
+  if ((TEMPLATE_FLAGS[m.template] || {}).legal || LATE_OK.has(m.template)) return '';
   if (now - m.dueAt > STALE_MS) return 'Trop tard : en attente depuis plus de 6 h';
   const a = m.apptId ? s.appts.get(m.apptId) : null;
   // queued before the appointment (confirmation, reminder), not after it (thanks and review)
@@ -194,7 +201,10 @@ export async function dispatch(rt, limit = 10, o = {}) {
   if (!demo && !rt.sms && !rt.email && !wa) return 0;
   const now = e.clock();
   const only = o.only || null;
-  const queued = [...e.state.messages.values()].filter((m) => m.status === 'queued' && m.dueAt <= now && (!only || only.has(m.id)) && live(m)).sort(byRank);
+  // outcomes an earlier dispatch could not write (the store refused every try): written first, and their messages are
+  // not taken again meanwhile, even once the tick has released their claim: the provider already has them
+  const unsaved = await saveOutcomes(rt, []);
+  const queued = [...e.state.messages.values()].filter((m) => m.status === 'queued' && m.dueAt <= now && (!only || only.has(m.id)) && live(m) && !unsaved.has(m.id)).sort(byRank);
   // the stale ones go first and cost nothing to close, so a backlog never holds the fresh ones back
   const stale = demo ? [] : queued.filter((m) => staleReason(e.state, m, now)).slice(0, 100);
   const isStale = new Set(stale);
@@ -211,8 +221,12 @@ export async function dispatch(rt, limit = 10, o = {}) {
   }
   const due = [...stale, ...fresh];
   if (!due.length) return 0;
+  /** @type {string[]} */
   const claimed = [];
-  await e.batch((step) => { for (const m of due) { const r = step(claimMessage, { id: m.id }, SYSTEM); if (r.ok) claimed.push(m.id); } });
+  // the claim is ours only once it is written: when another instance wins the write (batch answers -1 and re-reads the
+  // store) the messages it claimed read 'claimed' here too, and sending them would send them twice (F5 of the audit)
+  const wrote = await e.batch((step) => { claimed.length = 0; for (const m of due) { const r = step(claimMessage, { id: m.id }, SYSTEM); if (r.ok) claimed.push(m.id); } });
+  if (wrote < 0) return 0;
   const outcomes = [];
   const beforeSms = pacer(rt);
   for (const id of claimed) {
@@ -229,7 +243,7 @@ export async function dispatch(rt, limit = 10, o = {}) {
     else {
       try {
         const mail = m.mail || {};
-        const r = await rt.email.send({ to: m.to, subject: mail.subject || '', text: fillBody(m, rt), html: mail.html, cta: mail.cta, links: mail.links, attachments: mail.attachments, fromName: e.state.settings.shop.name, tag: m.template });
+        const r = await rt.email.send({ to: m.to, subject: mail.subject || '', text: fillBody(m, rt), html: mail.html, cta: mail.cta, links: mail.links, attachments: attachmentsOf(m, rt), fromName: e.state.settings.shop.name, tag: m.template });
         out = { status: 'sent', providerRef: r.ref };
       } catch (err) { out = { status: 'failed', error: String(err && err.message || err) }; }
     }
@@ -238,8 +252,31 @@ export async function dispatch(rt, limit = 10, o = {}) {
     if (out.status === 'failed' && (TEMPLATE_FLAGS[m.template] || {}).legal) out = { ...out, status: 'queued', retryAt: retryAt(m, now) };
     outcomes.push({ id, ...out });
   }
-  if (outcomes.length) await e.batch((step) => { for (const x of outcomes) step(messageResult, x, SYSTEM); });
+  await saveOutcomes(rt, outcomes);
   return outcomes.length;
+}
+
+const SAVE_TRIES = 5;
+/**
+ * Write what became of the messages just handed to the providers. A write that loses a race (batch answers -1) or a
+ * store that fails is tried again: an outcome lost here would leave the message 'claimed', released five minutes later
+ * and sent a second time (F5). What still cannot be written stays in this instance's memory (rt.unsavedOutcomes) for
+ * the next dispatch, which writes it first.
+ * @param {any} rt @param {any[]} outcomes @returns {Promise<Set<string>>} the ids whose outcome is still not written
+ */
+async function saveOutcomes(rt, outcomes) {
+  const e = rt.engine;
+  const all = [...(rt.unsavedOutcomes || []), ...outcomes];
+  rt.unsavedOutcomes = [];
+  if (!all.length) return new Set();
+  for (let i = 0; i < SAVE_TRIES; i++) {
+    try {
+      const n = await e.batch((step) => { for (const x of all) step(messageResult, x, SYSTEM); });
+      if (n >= 0) return new Set();
+    } catch (err) { console.error('[lx] dispatch outcomes', err && err.message ? err.message : err); }
+  }
+  rt.unsavedOutcomes = all;
+  return new Set(all.map((x) => x.id));
 }
 
 /**
