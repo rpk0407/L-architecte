@@ -111,7 +111,7 @@ export function ApptSheet({ id, onClose }: { id: string | null; onClose: () => v
     // the refund is only promised to whoever will really trigger it (`sale.refund`); the others read who must do it
     const refunds = !!paid && can('sale.refund');
     const money = !paid ? '' : refunds ? ' L’acompte de ' + eur(paid) + ' sera remboursé sur sa carte.' : ' Attention : l’acompte de ' + eur(paid) + ' ne sera pas remboursé par cette annulation. Seul le gérant peut le rembourser (Caisse › En ligne) : préviens-le.';
-    const yes = await confirm({ title: 'Annuler ce rendez-vous ?', body: `${a!.name} · ${dayShortWord(a!.day, boot.today)} à ${time(a!.start)}. Le créneau redevient libre${boot.settings.booking.waitlist ? ' et la liste d’attente est prévenue' : ''}.${money}`, ok: 'Oui, annuler', danger: true });
+    const yes = await confirm({ title: 'Annuler ce rendez-vous ?', body: `${a!.name} · ${dayShortWord(a!.day, boot.today)} à ${time(a!.start)}. Le créneau redevient libre${boot.settings.booking.waitlist ? ' et la liste d’attente est prévenue' : ''}.${money}`, ok: 'Oui, annuler', cancel: 'Non, le garder', danger: true });
     if (!yes) return;
     run('cancel', async () => {
       const r = await api.post<{ refunded?: boolean; refundError?: string; depositLeft?: number }>('/api/v1/appointments/' + a!.id + '/cancel', { reason: 'Annulé par le salon', notify: true, refundDeposit: refunds });
