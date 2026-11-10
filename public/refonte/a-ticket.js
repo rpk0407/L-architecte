@@ -1,210 +1,269 @@
-(function(){
-var $=function(s,r){return(r||document).querySelector(s)};
-function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
-var FAV=['cl','cc','ct'];
-var ORDER=['jkut','soldat','esteban','frank'];
-var IMG={jkut:'img/jkut.png',soldat:'img/soldat.jpeg',esteban:'img/esteban.png',frank:'img/frank.png'};
-var st={step:1,ids:[],staff:'any',day:null,m:null,sStaff:null,holdId:null,days:[],loading:false,msg:'',done:null,heroId:'cc',nexts:null,form:null};
-try{var h=localStorage.getItem('ar_formule');if(h&&LA.service(h))st.heroId=h}catch(e){}
-function ph(m){return LA.hhmmShort(m)}
-function when(day,m){return LA.dayLabel(day).toLowerCase()+' à '+LA.hhmm(m)}
-function barbersOrdered(){return ORDER.map(function(i){return LA.barber(i)}).filter(Boolean)}
-function memo(id,cls){return IMG[id]?'<img'+(cls?' class="'+cls+'"':'')+' src="'+IMG[id]+'" alt="" width="44" height="44" loading="lazy">':''}
-var B=$('#shB'),F=$('#shF');
+/* L’Architecte · « Express » — 3 taps: formule → créneau → prénom + numéro. All booking goes through window.LA (core.js). */
+(function () {
+  'use strict';
+  var LA = window.LA, NB = LA.NB;
+  var $ = function (s, r) { return (r || document).querySelector(s); };
+  var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  var CATS = [['coupes', 'Coupes'], ['look', 'Changer de tête'], ['barbe', 'Barbe']];
+  var DEF = ['cl'];               // 30 min: the length that sets "prochain créneau" in the hero
+  var store = {
+    get: function () { try { return JSON.parse(localStorage.getItem('la.last') || 'null'); } catch (e) { return null; } },
+    set: function (v) { try { localStorage.setItem('la.last', JSON.stringify(v)); } catch (e) { /* private window */ } }
+  };
+  var S = { open: false, step: 1, ids: [], staff: 'any', day: null, m: null, slotStaff: null, holdId: null, holdExp: 0, days: [], pre: null, msg: '', err: '', busy: false, res: null, last: store.get(), soonest: null, again: null, timer: null };
+  var lastFocus = null;
 
-/* ---------- express: next slot per barber ---------- */
-function renderFchips(){
-  $('#fchips').innerHTML=FAV.concat(FAV.indexOf(st.heroId)<0?[st.heroId]:[]).map(function(i){var s=LA.service(i);return'<button type="button" class="fchip" data-f="'+i+'" aria-pressed="'+(i===st.heroId)+'">'+esc(s.name.replace('Coupe + ','+ '))+' · '+LA.eur(s.price,s.from)+'</button>'}).join('');
-}
-function loadNexts(){
-  var box=$('#nexts'),bs=barbersOrdered();
-  box.innerHTML=bs.map(function(b){return'<div class="next skel" aria-hidden="true">'+memo(b.id)+'<small>'+esc(b.name)+'</small><b>00:00</b><span>Aujourd’hui</span></div>'}).join('');
-  LA.nextByBarber([st.heroId]).then(function(o){
-    st.nexts=o;
-    box.innerHTML=bs.map(function(b){var x=o[b.id];
-      return x?'<button type="button" class="next" data-b="'+b.id+'" data-d="'+x.day+'" data-m="'+x.m+'" aria-label="'+esc(b.name)+', '+esc(when(x.day,x.m))+'">'+memo(b.id)+'<small>'+esc(b.name)+'</small><b>'+ph(x.m)+'</b><span>'+LA.dayLabel(x.day)+'</span></button>'
-             :'<div class="next" style="opacity:.55">'+memo(b.id)+'<small>'+esc(b.name)+'</small><b>—</b><span>Complet sous 14 j</span></div>'}).join('');
-    var best=null;bs.forEach(function(b){var x=o[b.id];if(x&&(!best||x.day<best.x.day||(x.day===best.x.day&&x.m<best.x.m)))best={b:b,x:x}});
-    if(best){$('#bbs').textContent='Prochain créneau · '+LA.dayLabel(best.x.day);$('#bbt').textContent=ph(best.x.m)+' avec '+best.b.name}
-    else{$('#bbs').textContent='Réservation en ligne';$('#bbt').textContent='Choisir un créneau'}
-    fillBarberNexts();
-  }).catch(function(){box.innerHTML='<p class="note" style="grid-column:1/-1">Impossible de charger les créneaux. Touchez « Voir tous les créneaux » ou écrivez-nous.</p>'});
-}
-
-/* ---------- static sections ---------- */
-function renderMenu(){
-  var cats=[['coupes','Coupes'],['look','Changer de tête'],['barbe','Barbe']],h='';
-  cats.forEach(function(c){h+='<div class="cat"><h3>'+c[1]+'</h3>';
-    LA.services().filter(function(s){return s.cat===c[0]}).forEach(function(s){
-      h+='<button type="button" class="row" data-s="'+s.id+'"><span class="n">'+esc(s.name)+(s.tag?'<span class="tg">'+esc(s.tag)+'</span>':'')+'</span><span class="p">'+LA.eur(s.price,s.from)+'</span><span class="m">'+s.dur+' min · '+esc(s.inc.join(' · '))+(s.note?' · '+esc(s.note):'')+'</span></button>'});
-    h+='</div>'});
-  $('#menu').innerHTML=h;
-}
-function renderBarbers(){
-  $('#barbers').innerHTML=barbersOrdered().map(function(b){return'<article class="bar"><h3>'+esc(b.name)+'</h3><div class="bubble"><img src="'+IMG[b.id]+'" alt="Avatar de '+esc(b.name)+'" width="150" height="150" loading="lazy"></div><p>'+esc(b.line)+'</p><button type="button" class="go" data-pick="'+b.id+'" data-nx="'+b.id+'">Réserver avec '+esc(b.name)+'</button></article>'}).join('');
-}
-function fillBarberNexts(){
-  document.querySelectorAll('[data-nx]').forEach(function(el){var x=st.nexts&&st.nexts[el.dataset.nx],n=esc(LA.barber(el.dataset.nx).name);
-    el.innerHTML=x?'Réserver avec '+n+'<br><b>'+esc(LA.dayLabel(x.day))+' · '+ph(x.m)+'</b>':'Réserver avec '+n});
-}
-
-/* ---------- booking panel (inline, the page's centre) ---------- */
-function toPanel(){var el=$('#rdv');el.scrollIntoView({block:'start'});setTimeout(function(){var t=$('#shT');if(t)t.focus({preventScroll:true})},60)}
-function startBooking(step,opts){
-  opts=opts||{};
-  if(st.done)reset();
-  if(st.holdId){LA.release(st.holdId);st.holdId=null}
-  st.m=null;st.sStaff=null;
-  if(opts.ids)st.ids=opts.ids;if(opts.staff)st.staff=opts.staff;
-  st.msg=opts.msg||'';
-  go(step);toPanel();
-}
-function reset(){st.ids=[];st.staff='any';st.day=null;st.m=null;st.sStaff=null;st.holdId=null;st.days=[];st.done=null;st.msg='';st.form=null}
-function go(n){
-  st.step=n;
-  var sub={1:'De quoi avez-vous besoin ?',2:'Choisissez votre créneau',3:'Vos coordonnées',4:'C’est réservé, à bientôt !'};
-  $('#stp').textContent=sub[n];
-  document.querySelectorAll('#prog i').forEach(function(i,k){i.classList.toggle('on',k<Math.min(n,3)||n===4)});
-  $('#shBack').hidden=(n===1||n===4);
-  if(n===1)view1();else if(n===2)view2();else if(n===3)view3();else view4();
-}
-function ticket(extra){
-  var t=LA.total(st.ids),sv=st.ids.map(LA.service),b=st.sStaff||(st.staff!=='any'?st.staff:null);
-  return'<div class="ticket" aria-label="Récapitulatif"><h4><span>Récapitulatif</span><span>'+(st.done?'N° '+esc(st.done.code):'')+'</span></h4><dl>'+
-   '<dt>Formule</dt><dd>'+(sv.length?esc(sv[0].name):'—')+(extra&&st.step>1&&!st.done?' <button type="button" class="chg" data-chg="1">changer</button>':'')+'</dd>'+
-   '<dt>Barbier</dt><dd>'+(b?esc(LA.barber(b).name):'Peu importe')+'</dd>'+
-   '<dt>Quand</dt><dd>'+(st.day&&st.m!=null?esc(when(st.day,st.m)):'—')+'</dd>'+
-   '<dt>Durée</dt><dd>'+(sv.length?t.dur+' min':'—')+'</dd></dl>'+
-   '<div class="tot"><span>Total</span><span>'+(sv.length?LA.eur(t.price,t.from):'—')+'</span></div>'+
-   (st.done?'<p class="note" style="margin-top:8px">À régler au salon (carte bancaire).</p>':'')+'</div>';
-}
-function view1(){
-  var cats=[['coupes','Coupes'],['look','Changer de tête'],['barbe','Barbe']],h='';
-  if(st.msg)h+='<div class="alert" role="alert">'+esc(st.msg)+'</div>';
-  h+='<div class="opts">';
-  cats.forEach(function(c){h+='<p class="opt-h">'+c[1]+'</p>';LA.services().filter(function(s){return s.cat===c[0]}).forEach(function(s){
-    h+='<button type="button" class="opt" data-pick-s="'+s.id+'"><span class="n">'+esc(s.name)+'</span><span class="p">'+LA.eur(s.price,s.from)+'</span><span class="m">'+s.dur+' min'+(s.tag?' · '+esc(s.tag):'')+'</span></button>'})});
-  h+='</div>';
-  B.innerHTML=h;F.hidden=true;
-}
-function view2(){
-  var h=(st.msg?'<div class="alert" role="alert">'+esc(st.msg)+'</div>':'')+ticket(true);
-  h+='<div class="pills" role="group" aria-label="Barbier"><button type="button" class="pill" data-st="any" aria-pressed="'+(st.staff==='any')+'">Peu importe</button>'+barbersOrdered().map(function(b){return'<button type="button" class="pill" data-st="'+b.id+'" aria-pressed="'+(st.staff===b.id)+'">'+esc(b.name)+'</button>'}).join('')+'</div>';
-  h+='<div class="pills" id="dp" role="group" aria-label="Jour">'+(st.loading?'<span class="note">Chargement…</span>':st.days.map(function(d){var s=LA.dayShort(d.day);return'<button type="button" class="dpill" data-day="'+d.day+'" aria-pressed="'+(st.day===d.day)+'" '+(d.slots.length?'':'disabled')+' aria-label="'+esc(LA.dayLabel(d.day))+(d.slots.length?'':', complet ou fermé')+'"><small>'+s.dow+'</small><b>'+s.n+'</b></button>'}).join(''))+'</div>';
-  var cur=st.days.filter(function(d){return d.day===st.day})[0];
-  if(st.loading)h+='<div class="slots">'+'<div class="slot skel">00</div>'.repeat(6)+'</div>';
-  else if(!cur||!cur.slots.length)h+='<div class="empty">Aucun créneau ce jour-là. Essayez un autre jour ou un autre barbier.</div>';
-  else{
-    var seen={},list=cur.slots.filter(function(s){if(st.staff==='any'){if(seen[s.m])return false;seen[s.m]=1}return true});
-    h+='<div class="slots" role="group" aria-label="Créneaux">'+list.map(function(s){return'<button type="button" class="slot" data-m="'+s.m+'" data-sb="'+s.s+'" aria-label="'+LA.hhmm(s.m)+(st.staff==='any'?'':' avec '+esc(LA.barber(s.s).name))+'">'+ph(s.m)+(st.staff==='any'?'':'<small>'+esc(LA.barber(s.s).name)+'</small>')+'</button>'}).join('')+'</div>';
+  function dlabel(day) { return LA.dayLabel(day); }
+  function slotText(day, m) { return dlabel(day).toLowerCase() === 'aujourd’hui' || dlabel(day) === 'Demain' ? dlabel(day) + ' · ' + LA.hhmm(m) : dlabel(day).toLowerCase() + ' · ' + LA.hhmm(m); }
+  function firstSlot(days, staff) {
+    for (var i = 0; i < days.length; i++) for (var j = 0; j < days[i].slots.length; j++) { var s = days[i].slots[j]; if (!staff || staff === 'any' || s.s === staff) return { day: days[i].day, m: s.m, s: s.s }; }
+    return null;
   }
-  B.innerHTML=h;F.hidden=true;
-}
-function loadDays(keepDay){
-  st.loading=true;view2();
-  LA.availability(st.ids,st.staff,LA.iso(new Date()),10).then(function(d){
-    st.days=d;st.loading=false;
-    var has=d.filter(function(x){return x.slots.length});
-    if(!keepDay||!d.some(function(x){return x.day===st.day&&x.slots.length}))st.day=has.length?has[0].day:(d[0]&&d[0].day);
-    if(st.step===2)view2();
-  }).catch(function(){st.loading=false;st.days=[];st.msg='Impossible de charger les créneaux. Réessayez dans un instant.';if(st.step===2)view2()});
-}
-function pickSlot(m,sb){
-  B.querySelectorAll('.slot').forEach(function(b){b.disabled=true});
-  var prev=st.holdId;
-  LA.hold(st.ids,sb,st.day,m,prev).then(function(r){
-    st.m=m;st.sStaff=sb;st.holdId=r.holdId;st.msg='';go(3);toPanel();
-  }).catch(function(e){
-    st.holdId=null;st.msg=(e&&e.code==='taken')?'Ce créneau vient d’être pris. Choisissez-en un autre, votre formule est gardée.':'Impossible de bloquer ce créneau. Réessayez.';
-    loadDays(true);
+
+  /* ---------- hero, menu, sticky bar ---------- */
+  function setInert(on) { ['main', 'tb', 'cta'].forEach(function (id) { var e = document.getElementById(id); if (e) { if (on) e.setAttribute('inert', ''); else e.removeAttribute('inert'); } }); $('.foot').toggleAttribute('inert', on); }
+  function toggleMenu(force) {
+    var m = $('#menu'), b = $('#menuBtn'), open = force === undefined ? m.hidden : force;
+    m.hidden = !open; b.setAttribute('aria-expanded', open ? 'true' : 'false'); $('#tb').classList.toggle('menu', open);
+    b.firstElementChild.textContent = open ? 'Fermer' : 'Sommaire'; document.body.style.overflow = open ? 'hidden' : '';
+  }
+
+  function loadHero() {
+    LA.nextByBarber(DEF).then(function (nb) {
+      var best = null; Object.keys(nb).forEach(function (k) { var v = nb[k]; if (v && (!best || v.day < best.day || (v.day === best.day && v.m < best.m))) best = { day: v.day, m: v.m, s: k }; });
+      S.soonest = best;
+      $('#nextV').textContent = best ? slotText(best.day, best.m) : 'Bientôt, reviens vite';
+      $$('[data-next]').forEach(function (e) {
+        var v = nb[e.getAttribute('data-next')];
+        e.innerHTML = v ? '<i aria-hidden="true"></i>' + esc(slotText(v.day, v.m)) : 'Pas de créneau cette quinzaine';
+      });
+    }).catch(function () { $('#nextV').textContent = 'Voir les créneaux'; });
+    var L = S.last;
+    if (L && L.ids && L.ids.length) {
+      LA.availability(L.ids, L.staff || 'any', LA.iso(new Date()), 14).then(function (days) {
+        var f = firstSlot(days, L.staff);
+        if (!f) return;
+        S.again = { ids: L.ids, staff: f.s, day: f.day, m: f.m };
+        var sv = LA.service(L.ids[0]), b = LA.barber(f.s);
+        $('#againV').textContent = (b ? b.name : '') + ' · ' + (sv ? sv.name : '') + ' · ' + slotText(f.day, f.m);
+        $('#again').hidden = false;
+      }).catch(function () { /* the hero still works without it */ });
+    }
+  }
+
+  function renderStatic() {
+    var h = '';
+    CATS.forEach(function (c) {
+      h += '<p class="cat">' + c[1] + '</p>';
+      LA.services().filter(function (s) { return s.cat === c[0]; }).forEach(function (s) {
+        h += '<button type="button" class="cr" data-act="pick-menu" data-id="' + s.id + '"><span class="cr-n">' + esc(s.name) + (s.tag ? '<em>' + esc(s.tag) + '</em>' : '') + '</span><span class="cr-d">' + esc(s.inc.join(' · ')) + '</span><span class="cr-p">' + LA.eur(s.price, s.from) + '<small>' + s.dur + ' min</small></span></button>';
+      });
+    });
+    $('#menuList').innerHTML = h;
+    $('#team').innerHTML = LA.barbers().map(function (b) {
+      return '<article class="tm"><div class="tm-av" aria-hidden="true">' + esc(b.initials) + '</div><h3>' + esc(b.name) + '</h3><p>' + esc(b.line) + '</p><p class="tm-next" data-next="' + b.id + '">…</p><button type="button" class="btn" data-act="with" data-b="' + b.id + '">Réserver avec ' + esc(b.name) + '</button></article>';
+    }).join('');
+  }
+
+  /* ---------- sheet ---------- */
+  function openSheet(o) {
+    o = o || {};
+    lastFocus = document.activeElement;
+    S.open = true; S.step = 1; S.ids = o.id ? [o.id] : []; S.staff = o.staff || 'any'; S.day = null; S.m = null; S.slotStaff = null; S.holdId = null; S.msg = ''; S.err = ''; S.res = null; S.pre = o.pre || null;
+    $('#sheet').classList.add('open'); $('#veil').classList.add('open'); $('#cta').classList.add('off'); setInert(true); toggleMenu(false);
+    document.body.style.overflow = 'hidden';
+    if (o.id) toStep2(); else render();
+    setTimeout(function () { var t = $('#bkT'); if (t) t.focus({ preventScroll: true }); }, 80);
+  }
+  function closeSheet() {
+    if (!S.open) return;
+    releaseHold(); clearInterval(S.timer); S.open = false;
+    $('#sheet').classList.remove('open'); $('#veil').classList.remove('open'); $('#cta').classList.remove('off'); setInert(false); document.body.style.overflow = '';
+    if (lastFocus && lastFocus.focus) { try { lastFocus.focus({ preventScroll: true }); } catch (e) { /* gone */ } }
+  }
+  function releaseHold() { if (S.holdId) { LA.release(S.holdId); S.holdId = null; } clearInterval(S.timer); }
+
+  function head(k, t, h) {
+    $('#bkK').textContent = k; $('#bkT').textContent = t; $('#bkH').textContent = h || '';
+    $('#bkBack').classList.toggle('off', S.step === 1 || S.step === 4);
+    $$('#bkProg i').forEach(function (e, i) { e.className = i + 1 < S.step ? 'done' : i + 1 === S.step ? 'on' : ''; if (S.step === 4) e.className = 'done'; });
+  }
+  function render() {
+    var b = $('#bkBody'); b.scrollTop = 0;
+    if (S.step === 1) step1(b); else if (S.step === 2) step2(b); else if (S.step === 3) step3(b); else step4(b);
+  }
+
+  /* 1 · formule */
+  function step1(b) {
+    head('Étape 1 sur 3', 'Pour quoi faire ?', 'Une touche, et on passe au créneau.');
+    var h = '';
+    if (S.pre) h += '<div class="pre"><i aria-hidden="true"></i><div>On te garde<b>' + esc(slotText(S.pre.day, S.pre.m)) + '</b></div></div>';
+    CATS.forEach(function (c) {
+      h += '<div class="sg"><p class="sg-h">' + c[1] + '</p>';
+      LA.services().filter(function (s) { return s.cat === c[0]; }).forEach(function (s) {
+        h += '<button type="button" class="so' + (S.ids[0] === s.id ? ' on' : '') + '" data-act="pick" data-id="' + s.id + '"><span class="so-l"><span class="so-n">' + esc(s.name) + (s.tag ? '<em>' + esc(s.tag) + '</em>' : '') + '</span><span class="so-d">' + esc(s.inc.join(' · ')) + '</span></span><span class="so-r"><b>' + LA.eur(s.price, s.from) + '</b><small>' + s.dur + ' min</small></span></button>';
+      });
+      h += '</div>';
+    });
+    b.innerHTML = '<div class="st">' + h + '</div>';
+  }
+
+  /* 2 · créneau */
+  function toStep2() { S.step = 2; S.days = []; render(); loadDays(); }
+  function step2(b) {
+    var sv = LA.service(S.ids[0]);
+    head('Étape 2 sur 3', 'Quel créneau ?', (sv ? sv.name + ' · ' + LA.eur(sv.price, sv.from) : ''));
+    var chips = '<button type="button" class="chip' + (S.staff === 'any' ? ' on' : '') + '" data-act="barber" data-b="any">Peu importe</button>' +
+      LA.barbers().map(function (x) { return '<button type="button" class="chip' + (S.staff === x.id ? ' on' : '') + '" data-act="barber" data-b="' + x.id + '">' + esc(x.name) + '</button>'; }).join('');
+    var h = '<div class="st">' + (S.msg ? '<p class="bk-err" role="alert">' + esc(S.msg) + '</p>' : '') + '<div class="chips" role="group" aria-label="Barbier">' + chips + '</div><div id="slotArea"><p class="st-none">Je regarde les créneaux…</p></div></div>';
+    b.innerHTML = h; paintSlots();
+  }
+  function loadDays() {
+    LA.availability(S.ids, S.staff, LA.iso(new Date()), 10).then(function (days) {
+      S.days = days.filter(function (d) { return d.open; });
+      var cur = S.days.filter(function (d) { return d.day === S.day && d.slots.length; })[0];
+      if (!cur) { var f = S.days.filter(function (d) { return d.slots.length; })[0]; S.day = f ? f.day : (S.days[0] ? S.days[0].day : null); }
+      if (S.step === 2) paintSlots();
+    }).catch(function () { var a = $('#slotArea'); if (a) a.innerHTML = '<p class="st-none">Les créneaux ne chargent pas. Réessaie dans un instant.</p>'; });
+  }
+  function slotsOf(day) {
+    var map = {}, out = [];
+    ((S.days.filter(function (d) { return d.day === day; })[0] || { slots: [] }).slots).forEach(function (s) { if (!map[s.m]) { map[s.m] = s.s; out.push({ m: s.m, s: s.s }); } });
+    return out.sort(function (a, b) { return a.m - b.m; });
+  }
+  function paintSlots() {
+    var a = $('#slotArea'); if (!a) return;
+    if (!S.days.length) { a.innerHTML = '<p class="st-none">Je regarde les créneaux…</p>'; return; }
+    var f = firstSlot(S.days, S.staff), h = '';
+    if (!f) { a.innerHTML = '<p class="st-none">Plus de place ces dix prochains jours' + (S.staff === 'any' ? '' : ' avec ' + esc(LA.barber(S.staff).name)) + '. Essaie « Peu importe ».</p>'; return; }
+    h += '<button type="button" class="fast" data-act="slot" data-day="' + f.day + '" data-m="' + f.m + '" data-s="' + f.s + '"><span class="fast-l"><span class="fast-k">Le plus tôt</span><span class="fast-t">' + esc(slotText(f.day, f.m)) + ' · avec ' + esc(LA.barber(f.s).name) + '</span></span><span class="fast-go">Prendre</span></button>';
+    h += '<div class="dstrip" role="group" aria-label="Jour">' + S.days.map(function (d) {
+      var sh = LA.dayShort(d.day), n = d.slots.length ? (new Set(d.slots.map(function (x) { return x.m; }))).size : 0;
+      return '<button type="button" class="dc' + (d.day === S.day ? ' on' : '') + '" data-act="day" data-day="' + d.day + '"' + (n ? '' : ' disabled style="opacity:.45"') + '><small>' + sh.dow + '</small><b>' + sh.n + '</b><span>' + (n ? n + ' libres' : 'Complet') + '</span></button>';
+    }).join('') + '</div>';
+    var sl = slotsOf(S.day);
+    h += '<div class="slg"><p class="sg-h">' + esc(dlabel(S.day)) + '</p>' + (sl.length ? '<div class="slots">' + sl.map(function (s) { return '<button type="button" class="sl" data-act="slot" data-day="' + S.day + '" data-m="' + s.m + '" data-s="' + s.s + '">' + LA.hhmm(s.m) + '</button>'; }).join('') + '</div>' : '<p class="st-none">Complet ce jour-là. Choisis un autre jour.</p>') + '</div>';
+    a.innerHTML = h;
+  }
+
+  /* 3 · prénom + numéro */
+  function takeSlot(day, m, staff) {
+    if (S.busy) return; S.busy = true;
+    LA.hold(S.ids, staff, day, m, S.holdId).then(function (r) {
+      S.holdId = r.holdId; S.holdExp = r.exp || (Date.now() + 6e5); S.day = day; S.m = m; S.slotStaff = staff; S.step = 3; S.msg = ''; S.err = ''; S.busy = false; render(); startTimer();
+    }).catch(function (e) {
+      S.busy = false; S.holdId = null;
+      S.msg = (e && (e.code === 'taken' || e.status === 409)) ? 'Ce créneau vient d’être pris. Choisis-en un autre, ta formule est gardée.' : ((e && e.message) || 'Impossible de garder ce créneau.');
+      S.pre = null; S.step = 2; render(); loadDays();
+    });
+  }
+  function startTimer() {
+    clearInterval(S.timer);
+    S.timer = setInterval(function () {
+      var left = Math.max(0, Math.round((S.holdExp - Date.now()) / 1000)), e = $('#holdLeft');
+      if (e) e.textContent = Math.floor(left / 60) + ':' + (left % 60 < 10 ? '0' : '') + (left % 60);
+      if (left <= 0 && S.step === 3) { clearInterval(S.timer); S.holdId = null; S.msg = 'Le créneau n’est plus gardé. Reprends-en un.'; S.step = 2; render(); loadDays(); }
+    }, 1000);
+  }
+  function summary() {
+    var sv = LA.service(S.ids[0]), t = LA.total(S.ids), bb = LA.barber(S.slotStaff);
+    return { sv: sv, t: t, bb: bb };
+  }
+  function ticket(code) {
+    var x = summary();
+    return '<div class="tkt"><p class="tkt-k">' + (code ? 'Ton rendez-vous' : 'Ton ticket') + '</p><p class="tkt-t">' + esc(x.sv.name) + '</p><div class="tkt-l"><div><span>Quand</span><b>' + esc(dlabel(S.day)) + ' · ' + LA.hhmm(S.m) + '</b></div><div><span>Avec</span><b>' + esc(x.bb ? x.bb.name : '') + '</b></div><div><span>Durée</span><b>' + x.t.dur + ' min</b></div></div><div class="tkt-p"><small>À régler au salon</small><b>' + LA.eur(x.t.price, x.t.from) + '</b></div>' + (code ? '<div class="tkt-code" aria-label="Référence">' + esc(code) + '</div>' : '') + '</div>';
+  }
+  function step3(b) {
+    head('Étape 3 sur 3', 'Ton prénom et ton numéro', 'Pas de compte. C’est tout.');
+    var L = S.last || {}, x = summary();
+    b.innerHTML = '<form class="st" id="form" novalidate>' + ticket() + '<p class="hold"><i aria-hidden="true"></i><span>On te garde ce créneau <b id="holdLeft">10:00</b></span></p>' +
+      (S.err ? '<p class="bk-err" role="alert">' + esc(S.err) + '</p>' : '') +
+      '<div class="fld2"><label class="fld"><span>Prénom</span><input type="text" name="first" autocomplete="given-name" required minlength="2" maxlength="40" value="' + esc(L.first || '') + '"></label>' +
+      '<label class="fld"><span>Téléphone</span><input type="tel" name="phone" inputmode="tel" autocomplete="tel" required placeholder="06 12 34 56 78" value="' + esc(L.phone || '') + '"></label></div>' +
+      '<label class="fld"><span>E-mail (pour la confirmation par mail, facultatif)</span><input type="email" name="email" autocomplete="email" maxlength="120" value="' + esc(L.email || '') + '"></label>' +
+      '<p class="note">Tu reçois la confirmation par SMS, et par e-mail si tu donnes une adresse. Rappel par SMS la veille à 18 h. En continuant, tu acceptes les <a href="/cgv" target="_blank" rel="noopener">conditions</a>.</p>' +
+      '<div class="bk-go"><button type="submit" class="btn" id="goBtn">Confirmer · ' + LA.eur(x.t.price, x.t.from) + '</button></div></form>';
+    var left = Math.max(0, Math.round((S.holdExp - Date.now()) / 1000)), e = $('#holdLeft'); if (e) e.textContent = Math.floor(left / 60) + ':' + (left % 60 < 10 ? '0' : '') + (left % 60);
+    var f = $('#form'); f.addEventListener('submit', submit);
+    setTimeout(function () { var i = f.elements[L.first ? 'phone' : 'first']; if (i && !L.first) i.focus({ preventScroll: true }); }, 120);
+  }
+  function submit(ev) {
+    ev.preventDefault(); if (S.busy) return;
+    var f = ev.target, first = f.first.value.trim(), phone = f.phone.value.trim(), email = f.email.value.trim();
+    if (first.length < 2 || /[:\/]/.test(first)) { S.err = 'Entre ton prénom (2 lettres minimum).'; return step3Err(f); }
+    if (phone.replace(/\D/g, '').length < 6) { S.err = 'Entre un numéro de téléphone valide.'; return step3Err(f); }
+    if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { S.err = 'Cette adresse e-mail ne semble pas correcte.'; return step3Err(f); }
+    S.busy = true; $('#goBtn').disabled = true; $('#goBtn').textContent = 'Je réserve…';
+    var req = { ids: S.ids, staff: S.slotStaff, day: S.day, m: S.m, holdId: S.holdId, first: first, phone: phone, email: email };
+    LA.book(req).then(function (r) {
+      S.busy = false; S.res = r; S.holdId = null; clearInterval(S.timer);
+      S.last = { ids: S.ids.slice(), staff: S.slotStaff, first: first, phone: phone, email: email }; store.set(S.last);
+      S.step = 4; req.code = r.code; S.req = req; render();
+    }).catch(function (e) {
+      S.busy = false;
+      if (e && (e.code === 'taken' || e.status === 409)) { S.holdId = null; clearInterval(S.timer); S.msg = 'Ce créneau vient d’être pris. Choisis-en un autre, tes choix sont gardés.'; S.step = 2; render(); loadDays(); }
+      else { S.err = (e && e.message) || 'Ça n’a pas marché. Réessaie ou appelle le salon.'; step3Err(f); }
+    });
+  }
+  function step3Err(f) { var v = { first: f.first.value, phone: f.phone.value, email: f.email.value }; render(); var g = $('#form'); g.first.value = v.first; g.phone.value = v.phone; g.email.value = v.email; }
+
+  /* 4 · confirmation */
+  function step4(b) {
+    head('C’est réservé', 'À très vite.', '');
+    var r = S.res || {}, ck = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+    var hasMail = S.req && S.req.email;
+    b.innerHTML = '<div class="st">' + ticket(r.code) +
+      '<ul class="ok-list"><li>' + ck + '<span>Confirmation par SMS' + (hasMail ? ' et par e-mail' : '') + (LA.isDemo() ? ' (en démo, rien ne part)' : '') + '.</span></li><li>' + ck + '<span>Rappel par SMS la veille à 18 h.</span></li><li>' + ck + '<span>Un empêchement ? Déplace ou annule depuis le lien du SMS.</span></li></ul>' +
+      '<div class="ok-act"><a class="btn" download="rendez-vous-architecte.ics" href="' + LA.ics({ day: S.day, m: S.m, ids: S.ids, code: r.code }) + '">Ajouter à mon agenda</a>' +
+      (r.manage && r.manage !== '#' ? '<a class="btn ghost" href="' + esc(r.manage) + '">Déplacer ou annuler</a>' : '') +
+      '<button type="button" class="btn ghost" data-act="close">Fermer</button></div></div>';
+    loadHero();
+  }
+
+  /* ---------- events ---------- */
+  document.addEventListener('click', function (ev) {
+    var el = ev.target.closest ? ev.target.closest('[data-act]') : null; if (!el) return;
+    var a = el.getAttribute('data-act');
+    if (a === 'menu') { toggleMenu(); return; }
+    if (a === 'nav') { toggleMenu(false); return; }
+    if (a === 'open') { openSheet(); return; }
+    if (a === 'close') { closeSheet(); return; }
+    if (a === 'next') { openSheet({ pre: S.soonest ? { day: S.soonest.day, m: S.soonest.m, s: S.soonest.s } : null }); return; }
+    if (a === 'with') { openSheet({ staff: el.getAttribute('data-b') }); return; }
+    if (a === 'pick-menu') { openSheet({ id: el.getAttribute('data-id') }); return; }
+    if (a === 'again') {
+      var g = S.again; if (!g) return; openSheet(); S.ids = g.ids.slice(); S.staff = g.staff; takeSlot(g.day, g.m, g.staff); return;
+    }
+    if (!S.open) return;
+    if (a === 'back') { if (S.step === 3) { releaseHold(); S.step = 2; render(); loadDays(); } else if (S.step === 2) { S.step = 1; S.pre = null; render(); } return; }
+    if (a === 'pick') {
+      S.ids = [el.getAttribute('data-id')];
+      if (S.pre) {            // a slot was kept from the hero: keep it if it still fits this formule
+        var pre = S.pre; S.pre = null;
+        LA.availability(S.ids, pre.s, pre.day, 1).then(function (days) {
+          var ok = days[0] && days[0].slots.some(function (x) { return x.m === pre.m && x.s === pre.s; });
+          if (ok) takeSlot(pre.day, pre.m, pre.s); else { S.staff = 'any'; toStep2(); }
+        }).catch(function () { toStep2(); });
+      } else toStep2();
+      return;
+    }
+    if (a === 'barber') { S.staff = el.getAttribute('data-b'); S.msg = ''; S.days = []; render(); loadDays(); return; }
+    if (a === 'day') { S.day = el.getAttribute('data-day'); paintSlots(); return; }
+    if (a === 'slot') { takeSlot(el.getAttribute('data-day'), +el.getAttribute('data-m'), el.getAttribute('data-s')); return; }
   });
-}
-function view3(){
-  var v=st.form||{};
-  B.innerHTML=(st.msg?'<div class="alert" role="alert">'+esc(st.msg)+'</div>':'')+ticket(true)+
-  '<p class="note" style="margin:0 0 14px">Ce créneau est réservé pour vous pendant quelques minutes.</p>'+
-  '<form id="f" novalidate><div class="fld"><label for="fn">Prénom</label><input id="fn" name="first" autocomplete="given-name" required value="'+esc(v.first)+'"><div class="err" id="e-fn" hidden></div></div>'+
-  '<div class="fld"><label for="fp">Téléphone mobile</label><input id="fp" name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="06 12 34 56 78" required value="'+esc(v.phone)+'"><small>Pour votre confirmation et votre rappel par SMS.</small><div class="err" id="e-fp" hidden></div></div>'+
-  '<div class="fld"><label for="fe">E-mail <span style="color:var(--mute);font-weight:300">(facultatif)</span></label><input id="fe" name="email" type="email" inputmode="email" autocomplete="email" placeholder="vous@exemple.fr" value="'+esc(v.email)+'"><small>Pour recevoir aussi la confirmation par e-mail, avec l’invitation agenda.</small><div class="err" id="e-fe" hidden></div></div>'+
-  '<p class="note" style="margin-bottom:12px">En réservant, vous acceptez les <a href="/cgv" target="_blank" rel="noopener">CGV</a>. Vos données servent uniquement à ce rendez-vous (<a href="/confidentialite" target="_blank" rel="noopener">confidentialité</a>).</p></form>';
-  var t=LA.total(st.ids);
-  F.hidden=false;F.innerHTML='<div class="foot"><button type="submit" form="f" class="btn" id="go">Confirmer · '+LA.eur(t.price,t.from)+'</button></div>';
-}
-function fieldErr(id,msg){var i=$('#'+id),e=$('#e-'+id);if(msg){i.setAttribute('aria-invalid','true');e.textContent=msg;e.hidden=false;i.setAttribute('aria-describedby','e-'+id)}else{i.removeAttribute('aria-invalid');e.hidden=true}return!msg}
-function submit(ev){
-  ev.preventDefault();
-  var first=$('#fn').value.trim(),phone=$('#fp').value.replace(/[\s.\-]/g,''),email=$('#fe').value.trim();
-  st.form={first:first,phone:$('#fp').value,email:email};
-  var a=fieldErr('fn',first.length<2?'Votre prénom (2 lettres minimum).':(/[:\/]/.test(first)?'Pas de « : » ni « / » dans le prénom.':''));
-  var b=fieldErr('fp',/^(\+33|0033|0)[1-9]\d{8}$/.test(phone)||/^\+\d{8,15}$/.test(phone)?'':'Numéro invalide, ex. 06 12 34 56 78.');
-  var c=fieldErr('fe',!email||/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)?'':'Adresse e-mail invalide.');
-  if(!(a&&b&&c)){var bad=B.querySelector('[aria-invalid]');if(bad)bad.focus();return}
-  var btn=$('#go');btn.disabled=true;btn.textContent='Réservation…';
-  var p={ids:st.ids,staff:st.sStaff,day:st.day,m:st.m,holdId:st.holdId,first:first,phone:phone,email:email,sms:true};
-  LA.book(p).then(function(r){
-    st.done={code:r.code,manage:r.manage,demo:r.demo,email:email,p:p};st.holdId=null;
-    try{localStorage.setItem('ar_formule',st.ids[0])}catch(e){}
-    go(4);toPanel();loadNexts();
-  }).catch(function(e){
-    if(e&&(e.code==='taken'||e.status===409)){st.holdId=null;st.msg='Ce créneau vient d’être pris. Choisissez-en un autre, vos choix sont gardés.';go(2);loadDays(true)}
-    else{st.msg=(e&&e.message)||'La réservation a échoué. Réessayez ou appelez le salon.';view3();}
+  document.addEventListener('keydown', function (ev) {
+    if (ev.key !== 'Escape') return;
+    if (S.open) closeSheet(); else if (!$('#menu').hidden) toggleMenu(false);
   });
-}
-function view4(){
-  var d=st.done;
-  B.innerHTML=ticket(false).replace('</h4>','</h4><div class="code" aria-label="Code '+esc(d.code)+'">'+esc(d.code)+'</div>')+
-  '<ul class="ok-list"><li><i>✓</i><span>Confirmation envoyée par <b>SMS</b>'+(d.email?' et par <b>e-mail</b> à '+esc(d.email):'')+'.</span></li><li><i>✓</i><span>Rappel par <b>SMS la veille à 18 h</b>.</span></li><li><i>✓</i><span>16, place Pélabon, Marseille 13e. Paiement au salon.</span></li></ul>'+
-  (d.demo?'<p class="note">Mode démo : aucun message réel n’est parti.</p>':'')+
-  '<div class="acts"><a class="btn" download="rendez-vous-architecte.ics" href="'+LA.ics({day:d.p.day,m:d.p.m,ids:d.p.ids,code:d.code})+'">Ajouter à mon agenda</a>'+
-  (d.manage&&d.manage!=='#'?'<a class="btn ghost" href="'+esc(d.manage)+'">Déplacer / annuler</a>':'<button type="button" class="btn ghost" disabled title="Disponible hors démo">Déplacer / annuler</button>')+
-  '<a class="btn ghost" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=L%27Architecte%20coiffeur&query_place_id=ChIJJSWkBLy_yRIRbgAQcMwb-JY">Itinéraire</a></div>';
-  F.hidden=false;F.innerHTML='<div class="foot"><button type="button" class="btn ghost" id="fin">Nouvelle réservation</button></div>';
-}
+  window.addEventListener('scroll', function () { $('#tb').classList.toggle('over', window.scrollY > window.innerHeight * .6); }, { passive: true });
+  window.addEventListener('pagehide', function () { if (S.holdId) LA.release(S.holdId); });
 
-/* ---------- contact ---------- */
-function contactErr(id,msg){var i=$('#'+id),e=$('#e-'+id);if(msg){i.setAttribute('aria-invalid','true');e.textContent=msg;e.hidden=false;i.setAttribute('aria-describedby','e-'+id)}else{i.removeAttribute('aria-invalid');e.hidden=true}return!msg}
-function sendContact(ev){
-  ev.preventDefault();
-  var first=$('#cn').value.trim(),email=$('#ce').value.trim(),message=$('#cm').value.trim(),box=$('#cmsg');
-  var a=contactErr('cn',first.length<2?'Votre nom (2 lettres minimum).':''),
-      b=contactErr('ce',/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)?'':'Adresse e-mail invalide.'),
-      c=contactErr('cm',message.length<2?'Écrivez votre message.':'');
-  if(!(a&&b&&c)){var bad=document.querySelector('#cf [aria-invalid]');if(bad)bad.focus();return}
-  var btn=$('#cs');btn.disabled=true;btn.textContent='Envoi…';box.innerHTML='';
-  var ok=function(){box.innerHTML='<div class="ok">Merci, votre message est bien parti. Nous vous répondons vite.</div>';$('#cf').reset();btn.disabled=false;btn.textContent='Envoyer'};
-  var ko=function(m){box.innerHTML='<div class="alert" role="alert">'+esc(m||'L’envoi a échoué. Écrivez-nous à larchitectebarber@gmail.com.')+'</div>';btn.disabled=false;btn.textContent='Envoyer'};
-  if(LA.isDemo()){setTimeout(ok,500);return}
-  fetch('/api/public/inquiries',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({kind:'contact',first:first,email:email,message:message,website:$('#cw').value})})
-    .then(function(r){return r.json().catch(function(){return{}}).then(function(j){if(!r.ok)throw new Error((j.error&&j.error.message)||'');ok()})})
-    .catch(function(e){ko(e&&e.message)});
-}
-
-/* ---------- events ---------- */
-document.addEventListener('click',function(e){
-  var t=e.target.closest('button,a');if(!t)return;
-  if(t.id==='seeAll'){startBooking(2,{ids:[st.heroId]});loadDays();return}
-  if(t.dataset.f){st.heroId=t.dataset.f;renderFchips();loadNexts();return}
-  if(t.classList.contains('next')&&t.dataset.b&&t.dataset.d){ // express chip → straight to the form
-    var ids=[st.heroId],b=t.dataset.b,d=t.dataset.d,m=+t.dataset.m;
-    startBooking(2,{ids:ids,staff:b});st.day=d;st.loading=true;view2();
-    LA.hold(ids,b,d,m).then(function(r){st.m=m;st.sStaff=b;st.holdId=r.holdId;st.msg='';go(3);toPanel()}).catch(function(){st.msg='Ce créneau vient d’être pris. Voici les suivants.';loadDays()});
-    return}
-  if(t.dataset.s&&t.classList.contains('row')){startBooking(2,{ids:[t.dataset.s]});loadDays();return}
-  if(t.dataset.pick){startBooking(1,{staff:t.dataset.pick,ids:[]});return}
-  if(t.dataset.pickS){st.ids=[t.dataset.pickS];st.msg='';go(2);loadDays();return}
-  if(t.dataset.st){st.staff=t.dataset.st;st.msg='';loadDays();return}
-  if(t.dataset.day){st.day=t.dataset.day;view2();return}
-  if(t.classList.contains('slot')){pickSlot(+t.dataset.m,t.dataset.sb);return}
-  if(t.dataset.chg){if(st.holdId){LA.release(st.holdId);st.holdId=null}st.m=null;st.sStaff=null;go(1);return}
-  if(t.id==='shBack'){if(st.step===3){if(st.holdId){LA.release(st.holdId);st.holdId=null}st.m=null;st.sStaff=null;st.msg='';go(2);loadDays(true)}else if(st.step===2){st.msg='';go(1)}return}
-  if(t.id==='fin'){reset();go(1);return}
-});
-document.addEventListener('submit',function(e){if(e.target.id==='f')submit(e);else if(e.target.id==='cf')sendContact(e)});
-
-/* ---------- boot ---------- */
-renderMenu();renderBarbers();renderFchips();go(1);
-LA.init().then(function(r){
-  if(r.demo)$('#demo').hidden=false;
-  loadNexts();
-});
+  /* ---------- boot ---------- */
+  renderStatic();
+  LA.init().then(function (r) {
+    if (r.demo) $('#demo').hidden = false;
+    loadHero();
+    if (/[?&]reserver\b/.test(location.search)) openSheet();
+  });
 })();
