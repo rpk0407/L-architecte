@@ -15,11 +15,15 @@ import { useApp } from '../state';
 import { PageTitle } from '../App';
 import ReviewsCard from './avis/ReviewsCard';
 import type { Gap, GoalView, OwnSide, Statement, StaffRow, TeamRow } from '../types';
+import { HOW } from './pilotage/shared';
 import './rapports.css';
 
 type Report = OwnSide & {
   from: string; to: string; days: number; scope: 'own' | 'staff' | 'shop';
   revenue: number; revenueHT: number; vat: number; tips: number; tickets: number; avgTicket: number; refunds: number; liability: number; productRevenue: number;
+  // served: tickets with a cut or a product (what Clients and Panier moyen count); prepaidSold: memberships and carnets sold;
+  // noShowLost: the price of the no-shows less the deposits kept (the same figure as Pilotage). Optional: an older server
+  served?: number; prepaidSold?: number; noShowLost?: number;
   clients: number; newClients: number; done: number; noShows: number; cancelled: number; lateCancels: number; noShowRate: number; occupancy: number;
   series: { day: string; revenue: number; tickets: number; tips: number }[]; staff: StaffRow[];
   services: { id: string; name: string; count: number; revenue: number }[]; categories: { name: string; revenue: number }[];
@@ -121,13 +125,19 @@ function Body({ r, shop, who }: { r: Report; shop: boolean; who: string }) {
           {mine ? (
             // one barber: his Chiffre réalisé, not the money taken (the salon's « Chiffre d’affaires » is Encaissé)
             <Kpi k="Chiffre réalisé" v={<M c={r.revenue} />} s={<>avoirs déduits, coupes de carnet comprises · HT <M c={r.revenueHT} /></>} delta={rel(r.revenue, r.prev.revenue)} icon="euro" />
-          ) : <Kpi k="Chiffre d’affaires" v={<M c={r.revenue} />} s={<>HT <M c={r.revenueHT} />{r.refunds ? <> · avoirs <M c={r.refunds} /></> : null}</>} delta={rel(r.revenue, r.prev.revenue)} icon="euro" />}
-          <Kpi k="Panier moyen" v={<M c={r.avgTicket} />} s={plural(r.tickets, 'ticket')} delta={rel(r.avgTicket, r.prev.avgTicket)} icon="ticket" />
-          <Kpi k="Clients" v={r.clients} s={r.newClients ? r.newClients + ' nouveau' + (r.newClients > 1 ? 'x' : '') : 'aucun nouveau'} delta={rel(r.clients, r.prev.clients)} icon="clients" />
+          ) : <Kpi k="Chiffre d’affaires" v={<M c={r.revenue} />} s={<>HT <M c={r.revenueHT} />{r.refunds ? <> · avoirs <M c={r.refunds} /></> : null}{r.prepaidSold ? <> · dont <M c={r.prepaidSold} /> d’abonnements et carnets</> : null}</>} delta={rel(r.revenue, r.prev.revenue)} icon="euro" />}
+          <Kpi k="Panier moyen" v={<M c={r.avgTicket} />} s={mine || r.served == null ? plural(r.tickets, 'ticket') : r.served + (r.served > 1 ? ' tickets' : ' ticket') + ' avec prestation ou produit'} delta={rel(r.avgTicket, r.prev.avgTicket)} icon="ticket" />
+          <Kpi k="Clients" v={r.clients} s={(r.newClients ? r.newClients + ' nouveau' + (r.newClients > 1 ? 'x' : '') : 'aucun nouveau') + ' · personnes servies'} delta={rel(r.clients, r.prev.clients)} icon="clients" />
           <Kpi k="Remplissage" v={pct(r.occupancy)} s={r.noShows ? plural(r.noShows, 'absence') + ' · ' + pct(r.noShowRate, 1) : 'aucune absence'} delta={rel(r.occupancy, r.prev.occupancy)} bar={r.occupancy} icon="chair" />
           {mine ? <Kpi k="Commission estimée" v={<M c={mine.commission} />} s={'prestations ' + mine.rates.service / 100 + ' % · produits ' + mine.rates.product / 100 + ' %'} icon="percent" /> : <Kpi k="Pourboires" v={<M c={r.tips} />} s="hors chiffre d’affaires" delta={rel(r.tips, r.prev.tips)} icon="heart" />}
         </section>
       )}
+      {r.scope === 'shop' ? (
+        <details className="rp-defs">
+          <summary>Comment ces chiffres sont calculés</summary>
+          <dl>{([['Chiffre d’affaires', HOW.revenue], ['Panier moyen', HOW.basket], ['Clients', HOW.clients], ['Remplissage', HOW.fill], ['Coût des absences', HOW.noShow], ['Marge des produits', HOW.margin], ['Au rythme actuel', HOW.pace]] as [string, string][]).map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl>
+        </details>
+      ) : null}
       {own && r.salon ? <p className="rp-salon"><Icon name="target" size={15} />Le salon : {r.salon.goalPct != null ? r.salon.goalPct + ' % de l’objectif du mois · ' : ''}remplissage {pct(r.salon.fill)}</p> : null}
       {own || (r.scope === 'staff' && can('team')) ? (
         <div className="rp-statement-cta" data-guide="rapports-statement">
@@ -168,7 +178,7 @@ function Body({ r, shop, who }: { r: Report; shop: boolean; who: string }) {
               {r.products.length ? (
                 <>
                   <div className="card-h" style={{ marginTop: 18 }}><h2><Icon name="box" size={16} />Produits</h2><span className="faint" style={{ fontSize: 13 }}>{pct(r.revenue ? r.productRevenue / r.revenue : 0)} du chiffre</span></div>
-                  <Ranked rows={r.products.slice(0, 5).map((x) => ({ k: x.id, name: x.name, sub: x.count + ' vendu' + (x.count > 1 ? 's' : '') + (shop ? ' · marge ' + eur(x.margin) : ''), v: x.revenue }))} />
+                  <Ranked rows={r.products.slice(0, 5).map((x) => ({ k: x.id, name: x.name, sub: x.count + ' vendu' + (x.count > 1 ? 's' : '') + (shop ? ' · marge HT ' + eur(x.margin, { decimals: x.margin % 100 !== 0 }) : ''), v: x.revenue }))} />
                 </>
               ) : null}
             </section>
@@ -197,10 +207,13 @@ const ofMonth = (m: string) => (/^[aeiouéèêh]/i.test(monthName(m)) ? 'd’' :
 function Goal({ g, who }: { g: GoalView; who: string }) {
   const over = g.elapsed >= g.days;
   const before = g.elapsed <= 0;
-  const proj = g.elapsed ? Math.round((g.done / g.elapsed) * g.days / 100) * 100 : 0;
+  // « à ce rythme » is the server's one projection (goalOf), the same as Pilotage's: open days, today for the part already past
+  const proj = g.projection ?? null;
   const ratio = g.target ? g.done / g.target : 0;
   const left = Math.max(0, g.target - g.done);
-  const ahead = proj >= g.target;
+  const ahead = proj != null ? proj >= g.target : ratio >= (g.expected ?? g.elapsed / g.days);
+  // where the bar should be by now: the share of the month's open days gone
+  const mark = g.expected ?? g.elapsed / g.days;
   return (
     <section className="card rp-goal" data-guide="rapports-goal">
       <div className="grow">
@@ -208,7 +221,7 @@ function Goal({ g, who }: { g: GoalView; who: string }) {
         <p className="rp-goal-v"><b className="money">{whole(g.done)}</b> <span>sur <span className="money">{whole(g.target)}</span></span></p>
         <div className="rp-track" role="img" aria-label={pct(ratio) + ' de l’objectif'}>
           <i style={{ width: Math.min(100, ratio * 100) + '%' }} />
-          {over || before ? null : <s style={{ left: Math.min(100, (g.elapsed / g.days) * 100) + '%' }} title="Où on devrait en être aujourd’hui" />}
+          {over || before ? null : <s style={{ left: Math.min(100, mark * 100) + '%' }} title="Où on devrait en être aujourd’hui, en jours ouverts" />}
         </div>
       </div>
       <div className="rp-goal-side">
@@ -219,7 +232,7 @@ function Goal({ g, who }: { g: GoalView; who: string }) {
         ) : (
           <>
             <span className={'badge ' + (ahead ? 'badge-ok' : 'badge-warn')}>{ahead ? 'en avance' : 'en retard'}</span>
-            <p>Au rythme actuel : <b className="money">{whole(proj)}</b> fin du mois.</p>
+            {proj != null ? <p title={HOW.pace}>Au rythme actuel : <b className="money">{whole(proj)}</b> fin du mois.{g.pace ? <small className="faint rp-pace"> {String(Math.round(g.pace.elapsed * 10) / 10).replace('.', ',')} jours ouverts écoulés sur {g.pace.total}, aujourd’hui au prorata de la journée.</small> : null}</p> : <p className="faint">Trop tôt dans le mois pour une projection.</p>}
             {left && g.openDaysLeft ? <p className="faint">Il reste <span className="money">{whole(left)}</span> à faire, soit <span className="money">{whole(g.perDay)}</span> par jour ouvré ({plural(g.openDaysLeft, 'jour')}).</p> : left ? null : <p className="faint">Objectif atteint.</p>}
           </>
         )}
@@ -241,7 +254,7 @@ function MyGoal({ g }: { g: GoalView }) {
           {left && g.openDaysLeft && !over ? <> · il te faut <b className="money">{whole(g.perDay)}</b> par jour ouvré</> : !left ? <> · <b>atteint</b>, bravo</> : null}</p>
         <div className="rp-track" role="img" aria-label={pct(ratio) + ' de mon objectif'}>
           <i style={{ width: Math.min(100, ratio * 100) + '%' }} />
-          {over ? null : <s style={{ left: Math.min(100, (g.elapsed / g.days) * 100) + '%' }} title="Où tu devrais en être aujourd’hui" />}
+          {over ? null : <s style={{ left: Math.min(100, (g.expected ?? g.elapsed / g.days) * 100) + '%' }} title="Où tu devrais en être aujourd’hui, en jours travaillés" />}
         </div>
         {!over && g.week.target ? <p className="faint rp-goal-week">Cette semaine : <span className="money">{whole(g.week.done)}</span> sur <span className="money">{whole(g.week.target)}</span>{g.auto ? ' · objectif calculé sur tes heures au fauteuil' : ''}</p> : null}
       </div>
@@ -571,10 +584,12 @@ function Insights({ r }: { r: Report }) {
     if (full.v > 0.85) out.push({ icon: 'bolt', tone: 'accent', title: cap(dates.DAYS_FR[full.wd]) + ' ' + full.h + ' h est plein à ' + pct(full.v), body: 'Des clients repartent sans place. Un fauteuil de plus ce créneau-là, ou un tarif « heure de pointe », se rentabilise vite.' });
     if (empty && empty.v < 0.45) out.push({ icon: 'clock', tone: '', title: cap(dates.DAYS_FR[empty.wd]) + ' ' + empty.h + ' h n’est rempli qu’à ' + pct(empty.v), body: 'Une relance ciblée ou une offre sur ce créneau remplit les heures creuses sans brader les heures pleines.' });
   }
-  if (r.noShows >= 2 && r.avgTicket) {
-    const cost = Math.round((r.noShows * r.avgTicket) / 100) * 100;
+  // the cost of the no-shows is the server's one figure (noShowLoss): their price less the deposits kept, as on Pilotage
+  const lost = r.noShowLost ?? r.noShows * r.avgTicket;
+  if (r.noShows >= 2 && lost) {
+    const cost = Math.round(lost / 100) * 100;
     const dep = boot.settings.deposits;
-    out.push({ icon: 'alert', tone: 'warn', title: 'Les absences ont coûté environ ' + eur(cost), body: own ? 'Le rappel la veille et le lien pour déplacer partent tout seuls. Un client qui manque deux fois est signalé sur sa fiche.' : dep.mode === 'none' ? 'Active l’acompte en ligne dans Réglages : les absences baissent nettement quand le client a payé une partie.' : 'L’acompte est actif au-delà de ' + eur(dep.thresholdCents) + '. Le baisser couvrirait plus de rendez-vous.' });
+    out.push({ icon: 'alert', tone: 'warn', title: 'Les absences ont coûté ' + eur(cost) + (r.noShowLost != null ? ', acomptes gardés déduits' : ''), body: own ? 'Le rappel la veille et le lien pour déplacer partent tout seuls. Un client qui manque deux fois est signalé sur sa fiche.' : dep.mode === 'none' ? 'Active l’acompte en ligne dans Réglages : les absences baissent nettement quand le client a payé une partie.' : 'L’acompte est actif au-delà de ' + eur(dep.thresholdCents) + '. Le baisser couvrirait plus de rendez-vous.' });
   }
   const done = r.staff.reduce((t, x) => t + x.done, 0);
   const rebook = done ? r.staff.reduce((t, x) => t + x.rebookRate * x.done, 0) / done : 0;

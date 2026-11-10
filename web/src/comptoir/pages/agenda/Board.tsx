@@ -21,6 +21,8 @@ export type BoardProps = {
   onEmpty: (staffId: string, min: number, rect: { x: number; y: number }) => void;
   onBlock: (id: string, rect: { x: number; y: number }) => void;
   onMove: (a: Appt, staffId: string, start: number) => void;
+  /** a touch on a chair's header (absent today, pause now), for whoever edits every chair */
+  onLane?: (staffId: string, rect: { x: number; y: number }) => void;
   canMove: (a: Appt, toStaff: string) => boolean;
 };
 
@@ -128,11 +130,19 @@ export function Board(p: BoardProps) {
           const clashes = mine.filter((x) => clashOf(x).length);
           const line = off ? 'Absent aujourd’hui' : !isToday ? mine.filter((x) => x.status !== 'no_show').length + ' rendez-vous' : live ? 'Au fauteuil · ' + live.name.split(' ')[0] + ' · fin ' + time(live.start + live.dur) : next ? 'Libre jusqu’à ' + time(next.start) : 'Libre';
           return (
+            p.onLane && !off ? (
+              <button key={l.id} type="button" className={'lh lh-btn' + (live ? ' busy' : '')} aria-label={l.name + ' : absent aujourd’hui ou pause'} onClick={(e) => p.onLane!(l.id, { x: e.clientX, y: e.clientY })}>
+              <Avatar name={l.name} initials={l.initials} color={l.color} />
+              <span className="lh-t"><b>{l.name}</b>{clashes.length ? <small className="lh-clash" role="status"><Icon name="alert" size={12} />{clashOf(clashes[0]).length + 1} clients à {time(Math.min(...clashOf(clashes[0]).map((x) => x.start)))}{clashes.length > clashOf(clashes[0]).length + 1 ? ' · et plus tard' : ''}</small> : <small>{line}</small>}</span>
+              {p.canSeeMoney && !phone ? <span className="lh-rev"><Money cents={rev} /></span> : null}
+            </button>
+            ) : (
             <div key={l.id} className={'lh' + (live ? ' busy' : '')}>
               <Avatar name={l.name} initials={l.initials} color={l.color} />
               <span className="lh-t"><b>{l.name}</b>{clashes.length ? <small className="lh-clash" role="status"><Icon name="alert" size={12} />{clashOf(clashes[0]).length + 1} clients à {time(Math.min(...clashOf(clashes[0]).map((x) => x.start)))}{clashes.length > clashOf(clashes[0]).length + 1 ? ' · et plus tard' : ''}</small> : <small>{line}</small>}</span>
               {p.canSeeMoney && !phone ? <span className="lh-rev"><Money cents={rev} /></span> : null}
             </div>
+            )
           );
         })}
       </div>

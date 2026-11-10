@@ -133,3 +133,58 @@
 @media (prefers-reduced-motion: reduce) {
   .pl-bar i, .pl .money, .pl-body { transition: none; }
 }
+
+/* ---- what is coming: today's briefing and the next seven days ---- */
+.pl-coming { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; align-items: start; }
+.pl-today, .pl-ahead { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.pl-today .card-h, .pl-ahead .card-h { margin-bottom: 0; }
+.pl-today-k { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 0; }
+.pl-today-k > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.pl-today-k dt { font-size: 12.5px; color: var(--tx2); }
+.pl-today-k dd { font: 400 30px/1.1 var(--serif); letter-spacing: -.01em; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pl-today-k small { font-size: 12.5px; color: var(--tx2); }
+.pl-today-chairs li { grid-template-columns: minmax(64px, 96px) minmax(0, 1fr) minmax(120px, auto); }
+.pl-today-free { display: flex; align-items: baseline; justify-content: flex-end; gap: 8px; white-space: nowrap; }
+.pl-today-free b { font-weight: 600; color: var(--tx2); }
+.pl-today-free small { font-size: 12.5px; color: var(--tx2); }
+.pl-today-off { grid-column: 2 / -1; font-size: 12.5px; }
+.pl-today-none { margin: 0; font-size: 13.5px; }
+.pl-today-go { display: inline-flex; align-items: center; align-self: flex-start; min-height: 44px; font-size: 13.5px; }
+.pl-today .pl-note, .pl-ahead .pl-note { margin: 0; }
+.pl-ahead-sum { margin: 0; font-size: 14px; }
+.pl-ahead-sum b { font: 400 26px/1.1 var(--serif); margin-right: 4px; }
+.pl-ahead-wrap { overflow-x: auto; }
+.pl-ahead-t { width: 100%; border-collapse: separate; border-spacing: 3px; table-layout: fixed; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.pl-ahead-t th { font-weight: 500; color: var(--tx2); text-align: center; padding: 2px 0; }
+.pl-ahead-t thead th small { display: block; font-size: 11.5px; color: var(--tx3); }
+.pl-ahead-t tbody th { width: 84px; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pl-ahead-t thead th:first-child { width: 84px; }
+.pl-ahead-t tbody th .sw { display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; }
+.pl-ahead-t td { height: 30px; border-radius: 7px; text-align: center; font-weight: 600; background: var(--panel2); color: var(--tx2); }
+.pl-ahead-t td.mid { background: var(--line2); color: var(--tx); }
+.pl-ahead-t td.full { background: var(--tx); color: var(--bg, #fff); }
+.pl-ahead-t td.off { background: none; color: var(--tx3); font-weight: 400; }
+.pl-ahead-t tr.all th { font-weight: 600; color: var(--tx); }
+/* the revenue tile: the money that came in, and how the pace is counted */
+.pl-in { margin: 2px 0 0; font-size: 13.5px; }
+.pl-in b { font-weight: 600; }
+.pl-in-s { margin: 0; font-size: 12.5px; }
+.pl-how { white-space: nowrap; }
+.pl-early { grid-column: 1 / -1; margin: 0; padding: 4px 2px; font-size: 13.5px; }
+.pl-defs { font-size: 13px; color: var(--tx2); }
+.pl-defs summary { display: inline-flex; align-items: center; min-height: 44px; cursor: pointer; font-weight: 600; }
+.pl-defs dl { display: flex; flex-direction: column; gap: 8px; margin: 4px 0 0; }
+.pl-defs dt { font-weight: 600; color: var(--tx); }
+.pl-defs dd { margin: 0; }
+.pl-asof { margin: 0; text-align: center; font-size: 12.5px; }
+@media (min-width: 1100px) {
+  .pl-coming { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+}
+@media (max-width: 760px) {
+  .pl-today-k dd { font-size: 24px; }
+  .pl-today-chairs li { grid-template-columns: minmax(56px, 76px) minmax(0, 1fr); row-gap: 2px; }
+  .pl-today-free { grid-column: 1 / -1; justify-content: flex-start; padding-left: 14px; }
+  .pl-today-off { grid-column: 2 / -1; }
+  .pl-ahead-t tbody th, .pl-ahead-t thead th:first-child { width: 68px; }
+  .pl-ahead-t { border-spacing: 2px; font-size: 12px; }
+}

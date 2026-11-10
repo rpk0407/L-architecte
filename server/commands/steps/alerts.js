@@ -47,12 +47,15 @@ export function smsFailing(s, since) {
  */
 export function silence(s, now, since, providers) {
   const msgs = [...s.messages.values()];
-  const claims = msgs.map((m) => m.claimedAt || 0).filter((t) => t > 0).sort((a, b) => a - b);
+  const claims = msgs.map((m) => m.claimedAt || 0).filter((t) => t >= since).sort((a, b) => a - b);
   const firstAfter = (t) => claims.find((c) => c >= t) || 0;
+  const switched = (s.bascule && s.bascule.switchedAt) || 0;
   let worst = 0;
   for (const m of msgs) {
     const due = Math.max(m.dueAt || 0, m.at || 0);
-    if (due < since || due > now || !(m.claimedAt || m.status === 'queued') || !providers[m.channel === 'email' ? 'email' : 'sms'] || cutoverHeld(s, m)) continue;
+    if (due < since || due > now || !(m.claimedAt || m.status === 'queued') || !providers[m.channel === 'email' ? 'email' : 'sms']) continue;
+    // held for the switch, or one that waited for it: not a scheduler that stopped (as Réglages › Santé reads it)
+    if (cutoverHeld(s, m) || (switched && due < switched && (!m.claimedAt || m.claimedAt >= switched))) continue;
     // a text put back for a later try (a contract's acknowledgement) was dispatched once already
     if (m.tries) continue;
     const next = firstAfter(due);

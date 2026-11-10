@@ -30,8 +30,8 @@ export default function Agenda() {
   const { data, loading, error } = useQuery<AgendaData>('/api/v1/agenda?day=' + day);
   const [create, setCreate] = useState<Prefill | null>(null);
   const [walkin, setWalkin] = useState(false);
-  const [block, setBlock] = useState<{ staffId: string; day: string; start: number } | null | false>(false);
-  const [menu, setMenu] = useState<{ x: number; y: number; staffId?: string; min?: number; blockId?: string } | null>(null);
+  const [block, setBlock] = useState<{ staffId: string; day: string; start: number; absent?: boolean } | null | false>(false);
+  const [menu, setMenu] = useState<{ x: number; y: number; staffId?: string; min?: number; blockId?: string; lane?: boolean } | null>(null);
 
   // deep links from the palette and the feed: ?new=1, ?walkin=1
   useEffect(() => {
@@ -121,7 +121,8 @@ export default function Agenda() {
                 onOpen={open} onMove={move}
                 canMove={(a, to) => can('agenda.edit') || (a.staffId === boot.me.id && to === boot.me.id)}
                 onEmpty={(staffId, min, at) => setMenu({ ...at, staffId, min })}
-                onBlock={(id, at) => setMenu({ ...at, blockId: id })} />
+                onBlock={(id, at) => setMenu({ ...at, blockId: id })}
+                onLane={day === today && can('agenda.edit') ? (staffId, at) => setMenu({ ...at, staffId, lane: true }) : undefined} />
             ) : null}
 
             <aside className="ag-side" aria-label="À côté de l’agenda">
@@ -161,6 +162,13 @@ export default function Agenda() {
           <>
             <p className="k">Créneau bloqué</p>
             <button type="button" onClick={async () => { try { await api.del('/api/v1/blocks/' + menu.blockId); refreshAll(); toast('Créneau rouvert · il est de nouveau proposé sur le site'); } catch (e) { toastError(e); } }}><Icon name="undo" />Rouvrir ce créneau</button>
+          </>
+        ) : menu?.lane ? (
+          <>
+            {/* a barber who is not coming: whoever edits every chair's agenda already may block his day (no new right) */}
+            <p className="k">{staffById.get(menu.staffId!)?.name}</p>
+            <button type="button" onClick={() => setBlock({ staffId: menu.staffId!, day, start: Math.floor(nowMin / 15) * 15, absent: true })}><Icon name="alert" />Absent aujourd’hui : fermer le reste de sa journée</button>
+            <button type="button" onClick={() => setBlock({ staffId: menu.staffId!, day, start: Math.ceil(nowMin / 15) * 15 })}><Icon name="block" />Pause maintenant</button>
           </>
         ) : menu ? (
           <>

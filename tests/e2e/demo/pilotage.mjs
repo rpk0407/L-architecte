@@ -1,5 +1,5 @@
 // TEAM-05a: Pilotage, the owner's cockpit, on his phone (390×844). He signs in with his password and lands on it with the
-// day's Encaissé in view without scrolling; Semaine changes the deltas and the comparison; a tap on a barber opens his
+// day's Chiffre d’affaires in view without scrolling; Semaine changes the deltas and the comparison; a tap on a barber opens his
 // sheet with « Relevé du mois »; the abonnés' income is the demo members' MRR; a tile whose route is refused or missing is gone;
 // no horizontal scroll at 1440×900 or on the phone.
 export const name = 'Pilotage: lands on it, the day in view, Semaine, a barber’s sheet and statement, the MRR, a refused tile is hidden';
@@ -14,16 +14,16 @@ export default async ({ h, page }) => {
   await page.getByRole('heading', { name: 'Pilotage', level: 1 }).waitFor({ timeout: 8000 });
   must(/\/comptoir\/pilotage$/.test(page.url()), 'the owner does not land on /comptoir/pilotage: ' + page.url());
   must(await page.getByRole('button', { name: 'Aujourd’hui', pressed: true }).count() === 1, 'Aujourd’hui is not the period shown');
-  await page.getByRole('group', { name: 'Encaissé' }).waitFor();
+  await page.getByRole('group', { name: 'Chiffre d’affaires' }).waitFor();
 
   // the phone's tab bar starts with Pilotage
   const tabs = await page.locator('.tabbar > *').allTextContents();
   must(/Pilotage/.test(tabs[0]), 'the first tab is not Pilotage: ' + JSON.stringify(tabs));
 
-  // Encaissé and the till are in view without scrolling, above the tab bar
+  // the revenue tile and the till are in view without scrolling, above the tab bar
   const bar = await page.locator('.tabbar').boundingBox();
-  const enc = await page.getByRole('group', { name: 'Encaissé' }).boundingBox();
-  must(bar && enc && enc.y >= 0 && enc.y + 120 <= bar.y, 'Encaissé is not in view: ' + JSON.stringify(enc) + ' tab bar ' + (bar && bar.y));
+  const enc = await page.getByRole('group', { name: 'Chiffre d’affaires' }).boundingBox();
+  must(bar && enc && enc.y >= 0 && enc.y + 120 <= bar.y, 'Chiffre d’affaires is not in view: ' + JSON.stringify(enc) + ' tab bar ' + (bar && bar.y));
   await page.getByRole('region', { name: 'La caisse' }).waitFor();
   await h.shot(page, 'pilotage-phone');
 
@@ -33,18 +33,20 @@ export default async ({ h, page }) => {
   must(!small.length, 'targets under 44 px: ' + JSON.stringify(small));
 
   // the tiles say what they are compared with, in words
-  const day = await page.getByRole('group', { name: 'Encaissé' }).innerText();
+  const day = await page.getByRole('group', { name: 'Chiffre d’affaires' }).innerText();
   const dayLabel = await page.locator('.pl-label').innerText();
   must(/mardi dernier/.test(dayLabel), 'the day is not compared with last Tuesday: ' + dayLabel);
 
   // Semaine: the period, the comparison and the deltas change
   await page.getByRole('button', { name: 'Semaine', exact: true }).click();
   await page.getByText('Semaine du', { exact: false }).first().waitFor();
-  await page.waitForFunction(() => /la semaine dernière/.test(document.querySelector('.pl-label')?.textContent || ''), null, { timeout: 5000 });
-  const week = await page.getByRole('group', { name: 'Encaissé' }).innerText();
-  must(week !== day, 'Encaissé does not change from the day to the week');
+  // the label says what is compared like for like: finished open days against as many of last week's, or nothing yet
+  await page.waitForFunction(() => /semaine/.test(document.querySelector('.pl-label small')?.textContent || ''), null, { timeout: 5000 });
+  const week = await page.getByRole('group', { name: 'Chiffre d’affaires' }).innerText();
+  must(week !== day, 'Chiffre d’affaires does not change from the day to the week');
   const deltas = (await page.locator('.pl-d .vh').allTextContents()).join(' ');
-  must(/la semaine dernière/.test(deltas) && !/mardi dernier/.test(deltas), 'the deltas still compare with the day before: ' + deltas);
+  // no finished open day this week yet (a Tuesday after a closed Monday): no delta at all, never a red arrow against a whole week
+  must((!deltas.trim() || /la semaine dernière/.test(deltas)) && !/mardi dernier/.test(deltas), 'the deltas still compare with the day before: ' + deltas);
   // the arrow back moves a week, the arrow forward is off on the current one
   must(await page.getByRole('button', { name: 'Avancer d’une semaine' }).isDisabled(), 'forward is on the current week');
   await page.getByRole('button', { name: 'Reculer d’une semaine' }).click();
@@ -68,7 +70,7 @@ export default async ({ h, page }) => {
   const blurred = (sel) => page.locator(sel).first().evaluate((e) => /blur/.test(getComputedStyle(e).filter));
   await page.evaluate(() => fetch('/api/v1/prefs', { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ blur: 'on' }) }));
   await page.reload();
-  await page.getByRole('group', { name: 'Encaissé' }).waitFor();
+  await page.getByRole('group', { name: 'Chiffre d’affaires' }).waitFor();
   must(await blurred('.pl .money'), 'the page amounts are not blurred when hidden');
   await page.getByRole('button', { name: 'Le détail de Frank' }).click();
   await page.getByRole('dialog').getByText('Commission estimée').waitFor();
@@ -83,7 +85,7 @@ export default async ({ h, page }) => {
   await page.keyboard.press('Escape');
   await page.evaluate(() => fetch('/api/v1/prefs', { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ blur: 'auto' }) }));
   await page.reload();
-  await page.getByRole('group', { name: 'Encaissé' }).waitFor();
+  await page.getByRole('group', { name: 'Chiffre d’affaires' }).waitFor();
 
   // the abonnés' income is the demo members' MRR
   const summary = await page.evaluate(async () => (await fetch('/api/v1/memberships/summary')).json());
@@ -98,7 +100,7 @@ export default async ({ h, page }) => {
   await page.route('**/api/v1/accounts/stats', (r) => r.fulfill({ status: 403, contentType: 'application/json', body: JSON.stringify({ error: { code: 'forbidden', message: 'Interdit.' } }) }));
   await page.route('**/api/v1/memberships/summary', (r) => r.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ error: { code: 'not_found', message: 'Introuvable.' } }) }));
   await page.reload();
-  await page.getByRole('group', { name: 'Encaissé' }).waitFor();
+  await page.getByRole('group', { name: 'Chiffre d’affaires' }).waitFor();
   await page.getByRole('group', { name: 'Avis Google' }).waitFor();
   must(await page.getByRole('group', { name: 'Espace client' }).count() === 0, 'the Espace client tile is still there');
   must(await page.locator('[data-guide="pilotage.abonnes"]').count() === 0, 'the Abonnés block is still there without its route');
@@ -107,7 +109,7 @@ export default async ({ h, page }) => {
   // the desktop: no horizontal scroll, the tiles on four columns
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.reload();
-  await page.getByRole('group', { name: 'Encaissé' }).waitFor();
+  await page.getByRole('group', { name: 'Chiffre d’affaires' }).waitFor();
   must(!(await wide(page)), 'the page scrolls sideways at 1440×900');
   await page.getByRole('button', { name: 'Mois', exact: true }).click();
   await page.waitForFunction(() => /au mois dernier/.test(document.querySelector('.pl-label')?.textContent || ''), null, { timeout: 5000 });

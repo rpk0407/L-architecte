@@ -367,32 +367,34 @@ export function WalkinSheet({ open, onClose, freeNow }: { open: boolean; onClose
 
 /* ---------------- block a slot ---------------- */
 
-export function BlockSheet({ open, onClose, prefill }: { open: boolean; onClose: () => void; prefill: { staffId: string; day: string; start: number } | null }) {
+/** absent: opened from a chair's header for a barber who is not coming (the rest of his day, reason « Absent »). */
+export function BlockSheet({ open, onClose, prefill }: { open: boolean; onClose: () => void; prefill: { staffId: string; day: string; start: number; absent?: boolean } | null }) {
   const { boot, can } = useApp();
   const [staff, setStaff] = useState(prefill?.staffId || boot.me.id);
   const [start, setStart] = useState(prefill?.start ?? 780);
   const [len, setLen] = useState<number | 'end'>(30);
   const [label, setLabel] = useState('Pause');
   const [busy, setBusy] = useState(false);
-  useEffect(() => { if (open) { setStaff(prefill?.staffId || (can('agenda.edit') ? boot.staff.find((s) => s.chair)?.id || boot.me.id : boot.me.id)); setStart(prefill?.start ?? 780); setLen(30); setLabel('Pause'); } }, [open]);
+  useEffect(() => { if (open) { setStaff(prefill?.staffId || (can('agenda.edit') ? boot.staff.find((s) => s.chair)?.id || boot.me.id : boot.me.id)); setStart(prefill?.start ?? 780); setLen(prefill?.absent ? 'end' : 30); setLabel(prefill?.absent ? 'Absent' : 'Pause'); } }, [open]);
   const day = prefill?.day || boot.today;
   const go = async () => {
     setBusy(true);
     try {
       await api.post('/api/v1/blocks', { staffId: staff, day, start, ...(len === 'end' ? { end: 1440, label: label === 'Pause' ? 'Fermé' : label } : { dur: len, label }) });
-      toast({ title: 'Créneau bloqué', sub: 'Il n’est plus proposé sur le site.', icon: 'block' });
+      toast(len === 'end' ? { title: 'Reste de la journée fermé', sub: 'Plus rien n’est proposé sur le site. Ses rendez-vous déjà pris restent à déplacer un par un.', icon: 'block', ttl: 7000 } : { title: 'Créneau bloqué', sub: 'Il n’est plus proposé sur le site.', icon: 'block' });
       refreshAll(); onClose();
     } catch (e) { toastError(e); } finally { setBusy(false); }
   };
   const times = [];
   for (let m = 540; m <= 1095; m += 15) times.push(m);
   return (
-    <Sheet open={open} onClose={onClose} title="Bloquer un créneau" kicker={cap(dayWord(day, boot.today))}
+    <Sheet open={open} onClose={onClose} title={prefill?.absent ? 'Absent aujourd’hui' : 'Bloquer un créneau'} kicker={cap(dayWord(day, boot.today))}
       footer={<><span className="grow muted" style={{ fontSize: 13 }}>Disparaît du site aussitôt.</span><Button variant="primary" size="lg" busy={busy} onClick={go}>Bloquer</Button></>}>
+      {prefill?.absent ? <Note tone="warn" icon="alert">Le reste de sa journée est fermé et n’est plus proposé sur le site. Ses rendez-vous déjà pris ne bougent pas : ouvre chacun et touche « Déplacer ». Une absence de plusieurs jours se pose avec le gérant, dans Équipe.</Note> : null}
       <div className="col" style={{ gap: 10 }}><p className="section-k">Barbier</p><StaffPicker value={staff} onChange={setStaff} any={false} /></div>
       <Field label="À partir de" htmlFor="bl-s"><select id="bl-s" className="select" value={start} onChange={(e) => setStart(+e.target.value)}>{times.map((m) => <option key={m} value={m}>{hhmm(m)}</option>)}</select></Field>
       <div className="col" style={{ gap: 10 }}><p className="section-k">Durée</p><div className="chips">{[15, 30, 45, 60, 90].map((d) => <Chip key={d} on={len === d} onClick={() => setLen(d)}>{dur(d)}</Chip>)}<Chip on={len === 'end'} onClick={() => setLen('end')}>Jusqu’à la fermeture</Chip></div></div>
-      <div className="col" style={{ gap: 10 }}><p className="section-k">Raison</p><div className="chips">{['Pause', 'Déjeuner', 'Rendez-vous perso', 'Formation', 'Shooting photo'].map((l) => <Chip key={l} on={label === l} onClick={() => setLabel(l)}>{l}</Chip>)}</div></div>
+      <div className="col" style={{ gap: 10 }}><p className="section-k">Raison</p><div className="chips">{[...(prefill?.absent ? ['Absent'] : []), 'Pause', 'Déjeuner', 'Rendez-vous perso', 'Formation', 'Shooting photo'].map((l) => <Chip key={l} on={label === l} onClick={() => setLabel(l)}>{l}</Chip>)}</div></div>
     </Sheet>
   );
 }

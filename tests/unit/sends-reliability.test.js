@@ -423,7 +423,7 @@ test('« Lui envoyer le pack chaque mois » : the closed month’s entries leave
   assert.match(m.body, /· 20 % : base 33,34\s€, TVA 6,66\s€/);
   assert.equal(m.mail.attachments, undefined, 'the files are not copied into the journal');
   const ev = t.engine.journal.find((e) => e.type === 'message.queued' && e.data.id === m.id);
-  assert.doesNotMatch(JSON.stringify(ev), /706|JournalCode/);
+  assert.doesNotMatch(JSON.stringify(ev), /JournalCode|EcritureNum|ecritures-2026-10\.txt"/);
   const mail = fakeMail();
   await dispatch(rtOf(t.engine, { email: mail }));
   assert.equal(mail.sent.length, 1);
