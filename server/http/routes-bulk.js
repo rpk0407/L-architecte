@@ -124,8 +124,9 @@ export function bulkRoutes(app) {
 
     if (x.op === 'tag' || x.op === 'untag') {
       // matched: the files named (an erased, merged or unknown one is counted in `missing` by the command itself)
-      if (!t.all.length) return { op: x.op, tag: x.tag, matched: 0, changed: 0, unchanged: 0, missing: 0, full: 0, ids: [] };
-      const res = await r.run(tagClients, { ids: t.all, tag: x.tag, remove: x.op === 'untag' });
+      if (!t.all.length && !known) return { op: x.op, tag: x.tag, matched: 0, changed: 0, unchanged: 0, missing: 0, full: 0, ids: [] };
+      // a retry (`known`) is answered by the engine before the command runs, whatever the filter matches by now
+      const res = await r.run(tagClients, { ids: t.all.length ? t.all : ['-'], tag: x.tag, remove: x.op === 'untag' });
       return { op: x.op, tag: x.tag, matched: res.matched, changed: res.changed, unchanged: res.unchanged, missing: res.missing, full: res.full, ids: res.ids };
     }
 

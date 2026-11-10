@@ -185,7 +185,7 @@ function ClientList({ active }: { active: string | null }) {
             <div data-tour-empty><Empty icon="clients" title={term ? 'Personne à ce nom' : 'Aucun client ici'}>{term ? 'Vérifie l’orthographe ou cherche par les derniers chiffres du numéro.' : 'Ce segment est vide pour le moment.'}</Empty></div>
           ) : (
             <>
-              <ul className="list" data-guide="cl-rows" aria-multiselectable={picking || undefined}>
+              <ul className="list" data-guide="cl-rows">
                 {pager.offsets.map((o) => <ClientRows key={o} url={url(o)} active={active} today={boot.today} selection={picking ? selection : null} />)}
               </ul>
               <LoadMore total={data.total} loaded={Math.min(data.total, pager.pages * LS.PAGE)} onMore={pager.more} />
@@ -317,7 +317,7 @@ function BulkSms({ n, target, onClose, onDone, onChanged }: { n: number; target:
                 </Field>
               )}
               {pre.dueAt ? <Note icon="clock">Hors des heures d’envoi : les SMS partiront {dates.localParts(pre.dueAt).day === dates.localParts(Date.now()).day ? '' : 'demain '}à {time(dates.localParts(pre.dueAt).min)}.</Note> : null}
-              <Note tone="warn" icon="alert">Un SMS envoyé ne se rattrape pas. Après « Envoyer », tu as 5 secondes pour annuler ; ensuite, plus rien.</Note>
+              <Note tone="warn" icon="alert">Un SMS envoyé ne se rattrape pas. Après « Envoyer », tu as 5 secondes pour annuler ; ensuite, plus rien.</Note>
             </>
           ) : null}
         </>

@@ -216,6 +216,22 @@ test('the same request retried returns the same answer and writes nothing, even 
   assert.equal(r4.status, 200, r4.text);
   assert.deepEqual([r4.json.changed, [...r4.json.ids].sort()], [120, [...ids].sort()]);
   assert.equal(other.engine.journal.length, len2);
+  // by filter, when the action itself empties the filter (« retirer VIP » from the VIP files): the retry still gets the
+  // first answer, not « la liste a changé », and writes nothing
+  const vip = scratch({ segment: 'vip' });
+  const k3 = rid();
+  const body = { op: 'untag', filter: { segment: 'vip' }, tag: 'VIP', expect: vip.length };
+  const u1 = await bulk(b, body, k3);
+  assert.deepEqual([u1.status, u1.json.changed], [200, vip.length]);
+  assert.equal(scratch({ segment: 'vip' }).length, 0);
+  const len4 = rt.engine.journal.length;
+  const u2 = await bulk(b, body, k3);
+  assert.deepEqual([u2.status, u2.json.changed, [...u2.json.ids].sort()], [200, vip.length, vip]);
+  assert.equal(rt.engine.journal.length, len4);
+  // the same body as a NEW request is another matter: the list did change, and it is refused
+  assert.equal((await bulk(b, body)).status, 409);
+  assert.equal((await bulk(b, { op: 'tag', ids: u1.json.ids, tag: 'VIP' })).json.changed, vip.length, 'undone: the VIP files are back');
+  assert.deepEqual(scratch({ segment: 'vip' }), vip);
   // an export retried is logged once
   const k2 = rid();
   const e1 = await bulk(b, { op: 'export', ids: ids.slice(0, 5) }, k2);
@@ -376,9 +392,15 @@ test('texts: never to someone who refused them; the preview is the send, unsaved
   assert.equal(dry.json.sent + ex.noConsent + ex.noPhone + ex.recent + ex.other, 300, 'every file is either texted or counted in one reason');
   assert.ok(dry.json.template && dry.json.stop, 'what the confirmation shows: the words and the STOP mention');
 
-  const r = await bulk(b, { op: 'sms', ids });
+  const key = rid();
+  const r = await bulk(b, { op: 'sms', ids }, key);
   assert.equal(r.status, 200, r.text);
   assert.deepEqual([r.json.sent, [...r.json.ids].sort()], [want.length, want]);
+  // the request retried (a lost answer): the same answer, and not one text more
+  const lenSent = rt.engine.journal.length;
+  const again = await bulk(b, { op: 'sms', ids }, key);
+  assert.deepEqual([again.status, again.json.sent, [...again.json.ids].sort()], [200, want.length, want]);
+  assert.equal(rt.engine.journal.length, lenSent, 'a retry queues nothing');
   assert.deepEqual(r.json.excluded, ex, 'what the preview said');
   const queued = rt.engine.journal.slice(len).filter((e) => e.type === 'message.queued');
   assert.equal(queued.length, want.length);

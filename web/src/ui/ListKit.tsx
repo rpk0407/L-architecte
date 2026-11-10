@@ -64,7 +64,7 @@ type Act = { label: string; short?: string; icon?: string; run: () => void; disa
 /**
  * The bar of the selection. total: what the filter matches (for « Tout sélectionner (N) »); onAll asks for it.
  * main: the one accent button; more: the rest, under « ⋯ ». What is selected is always written out: « 3 fiches »,
- * « Les 214 du filtre », « 2 000 premières sur 5 520 ».
+ * « Les 214 du filtre », « 2 000 sur 5 520 » (the first ones of a filter over the cap).
  */
 export function ActionBar({ sel, total, noun = ['fiche', 'fiches'], onAll, onClear, onClose, main, more = [], busy }: {
   sel: L.Sel; total: number; noun?: [string, string]; onAll: () => void; onClear: () => void; onClose: () => void; main?: Act; more?: Act[]; busy?: boolean;
@@ -73,9 +73,9 @@ export function ActionBar({ sel, total, noun = ['fiche', 'fiches'], onAll, onCle
   const n = L.count(sel);
   const words = (k: number) => L.num(k) + ' ' + (k > 1 ? noun[1] : noun[0]);
   const whole = !!sel.all && !sel.ids.length;
-  const what = !n ? 'Coche des ' + noun[1] : sel.capped ? L.num(n) + (n > 1 ? ' premières sur ' : ' première sur ') + L.num(sel.capped) : whole ? (n > 1 ? 'Les ' + L.num(n) + ' du filtre' : words(n)) : words(n);
+  const what = !n ? 'Coche des ' + noun[1] : sel.capped ? L.num(n) + ' sur ' + L.num(sel.capped) : whole ? (n > 1 ? 'Les ' + L.num(n) + ' du filtre' : words(n)) : words(n);
   return (
-    <div className="lk-bar" role="toolbar" aria-label="Actions sur la sélection" data-guide="lk-bar">
+    <div className="lk-bar" role="toolbar" aria-label="Actions sur la sélection">
       <Button variant="ghost" icon="x" aria-label="Quitter la sélection" title="Quitter la sélection" onClick={onClose} />
       <div className="lk-bar-what">
         <b aria-live="polite">{what}</b>
