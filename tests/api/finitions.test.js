@@ -167,3 +167,28 @@ test('an incident told to the owner today is a line of the Comptoir, for him onl
   assert.deepEqual((await t.owner.get('/api/v1/bootstrap')).json.alerts, []);
   assert.deepEqual((await t.owner.get('/api/v1/pulse')).json.alerts, []);
 });
+
+test('the site’s pages send one id per attempt and read the free slots afresh after a refusal; no helper is declared twice', async () => {
+  const fs = await import('node:fs');
+  const read = (p) => fs.readFileSync(new URL('../../' + p, import.meta.url), 'utf8');
+  for (const p of ['public/site.html', 'public/refonte/express.js', 'public/refonte/planning.js', 'public/refonte/barbier.js']) {
+    const src = read(p);
+    assert.match(src, /'x-request-id'/, p + ' sends a request id');
+    assert.match(src, /'&fresh=1'/, p + ' asks for fresh slots');
+    assert.match(src, /status === 409\) \{? ?freshUntil = /, p + ' does so after a 409');
+    // a second `function name(` in the same script silently replaces the first (the booking's own helper once did)
+    if (p.endsWith('.js')) {
+      const names = [...src.matchAll(/^ {2}(?:async )?function (\w+)\(/gm)].map((m) => m[1]);
+      const twice = names.filter((n, i) => names.indexOf(n) !== i);
+      assert.deepEqual(twice, [], p + ' declares a function twice');
+    }
+  }
+  // the hour reads « 14:30 » on the slot buttons only (docs/refonte-conventions.md, 4): each page has both formats, and
+  // none promises a free cancellation the salon's settings did not give
+  for (const p of ['express', 'planning', 'barbier']) {
+    const src = read('public/refonte/' + p + '.js');
+    assert.doesNotMatch(src, /cancelUntilHours\) \|\| \d+/, p + ' guesses no cancellation notice');
+    assert.match(src, /const cancelH = /, p + ' reads the notice from the salon');
+  }
+  assert.match(read('docs/refonte-conventions.md'), /« 14:30 » \(24 h, deux chiffres\) uniquement sur les boutons de créneau/);
+});

@@ -112,7 +112,8 @@ export default async ({ h, page }) => {
   await page.getByRole('group', { name: 'Chiffre d’affaires' }).waitFor();
   must(!(await wide(page)), 'the page scrolls sideways at 1440×900');
   await page.getByRole('button', { name: 'Mois', exact: true }).click();
-  await page.waitForFunction(() => /au mois dernier/.test(document.querySelector('.pl-label')?.textContent || ''), null, { timeout: 5000 });
+  // a month in progress is compared at equal open days: those finished this month against as many at the start of the month before
+  await page.waitForFunction(() => /jours ouverts terminés ce mois-ci, comparés aux \d+ premiers jours ouverts de septembre/.test(document.querySelector('.pl-label')?.textContent || ''), null, { timeout: 5000 });
   must(!(await wide(page)), 'the month scrolls sideways at 1440×900');
   const cols = await page.locator('.pl-tiles').evaluate((el) => getComputedStyle(el).gridTemplateColumns.split(' ').length);
   must(cols === 4, 'the tiles are on ' + cols + ' columns on a desktop');
