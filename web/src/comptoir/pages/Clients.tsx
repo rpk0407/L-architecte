@@ -20,6 +20,9 @@ import MemberBlock, { useSellable } from './clients/MemberBlock';
 import Members from './clients/Members';
 import { liveMembers, shortWords } from '../../lib/members';
 import CutNotes from './espace/CutNotes';
+// @ts-ignore — plain JS module with JSDoc types: the server's own STOP mention
+import * as SmsRules from '../../../../shared/sms.js';
+import { ActionBar, LoadMore, SavedViews, Tick, bulkPost, downloadPost, holdThen, listState as LS, usePages, useSelection, type BulkResult, type Excluded, type SavedView, type Selection, type Target } from '../../ui/ListKit';
 import './clients.css';
 
 type ListData = { total: number; counts: Record<string, number>; excludedNoConsent?: number; retention?: { before: string; other: number } | null; items: ClientCard[] };
@@ -82,71 +85,244 @@ export default function Clients() {
 
 /* ---------------- the list ---------------- */
 
+type BulkActs = { sms: boolean; tag: boolean; exp: boolean };
+const BULK = '/api/v1/clients/bulk';
+const smsRules = SmsRules as { withStop(body: string, stop: string): string };
+
 function ClientList({ active }: { active: string | null }) {
-  const { can, boot } = useApp();
+  const { can, boot, reloadBoot } = useApp();
   const route = useRoute();
   const seg = route.query.get('segment') || 'all';
   const sort = route.query.get('tri') || (seg === 'relancer' ? 'overdue' : 'recent');
   const [q, setQ] = useState(route.query.get('q') || '');
   const dq = useDebounced(q, 200);
-  const [limit, setLimit] = useState(60);
+  // a saved view sets the search at once; typing waits for the pause
+  const [jump, setJump] = useState<string | null>(null);
+  const term = (jump != null && jump === q.trim() ? jump : dq).trim();
   const [creating, setCreating] = useState(false);
+  const [sheet, setSheet] = useState<null | 'tag' | 'untag' | 'sms'>(null);
+  const [exporting, setExporting] = useState(false);
   const segsRef = useRef<HTMLDivElement>(null);
-  useEffect(() => { setLimit(60); }, [dq, seg, sort]);
-  const { data, loading } = useQuery<ListData>('/api/v1/clients' + qs({ q: dq.trim(), segment: seg, sort, limit }));
+  // the search is in the address like the segment and the sort: a filter is shared, saved and found again
+  useEffect(() => { if ((route.query.get('q') || '') !== term) setQuery({ q: term || null }); }, [term]);
+  const filter = { q: term, segment: seg, sort };
+  const key = LS.filterKey(filter);
+  // pages of 60 by offset: the first is this query, each next one is asked once, by itself (ClientRows)
+  const url = (offset: number) => '/api/v1/clients' + qs({ q: term, segment: seg, sort, limit: LS.PAGE, offset: offset || null });
+  const { data, loading } = useQuery<ListData>(url(0));
+  const pager = usePages(key + '|' + sort);
+  const listed = seg !== 'doublons' && seg !== 'abonnes';
+  const selection = useSelection(key, listed ? data?.total : undefined);
+  const acts: BulkActs = { sms: can('marketing'), tag: can('client.edit'), exp: can('client.export') };
+  const canSelect = listed && (acts.sms || acts.tag || acts.exp);
+  const picking = canSelect && selection.on;
   // the row scrolls sideways: the open segment stays in sight (a rare one sits at the far end)
   useEffect(() => { segsRef.current?.querySelector('[aria-pressed="true"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' }); }, [seg, !!data]);
   const hint = SEGMENTS.find((s) => s.v === seg)?.hint;
   const excluded = seg === 'relancer' && data?.excludedNoConsent ? ' · ' + data.excludedNoConsent + ' sans accord, ' + (data.excludedNoConsent > 1 ? 'exclus' : 'exclu') : '';
   const shown = SEGMENTS.filter((s) => (!s.cap || can(s.cap)) && (!s.rare || seg === s.v || (data?.counts[s.v] || 0) > 0 || (s.v === 'inactifs' && (data?.retention?.other || 0) > 0)));
+  const viewQuery = LS.viewQuery({ q: term, segment: seg, tri: route.query.get('tri') });
+  const applyView = (v: SavedView) => { const p = LS.viewParams(v.query); setJump(p.q || ''); setQ(p.q || ''); setQuery(p); };
+  const saveViews = async (views: SavedView[]) => { await api.patch('/api/v1/prefs', { views }); await reloadBoot(); };
+  const filtered = !!term || seg !== 'all';
+
+  const selectAll = async () => {
+    try {
+      const r = await selection.all(() => api.get('/api/v1/clients' + qs({ q: term, segment: seg, sort, fields: 'ids' })));
+      if (r.truncated) toast({ kind: 'info', title: LS.num(r.max) + ' fiches au plus à la fois', sub: 'Les ' + LS.num(r.max) + ' premières sur ' + LS.num(r.total) + ' sont cochées. Affine le filtre pour agir sur les autres.', icon: 'info', ttl: 7000 });
+    } catch (e) { toastError(e); }
+  };
+  /** The list moved between the count on the button and the action: nothing was done, the person looks again. */
+  const changed = (e: any) => {
+    if (e?.code !== 'changed') return false;
+    toast({ kind: 'info', title: 'La liste a changé', sub: 'Elle compte maintenant ' + plural(e.extra?.total ?? 0, 'fiche') + ' : rien n’a été fait, vérifie et recommence.', icon: 'info' });
+    refreshAll();
+    return true;
+  };
+  const exportNow = async (target: Target) => {
+    setExporting(true);
+    try {
+      const n = await downloadPost(BULK, { op: 'export', ...target }, 'larchitecte-clients-selection.csv');
+      toast({ title: n != null ? 'Export de ' + plural(n, 'fiche') : 'Export téléchargé', sub: 'Noté au journal d’activité, à ton nom.', icon: 'download' });
+      if (selection.on) selection.stop();
+    } catch (e) { if (!changed(e)) toastError(e); } finally { setExporting(false); }
+  };
+  const main = acts.sms ? { label: 'Envoyer un SMS', short: 'SMS', icon: 'sms', run: () => setSheet('sms') } : acts.tag ? { label: 'Étiqueter', short: 'Étiqueter', icon: 'plus', run: () => setSheet('tag') } : { label: 'Exporter', short: 'Exporter', icon: 'download', run: () => exportNow(selection.target(filter)), disabled: exporting };
+  const more = [
+    ...(acts.tag && acts.sms ? [{ label: 'Ajouter une étiquette', icon: 'plus', run: () => setSheet('tag') }] : []),
+    ...(acts.tag ? [{ label: 'Retirer une étiquette', icon: 'minus', run: () => setSheet('untag') }] : []),
+    ...(acts.exp && (acts.sms || acts.tag) ? [{ label: 'Exporter la sélection', icon: 'download', run: () => exportNow(selection.target(filter)), disabled: exporting }] : [])
+  ];
   return (
-    <section className="card cl-list">
+    <section className={'card cl-list' + (picking ? ' is-picking' : '')}>
       <div className="row" style={{ gap: 8 }} data-guide="cl-search">
         <label className="search grow"><Icon name="search" /><input className="input" type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Nom ou numéro" aria-label="Rechercher un client" autoComplete="off" /></label>
         {can('client.edit') ? <Button variant="primary" icon="plus" aria-label="Nouveau client" onClick={() => setCreating(true)}><span className="hide-phone">Nouveau</span></Button> : null}
       </div>
       <div ref={segsRef} className="chips cl-segs" role="tablist" aria-label="Segments" data-guide="cl-segs">
+        <SavedViews page="clients" views={boot.me.prefs?.views} query={viewQuery} suggest={term || SEGMENTS.find((s) => s.v === seg)?.t} onApply={applyView} save={saveViews} />
         {shown.map((s) => <Chip key={s.v} small on={seg === s.v} onClick={() => setQuery({ segment: s.v === 'all' ? null : s.v, tri: null })}>{s.t}{data?.counts[s.v] != null ? <span className="cnt">{data.counts[s.v]}</span> : null}</Chip>)}
       </div>
-      {seg === 'doublons' ? <Duplicates q={dq.trim()} /> : seg === 'abonnes' ? <Members q={dq.trim()} active={active} /> : (
+      {seg === 'doublons' ? <Duplicates q={term} /> : seg === 'abonnes' ? <Members q={term} active={active} /> : (
         <>
           <div className="row cl-tools" data-guide="cl-tools">
             <span className="muted grow" style={{ fontSize: 13 }}>{data ? plural(data.total, 'client') : ''}{hint ? ' · ' + hint : ''}{excluded}</span>
             <select className="input select cl-sort" value={sort} onChange={(e) => setQuery({ tri: e.target.value })} aria-label="Trier">{SORTS.map((s) => <option key={s.v} value={s.v}>{s.t}</option>)}</select>
-            {can('client.export') ? <a className="btn btn-ghost btn-sm btn-icon" href="/api/v1/export?kind=clients" download aria-label="Exporter en CSV" title="Exporter en CSV"><Icon name="download" /></a> : null}
+            {canSelect && !picking && data?.items.length ? <Button variant="ghost" size="sm" className="cl-pick" onClick={selection.start}>Sélectionner</Button> : null}
+            {/* the export is the filter's: everything when nothing filters (the whole base, as before), else what is listed */}
+            {!acts.exp || picking ? null : filtered
+              ? <Button variant="ghost" size="sm" icon="download" className="cl-exp" busy={exporting} disabled={!data?.total} aria-label={'Exporter ' + (data ? plural(data.total, 'fiche') + ' du filtre' : 'le filtre') + ' en CSV'} title="Exporter ce filtre en CSV" onClick={() => exportNow({ filter: { ...(term ? { q: term } : {}), ...(seg !== 'all' ? { segment: seg } : {}) }, expect: data?.total ?? 0 })} />
+              : <a className="btn btn-ghost btn-sm btn-icon cl-exp" href="/api/v1/export?kind=clients" download aria-label="Exporter tous les clients en CSV" title="Exporter tous les clients en CSV"><Icon name="download" /></a>}
           </div>
-          {seg === 'inactifs' && data && can('client.erase') && !dq ? <Retention files={data.counts.inactifs || 0} other={data.retention?.other || 0} before={data.retention?.before || ''} /> : null}
-          {seg !== 'inactifs' && data && can('client.erase') && !dq && (data.counts.inactifs || data.retention?.other) ? (
+          {seg === 'inactifs' && data && can('client.erase') && !term ? <Retention files={data.counts.inactifs || 0} other={data.retention?.other || 0} before={data.retention?.before || ''} /> : null}
+          {seg !== 'inactifs' && data && can('client.erase') && !term && (data.counts.inactifs || data.retention?.other) ? (
             // the 3 years /confidentialite promises: in sight on the list, not only at the far end of the chips
             <button type="button" className="note warn cl-due" onClick={() => setQuery({ segment: 'inactifs', tri: null })}>
               <Icon name="shield" /><span className="grow">{data.counts.inactifs ? plural(data.counts.inactifs, 'fiche', 'fiches') + ' sans visite depuis 3 ans, à anonymiser' : 'D’anciens tickets ou rendez-vous gardent un nom, à effacer'}</span><Icon name="chevR" size={16} />
             </button>
           ) : null}
           {loading && !data ? <div className="col" style={{ gap: 10 }}>{[0, 1, 2, 3, 4, 5].map((i) => <Skeleton key={i} h={52} />)}</div> : !data?.items.length ? (
-            <div data-tour-empty><Empty icon="clients" title={dq ? 'Personne à ce nom' : 'Aucun client ici'}>{dq ? 'Vérifie l’orthographe ou cherche par les derniers chiffres du numéro.' : 'Ce segment est vide pour le moment.'}</Empty></div>
+            <div data-tour-empty><Empty icon="clients" title={term ? 'Personne à ce nom' : 'Aucun client ici'}>{term ? 'Vérifie l’orthographe ou cherche par les derniers chiffres du numéro.' : 'Ce segment est vide pour le moment.'}</Empty></div>
           ) : (
             <>
-              <ul className="list" data-guide="cl-rows">
-                {data.items.map((c) => (
-                  <li key={c.id}>
-                    <button type="button" className="li cl-row" aria-current={active === c.id ? 'true' : undefined} onClick={() => navigate('/clients/' + c.id + location.search)}>
-                      <Avatar name={c.first + ' ' + c.last} size="sm" color={c.overdue ? 'var(--warn)' : undefined} />
-                      <span className="li-main">
-                        <b>{c.first} {c.last}{c.badges.filter((b) => b !== 'nouveau' || !c.visits).slice(0, 2).map((b) => <span key={b} className={'badge ' + badgeTone(b)}>{b}</span>)}</b>
-                        <small>{c.next ? 'Prochain RDV ' + dayShortWord(c.next.day, boot.today) + ' ' + time(c.next.start) : c.overdue ? 'Pas revenu ' + sinceWords(c.sinceLast).replace('il y a', 'depuis') + (c.cadence ? ' · venait ' + rhythmWords(c.cadence) : '') : c.lastDay ? 'Venu ' + sinceWords(c.sinceLast) + (c.cadence ? ' · ' + rhythmWords(c.cadence) : '') : 'Pas encore venu'}</small>
-                      </span>
-                      <span className="li-end"><b className="money tnum">{c.spend ? eur(c.spend) : ''}</b><small className="faint">{[c.visits ? plural(c.visits, 'visite') : '', cardChip(c)].filter(Boolean).join(' · ')}</small></span>
-                    </button>
-                  </li>
-                ))}
+              <ul className="list" data-guide="cl-rows" aria-multiselectable={picking || undefined}>
+                {pager.offsets.map((o) => <ClientRows key={o} url={url(o)} active={active} today={boot.today} selection={picking ? selection : null} />)}
               </ul>
-              {data.total > data.items.length ? <Button variant="ghost" block onClick={() => setLimit(limit + 60)}>Voir {Math.min(60, data.total - data.items.length)} de plus</Button> : null}
+              <LoadMore total={data.total} loaded={Math.min(data.total, pager.pages * LS.PAGE)} onMore={pager.more} />
             </>
           )}
+          {picking && data ? <ActionBar sel={selection.sel} total={data.total} busy={selection.busy} onAll={selectAll} onClear={selection.clear} onClose={selection.stop} main={main} more={more} /> : null}
         </>
       )}
       <NewClient open={creating} onClose={() => setCreating(false)} initial={q} />
+      {sheet === 'tag' || sheet === 'untag' ? <BulkTag mode={sheet} n={selection.count} target={selection.target(filter)} onClose={() => setSheet(null)} onDone={selection.stop} onChanged={changed} /> : null}
+      {sheet === 'sms' ? <BulkSms n={selection.count} target={selection.target(filter)} onClose={() => setSheet(null)} onDone={selection.stop} onChanged={changed} /> : null}
     </section>
+  );
+}
+
+/** One page of the list (60 rows): its own query, so the page after it never asks for it again. */
+function ClientRows({ url, active, today, selection }: { url: string; active: string | null; today: string; selection: Selection | null }) {
+  const { data, loading } = useQuery<ListData>(url);
+  if (!data) return loading ? <>{[0, 1, 2].map((i) => <li key={i} className="cl-wait"><Skeleton h={52} /></li>)}</> : null;
+  return (
+    <>
+      {data.items.map((c) => {
+        const on = !!selection && selection.isSelected(c.id);
+        return (
+          <li key={c.id}>
+            <button type="button" className="li cl-row" aria-current={!selection && active === c.id ? 'true' : undefined} aria-pressed={selection ? on : undefined}
+              onClick={() => (selection ? selection.toggle(c.id) : navigate('/clients/' + c.id + location.search))}>
+              {selection ? <Tick on={on} /> : <Avatar name={c.first + ' ' + c.last} size="sm" color={c.overdue ? 'var(--warn)' : undefined} />}
+              <span className="li-main">
+                <b>{c.first} {c.last}{c.badges.filter((b) => b !== 'nouveau' || !c.visits).slice(0, 2).map((b) => <span key={b} className={'badge ' + badgeTone(b)}>{b}</span>)}</b>
+                <small>{c.next ? 'Prochain RDV ' + dayShortWord(c.next.day, today) + ' ' + time(c.next.start) : c.overdue ? 'Pas revenu ' + sinceWords(c.sinceLast).replace('il y a', 'depuis') + (c.cadence ? ' · venait ' + rhythmWords(c.cadence) : '') : c.lastDay ? 'Venu ' + sinceWords(c.sinceLast) + (c.cadence ? ' · ' + rhythmWords(c.cadence) : '') : 'Pas encore venu'}</small>
+              </span>
+              <span className="li-end"><b className="money tnum">{c.spend ? eur(c.spend) : ''}</b><small className="faint">{[c.visits ? plural(c.visits, 'visite') : '', cardChip(c)].filter(Boolean).join(' · ')}</small></span>
+            </button>
+          </li>
+        );
+      })}
+    </>
+  );
+}
+
+/**
+ * A tag on everything selected, added or taken off. The server changes the files in one write and says which ones
+ * changed; « Annuler », on the confirmation, sends the inverse for those files only.
+ */
+function BulkTag({ mode, n, target, onClose, onDone, onChanged }: { mode: 'tag' | 'untag'; n: number; target: Target; onClose: () => void; onDone: () => void; onChanged: (e: any) => boolean }) {
+  const { can } = useApp();
+  const [tag, setTag] = useState('');
+  const [other, setOther] = useState('');
+  const [busy, setBusy] = useState(false);
+  const chosen = (other.trim() || tag).slice(0, 24);
+  const who = plural(n, 'fiche');
+  const go = async () => {
+    setBusy(true);
+    try {
+      const r = await bulkPost<BulkResult>(BULK, { op: mode, tag: chosen, ...target });
+      const undo = LS.undoOf(r);
+      const words = LS.tagDone(r);
+      toast({
+        title: words.title, sub: words.sub, icon: r.changed ? 'check' : 'info', kind: r.changed ? 'ok' : 'info', ttl: undo ? 10000 : undefined,
+        action: undo ? { label: 'Annuler', run: () => { bulkPost<BulkResult>(BULK, undo).then((u) => { toast({ title: 'Annulé', sub: plural(u.changed || 0, 'fiche') + (((u.changed || 0) > 1) ? ' remises' : ' remise') + ' comme avant', icon: 'undo' }); refreshAll(); }).catch(toastError); } } : undefined
+      });
+      refreshAll(); onDone(); onClose();
+    } catch (e) { if (onChanged(e)) { onDone(); onClose(); } else toastError(e); } finally { setBusy(false); }
+  };
+  return (
+    <Sheet open onClose={onClose} kicker={who + (n > 1 ? ' sélectionnées' : ' sélectionnée')} title={mode === 'tag' ? 'Ajouter une étiquette' : 'Retirer une étiquette'}
+      footer={<Button variant="primary" block busy={busy} disabled={!chosen || !n} onClick={go}>{chosen ? (mode === 'tag' ? 'Ajouter « ' + chosen + ' » à ' : 'Retirer « ' + chosen + ' » de ') + who : 'Choisis une étiquette'}</Button>}>
+      <div className="chips lk-tags">{[...TAGS, ...(can('agenda.edit') ? [TRUSTED] : [])].map((t) => <Chip key={t} on={!other.trim() && tag === t} onClick={() => { setTag(t); setOther(''); }}>{t}</Chip>)}</div>
+      <Field label="Ou une autre" htmlFor="bt-o" hint="24 caractères au plus."><input id="bt-o" className="input" value={other} maxLength={24} onChange={(e) => setOther(e.target.value)} placeholder="Soirée du 12, Étudiants…" autoComplete="off" /></Field>
+      {chosen === TRUSTED ? <Note tone="warn" icon="shield">{mode === 'tag' ? '« confiance » : plus d’acompte demandé à ces clients, même après une absence.' : 'Sans « confiance », l’acompte est de nouveau demandé à ceux qui ont manqué un rendez-vous.'}</Note> : null}
+      <p className="muted" style={{ fontSize: 13, lineHeight: 1.45 }}>{mode === 'tag' ? 'Les fiches qui l’ont déjà ne changent pas.' : 'Les fiches qui ne l’ont pas ne changent pas.'} Tu peux annuler juste après, depuis le message de confirmation.</p>
+    </Sheet>
+  );
+}
+
+type SmsPreview = { sent: number; matched: number; excluded: Excluded; max: number; template: string; stop: string; first: { prenom: string; jours: number } | null; dueAt: number | null };
+/**
+ * A follow-up text to everything selected. The sheet opens on the server's own preview (the send itself, unsaved):
+ * who gets it, who is left out and why. Consent is the server's rule; nothing here can widen it. A text cannot be
+ * taken back: the only undo is the 5 seconds before it leaves, and the sheet says so.
+ */
+function BulkSms({ n, target, onClose, onDone, onChanged }: { n: number; target: Target; onClose: () => void; onDone: () => void; onChanged: (e: any) => boolean }) {
+  const [pre, setPre] = useState<SmsPreview | null>(null);
+  const [err, setErr] = useState('');
+  const [text, setText] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    api.post<SmsPreview>(BULK, { op: 'sms', dry: true, ...target }).then((r) => { if (live) setPre(r); }).catch((e) => { if (!live) return; if (onChanged(e)) { onDone(); onClose(); } else setErr(e?.message || 'Aperçu impossible.'); });
+    return () => { live = false; };
+  }, []);
+  const words = (text ?? pre?.template ?? '').trim();
+  const custom = text != null && !!pre && words !== pre.template.trim();
+  const tooMany = !!pre && pre.sent > pre.max;
+  const bad = custom && (words.length < 10 || words.length > 320);
+  const sample = pre ? smsRules.withStop(words.replace(/\{prenom\}/g, pre.first?.prenom || 'Karim').replace(/\{jours\}/g, String(pre.first?.jours ?? 35)).replace(/\{lien\}/g, location.origin + '/site'), pre.stop || '') : '';
+  const out = pre ? LS.excludedWords(pre.excluded) : '';
+  const send = () => {
+    if (!pre) return;
+    const who = plural(pre.sent, 'client');
+    onClose(); onDone();
+    holdThen({
+      title: 'Envoi à ' + who + ' dans 5 s', sub: 'Après, un SMS ne se rattrape plus.', icon: 'sms',
+      onCancel: () => toast({ kind: 'info', title: 'Envoi annulé', sub: 'Aucun SMS n’est parti.', icon: 'undo' }),
+      run: async () => {
+        try {
+          const r = await bulkPost<BulkResult>(BULK, { op: 'sms', ...(custom ? { text: words } : {}), ...target });
+          const done = LS.smsDone(r);
+          toast({ title: done.title, sub: done.sub, icon: 'sms', kind: r.sent ? 'ok' : 'info' });
+          refreshAll();
+        } catch (e) { if (!onChanged(e)) toastError(e); }
+      }
+    });
+  };
+  return (
+    <Sheet open onClose={onClose} kicker={plural(n, 'fiche') + (n > 1 ? ' sélectionnées' : ' sélectionnée')} title="Relancer par SMS"
+      footer={<Button variant="primary" block icon="sms" disabled={!pre || !pre.sent || tooMany || bad} onClick={send}>{!pre ? 'Un instant…' : pre.sent ? 'Envoyer à ' + plural(pre.sent, 'client') : 'Personne à qui envoyer'}</Button>}>
+      {err ? <Note tone="err" icon="alert">{err}</Note> : !pre ? <div className="col" style={{ gap: 10 }}><Skeleton h={22} w="60%" /><Skeleton h={84} /></div> : (
+        <>
+          <div className="lk-sum"><b className="tnum">{LS.num(pre.sent)}</b><span>{pre.sent > 1 ? 'recevront le SMS' : pre.sent ? 'recevra le SMS' : 'ne le recevra'} sur {plural(pre.matched, 'fiche')}</span></div>
+          {out ? <Note icon="shield">{out}.</Note> : null}
+          {tooMany ? <Note tone="err" icon="alert">{LS.num(pre.max)} SMS au plus à la fois : affine le filtre, ou envoie en plusieurs fois.</Note> : null}
+          {pre.sent ? (
+            <>
+              <div className="bubble" aria-label="Aperçu"><small>{pre.first ? 'Aperçu pour ' + pre.first.prenom : 'Aperçu'}</small><p>{sample}</p></div>
+              {text == null ? <button type="button" className="link lk-edit" onClick={() => setText(pre.template)}>Modifier le texte</button> : (
+                <Field label="Texte" htmlFor="bs-t" hint="{prenom}, {jours} et {lien} sont remplacés pour chacun. La mention STOP est ajoutée." error={bad ? 'Entre 10 et 320 caractères.' : null}>
+                  <textarea id="bs-t" className="input textarea" rows={4} maxLength={320} value={text} onChange={(e) => setText(e.target.value)} />
+                </Field>
+              )}
+              {pre.dueAt ? <Note icon="clock">Hors des heures d’envoi : les SMS partiront {dates.localParts(pre.dueAt).day === dates.localParts(Date.now()).day ? '' : 'demain '}à {time(dates.localParts(pre.dueAt).min)}.</Note> : null}
+              <Note tone="warn" icon="alert">Un SMS envoyé ne se rattrape pas. Après « Envoyer », tu as 5 secondes pour annuler ; ensuite, plus rien.</Note>
+            </>
+          ) : null}
+        </>
+      )}
+    </Sheet>
   );
 }
 

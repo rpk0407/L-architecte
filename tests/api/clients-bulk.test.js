@@ -250,7 +250,7 @@ test('bounded: 2 000 files a request, by ids or by filter, 500 texts; over it no
   // exactly 2 000 passes
   const ok = await writes(() => bulk(b, { op: 'tag', ids: big.slice(0, BULK_MAX), tag: 'Plein' }));
   assert.equal(ok.out.status, 200, ok.out.text);
-  assert.deepEqual([ok.out.json.matched + ok.out.json.missing, ok.n], [BULK_MAX, 1]);
+  assert.deepEqual([ok.out.json.matched, ok.n], [BULK_MAX, 1]);
   assert.equal((await bulk(b, { op: 'untag', ids: ok.out.json.ids, tag: 'Plein' })).json.changed, ok.out.json.changed);
 });
 
@@ -309,10 +309,10 @@ test('rights per role: each operation asks the right the single action asks toda
   assert.equal((await bulk(anon, { op: 'tag', ids: [big[0]], tag: 'X' })).status, 401);
   assert.equal((await anon.get('/api/v1/clients?fields=ids')).status, 401);
   const ids = big.slice(700, 710);
-  const len = rt.engine.journal.length;
 
   // a barber: no text, no export, no « confiance » (it spares the deposit: who edits every booking decides), by ids or by filter
   const barber = await asStaff('JKut');
+  const len = rt.engine.journal.length; // after his sign-in (enrolling the tablet is an event)
   for (const body of [{ op: 'sms', ids }, { op: 'sms', ids, dry: true }, { op: 'export', ids }, { op: 'export', filter: { segment: 'vip' } }, { op: 'tag', ids, tag: 'confiance' }, { op: 'untag', filter: { q: 'wassim' }, tag: 'confiance' }]) {
     const r = await bulk(barber, body);
     assert.equal(r.status, 403, JSON.stringify(body) + ' → ' + r.text);

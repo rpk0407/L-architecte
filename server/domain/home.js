@@ -225,7 +225,9 @@ function build(s, me, now) {
 
   if (can('closure')) {
     const missed = C.cash.z === 'missed';
-    if (missed || (C.cash.z === 'due' && (T.over || !T.open))) {
+    // « Z du jour à faire » only once an open day is over: on a closed day nobody is at the till to close it (a ticket
+    // made that day all the same, an online sale, shows from the next day as a missed Z, which does block)
+    if (missed || (C.cash.z === 'due' && T.open && T.over)) {
       const late = missed ? (({ close, uncounted }) => [...close, ...uncounted].sort())(missedZ(s, today)) : [today];
       add('z', 'bloque', late.length, {
         title: !missed ? 'Z du jour à faire' : late.length > 1 ? late.length + ' journées sans Z' : 'Z de ' + dayWords(late[0], today) + ' manquant',

@@ -81,3 +81,49 @@
   .cl-dup-who { grid-template-columns: minmax(0, 1fr); }
   .cl-cmp-h, .cl-cmp-r { grid-template-columns: 84px minmax(0, 1fr) minmax(0, 1fr); gap: 8px; padding: 9px 10px; font-size: 13px; }
 }
+/* WP8 · ListKit (ui/ListKit.tsx): the selection, its bar, the pages, the saved views. Here until a second list uses them. */
+.lk-tick { flex: none; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--line3); color: var(--ink); transition: background-color .12s, box-shadow .12s; }
+.lk-tick.on { background: var(--accent); box-shadow: none; }
+.cl-row[aria-pressed='true'] { background: var(--panel2); }
+.lk-bar { position: sticky; bottom: 0; z-index: 12; display: flex; align-items: center; gap: 8px; margin: 4px -6px -6px; padding: 8px; border-radius: 18px; background: var(--bg2); box-shadow: var(--shadow2), inset 0 0 0 1px var(--line2); }
+.lk-bar .btn { flex: none; }
+.lk-bar .btn-icon { --h: 44px; }
+.lk-bar-what { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 1px; }
+.lk-bar-what b { max-width: 100%; font: 600 14px/1.25 var(--sans); font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lk-bar-what .link { font-size: 13px; line-height: 1.3; text-align: left; padding: 3px 0; }
+.lk-bar-what .link:disabled { opacity: .5; }
+.lk-short { display: none; }
+.lk-more { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.lk-more small { font-size: 12px; }
+.cl-wait { padding: 4px 0; }
+.lk-view svg, .lk-view-act svg { flex: none; }
+.lk-view-act { background: transparent; box-shadow: inset 0 0 0 1px var(--line2); color: var(--tx2); }
+.cl-segs .chip { gap: 6px; }
+.lk-tags .chip { min-height: 44px; }
+.lk-sum { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.lk-sum b { font: 400 44px/1 var(--serif); }
+.lk-sum span { color: var(--tx2); font-size: 14px; }
+.lk-edit { align-self: flex-start; min-height: 44px; font-size: 14px; }
+.cl-exp.btn-sm { --h: 36px; width: 36px; padding: 0; border-radius: 50%; }
+@media (max-width: 1099px) {
+  /* the page scrolls, not the card: the bar stays above the bottom of the screen */
+  .lk-bar { bottom: 12px; }
+}
+@media (max-width: 760px) {
+  /* above the phone's tabs, under the thumb; every target 44 px */
+  .lk-bar { bottom: calc(72px + var(--safe-b)); margin: 4px -8px -4px; }
+  .lk-long { display: none; }
+  .lk-short { display: inline; }
+  .lk-bar .btn-primary { padding: 0 16px; }
+  .lk-bar-what .link { min-height: 26px; padding: 6px 0; }
+  .cl-pick.btn-sm, .cl-exp.btn-sm { --h: 44px; }
+  .cl-exp.btn-sm { width: 44px; }
+  .cl-tools { flex-wrap: wrap; }
+  .cl-tools > .muted { flex-basis: 100%; }
+  .cl-tools .cl-sort { min-height: 44px; flex: 1; }
+  /* chips keep their look; the touch area grows to 44 px */
+  .cl-segs { padding-top: 6px; padding-bottom: 8px; }
+  .cl-segs .chip { position: relative; }
+  .cl-segs .chip::after { content: ''; position: absolute; inset: -6px 0; }
+  .is-picking { padding-bottom: 10px; }
+}

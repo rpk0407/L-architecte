@@ -52,21 +52,24 @@ const schema = obj({
   dry: opt(bool())
 });
 
-const fr = (n) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+/** 2 000, with the narrow no-break space French figures take */
+const fr = (n) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '\u202f');
 const files = (n) => fr(n) + (n > 1 ? ' fiches' : ' fiche');
 
 /**
  * The files a request names, alive now: its ids as sent, or what its filter matches at this instant.
- * @returns {{ ids: string[], missing: number, by: 'ids'|'filter' }}
+ * `known`: the retry of a request already written (its answer is replayed): the count confirmed then is not checked
+ * against the list of now, which the request itself may have changed (« retirer VIP » empties the VIP filter).
+ * @returns {{ ids: string[], all: string[], missing: number, by: 'ids'|'filter' }} all: the ids as named, alive or not
  */
-function targets(app, r, x) {
+function targets(app, r, x, known) {
   const s = r.s;
   const alive = (cid) => { const c = s.clients.get(cid); return !!c && !c.erased && !c.mergedInto; };
   if (x.ids) {
     if (x.except) throw new HttpError(400, 'invalid', 'Les fiches décochées vont avec un filtre, pas avec une liste de fiches.');
     const all = [...new Set(x.ids)];
     const ids = all.filter(alive);
-    return { ids, missing: all.length - ids.length, by: 'ids' };
+    return { ids, all, missing: all.length - ids.length, by: 'ids' };
   }
   // the list's own handler, asked for the ids of this filter: one definition of every segment and of the search
   const list = app.match('GET', '/api/v1/clients');
@@ -76,8 +79,8 @@ function targets(app, r, x) {
   if (found.truncated) throw new HttpError(400, 'too_many', 'Ce filtre correspond à ' + files(found.total) + ' : ' + fr(BULK_MAX) + ' au plus à la fois. Affine le filtre, ou coche les fiches.', { total: found.total, max: BULK_MAX });
   const out = new Set(x.except || []);
   const ids = found.ids.filter((cid) => !out.has(cid) && alive(cid));
-  if (x.expect != null && ids.length !== x.expect) throw new HttpError(409, 'changed', 'La liste a changé entre-temps (' + files(ids.length) + '). Vérifie-la avant de recommencer.', { total: ids.length });
-  return { ids, missing: 0, by: 'filter' };
+  if (!known && x.expect != null && ids.length !== x.expect) throw new HttpError(409, 'changed', 'La liste a changé entre-temps (' + files(ids.length) + '). Vérifie-la avant de recommencer.', { total: ids.length });
+  return { ids, all: ids, missing: 0, by: 'filter' };
 }
 
 /** A context for a command run on the state without the engine: what it would emit is collected and thrown away. */
@@ -107,17 +110,23 @@ function whyNot(c, st) {
 /** @param {any} app */
 export function bulkRoutes(app) {
   app.post('/api/v1/clients/bulk', async (r) => {
+    // said in words before the schema's own « de 1 à 2000 éléments »
+    const named = r.body && Array.isArray(r.body.ids) ? r.body.ids.length : 0;
+    if (named > BULK_MAX) throw new HttpError(400, 'too_many', fr(BULK_MAX) + ' fiches au plus à la fois (' + fr(named) + ' ici). Affine le filtre, ou fais-le en plusieurs fois.', { total: named, max: BULK_MAX });
     const x = parse(schema, r.body);
     if (!r.caps.has(NEED[x.op]) || (x.tag === 'confiance' && !r.caps.has('agenda.edit'))) throw new HttpError(403, 'forbidden', 'Tu n’as pas accès à cette action.');
     if (!x.ids === !x.filter) throw new HttpError(400, 'invalid', 'Une liste de fiches ou un filtre, l’un des deux.');
     if ((x.op === 'tag' || x.op === 'untag') && !x.tag) throw new HttpError(400, 'invalid', 'Quelle étiquette ?');
     const s = r.s;
-    const t = targets(app, r, x);
+    const requestId = r.req.headers.get('x-request-id') || undefined;
+    const known = !!requestId && r.rt.engine.knows({ t: 'staff', id: r.me.id }, requestId) === 'answered';
+    const t = targets(app, r, x, known);
 
     if (x.op === 'tag' || x.op === 'untag') {
-      if (!t.ids.length) return { op: x.op, tag: x.tag, matched: t.missing, changed: 0, unchanged: 0, missing: t.missing, full: 0, ids: [] };
-      const res = await r.run(tagClients, { ids: t.ids, tag: x.tag, remove: x.op === 'untag' });
-      return { op: x.op, tag: x.tag, matched: res.matched + t.missing, changed: res.changed, unchanged: res.unchanged, missing: res.missing + t.missing, full: res.full, ids: res.ids };
+      // matched: the files named (an erased, merged or unknown one is counted in `missing` by the command itself)
+      if (!t.all.length) return { op: x.op, tag: x.tag, matched: 0, changed: 0, unchanged: 0, missing: 0, full: 0, ids: [] };
+      const res = await r.run(tagClients, { ids: t.all, tag: x.tag, remove: x.op === 'untag' });
+      return { op: x.op, tag: x.tag, matched: res.matched, changed: res.changed, unchanged: res.unchanged, missing: res.missing, full: res.full, ids: res.ids };
     }
 
     if (x.op === 'sms') {
@@ -144,7 +153,7 @@ export function bulkRoutes(app) {
           // the first text, for the preview: who it is for, and when it leaves if the quiet hours hold it
           first: first ? { prenom: first.first, jours: stats.get(first.id).sinceLast } : null, dueAt: dueAt > r.now ? dueAt : null };
       }
-      if (would.length > SMS_MAX) throw new HttpError(400, 'too_many', fr(would.length) + ' SMS partiraient : ' + SMS_MAX + ' au plus à la fois. Affine le filtre, ou envoie en plusieurs fois.', { total: would.length, max: SMS_MAX });
+      if (!known && would.length > SMS_MAX) throw new HttpError(400, 'too_many', fr(would.length) + ' SMS partiraient : ' + SMS_MAX + ' au plus à la fois. Affine le filtre, ou envoie en plusieurs fois.', { total: would.length, max: SMS_MAX });
       const sent = [];
       // each run is one write; a retry of the request replays the runs already written and goes on with the others
       for (const input of runs) { const res = await r.run(sendRebook, input); sent.push(...(res.ids || [])); }
@@ -153,7 +162,7 @@ export function bulkRoutes(app) {
 
     // export: the columns of GET /api/v1/export?kind=clients, for these files only; logged first, sent after
     if (!t.ids.length) throw new HttpError(400, 'invalid', 'Aucune fiche à exporter.');
-    const f = x.filter || {};
+    const f = /** @type {{ q?: string, segment?: string }} */ (x.filter || {});
     await r.run(logClientExport, { count: t.ids.length, by: t.by, ...(t.by === 'filter' && f.segment && f.segment !== 'all' ? { segment: f.segment } : {}), ...(t.by === 'filter' && f.q ? { search: true } : {}) });
     const rows = [['Prénom', 'Nom', 'Téléphone', 'E-mail', 'SMS', 'Marketing', 'Créé le', 'Notes']];
     for (const cid of t.ids) {
