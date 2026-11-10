@@ -1,8 +1,9 @@
-// TEAM-05a: Pilotage, the owner's cockpit, on his phone (390×844). He signs in with his password and lands on it with the
+// TEAM-05a: Pilotage (« Chiffres » in the menu), the owner's cockpit, on his phone (390×844). He signs in with his password,
+// lands on the Accueil, opens it from the Chiffres tab and has it with the
 // day's Chiffre d’affaires in view without scrolling; Semaine changes the deltas and the comparison; a tap on a barber opens his
 // sheet with « Relevé du mois »; the abonnés' income is the demo members' MRR; a tile whose route is refused or missing is gone;
 // no horizontal scroll at 1440×900 or on the phone.
-export const name = 'Pilotage: lands on it, the day in view, Semaine, a barber’s sheet and statement, the MRR, a refused tile is hidden';
+export const name = 'Pilotage: opened from « Chiffres », the day in view, Semaine, a barber’s sheet and statement, the MRR, a refused tile is hidden';
 export const viewport = { width: 390, height: 844 };
 
 const must = (ok, what) => { if (!ok) throw new Error(what); };
@@ -11,14 +12,17 @@ const wide = (page) => page.evaluate(() => document.documentElement.scrollWidth 
 
 export default async ({ h, page }) => {
   await h.loginOwner(page);
+  // every role opens on the Accueil; the cockpit is the « Chiffres » tab
+  must(/\/comptoir\/accueil$/.test(page.url()), 'the owner does not land on /comptoir/accueil: ' + page.url());
+  await page.locator('.tabbar').getByRole('link', { name: 'Chiffres' }).click();
   await page.getByRole('heading', { name: 'Pilotage', level: 1 }).waitFor({ timeout: 8000 });
-  must(/\/comptoir\/pilotage$/.test(page.url()), 'the owner does not land on /comptoir/pilotage: ' + page.url());
+  must(/\/comptoir\/pilotage$/.test(page.url()), 'the Chiffres tab does not lead to /comptoir/pilotage: ' + page.url());
   must(await page.getByRole('button', { name: 'Aujourd’hui', pressed: true }).count() === 1, 'Aujourd’hui is not the period shown');
   await page.getByRole('group', { name: 'Chiffre d’affaires' }).waitFor();
 
-  // the phone's tab bar starts with Pilotage
+  // the phone's tab bar starts with the Accueil and carries Chiffres (Pilotage)
   const tabs = await page.locator('.tabbar > *').allTextContents();
-  must(/Pilotage/.test(tabs[0]), 'the first tab is not Pilotage: ' + JSON.stringify(tabs));
+  must(/Accueil/.test(tabs[0]) && tabs.some((t) => /Chiffres/.test(t)), 'the tab bar is not Accueil … Chiffres: ' + JSON.stringify(tabs));
 
   // the revenue tile and the till are in view without scrolling, above the tab bar
   const bar = await page.locator('.tabbar').boundingBox();

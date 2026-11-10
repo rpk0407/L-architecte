@@ -7,6 +7,7 @@
 //   export const env = { LX_FAKE_NOW: '…' };                optional, extra server environment (demo clock, …)
 // Each file gets its own server and its own data, so files never see each other's changes.
 // h: { base, mode, owner, setup(), loginOwner(page), api(path, opts), newPage({ viewport, mobile }), expectText(page, text), shot(page, name) }.
+// With LX_FAKE_NOW (demo), every browser context runs on that same clock (Playwright's clock API), ticking like the server's.
 // Any JavaScript error on `page` or on a page from h.newPage() fails the scenario.
 import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
@@ -60,7 +61,11 @@ export async function startServer(env, args = []) {
   }
   // a clear boot failure for this file, rather than every scenario failing on connection errors
   if (!ready) { child.kill(); throw new Error('the server did not answer in 40 s:\n' + log); }
-  return { base, port, log: () => log, stop: () => new Promise((done) => { if (child.exitCode != null) return done(null); child.once('exit', done); child.kill(); }) };
+  // the salon's clock runs from LX_FAKE_NOW (server/http/runtime.js: real time + this offset); the browser must read the same one,
+  // or a page decides on the real date (a visit "in the past", a closed day) against appointments the server placed on the fake one
+  const fake = env.LX_FAKE_NOW ? Date.parse(env.LX_FAKE_NOW) : NaN;
+  const clockOffset = Number.isFinite(fake) && env.LX_MODE !== 'production' ? fake - Date.now() : 0;
+  return { base, port, clockOffset, log: () => log, stop: () => new Promise((done) => { if (child.exitCode != null) return done(null); child.once('exit', done); child.kill(); }) };
 }
 
 export const expectText = async (page, text, timeout = 8000) => { await page.getByText(text, { exact: false }).locator('visible=true').first().waitFor({ timeout }); };
@@ -69,11 +74,12 @@ export const shot = (page, name) => (SHOTS ? page.screenshot({ path: join(SHOTS,
 /** Collects results; every scenario runs in fresh browser contexts whose JavaScript errors fail it. */
 export function runner(browser) {
   const results = [];
-  async function scenario(name, fn, { viewport = DESKTOP } = {}) {
+  async function scenario(name, fn, { viewport = DESKTOP, clockOffset = 0 } = {}) {
     const errors = [], contexts = [];
     const newPage = async ({ viewport: vp = viewport, mobile = false } = {}) => {
       const ctx = await browser.newContext({ viewport: vp, locale: 'fr-FR', timezoneId: 'Europe/Paris', deviceScaleFactor: 1, ...(mobile ? { isMobile: true, hasTouch: true } : {}) });
       contexts.push(ctx);
+      if (clockOffset) await ctx.clock.install({ time: new Date(Date.now() + clockOffset) }); // then it runs on, like the server's
       const page = await ctx.newPage();
       page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
       const expected = []; page.expect = expected; // a scenario that stages a refusal says which console line it expects (page.expect)
@@ -176,7 +182,7 @@ export async function runFiles(browser, dir, { boot, scenario }) {
     try { srv = await boot(mod); } catch (e) { await scenario(name, () => { throw e; }); continue; }
     const ok = await scenario(typeof mod.name === 'string' ? name + ': ' + mod.name : name, async (page, ctx, newPage) => {
       await fn({ browser, h: { ...srv.h, newPage }, page, ctx });
-    }, { viewport: mod.viewport || DESKTOP });
+    }, { viewport: mod.viewport || DESKTOP, clockOffset: srv.clockOffset });
     if (!ok) console.log(srv.log().split('\n').filter((l) => /error|Error/.test(l)).slice(-10).map((l) => '    | ' + l).join('\n'));
     await srv.stop();
   }

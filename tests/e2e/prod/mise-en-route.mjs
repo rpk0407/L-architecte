@@ -44,8 +44,9 @@ export default async ({ browser, h, page }) => {
 
   /* right after setup: no chair yet */
   await h.loginOwner(page);
-  // the owner lands on Pilotage: its team card says what to do first, as the agenda does
-  await page.goto(h.base + '/comptoir');
+  // the owner lands on the Accueil; Pilotage (« Chiffres ») has the team card that says what to do first, as the agenda does
+  if (!/\/comptoir\/accueil$/.test(page.url())) throw new Error('the owner does not land on the Accueil: ' + page.url());
+  await page.goto(h.base + '/comptoir/pilotage');
   await h.expectText(page, 'Ajoute ton équipe pour voir ses chiffres');
   await page.getByRole('button', { name: 'Ajouter l’équipe' }).waitFor();
   await page.getByRole('button', { name: 'Voir la mise en route' }).waitFor();

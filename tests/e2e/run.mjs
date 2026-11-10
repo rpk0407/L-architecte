@@ -16,6 +16,7 @@ const DEMO_ENV = { LX_MODE: 'demo', LX_FAKE_NOW: '2026-10-27T15:10:00+01:00' };
 const OWNER = { name: 'Gérant', email: DEMO.email, password: DEMO.password, pin: DEMO.ownerPin };
 const server = await startServer(DEMO_ENV, ['--memory']);
 const BASE = server.base;
+const CLOCK = { clockOffset: server.clockOffset };
 
 const browser = await chromium.launch();
 const { results, scenario } = runner(browser);
@@ -52,7 +53,7 @@ await scenario('owner: every page opens without error (desktop)', async (page) =
   await page.goto(BASE + '/comptoir/equipe');
   await page.locator('.eq-card').nth(1).click();
   await expectText(page, 'Horaires de la semaine');
-});
+}, { ...CLOCK });
 
 await scenario('owner: every page opens without error (phone)', async (page) => {
   await ownerLogin(page);
@@ -62,7 +63,7 @@ await scenario('owner: every page opens without error (phone)', async (page) => 
     const wide = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
     if (wide) throw new Error(path + ': the page scrolls sideways on a phone');
   }
-}, { viewport: { width: 390, height: 844 } });
+}, { ...CLOCK, viewport: { width: 390, height: 844 } });
 
 await scenario('site: a client books online, the salon sees it', async (page) => {
   await page.goto(BASE + '/');
@@ -80,7 +81,7 @@ await scenario('site: a client books online, the salon sees it', async (page) =>
   await ownerLogin(page);
   const r = await api(page, '/api/v1/feed');
   if (!JSON.stringify(r.json).includes('Rayane')) throw new Error('booking ' + code + ' not in the salon feed');
-}, { viewport: { width: 390, height: 844 } });
+}, { ...CLOCK, viewport: { width: 390, height: 844 } });
 
 await scenario('site: deposit paid, the appointment is confirmed', async (page) => {
   await page.goto(BASE + '/site'); // the old address stays an alias of /
@@ -101,7 +102,7 @@ await scenario('site: deposit paid, the appointment is confirmed', async (page) 
   await shot(page, 'deposit-confirmed');
   await page.getByRole('button', { name: 'Déplacer' }).click();
   await page.locator('.c-slots button').first().waitFor({ timeout: 8000 });
-}, { viewport: { width: 390, height: 844 } });
+}, { ...CLOCK, viewport: { width: 390, height: 844 } });
 
 await scenario('till: a finished appointment is paid by card', async (page) => {
   await ownerLogin(page);
@@ -111,7 +112,7 @@ await scenario('till: a finished appointment is paid by card', async (page) => {
   await page.getByRole('button', { name: /Valider l’encaissement/ }).click();
   await expectText(page, 'Encaissé');
   await shot(page, 'till-paid');
-});
+}, { ...CLOCK });
 
 await scenario('barber: own scope only, no owner screens', async (page) => {
   await page.goto(BASE + '/comptoir');
@@ -129,7 +130,7 @@ await scenario('barber: own scope only, no owner screens', async (page) => {
   if (r.status() !== 403) throw new Error('settings API answered ' + r.status() + ' to a barber');
   await page.goto(BASE + '/comptoir/rapports');
   await expectText(page, 'Commission estimée');
-});
+}, { ...CLOCK });
 
 await server.stop();
 
@@ -140,7 +141,7 @@ await runFiles(browser, 'demo', {
     const srv = await startServer({ ...DEMO_ENV, ...(mod.env || {}) }, ['--memory']);
     return { ...srv, h: { ...helpers({ base: srv.base, mode: 'demo', owner: OWNER }), demo: DEMO } };
   }
-});
+}, { ...CLOCK });
 
 await browser.close();
 process.exit(report(results, server.log()));

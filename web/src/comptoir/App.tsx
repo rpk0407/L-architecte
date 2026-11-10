@@ -72,6 +72,15 @@ export function useOpenPages() {
   return Object.keys(ROUTES).filter((k) => { const c = ROUTES[k].cap; return !c || can(c); });
 }
 
+/** Was someone signed in on this browser last time? (read: send the bootstrap with the sign-in check; write: remember) */
+function wasIn(set?: boolean): boolean {
+  try {
+    if (set === undefined) return localStorage.getItem('lx-in') === '1';
+    if (set) localStorage.setItem('lx-in', '1'); else localStorage.removeItem('lx-in');
+  } catch { /* private mode: the check is simply sequential */ }
+  return set === true;
+}
+
 export function Root() {
   const [auth, setAuth] = useState<AuthState | null>(null);
   const [boot, setBoot] = useState<Boot | null>(null);
@@ -79,10 +88,11 @@ export function Root() {
   const load = async () => {
     try {
       setFailed('');
-      // all three leave together: who is signed in, his bootstrap (a 401 when nobody is, ignored) and the chunk of the
-      // page he opens on (the address's, else the Accueil, the page /comptoir alone opens)
+      // all three leave together: who is signed in, his bootstrap and the chunk of the page he opens on (the address's, else
+      // the Accueil, the page /comptoir alone opens). The bootstrap only leaves early on a browser that was signed in (`lx-in`,
+      // set below): for anyone else it would be a 401 in the console on every visit to the sign-in screen.
       const stP = api.get<AuthState>('/api/auth/state');
-      const bootP = api.get<Boot>('/api/v1/bootstrap').catch((e: unknown) => ({ failed: e }));
+      const bootP = (wasIn() ? api.get<Boot>('/api/v1/bootstrap') : Promise.reject(new Error('not signed in'))).catch((e: unknown) => ({ failed: e }));
       const first = location.pathname.replace(/^\/comptoir\/?/, '').split('/')[0];
       (Object.hasOwn(LOAD, first) ? LOAD[first] : LOAD.accueil)().catch(() => {});
       const st = await stP;
@@ -90,7 +100,8 @@ export function Root() {
       if (st.me) {
         const b = await bootP;
         setBoot('failed' in b ? await api.get<Boot>('/api/v1/bootstrap') : b);
-      } else setBoot(null);
+        wasIn(true);
+      } else { setBoot(null); wasIn(false); }
     } catch (e: any) { setFailed(e?.message || 'Impossible de joindre le serveur.'); }
   };
   useEffect(() => { load(); }, []);
@@ -100,7 +111,7 @@ export function Root() {
   if (!auth.me || !boot || linkToken()) return <><Login state={auth} onDone={load} /><Toasts /></>;
   return (
     // signed out (or the phone removed): the sign-in screen starts from the fresh state, never from the stale one
-    <AppProvider initial={boot} onOut={() => { forgetHome(); setBoot(null); setAuth(null); load(); }}>
+    <AppProvider initial={boot} onOut={() => { forgetHome(); wasIn(false); setBoot(null); setAuth(null); load(); }}>
       <Shell />
       <Toasts />
       <ConfirmHost />
