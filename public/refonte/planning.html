@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex, nofollow">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Barber L’Architecte · Le salon en direct · Marseille 13e</title>
+<meta name="description" content="Barbier place Pélabon, Marseille 13e. Vois en direct quel fauteuil est libre et réserve ton créneau en moins d’une minute.">
+<meta name="theme-color" content="#D3D0C8">
+<link rel="icon" href="../icon.svg" type="image/svg+xml">
+<link rel="preload" href="../fonts/instrument-serif-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="../fonts/instrument-sans-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="planning.css">
+<script src="planning.js" defer></script>
+</head>
+<body>
+<div class="lp" id="top">
+<a class="skip" href="#reserver">Aller à la réservation</a>
+
+<header class="tb light" id="tb">
+<a class="wm" href="#frais" aria-label="L’Architecte, retour en haut"><span class="wm-a">L’Architecte</span><span class="wm-b">Barber · Marseille</span></a>
+<button type="button" class="tb-ch" id="menu-btn" aria-label="Ouvrir le sommaire" aria-expanded="false" aria-controls="menu">
+<span class="tb-ct" aria-hidden="true">Sommaire</span>
+<span class="tb-ic" aria-hidden="true"><i></i><i></i></span>
+</button>
+</header>
+
+<nav class="mn" id="menu" aria-label="Sommaire" hidden>
+<div class="mn-in">
+<p class="mn-k">Sommaire</p>
+<ol class="mn-l">
+<li><a href="#reserver"><span class="mn-n">01</span><span class="mn-t">Réserver</span><span class="mn-d">Les quatre fauteuils, en direct</span></a></li>
+<li><a href="#equipe"><span class="mn-n">02</span><span class="mn-t">L’équipe</span><span class="mn-d">JKut, Frank, Le Soldat, Esteban</span></a></li>
+<li><a href="#carte"><span class="mn-n">03</span><span class="mn-t">La carte</span><span class="mn-d">Les formules et leurs prix</span></a></li>
+<li><a href="#travail"><span class="mn-n">04</span><span class="mn-t">Le travail</span><span class="mn-d">Sorti du fauteuil</span></a></li>
+<li><a href="#avis"><span class="mn-n">05</span><span class="mn-t">Les avis</span><span class="mn-d">5,0 sur 316 avis Google</span></a></li>
+<li><a href="#venir"><span class="mn-n">06</span><span class="mn-t">Venir</span><span class="mn-d">16, place Pélabon, Marseille 13<sup>e</sup></span></a></li>
+</ol>
+<div class="mn-foot">
+<p class="st" data-live-st><i aria-hidden="true"></i><span>Du mardi au samedi, 9 h – 18 h 30</span></p>
+<p class="mn-ad">16, place Pélabon, 13013 Marseille</p>
+<a class="btn" href="#reserver">Réserver</a>
+</div>
+</div>
+</nav>
+
+<div class="cta" id="cta"><a class="btn" href="#reserver"><span>Réserver</span><small id="cta-sub">dès 15 €</small></a></div>
+
+<main id="main">
+<div class="dk">
+<section class="hero" id="frais" data-tone="light" aria-labelledby="t-hero">
+<h1 class="vh" id="t-hero">Frais. Barber L’Architecte, barbier place Pélabon à Marseille</h1>
+<div class="hr-ph"><img src="../img/fade.jpg" width="1220" height="1194" alt="Client de profil : cheveux décolorés, dégradé à blanc net sur les côtés" fetchpriority="high"></div>
+<div class="hr-top">
+<div class="hr-word"><canvas class="ht" id="hero-cv" aria-hidden="true"></canvas></div>
+<p class="hr-sub">Barbier, place Pélabon.<br>Marseille 13<sup>e</sup>.</p>
+<a class="hr-rate" href="#avis"><span class="stars" aria-hidden="true"><svg viewBox="0 0 120 22"><path d="M11 1.6l2.7 6.2 6.7.6-5.1 4.5 1.5 6.6L11 16l-5.8 3.5 1.5-6.6L1.6 8.4l6.7-.6z"/><path transform="translate(24 0)" d="M11 1.6l2.7 6.2 6.7.6-5.1 4.5 1.5 6.6L11 16l-5.8 3.5 1.5-6.6L1.6 8.4l6.7-.6z"/><path transform="translate(48 0)" d="M11 1.6l2.7 6.2 6.7.6-5.1 4.5 1.5 6.6L11 16l-5.8 3.5 1.5-6.6L1.6 8.4l6.7-.6z"/><path transform="translate(72 0)" d="M11 1.6l2.7 6.2 6.7.6-5.1 4.5 1.5 6.6L11 16l-5.8 3.5 1.5-6.6L1.6 8.4l6.7-.6z"/><path transform="translate(96 0)" d="M11 1.6l2.7 6.2 6.7.6-5.1 4.5 1.5 6.6L11 16l-5.8 3.5 1.5-6.6L1.6 8.4l6.7-.6z"/></svg></span><span>5,0 · 316 avis Google</span></a>
+<p class="hr-live st" id="hero-live" data-live-st role="status"><i aria-hidden="true"></i><span>Du mardi au samedi, 9 h – 18 h 30</span></p>
+</div>
+<div class="hr-next-w">
+<a class="hr-next" id="hero-next" href="#reserver">
+<span class="hr-next-t"><span class="hr-next-k"><i aria-hidden="true"></i><span id="hero-next-k">Prochain créneau</span></span><span class="hr-next-v" id="hero-next-v">Voir le planning</span></span>
+<span class="hr-next-a" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h15M13 6l6 6-6 6"/></svg></span>
+</a>
+</div>
+</section>
+
+<section class="rs sheet" id="reserver" data-tone="light" aria-labelledby="t-rs">
+<div class="wrap">
+<p class="demo-b" id="demo-b" hidden></p>
+<div class="rs-head">
+<div>
+<p class="kk"><span>01</span>Réserver</p>
+<h2 class="h2" id="t-rs">Le salon,<br>en <em>direct.</em></h2>
+</div>
+<p class="rs-lead">Quatre fauteuils, demi-heure par demi-heure. Tu vois qui est libre, tu touches ton créneau, c’est réservé. Sans compte.</p>
+</div>
+
+<div class="rs-g">
+<div class="rs-side">
+<details class="fm" id="fm" open>
+<summary class="fm-sum"><span class="fm-k"><b>1</b>Ta formule</span><span class="fm-cur" id="fm-cur">Chargement…</span><span class="fm-chg" aria-hidden="true">Changer</span></summary>
+<div class="fm-list" id="fm-list" role="radiogroup" aria-label="Ta formule"></div>
+</details>
+<p class="fm-note" id="fm-note" hidden></p>
+</div>
+
+<div class="rs-main">
+<div class="pl-top">
+<p class="fm-k"><b>2</b>Ton créneau</p>
+<p class="pl-live" id="pl-live" aria-live="polite"><i aria-hidden="true"></i><span>En direct</span></p>
+</div>
+<div class="ds-w">
+<div class="ds" id="days" role="group" aria-label="Choisis le jour"></div>
+</div>
+<p class="pl-msg" id="pl-msg" role="alert" hidden></p>
+<div class="pl-bar">
+<h3 class="pl-day" id="pl-day" tabindex="-1">Planning</h3>
+<button type="button" class="btn small ghost" id="pl-first">Le premier libre</button>
+</div>
+<div class="pl-tabs" id="pl-tabs" role="tablist" aria-label="Choisis ton barbier"></div>
+<div class="pl" id="pl" aria-busy="true"><p class="pl-wait">Chargement du planning…</p></div>
+<ul class="pl-leg" aria-label="Légende">
+<li><span class="lg lg-free" aria-hidden="true">9 h</span>Libre : touche pour réserver</li>
+<li><span class="lg lg-busy" aria-hidden="true"></span>Indisponible</li>
+<li><span class="lg lg-mine" aria-hidden="true">9 h</span>Ton créneau</li>
+</ul>
+</div>
+</div>
+</div>
+</section>
+</div>
+
+<section class="team sheet" id="equipe" data-tone="dark" aria-labelledby="t-team">
+<div class="wrap">
+<p class="kk"><span>02</span>L’équipe</p>
+<h2 class="h2" id="t-team">Quatre fauteuils,<br>quatre mains sûres.</h2>
+<ul class="bb" id="team">
+<li class="bb-i"><span class="bb-mono" aria-hidden="true">JK</span><h3 class="bb-n">JKut</h3></li>
+<li class="bb-i"><span class="bb-mono" aria-hidden="true">F</span><h3 class="bb-n">Frank</h3></li>
+<li class="bb-i"><span class="bb-mono" aria-hidden="true">LS</span><h3 class="bb-n">Le Soldat</h3></li>
+<li class="bb-i"><span class="bb-mono" aria-hidden="true">E</span><h3 class="bb-n">Esteban</h3></li>
+</ul>
+</div>
+</section>
+
+<section class="carte sheet" id="carte" data-tone="light" aria-labelledby="t-carte">
+<div class="wrap">
+<p class="kk"><span>03</span>La carte</p>
+<h2 class="h2" id="t-carte">Les formules.</h2>
+<div class="cr" id="carte-list"><p class="cr-wait">La carte arrive…</p></div>
+</div>
+</section>
+
+<section class="cuts sheet" id="travail" data-tone="dark" aria-labelledby="t-cuts">
+<div class="wrap">
+<p class="kk"><span>04</span>Le travail</p>
+<h2 class="h2" id="t-cuts">Sorti du<br>fauteuil.</h2>
+<ul class="ct-row">
+<li class="ct"><div class="ct-ph"><img src="../img/sidepart.jpg" width="1220" height="1500" alt="Raie marquée sur le côté, dégradé bas, nuque tatouée" loading="lazy"></div><h3 class="ct-n">La raie marquée</h3><p class="ct-p">Dégradé bas, raie tracée</p></li>
+<li class="ct"><div class="ct-ph"><img src="../img/curls.jpg" width="1220" height="1500" alt="Boucles serrées sur le dessus, dégradé net et barbe taillée, face au miroir du salon" loading="lazy"></div><h3 class="ct-n">Boucles et barbe</h3><p class="ct-p">Contour net, barbe taillée</p></li>
+<li class="ct"><div class="ct-ph"><img src="../img/fade.jpg" width="1220" height="1194" alt="Cheveux décolorés et dégradé à blanc derrière l’oreille" loading="lazy"></div><h3 class="ct-n">Décoloré, à blanc</h3><p class="ct-p">Dégradé à blanc, décoloré</p></li>
+</ul>
+</div>
+</section>
+
+<section class="pv sheet" id="avis" data-tone="dark" aria-labelledby="t-pv">
+<div class="wrap">
+<p class="kk"><span>05</span>Les avis</p>
+<h2 class="h2" id="t-pv">Ne nous crois pas<br>sur parole.</h2>
+<div class="pv-g">
+<div class="pv-score">
+<p class="vh">Note de 5,0 sur 5 d’après 316 avis Google</p>
+<p class="pv-big" aria-hidden="true">5,0</p>
+<p class="pv-meta" aria-hidden="true"><span class="stars"><svg viewBox="0 0 120 22"><path d="M11 1.6l2.7 6.2 6.7.6-5.1 4.5 1.5 6.6L11 16l-5.8 3.5 1.5-6.6L1.6 8.4l6.7-.6z"/><path transform="translate(24 0)" d="M11 1.6l2.7 6.2 6.7.6-5.1 4.5 1.5 6.6L11 16l-5.8 3.5 1.5-6.6L1.6 8.4l6.7-.6z"/><path transform="translate(48 0)" d="M11 1.6l2.7 6.2 6.7.6-5.1 4.5 1.5 6.6L11 16l-5.8 3.5 1.5-6.6L1.6 8.4l6.7-.6z"/><path transform="translate(72 0)" d="M11 1.6l2.7 6.2 6.7.6-5.1 4.5 1.5 6.6L11 16l-5.8 3.5 1.5-6.6L1.6 8.4l6.7-.6z"/><path transform="translate(96 0)" d="M11 1.6l2.7 6.2 6.7.6-5.1 4.5 1.5 6.6L11 16l-5.8 3.5 1.5-6.6L1.6 8.4l6.7-.6z"/></svg></span>316 avis Google</p>
+<a class="tl" id="pv-link" href="https://www.google.com/maps/search/?api=1&amp;query=L%27Architecte%20coiffeur&amp;query_place_id=ChIJJSWkBLy_yRIRbgAQcMwb-JY" target="_blank" rel="noopener">Lire les avis sur Google</a>
+</div>
+<div class="pv-qs">
+<figure class="pv-q"><blockquote>« Ce n’est pas une simple coupe, c’est une réelle <em>construction au millimètre</em>. »</blockquote><figcaption>Maï · Avis Google, févr. 2026</figcaption></figure>
+<figure class="pv-q"><blockquote>« …accueil chaleureux… très bonne ambiance <em>amicale, convivial, et familiale</em>… je suis vraiment très satisfait. »</blockquote><figcaption>Elias R. · Avis Google, mars 2026</figcaption></figure>
+<figure class="pv-q"><blockquote>« Très sympa et <em>très à l’écoute</em>. »</blockquote><figcaption>Un client · Avis Google, mars 2026</figcaption></figure>
+</div>
+</div>
+</div>
+</section>
+
+<footer class="ft sheet" id="venir" data-tone="light" aria-labelledby="t-ft">
+<div class="wrap ft-g">
+<figure class="ft-ph"><img src="../img/salon.jpg" width="1220" height="901" alt="Le salon : long miroir bordé de LED rouge, canapés noir et rouge, fauteuils et bacs à shampooing" loading="lazy"></figure>
+<div class="ft-i">
+<p class="kk"><span>06</span>Venir</p>
+<h2 class="h2" id="t-ft">16, place<br>Pélabon.</h2>
+<address class="ft-ad"><span class="vh">Barber L’Architecte, 16, place Pélabon, </span>13013 Marseille</address>
+<p class="st" data-live-st><i aria-hidden="true"></i><span>Du mardi au samedi, 9 h – 18 h 30</span></p>
+<p class="ft-h" id="ft-hours">Du mardi au samedi, 9 h – 18 h 30. Fermé le dimanche et le lundi.</p>
+<div class="ft-cta">
+<a class="btn" href="#reserver">Réserver</a>
+<a class="btn ghost" id="ft-maps" href="https://www.google.com/maps/search/?api=1&amp;query=L%27Architecte%20coiffeur&amp;query_place_id=ChIJJSWkBLy_yRIRbgAQcMwb-JY" target="_blank" rel="noopener">Itinéraire</a>
+</div>
+<ul class="ft-links">
+<li><a href="/mon-rendez-vous">Mon rendez-vous</a></li>
+<li><a href="/carte-cadeau">Carte cadeau</a></li>
+<li><a href="/contact">Écrire au salon</a></li>
+<li><a href="https://www.instagram.com/barbershoplarchitecte/" target="_blank" rel="noopener">Instagram</a></li>
+<li><a href="/mentions-legales">Mentions légales</a></li>
+<li><a href="/confidentialite">Confidentialité</a></li>
+<li><a href="/cgv">CGV</a></li>
+</ul>
+<p class="ft-legal">© Barber L’Architecte · Marseille</p>
+</div>
+</div>
+</footer>
+</main>
+
+<dialog class="bk" id="bk" aria-labelledby="bk-t">
+<div class="bk-in">
+<div class="bk-head">
+<h2 class="bk-t" id="bk-t" tabindex="-1">Ton créneau</h2>
+<button type="button" class="bk-x" id="bk-x" aria-label="Fermer et libérer le créneau"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+</div>
+
+<form class="bk-form" id="bk-form" novalidate>
+<div class="recap"><p class="recap-w" id="recap-w"></p><p class="recap-s" id="recap-s"></p></div>
+<p class="hold" id="hold"><i aria-hidden="true"></i><span id="hold-t">Créneau gardé pour toi</span><b id="hold-left" aria-hidden="true"></b></p>
+<div class="fld2">
+<div class="fld"><label for="f-first">Prénom</label><input id="f-first" name="first" type="text" autocomplete="given-name" required maxlength="40" aria-describedby="e-first"><span class="err" id="e-first" hidden></span></div>
+<div class="fld"><label for="f-last">Nom <span class="opt-l">facultatif</span></label><input id="f-last" name="last" type="text" autocomplete="family-name" maxlength="40"></div>
+</div>
+<div class="fld"><label for="f-phone">Téléphone</label><input id="f-phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="06 12 34 56 78" required maxlength="24" aria-describedby="e-phone"><span class="err" id="e-phone" hidden></span></div>
+<div class="fld"><label for="f-email">E-mail <span class="opt-l">facultatif</span></label><input id="f-email" name="email" type="email" inputmode="email" autocomplete="email" maxlength="120" aria-describedby="h-email e-email"><span class="hint" id="h-email">Pour recevoir la confirmation et le rendez-vous dans ton agenda.</span><span class="err" id="e-email" hidden></span></div>
+<div class="fld"><label for="f-note">Un mot pour ton barbier <span class="opt-l">facultatif</span></label><input id="f-note" name="note" type="text" maxlength="200" placeholder="Ex. : dégradé bas, garder la longueur"></div>
+<label class="sw"><input type="checkbox" id="f-sms" name="sms" checked><span class="sw-t"><b>Rappel par SMS la veille à 18 h</b><small>Avec un lien pour déplacer ou annuler.</small></span></label>
+<label class="sw"><input type="checkbox" id="f-mkt" name="marketing"><span class="sw-t"><b>Les bons plans du salon par SMS</b><small>Places de dernière minute, rappel de coupe. Tu arrêtes quand tu veux : STOP, comme indiqué dans chaque SMS.</small></span></label>
+<p class="priv">Tes coordonnées servent à ce rendez-vous, et aux bons plans seulement si tu coches. <a href="/confidentialite" target="_blank" rel="noopener">Comment elles sont traitées</a></p>
+<p class="dep" id="dep" hidden></p>
+<p class="demo" id="bk-demo" hidden></p>
+<p class="bk-err" id="bk-err" role="alert" hidden></p>
+<div class="bk-foot">
+<p class="bk-sum"><b id="bk-price"></b><span id="bk-line"></span></p>
+<button type="submit" class="btn" id="bk-go">Confirmer le rendez-vous</button>
+<p class="bk-terms" id="bk-terms" hidden></p>
+</div>
+</form>
+
+<div class="bk-done" id="bk-done" hidden>
+<p class="done-k" id="done-k">C’est réservé.</p>
+<p class="done-w" id="done-w"></p>
+<p class="done-s" id="done-s"></p>
+<p class="done-pay" id="done-pay" hidden></p>
+<a class="btn" id="done-paybtn" href="#" hidden>Régler l’acompte</a>
+<ul class="done-l" id="done-l"></ul>
+<div class="done-a">
+<a class="btn" id="done-ics" href="#" download="rendez-vous-larchitecte.ics">Ajouter à mon agenda</a>
+<a class="btn ghost" id="done-manage" href="#">Déplacer ou annuler</a>
+</div>
+<p class="done-code" id="done-code"></p>
+<button type="button" class="tl" id="done-close">Revenir au planning</button>
+</div>
+</div>
+</dialog>
+</div>
+</body>
+</html>
