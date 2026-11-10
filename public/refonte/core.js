@@ -48,7 +48,7 @@
 
   function http(method, url, body) {
     return fetch(url, { method: method, headers: body ? { 'content-type': 'application/json' } : undefined, body: body ? JSON.stringify(body) : undefined, credentials: 'same-origin' })
-      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) { var e = new Error(j.message || 'Erreur'); e.code = j.code; e.status = r.status; throw e; } return j; }); });
+      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) { var x = j.error || j, e = new Error(x.message || 'Une erreur est survenue. Réessaie ou appelle le salon.'); e.code = x.code; e.status = r.status; throw e; } return j; }); });
   }
 
   /* ---------- simulation (offline) ---------- */
