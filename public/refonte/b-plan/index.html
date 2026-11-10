@@ -1,0 +1,642 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Barber L’Architecte · Marseille 13e · Réserve ta place au plan</title>
+<meta name="description" content="Barbier place Pélabon, Marseille 13e. Vois en un coup d’œil qui est libre et quand, et réserve ta coupe en moins d’une minute. Mardi – samedi, 9 h – 18 h 30.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#F4F1EA; --paper2:#ECE7DC; --ink:#12203A; --ink2:#3B4A66; --line:rgba(18,32,58,.28); --line2:rgba(18,32,58,.12);
+  --red:#C8281E; --red-d:#A81D15; --ok:#1F6B4A;
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --serif:"Newsreader",Georgia,"Times New Roman",serif;
+  --gut:clamp(16px,4vw,48px);
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){ } }
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--serif);font-size:18px;line-height:1.5;
+  background-image:linear-gradient(var(--line2) 1px,transparent 1px),linear-gradient(90deg,var(--line2) 1px,transparent 1px);background-size:32px 32px;background-attachment:scroll}
+img{max-width:100%;display:block}
+a{color:inherit}
+.mono{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase}
+.wrap{max-width:1240px;margin:0 auto;padding:0 var(--gut)}
+:focus-visible{outline:3px solid var(--red);outline-offset:2px}
+.skip{position:absolute;left:-999px;top:8px;background:var(--ink);color:#fff;padding:10px 14px;z-index:99}
+.skip:focus{left:8px}
+h1,h2,h3{font-weight:500;margin:0;line-height:1.05}
+h2{font-size:clamp(32px,5vw,56px);letter-spacing:-.01em}
+.sec{padding:clamp(56px,9vw,112px) 0;border-top:1px solid var(--line);position:relative}
+.sec-h{display:flex;gap:18px;align-items:baseline;margin-bottom:clamp(24px,4vw,44px);flex-wrap:wrap}
+.sec-n{font-family:var(--mono);font-size:12px;border:1px solid var(--ink);padding:4px 8px;letter-spacing:.1em}
+.sub{color:var(--ink2);max-width:56ch;margin:10px 0 0}
+.btn{font-family:var(--mono);font-size:13px;letter-spacing:.08em;text-transform:uppercase;font-weight:600;background:var(--red);color:#fff;border:0;padding:16px 22px;min-height:48px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:10px;box-shadow:4px 4px 0 var(--ink);transition:transform .12s,box-shadow .12s}
+.btn:hover{background:var(--red-d);transform:translate(2px,2px);box-shadow:2px 2px 0 var(--ink)}
+.btn:disabled{background:#9aa1ad;box-shadow:none;cursor:not-allowed;transform:none}
+.btn.ghost{background:transparent;color:var(--ink);border:1.5px solid var(--ink);box-shadow:none}
+.btn.ghost:hover{background:var(--ink);color:#fff;transform:none}
+/* header */
+header.top{position:sticky;top:0;z-index:30;background:rgba(244,241,234,.94);backdrop-filter:blur(6px);border-bottom:1px solid var(--ink)}
+header.top .wrap{display:flex;align-items:center;justify-content:space-between;min-height:62px;gap:14px}
+.logo{display:flex;align-items:center;gap:10px;text-decoration:none;font-family:var(--mono);font-weight:600;letter-spacing:.14em;font-size:14px}
+.logo svg{width:30px;height:30px}
+nav.main{display:flex;gap:22px;align-items:center}
+nav.main a{font-family:var(--mono);font-size:12px;letter-spacing:.1em;text-transform:uppercase;text-decoration:none;padding:8px 2px;border-bottom:1.5px solid transparent}
+nav.main a:hover{border-color:var(--ink)}
+nav.main .btn{padding:10px 16px;min-height:42px;box-shadow:3px 3px 0 var(--ink)}
+.live{display:inline-flex;align-items:center;gap:8px}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px rgba(31,107,74,.18)}
+.dot.off{background:#8a8f99;box-shadow:none}
+.demo-bar{background:var(--ink);color:#fff;text-align:center;padding:7px 12px;font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase}
+/* hero */
+.hero{padding:clamp(28px,5vw,64px) 0 clamp(40px,6vw,80px)}
+.hero .wrap{display:grid;grid-template-columns:1.05fr 1fr;gap:clamp(24px,5vw,72px);align-items:center}
+.hero h1{font-size:clamp(46px,8.2vw,108px);letter-spacing:-.025em;font-weight:400}
+.hero h1 em{font-style:italic;color:var(--red)}
+.hero .lede{font-size:clamp(18px,2vw,22px);color:var(--ink2);max-width:46ch;margin:22px 0 28px}
+.hero-cta{display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+.facts{display:flex;gap:0;margin-top:34px;border:1px solid var(--ink);width:fit-content;max-width:100%;flex-wrap:wrap;background:var(--paper)}
+.facts div{padding:10px 16px;border-right:1px solid var(--ink)}
+.facts div:last-child{border-right:0}
+.facts b{display:block;font-family:var(--serif);font-weight:500;font-size:22px;line-height:1.1}
+.plate{position:relative;border:1.5px solid var(--ink);background:var(--paper);padding:14px 14px 38px;box-shadow:8px 8px 0 var(--ink)}
+.plate img{width:100%;aspect-ratio:4/3;object-fit:cover;filter:saturate(.8) contrast(1.05)}
+.plate svg.ann{position:absolute;inset:14px 14px 38px;width:calc(100% - 28px);height:calc(100% - 52px);pointer-events:none}
+.plate .cap{position:absolute;left:14px;right:14px;bottom:10px;display:flex;justify-content:space-between;font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase}
+.tag{position:absolute;font-family:var(--mono);font-size:11px;background:var(--paper);border:1px solid var(--ink);padding:2px 6px;letter-spacing:.06em}
+/* booking */
+#reserver{background:linear-gradient(var(--paper2),var(--paper2));background-image:linear-gradient(var(--line2) 1px,transparent 1px),linear-gradient(90deg,var(--line2) 1px,transparent 1px);background-size:32px 32px;border-top:2px solid var(--ink);border-bottom:2px solid var(--ink)}
+.book{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:clamp(20px,3vw,40px);align-items:start}
+.step{background:var(--paper);border:1.5px solid var(--ink);margin-bottom:22px}
+.step>header{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1.5px solid var(--ink);background:var(--ink);color:#fff}
+.step>header .n{font-family:var(--mono);font-size:12px;border:1px solid #fff;padding:1px 7px}
+.step>header h3{font-family:var(--mono);font-size:13px;letter-spacing:.1em;text-transform:uppercase;font-weight:500}
+.step>header .state{margin-left:auto;font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;opacity:.85}
+.step .body{padding:18px}
+.step.locked{opacity:.5;pointer-events:none}
+.formules{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
+.cat{grid-column:1/-1;font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink2);display:flex;align-items:center;gap:10px;margin-top:6px}
+.cat::after{content:"";flex:1;border-top:1px dashed var(--line)}
+.fm{all:unset;box-sizing:border-box;cursor:pointer;border:1.5px solid var(--line);padding:12px 14px;background:#fff;display:flex;flex-direction:column;gap:4px;min-height:84px;position:relative}
+.fm:hover{border-color:var(--ink)}
+.fm[aria-pressed=true]{border-color:var(--ink);box-shadow:inset 0 0 0 1.5px var(--ink);background:#FBF9F4}
+.fm[aria-pressed=true]::after{content:"✓";position:absolute;top:8px;right:10px;font-family:var(--mono);font-weight:700;color:var(--red)}
+.fm:focus-visible{outline:3px solid var(--red);outline-offset:2px}
+.fm .nm{font-size:18px;line-height:1.15;padding-right:18px}
+.fm .pr{margin-top:auto;display:flex;justify-content:space-between;font-family:var(--mono);font-size:12px;letter-spacing:.04em}
+.fm .pr b{font-size:15px}
+.fm .tg{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--red)}
+.days{display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;scrollbar-width:thin;margin-bottom:14px}
+.dy{all:unset;box-sizing:border-box;cursor:pointer;flex:0 0 64px;text-align:center;border:1.5px solid var(--line);background:#fff;padding:8px 4px;font-family:var(--mono);min-height:68px}
+.dy .dw{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink2)}
+.dy .dn{display:block;font-family:var(--serif);font-size:26px;line-height:1.1}
+.dy .fr{font-size:10px;color:var(--ok);letter-spacing:.04em}
+.dy[aria-pressed=true]{background:var(--ink);color:#fff;border-color:var(--ink)}
+.dy[aria-pressed=true] .dw,.dy[aria-pressed=true] .fr{color:#fff}
+.dy[disabled]{background:repeating-linear-gradient(135deg,transparent 0 5px,var(--line2) 5px 6px);cursor:not-allowed;color:#8a8f99}
+.dy[disabled] .fr{color:#8a8f99}
+.dy:focus-visible{outline:3px solid var(--red)}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between;margin-bottom:12px}
+.legend{display:flex;gap:14px;align-items:center;font-family:var(--mono);font-size:11px;letter-spacing:.05em;text-transform:uppercase;flex-wrap:wrap}
+.legend i{display:inline-block;width:16px;height:16px;border:1.5px solid var(--ink);vertical-align:-3px;margin-right:5px;background:#fff}
+.legend i.t{background:repeating-linear-gradient(135deg,transparent 0 3px,var(--line) 3px 4px);border-color:var(--line)}
+.legend i.s{background:var(--red);border-color:var(--red)}
+.tabs{display:none}
+.grid{display:grid;grid-template-columns:58px repeat(4,minmax(0,1fr));border:1.5px solid var(--ink);background:#fff;position:relative}
+.gh{position:sticky;top:62px;z-index:2;background:var(--paper);border-bottom:1.5px solid var(--ink);padding:8px 8px 7px;border-left:1px solid var(--line)}
+.gh:first-child{border-left:0}
+.gh .ch{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink2)}
+.gh .bn{font-size:18px;line-height:1.1;display:block}
+.gh .ct{font-family:var(--mono);font-size:10px;color:var(--ok);letter-spacing:.04em}
+.gt{font-family:var(--mono);font-size:11px;color:var(--ink2);padding:0 6px;display:flex;align-items:center;justify-content:flex-end;height:38px;border-top:1px solid var(--line2);background:var(--paper)}
+.gt.hr{color:var(--ink);font-weight:600;border-top:1px solid var(--line)}
+.gc{height:38px;border:0;border-top:1px solid var(--line2);border-left:1px solid var(--line);background:#fff;padding:0;position:relative;font-family:var(--mono);font-size:12px;color:var(--ink);cursor:pointer;display:block;width:100%}
+.gc.hr{border-top-color:var(--line)}
+.gc.free:hover{background:rgba(31,107,74,.12)}
+.gc.free::before{content:attr(data-t);position:absolute;inset:0;display:flex;align-items:center;justify-content:center;opacity:.0;transition:opacity .1s}
+.gc.free:hover::before,.gc.free:focus-visible::before{opacity:1}
+.gc.free::after{content:"";position:absolute;left:50%;top:50%;width:7px;height:7px;margin:-3.5px;background:var(--ok);border-radius:50%}
+.gc.free:hover::after,.gc.free:focus-visible::after{opacity:0}
+.gc.t{background:repeating-linear-gradient(135deg,transparent 0 5px,var(--line) 5px 6px);cursor:default}
+.gc.sel{background:var(--red);color:#fff}
+.gc.sel::before{opacity:1;content:attr(data-t)}
+.gc.sel::after{display:none}
+.gc:focus-visible{outline:3px solid var(--red);outline-offset:-3px;z-index:3}
+.dim{display:flex;align-items:center;gap:8px;margin-top:10px;font-family:var(--mono);font-size:11px;color:var(--ink2)}
+.dim::before,.dim::after{content:"";flex:1;border-top:1px solid var(--ink2)}
+.empty{padding:28px;text-align:center;font-family:var(--serif);font-size:20px;border:1.5px dashed var(--line)}
+.fiche{position:sticky;top:78px;background:#fff;border:1.5px solid var(--ink);box-shadow:6px 6px 0 var(--ink)}
+.fiche h3{font-family:var(--mono);font-size:12px;letter-spacing:.12em;text-transform:uppercase;padding:12px 16px;border-bottom:1.5px solid var(--ink);font-weight:500;display:flex;justify-content:space-between}
+.fiche dl{margin:0;padding:6px 16px}
+.fiche .r{display:flex;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px dashed var(--line)}
+.fiche dt{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink2);padding-top:3px}
+.fiche dd{margin:0;text-align:right}
+.fiche dd.na{color:#8a8f99;font-style:italic}
+.fiche .tot{display:flex;justify-content:space-between;align-items:baseline;padding:14px 16px;background:var(--paper2)}
+.fiche .tot b{font-size:34px;font-weight:500;line-height:1}
+.fiche .go{padding:14px 16px 16px}
+.fiche .go .btn{width:100%;justify-content:center}
+.fiche .hint{font-family:var(--mono);font-size:11px;color:var(--ink2);padding:0 16px 14px;letter-spacing:.03em}
+.hold{font-family:var(--mono);font-size:11px;letter-spacing:.05em;color:var(--red);padding:0 16px 10px;text-transform:uppercase}
+form.id{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+form.id .f{display:flex;flex-direction:column;gap:5px}
+form.id .f.w{grid-column:1/-1}
+form.id label{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink2)}
+form.id input[type=text],form.id input[type=tel],form.id input[type=email]{font:inherit;font-size:18px;padding:12px;border:1.5px solid var(--ink);background:#fff;min-height:50px;border-radius:0;width:100%}
+form.id input:focus-visible{outline:3px solid var(--red);outline-offset:1px}
+form.id .ck{display:flex;gap:10px;align-items:flex-start;font-family:var(--serif);font-size:16px;text-transform:none;letter-spacing:0;color:var(--ink)}
+form.id .ck input{width:22px;height:22px;margin-top:2px;accent-color:var(--red);flex:none}
+.err{grid-column:1/-1;border:1.5px solid var(--red);background:#FCEDEB;color:#7d140d;padding:10px 12px;font-size:16px}
+.ok{border:1.5px solid var(--ink);background:#fff;box-shadow:8px 8px 0 var(--ink);padding:clamp(20px,4vw,40px)}
+.ok h3{font-size:clamp(30px,5vw,46px);margin:8px 0 14px}
+.ok ul{list-style:none;padding:0;margin:18px 0;display:grid;gap:10px}
+.ok li{display:flex;gap:12px;align-items:flex-start}
+.ok li i{flex:none;width:26px;height:26px;border:1.5px solid var(--ink);display:grid;place-items:center;font-family:var(--mono);font-style:normal;font-size:11px;font-weight:600}
+.stamp{display:inline-block;border:2px solid var(--red);color:var(--red);font-family:var(--mono);font-size:12px;letter-spacing:.14em;padding:3px 10px;transform:rotate(-3deg);text-transform:uppercase;font-weight:600}
+.mbar{display:none}
+/* carte */
+.carte{display:grid;grid-template-columns:repeat(3,1fr);gap:clamp(20px,3vw,40px)}
+.carte h3{font-family:var(--mono);font-size:12px;letter-spacing:.12em;text-transform:uppercase;border-bottom:1.5px solid var(--ink);padding-bottom:8px;margin-bottom:6px;display:flex;justify-content:space-between}
+.row{display:flex;align-items:baseline;gap:8px;padding:10px 0}
+.row .l{flex:1}
+.row .l small{display:block;font-family:var(--serif);font-style:italic;color:var(--ink2);font-size:15px;line-height:1.3;margin-top:2px}
+.row .d{flex:1;border-bottom:1px dotted var(--ink2);min-width:12px;max-width:60px;align-self:center;transform:translateY(2px)}
+.row b{font-weight:500;font-size:22px;white-space:nowrap}
+.row .du{font-family:var(--mono);font-size:11px;color:var(--ink2);margin-left:6px}
+/* team */
+.chairs{display:grid;grid-template-columns:repeat(4,1fr);gap:clamp(12px,2vw,24px)}
+.chair{border:1.5px solid var(--ink);background:var(--paper);padding:18px;position:relative;min-height:240px;display:flex;flex-direction:column}
+.chair .no{font-family:var(--mono);font-size:64px;line-height:1;color:transparent;-webkit-text-stroke:1.2px var(--ink);font-weight:600}
+.chair .ini{position:absolute;right:16px;top:16px;width:56px;height:56px;border:1.5px solid var(--ink);border-radius:50%;display:grid;place-items:center;font-family:var(--mono);font-weight:600;letter-spacing:.06em}
+.chair h3{font-size:30px;margin-top:auto}
+.chair p{margin:6px 0 14px;color:var(--ink2);font-size:16px}
+.chair .nx{font-family:var(--mono);font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--ok);margin-bottom:12px;min-height:16px}
+.chair .btn{padding:12px 14px;font-size:12px;justify-content:center}
+/* carnet / avis */
+.duo{display:grid;grid-template-columns:1.2fr 1fr;gap:clamp(20px,3vw,40px)}
+.card{border:1.5px solid var(--ink);background:var(--paper);padding:clamp(20px,3vw,36px)}
+.big{font-size:clamp(64px,9vw,120px);line-height:.9;font-weight:400;letter-spacing:-.03em}
+.big small{font-size:.3em;letter-spacing:0;font-family:var(--mono);margin-left:8px}
+.stars{color:var(--red);letter-spacing:4px;font-size:22px}
+.tick{display:flex;gap:6px;margin:18px 0}
+.tick span{flex:1;height:42px;border:1.5px solid var(--ink);display:grid;place-items:center;font-family:var(--mono);font-size:12px;background:#fff}
+.venir{display:grid;grid-template-columns:1fr 1fr;gap:clamp(20px,3vw,40px);align-items:stretch}
+.map{border:1.5px solid var(--ink);min-height:300px;background:#fff;position:relative;overflow:hidden}
+.map svg{position:absolute;inset:0;width:100%;height:100%}
+.map a{position:absolute;right:12px;bottom:12px}
+table.h{width:100%;border-collapse:collapse;margin:14px 0 20px;font-size:17px}
+table.h td{padding:7px 0;border-bottom:1px dashed var(--line)}
+table.h td:last-child{text-align:right;font-family:var(--mono);font-size:13px}
+table.h tr.today td{font-weight:600;color:var(--red)}
+footer{background:var(--ink);color:#E9E6DE;padding:44px 0 90px}
+footer .wrap{display:flex;gap:30px;justify-content:space-between;flex-wrap:wrap}
+footer a{color:inherit;text-decoration:none;border-bottom:1px solid rgba(255,255,255,.3)}
+footer .mono{opacity:.8;line-height:2}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+@media (max-width:980px){
+  .book{grid-template-columns:1fr}
+  .fiche{position:static;box-shadow:4px 4px 0 var(--ink)}
+  .carte{grid-template-columns:1fr}
+  .chairs{grid-template-columns:repeat(2,1fr)}
+  .duo,.venir{grid-template-columns:1fr}
+}
+@media (max-width:760px){
+  body{font-size:17px}
+  nav.main a:not(.btn){display:none}
+  .hero .wrap{grid-template-columns:1fr}
+  .plate{box-shadow:5px 5px 0 var(--ink)}
+  .facts div{padding:8px 12px;border-right:1px solid var(--ink)}
+  .facts{width:100%}
+  .facts div{flex:1 1 auto}
+  /* one barber at a time */
+  .tabs{display:flex;gap:6px;margin-bottom:10px;overflow-x:auto}
+  .tabs button{all:unset;box-sizing:border-box;cursor:pointer;flex:1 0 auto;min-width:76px;text-align:center;border:1.5px solid var(--ink);background:#fff;padding:8px 10px;min-height:52px;font-size:16px;line-height:1.2}
+  .tabs button small{display:block;font-family:var(--mono);font-size:10px;color:var(--ok);letter-spacing:.03em}
+  .tabs button[aria-selected=true]{background:var(--ink);color:#fff}
+  .tabs button[aria-selected=true] small{color:#fff}
+  .tabs button:focus-visible{outline:3px solid var(--red)}
+  .grid{grid-template-columns:62px minmax(0,1fr)}
+  .gh .ch,.gh .ct{display:inline}
+  .grid[data-show=jkut] [data-b]:not([data-b=jkut]),.grid[data-show=frank] [data-b]:not([data-b=frank]),.grid[data-show=soldat] [data-b]:not([data-b=soldat]),.grid[data-show=esteban] [data-b]:not([data-b=esteban]){display:none}
+  .gh{top:62px}
+  .gc{height:44px}.gt{height:44px}
+  .gc.free::before{opacity:1;color:var(--ok);font-weight:600;content:attr(data-t) "  ·  libre"}
+  .gc.free::after{display:none}
+  .gc.sel::before{color:#fff;content:attr(data-t) "  ·  choisi"}
+  form.id{grid-template-columns:1fr}
+  .step .body{padding:14px}
+  .mbar{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:40;background:var(--ink);color:#fff;padding:10px 14px calc(10px + env(safe-area-inset-bottom));align-items:center;gap:12px;justify-content:space-between;border-top:2px solid var(--red)}
+  .mbar .t{font-family:var(--mono);font-size:11px;letter-spacing:.04em;line-height:1.35}
+  .mbar .t b{font-family:var(--serif);font-size:20px;font-weight:500;letter-spacing:0;display:block}
+  .mbar .btn{padding:12px 16px;box-shadow:none;min-height:46px}
+  footer{padding-bottom:100px}
+}
+@media (max-width:420px){ .chairs{grid-template-columns:1fr} .chair{min-height:0} }
+@media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
+</style>
+</head>
+<body>
+<a class="skip" href="#reserver">Aller à la réservation</a>
+<div id="demobar" class="demo-bar" hidden>Mode démo · aucun SMS ni e-mail n’est envoyé, rien n’est enregistré au salon</div>
+
+<header class="top">
+  <div class="wrap">
+    <a class="logo" href="#top" aria-label="Barber L’Architecte, accueil">
+      <svg viewBox="0 0 32 32" fill="none" stroke="#12203A" stroke-width="1.6" aria-hidden="true"><rect x="3" y="3" width="26" height="26"/><path d="M3 16h26M16 3v26" stroke-dasharray="2 2" stroke-width="1"/><circle cx="16" cy="16" r="5" fill="#C8281E" stroke="none"/></svg>
+      L’ARCHITECTE
+    </a>
+    <nav class="main" aria-label="Navigation">
+      <a href="#carte">La carte</a><a href="#equipe">Les fauteuils</a><a href="#carnet">Carnet</a><a href="#venir">Venir</a>
+      <span class="live mono" id="live"><span class="dot off" id="dot"></span><span id="livet">—</span></span>
+      <a class="btn" href="#reserver">Réserver</a>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+<section class="hero">
+  <div class="wrap">
+    <div>
+      <p class="mono" style="margin:0 0 18px">Barbier · 16, place Pélabon · Marseille 13e</p>
+      <h1>Votre lieu dédié à <em>l’homme</em> de tout âge.</h1>
+      <p class="lede">Quatre fauteuils, quatre barbiers, un planning clair. Vois qui est libre, touche le créneau, c’est réservé. Moins d’une minute, sans compte.</p>
+      <div class="hero-cta">
+        <a class="btn" href="#reserver">Voir le planning →</a>
+        <a class="btn ghost" href="#carte">La carte</a>
+      </div>
+      <div class="facts" aria-label="Repères">
+        <div><span class="mono">Ouvert</span><b>Mar – Sam</b></div>
+        <div><span class="mono">Horaires</span><b>9 h – 18 h 30</b></div>
+        <div><span class="mono">Avis Google</span><b>5,0 · 316</b></div>
+      </div>
+    </div>
+    <figure class="plate" style="margin:0">
+      <img src="../../img/salon.jpg" alt="L’intérieur du salon : fauteuils de barbier devant un grand miroir, carrelage noir brillant, enseigne de barbier" width="1100" height="812" fetchpriority="high">
+      <svg class="ann" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+        <g fill="none" stroke="#12203A" stroke-width=".35" vector-effect="non-scaling-stroke">
+          <path d="M0 6h6M0 6v6M100 6h-6M100 6v6M0 94h6M0 94v-6M100 94h-6M100 94v-6" stroke-width="1.2" vector-effect="non-scaling-stroke"/>
+        </g>
+      </svg>
+      <svg class="ann" viewBox="0 0 1000 750" aria-hidden="true" style="overflow:visible">
+        <g fill="#F4F1EA" stroke="#12203A" stroke-width="2">
+          <circle cx="560" cy="430" r="19"/><circle cx="690" cy="446" r="19"/><circle cx="790" cy="470" r="19"/><circle cx="880" cy="590" r="19"/>
+        </g>
+        <g font-family="IBM Plex Mono,monospace" font-size="20" font-weight="600" fill="#12203A" text-anchor="middle">
+          <text x="560" y="437">1</text><text x="690" y="453">2</text><text x="790" y="477">3</text><text x="880" y="597">4</text>
+        </g>
+        <g stroke="#C8281E" stroke-width="2" fill="none"><path d="M40 700h920M40 690v20M960 690v20"/></g>
+        <rect x="395" y="684" width="210" height="32" fill="#F4F1EA"/>
+        <text x="500" y="707" font-family="IBM Plex Mono,monospace" font-size="19" fill="#C8281E" text-anchor="middle" letter-spacing="1.5">SALON · 4 FAUTEUILS</text>
+      </svg>
+      <span class="tag" style="top:26px;left:26px">PLAN N°13013</span>
+      <figcaption class="cap"><span>Fig. 1 — Le salon, vue d’entrée</span><span>Éch. 1:1</span></figcaption>
+    </figure>
+  </div>
+</section>
+
+<section id="reserver" class="sec" aria-labelledby="h-res">
+  <div class="wrap">
+    <div class="sec-h"><span class="sec-n">PL.01</span><div><h2 id="h-res">Réserve ta place au plan.</h2><p class="sub">Le planning est en direct. Les cases hachurées sont prises, les points verts sont libres. Un créneau que tu touches est gardé pour toi pendant que tu remplis tes coordonnées : personne ne peut te le prendre, pas de doublon.</p></div></div>
+    <div class="book">
+      <div id="flow">
+        <section class="step" id="s1" aria-labelledby="h1s">
+          <header><span class="n">1</span><h3 id="h1s">Ta formule</h3><span class="state" id="st1">à choisir</span></header>
+          <div class="body"><div class="formules" id="formules" role="group" aria-label="Formules"></div></div>
+        </section>
+        <section class="step locked" id="s2" aria-labelledby="h2s">
+          <header><span class="n">2</span><h3 id="h2s">Le planning du jour</h3><span class="state" id="st2">choisis une formule</span></header>
+          <div class="body">
+            <div class="days" id="days" role="group" aria-label="Jour"></div>
+            <div class="toolbar">
+              <div class="legend"><span><i></i>Libre</span><span><i class="t"></i>Pris</span><span><i class="s"></i>Ton choix</span></div>
+              <button class="btn ghost" id="first" type="button" style="padding:10px 14px;min-height:42px">Premier créneau libre</button>
+            </div>
+            <div class="tabs" id="tabs" role="tablist" aria-label="Barbier"></div>
+            <div id="gridwrap" aria-live="polite"></div>
+            <div class="dim" id="dim"></div>
+          </div>
+        </section>
+        <section class="step locked" id="s3" aria-labelledby="h3s">
+          <header><span class="n">3</span><h3 id="h3s">Tes coordonnées</h3><span class="state" id="st3">dernière étape</span></header>
+          <div class="body">
+            <form class="id" id="form" novalidate>
+              <div class="f"><label for="fn">Prénom</label><input id="fn" type="text" autocomplete="given-name" required></div>
+              <div class="f"><label for="ln">Nom (facultatif)</label><input id="ln" type="text" autocomplete="family-name"></div>
+              <div class="f"><label for="ph">Téléphone</label><input id="ph" type="tel" inputmode="tel" autocomplete="tel" placeholder="06 12 34 56 78" required></div>
+              <div class="f"><label for="em">E-mail (facultatif)</label><input id="em" type="email" autocomplete="email" placeholder="pour recevoir la confirmation"></div>
+              <div class="f w"><label class="ck"><input type="checkbox" id="sms" checked><span>Je reçois la confirmation et le rappel par SMS.</span></label></div>
+              <div class="f w"><label class="ck"><input type="checkbox" id="mk"><span>J’accepte de recevoir les offres du salon (facultatif).</span></label></div>
+              <div class="err" id="err" role="alert" hidden></div>
+              <div class="f w"><button class="btn" id="send" type="submit">Confirmer mon rendez-vous</button></div>
+            </form>
+          </div>
+        </section>
+      </div>
+      <aside class="fiche" aria-label="Fiche de rendez-vous">
+        <h3><span>Fiche de rendez-vous</span><span id="fno">N°—</span></h3>
+        <dl>
+          <div class="r"><dt>Formule</dt><dd id="f-svc" class="na">à choisir</dd></div>
+          <div class="r"><dt>Barbier</dt><dd id="f-bar" class="na">—</dd></div>
+          <div class="r"><dt>Quand</dt><dd id="f-when" class="na">—</dd></div>
+          <div class="r"><dt>Durée</dt><dd id="f-dur" class="na">—</dd></div>
+          <div class="r"><dt>Lieu</dt><dd>16, place Pélabon</dd></div>
+        </dl>
+        <div class="tot"><span class="mono">À payer au salon</span><b id="f-tot">—</b></div>
+        <div class="hold" id="hold" hidden></div>
+        <div class="go"><button class="btn" id="cta" type="button" disabled>Choisis une formule</button></div>
+        <p class="hint">Sans compte · Annulation gratuite par le lien reçu par SMS</p>
+      </aside>
+    </div>
+    <div id="done" hidden></div>
+  </div>
+</section>
+
+<section id="carte" class="sec" aria-labelledby="h-carte">
+  <div class="wrap">
+    <div class="sec-h"><span class="sec-n">PL.02</span><div><h2 id="h-carte">La carte, cotée.</h2><p class="sub">Prix nets, durée annoncée. Aucune surprise au moment de payer.</p></div></div>
+    <div class="carte" id="carteg"></div>
+  </div>
+</section>
+
+<section id="equipe" class="sec" aria-labelledby="h-eq">
+  <div class="wrap">
+    <div class="sec-h"><span class="sec-n">PL.03</span><div><h2 id="h-eq">Quatre fauteuils.</h2><p class="sub">Choisis ton barbier, ou laisse le planning décider : tu vois pour chacun son prochain créneau libre.</p></div></div>
+    <div class="chairs" id="chairs"></div>
+  </div>
+</section>
+
+<section id="carnet" class="sec" aria-labelledby="h-car">
+  <div class="wrap">
+    <div class="sec-h"><span class="sec-n">PL.04</span><div><h2 id="h-car">Le carnet, 16 € la coupe.</h2></div></div>
+    <div class="duo">
+      <div class="card">
+        <div class="big">80<small>€ · 5 coupes</small></div>
+        <div class="tick" aria-hidden="true"><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span></div>
+        <p style="margin:0 0 14px">Cinq coupes sur cinq semaines, sans barbe, soit 16 € la coupe. Il se prend au salon : on fixe tes cinq rendez-vous avec toi, au même fauteuil si tu veux.</p>
+        <p class="mono" style="margin:0;color:var(--ink2)">À demander au salon · 16, place Pélabon</p>
+      </div>
+      <div class="card" id="avis">
+        <div class="big">5,0<small>/ 5</small></div>
+        <div class="stars" aria-hidden="true">★★★★★</div>
+        <p style="margin:12px 0 18px"><b>316 avis Google.</b> Le salon est noté 5 sur 5 par ses clients, de Saint-Jérôme à Château-Gombert et bien au-delà.</p>
+        <a class="btn ghost" href="https://www.google.com/maps/search/?api=1&amp;query=L%27Architecte%20coiffeur&amp;query_place_id=ChIJJSWkBLy_yRIRbgAQcMwb-JY" target="_blank" rel="noopener">Lire les avis ↗</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="venir" class="sec" aria-labelledby="h-v">
+  <div class="wrap">
+    <div class="sec-h"><span class="sec-n">PL.05</span><div><h2 id="h-v">Venir au salon.</h2></div></div>
+    <div class="venir">
+      <div>
+        <p style="font-size:26px;margin:0 0 4px">16, place Pélabon</p>
+        <p style="margin:0;color:var(--ink2)">13013 Marseille</p>
+        <table class="h" id="hours"><tbody></tbody></table>
+        <p class="mono" style="margin:0 0 6px">Une question ?</p>
+        <p style="margin:0 0 20px"><a href="mailto:larchitectebarber@gmail.com">larchitectebarber@gmail.com</a></p>
+        <a class="btn" href="#reserver">Réserver →</a>
+      </div>
+      <div class="map" role="img" aria-label="Plan schématique : place Pélabon, Marseille 13e">
+        <svg viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+          <defs><pattern id="g" width="20" height="20" patternUnits="userSpaceOnUse"><path d="M20 0H0V20" fill="none" stroke="#12203A" stroke-opacity=".12"/></pattern></defs>
+          <rect width="400" height="300" fill="url(#g)"/>
+          <g fill="none" stroke="#12203A" stroke-width="1.5"><path d="M0 210L400 120M0 130L400 220M200 0V300" stroke-width="22" stroke-opacity=".12"/><path d="M0 210L400 120M0 130L400 220M200 0V300"/></g>
+          <circle cx="200" cy="170" r="46" fill="none" stroke="#12203A" stroke-dasharray="4 4"/>
+          <circle cx="200" cy="170" r="10" fill="#C8281E"/><circle cx="200" cy="170" r="22" fill="none" stroke="#C8281E"/>
+          <text x="214" y="136" font-family="IBM Plex Mono,monospace" font-size="12" font-weight="600" fill="#12203A">L’ARCHITECTE</text>
+          <text x="20" y="40" font-family="IBM Plex Mono,monospace" font-size="11" fill="#3B4A66">PLACE PÉLABON · 13013</text>
+          <path d="M340 30l-8 22 8-6 8 6z" fill="#12203A"/><text x="333" y="26" font-family="IBM Plex Mono,monospace" font-size="11" fill="#12203A">N</text>
+        </svg>
+        <a class="btn ghost" style="background:var(--paper)" href="https://www.google.com/maps/search/?api=1&amp;query=L%27Architecte%20coiffeur&amp;query_place_id=ChIJJSWkBLy_yRIRbgAQcMwb-JY" target="_blank" rel="noopener">Itinéraire ↗</a>
+      </div>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div><div class="logo" style="color:#fff;margin-bottom:10px"><svg viewBox="0 0 32 32" fill="none" stroke="#fff" stroke-width="1.6" aria-hidden="true"><rect x="3" y="3" width="26" height="26"/><circle cx="16" cy="16" r="5" fill="#C8281E" stroke="none"/></svg>L’ARCHITECTE</div>
+      <div class="mono">16, place Pélabon · 13013 Marseille<br>Mardi – samedi · 9 h – 18 h 30</div></div>
+    <div class="mono">
+      <a href="https://www.instagram.com/barbershoplarchitecte/" target="_blank" rel="noopener">Instagram</a> · <a href="https://www.facebook.com/pg/barbershop.larchitecte/" target="_blank" rel="noopener">Facebook</a> · <a href="https://www.youtube.com/channel/UCi2oLstkv0IIucLyd211G8A" target="_blank" rel="noopener">YouTube</a><br>
+      <a href="/cgv">CGV</a> · <a href="/confidentialite">Confidentialité</a> · <a href="/mentions-legales">Mentions légales</a><br>
+      <a href="/mon-rendez-vous">Retrouver mon rendez-vous</a>
+    </div>
+  </div>
+</footer>
+
+<div class="mbar" id="mbar"><div class="t" id="mt"><b>Réserve ta place</b>Choisis une formule</div><button class="btn" id="mcta" type="button">Choisir</button></div>
+
+<script src="../core.js"></script>
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var NB = LA.NB;
+  var S = { svc: null, day: null, m: null, barber: null, hold: null, avail: null, tab: 'jkut', exp: 0, timer: null, busy: false };
+  var ROWS = []; for (var r = 540; r <= 1080; r += 30) ROWS.push(r);
+  function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function longDay(s) { var d = LA.parseDay(s); return LA.DAYS[d.getDay()] + ' ' + d.getDate() + ' ' + LA.MONTHS[d.getMonth()]; }
+  function dur(n) { return n >= 60 ? Math.floor(n / 60) + ' h' + (n % 60 ? ' ' + (n % 60) : '') : n + ' min'; }
+
+  /* ---------- static sections ---------- */
+  function renderStatic() {
+    var cats = [['coupes', 'Coupes'], ['look', 'Changer de tête'], ['barbe', 'Barbe']], h = '';
+    cats.forEach(function (c, i) {
+      h += '<div><h3><span>' + c[1] + '</span><span>0' + (i + 1) + '</span></h3>';
+      LA.services().filter(function (s) { return s.cat === c[0]; }).forEach(function (s) {
+        h += '<div class="row"><div class="l">' + esc(s.name) + '<span class="du">' + dur(s.dur) + '</span><small>' + esc((s.note ? s.note + ' ' : '') + s.inc.join(' · ')) + '</small></div><span class="d"></span><b>' + LA.eur(s.price, s.from) + '</b></div>';
+      });
+      h += '</div>';
+    });
+    $('carteg').innerHTML = h;
+    var ch = '';
+    LA.barbers().forEach(function (b, i) {
+      ch += '<article class="chair"><span class="no" aria-hidden="true">' + (i + 1) + '</span><span class="ini" aria-hidden="true">' + b.initials + '</span><h3>' + esc(b.name) + '</h3><p>' + esc(b.line) + '</p><div class="nx" data-nx="' + b.id + '">Prochain créneau…</div><button class="btn ghost" type="button" data-pick="' + b.id + '">Réserver avec ' + esc(b.name) + '</button></article>';
+    });
+    $('chairs').innerHTML = ch;
+    var t = new Date().getDay(), rows = [[2, 'Mardi'], [3, 'Mercredi'], [4, 'Jeudi'], [5, 'Vendredi'], [6, 'Samedi'], [0, 'Dimanche'], [1, 'Lundi']], hh = '';
+    rows.forEach(function (x) { var op = x[0] >= 2; hh += '<tr' + (x[0] === t ? ' class="today"' : '') + '><td>' + x[1] + '</td><td>' + (op ? '9 h – 18 h 30' : 'Fermé') + '</td></tr>'; });
+    $('hours').firstChild.innerHTML = hh;
+    var f = '', last = '';
+    LA.services().forEach(function (s) {
+      var c = s.cat;
+      if (c !== last) { f += '<div class="cat">' + ({ coupes: 'Coupes', look: 'Changer de tête', barbe: 'Barbe seule' })[c] + '</div>'; last = c; }
+      f += '<button type="button" class="fm" aria-pressed="false" data-svc="' + s.id + '">' + (s.tag ? '<span class="tg">' + esc(s.tag) + '</span>' : '') + '<span class="nm">' + esc(s.name) + '</span><span class="pr"><b>' + LA.eur(s.price, s.from) + '</b><span>' + dur(s.dur) + '</span></span></button>';
+    });
+    $('formules').innerHTML = f;
+  }
+  function liveState() {
+    var o = LA.openNow(); $('dot').className = 'dot' + (o ? '' : ' off'); $('livet').textContent = o ? 'Ouvert maintenant' : 'Fermé · rouvre mar. 9 h';
+  }
+
+  /* ---------- state -> UI ---------- */
+  function lock(id, on) { $(id).classList.toggle('locked', !!on); }
+  function fiche() {
+    var s = S.svc ? LA.service(S.svc) : null, b = S.barber ? LA.barber(S.barber) : null;
+    function set(id, v) { var e = $(id); e.textContent = v || (id === 'f-svc' ? 'à choisir' : '—'); e.classList.toggle('na', !v); }
+    set('f-svc', s && s.name); set('f-bar', b && b.name);
+    set('f-when', S.day && S.m != null ? LA.dayLabel(S.day).replace(/^./, function (c) { return c.toLowerCase(); }) + ' · ' + LA.hhmm(S.m) : '');
+    set('f-dur', s && dur(s.dur));
+    $('f-tot').textContent = s ? LA.eur(s.price, s.from) : '—';
+    $('fno').textContent = S.m != null ? 'N°' + String(S.m / 30).replace('.', '') + '·' + (S.barber || '').slice(0, 2).toUpperCase() : 'N°—';
+    var cta = $('cta'), step = !s ? 1 : S.m == null ? 2 : 3, lab;
+    if (step === 1) lab = 'Choisis une formule'; else if (step === 2) lab = 'Touche un créneau libre'; else lab = 'Confirmer mon rendez-vous';
+    cta.textContent = lab; cta.disabled = step < 3;
+    $('mcta').textContent = step < 3 ? 'Choisir' : 'Confirmer';
+    $('mt').innerHTML = '<b>' + (s ? esc(s.name) + ' · ' + LA.eur(s.price, s.from) : 'Réserve ta place') + '</b>' + (step === 3 ? esc(b.name) + ' · ' + LA.dayLabel(S.day).toLowerCase() + ' ' + LA.hhmmShort(S.m) : step === 2 ? 'Touche un créneau libre' : 'Choisis une formule');
+    $('st1').textContent = s ? s.name : 'à choisir';
+    $('st2').textContent = S.m != null ? b.name + ' · ' + LA.hhmmShort(S.m) : s ? 'touche un point vert' : 'choisis une formule';
+    $('st3').textContent = S.m != null ? 'dernière étape' : 'après le créneau';
+    lock('s2', !s); lock('s3', S.m == null || !S.hold);
+  }
+  function holdTimer() {
+    clearInterval(S.timer); var h = $('hold');
+    if (!S.hold) { h.hidden = true; return; }
+    function tick() { var left = Math.max(0, Math.round((S.exp - Date.now()) / 1000)); h.hidden = false; h.textContent = 'Créneau gardé pour toi · ' + Math.floor(left / 60) + ':' + ('0' + left % 60).slice(-2);
+      if (!left) { clearInterval(S.timer); toast('Ton créneau a expiré, choisis-en un autre.'); drop(true); } }
+    tick(); S.timer = setInterval(tick, 1000);
+  }
+  function toast(msg) { var e = $('gridwrap'); var d = document.createElement('div'); d.className = 'err'; d.setAttribute('role', 'alert'); d.style.marginBottom = '10px'; d.textContent = msg; e.parentNode.insertBefore(d, e); setTimeout(function () { d.remove(); }, 6000); }
+  function drop(refresh) { var old = S.hold; S.hold = null; S.m = null; S.barber = null; if (old) LA.release(old); holdTimer(); fiche(); if (refresh) loadDays(true); else renderGrid(); }
+
+  /* ---------- days + grid ---------- */
+  function loadDays(keep) {
+    if (!S.svc) return;
+    $('gridwrap').innerHTML = '<div class="empty">Lecture du planning…</div>';
+    LA.availability([S.svc], 'any', LA.iso(new Date()), 10).then(function (days) {
+      S.avail = days;
+      var cur = days.filter(function (d) { return d.day === S.day; })[0];
+      if (!keep || !cur || !cur.open) { var f = days.filter(function (d) { return d.open && d.slots.length; })[0]; S.day = f ? f.day : (days[0] && days[0].day); }
+      renderDays(); renderGrid();
+    }).catch(function () { $('gridwrap').innerHTML = '<div class="empty">Le planning ne répond pas. Réessaie dans un instant ou écris-nous.</div>'; });
+  }
+  function renderDays() {
+    var h = '';
+    S.avail.forEach(function (d) {
+      var sd = LA.dayShort(d.day), n = d.slots.length, ok = d.open && n > 0;
+      h += '<button type="button" class="dy" data-day="' + d.day + '" aria-pressed="' + (d.day === S.day) + '"' + (ok ? '' : ' disabled') + ' aria-label="' + longDay(d.day) + (ok ? ', ' + n + ' créneaux libres' : (d.open ? ', complet' : ', fermé')) + '"><span class="dw">' + sd.dow + '</span><span class="dn">' + sd.n + '</span><span class="fr">' + (ok ? n + ' libres' : d.open ? 'complet' : 'fermé') + '</span></button>';
+    });
+    $('days').innerHTML = h;
+  }
+  function renderGrid() {
+    var d = S.avail && S.avail.filter(function (x) { return x.day === S.day; })[0];
+    if (!d) return;
+    var free = {}, cnt = {}; LA.barbers().forEach(function (b) { cnt[b.id] = 0; });
+    d.slots.forEach(function (s) { free[s.s + '|' + s.m] = 1; cnt[s.s] = (cnt[s.s] || 0) + 1; });
+    var tabsH = '';
+    LA.barbers().forEach(function (b) { tabsH += '<button type="button" role="tab" data-tab="' + b.id + '" aria-selected="' + (S.tab === b.id) + '">' + esc(b.name) + '<small>' + cnt[b.id] + ' libres</small></button>'; });
+    $('tabs').innerHTML = tabsH;
+    if (!d.open || !d.slots.length) { $('gridwrap').innerHTML = '<div class="empty">' + (d.open ? 'Complet ce jour-là. Choisis un autre jour au-dessus.' : 'Le salon est fermé ce jour-là.') + '</div>'; $('dim').innerHTML = ''; return; }
+    var now = new Date(), isToday = S.day === LA.iso(now), nowM = now.getHours() * 60 + now.getMinutes();
+    var h = '<div class="grid" data-show="' + S.tab + '" role="group" aria-label="Planning du ' + longDay(S.day) + '"><div class="gh" aria-hidden="true"><span class="ch">Heure</span></div>';
+    LA.barbers().forEach(function (b, i) { h += '<div class="gh" data-b="' + b.id + '"><span class="ch">Fauteuil ' + (i + 1) + '</span><span class="bn">' + esc(b.name) + '</span><span class="ct">' + cnt[b.id] + ' libres</span></div>'; });
+    ROWS.forEach(function (m) {
+      var hr = m % 60 === 0;
+      h += '<div class="gt' + (hr ? ' hr' : '') + '">' + LA.hhmmShort(m) + '</div>';
+      LA.barbers().forEach(function (b) {
+        var isF = free[b.id + '|' + m], sel = S.barber === b.id && S.m === m && S.day === d.day, t = LA.hhmmShort(m);
+        if (isF) h += '<button type="button" class="gc free' + (hr ? ' hr' : '') + (sel ? ' sel' : '') + '" data-b="' + b.id + '" data-m="' + m + '" data-t="' + t + '" aria-label="' + esc(b.name) + ', ' + longDay(d.day) + ', ' + LA.hhmm(m) + ', libre" aria-pressed="' + sel + '"></button>';
+        else h += '<div class="gc t' + (hr ? ' hr' : '') + '" data-b="' + b.id + '" aria-hidden="true" title="' + (isToday && m < nowM ? 'Passé' : 'Pris') + '"></div>';
+      });
+    });
+    h += '</div>';
+    $('gridwrap').innerHTML = h;
+    $('dim').textContent = longDay(S.day) + ' · 9 h – 18 h 30 · ' + dur(LA.service(S.svc).dur) + ' le rendez-vous';
+  }
+
+  /* ---------- actions ---------- */
+  function pickService(id) {
+    if (S.hold) drop(false);
+    S.svc = id;
+    Array.prototype.forEach.call(document.querySelectorAll('.fm'), function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-svc') === id)); });
+    fiche(); loadDays(true);
+    setTimeout(function () { $('s2').scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 60);
+  }
+  function pickSlot(b, m, quiet) {
+    if (S.busy) return; S.busy = true;
+    LA.hold([S.svc], b, S.day, m, S.hold).then(function (h) {
+      S.hold = h.holdId; S.exp = h.exp; S.barber = b; S.m = m; S.busy = false;
+      holdTimer(); fiche(); renderGrid();
+      if (!quiet) setTimeout(function () { $('s3').scrollIntoView({ behavior: 'smooth', block: 'start' }); setTimeout(function () { $('fn').focus({ preventScroll: true }); }, 400); }, 60);
+    }).catch(function (e) {
+      S.busy = false; S.hold = null; S.m = null; S.barber = null; holdTimer(); fiche();
+      toast(e && e.code === 'taken' ? 'Ce créneau vient d’être pris. Ton choix de formule est gardé, prends-en un autre.' : (e && e.message) || 'Impossible de garder ce créneau.');
+      loadDays(true);
+    });
+  }
+  function firstFree() {
+    var d = S.avail && S.avail.filter(function (x) { return x.open && x.slots.length; })[0]; if (!d) return;
+    S.day = d.day; var s = d.slots[0]; S.tab = s.s; renderDays(); renderGrid(); pickSlot(s.s, s.m, true);
+  }
+  function showErr(m) { var e = $('err'); e.textContent = m; e.hidden = false; e.scrollIntoView({ block: 'nearest' }); }
+  function submit(ev) {
+    if (ev) ev.preventDefault();
+    var fn = $('fn').value.trim(), ph = $('ph').value.trim(), em = $('em').value.trim();
+    $('err').hidden = true;
+    if (fn.length < 2) { showErr('Indique ton prénom.'); $('fn').focus(); return; }
+    if (ph.replace(/\D/g, '').length < 9) { showErr('Indique un numéro de téléphone valide, pour le SMS de confirmation.'); $('ph').focus(); return; }
+    if (em && !/^\S+@\S+\.\S+$/.test(em)) { showErr('Cette adresse e-mail n’a pas l’air complète.'); $('em').focus(); return; }
+    var btn = $('send'); btn.disabled = true; btn.textContent = 'Réservation…';
+    var p = { ids: [S.svc], staff: S.barber, day: S.day, m: S.m, holdId: S.hold, first: fn, last: $('ln').value.trim(), phone: ph, email: em, sms: $('sms').checked, marketing: $('mk').checked };
+    LA.book(p).then(function (res) { done(p, res); }).catch(function (e) {
+      btn.disabled = false; btn.textContent = 'Confirmer mon rendez-vous';
+      if (e && (e.code === 'taken' || e.status === 409)) { S.hold = null; S.m = null; S.barber = null; holdTimer(); fiche(); toast((e.message || 'Ce créneau vient d’être pris.') + ' Tes choix sont gardés.'); loadDays(true); $('s2').scrollIntoView({ behavior: 'smooth' }); }
+      else showErr((e && e.message) || 'La réservation a échoué. Réessaie ou appelle le salon.');
+    });
+  }
+  function done(p, res) {
+    clearInterval(S.timer); S.hold = null;
+    var s = LA.service(p.svc || p.ids[0]), b = LA.barber(p.staff), ics = LA.ics({ day: p.day, m: p.m, ids: p.ids, code: res.code });
+    var dep = res.deposit > 0 ? '<li><i>€</i><span>Un acompte de <b>' + LA.eur(res.deposit / 100) + '</b> est demandé : règle-le depuis le lien de ton rendez-vous pour valider la place.</span></li>' : '';
+    var h = '<div class="ok" role="status" tabindex="-1" id="okbox"><span class="stamp">Réservé</span><h3>C’est noté, ' + esc(p.first) + '.</h3>' +
+      '<p style="font-size:22px;margin:0">' + esc(s.name) + ' avec <b>' + esc(b.name) + '</b><br>' + esc(longDay(p.day)) + ' à <b>' + LA.hhmm(p.m) + '</b> · ' + LA.eur(s.price, s.from) + ' à régler au salon</p>' +
+      '<ul>' + dep +
+      '<li><i>1</i><span><b>Confirmation par SMS</b> envoyée au ' + esc(p.phone) + (p.sms ? '' : ' (désactivée sur ta demande)') + '.</span></li>' +
+      '<li><i>2</i><span><b>Confirmation par e-mail</b> ' + (p.email ? 'envoyée à ' + esc(p.email) + ', avec le rendez-vous à ajouter à ton agenda.' : 'si tu laisses une adresse (tu peux le faire au prochain rendez-vous).') + '</span></li>' +
+      '<li><i>3</i><span><b>Rappel par SMS la veille à 18 h</b>, avec le lien pour déplacer ou annuler.</span></li></ul>' +
+      '<p class="mono" style="color:var(--ink2)">Réf. ' + esc(res.code || '') + (res.demo ? ' · démo, rien n’a été envoyé' : '') + '</p>' +
+      '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:18px"><a class="btn" href="' + ics + '" download="rendez-vous-larchitecte.ics">Ajouter à mon agenda</a>' +
+      (res.manage && res.manage !== '#' ? '<a class="btn ghost" href="' + esc(res.manage) + '">Déplacer ou annuler</a>' : '') +
+      '<a class="btn ghost" href="https://www.google.com/maps/search/?api=1&amp;query=L%27Architecte%20coiffeur&amp;query_place_id=ChIJJSWkBLy_yRIRbgAQcMwb-JY" target="_blank" rel="noopener">Itinéraire ↗</a></div></div>';
+    document.querySelector('#reserver .book').hidden = true; $('mbar').hidden = true;
+    var d = $('done'); d.innerHTML = h; d.hidden = false;
+    d.scrollIntoView({ behavior: 'smooth', block: 'start' }); setTimeout(function () { $('okbox').focus({ preventScroll: true }); }, 300);
+  }
+
+  /* ---------- wiring ---------- */
+  document.addEventListener('click', function (e) {
+    var t = e.target.closest('[data-svc],[data-day],[data-m],[data-tab],[data-pick]'); if (!t) return;
+    if (t.hasAttribute('data-svc')) pickService(t.getAttribute('data-svc'));
+    else if (t.hasAttribute('data-day')) { if (S.hold) drop(false); S.day = t.getAttribute('data-day'); renderDays(); renderGrid(); }
+    else if (t.hasAttribute('data-tab')) { S.tab = t.getAttribute('data-tab'); renderGrid(); }
+    else if (t.hasAttribute('data-m')) { S.tab = t.getAttribute('data-b'); pickSlot(t.getAttribute('data-b'), +t.getAttribute('data-m')); }
+    else if (t.hasAttribute('data-pick')) { S.tab = t.getAttribute('data-pick'); $('reserver').scrollIntoView({ behavior: 'smooth' }); if (S.svc) renderGrid(); else toast2(); }
+  });
+  function toast2() { /* chairs buttons: remember barber for the grid tab, ask for a formule first */ }
+  $('first').addEventListener('click', firstFree);
+  $('form').addEventListener('submit', submit);
+  function advance() { if (S.m != null && S.hold) submit(); }
+  $('cta').addEventListener('click', function () { if (S.m != null) { $('s3').scrollIntoView({ behavior: 'smooth' }); $('fn').focus({ preventScroll: true }); } });
+  $('mcta').addEventListener('click', function () { if (S.m != null) { $('s3').scrollIntoView({ behavior: 'smooth' }); $('fn').focus({ preventScroll: true }); } else document.querySelector(S.svc ? '#s2' : '#s1').scrollIntoView({ behavior: 'smooth' }); });
+  $('mcta').disabled = false;
+  window.addEventListener('beforeunload', function () { if (S.hold) LA.release(S.hold); });
+
+  /* ---------- boot ---------- */
+  renderStatic(); liveState(); fiche();
+  $('mcta').disabled = false; $('mcta').textContent = 'Choisir';
+  LA.init().then(function (r) {
+    if (r.demo) $('demobar').hidden = false;
+    LA.nextByBarber(['cl']).then(function (n) {
+      LA.barbers().forEach(function (b) { var e = document.querySelector('[data-nx="' + b.id + '"]'); if (!e) return; var x = n[b.id]; e.textContent = x ? 'Libre · ' + LA.dayLabel(x.day).toLowerCase() + ' ' + LA.hhmmShort(x.m) : 'Complet cette quinzaine'; });
+    }).catch(function () {});
+  });
+})();
+</script>
+</body>
+</html>

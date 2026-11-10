@@ -1,0 +1,519 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Barber L’Architecte · Quatre fauteuils, un rendez-vous</title>
+<meta name="description" content="Barbier place Pélabon, Marseille 13e. Choisis ton barbier, ta formule, ton créneau : réservé en moins d’une minute. Coupe dès 20 €.">
+<meta name="theme-color" content="#f4efe6">
+<style>
+:root{--bone:#f4efe6;--paper:#fbf8f2;--ink:#0f0f10;--mute:#5d5a54;--line:#d9d2c4;--acc:#2540ff;--acc-d:#1a2fcc;--ok:#0d7a4f;--bad:#b3261e;--r:18px}
+*{box-sizing:border-box;margin:0}
+html{scroll-behavior:smooth;scroll-padding-top:76px}
+html,body{overflow-x:clip}body{background:var(--bone);color:var(--ink);font:400 17px/1.5 "Instrument Sans","Helvetica Neue",Helvetica,Arial,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+img{display:block;max-width:100%}
+a{color:inherit}
+button{font:inherit;color:inherit;cursor:pointer}
+:focus-visible{outline:3px solid var(--acc);outline-offset:3px;border-radius:6px}
+.wrap{width:min(1180px,100% - 32px);margin-inline:auto}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.skip{position:absolute;left:8px;top:-60px;background:var(--ink);color:#fff;padding:10px 14px;border-radius:8px;z-index:100}.skip:focus{top:8px}
+h1,h2,h3{font-weight:800;letter-spacing:-.035em;line-height:.95}
+.eyebrow{font:700 12px/1 inherit;letter-spacing:.14em;text-transform:uppercase;color:var(--acc)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:0;border-radius:999px;background:var(--acc);color:#fff;font-weight:700;padding:15px 26px;text-decoration:none;min-height:48px;transition:background .15s,transform .15s}
+.btn:hover{background:var(--acc-d)}.btn:active{transform:scale(.98)}
+.btn.dark{background:var(--ink)}.btn.dark:hover{background:#2a2a2d}
+.btn.ghost{background:transparent;color:var(--ink);box-shadow:inset 0 0 0 2px var(--ink)}.btn.ghost:hover{background:var(--ink);color:#fff}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+/* demo banner */
+.demo{display:none;background:var(--ink);color:#fff;font-size:13px;text-align:center;padding:7px 12px}.demo.on{display:block}
+/* header */
+header.top{position:sticky;top:0;z-index:50;background:rgba(244,239,230,.92);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.bar{display:flex;align-items:center;justify-content:space-between;height:64px;gap:16px}
+.logo{font-weight:800;letter-spacing:-.04em;font-size:20px;text-decoration:none;display:flex;align-items:center;gap:10px}
+.logo i{width:30px;height:30px;border-radius:50%;background:var(--ink);color:var(--bone);display:grid;place-items:center;font:800 15px/1 inherit;font-style:normal}
+nav.main{display:flex;gap:26px;font-weight:600;font-size:15px}nav.main a{text-decoration:none;color:var(--mute)}nav.main a:hover{color:var(--ink)}
+.bar .btn{padding:10px 20px;min-height:42px;font-size:15px}
+@media(max-width:760px){nav.main{display:none}}
+/* hero */
+.hero{padding:clamp(28px,5vw,64px) 0 clamp(40px,6vw,80px)}
+.hero-grid{display:grid;gap:14px;grid-template-columns:repeat(12,1fr);grid-template-areas:"t t t t t t t t t t t t" "a a a a a a b b b b c c"}
+.hero .t{grid-area:t;padding-bottom:18px}
+.hero h1{font-size:clamp(40px,10vw,148px);max-width:12ch}
+.hero h1 em{font-style:normal;color:var(--acc)}
+.hero .sub{display:flex;flex-wrap:wrap;gap:18px 34px;align-items:center;margin-top:26px}
+.hero .sub p{max-width:40ch;color:var(--mute);font-size:19px}
+.ph{border-radius:var(--r);overflow:hidden;background:#cfc8b9;position:relative}
+.ph img{width:100%;height:100%;object-fit:cover}
+.ph.a{grid-area:a;aspect-ratio:16/10}.ph.b{grid-area:b}.ph.c{grid-area:c}
+.ph .cap{position:absolute;left:12px;bottom:12px;background:var(--paper);border-radius:999px;font:700 12px/1 inherit;padding:8px 12px;letter-spacing:.02em}
+.ph.b img{object-position:50% 30%}
+.stat{display:flex;gap:10px;align-items:center;font-weight:700}
+.stars{color:var(--acc);letter-spacing:2px}
+@media(min-width:900px){.hero-grid{grid-template-areas:"t t t t t t t t t t t t" "a a a a a a a b b b c c"}.ph.a{aspect-ratio:auto;min-height:420px}.ph.b{margin-top:48px}.ph.c{margin-top:-24px}}
+@media(max-width:620px){.hero-grid{grid-template-areas:"t t t t t t t t t t t t" "a a a a a a a a a a a a" "b b b b b b c c c c c c"}.ph.b,.ph.c{aspect-ratio:3/4}}
+/* sections */
+section{padding:clamp(48px,7vw,96px) 0}
+.sec-h{display:flex;flex-wrap:wrap;gap:12px 40px;align-items:end;justify-content:space-between;margin-bottom:34px}
+.sec-h h2{font-size:clamp(36px,6vw,72px);max-width:14ch}
+.sec-h p{max-width:36ch;color:var(--mute)}
+/* booking */
+#reserver{background:var(--ink);color:var(--bone);border-radius:clamp(22px,4vw,44px);margin:0 clamp(0px,1vw,12px)}
+#reserver .wrap{padding-block:0}
+#reserver .eyebrow{color:#8ea0ff}
+.bk{display:grid;gap:14px;grid-template-columns:minmax(0,1fr)}.bk>*{min-width:0}
+.step{background:#19191b;border-radius:var(--r);padding:20px;border:1px solid #2a2a2e}
+.step[hidden]{display:none}
+.step.cur{background:var(--bone);color:var(--ink);border-color:var(--bone)}
+.step-h{display:flex;align-items:center;gap:14px;width:100%;text-align:left;background:none;border:0;padding:0}
+.step-n{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:14px;background:#2a2a2e;flex:none}
+.step.cur .step-n{background:var(--acc);color:#fff}
+.step.done .step-n{background:var(--ok);color:#fff}
+.step-t{font-weight:800;font-size:20px;letter-spacing:-.02em;flex:1}
+.step-s{font-size:15px;color:#b9b5ab;font-weight:500}
+.step.cur .step-s{display:none}
+.step-edit{font-size:14px;font-weight:700;text-decoration:underline;color:#8ea0ff;white-space:nowrap}
+.step-b{margin-top:18px}
+.step:not(.cur) .step-b{display:none}
+.step:not(.cur):not(.done) .step-h{opacity:.5;pointer-events:none}
+/* barber cards */
+.cards{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr))}
+.bc{position:relative;text-align:left;background:var(--paper);border:2px solid var(--line);border-radius:var(--r);padding:18px;display:grid;gap:10px;transition:border-color .15s,transform .15s,box-shadow .15s}
+.bc:hover{border-color:var(--ink);transform:translateY(-2px)}
+.bc[aria-pressed=true]{border-color:var(--acc);box-shadow:0 0 0 3px rgba(37,64,255,.2)}
+.mono{width:64px;height:64px;border-radius:50%;background:var(--ink);color:var(--bone);display:grid;place-items:center;font-weight:800;font-size:22px;letter-spacing:-.03em}
+.bc:nth-child(2) .mono{background:var(--acc)}.bc:nth-child(4) .mono{background:#8a6a3b}
+.bc.any .mono{background:var(--acc)}
+.bc h3{font-size:26px}
+.bc p{font-size:15px;color:var(--mute);line-height:1.35}
+.live{display:inline-flex;align-items:center;gap:7px;font-weight:700;font-size:14px;margin-top:2px}
+.live::before{content:"";width:9px;height:9px;border-radius:50%;background:#aaa}
+.live.now{color:var(--ok)}.live.now::before{background:var(--ok);box-shadow:0 0 0 0 rgba(13,122,79,.5);animation:pulse 1.8s infinite}
+.live.soon::before{background:var(--acc)}
+@keyframes pulse{70%{box-shadow:0 0 0 8px rgba(13,122,79,0)}100%{box-shadow:0 0 0 0 rgba(13,122,79,0)}}
+.sk{height:14px;width:70%;border-radius:6px;background:linear-gradient(90deg,#e5dfd2,#f0ebe0,#e5dfd2);background-size:200%;animation:sh 1.2s infinite}
+@keyframes sh{to{background-position:-200% 0}}
+/* formules */
+.cats{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.chip{border:2px solid var(--line);background:transparent;border-radius:999px;padding:8px 16px;font-weight:700;font-size:15px}
+.chip[aria-pressed=true]{background:var(--ink);color:#fff;border-color:var(--ink)}
+.fl{display:grid;gap:10px}
+.fo{display:flex;align-items:center;gap:14px;text-align:left;width:100%;background:var(--paper);border:2px solid var(--line);border-radius:14px;padding:14px 16px;min-height:64px}
+.fo:hover{border-color:var(--ink)}
+.fo[aria-pressed=true]{border-color:var(--acc);box-shadow:0 0 0 3px rgba(37,64,255,.2)}
+.fo b{display:block;font-size:18px;letter-spacing:-.02em}.fo small{color:var(--mute);font-size:14px}
+.fo .pr{margin-left:auto;font-weight:800;font-size:20px;white-space:nowrap}
+.tg{font:700 11px/1 inherit;letter-spacing:.06em;text-transform:uppercase;background:var(--acc);color:#fff;border-radius:999px;padding:4px 8px;margin-left:8px;vertical-align:middle}
+/* days & times */
+.days{display:flex;gap:8px;overflow-x:auto;padding:4px 2px 12px;scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch}
+.dy{flex:none;scroll-snap-align:start;width:68px;border:2px solid var(--line);background:var(--paper);border-radius:14px;padding:10px 0;text-align:center;line-height:1.1}
+.dy small{display:block;text-transform:uppercase;font-size:11px;letter-spacing:.1em;color:var(--mute);font-weight:700}
+.dy b{display:block;font-size:26px;letter-spacing:-.03em;margin:3px 0}
+.dy span{font-size:11px;color:var(--mute)}
+.dy[aria-pressed=true]{background:var(--ink);color:#fff;border-color:var(--ink)}.dy[aria-pressed=true] small,.dy[aria-pressed=true] span{color:#cfd0d6}
+.dy[disabled]{opacity:.4;cursor:not-allowed;background:transparent}
+.dayl{font-weight:800;font-size:22px;letter-spacing:-.02em;margin:6px 0 12px}
+.times{display:grid;gap:8px;grid-template-columns:repeat(auto-fill,minmax(88px,1fr))}
+.tm{border:2px solid var(--line);background:var(--paper);border-radius:12px;padding:12px 0;font-weight:700;font-size:17px;min-height:48px}
+.tm:hover{border-color:var(--acc);color:var(--acc)}
+.tm[aria-pressed=true]{background:var(--acc);border-color:var(--acc);color:#fff}
+.part{font:700 12px/1 inherit;letter-spacing:.12em;text-transform:uppercase;color:var(--mute);margin:16px 0 8px}
+.note{font-size:14px;color:var(--mute)}
+.alert{background:#fde8e6;color:var(--bad);border-radius:12px;padding:12px 14px;font-weight:600;font-size:15px;margin-bottom:14px}
+.alert[hidden]{display:none}
+/* form */
+.recap{display:flex;flex-wrap:wrap;gap:6px 18px;background:var(--paper);border-radius:14px;padding:14px 16px;margin-bottom:16px;font-weight:600}
+.recap b{font-weight:800}
+.fg{display:grid;gap:14px;grid-template-columns:1fr 1fr}
+@media(max-width:560px){.fg{grid-template-columns:1fr}}
+.fld{display:grid;gap:6px}.fld.full{grid-column:1/-1}
+.fld label{font-weight:700;font-size:14px}
+.fld input,.fld textarea{font:inherit;font-size:17px;padding:14px;border:2px solid var(--line);border-radius:12px;background:#fff;color:var(--ink);width:100%;min-height:50px}
+.fld input:focus,.fld textarea:focus{outline:none;border-color:var(--acc)}
+.fld input[aria-invalid=true]{border-color:var(--bad)}
+.err{color:var(--bad);font-size:13px;font-weight:600;min-height:0}
+.ck{display:flex;gap:10px;align-items:flex-start;font-size:14px;color:var(--mute);grid-column:1/-1}
+.ck input{width:20px;height:20px;margin-top:2px;accent-color:var(--acc);flex:none}
+.hold{font-size:14px;color:var(--mute);margin-top:12px}
+/* done */
+.ok{background:var(--bone);color:var(--ink);border-radius:var(--r);padding:clamp(22px,4vw,40px)}
+.ok h3{font-size:clamp(32px,5vw,52px);margin-bottom:6px}
+.ok .big{font-size:20px;font-weight:700;margin:12px 0 20px}
+.ok ul{list-style:none;padding:0;display:grid;gap:10px;margin-bottom:22px}
+.ok li{display:flex;gap:12px;align-items:flex-start}
+.ok li::before{content:"✓";flex:none;width:24px;height:24px;border-radius:50%;background:var(--ok);color:#fff;display:grid;place-items:center;font-size:13px;font-weight:800;margin-top:1px}
+.ok .acts{display:flex;flex-wrap:wrap;gap:10px}
+.ok .code{font-family:ui-monospace,Menlo,monospace;background:var(--ink);color:var(--bone);padding:2px 10px;border-radius:8px}
+/* carte */
+.menu{display:grid;gap:36px 56px;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr))}
+.menu h3{font-size:14px;letter-spacing:.14em;text-transform:uppercase;color:var(--acc);margin-bottom:6px;font-weight:700}
+.row{display:flex;gap:14px;align-items:baseline;padding:16px 0;border-bottom:1px solid var(--line)}
+.row .n{flex:1}.row b{font-size:22px;letter-spacing:-.025em;font-weight:800}.row small{display:block;color:var(--mute);font-size:14px;line-height:1.35;margin-top:2px}
+.row .p{font-weight:800;font-size:26px;letter-spacing:-.03em;white-space:nowrap}.row .d{font-size:13px;color:var(--mute);min-width:44px;text-align:right}
+.row.best{background:var(--acc);color:#fff;border-radius:18px;border:0;padding:20px 18px;margin:8px -4px}
+.row.best small,.row.best .d{color:#d6dcff}
+.row.best .bt{font:700 11px/1 inherit;letter-spacing:.08em;text-transform:uppercase;background:#fff;color:var(--acc);padding:4px 8px;border-radius:999px;margin-left:8px;vertical-align:middle}
+.row.best .bt{display:table;margin:6px 0 0}
+.row .go{border:0;background:none;text-decoration:underline;font-weight:700;font-size:14px;padding:6px}
+.row.best .go{color:#fff}
+/* carnet */
+.carnet{display:grid;gap:clamp(20px,4vw,56px);grid-template-columns:1fr;align-items:center;background:var(--paper);border-radius:clamp(22px,4vw,44px);padding:clamp(24px,5vw,60px)}
+@media(min-width:860px){.carnet{grid-template-columns:1.1fr .9fr}}
+.carnet h2{font-size:clamp(36px,6vw,72px)}
+.tix{display:flex;gap:8px;margin:22px 0}
+.tix i{flex:1;aspect-ratio:3/4;max-height:96px;border:2px dashed var(--ink);border-radius:10px;display:grid;place-items:center;font:800 22px/1 inherit;font-style:normal}
+.tix i:first-child{background:var(--acc);border:2px solid var(--acc);color:#fff}
+.pr-big{font-size:clamp(56px,9vw,110px);font-weight:800;letter-spacing:-.05em;line-height:.9}.pr-big small{font-size:.28em;letter-spacing:-.01em;color:var(--mute);font-weight:600}
+/* before */
+.before{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:0;border-top:2px solid var(--ink);border-bottom:2px solid var(--ink)}
+.before>div{padding:24px 22px 24px 0}
+.before .k{font:700 12px/1 inherit;letter-spacing:.14em;text-transform:uppercase;color:var(--acc);margin-bottom:10px}
+.before .v{font-size:22px;font-weight:800;letter-spacing:-.02em;line-height:1.15}
+.before p{color:var(--mute);font-size:15px;margin-top:6px}
+/* venir */
+.venir{display:grid;gap:clamp(20px,4vw,48px);grid-template-columns:1fr}
+@media(min-width:860px){.venir{grid-template-columns:1fr 1.2fr}}
+.venir h2{font-size:clamp(36px,6vw,72px);margin-bottom:24px}
+.venir address{font-style:normal;font-size:22px;font-weight:700;letter-spacing:-.02em;margin-bottom:14px}
+.venir .ph{min-height:300px}
+/* footer */
+footer{background:var(--ink);color:#bdb9ae;padding:44px 0 56px;font-size:15px;margin-top:40px}
+footer .wrap{display:flex;flex-wrap:wrap;gap:20px 48px;justify-content:space-between}
+footer a{color:var(--bone)}footer b{color:#fff}
+footer ul{list-style:none;padding:0;display:flex;flex-wrap:wrap;gap:8px 20px}
+.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:12px 18px;border-radius:12px;z-index:90;font-weight:600;display:none}.toast.on{display:block}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+</style>
+</head>
+<body>
+<a class="skip" href="#reserver">Aller à la réservation</a>
+<div class="demo" id="demo" role="status">Mode démo : aucun vrai rendez-vous n’est créé, aucun SMS n’est envoyé.</div>
+
+<header class="top">
+  <div class="wrap bar">
+    <a class="logo" href="#top" aria-label="Barber L’Architecte, accueil"><i>A</i>L’Architecte</a>
+    <nav class="main" aria-label="Navigation principale">
+      <a href="#reserver">Fauteuils</a><a href="#carte">Carte</a><a href="#carnet">Carnet</a><a href="#venir">Venir</a>
+    </nav>
+    <a class="btn" href="#reserver" id="hdr-cta">Réserver</a>
+  </div>
+</header>
+
+<main id="top">
+<div class="wrap hero">
+  <div class="hero-grid">
+    <div class="t">
+      <p class="eyebrow">Barbier · Marseille 13e · place Pélabon</p>
+      <h1 style="margin-top:18px">Quatre fauteuils. <em>Un seul</em> rendez‑vous.</h1>
+      <div class="sub">
+        <p>Votre lieu dédié à l’homme de tout âge. Choisis ton barbier, ta formule, ton créneau : c’est réservé en moins d’une minute.</p>
+        <a class="btn" href="#reserver">Choisir mon barbier →</a>
+        <a class="stat" href="#venir" aria-label="Note Google : 5,0 sur 5, 316 avis"><span class="stars" aria-hidden="true">★★★★★</span>5,0 · 316 avis Google</a>
+      </div>
+    </div>
+    <figure class="ph a"><img src="../../img/fade.jpg" alt="Dégradé net sur cheveux décolorés, vu de profil" loading="eager" width="1100" height="1077"><figcaption class="cap">Dégradé + décoloration</figcaption></figure>
+    <figure class="ph b"><img src="../../img/curls.jpg" alt="Coupe texturée avec dégradé et barbe soignée" loading="eager" width="1100" height="1315"><figcaption class="cap">Texture &amp; barbe</figcaption></figure>
+    <figure class="ph c"><img src="../../img/sidepart.jpg" alt="Raie sur le côté avec dégradé bas" loading="eager" width="1100" height="1355"><figcaption class="cap">Raie côté</figcaption></figure>
+  </div>
+</div>
+
+<section id="reserver" aria-labelledby="bk-title">
+  <div class="wrap">
+    <div class="sec-h">
+      <div><p class="eyebrow">Réservation en ligne</p><h2 id="bk-title" style="margin-top:12px">Qui coupe&nbsp;?</h2></div>
+      <p style="color:#b9b5ab">Trois choix, une confirmation par SMS. Ton créneau est gardé pour toi pendant que tu remplis tes coordonnées.</p>
+    </div>
+    <div class="bk" id="bk" aria-live="polite"></div>
+  </div>
+</section>
+
+<section id="carte" aria-labelledby="carte-t">
+  <div class="wrap">
+    <div class="sec-h"><h2 id="carte-t">La carte</h2><p>Les prix sont ceux du salon. Chaque formule se réserve en un tap.</p></div>
+    <div class="menu" id="menu"></div>
+  </div>
+</section>
+
+<section id="carnet" style="padding-top:0">
+  <div class="wrap">
+    <div class="carnet">
+      <div>
+        <p class="eyebrow">Le carnet</p>
+        <h2 style="margin-top:12px">5 coupes. <br>16&nbsp;€ chacune.</h2>
+        <p style="margin-top:18px;color:var(--mute);max-width:42ch">5 coupes sur 5 semaines, sans barbe. Il se prend au salon : on fixe tes coupes avec toi, pour que ta tête reste nette toute l’année.</p>
+      </div>
+      <div>
+        <div class="pr-big">80&nbsp;€ <small>les 5 coupes</small></div>
+        <div class="tix" aria-hidden="true"><i>1</i><i>2</i><i>3</i><i>4</i><i>5</i></div>
+        <p class="note">À demander à ton barbier lors de ta prochaine visite.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section aria-labelledby="av-t" style="padding-top:20px">
+  <div class="wrap">
+    <h2 id="av-t" class="sr">Avant de venir</h2>
+    <div class="before">
+      <div><div class="k">Où</div><div class="v">16, place Pélabon<br>13013 Marseille</div></div>
+      <div><div class="k">Quand</div><div class="v">Mardi – samedi<br>9 h – 18 h 30</div><p>Fermé dimanche et lundi.</p></div>
+      <div><div class="k">Combien de temps</div><div class="v">30 min pour une coupe</div><p>1 h pour un changement de look.</p></div>
+      <div><div class="k">Un empêchement&nbsp;?</div><div class="v">Un tap, c’est réglé.</div><p>Déplace ou annule en un tap depuis ton SMS.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="venir" aria-labelledby="venir-t">
+  <div class="wrap venir">
+    <div>
+      <h2 id="venir-t">Passe nous voir.</h2>
+      <address>16, place Pélabon<br>13013 Marseille</address>
+      <p style="color:var(--mute);margin-bottom:22px">Mardi au samedi, 9 h – 18 h 30.<br>Écris-nous : <a href="mailto:larchitectebarber@gmail.com">larchitectebarber@gmail.com</a></p>
+      <p style="display:flex;gap:10px;flex-wrap:wrap"><a class="btn dark" href="https://www.google.com/maps/search/?api=1&query=L%27Architecte%20coiffeur&query_place_id=ChIJJSWkBLy_yRIRbgAQcMwb-JY" target="_blank" rel="noopener">Itinéraire</a><a class="btn ghost" href="https://www.instagram.com/barbershoplarchitecte/" target="_blank" rel="noopener">Instagram</a></p>
+      <p class="stat" style="margin-top:26px"><span class="stars" aria-hidden="true">★★★★★</span>5,0 · 316 avis Google</p>
+    </div>
+    <figure class="ph"><img src="../../img/salon.jpg" alt="L’intérieur du salon : fauteuils de barbier, miroirs, lumière rouge" loading="lazy" width="1100" height="812"></figure>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div><b>Barber L’Architecte</b><br>16, place Pélabon · 13013 Marseille</div>
+    <ul aria-label="Informations légales"><li><a href="/cgv">CGV</a></li><li><a href="/confidentialite">Confidentialité</a></li><li><a href="/mentions-legales">Mentions légales</a></li><li><a href="/resilier">Gérer mon abonnement</a></li></ul>
+  </div>
+</footer>
+<div class="toast" id="toast" role="status"></div>
+
+<script src="../core.js"></script>
+<script>
+(function(){
+'use strict';
+var NB=LA.NB, $=function(s,r){return (r||document).querySelector(s)};
+function el(t,a,h){var e=document.createElement(t);if(a)for(var k in a){if(k==='class')e.className=a[k];else if(k==='text')e.textContent=a[k];else e.setAttribute(k,a[k])}if(h!==undefined)e.innerHTML=h;return e}
+function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+var CATS=[['coupes','Coupes'],['look','Changer de tête'],['barbe','Barbe']];
+var S={step:1,staff:null,cat:'coupes',ids:[],days:null,day:null,m:null,slotStaff:null,holdId:null,done:null,busy:false,nexts:null,err:'',loading:false};
+var bk=$('#bk');
+
+/* ---------- menu (carte) ---------- */
+function renderMenu(){
+  var m=$('#menu');m.innerHTML='';
+  CATS.forEach(function(c){
+    var box=el('div');box.appendChild(el('h3',{text:c[1]}));
+    LA.services().filter(function(s){return s.cat===c[0]}).forEach(function(s){
+      var best=s.id==='ct';
+      var r=el('div',{class:'row'+(best?' best':'')});
+      r.innerHTML='<div class="n"><b>'+esc(s.name)+(best?'<span class="bt">La plus complète</span>':'')+'</b><small>'+esc(s.inc.join(' · '))+(s.note?' — '+esc(s.note):'')+'</small></div><span class="d">'+s.dur+' min</span><span class="p">'+LA.eur(s.price,s.from)+'</span>';
+      var g=el('button',{class:'go',type:'button','aria-label':'Réserver '+s.name},'Réserver');
+      g.onclick=function(){S.ids=[s.id];S.cat=s.cat;S.step=S.staff?3:1;S.day=S.m=null;S.days=null;if(S.staff)loadDays();render();$('#reserver').scrollIntoView();};
+      r.appendChild(g);box.appendChild(r);
+    });
+    m.appendChild(box);
+  });
+}
+
+/* ---------- helpers ---------- */
+function nowMin(){var n=new Date();return n.getHours()*60+n.getMinutes()}
+function lowerFirst(s){return s.charAt(0).toLowerCase()+s.slice(1)}
+function liveFor(n){
+  if(!n)return '<span class="live">complet sur 14 jours</span>';
+  var today=LA.iso(new Date());
+  if(n.day===today&&LA.openNow()&&n.m<=nowMin()+45)return '<span class="live now">libre maintenant</span>';
+  return '<span class="live soon">prochain créneau : '+esc(lowerFirst(LA.dayLabel(n.day)))+' '+LA.hhmm(n.m)+'</span>';
+}
+function firstFree(){
+  var best=null;if(!S.nexts)return null;
+  Object.keys(S.nexts).forEach(function(k){var n=S.nexts[k];if(n&&(!best||n.day<best.day||(n.day===best.day&&n.m<best.m)))best=n});
+  return best;
+}
+function summary(i){
+  if(i===1)return S.staff?(S.staff==='any'?'Le premier de libre':LA.barber(S.staff).name):'';
+  if(i===2)return S.ids.length?LA.service(S.ids[0]).name+' · '+LA.eur(LA.service(S.ids[0]).price,LA.service(S.ids[0]).from):'';
+  if(i===3)return S.m!=null?LA.dayLabel(S.day)+' à '+LA.hhmm(S.m)+(S.slotStaff?' · '+LA.barber(S.slotStaff).name:''):'';
+  return '';
+}
+function goStep(i){
+  if(i<S.step||i===S.step){
+    if(i<3&&S.holdId){LA.release(S.holdId);S.holdId=null}
+    S.step=i;S.err='';render();focusStep(i);
+  }
+}
+function focusStep(i){setTimeout(function(){var h=$('#st'+i+' .step-t');if(h){h.setAttribute('tabindex','-1');h.focus({preventScroll:true});h.scrollIntoView({block:'start',behavior:'smooth'})}},30)}
+
+/* ---------- render ---------- */
+function render(){
+  bk.innerHTML='';
+  if(S.done){renderDone();return}
+  var titles=['Choisis ton barbier','Choisis ta formule','Choisis ton créneau','Tes coordonnées'];
+  for(var i=1;i<=4;i++){
+    (function(i){
+      var cls='step'+(S.step===i?' cur':'')+(i<S.step?' done':'');
+      var st=el('div',{class:cls,id:'st'+i});
+      var h=el('div',{class:'step-h'});
+      var n=el('span',{class:'step-n','aria-hidden':'true',text:i<S.step?'✓':String(i)});
+      var t=el('span',{class:'step-t',text:titles[i-1]});
+      h.appendChild(n);h.appendChild(t);
+      if(i<S.step){
+        var sm=el('span',{class:'step-s',text:summary(i)});
+        var ed=el('button',{class:'step-edit',type:'button','aria-label':'Modifier : '+titles[i-1]},'Modifier');
+        ed.onclick=function(){goStep(i)};
+        h.insertBefore(sm,null);h.appendChild(ed);
+        t.style.flex='0 1 auto';sm.style.flex='1';
+      }
+      st.appendChild(h);
+      var b=el('div',{class:'step-b'});st.appendChild(b);
+      if(S.step===i){[null,r1,r2,r3,r4][i](b)}
+      bk.appendChild(st);
+    })(i);
+  }
+}
+
+function r1(b){
+  var c=el('div',{class:'cards',role:'group','aria-label':'Barbiers'});
+  LA.barbers().forEach(function(x){
+    var btn=el('button',{class:'bc',type:'button','aria-pressed':String(S.staff===x.id)});
+    var n=S.nexts?S.nexts[x.id]:undefined;
+    btn.innerHTML='<span class="mono" aria-hidden="true">'+x.initials+'</span><h3>'+esc(x.name)+'</h3><p>'+esc(x.line)+'</p>'+(S.nexts?liveFor(n):'<span class="sk" aria-hidden="true"></span>');
+    btn.onclick=function(){pickStaff(x.id)};
+    c.appendChild(btn);
+  });
+  var f=firstFree();
+  var any=el('button',{class:'bc any',type:'button','aria-pressed':String(S.staff==='any')});
+  any.innerHTML='<span class="mono" aria-hidden="true">★</span><h3>Le premier de libre</h3><p>Peu importe qui : tu as le créneau le plus proche.</p>'+(S.nexts?liveFor(f):'<span class="sk" aria-hidden="true"></span>');
+  any.onclick=function(){pickStaff('any')};
+  c.appendChild(any);
+  b.appendChild(c);
+}
+function pickStaff(id){S.staff=id;S.day=S.m=null;S.days=null;S.step=S.ids.length?3:2;if(S.step===3)loadDays();render();focusStep(S.step)}
+
+function r2(b){
+  var cats=el('div',{class:'cats',role:'group','aria-label':'Catégories'});
+  CATS.forEach(function(c){var x=el('button',{class:'chip',type:'button','aria-pressed':String(S.cat===c[0]),text:c[1]});x.onclick=function(){S.cat=c[0];render();};cats.appendChild(x)});
+  b.appendChild(cats);
+  var l=el('div',{class:'fl',role:'group','aria-label':'Formules'});
+  LA.services().filter(function(s){return s.cat===S.cat}).forEach(function(s){
+    var o=el('button',{class:'fo',type:'button','aria-pressed':String(S.ids[0]===s.id)});
+    o.innerHTML='<span><b>'+esc(s.name)+(s.tag?'<span class="tg">'+esc(s.tag)+'</span>':'')+'</b><small>'+s.dur+' min · '+esc(s.inc.slice(0,4).join(', '))+'</small></span><span class="pr">'+LA.eur(s.price,s.from)+'</span>';
+    o.onclick=function(){S.ids=[s.id];S.day=S.m=null;S.days=null;S.step=3;loadDays();render();focusStep(3)};
+    l.appendChild(o);
+  });
+  b.appendChild(l);
+}
+
+function loadDays(){
+  S.loading=true;var ids=S.ids.slice(),staff=S.staff;
+  LA.availability(ids,staff,LA.iso(new Date()),14).then(function(d){
+    if(ids.join()!==S.ids.join()||staff!==S.staff)return;
+    S.days=d;S.loading=false;
+    var cur=d.filter(function(x){return x.day===S.day&&x.slots.length})[0];
+    if(!cur){var f=d.filter(function(x){return x.slots.length})[0];S.day=f?f.day:null}
+    if(S.step===3)render();
+  }).catch(function(){S.loading=false;S.days=[];S.err='Impossible de charger les créneaux. Réessaie ou appelle le salon.';if(S.step===3)render()});
+}
+function uniqTimes(slots){var seen={},o=[];slots.forEach(function(s){if(!seen[s.m]){seen[s.m]=1;o.push(s)}});return o}
+function r3(b){
+  if(S.err){var a=el('div',{class:'alert',role:'alert',text:S.err});b.appendChild(a)}
+  if(!S.days){b.appendChild(el('p',{class:'note',text:'Chargement des créneaux…'}));return}
+  var days=el('div',{class:'days',role:'group','aria-label':'Jours'});
+  S.days.forEach(function(d){
+    var ds=LA.dayShort(d.day),n=d.slots.length;
+    var x=el('button',{class:'dy',type:'button','aria-pressed':String(S.day===d.day),'aria-label':LA.dayLabel(d.day)+(n?'':', indisponible')});
+    x.innerHTML='<small>'+ds.dow+'.</small><b>'+ds.n+'</b><span>'+(d.open?(n?n+' dispo':'complet'):'fermé')+'</span>';
+    if(!n)x.disabled=true;
+    x.onclick=function(){S.day=d.day;S.m=null;render()};
+    days.appendChild(x);
+  });
+  b.appendChild(days);
+  var cur=S.days.filter(function(x){return x.day===S.day})[0];
+  if(!cur){b.appendChild(el('p',{class:'note',text:'Aucun créneau sur les 14 prochains jours. Appelle le salon, ou choisis un autre barbier.'}));return}
+  b.appendChild(el('div',{class:'dayl',text:LA.dayLabel(S.day)}));
+  var ts=uniqTimes(cur.slots),parts=[['Matin',0,720],['Après-midi',720,1440]];
+  parts.forEach(function(p){
+    var g=ts.filter(function(s){return s.m>=p[1]&&s.m<p[2]});if(!g.length)return;
+    b.appendChild(el('div',{class:'part',text:p[0]}));
+    var w=el('div',{class:'times',role:'group','aria-label':p[0]});
+    g.forEach(function(s){
+      var t=el('button',{class:'tm',type:'button','aria-pressed':String(S.m===s.m),text:LA.hhmm(s.m)});
+      t.onclick=function(){pickTime(s,t)};
+      w.appendChild(t);
+    });
+    b.appendChild(w);
+  });
+  b.appendChild(el('p',{class:'note',style:'margin-top:14px',text:S.staff==='any'?'Le barbier est choisi pour toi parmi ceux qui sont libres.':'Créneaux de '+LA.barber(S.staff).name+'.'}));
+}
+function pickTime(s,btn){
+  if(S.busy)return;S.busy=true;btn.disabled=true;
+  var prev=S.holdId;
+  LA.hold(S.ids,s.s,S.day,s.m,prev).then(function(h){
+    S.busy=false;S.holdId=h.holdId;S.m=s.m;S.slotStaff=s.s;S.err='';S.step=4;render();focusStep(4);
+  }).catch(function(e){
+    S.busy=false;S.m=null;S.holdId=null;
+    S.err=(e&&e.code==='taken')?'Ce créneau vient d’être pris. Choisis-en un autre, tes choix sont gardés.':((e&&e.message)||'Impossible de garder ce créneau.');
+    S.days=null;loadDays();render();
+  });
+}
+
+function r4(b){
+  var t=LA.total(S.ids),sv=LA.service(S.ids[0]);
+  var rc=el('div',{class:'recap'});
+  rc.innerHTML='<span><b>'+esc(sv.name)+'</b></span><span>'+esc(LA.dayLabel(S.day))+' à <b>'+LA.hhmm(S.m)+'</b></span><span>avec <b>'+esc(LA.barber(S.slotStaff).name)+'</b></span><span><b>'+LA.eur(t.price,t.from)+'</b> · à régler au salon</span>';
+  b.appendChild(rc);
+  if(S.err){b.appendChild(el('div',{class:'alert',role:'alert',text:S.err}))}
+  var f=el('form',{novalidate:'novalidate',class:'fg'});
+  f.innerHTML=
+   '<div class="fld"><label for="f-first">Prénom</label><input id="f-first" name="first" autocomplete="given-name" required><span class="err" id="e-first"></span></div>'+
+   '<div class="fld"><label for="f-last">Nom <span style="font-weight:500;color:var(--mute)">(facultatif)</span></label><input id="f-last" name="last" autocomplete="family-name"></div>'+
+   '<div class="fld"><label for="f-phone">Téléphone portable</label><input id="f-phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="06 12 34 56 78" required><span class="err" id="e-phone"></span></div>'+
+   '<div class="fld"><label for="f-mail">E-mail <span style="font-weight:500;color:var(--mute)">(facultatif)</span></label><input id="f-mail" name="email" type="email" inputmode="email" autocomplete="email" placeholder="pour recevoir la confirmation"><span class="err" id="e-mail"></span></div>'+
+   '<label class="ck"><input type="checkbox" name="marketing"><span>J’accepte de recevoir des offres du salon par SMS (facultatif).</span></label>'+
+   '<div class="fld full"><button class="btn" type="submit" id="f-go">Confirmer mon rendez-vous</button><p class="hold">Créneau gardé pour toi quelques minutes. Tu recevras une confirmation par SMS, et par e-mail si tu laisses ton adresse.</p></div>';
+  f.onsubmit=function(ev){ev.preventDefault();submit(f)};
+  b.appendChild(f);
+  try{var sf=JSON.parse(sessionStorage.getItem('la-c-me')||'{}');['first','last','phone','email'].forEach(function(k){if(sf[k])f.elements[k].value=sf[k]})}catch(e){}
+}
+function bad(id,input,msg){var e=$('#'+id);e.textContent=msg;input.setAttribute('aria-invalid','true')}
+function submit(f){
+  ['first','phone','email'].forEach(function(k){f.elements[k].removeAttribute('aria-invalid')});['e-first','e-phone','e-mail'].forEach(function(i){$('#'+i).textContent=''});
+  var first=f.elements.first.value.trim(),phone=f.elements.phone.value.replace(/[\s.\-]/g,''),mail=f.elements.email.value.trim(),ok=true,focus=null;
+  if(first.length<2||/[:\/]/.test(first)){bad('e-first',f.elements.first,'Ton prénom, sans « : » ni « / ».');ok=false;focus=focus||f.elements.first}
+  if(!/^(\+|00)?\d{9,14}$/.test(phone)){bad('e-phone',f.elements.phone,'Un numéro de portable valide, pour le SMS.');ok=false;focus=focus||f.elements.phone}
+  if(mail&&!/^\S+@\S+\.\S+$/.test(mail)){bad('e-mail',f.elements.email,'Cette adresse ne semble pas valide.');ok=false;focus=focus||f.elements.email}
+  if(!ok){focus.focus();return}
+  if(S.busy)return;S.busy=true;var go=$('#f-go');go.disabled=true;go.textContent='Confirmation…';
+  var p={ids:S.ids.slice(),staff:S.slotStaff,day:S.day,m:S.m,holdId:S.holdId,first:first,last:f.elements.last.value.trim(),phone:phone,email:mail,sms:true,marketing:f.elements.marketing.checked};
+  try{sessionStorage.setItem('la-c-me',JSON.stringify({first:p.first,last:p.last,phone:f.elements.phone.value,email:mail}))}catch(e){}
+  LA.book(p).then(function(r){
+    S.busy=false;S.done={r:r,p:p};S.holdId=null;render();
+    var d=$('#done-h');if(d){d.setAttribute('tabindex','-1');d.focus({preventScroll:true});d.scrollIntoView({block:'start',behavior:'smooth'})}
+  }).catch(function(e){
+    S.busy=false;S.holdId=null;
+    if(e&&(e.code==='taken'||e.status===409)){S.err=(e.message||'Ce créneau vient d’être pris.')+' Tes choix sont gardés.';S.m=null;S.step=3;S.days=null;loadDays();render();focusStep(3)}
+    else{S.err=(e&&e.message)||'Une erreur est survenue. Réessaie, ou appelle le salon.';render();focusStep(4)}
+  });
+}
+function renderDone(){
+  var d=S.done,p=d.p,r=d.r,t=LA.total(p.ids),sv=LA.service(p.ids[0]);
+  var o=el('div',{class:'ok',id:'done'});
+  var pend=r&&r.status==='pending'&&r.deposit>0;
+  o.innerHTML='<p class="eyebrow">'+(pend?'Presque terminé':'C’est réservé')+'</p><h3 id="done-h">À '+LA.hhmm(p.m)+', '+esc(LA.dayLabel(p.day).toLowerCase())+'.</h3>'+
+   '<p class="big">'+esc(sv.name)+' avec '+esc(LA.barber(p.staff).name)+' · '+LA.eur(t.price,t.from)+' à régler au salon'+(r&&r.code?' · réf. <span class="code">'+esc(r.code)+'</span>':'')+'</p>'+
+   '<ul><li>Confirmation par SMS envoyée au '+esc(p.phone)+(p.email?', et par e-mail à '+esc(p.email):'')+(p.email?' (avec le fichier agenda).':'. Pas d’e-mail ? Ajoute-le la prochaine fois pour l’avoir aussi.')+'</li>'+
+   '<li>Rappel par SMS la veille à 18&nbsp;h.</li><li>Un empêchement&nbsp;? Déplace ou annule en un tap depuis ton SMS.</li><li>16, place Pélabon, Marseille 13e.</li></ul>'+
+   (LA.isDemo()?'<p class="note" style="margin-bottom:16px">Mode démo : rien n’a été réellement envoyé.</p>':'');
+  var a=el('div',{class:'acts'});
+  var ics=el('a',{class:'btn',href:LA.ics({ids:p.ids,day:p.day,m:p.m,code:r&&r.code}),download:'rendez-vous-larchitecte.ics'},'Ajouter à mon agenda');a.appendChild(ics);
+  if(r&&r.manage&&r.manage!=='#'){a.appendChild(el('a',{class:'btn dark',href:r.manage},'Gérer mon rendez-vous'))}
+  var nw=el('button',{class:'btn ghost',type:'button'},'Réserver un autre rendez-vous');nw.onclick=function(){reset();};a.appendChild(nw);
+  o.appendChild(a);bk.appendChild(o);
+}
+function reset(){S.step=1;S.staff=null;S.ids=[];S.days=null;S.day=S.m=S.slotStaff=S.holdId=S.done=null;S.err='';loadNexts();render();$('#reserver').scrollIntoView()}
+function loadNexts(){S.nexts=null;LA.nextByBarber(['cl']).then(function(n){S.nexts=n;if(S.step===1&&!S.done)render()}).catch(function(){S.nexts={}; if(S.step===1)render()})}
+
+window.addEventListener('pagehide',function(){if(S.holdId)LA.release(S.holdId)});
+renderMenu();render();
+LA.init().then(function(r){if(r.demo)$('#demo').classList.add('on');loadNexts();});
+})();
+</script>
+</body>
+</html>
