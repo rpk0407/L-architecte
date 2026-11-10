@@ -213,27 +213,29 @@ function ApptCard({ a, px, top, inset = 0, laneColor, place, clash = [], selecte
   const h = a.dur * px - 3 - inset;
   const short = h < 40;
   const badges = a.client?.badges || [];
-  const cls = ['ap', 'st-' + a.status, short ? 'short' : '', selected ? 'sel' : '', dragging ? 'dragging' : '', ghost ? 'ghost' : '', bad ? 'bad' : '', fresh ? 'fresh' : '', clash.length ? 'clash' : '', place && place.cols > 1 ? 'shared' : ''].filter(Boolean).join(' ');
+  const shared = !!place && place.cols > 1;
+  const cls = ['ap', 'st-' + a.status, short ? 'short' : '', selected ? 'sel' : '', dragging ? 'dragging' : '', ghost ? 'ghost' : '', bad ? 'bad' : '', fresh ? 'fresh' : '', clash.length ? 'clash' : '', shared ? 'shared' : ''].filter(Boolean).join(' ');
   // a client who already missed: the count in words on the card, not one more icon to decode
   const missed = badges.includes('absences') && a.client && a.client.noShows ? a.client.noShows + (a.client.noShows > 1 ? ' absences' : ' absence') : '';
   const svc = a.services.map((s) => s.name.replace('Coupe + ', '+ ').replace(' de barbe', '')).join(' · ');
   const label = `${time(a.start)}, ${a.name}, ${a.services.map((s) => s.name).join(' et ')}, ${a.status === 'in_chair' ? 'au fauteuil' : a.status === 'done' ? 'terminé' : a.status === 'no_show' ? 'absent' : a.status === 'arrived' ? 'arrivé' : a.status === 'pending' ? 'acompte en attente' : 'à venir'}${missed ? ', ' + missed : ''}${clash.length ? ', chevauchement avec ' + clash.map((o) => o.name).join(' et ') : ''}`;
   // its share of the column when it is not alone at that time
-  const share = place && place.cols > 1 ? { left: `calc(5px + (100% - 10px) * ${place.col} / ${place.cols})`, right: 'auto', width: `calc((100% - 10px) / ${place.cols} - ${place.col < place.cols - 1 ? 3 : 0}px)` } : null;
+  const share = place && shared ? { left: `calc(5px + (100% - 10px) * ${place.col} / ${place.cols})`, right: 'auto', width: `calc((100% - 10px) / ${place.cols} - ${place.col < place.cols - 1 ? 3 : 0}px)` } : null;
   return (
     <button type="button" className={cls} style={{ top: top + 1 + inset, height: h, ['--lc' as any]: laneColor, ...share }} aria-label={label} data-clash={clash.length ? '1' : undefined}
       onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onClick={onClick} tabIndex={ghost ? -1 : undefined}>
       <span className="ap-top">
-        {short ? <span className="ap-t">{hhmm(a.start)}</span> : null}
+        {short && !shared ? <span className="ap-t">{hhmm(a.start)}</span> : null}
         <span className="ap-n">{a.name}</span>
-        {!short ? <span className="ap-ic">
+        {!short && !shared ? <span className="ap-ic">
           {a.source === 'site' ? <Icon name="globe" /> : a.source === 'phone' ? <Icon name="phone" /> : a.source === 'walkin' ? <Icon name="walk" /> : null}
           {badges.includes('nouveau') ? <Icon name="sparkle" /> : null}
           {missed ? <span className="badge badge-warn" style={{ height: 17, padding: '0 6px', fontSize: 10.5 }}>{missed}</span> : null}
           {a.deposit && a.deposit.paid ? <Icon name="card" /> : null}
         </span> : null}
       </span>
-      <span className="ap-s"><span><b className="ap-t">{hhmm(a.start)}</b> · {svc}</span>{showMoney ? <Money cents={a.price} /> : null}</span>
+      {/* half a column has room for a name and a time: the rest is one touch away, in the sheet */}
+      <span className="ap-s">{shared ? <span><b className="ap-t">{hhmm(a.start)}</b></span> : <span><b className="ap-t">{hhmm(a.start)}</b> · {svc}</span>}{showMoney && !shared ? <Money cents={a.price} /> : null}</span>
     </button>
   );
 }

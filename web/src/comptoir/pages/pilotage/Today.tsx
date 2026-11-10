@@ -16,7 +16,7 @@ export function Today({ t }: { t: CockpitToday }) {
   const when = !t.open ? 'salon fermé' : t.over ? 'journée terminée' : t.started ? 'ouvert jusqu’à ' + time(t.closesAt || 0) : 'ouverture à ' + time(t.opensAt || 0);
   const working = t.chairs.filter((c) => !c.off);
   return (
-    <section className="card pl-today" aria-label="Aujourd’hui, ce qui est prévu" data-guide="pilotage.aujourdhui">
+    <section className="card pl-today" aria-label="Aujourd’hui, ce qui est prévu">
       <div className="card-h"><h2><Icon name="calendar" size={16} />Aujourd’hui</h2><span className="muted">{when}</span></div>
       {!t.open && !t.count ? <p className="muted pl-today-none">Pas de rendez-vous aujourd’hui : le salon est fermé.</p> : (
         <>
@@ -70,7 +70,7 @@ export function Ahead({ a }: { a: CockpitAhead }) {
     ? <td key={key} className="off" aria-label={what + ' : ne travaille pas'}>–</td>
     : <td key={key} className={tone(v)} aria-label={what + ' : ' + pct(v)}>{Math.round(v * 100)}</td>);
   return (
-    <section className="card pl-ahead" aria-label="Les 7 prochains jours" data-guide="pilotage.avenir">
+    <section className="card pl-ahead" aria-label="Les 7 prochains jours">
       <div className="card-h"><h2><Icon name="chair" size={16} />Les 7 prochains jours</h2><span className="muted">remplis à {pct(a.fill)}</span></div>
       <p className="pl-ahead-sum"><b>{free(a.freeMin)}</b> libres à vendre · {plural(a.count, 'rendez-vous', 'rendez-vous')} pris · <Money cents={a.planned} /> prévus</p>
       <div className="pl-ahead-wrap">
