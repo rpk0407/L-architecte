@@ -18,3 +18,24 @@
   .rl-meta { display: block; margin-top: 3px; color: var(--tx3); font-size: 12px; white-space: nowrap; }
   .rl-table .badge { white-space: normal; height: auto; min-height: 22px; padding: 4px 8px; line-height: 1.25; }
 }
+
+/* WP6 · the grouped send (BulkSheet) and the phone's page */
+.bk-sec { display: flex; flex-direction: column; gap: 8px; }
+.bk-h { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.bk-h b { font: 400 22px/1.1 var(--serif); }
+.bk-s { font-size: 12.5px; margin: 0; }
+.bk-ex { font-size: 12.5px; color: var(--tx2); margin: 0; }
+.bk-msg { width: 100%; }
+.bk-who { list-style: none; margin: 0; padding: 0; max-height: 40vh; overflow: auto; }
+.bk-who label { display: flex; align-items: center; gap: 12px; min-height: 44px; cursor: pointer; }
+.bk-who input { width: 20px; height: 20px; accent-color: var(--accent); flex: none; }
+.bk-who small { display: block; color: var(--tx3); font-size: 12px; }
+.rl-bar { display: none; }
+.rl-autolink { align-self: flex-start; }
+@media (max-width: 760px) {
+  .rl-msg { display: none; }
+  .rl-auto:not(.on) { display: none; }
+  .rl-bar { display: block; position: sticky; bottom: calc(72px + var(--safe-b)); z-index: 30; padding: 8px 0 0; }
+  .rl-side { position: static; }
+}
+@media (min-width: 761px) { .rl-autolink { display: none; } .rl-auto:not(.on) { display: block; } }

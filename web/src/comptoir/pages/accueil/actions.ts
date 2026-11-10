@@ -6,7 +6,7 @@ import type { HomeCard, HomeCardGroup, HomeCardId } from '../../types';
 export type Step = { kind: 'go'; to: string } | { kind: 'handover'; id: string };
 
 /**
- * `go` navigates; `bulk` navigates to the list it will act on (Relances) until the grouped send exists (WP6);
+ * `go` navigates; `bulk` opens the list it acts on (Relances) with the preview sheet already up (`?apercu=1`, WP6);
  * `sheet` opens Équipe's HandoverSheet for the clients of a posted absence (`orphelins`, ref: the absence). Two sheets
  * have no in-place form yet and open the page that holds theirs: a request still waiting is answered in Équipe
  * (Valider / Refuser, which then opens the plan), and the month's goal is set in Réglages › Objectifs.
@@ -18,6 +18,8 @@ export function stepOf(card: Pick<HomeCard, 'id' | 'action'>): Step {
     if (a.ref === 'objectif' || card.id === 'objectif') return { kind: 'go', to: '/reglages/objectifs' };
     return { kind: 'go', to: '/equipe' };
   }
+  // WP6: the card's button opens the grouped send's sheet (Relances, « Aperçu et envoi »), one touch from the card
+  if (a.kind === 'bulk') return { kind: 'go', to: (a.to || '/relances') + (a.to?.includes('?') ? '&' : '?') + 'apercu=1' };
   return { kind: 'go', to: a.to || '/agenda' };
 }
 

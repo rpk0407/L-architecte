@@ -23,3 +23,16 @@ export function canOpenPath(path: string, routes: Record<string, RouteNeed>, nav
   const need = id && !id.startsWith(':') && r.sub ? r.sub(id) : r.cap;
   return !need || can(need);
 }
+
+/** The phone's tab bar (WP4): the person's opening page first, then the three of `prefs.tabs` he chose (pages he cannot
+ *  open are skipped), else his role's: the owner and managers Agenda, Clients, Chiffres (Pilotage); a chair or the desk
+ *  Agenda, Caisse, Clients. Short of three, the role's fill in, then the rest, always in the same order: the tabs never
+ *  move by themselves. `has`: the pages in his menu. */
+export function phoneTabs(first: string, pref: readonly string[] | undefined, who: { chair: boolean; shop: boolean }, has: (page: string) => boolean): string[] {
+  const out = [first];
+  const add = (p: unknown) => { if (typeof p === 'string' && out.length < 4 && !out.includes(p) && has(p)) out.push(p); };
+  (pref ?? []).forEach(add);
+  (!who.chair && who.shop ? ['agenda', 'clients', 'pilotage'] : ['agenda', 'caisse', 'clients']).forEach(add);
+  ['agenda', 'caisse', 'clients', 'pilotage', 'espace', 'rapports', 'relances'].forEach(add);
+  return out;
+}

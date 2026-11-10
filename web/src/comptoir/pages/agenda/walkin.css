@@ -1,0 +1,8 @@
+/* The walk-in sheet's footer: « Installer chez … » and « Ajouter à la file » side by side, stacked on a phone (390 px
+   clipped the second one), the main action on top. */
+.wk-foot { display: flex; flex: 1; align-items: center; gap: 10px; min-width: 0; }
+@media (max-width: 520px) {
+  .wk-foot { flex-direction: column-reverse; align-items: stretch; }
+  .wk-foot .grow { display: none; }
+  .wk-foot .btn { width: 100%; justify-content: center; }
+}

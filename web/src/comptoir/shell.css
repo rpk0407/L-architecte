@@ -39,6 +39,8 @@
 .top-title h1 { font: 400 30px/1 var(--serif); letter-spacing: -.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .top-acts { display: flex; align-items: center; gap: 6px; }
 .top-acts .btn-icon { position: relative; }
+/* the phone's avatar in the top bar (the rail rule above hides a .me-btn's last span: that is the sidebar's name) */
+.top-acts .me-btn > .av { display: grid; }
 .top-acts .dotn { position: absolute; top: 4px; right: 4px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px; background: var(--accent); color: var(--ink); font: 700 10px/16px var(--sans); text-align: center; }
 .page { flex: 1; min-width: 0; padding: 6px 24px 32px; display: flex; flex-direction: column; gap: 16px; animation: fadeIn .25s both; }
 .page-h { display: flex; align-items: flex-end; justify-content: space-between; gap: 14px; flex-wrap: wrap; }

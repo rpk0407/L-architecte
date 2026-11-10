@@ -1,13 +1,14 @@
 // Relances: the clients drifting away, the people waiting for a place, the requests from the site, and every SMS that left the salon.
 // A regular who skips one cut is a regular at risk; one short message at the right time brings most of them back.
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 import { refreshAll, useQuery } from '../../lib/query';
-import { Link, navigate, useRoute } from '../../lib/router';
+import { Link, navigate, setQuery, useRoute } from '../../lib/router';
 import { ago, cap, clock, dates, dayShortWord, eur, pct, plural, rhythmWords, time } from '../../lib/format';
 // @ts-ignore — plain JS module with JSDoc types: the server's own quiet hours and STOP rule
 import * as SmsRules from '../../../../shared/sms.js';
 import { Icon } from '../../ui/Icon';
+import { BulkSheet, holdSend } from '../../ui/BulkSheet';
 import { Avatar, Button, Empty, Kpi, Note, Seg, Skeleton, confirm, toast, toastError } from '../../ui/kit';
 import { useApp } from '../state';
 import { PageTitle } from '../App';
@@ -96,68 +97,103 @@ export default function Relances() {
 
 /* ---------------- who to bring back ---------------- */
 
-function Rebook() {
+/** The sheet of the grouped send (« Aperçu et envoi »), opened from here or from the Accueil card (/relances?apercu=1). */
+export function RebookSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { data } = useQuery<RebookData>(open ? '/api/v1/relances' : null);
+  return open && data ? <RebookBody data={data} onClose={onClose} /> : null;
+}
+
+function RebookBody({ data, onClose, sel: selIn, setSel: setSelIn, text: textIn, setText: setTextIn }: { data: RebookData; onClose: () => void; sel?: Set<string>; setSel?: (s: Set<string>) => void; text?: string; setText?: (t: string) => void }) {
   const { now, boot } = useApp();
+  const own = useState<Set<string> | null>(null), ownText = useState<string | null>(null);
+  const recent = (c: Overdue) => !!c.lastText && now() - c.lastText < 14 * 86400000;
+  const sel = selIn || own[0] || new Set(data.items.filter((c) => !recent(c)).map((c) => c.id));
+  const setSel = setSelIn || ((s: Set<string>) => own[1](s));
+  const text = textIn ?? ownText[0] ?? data.template;
+  const setText = setTextIn || ((t: string) => ownText[1](t));
+  const quiet: Quiet = data.quiet || boot.settings.messages?.quiet;
+  const site = location.origin + '/site';
+  const on = data.items.filter((c) => sel.has(c.id));
+  const messages = on.map((c) => ({ id: c.id, name: c.first + ' ' + c.last, text: withStop(render(text, c, site), data.stop || '') }));
+  const seg = smsSegments(messages[0]?.text || withStop(render(text, undefined, site), data.stop || ''));
+  const t0 = now(), out = afterQuiet(quiet, t0), later = out > t0;
+  const offRecent = data.items.filter((c) => !sel.has(c.id) && recent(c)).length;
+  const offOther = data.items.filter((c) => !sel.has(c.id) && !recent(c)).length;
+  const excluded = [
+    data.excludedNoConsent ? plural(data.excludedNoConsent, 'client') + ' ' + (data.excludedNoConsent > 1 ? 'exclus' : 'exclu') + ' : pas d’accord pour les bons plans' : '',
+    offRecent ? plural(offRecent, 'décoché') + ' : relancé' + (offRecent > 1 ? 's' : '') + ' il y a moins de 14 jours' : '',
+    offOther ? plural(offOther, 'décoché') + ' par toi' : ''
+  ].filter(Boolean);
+  const facts = [
+    plural(seg.count, 'SMS') + ' par client' + (seg.count > 1 ? ' (texte long)' : '') + ' · ' + plural(on.length * seg.count, 'SMS') + ' au total.',
+    later ? 'Hors des heures d’envoi : ils partiront ' + leavesWords(out, t0) + '.' : quietWords(quiet),
+    'Personne n’est relancé deux fois le même jour.'
+  ];
+  const [busy, setBusy] = useState(false);
+
+  const post = async (ids: string[]) => {
+    setBusy(true);
+    try {
+      let sent = 0, skipped = 0;
+      for (let i = 0; i < ids.length; i += 200) {
+        const r = await api.post<{ sent: number; skipped: number; ids?: string[] }>('/api/v1/relances/send', { clientIds: ids.slice(i, i + 200), text: text !== data.template ? text : undefined });
+        sent += r.sent; skipped += r.skipped;
+      }
+      const notSent = skipped ? plural(skipped, 'SMS') + ' non ' + (skipped > 1 ? 'envoyés' : 'envoyé') + ' (déjà relancé aujourd’hui ou numéro non autorisé)' : '';
+      toast(sent
+        ? { title: plural(sent, 'relance') + (later ? ' prévue' + (sent > 1 ? 's' : '') + ' ' + leavesWords(out, t0) : ' en route'), sub: notSent || 'Les réservations qui suivent sont comptées ici.', icon: 'sms' }
+        : { title: 'Aucun SMS envoyé', sub: notSent, icon: 'sms' });
+      refreshAll();
+    } catch (e) { toastError(e); } finally { setBusy(false); }
+  };
+  const send = () => {
+    const ids = on.map((c) => c.id);
+    if (!ids.length) return;
+    onClose();
+    holdSend({ title: 'Envoi dans 5 s · ' + plural(ids.length, 'client'), sub: 'Rien n’est parti. Touche « Annuler » pour tout arrêter.', run: () => post(ids) });
+  };
+  return (
+    <BulkSheet open onClose={onClose} title="Relancer les habitués" kicker="Aperçu avant envoi"
+      people={data.items.map((c) => ({ id: c.id, name: c.first + ' ' + c.last, sub: c.sinceLast + ' j sans venir' + (c.lastText ? ' · relancé ' + ago(c.lastText, now()) : ''), checked: sel.has(c.id) }))}
+      onToggle={(id, v) => { const n = new Set(sel); if (v) n.add(id); else n.delete(id); setSel(n); }}
+      messages={messages} excluded={excluded} facts={facts}
+      edit={<><textarea className="input textarea" rows={4} value={text} maxLength={320} onChange={(e) => setText(e.target.value)} aria-label="Texte de la relance" />{text !== data.template ? <button type="button" className="link" onClick={() => setText(data.template)}>Texte d’origine</button> : null}{seg.unicode ? <p className="faint bk-s">Les caractères {seg.offenders.map((c) => '« ' + c + ' »').join(', ')} font passer le SMS en Unicode (70 caractères au lieu de 160).</p> : null}</>}
+      action={'Envoyer à ' + plural(on.length, 'client')} disabled={busy || text.trim().length < 10} onSend={send} />
+  );
+}
+
+function Rebook() {
+  const { now, pulse } = useApp();
+  const route = useRoute();
   const { data, loading } = useQuery<RebookData>('/api/v1/relances');
   const [sel, setSel] = useState<Set<string>>(new Set());
   const [text, setText] = useState('');
-  const [busy, setBusy] = useState(false);
-  // the last send: how many, when, when they leave, and the selection it left (the button waits until that changes)
-  const [done, setDone] = useState<{ n: number; at: number; due: number; left: string } | null>(null);
-  const quiet: Quiet = data?.quiet || boot.settings.messages?.quiet;
+  const [open, setOpen] = useState(route.query.get('apercu') === '1');
+  const [auto, setAuto] = useState(false);
   const recent = (c: Overdue) => !!c.lastText && now() - c.lastText < 14 * 86400000;
   useEffect(() => {
     if (!data) return;
     setSel(new Set(data.items.filter((c) => !recent(c)).map((c) => c.id)));
     setText((t) => t || data.template);
   }, [data?.items.length]);
-  const sample = data?.items.find((c) => sel.has(c.id)) || data?.items[0];
-  const preview = useMemo(() => withStop(render(text, sample, location.origin + '/site'), data?.stop || ''), [text, sample?.id, data?.stop]);
-  const seg = smsSegments(preview);
+  const close = () => { setOpen(false); if (route.query.get('apercu')) setQuery({ apercu: null }); };
   const allOn = !!data && data.items.length > 0 && data.items.every((c) => sel.has(c.id));
-  const selKey = [...sel].sort().join(',');
-  const justSent = !!done && done.left === selKey;
-
-  const send = async () => {
-    const ids = [...sel];
-    if (!ids.length) return;
-    const t = now(), out = afterQuiet(quiet, t);
-    const later = out > t;
-    const when = later ? leavesWords(out, t) : '';
-    const yes = await confirm({ title: 'Envoyer ' + plural(ids.length, 'SMS') + ' ?', body: 'Chaque client reçoit un message personnalisé avec le lien de réservation.' + (later ? ' Hors des heures d’envoi : ils partiront ' + when + '.' : '') + (seg.count > 1 ? ' Attention : ce texte compte pour ' + seg.count + ' SMS par client.' : ''), ok: 'Envoyer' });
-    if (!yes) return;
-    setBusy(true);
-    const sentIds = new Set<string>();
-    try {
-      let sent = 0, skipped = 0;
-      for (let i = 0; i < ids.length; i += 200) {
-        const r = await api.post<{ sent: number; skipped: number; ids?: string[] }>('/api/v1/relances/send', { clientIds: ids.slice(i, i + 200), text: text !== data?.template ? text : undefined });
-        sent += r.sent; skipped += r.skipped;
-        for (const id of r.ids || []) sentIds.add(id);
-      }
-      // the rows that left are unticked; what stays ticked was not sent (already texted today)
-      const left = new Set(ids.filter((id) => !sentIds.has(id)));
-      setSel(left);
-      if (sent) setDone({ n: sent, at: now(), due: out, left: [...left].sort().join(',') });
-      // skipped: already texted today, or a number the salon does not text (abroad)
-      const notSent = skipped ? plural(skipped, 'SMS') + ' non ' + (skipped > 1 ? 'envoyés' : 'envoyé') + ' (déjà relancé aujourd’hui ou numéro non autorisé)' : '';
-      toast(sent
-        ? { title: plural(sent, 'relance') + (later ? ' prévue' + (sent > 1 ? 's' : '') + ' ' + when : ' en route'), sub: notSent || 'Les réservations qui suivent sont comptées ici.', icon: 'sms' }
-        : { title: 'Aucun SMS envoyé', sub: notSent, icon: 'sms' });
-      refreshAll();
-    } catch (e) { toastError(e); } finally { setBusy(false); }
-  };
 
   if (loading && !data) return <div className="rl-grid"><Skeleton h={420} r={22} /><Skeleton h={320} r={22} /></div>;
   if (!data) return null;
   const st = data.stats;
+  const total = Math.max(pulse?.badges.relances || 0, data.items.length);
+  const cut = data.items.length >= 200 && total > data.items.length;
+  const sample = data.items.find((c) => sel.has(c.id)) || data.items[0];
+  const preview = withStop(render(text || data.template, sample, location.origin + '/site'), data.stop || '');
+  const label = 'Aperçu et envoi (' + sel.size + ')';
   return (
     <>
       <section className="kpis" data-guide="relances-kpis">
         <Kpi k="À relancer" v={data.items.length} s="en retard sur leur rythme" icon="clock" hot={data.items.length > 0} />
         <Kpi k="Relancés" v={st.sent} s={(st.sent > 1 ? 'clients' : 'client') + ' ces 60 derniers jours'} icon="sms" />
         {/* distinct clients who booked within 21 days of their text: never more than were texted */}
-        <Kpi k="Revenus" v={st.clientsBack} s={st.sent ? (st.clientsBack > 1 ? 'clients' : 'client') + ' sur ' + st.sent + ' (' + st.rate + ' %) · ' + eur(st.revenueBack, { decimals: false }) + ' de rendez-vous' : 'après une relance'} icon="calendar" bar={st.rate / 100} />
+        <Kpi k="Clients revenus" v={st.clientsBack} s={st.sent ? (st.clientsBack > 1 ? 'clients' : 'client') + ' sur ' + st.sent + ' (' + st.rate + ' %) · ' + eur(st.revenueBack, { decimals: false }) + ' de rendez-vous' : 'après une relance'} icon="calendar" bar={st.rate / 100} />
       </section>
       <div className="rl-grid">
         <section className="card" data-guide="relances-list">
@@ -165,6 +201,7 @@ function Rebook() {
             <h2><Icon name="clients" size={16} />{plural(data.items.length, 'client')} à relancer</h2>
             {data.items.length ? <button type="button" className="link" onClick={() => setSel(allOn ? new Set() : new Set(data.items.map((c) => c.id)))}>{allOn ? 'Tout décocher' : 'Tout cocher'}</button> : null}
           </div>
+          {cut ? <p className="faint" style={{ fontSize: 12.5, margin: '0 2px 8px' }}>La liste est coupée : {data.items.length} premiers sur {total}.</p> : null}
           {data.excludedNoConsent ? <p className="faint" style={{ fontSize: 12.5, margin: '0 2px 8px' }}>{plural(data.excludedNoConsent, 'client')} {data.excludedNoConsent > 1 ? 'exclus' : 'exclu'} : pas d’accord pour les bons plans</p> : null}
           {!data.items.length ? <Empty icon="heart" title="Tout le monde est à jour">Aucun habitué n’a dépassé son rythme. Les clients en retard apparaîtront ici d’eux-mêmes.</Empty> : (
             <ul className="list">
@@ -183,18 +220,18 @@ function Rebook() {
           )}
         </section>
         <aside className="col rl-side">
-          <section className="card col" style={{ gap: 12 }} data-guide="relances-message">
-            <div className="card-h"><h2><Icon name="edit" size={16} />Le message</h2><small className={seg.count > 1 ? 'warn-t' : 'faint'}>{seg.chars} car. · {plural(seg.count, 'SMS')}</small></div>
-            <textarea className="input textarea" rows={4} value={text} maxLength={320} onChange={(e) => setText(e.target.value)} aria-label="Texte de la relance" />
-            <div className="chips">{['{prenom}', '{jours}', '{lien}'].map((v) => <button key={v} type="button" className="chip chip-sm" onClick={() => setText((t) => (t.endsWith(' ') || !t ? t : t + ' ') + v)}>{v}</button>)}<span className="grow" />{text !== data.template ? <button type="button" className="link" onClick={() => setText(data.template)}>Texte d’origine</button> : null}</div>
+          <section className="card col rl-msg" style={{ gap: 12 }} data-guide="relances-message">
+            <div className="card-h"><h2><Icon name="edit" size={16} />Le message</h2></div>
             <div className="bubble" aria-label="Aperçu"><small>{sample ? 'Aperçu pour ' + sample.first : 'Aperçu'}</small><p>{preview}</p></div>
-            {seg.unicode ? <p className="faint" style={{ fontSize: 12.5 }}>Les caractères {seg.offenders.map((c) => '« ' + c + ' »').join(', ')} font passer le SMS en Unicode (70 caractères au lieu de 160). Remplace-les pour payer moins.</p> : null}
-            <Button variant="primary" size="lg" block icon={justSent ? 'check' : 'sms'} busy={busy} disabled={justSent || !sel.size || text.trim().length < 10} onClick={send}>{justSent && done ? (done.due > now() ? 'Prévu pour ' + done.n + ' · part ' + leavesWords(done.due, now()) : 'Envoyé à ' + done.n + ' · ' + ago(done.at, now())) : 'Envoyer à ' + plural(sel.size, 'client')}</Button>
-            <p className="faint" style={{ fontSize: 12.5 }}>Seuls les clients d’accord pour les bons plans sont listés, et le texte finit par la mention STOP. Personne n’est relancé deux fois le même jour ; ceux relancés il y a moins de 14 jours sont décochés. {quietWords(quiet)}</p>
+            <Button variant="primary" size="lg" block icon="sms" disabled={!sel.size} onClick={() => setOpen(true)}>{label}</Button>
+            <p className="faint" style={{ fontSize: 12.5 }}>Seuls les clients d’accord pour les bons plans sont listés, et le texte finit par la mention STOP. Personne n’est relancé deux fois le même jour ; ceux relancés il y a moins de 14 jours sont décochés.</p>
           </section>
-          <Automations />
+          <button type="button" className="link rl-autolink" aria-expanded={auto} onClick={() => setAuto(!auto)}>{auto ? 'Masquer les messages automatiques' : 'Messages automatiques'}</button>
+          <div className={'rl-auto' + (auto ? ' on' : '')}><Automations /></div>
         </aside>
       </div>
+      {data.items.length ? <div className="rl-bar"><Button variant="primary" size="lg" block icon="sms" disabled={!sel.size} onClick={() => setOpen(true)}>{label}</Button></div> : null}
+      {open ? <RebookBody data={data} onClose={close} sel={sel} setSel={setSel} text={text || data.template} setText={setText} /> : null}
     </>
   );
 }

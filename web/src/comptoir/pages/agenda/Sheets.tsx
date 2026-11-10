@@ -11,6 +11,7 @@ import { Avatar, Button, Chip, Field, Money, Note, Sheet, Switch, confirm, toast
 import { useApp } from '../../state';
 import type { Agenda, Appt, ClientCard, ClientFull, Service } from '../../types';
 import { overlapping } from './overlap';
+import './walkin.css';
 
 /* ---------------- shared pickers ---------------- */
 
@@ -354,7 +355,7 @@ export function WalkinSheet({ open, onClose, freeNow, prefill }: { open: boolean
   const free = freeNow.filter((id) => staff === 'any' || staff === id);
   return (
     <Sheet open={open} onClose={onClose} title="Un passage" kicker="Sans rendez-vous"
-      footer={<>{free.slice(0, 1).map((id) => <Button key={id} variant="solid" icon="chair" busy={busy === id} disabled={!svc.length} onClick={() => add(id)}>Installer chez {staffById.get(id)?.name}</Button>)}<span className="grow" /><Button variant="primary" size="lg" busy={busy === 'add'} disabled={!svc.length} onClick={() => add()}>Ajouter à la file</Button></>}>
+      footer={<div className="wk-foot">{free.slice(0, 1).map((id) => <Button key={id} variant="solid" icon="chair" busy={busy === id} disabled={!svc.length} onClick={() => add(id)}>Installer chez {staffById.get(id)?.name}</Button>)}<span className="grow" /><Button variant="primary" size="lg" busy={busy === 'add'} disabled={!svc.length} onClick={() => add()}>Ajouter à la file</Button></div>}>
       <div className="grid2 stack">
         <Field label="Prénom" htmlFor="wk-n"><input id="wk-n" className="input" value={name} onChange={(e) => setName(e.target.value)} data-autofocus placeholder="Facultatif" /></Field>
         <Field label="Téléphone" htmlFor="wk-p" hint="On lui écrit quand c’est son tour : il peut attendre au café"><input id="wk-p" className="input" type="tel" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Facultatif" /></Field>

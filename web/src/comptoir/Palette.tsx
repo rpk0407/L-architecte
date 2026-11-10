@@ -20,15 +20,8 @@ type Row = { id: string; group: string; label: string; hint?: string; icon: stri
 
 const readRecents = (): string[] => { try { const v = JSON.parse(localStorage.getItem(RECENTS_KEY) || '[]'); return Array.isArray(v) ? v.filter((x) => typeof x === 'string') : []; } catch { return []; } };
 const writeRecents = (v: string[]) => { try { localStorage.setItem(RECENTS_KEY, JSON.stringify(v)); } catch { /* private mode */ } };
-/** The shell keeps theme and masking in these keys (App.tsx, useLocal: JSON); the page follows at once. */
-const flip = (key: string, a: string, b: string, apply: (v: string) => void) => {
-  let cur = a; try { cur = JSON.parse(localStorage.getItem(key) || JSON.stringify(a)); } catch { /* keep default */ }
-  const next = cur === b ? a : b;
-  try { localStorage.setItem(key, JSON.stringify(next)); } catch { /* private mode */ }
-  apply(next);
-};
-
-export function Palette({ onClose }: { onClose: () => void }) {
+/** `toggleMask` and `toggleTheme` are the shell's own (App.tsx), so the top-bar buttons and the menus never go stale. */
+export function Palette({ onClose, toggleMask, toggleTheme }: { onClose: () => void; toggleMask: () => void; toggleTheme: () => void }) {
   const { can, boot } = useApp();
   const [q, setQ] = useState('');
   const [sel, setSel] = useState(0);
@@ -47,8 +40,7 @@ export function Palette({ onClose }: { onClose: () => void }) {
   const mine = useMemo(() => allowed(RULES, ENTRIES, can, !!boot.me.chair), [can, boot.me.chair]);
   const ctx: Ctx = {
     go: (to) => navigate(to),
-    toggleMask: () => flip('lx-private', '0', '1', (v) => { if (v === '1') document.documentElement.dataset.private = '1'; else delete document.documentElement.dataset.private; }),
-    toggleTheme: () => flip('lx-theme', 'dark', 'light', (v) => { document.documentElement.dataset.theme = v; }),
+    toggleMask, toggleTheme,
     tour: () => { import('./guide/ComptoirTour').then((m) => m.startTour('tour', 'start')).catch(() => {}); }
   };
   const open = (e: Entry) => () => { const r = pushRecent(recents, e.id); setRecents(r); writeRecents(r); onClose(); e.run(ctx); };

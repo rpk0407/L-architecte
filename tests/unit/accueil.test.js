@@ -25,7 +25,7 @@ const DAY = 86400000;
 
 test('actions: go navigates, bulk navigates to its list, a sheet opens the plan or the page that holds its form', () => {
   assert.deepEqual(stepOf({ id: 'z', action: { kind: 'go', label: 'Faire le Z', to: '/caisse/cloture' } }), { kind: 'go', to: '/caisse/cloture' });
-  assert.deepEqual(stepOf({ id: 'relances', action: { kind: 'bulk', label: 'Aperçu et envoi', to: '/relances' } }), { kind: 'go', to: '/relances' });
+  assert.deepEqual(stepOf({ id: 'relances', action: { kind: 'bulk', label: 'Aperçu et envoi', to: '/relances' } }), { kind: 'go', to: '/relances?apercu=1' });
   assert.deepEqual(stepOf({ id: 'orphelins', action: { kind: 'sheet', label: 'Replacer', ref: 'to_1' } }), { kind: 'handover', id: 'to_1' });
   // a request still waiting is not a posted absence: it is answered in Équipe (Valider / Refuser, then the plan)
   assert.deepEqual(stepOf({ id: 'absence-demande', action: { kind: 'sheet', label: 'Voir et valider', ref: 'rq_1' } }), { kind: 'go', to: '/equipe' });

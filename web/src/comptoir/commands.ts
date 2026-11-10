@@ -37,7 +37,8 @@ const ACTIONS: Entry[] = [
 
 // Pages, with the rule of the menu (access.ts navShows) and the capability App.tsx's useNav gives each.
 const PAGES: Entry[] = [
-  pg('pilotage', 'Pilotage', 'target', ['chiffres', 'tableau de bord', 'accueil'], 'report.shop'),
+  pg('accueil', 'Accueil', 'house', ['a traiter', 'aujourd hui', 'ma journee', 'debut', 'page d ouverture']),
+  pg('pilotage', 'Chiffres', 'target', ['pilotage', 'tableau de bord', 'objectif', 'chiffre d affaires'], 'report.shop'),
   pg('espace', 'Mon espace', 'chair', ['mon fauteuil', 'ma journee'], 'agenda.own'),
   pg('agenda', 'Agenda', 'agenda', ['rendez-vous', 'planning', 'liste d attente'], 'agenda.own'),
   pg('caisse', 'Caisse', 'caisse', ['tickets', 'ventes', 'encaissement'], 'sale.create'),

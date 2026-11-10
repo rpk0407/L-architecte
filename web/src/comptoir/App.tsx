@@ -13,20 +13,40 @@ import { Palette } from './Palette';
 import { FeedSheet } from './Feed';
 import type { Boot, FeedItem } from './types';
 import { GUARD_OPEN, SECTION_CAP } from './pages/reglages/caps';
-import { canOpenPath, navShows, sectionNeed } from './access';
-import { ComptoirTour, GLANCE_PAGES, TourButtons, TourWelcome, startTour } from './guide/ComptoirTour';
+import { canOpenPath, navShows, phoneTabs, sectionNeed } from './access';
 
-const Accueil = lazy(() => import('./pages/Accueil'));
-const Pilotage = lazy(() => import('./pages/Pilotage'));
-const Espace = lazy(() => import('./pages/Espace'));
-const Agenda = lazy(() => import('./pages/Agenda'));
-const Caisse = lazy(() => import('./pages/Caisse'));
-const Clients = lazy(() => import('./pages/Clients'));
-const Relances = lazy(() => import('./pages/Relances'));
-const Rapports = lazy(() => import('./pages/Rapports'));
-const Equipe = lazy(() => import('./pages/Equipe'));
-const Catalogue = lazy(() => import('./pages/Catalogue'));
-const Reglages = lazy(() => import('./pages/Reglages'));
+// The guided tour (steps, engine, welcome card) is its own chunk: the shell only asks for it once it is on screen.
+const tourChunk = () => import('./guide/ComptoirTour');
+const ComptoirTour = lazy(() => tourChunk().then((m) => ({ default: m.ComptoirTour })));
+const TourWelcome = lazy(() => tourChunk().then((m) => ({ default: m.TourWelcome })));
+const TourButtons = lazy(() => tourChunk().then((m) => ({ default: m.TourButtons })));
+const startTour = (scope: 'tour' | 'page', from: 'start' | 'resume' = 'start') => { tourChunk().then((m) => m.startTour(scope, from)).catch(() => {}); };
+
+// The page chunks by name: Root asks for the opening page's while auth/state and bootstrap are on their way.
+const LOAD: Record<string, () => Promise<{ default: ComponentType }>> = {
+  accueil: () => import('./pages/Accueil'),
+  pilotage: () => import('./pages/Pilotage'),
+  espace: () => import('./pages/Espace'),
+  agenda: () => import('./pages/Agenda'),
+  caisse: () => import('./pages/Caisse'),
+  clients: () => import('./pages/Clients'),
+  relances: () => import('./pages/Relances'),
+  rapports: () => import('./pages/Rapports'),
+  equipe: () => import('./pages/Equipe'),
+  catalogue: () => import('./pages/Catalogue'),
+  reglages: () => import('./pages/Reglages')
+};
+const Accueil = lazy(LOAD.accueil);
+const Pilotage = lazy(LOAD.pilotage);
+const Espace = lazy(LOAD.espace);
+const Agenda = lazy(LOAD.agenda);
+const Caisse = lazy(LOAD.caisse);
+const Clients = lazy(LOAD.clients);
+const Relances = lazy(LOAD.relances);
+const Rapports = lazy(LOAD.rapports);
+const Equipe = lazy(LOAD.equipe);
+const Catalogue = lazy(LOAD.catalogue);
+const Reglages = lazy(LOAD.reglages);
 
 // Each page and the capability needed to open it; the server refuses anyway, this only spares an empty or broken screen.
 // A new page is one entry here (an address not listed opens the Agenda). No `cap` opens it for every role:
@@ -59,10 +79,18 @@ export function Root() {
   const load = async () => {
     try {
       setFailed('');
-      const st = await api.get<AuthState>('/api/auth/state');
+      // all three leave together: who is signed in, his bootstrap (a 401 when nobody is, ignored) and the chunk of the
+      // page he opens on (the address's, else the Accueil, the page /comptoir alone opens)
+      const stP = api.get<AuthState>('/api/auth/state');
+      const bootP = api.get<Boot>('/api/v1/bootstrap').catch((e: unknown) => ({ failed: e }));
+      const first = location.pathname.replace(/^\/comptoir\/?/, '').split('/')[0];
+      (Object.hasOwn(LOAD, first) ? LOAD[first] : LOAD.accueil)().catch(() => {});
+      const st = await stP;
       setAuth(st);
-      if (st.me) setBoot(await api.get<Boot>('/api/v1/bootstrap'));
-      else setBoot(null);
+      if (st.me) {
+        const b = await bootP;
+        setBoot('failed' in b ? await api.get<Boot>('/api/v1/bootstrap') : b);
+      } else setBoot(null);
     } catch (e: any) { setFailed(e?.message || 'Impossible de joindre le serveur.'); }
   };
   useEffect(() => { load(); }, []);
@@ -87,7 +115,6 @@ export function useCanOpen(nav: NavItem[]) {
   return (path: string) => canOpenPath(path, ROUTES, nav, can);
 }
 
-const PHONE_TABS = ['accueil', 'pilotage', 'espace', 'agenda', 'caisse', 'clients', 'rapports'];
 type NavItem = { to: string; page: string; label: string; icon: string; cap?: string; badge?: number; soft?: boolean };
 
 function useNav(): NavItem[] {
@@ -95,8 +122,8 @@ function useNav(): NavItem[] {
   const b = pulse?.badges;
   const items: NavItem[] = [
     // everyone's Accueil (WP5), then the owner's and the managers' Pilotage (TEAM-05a) and a chair's Mon espace (TEAM-04); /comptoir alone opens each person's home (home.ts)
-    { to: '/accueil', page: 'accueil', label: 'Accueil', icon: 'clock' },
-    { to: '/pilotage', page: 'pilotage', label: 'Pilotage', icon: 'target', cap: 'report.shop' },
+    { to: '/accueil', page: 'accueil', label: 'Accueil', icon: 'house' },
+    { to: '/pilotage', page: 'pilotage', label: 'Chiffres', icon: 'target', cap: 'report.shop' },
     { to: '/espace', page: 'espace', label: 'Mon espace', icon: 'chair', cap: 'agenda.own' },
     { to: '/agenda', page: 'agenda', label: 'Agenda', icon: 'agenda', cap: 'agenda.own' },
     { to: '/caisse', page: 'caisse', label: 'Caisse', icon: 'caisse', cap: 'sale.create', badge: b?.toPay },
@@ -161,9 +188,13 @@ function Shell() {
   const need = route.id && r.sub ? r.sub(route.id) : r.cap;
   const Page = r.C;
   const allowed = !need || app.can(need);
-  // the first four of these that this person can open (Pilotage joins in front of Mon espace); the rest is behind « Plus »
-  const phoneTabs = PHONE_TABS.map((p) => nav.find((x) => x.page === p)).filter((x): x is NavItem => !!x).slice(0, 4);
-  const rest = nav.filter((x) => !phoneTabs.includes(x));
+  // his opening page, then his three chosen tabs (prefs.tabs) or his role's; the rest is behind « Plus », with its badges added up
+  const tabNames = phoneTabs(homeOf(boot.me, nav.map((x) => x.page)), boot.me.prefs?.tabs, { chair: !!boot.me.chair, shop: app.can('report.shop') }, (p) => nav.some((x) => x.page === p));
+  const tabs = tabNames.map((p) => nav.find((x) => x.page === p)).filter((x): x is NavItem => !!x);
+  const rest = nav.filter((x) => !tabs.includes(x));
+  const restBadge = rest.reduce((n, x) => n + (x.badge || 0), 0);
+  const toggleTheme = () => setTheme(theme === 'dark' ? 'light' : 'dark');
+  const toggleMask = () => { setPriv(priv === '1' ? '0' : '1'); toast(priv === '1' ? 'Montants visibles' : 'Montants masqués à l’écran'); };
 
   return (
     <div className="app">
@@ -192,12 +223,12 @@ function Shell() {
         <header className={'top' + (scrolled ? ' scrolled' : '')}>
           <div className="top-title" id="page-title" />
           <div className="top-acts">
-            <TourButtons canOpen={canOpen} />
+            {phone ? null : <Suspense fallback={null}><TourButtons canOpen={canOpen} /></Suspense>}
             {/* no answer for 2 minutes (a phone out of signal, back from sleep): what is shown is from then */}
             {app.offline ? <Stale at={app.pulseAt} now={Date.now()} /> : null}
-            <Button className="hide-phone" icon="search" aria-label="Rechercher (⌘K)" title="Rechercher · ⌘K" onClick={() => setPalette(true)} />
-            <Button icon={priv === '1' ? 'eyeOff' : 'eye'} aria-label={priv === '1' ? 'Afficher les montants' : 'Masquer les montants'} title="Masquer les montants à l’écran" aria-pressed={priv === '1'} onClick={() => { setPriv(priv === '1' ? '0' : '1'); toast(priv === '1' ? 'Montants visibles' : 'Montants masqués à l’écran'); }} />
-            <Button className="hide-phone" icon={theme === 'dark' ? 'sun' : 'moon'} aria-label="Changer de thème" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} />
+            <Button icon="search" aria-label="Rechercher (⌘K)" title="Rechercher · ⌘K" onClick={() => setPalette(true)} />
+            <Button className="hide-phone" icon={priv === '1' ? 'eyeOff' : 'eye'} aria-label={priv === '1' ? 'Afficher les montants' : 'Masquer les montants'} title="Masquer les montants à l’écran" aria-pressed={priv === '1'} onClick={toggleMask} />
+            <Button className="hide-phone" icon={theme === 'dark' ? 'sun' : 'moon'} aria-label="Changer de thème" onClick={toggleTheme} />
             <button type="button" className="btn btn-subtle btn-icon" aria-label={'Le fil' + (unread ? ', ' + unread + ' nouveautés' : '')} onClick={() => { setFeedOpen(true); app.markRead(); }}>
               <Icon name="bell" />{unread ? <span className="dotn" aria-hidden>{unread > 9 ? '9+' : unread}</span> : null}
             </button>
@@ -205,17 +236,18 @@ function Shell() {
           </div>
         </header>
         <main className="page" key={page} id="main">
-          {phone && GLANCE_PAGES.includes(page) ? null : <TourWelcome canOpen={canOpen} />}
+          {phone ? null : <Suspense fallback={null}><TourWelcome canOpen={canOpen} /></Suspense>}
           {allowed ? <Suspense fallback={<PageSkeleton />}><Page /></Suspense> : <Reserved title={r.title} back={page === 'reglages' ? 'compte' : 'agenda'} />}
-          {phone && GLANCE_PAGES.includes(page) ? <TourWelcome canOpen={canOpen} /> : null}
+          {/* on a phone the welcome goes under the content, on every page */}
+          {phone ? <Suspense fallback={null}><TourWelcome canOpen={canOpen} /></Suspense> : null}
         </main>
       </div>
 
       <nav className="tabbar" aria-label="Navigation">
-        {phoneTabs.map((x) => (
+        {tabs.map((x) => (
           <Link key={x.page} to={x.to} aria-current={page === x.page ? 'page' : undefined}><Icon name={x.icon} />{x.label}{x.badge ? <span className="nb">{x.badge}</span> : null}</Link>
         ))}
-        <button type="button" onClick={() => setMore(true)} aria-current={rest.some((x) => x.page === page) ? 'page' : undefined}><Icon name="more" />Plus</button>
+        <button type="button" onClick={() => setMore(true)} aria-current={rest.some((x) => x.page === page) ? 'page' : undefined}><Icon name="more" />Plus{restBadge ? <span className="nb" aria-label={restBadge + ' à voir'}>{restBadge}</span> : null}</button>
       </nav>
 
       <Sheet open={more} onClose={() => setMore(false)} title="Plus" kicker={boot.me.name + ' · ' + boot.me.roleLabel}>
@@ -223,8 +255,6 @@ function Shell() {
           {rest.map((x) => <Link key={x.page} to={x.to} className="li" onClick={() => setMore(false)}><Icon name={x.icon} size={22} /><span className="li-main"><b>{x.label}</b></span>{x.badge ? <span className="badge badge-accent">{x.badge}</span> : <Icon name="chevR" size={18} />}</Link>)}
           {/* a chair's own absences, two taps away on the phone (Mon compte) */}
           {boot.me.chair ? <Link to="/reglages/compte?absences=1" className="li" onClick={() => setMore(false)}><Icon name="calendar" size={22} /><span className="li-main"><b>Mes absences</b><small>Poser un congé, suivre une demande</small></span><Icon name="chevR" size={18} /></Link> : null}
-          <button type="button" className="li" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}><Icon name={theme === 'dark' ? 'sun' : 'moon'} size={22} /><span className="li-main"><b>{theme === 'dark' ? 'Thème clair' : 'Thème sombre'}</b></span></button>
-          <button type="button" className="li" onClick={() => { setMore(false); setPalette(true); }}><Icon name="search" size={22} /><span className="li-main"><b>Rechercher</b><small>Un client, une page, une action</small></span></button>
           <a className="li" href="/" target="_blank" rel="noopener"><Icon name="globe" size={22} /><span className="li-main"><b>Voir le site client</b></span><Icon name="ext" size={18} /></a>
         </div>
       </Sheet>
@@ -232,16 +262,20 @@ function Shell() {
       <Menu anchor={userMenu} onClose={() => setUserMenu(null)}>
         <p className="k">{boot.me.name} · {boot.me.roleLabel}</p>
         <button type="button" onClick={() => navigate('/reglages/compte')}><Icon name="key" />Mon mot de passe et mon code</button>
-        <button type="button" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}><Icon name={theme === 'dark' ? 'sun' : 'moon'} />{theme === 'dark' ? 'Thème clair' : 'Thème sombre'}</button>
+        {/* the phone's top bar keeps loupe, bell and avatar: the rest is here */}
+        {phone ? <button type="button" onClick={() => startTour('tour', 'resume')}><Icon name="sparkle" />Visite guidée</button> : null}
+        {phone ? <button type="button" onClick={() => startTour('page')}><Icon name="info" />Comment marche cette page ?</button> : null}
+        {phone ? <button type="button" onClick={toggleMask}><Icon name={priv === '1' ? 'eye' : 'eyeOff'} />{priv === '1' ? 'Afficher les montants' : 'Masquer les montants'}</button> : null}
+        <button type="button" onClick={toggleTheme}><Icon name={theme === 'dark' ? 'sun' : 'moon'} />{theme === 'dark' ? 'Thème clair' : 'Thème sombre'}</button>
         <button type="button" onClick={() => startTour('tour', 'start')}><Icon name="sparkle" />Revoir la visite</button>
         <div className="sep" />
         {boot.me.device ? <button type="button" onClick={() => app.lock()}><Icon name="lock" />{personal ? 'Verrouiller' : 'Verrouiller · changer de personne'}</button> : null}
         <button type="button" onClick={() => app.signOut()}><Icon name="logout" />Se déconnecter</button>
       </Menu>
 
-      {palette ? <Palette onClose={() => setPalette(false)} /> : null}
+      {palette ? <Palette onClose={() => setPalette(false)} toggleMask={toggleMask} toggleTheme={toggleTheme} /> : null}
       <FeedSheet open={feedOpen} onClose={() => setFeedOpen(false)} />
-      <ComptoirTour canOpen={canOpen} />
+      <Suspense fallback={null}><ComptoirTour canOpen={canOpen} /></Suspense>
     </div>
   );
 }
