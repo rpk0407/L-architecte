@@ -22,7 +22,7 @@ a{color:inherit}button{font:inherit;color:inherit;cursor:pointer;background:none
 header.top{position:sticky;top:0;z-index:20;background:rgba(11,10,10,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
 header.top .wrap{display:flex;align-items:center;gap:12px;height:60px}
 .logo{font:800 22px/1 var(--d);text-transform:uppercase;text-decoration:none;letter-spacing:.03em}.logo b{color:var(--red)}
-.status{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:14px;color:var(--mute)}
+.status{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:13px;color:var(--mute);white-space:nowrap;min-width:0}#stxt{overflow:hidden;text-overflow:ellipsis}
 .dot{width:10px;height:10px;border-radius:50%;background:var(--mute);flex:none}.open .dot{background:var(--ok);box-shadow:0 0 0 4px rgba(70,209,138,.2)}
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 22px;border-radius:6px;background:var(--red);color:#fff;font:700 18px var(--d);text-transform:uppercase;letter-spacing:.05em;text-decoration:none;transition:transform .12s,background .12s}
 .btn:hover{background:#ff5560}.btn:active{transform:scale(.98)}.btn.ghost{background:none;border:2px solid var(--line);color:var(--bone)}.btn.ghost:hover{border-color:var(--bone);background:none}
@@ -38,7 +38,7 @@ header.top .wrap{display:flex;align-items:center;gap:12px;height:60px}
 .quick{margin-top:26px;background:rgba(21,19,19,.88);border:1px solid var(--line);border-radius:10px;padding:16px;max-width:620px;backdrop-filter:blur(6px)}
 .quick h2{font:700 15px var(--s);letter-spacing:.14em;text-transform:uppercase;color:var(--mute);margin-bottom:10px;display:flex;justify-content:space-between;gap:10px}
 .quick h2 button{font:600 14px var(--s);letter-spacing:0;text-transform:none;color:var(--bone);text-decoration:underline;min-height:24px}
-.fchips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.fchips{display:flex;gap:8px;overflow-x:auto;margin-bottom:12px;padding-bottom:4px;scrollbar-width:none}.fchip{flex:none;white-space:nowrap}
 .fchip{min-height:44px;padding:0 14px;border-radius:999px;border:1.5px solid var(--line);font-weight:600;font-size:15px;background:var(--ink)}
 .fchip[aria-pressed=true]{border-color:var(--red);background:var(--red2);color:#fff}
 .nexts{display:grid;grid-template-columns:1fr 1fr;gap:8px}
@@ -115,7 +115,7 @@ footer nav{display:flex;gap:6px 18px;flex-wrap:wrap}footer a{min-height:32px;dis
 .ok-list{list-style:none;padding:0;display:grid;gap:8px;margin:14px 0}.ok-list li{display:flex;gap:10px;align-items:flex-start;font-size:15px}.ok-list i{flex:none;width:22px;height:22px;border-radius:50%;background:var(--ok);color:#06210f;display:grid;place-items:center;font-style:normal;font-weight:800;font-size:13px}
 .acts{display:grid;gap:8px;margin-top:10px}
 @media(min-width:760px){body{padding-bottom:0}.bar-bottom{display:none}.nexts{grid-template-columns:repeat(4,1fr)}.venir{grid-template-columns:1fr 1fr}.sheet{top:5vh;bottom:5vh;border-radius:14px;border:1px solid var(--line)}.veil.on{display:block}}
-@media(max-width:420px){.steps{grid-template-columns:1fr}.row .p{font-size:26px}}
+@media(max-width:420px){.logo{font-size:19px}header.top .wrap{gap:8px}.hero .wrap{padding-top:28px}.hero p.lead{font-size:16px}.quick{margin-top:18px}.steps{grid-template-columns:1fr}.row .p{font-size:26px}}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
 </style>
 </head>
@@ -198,11 +198,11 @@ function when(day,m){return LA.dayLabel(day).toLowerCase()+' à '+LA.hhmm(m)}
 /* ---------- status ---------- */
 function status(){
   var n=new Date(),dow=n.getDay(),m=n.getHours()*60+n.getMinutes(),el=$('#status'),t;
-  if(LA.openNow()){el.classList.add('open');t='Ouvert · jusqu’à 18 h 30'}
+  if(LA.openNow()){el.classList.add('open');t='Ouvert · 18 h 30'}
   else{el.classList.remove('open');
-    if(dow>=2&&dow<=6&&m<540)t='Ouvre aujourd’hui 9 h';
+    if(dow>=2&&dow<=6&&m<540)t='Ouvre à 9 h';
     else{var d=new Date(n);do{d.setDate(d.getDate()+1)}while(d.getDay()<2||d.getDay()>6);var diff=Math.round((new Date(d.getFullYear(),d.getMonth(),d.getDate())-new Date(n.getFullYear(),n.getMonth(),n.getDate()))/864e5);
-      t='Fermé · ouvre '+(diff===1?'demain':LA.DAYS[d.getDay()])+' 9 h'}}
+      t='Ouvre '+(diff===1?'demain':LA.DAYS[d.getDay()])+' 9 h'}}
   $('#stxt').textContent=t;
 }
 

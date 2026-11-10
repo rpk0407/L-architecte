@@ -16,7 +16,6 @@
   --serif:"Newsreader",Georgia,"Times New Roman",serif;
   --gut:clamp(16px,4vw,48px);
 }
-@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){ } }
 *{box-sizing:border-box}
 html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
 body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--serif);font-size:18px;line-height:1.5;
@@ -64,12 +63,13 @@ nav.main .btn{padding:10px 16px;min-height:42px;box-shadow:3px 3px 0 var(--ink)}
 .facts div:last-child{border-right:0}
 .facts b{display:block;font-family:var(--serif);font-weight:500;font-size:22px;line-height:1.1}
 .plate{position:relative;border:1.5px solid var(--ink);background:var(--paper);padding:14px 14px 38px;box-shadow:8px 8px 0 var(--ink)}
-.plate img{width:100%;aspect-ratio:4/3;object-fit:cover;filter:saturate(.8) contrast(1.05)}
+.plate img{width:100%;height:auto;aspect-ratio:1100/812;object-fit:cover;filter:saturate(.8) contrast(1.05)}
 .plate svg.ann{position:absolute;inset:14px 14px 38px;width:calc(100% - 28px);height:calc(100% - 52px);pointer-events:none}
 .plate .cap{position:absolute;left:14px;right:14px;bottom:10px;display:flex;justify-content:space-between;font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase}
 .tag{position:absolute;font-family:var(--mono);font-size:11px;background:var(--paper);border:1px solid var(--ink);padding:2px 6px;letter-spacing:.06em}
 /* booking */
 #reserver{background:linear-gradient(var(--paper2),var(--paper2));background-image:linear-gradient(var(--line2) 1px,transparent 1px),linear-gradient(90deg,var(--line2) 1px,transparent 1px);background-size:32px 32px;border-top:2px solid var(--ink);border-bottom:2px solid var(--ink)}
+#flow,.step,.step .body{min-width:0}
 .book{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:clamp(20px,3vw,40px);align-items:start}
 .step{background:var(--paper);border:1.5px solid var(--ink);margin-bottom:22px}
 .step>header{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1.5px solid var(--ink);background:var(--ink);color:#fff}
@@ -198,7 +198,7 @@ footer a{color:inherit;text-decoration:none;border-bottom:1px solid rgba(255,255
 footer .mono{opacity:.8;line-height:2}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 @media (max-width:980px){
-  .book{grid-template-columns:1fr}
+  .book{grid-template-columns:minmax(0,1fr)}
   .fiche{position:static;box-shadow:4px 4px 0 var(--ink)}
   .carte{grid-template-columns:1fr}
   .chairs{grid-template-columns:repeat(2,1fr)}
@@ -206,7 +206,7 @@ footer .mono{opacity:.8;line-height:2}
 }
 @media (max-width:760px){
   body{font-size:17px}
-  nav.main a:not(.btn){display:none}
+  nav.main a:not(.btn),.live{display:none}
   .hero .wrap{grid-template-columns:1fr}
   .plate{box-shadow:5px 5px 0 var(--ink)}
   .facts div{padding:8px 12px;border-right:1px solid var(--ink)}
@@ -281,16 +281,16 @@ footer .mono{opacity:.8;line-height:2}
           <path d="M0 6h6M0 6v6M100 6h-6M100 6v6M0 94h6M0 94v-6M100 94h-6M100 94v-6" stroke-width="1.2" vector-effect="non-scaling-stroke"/>
         </g>
       </svg>
-      <svg class="ann" viewBox="0 0 1000 750" aria-hidden="true" style="overflow:visible">
+      <svg class="ann" viewBox="0 0 1000 738" aria-hidden="true" style="overflow:visible">
         <g fill="#F4F1EA" stroke="#12203A" stroke-width="2">
-          <circle cx="560" cy="430" r="19"/><circle cx="690" cy="446" r="19"/><circle cx="790" cy="470" r="19"/><circle cx="880" cy="590" r="19"/>
+          <circle cx="505" cy="372" r="19"/><circle cx="595" cy="382" r="19"/><circle cx="665" cy="412" r="19"/><circle cx="800" cy="548" r="19"/>
         </g>
         <g font-family="IBM Plex Mono,monospace" font-size="20" font-weight="600" fill="#12203A" text-anchor="middle">
-          <text x="560" y="437">1</text><text x="690" y="453">2</text><text x="790" y="477">3</text><text x="880" y="597">4</text>
+          <text x="505" y="379">1</text><text x="595" y="389">2</text><text x="665" y="419">3</text><text x="800" y="555">4</text>
         </g>
-        <g stroke="#C8281E" stroke-width="2" fill="none"><path d="M40 700h920M40 690v20M960 690v20"/></g>
-        <rect x="395" y="684" width="210" height="32" fill="#F4F1EA"/>
-        <text x="500" y="707" font-family="IBM Plex Mono,monospace" font-size="19" fill="#C8281E" text-anchor="middle" letter-spacing="1.5">SALON · 4 FAUTEUILS</text>
+        <g stroke="#C8281E" stroke-width="2" fill="none"><path d="M40 690h920M40 680v20M960 680v20"/></g>
+        <rect x="360" y="674" width="280" height="32" fill="#F4F1EA"/>
+        <text x="500" y="697" font-family="IBM Plex Mono,monospace" font-size="19" fill="#C8281E" text-anchor="middle" letter-spacing="1.5">SALON · 4 FAUTEUILS</text>
       </svg>
       <span class="tag" style="top:26px;left:26px">PLAN N°13013</span>
       <figcaption class="cap"><span>Fig. 1 — Le salon, vue d’entrée</span><span>Éch. 1:1</span></figcaption>
