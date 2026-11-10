@@ -568,7 +568,7 @@ function ClientSheet({ open, onClose, onPick }: { open: boolean; onClose: () => 
   const items = r.data?.items || [];
   return (
     <Sheet open={open} onClose={onClose} title="Associer un client" kicker="Au ticket">
-      <div className="search"><Icon name="search" /><input className="input" placeholder="Prénom ou numéro" value={q} onChange={(e) => setQ(e.target.value)} data-autofocus aria-label="Chercher un client par prénom ou numéro" autoComplete="off" enterKeyHint="search" /></div>
+      <div className="search"><Icon name="search" /><input className="input" placeholder="Prénom, nom ou numéro" value={q} onChange={(e) => setQ(e.target.value)} data-autofocus aria-label="Chercher un client par prénom, nom ou numéro" autoComplete="off" enterKeyHint="search" /></div>
       {dq.trim().length < 2 ? <p className="muted" style={{ fontSize: 13.5 }}>2 lettres de son prénom ou les premiers chiffres de son numéro suffisent.</p>
         : r.data && !items.length ? <p className="muted" style={{ fontSize: 13.5 }}>Personne à ce nom ou à ce numéro.</p> : null}
       <div className="pick">{items.map((c) => {
