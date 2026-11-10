@@ -184,6 +184,8 @@ function Shell() {
 
       <div className="main">
         {boot.mode === 'demo' ? <div className="demo-band">Démo · aucune donnée réelle, aucun SMS ni paiement réel{app.can('settings') ? <> · <button type="button" onClick={() => navigate('/reglages/donnees')}>remettre à zéro</button></> : null}</div> : null}
+        {/* a breakdown the owner was told by e-mail today (SMS, planificateur, sauvegarde): it stays in sight while the day lasts */}
+        {(app.pulse?.alerts ?? boot.alerts ?? []).map((w) => <div key={w} className="alert-band" role="alert"><Icon name="alert" size={15} /><span>{w}</span></div>)}
         <header className={'top' + (scrolled ? ' scrolled' : '')}>
           <div className="top-title" id="page-title" />
           <div className="top-acts">

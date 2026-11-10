@@ -37,8 +37,9 @@ position:relative;font:400 17px/1.5 var(--f-sans);color:var(--os);background:var
 .lp :focus-visible{outline:2.5px solid var(--ring);outline-offset:3px}
 .lp .skip:focus-visible,.lp .cta .btn:focus-visible{outline-color:var(--os);box-shadow:0 0 0 3px var(--encre),0 16px 44px rgba(0,0,0,.3)}
 .vh{position:absolute!important;width:1px!important;height:1px!important;overflow:hidden!important;clip:rect(0 0 0 0)!important;clip-path:inset(50%)!important;white-space:nowrap!important;margin:-1px!important;padding:0!important;border:0!important}
-.skip{position:fixed;left:12px;top:-60px;z-index:100;padding:12px 18px;border-radius:999px;background:var(--os);color:var(--encre)!important;font-weight:600}
-.skip:focus{top:12px}
+/* the skip link: out of sight (and out of the pointer's way) until the keyboard reaches it */
+.skip{position:fixed;left:12px;top:12px;z-index:100;padding:12px 18px;border-radius:999px;background:var(--os);color:var(--encre)!important;font-weight:600;transform:translateY(-300%);opacity:0;pointer-events:none}
+.skip:focus-visible{transform:none;opacity:1;pointer-events:auto}
 .wrap{width:100%;max-width:1320px;margin:0 auto;padding:0 var(--pad)}
 .h2{font:400 clamp(48px,13.4vw,136px)/.92 var(--f-serif);letter-spacing:-.015em;text-wrap:balance}
 .h2 em{font-style:italic}
@@ -360,6 +361,13 @@ position:relative;font:400 17px/1.5 var(--f-sans);color:var(--os);background:var
 .ft-g{display:grid;gap:clamp(36px,6vw,72px)}
 .ft-ph{border-radius:26px;overflow:hidden;aspect-ratio:1220/901;background:var(--pierre)}
 .ft-ph img{width:100%;height:100%;object-fit:cover}
+/* Venir: the salon's own photo with its address and the way there (no map script, no tile server) */
+.ft-ph{position:relative}
+.ft-cap{position:absolute;left:12px;right:12px;bottom:12px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 8px 8px 16px;border-radius:18px;background:var(--os);color:var(--encre);font:500 14px/1.35 var(--f-sans)}
+.ft-cap span{min-width:0}
+.ft-cap b{display:block;font-weight:600}
+.ft-cap a{flex:none;display:inline-flex;align-items:center;min-height:44px;padding:0 16px;border-radius:999px;background:var(--encre);color:var(--os);font-weight:600}
+.ft-cap a:hover{text-decoration:underline;text-underline-offset:4px}
 .ft .h2{max-width:10ch}
 .ft-ad{display:block;font:500 18px/1 var(--f-sans);font-style:normal;color:var(--cendre2);margin-top:14px}
 .ft .st{margin-top:30px!important;font-size:17px}

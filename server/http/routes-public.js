@@ -40,6 +40,12 @@ const CLIENT = (r) => ({ actor: /** @type {const} */ ({ t: 'client', id: 'web', 
  * new every day. Never the address itself: a hold's event is chained and cannot be erased.
  */
 const visitorOf = (r) => (r.ip ? createHmac('sha256', String(r.rt.secret)).update('lx-hold|' + r.local.day + '|' + r.ip).digest('base64url').slice(0, 12) : '');
+/**
+ * The idempotency key of a visitor's request (x-request-id, checked in app.js: 8 to 64 letters, digits, dashes), kept
+ * apart per route. Every visitor is the same actor, so the id itself is the secret: the site draws a random one.
+ * @param {any} r @param {string} what @returns {{ requestId?: string }}
+ */
+const retryKey = (r, what) => { const id = r.req.headers.get('x-request-id'); return id ? { requestId: what + ':' + id } : {}; };
 const PROVIDER = (r, id) => ({ actor: /** @type {const} */ ({ t: 'provider', id }), caps: new Set(), meta: r.meta });
 
 // once today's Z is done (an early close), the shop takes nobody else: the site stops saying "Ouvert"
@@ -213,7 +219,7 @@ export function publicRoutes(app) {
     // each hold is an event kept for good: a client looking around takes a few dozen at most
     guard('holdh|' + r.ip, 120, 3600000, 'Trop de créneaux regardés d’un coup. Patiente un peu, ou appelle le salon.');
     const ctx = CLIENT(r);
-    return r.rt.engine.run(A.holdSlot, r.body, { ...ctx, meta: { ...ctx.meta, visitor: visitorOf(r) } });
+    return r.rt.engine.run(A.holdSlot, r.body, { ...ctx, meta: { ...ctx.meta, visitor: visitorOf(r) }, ...retryKey(r, 'hold') });
   });
   app.del('/api/public/holds/:id', async (r) => r.rt.engine.run(A.releaseHold, { id: r.params.id }, CLIENT(r)));
 
@@ -223,11 +229,20 @@ export function publicRoutes(app) {
     // PAY-04: « Réserver ma coupe » from the member page carries its booking link (mbr, signed for booking only): the one
     // way a guest booking is a member's
     const mt = r.body && typeof r.body.mbr === 'string' ? readMemberToken(r.rt.secret, r.body.mbr.slice(0, 200), r.now, MEMBER_BOOK) : null;
-    const ctx = CLIENT(r);
+    // the site sends one id per attempt (x-request-id): when the answer was lost on the way and the client tries again,
+    // the engine gives the first answer back and nothing is booked twice
+    const ctx = { ...CLIENT(r), ...retryKey(r, 'book') };
+    const again = !!ctx.requestId && r.rt.engine.knows(ctx.actor, ctx.requestId) === 'answered';
     const res = await r.rt.engine.run(A.bookOnline, { ...r.body, demo: undefined }, mt && 'id' in mt ? { ...ctx, meta: { ...ctx.meta, memberId: mt.id } } : ctx);
     const token = signLink(r.rt.secret, 'appt', res.code);
     let payment = null;
-    if (res.status === 'pending' && res.deposit > 0) {
+    // a retry finds the booking as it now stands: its deposit page is the one already opened, never a second one
+    const now = r.s.appts.get(res.id);
+    const open = again ? [...r.s.payments.values()].find((p) => p.apptId === res.id && p.kind === 'deposit' && p.status === 'pending') : null;
+    if (again && res.status === 'pending' && (!now || now.status === 'cancelled')) throw new HttpError(409, 'gone', 'Cette réservation n’a pas abouti : rien n’est enregistré. Choisis ton créneau à nouveau.');
+    const status = again && now ? now.status : res.status;
+    if (open) payment = { id: open.id, url: open.url };
+    else if (status === 'pending' && res.deposit > 0) {
       const sv = r.s.appts.get(res.id);
       try {
         payment = await startPayment(r, { kind: 'deposit', amount: res.deposit, label: 'Acompte · ' + sv.services.map((x) => x.name).join(' + '), apptId: res.id, returnPath: '/r/' + token, email: r.body.email });
@@ -243,8 +258,8 @@ export function publicRoutes(app) {
       }
     }
     // FID-02: a booking that came through a referrer's link (?parrain=); a refusal never touches the booking
-    const ref = r.body && r.body.parrain ? await claimFromLink(r, res.id, r.body.parrain) : null;
-    return json({ code: res.code, token, manage: r.origin + '/r/' + token, status: res.status, deposit: res.deposit, staffId: res.staffId, payment, ...(res.member ? { member: res.member } : {}), ...(ref ? { referral: { ok: !!ref.ok, why: ref.ok ? null : ref.why } } : {}) }, 201);
+    const ref = r.body && r.body.parrain && !again ? await claimFromLink(r, res.id, r.body.parrain) : null;
+    return json({ code: res.code, token, manage: r.origin + '/r/' + token, status, deposit: res.deposit, staffId: res.staffId, payment, ...(res.member ? { member: res.member } : {}), ...(ref ? { referral: { ok: !!ref.ok, why: ref.ok ? null : ref.why } } : {}) }, 201);
   });
 
   app.get('/api/public/bookings/:token', (r) => bookingView(r, apptFromToken(r)));
@@ -260,7 +275,7 @@ export function publicRoutes(app) {
   app.post('/api/public/bookings/:token/move', async (r) => {
     guard('mv|' + r.ip, 10, 60000);
     const a = apptFromToken(r);
-    await r.rt.engine.run(A.moveByClient, { id: a.id, day: r.body.day, start: r.body.start, holdId: r.body.holdId }, CLIENT(r));
+    await r.rt.engine.run(A.moveByClient, { id: a.id, day: r.body.day, start: r.body.start, holdId: r.body.holdId }, { ...CLIENT(r), ...retryKey(r, 'move') });
     return bookingView(r, r.s.appts.get(a.id));
   });
 

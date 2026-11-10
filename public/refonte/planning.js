@@ -25,7 +25,9 @@
   const diffDays = (a, b) => Math.round((utc(b) - utc(a)) / 86400000);
   const dow = (day) => utc(day).getUTCDay();
   const hm = (m) => pad(Math.floor(m / 60)) + pad(m % 60);
+  // « 14:30 » on the time-slot buttons only (the journey's habit, docs/refonte-conventions.md 4); everywhere else the site's « 14 h 30 »
   const t24 = (m) => pad(Math.floor(m / 60)) + ':' + pad(m % 60);
+  const th = (m) => Math.floor(m / 60) + NBSP + 'h' + (m % 60 ? NBSP + pad(m % 60) : '');
   const dayLong = (day) => { const d = utc(day); return WD[d.getUTCDay()] + ' ' + (d.getUTCDate() === 1 ? '1er' : d.getUTCDate()) + ' ' + MO[d.getUTCMonth()]; };
   const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
   const eur = (cents) => (cents % 100 ? (cents / 100).toFixed(2).replace('.', ',') : String(cents / 100)) + NBSP + '€';
@@ -36,13 +38,34 @@
   }
 
   /* ---------- the booking client: the real API ---------- */
+  /** Until how many hours before the client may cancel for free: the salon's own setting (GET /api/public/salon), null when it says none (the sentence is then left out, never guessed). */
+  const cancelH = () => { const n = S.salon && S.salon.booking ? S.salon.booking.cancelUntilHours : null; return typeof n === 'number' && n > 0 ? n : null; };
   function ApiError(status, code, message) { this.status = status; this.code = code; this.message = message; }
+  /* A slot refused (409): for a moment the next reads of the free slots ask for the journal as it is (&fresh=1), past
+     the answer the network keeps 5 s. A hold or a booking carries one id per attempt (x-request-id): when the answer is
+     lost on the way, the same request sent again gets the first answer and nothing is booked twice. */
+  let freshUntil = 0;
+  const RID = {};
+  const newRid = () => { try { return window.crypto.randomUUID(); } catch (e) { let s = ''; for (let i = 0; i < 32; i++) s += Math.floor(Math.random() * 16).toString(16); return s; } };
+  function wire(method, path, body) {
+    const read = method === 'GET' && path.indexOf('/api/public/availability') === 0 && Date.now() < freshUntil;
+    const key = method === 'POST' && (path === '/api/public/holds' || path === '/api/public/bookings') ? path : '';
+    const sig = key ? JSON.stringify(body) : '';
+    if (key && (!RID[key] || RID[key].sig !== sig)) RID[key] = { sig: sig, id: newRid() };
+    return {
+      path: read ? path + '&fresh=1' : path, rid: key ? RID[key].id : '',
+      // an answer came back, whatever it says: this attempt is over (a network failure keeps its id for the retry)
+      done: (status) => { if (key) delete RID[key]; if (status === 409) freshUntil = Date.now() + 15000; }
+    };
+  }
   async function req(method, path, body) {
     let res;
+    const w = wire(method, path, body);
     try {
       // no-store: the answers allow stale-while-revalidate, and a planning « en direct » must never show a slot someone just took
-      res = await fetch(path, { method, cache: 'no-store', headers: body ? { 'content-type': 'application/json', accept: 'application/json' } : { accept: 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+      res = await fetch(w.path, { method, cache: 'no-store', headers: body ? Object.assign({ 'content-type': 'application/json', accept: 'application/json' }, w.rid ? { 'x-request-id': w.rid } : {}) : { accept: 'application/json' }, body: body ? JSON.stringify(body) : undefined });
     } catch (e) { throw new ApiError(0, 'network', 'Pas de réseau. Vérifie ta connexion et réessaie.'); }
+    w.done(res.status);
     let data = null;
     try { data = await res.json(); } catch (e) { /* not JSON: no API behind this address */ }
     if (!res.ok || data == null) {
@@ -417,7 +440,7 @@
       const mono = el('span', 'pl-mono', b.initials || b.name.charAt(0)); mono.setAttribute('aria-hidden', 'true');
       const n = S.days.length ? nextOf(b.id) : null;
       const name = el('span', 'op-n', b.name);
-      name.appendChild(el('small', n ? 'has' : '', n ? 'Prochain créneau : ' + shortDay(n.day).toLowerCase() + ' à ' + t24(n.m) : (b.away && b.away.note) || (S.days.length ? 'Complet sur ces deux semaines' : '')));
+      name.appendChild(el('small', n ? 'has' : '', n ? 'Prochain créneau : ' + shortDay(n.day).toLowerCase() + ' à ' + th(n.m) : (b.away && b.away.note) || (S.days.length ? 'Complet sur ces deux semaines' : '')));
       o.append(mono, name);
       box.appendChild(o);
     });
@@ -579,7 +602,7 @@
     // on a phone, open the first chair that has room rather than a full one
     if (!freeCount(d, S.barbers[S.tab].id) && total && !S.tabTouched) S.tab = Math.max(0, S.barbers.findIndex((b) => freeCount(d, b.id) > 0));
     const times = el('div', 'pl-times'); times.setAttribute('aria-hidden', 'true');
-    rows.forEach((m) => times.appendChild(el('span', m % 60 ? 'half' : '', t24(m))));
+    rows.forEach((m) => times.appendChild(el('span', m % 60 ? 'half' : '', th(m))));
     pl.appendChild(times);
     const h = S.hold && S.hold.day === S.day ? S.hold : null;
     S.barbers.forEach((b, i) => {
@@ -623,12 +646,12 @@
     let text; const open = S.open;
     const t = dayData(S.today), nx = S.next;
     if (open) {
-      if (nx && nx.day === S.today) text = 'Ouvert · ' + nx.n + (nx.n > 1 ? ' fauteuils libres' : ' fauteuil libre') + ' à ' + t24(nx.m);
+      if (nx && nx.day === S.today) text = 'Ouvert · ' + nx.n + (nx.n > 1 ? ' fauteuils libres' : ' fauteuil libre') + ' à ' + th(nx.m);
       else text = t || nx ? 'Ouvert · complet en ligne aujourd’hui' : 'Ouvert';
-    } else text = nx ? 'Fermé · prochain créneau ' + dayWord(nx.day).toLowerCase() + ' à ' + t24(nx.m) : 'Fermé · ' + (S.salon.hoursText || '');
+    } else text = nx ? 'Fermé · prochain créneau ' + dayWord(nx.day).toLowerCase() + ' à ' + th(nx.m) : 'Fermé · ' + (S.salon.hoursText || '');
     document.querySelectorAll('[data-live-st]').forEach((p) => { p.classList.toggle('open', open); p.lastElementChild.textContent = text; });
     $('hero-live').setAttribute('aria-label', text + (nx ? '. Réserver ce créneau' : '. Prendre rendez-vous'));
-    $('hero-next-v').textContent = nx ? shortDay(nx.day) + ' · ' + t24(nx.m) : 'Prendre rendez-vous';
+    $('hero-next-v').textContent = nx ? shortDay(nx.day) + ' · ' + th(nx.m) : 'Prendre rendez-vous';
   }
   function renderTeam() {
     const ul = $('team');
@@ -643,9 +666,9 @@
       if (b.bio) li.appendChild(el('p', 'bb-bio', b.bio));
       const n = nextOf(b.id);
       const goB = el('button', 'bb-next' + (n ? '' : ' none')); goB.type = 'button'; goB.dataset.staff = b.id; if (n) { goB.dataset.day = n.day; goB.dataset.m = String(n.m); }
-      goB.append(el('i'), document.createTextNode(n ? shortDay(n.day) + ' · ' + t24(n.m) : (b.away && b.away.note) || 'Réserver avec ' + b.name));
+      goB.append(el('i'), document.createTextNode(n ? shortDay(n.day) + ' · ' + th(n.m) : (b.away && b.away.note) || 'Réserver avec ' + b.name));
       goB.firstChild.setAttribute('aria-hidden', 'true');
-      goB.setAttribute('aria-label', n ? 'Réserver avec ' + b.name + ', prochain créneau ' + dayWord(n.day).toLowerCase() + ' à ' + t24(n.m) : 'Réserver avec ' + b.name);
+      goB.setAttribute('aria-label', n ? 'Réserver avec ' + b.name + ', prochain créneau ' + dayWord(n.day).toLowerCase() + ' à ' + th(n.m) : 'Réserver avec ' + b.name);
       const w = el('p', 'bb-go'); w.appendChild(goB); li.appendChild(w);
       ul.appendChild(li);
     });
@@ -674,7 +697,7 @@
   }
 
   /* ---------- the recap (side panel on a desk, bottom bar on a phone) and the one main button ---------- */
-  function whenText(h) { return cap(WDS[dow(h.day)]) + ' ' + utc(h.day).getUTCDate() + ' ' + MO[utc(h.day).getUTCMonth()] + ' à ' + t24(h.start); }
+  function whenText(h) { return cap(WDS[dow(h.day)]) + ' ' + utc(h.day).getUTCDate() + ' ' + MO[utc(h.day).getUTCMonth()] + ' à ' + th(h.start); }
   function staffText() {
     if (!S.staff) return '';
     if (S.staff !== 'any') return barber(S.staff).name;
@@ -744,12 +767,12 @@
   function reminderPossible(day) { const n = diffDays(S.today, day); return n > 1 || (n === 1 && S.nowMin < REMINDER_HOUR * 60); }
   function renderForm() {
     const sv = S.svc, h = S.hold;
-    const dep = depositOf(sv), hours = (S.salon.booking && S.salon.booking.cancelUntilHours) || 12;
+    const dep = depositOf(sv), hours = cancelH();
     $('dep').hidden = !(dep > 0);
-    $('dep').textContent = dep > 0 ? 'Un acompte de ' + eur(dep) + ' est demandé pour cette prestation, déduit au salon. Annulé plus de ' + hours + ' h avant, il est remboursé.' : '';
+    $('dep').textContent = dep > 0 ? 'Un acompte de ' + eur(dep) + ' est demandé pour cette prestation, déduit au salon.' + (hours ? ' Annulé plus de ' + hours + NBSP + 'h avant, il est remboursé.' : '') : '';
     const terms = $('bk-terms');
     terms.hidden = !(dep > 0);
-    if (dep > 0 && !terms.firstChild) { terms.append('En réservant, tu acceptes les conditions d’annulation : gratuite jusqu’à ' + hours + NBSP + 'h avant, ensuite l’acompte reste au salon. '); const a = el('a', '', 'Voir les CGV'); a.href = '/cgv'; a.target = '_blank'; a.rel = 'noopener'; terms.appendChild(a); }
+    if (dep > 0 && !terms.firstChild) { terms.append(hours ? 'En réservant, tu acceptes les conditions d’annulation : gratuite jusqu’à ' + hours + NBSP + 'h avant, ensuite l’acompte reste au salon. ' : 'En réservant, tu acceptes les conditions d’annulation du salon. '); const a = el('a', '', 'Voir les CGV'); a.href = '/cgv'; a.target = '_blank'; a.rel = 'noopener'; terms.appendChild(a); }
     const demo = $('bk-demo');
     demo.hidden = !(S.sim || S.salon.mode === 'demo');
     demo.textContent = S.sim ? 'Mode démo : le salon n’est pas joignable d’ici. Rien n’est réservé ni envoyé.' : 'Démo : n’entre pas tes vraies coordonnées, tout est visible. Aucun SMS n’est envoyé, aucun paiement n’est débité.';
@@ -833,7 +856,7 @@
     $('done-k').textContent = S.sim ? 'Démo terminée.' : pending ? 'Il reste l’acompte.' : 'C’est réservé.';
     $('done-what').textContent = k.sv.name + ' · ' + durText(k.sv.dur) + ' · ' + priceText(k.sv);
     $('done-who').textContent = b ? b.name : 'Le salon';
-    $('done-when').textContent = cap(dayLong(k.day)) + ' à ' + t24(k.start);
+    $('done-when').textContent = cap(dayLong(k.day)) + ' à ' + th(k.start);
     const pay = $('done-pay'), payBtn = $('done-paybtn');
     pay.hidden = payBtn.hidden = !pending;
     if (pending) {
@@ -943,7 +966,7 @@
     S.today = salon.today; S.from = salon.today;
     S.skew = (salon.now || Date.now()) - Date.now();
     if (salon.hoursText) $('ft-hours').textContent = salon.hoursText + '.' + (salon.closedText ? ' Fermé ' + salon.closedText + '.' : '');
-    if (salon.shop && salon.shop.mapsUrl) { $('ft-maps').href = salon.shop.mapsUrl; $('pv-link').href = salon.shop.mapsUrl; $('done-map').href = salon.shop.mapsUrl; }
+    if (salon.shop && salon.shop.mapsUrl) { $('ft-maps').href = salon.shop.mapsUrl; document.querySelectorAll('[data-maps]').forEach((a) => { a.href = salon.shop.mapsUrl; }); $('pv-link').href = salon.shop.mapsUrl; $('done-map').href = salon.shop.mapsUrl; }
     renderCarte();
     if (salon.booking && salon.booking.enabled === false) { shut('La réservation en ligne est momentanément fermée.'); return; }
     if (!S.services.length || !S.barbers.length) { shut('La réservation en ligne est momentanément fermée.'); return; }

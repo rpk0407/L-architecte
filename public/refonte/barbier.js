@@ -22,7 +22,9 @@
   const diffDays = (a, b) => Math.round((dt(b) - dt(a)) / 86400000);
   const dayLong = (key) => { const d = dt(key); return WDL[d.getUTCDay()] + ' ' + d.getUTCDate() + (d.getUTCDate() === 1 ? 'er' : '') + ' ' + MO[d.getUTCMonth()]; };
   const fmtH = (m) => Math.floor(m / 60) + NB + 'h' + (m % 60 ? NB + pad(m % 60) : '');
+  // « 14:30 » on the time-slot buttons only (docs/refonte-conventions.md 4); everywhere else the site's « 14 h 30 »
   const hm = (m) => pad(Math.floor(m / 60)) + ':' + pad(m % 60);
+  const th = (m) => Math.floor(m / 60) + NB + 'h' + (m % 60 ? NB + pad(m % 60) : '');
   const eur = (cents, from) => (from ? 'dès ' : '') + (cents % 100 ? (cents / 100).toFixed(2).replace('.', ',') : String(cents / 100)) + NB + '€';
   const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
   let skew = 0;
@@ -121,17 +123,39 @@
 
   /* ---------- talking to the salon ---------- */
   let demo = false;
+  /* A slot refused (409): for a moment the next reads of the free slots ask for the journal as it is (&fresh=1), past
+     the answer the network keeps 5 s. A hold or a booking carries one id per attempt (x-request-id): when the answer is
+     lost on the way, the same request sent again gets the first answer and nothing is booked twice. */
+  let freshUntil = 0;
+  const RID = {};
+  const newRid = () => { try { return window.crypto.randomUUID(); } catch (e) { let s = ''; for (let i = 0; i < 32; i++) s += Math.floor(Math.random() * 16).toString(16); return s; } };
+  function wire(method, path, body) {
+    const read = method === 'GET' && path.indexOf('/api/public/availability') === 0 && Date.now() < freshUntil;
+    const key = method === 'POST' && (path === '/api/public/holds' || path === '/api/public/bookings') ? path : '';
+    const sig = key ? JSON.stringify(body) : '';
+    if (key && (!RID[key] || RID[key].sig !== sig)) RID[key] = { sig: sig, id: newRid() };
+    return {
+      path: read ? path + '&fresh=1' : path, rid: key ? RID[key].id : '',
+      // an answer came back, whatever it says: this attempt is over (a network failure keeps its id for the retry)
+      done: (status) => { if (key) delete RID[key]; if (status === 409) freshUntil = Date.now() + 15000; }
+    };
+  }
   function call(method, path, body) {
     if (demo) return SIM.call(method, path, body);
     const o = { method: method, headers: { accept: 'application/json' }, credentials: 'same-origin', cache: 'no-store' };
     if (body !== undefined) { o.headers['content-type'] = 'application/json'; o.body = JSON.stringify(body); }
-    return fetch(path, o).then((r) => r.json().catch(() => ({})).then((j) => {
+    const w = wire(method, path, body);
+    if (w.rid) o.headers['x-request-id'] = w.rid;
+    return fetch(w.path, o).then((r) => r.json().catch(() => ({})).then((j) => {
+      w.done(r.status);
       if (!r.ok) { const e = new Error((j && j.error && j.error.message) || 'Le salon ne répond pas. Réessaie dans un instant.'); e.code = j && j.error ? j.error.code : 'http'; e.status = r.status; throw e; }
       return j;
     }), () => { const e = new Error('Pas de connexion. Vérifie ton réseau et réessaie.'); e.code = 'network'; throw e; });
   }
 
   /* ---------- state ---------- */
+  /** Until how many hours before the client may cancel for free: the salon's own setting (GET /api/public/salon), null when it says none (the sentence is then left out, never guessed). */
+  const cancelH = () => { const n = S.salon && S.salon.booking ? S.salon.booking.cancelUntilHours : null; return typeof n === 'number' && n > 0 ? n : null; };
   const S = {
     salon: null, svc: [], bySvc: {}, barbers: [], byStaff: {}, first: {}, firstAt: 0, hints: {},
     open: false, step: 'svc', who: null, svcId: null, day: null, start: null, hold: null, av: null, avKey: '', avLoading: false, err: '',
@@ -337,7 +361,7 @@
     if (b && b.away && b.away.note) return { off: true, t: b.away.note };
     if (f === undefined) return { off: true, t: 'On regarde les créneaux…' };
     if (!f) return { off: true, t: 'Complet ces deux semaines' };
-    return { off: false, t: 'Prochain créneau : ' + dayBrief(f.day) + ' à ' + hm(f.m) };
+    return { off: false, t: 'Prochain créneau : ' + dayBrief(f.day) + ' à ' + th(f.m) };
   }
   function stepWho() {
     const row = (w, name) => { const h = hintOf(w); return '<button type="button" class="wh' + (w === 'any' ? ' any' : '') + (S.who === w ? ' on' : '') + '" data-act="pick-who" data-who="' + esc(w) + '" aria-pressed="' + (S.who === w) + '"><span class="wh-av" aria-hidden="true">' + whoIni(w) + '</span><span class="wh-t"><b>' + esc(name) + '</b><small class="' + (h.off ? 'off' : '') + '"><i aria-hidden="true"></i>' + esc(h.t) + '</small></span><span class="wh-ck" aria-hidden="true">' + CHECK + '</span></button>'; };
@@ -371,7 +395,7 @@
   }
   function holdLeft() { return S.hold ? Math.max(0, Math.round((S.hold.exp - (Date.now() + skew)) / 1000)) : 0; }
   function stepInfo() {
-    const sv = S.bySvc[S.svcId], dep = depositOf(sv), hrs = (S.salon.booking && S.salon.booking.cancelUntilHours) || 12;
+    const sv = S.bySvc[S.svcId], dep = depositOf(sv), hrs = cancelH();
     const left = holdLeft();
     return '<form class="st" id="bkForm" novalidate>' +
       (S.err ? '<p class="bk-err" role="alert" id="bkErr" tabindex="-1">' + esc(S.err) + '</p>' : '') +
@@ -380,9 +404,9 @@
       '<div class="fld"><label for="f-phone">Téléphone portable</label><input id="f-phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" required placeholder="06 12 34 56 78" value="' + esc(S.form.phone) + '" aria-describedby="h-phone"><span class="hint" id="h-phone">' + PHONE_HINT + '</span></div>' +
       (smsOn() ? '<p class="sms-i"><span>' + esc(reminderDue(S.day) ? 'On t’envoie la confirmation par SMS, et un rappel la veille à 18' + NB + 'h.' : 'On t’envoie la confirmation par SMS.') + '</span><label class="sms-no" for="f-nosms"><input id="f-nosms" name="noSms" type="checkbox"' + (S.noSms ? ' checked' : '') + '><span>Je ne veux pas de SMS</span></label></p>' : '') +
       '<div class="fld"><label for="f-email">E-mail <span class="opt-l">(facultatif)</span></label><input id="f-email" name="email" type="email" inputmode="email" autocomplete="email" maxlength="120" value="' + esc(S.form.email) + '" aria-describedby="h-email"><span class="hint" id="h-email">Pour recevoir aussi la confirmation par e-mail.</span></div>' +
-      (dep ? '<p class="dep">Un acompte de ' + esc(eur(dep)) + ' est demandé pour cette prestation, déduit au salon. Annulé plus de ' + hrs + NB + 'h avant, il est remboursé.</p>' : '') +
+      (dep ? '<p class="dep">Un acompte de ' + esc(eur(dep)) + ' est demandé pour cette prestation, déduit au salon.' + (hrs ? ' Annulé plus de ' + hrs + NB + 'h avant, il est remboursé.' : '') + '</p>' : '') +
       '<p class="priv">Tes coordonnées servent à ce rendez-vous. <a href="/confidentialite" target="_blank" rel="noopener">Comment elles sont traitées</a></p>' +
-      '<p class="priv">' + (dep ? 'En réservant, tu acceptes les conditions d’annulation : gratuite jusqu’à ' + hrs + NB + 'h avant, ensuite l’acompte reste au salon. ' : 'En réservant, tu acceptes les conditions du salon. ') + '<a href="/cgv" target="_blank" rel="noopener">Voir les CGV</a></p></form>';
+      '<p class="priv">' + (dep ? (hrs ? 'En réservant, tu acceptes les conditions d’annulation : gratuite jusqu’à ' + hrs + NB + 'h avant, ensuite l’acompte reste au salon. ' : 'En réservant, tu acceptes les conditions d’annulation du salon. ') : 'En réservant, tu acceptes les conditions du salon. ') + '<a href="/cgv" target="_blank" rel="noopener">Voir les CGV</a></p></form>';
   }
   /* the confirmation and the reminder are service messages of the appointment: sent unless the client says no (never a promotion) */
   const PHONE_HINT = 'Pour ce rendez-vous, rien d’autre.';
@@ -398,13 +422,13 @@
       if (sms) li.push(pre + '<b>' + (pend ? 'confirmation' : 'Confirmation') + ' par SMS</b>' + (r.email ? ' et <b>par e-mail</b> à ' + esc(r.email) : '') + '.');
       else if (r.email) li.push(pre + '<b>' + (pend ? 'confirmation' : 'Confirmation') + ' par e-mail</b> à ' + esc(r.email) + '.');
       if (sms && reminderDue(r.day)) li.push('<b>Rappel par SMS la veille à 18' + NB + 'h</b>, avec le lien pour déplacer ou annuler.');
-      li.push('Un empêchement ? Ta page de rendez-vous te laisse <b>déplacer ou annuler</b>' + (S.salon.booking && S.salon.booking.cancelUntilHours ? ' jusqu’à ' + S.salon.booking.cancelUntilHours + NB + 'h avant' : '') + '.');
+      li.push('Un empêchement ? Ta page de rendez-vous te laisse <b>déplacer ou annuler</b>' + (cancelH() ? ' jusqu’à ' + cancelH() + NB + 'h avant' : '') + '.');
     }
     const maps = (S.salon.shop && S.salon.shop.mapsUrl) || $('[data-maps]').href;
     const row = (k, v, big) => '<div class="tk-r"><dt>' + k + '</dt><dd' + (big ? ' class="tk-w"' : '') + '>' + v + '</dd></div>';
     return '<div class="st done"><div class="ok"><span class="ok-c" aria-hidden="true"><svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="M13 25l7.5 7.5L35 17"/></svg></span><p class="ok-code">' + (pend ? 'Rendez-vous en attente de l’acompte' : 'Rendez-vous confirmé') + '<br>Code <b>' + esc(r.code) + '</b></p></div>' +
       '<dl class="tk">' + row('Quoi', esc(sv.name + ' · ' + sv.dur + ' min · ' + eur(sv.price, sv.from))) + row('Avec qui', esc(staff ? staff.name : 'Un barbier du salon')) +
-      row('Quand', esc(cap(dayLong(r.day)) + ' à ' + hm(r.start)), true) + row('Où', 'Barber L’Architecte<br>' + esc(placeLine())) + '</dl>' +
+      row('Quand', esc(cap(dayLong(r.day)) + ' à ' + th(r.start)), true) + row('Où', 'Barber L’Architecte<br>' + esc(placeLine())) + '</dl>' +
       (pend && r.payment && r.payment.url ? '<div class="pay-b"><p>Un acompte de ' + esc(eur(r.deposit)) + ' confirme ce créneau. Il est déduit au salon.' + (S.salon.booking && S.salon.booking.pendingPayMin ? ' Tu as ' + S.salon.booking.pendingPayMin + ' minutes pour le régler.' : '') + '</p><a class="btn" href="' + esc(r.payment.url) + '">Régler l’acompte · ' + esc(eur(r.deposit)) + '</a></div>' : '') +
       '<div class="done-act">' + (r.ics ? '<a class="btn' + (pend ? ' ghost' : '') + '" href="' + r.ics + '" download="rdv-larchitecte.ics">Ajouter à mon agenda</a>' : '') + '<a class="btn ghost" href="' + esc(maps) + '" target="_blank" rel="noopener">Itinéraire</a></div>' +
       (r.manage ? '<a class="mg-l" href="' + esc(r.manage) + '">Déplacer ou annuler ce rendez-vous</a>' : '') +
@@ -433,11 +457,11 @@
     const tot = sv ? esc(eur(sv.price, sv.from)) : '–';
     const note = sv ? (dep ? 'dont ' + eur(dep) + ' d’acompte' : 'à régler au salon') : '';
     rc.innerHTML = '<div class="rc-mini"><p class="rc-m1">' + esc(sv ? sv.name + ' · ' + sv.dur + ' min' : 'Prestation à choisir') + '</p>' +
-      '<p class="rc-m2">' + esc((whoT || 'Barbier à choisir') + ' · ' + (when ? dayMid(S.day) + ' · ' + hm(S.start) : 'jour et heure à choisir')) + '</p>' +
+      '<p class="rc-m2">' + esc((whoT || 'Barbier à choisir') + ' · ' + (when ? dayMid(S.day) + ' · ' + th(S.start) : 'jour et heure à choisir')) + '</p>' +
       '<p class="rc-mt"><span class="vh">Total : </span><b>' + tot + '</b>' + (note ? '<small>' + esc(note) + '</small>' : '') + '</p></div>' +
       '<div class="rc-full"><h3 class="rc-h">Ton rendez-vous</h3><dl class="rc-l">' +
       row('Prestation', sv ? sv.name : '', ed('svc', 'la prestation')) + row('Barbier', whoT, ed('who', 'le barbier')) +
-      row('Date et heure', when ? cap(dayLong(S.day)) + ' · ' + hm(S.start) : '', ed('slot', 'la date et l’heure')) + row('Durée', sv ? sv.dur + ' min' : '', '') + '</dl>' +
+      row('Date et heure', when ? cap(dayLong(S.day)) + ' · ' + th(S.start) : '', ed('slot', 'la date et l’heure')) + row('Durée', sv ? sv.dur + ' min' : '', '') + '</dl>' +
       '<p class="rc-tot"><span>Total</span><b>' + tot + '</b></p>' + (note ? '<p class="rc-note">' + esc(note) + '</p>' : '') + '</div>';
   }
   function renderSheet(focus) {

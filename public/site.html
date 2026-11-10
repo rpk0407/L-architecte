@@ -1699,10 +1699,30 @@ const LXE = (function () {
   const listeners = [];
   function emit() { listeners.slice().forEach(function (fn) { try { fn(); } catch (e) { /* ignore */ } }); }
   function on(fn) { listeners.push(fn); return function () { const i = listeners.indexOf(fn); if (i >= 0) listeners.splice(i, 1); }; }
+  /* A slot refused (409): for a moment the next reads of the free slots ask for the journal as it is (&fresh=1), past
+     the answer the network keeps 5 s. A hold or a booking carries one id per attempt (x-request-id): when the answer is
+     lost on the way, the same request sent again gets the first answer and nothing is booked twice. */
+  let freshUntil = 0;
+  const RID = {};
+  function newRid() { try { return window.crypto.randomUUID(); } catch (e) { let s = ''; for (let i = 0; i < 32; i++) s += Math.floor(Math.random() * 16).toString(16); return s; } }
+  function wire(method, path, body) {
+    const read = method === 'GET' && path.indexOf('/api/public/availability') === 0 && Date.now() < freshUntil;
+    const key = method === 'POST' && (path === '/api/public/holds' || path === '/api/public/bookings') ? path : '';
+    const sig = key ? JSON.stringify(body) : '';
+    if (key && (!RID[key] || RID[key].sig !== sig)) RID[key] = { sig: sig, id: newRid() };
+    return {
+      path: read ? path + '&fresh=1' : path, rid: key ? RID[key].id : '',
+      // an answer came back, whatever it says: this attempt is over (a network failure keeps its id for the retry)
+      done: function (status) { if (key) delete RID[key]; if (status === 409) { freshUntil = Date.now() + 15000; invalidate(); } }
+    };
+  }
   function call(method, path, body) {
     const o = { method: method, headers: { accept: 'application/json' }, credentials: 'same-origin', cache: 'no-store' };
     if (body !== undefined) { o.headers['content-type'] = 'application/json'; o.body = JSON.stringify(body); }
-    return fetch(path, o).then(function (r) {
+    const w = wire(method, path, body);
+    if (w.rid) o.headers['x-request-id'] = w.rid;
+    return fetch(w.path, o).then(function (r) {
+      w.done(r.status);
       return r.json().catch(function () { return {}; }).then(function (j) {
         if (!r.ok) {
           const e = new Error((j && j.error && j.error.message) || 'Le salon ne répond pas. Réessaie dans un instant.');

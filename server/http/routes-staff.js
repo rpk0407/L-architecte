@@ -8,6 +8,7 @@ import { clientStats, report, previousPeriod, goalOf, goalShares, autoGoal } fro
 import { staffStatement } from '../domain/statement.js';
 import { drawerExpected, dayTotals, zFigures, METHOD_LABEL, ticketNo, closureNo } from '../domain/cash.js';
 import { missedZ, closingWarnings, dayWords, dayAndDate } from '../commands/tick-steps.js';
+import { alertWarnings } from '../commands/steps/alerts.js';
 import { addDays, isDay, weekStart, monthStart, monthEnd, diffDays, dayShort, fmtTime, hhmm, localParts } from '../../shared/dates.js';
 import { fmtEur } from '../../shared/money.js';
 import { maskPhone, fmtPhone, normGiftCode, sha256 } from '../lib/util.js';
@@ -226,7 +227,7 @@ const SOURCE_FR = { site: 'en ligne', salon: 'au salon', phone: 'par téléphone
 const WAIT_FR = { waiting: 'en attente', offered: 'place proposée', booked: 'réservé', removed: 'retiré', expired: 'expiré' };
 const SMS_FR = { confirmation: 'confirmation', reminder: 'rappel la veille', reminder2h: 'rappel 2 h avant', moved: 'déplacement', cancelled: 'annulation', review: 'demande d’avis', rebook: 'relance', receipt: 'reçu', waitlist: 'place libérée', queue: 'file d’attente', deposit: 'lien d’acompte',
   reassign: 'changement de barbier', reassignAt: 'changement de barbier et d’heure', reschedule: 'rendez-vous à décaler', giftcard: 'carte cadeau',
-  memberWelcome: 'abonnement : bienvenue', memberFailed: 'abonnement : paiement refusé', memberAction: 'abonnement : paiement à valider', memberCancelled: 'abonnement : résiliation', memberStopped: 'abonnement : résiliation', memberWithdrawn: 'abonnement : rétractation', memberWithdrawnNone: 'abonnement : rétractation', memberEnded: 'abonnement : fin faute de paiement', memberOffer: 'abonnement proposé', memberLink: 'lien de l’abonnement', owner_member: 'alerte abonnement' };
+  memberWelcome: 'abonnement : bienvenue', memberFailed: 'abonnement : paiement refusé', memberAction: 'abonnement : paiement à valider', memberCancelled: 'abonnement : résiliation', memberStopped: 'abonnement : résiliation', memberWithdrawn: 'abonnement : rétractation', memberWithdrawnNone: 'abonnement : rétractation', memberEnded: 'abonnement : fin faute de paiement', memberOffer: 'abonnement proposé', memberLink: 'lien de l’abonnement', owner_member: 'alerte abonnement', owner_alert: 'alerte : incident (SMS, planificateur, sauvegarde)', compta_pack: 'envoi mensuel au comptable' };
 // PAY-03's member texts and mails
 Object.assign(SMS_FR, { memberCard: 'abonnement : changer la carte', memberLinkMail: 'lien de l’abonnement (e-mail)' });
 // AC-01: the client space's texts
@@ -303,9 +304,11 @@ function dayKpis(r, day) {
     // his Chiffre réalisé, as Mes chiffres and his statement count it (TEAM-03): cut values in, refunds out on their day
     const own = report(s, { from: day, to: day, staffId: r.me.id, today: r.local.day, now: r.now });
     revenue = own.revenue; tips = own.tips;
-  } else for (const id of s.salesByDay.get(day) || []) {
-    const x = s.sales.get(id);
-    if (x) { revenue += x.totals.revenue - x.refunded; tips += x.totals.tip; }
+  } else {
+    // the day's takings as Pilotage and Rapports count them (report): a credit note comes off the day it is made,
+    // never the day of its ticket, and a gift card paid back never was revenue
+    const shop = report(s, { from: day, to: day, staffId: null, today: r.local.day, now: r.now });
+    revenue = shop.revenue; tips = shop.tips;
   }
   const planned = appts.filter((a) => a.status !== 'no_show').reduce((t, a) => t + a.price, 0);
   const staffIds = mine ? [r.me.id] : [...s.staff.values()].filter((x) => x.active && x.chair).map((x) => x.id);
@@ -358,7 +361,9 @@ export function staffRoutes(app) {
       products: [...s.products.values()].filter((x) => x.active || r.caps.has('catalog')).map(productView),
       providers: { payments: r.rt.pay.name, paymentsLive: !!r.rt.pay.live, sms: r.rt.sms ? r.rt.sms.name : null, email: r.rt.email ? r.rt.email.name : null, store: r.rt.store.kind },
       // the server's own set-up is the owner's; what stops tonight's Z reaches whoever may close the day
-      warnings: [...(r.me.role === 'owner' ? r.rt.warnings : []), ...(r.caps.has('closure') ? closingWarnings(s, r.local.day) : [])]
+      // and a breakdown already told to the owner by e-mail today (commands/steps/alerts.js): the Comptoir's banner
+      warnings: [...(r.me.role === 'owner' ? [...r.rt.warnings, ...alertWarnings(s, r.local.day)] : []), ...(r.caps.has('closure') ? closingWarnings(s, r.local.day) : [])],
+      alerts: r.me.role === 'owner' ? alertWarnings(s, r.local.day) : []
     };
   });
 
@@ -368,7 +373,8 @@ export function staffRoutes(app) {
     const items = since ? [...r.s.feed.filter((f) => f.v > since), ...autoZ(r, since)].sort(byV).slice(-40).map((f) => feedItem(r, f)).filter(Boolean) : [];
     const t = maybeTick(r.rt, r.meta);
     if (t) waitUntil(t);
-    return { version: r.s.version, cfg: r.s.cfgVersion, now: r.now, today: r.local.day, min: r.local.min, feed: items, badges: badges(r) };
+    // alerts: today's breakdowns, the owner's banner, so it shows (and goes at midnight) without a reload
+    return { version: r.s.version, cfg: r.s.cfgVersion, now: r.now, today: r.local.day, min: r.local.min, feed: items, badges: badges(r), ...(r.me.role === 'owner' ? { alerts: alertWarnings(r.s, r.local.day) } : {}) };
   });
 
   app.get('/api/v1/feed', (r) => {

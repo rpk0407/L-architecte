@@ -45,6 +45,8 @@
 .page-h .lead { max-width: 64ch; color: var(--tx2); font-size: 14.5px; line-height: 1.5; }
 .big-h { font: 400 clamp(34px, 4vw, 52px)/1 var(--serif); letter-spacing: -.015em; }
 .demo-band { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 30px; padding: 4px 12px; background: var(--accent-bg); color: var(--accent2); font: 600 12px/1.2 var(--sans); text-align: center; }
+.alert-band { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 34px; padding: 6px 12px; background: var(--danger-bg, #fde8e6); color: var(--danger, #a3261c); font: 600 13px/1.3 var(--sans); }
+.alert-band svg { flex: none; }
 .demo-band button { text-decoration: underline; text-underline-offset: 3px; }
 .tabbar { display: none; }
 

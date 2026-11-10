@@ -155,11 +155,30 @@
     }
     simFail(404, 'not_found', 'Indisponible.');
   }
+  /* A slot refused (409): for a moment the next reads of the free slots ask for the journal as it is (&fresh=1), past
+     the answer the network keeps 5 s. A hold or a booking carries one id per attempt (x-request-id): when the answer is
+     lost on the way, the same request sent again gets the first answer and nothing is booked twice. */
+  let freshUntil = 0;
+  const RID = {};
+  const newRid = () => { try { return window.crypto.randomUUID(); } catch (e) { let s = ''; for (let i = 0; i < 32; i++) s += Math.floor(Math.random() * 16).toString(16); return s; } };
+  function wire(method, path, body) {
+    const read = method === 'GET' && path.indexOf('/api/public/availability') === 0 && Date.now() < freshUntil;
+    const key = method === 'POST' && (path === '/api/public/holds' || path === '/api/public/bookings') ? path : '';
+    const sig = key ? JSON.stringify(body) : '';
+    if (key && (!RID[key] || RID[key].sig !== sig)) RID[key] = { sig: sig, id: newRid() };
+    return {
+      path: read ? path + '&fresh=1' : path, rid: key ? RID[key].id : '',
+      // an answer came back, whatever it says: this attempt is over (a network failure keeps its id for the retry)
+      done: (status) => { if (key) delete RID[key]; if (status === 409) freshUntil = Date.now() + 15000; }
+    };
+  }
   async function api(path, o) {
     if (S.demo) return sim(path, o);
     let res;
-    try { res = await fetch(path, { cache: 'no-store', method: (o && o.method) || 'GET', headers: o && o.body ? { 'content-type': 'application/json' } : undefined, body: o && o.body ? JSON.stringify(o.body) : undefined }); }
+    const w = wire((o && o.method) || 'GET', path, o && o.body);
+    try { res = await fetch(w.path, { cache: 'no-store', method: (o && o.method) || 'GET', headers: o && o.body ? Object.assign({ 'content-type': 'application/json' }, w.rid ? { 'x-request-id': w.rid } : {}) : undefined, body: o && o.body ? JSON.stringify(o.body) : undefined }); }
     catch (e) { throw { status: 0, code: 'network', message: 'Pas de réseau. Vérifie ta connexion et réessaie.' }; }
+    w.done(res.status);
     let j = null;
     try { j = await res.json(); } catch (e) { /* not JSON */ }
     if (!res.ok) throw { status: res.status, code: (j && j.error && j.error.code) || 'error', message: (j && j.error && j.error.message) || 'Ça n’a pas marché. Réessaie dans un instant.' };
@@ -170,7 +189,7 @@
   function availability(svcId, staff, from, days, holdId) {
     const key = [svcId, staff, from, days].join('|');
     const hit = cache.get(key);
-    if (!holdId && hit && Date.now() - hit.t < 15000) return hit.p;
+    if (!holdId && hit && Date.now() - hit.t < 15000 && Date.now() >= freshUntil) return hit.p;
     const p = api('/api/public/availability?services=' + encodeURIComponent(svcId) + '&staff=' + encodeURIComponent(staff) + '&from=' + from + '&days=' + days + (holdId ? '&hold=' + encodeURIComponent(holdId) : ''));
     if (!holdId) { cache.set(key, { t: Date.now(), p }); p.catch(() => cache.delete(key)); }
     return p;
@@ -455,6 +474,8 @@
 
   /* ---------- booking ---------- */
   const svcNow = () => S.byId[S.svc] || null;
+  /** Until how many hours before the client may cancel for free: the salon's own setting (GET /api/public/salon), null when it says none (the sentence is then left out, never guessed). */
+  const cancelH = () => { const n = S.sal && S.sal.booking ? S.sal.booking.cancelUntilHours : null; return typeof n === 'number' && n > 0 ? n : null; };
   const holdSvc = () => S.svc || S.homeSvc;
   function clearSlot() { S.day = null; S.start = null; S.slotStaff = null; }
   function dropHold() { const hd = S.hold; S.hold = null; if (hd) api('/api/public/holds/' + encodeURIComponent(hd.id), { method: 'DELETE' }).catch(() => null); }
@@ -667,7 +688,7 @@
     if (S.step === 'done') return;
     const sv = svcNow(), picked = S.staffBy[S.staff], got = S.staffBy[S.slotStaff], dep = depositFor(sv);
     const barbier = !S.staffSet ? '' : picked ? picked.name : got && S.day != null ? 'Peu importe · ce sera ' + got.name : 'Peu importe';
-    const quand = S.day != null ? cap(dayFull(S.day)) + ' · ' + t24(S.start) : '';
+    const quand = S.day != null ? cap(dayFull(S.day)) + ' · ' + hm(S.start) : '';
     const total = sv ? (sv.from ? 'dès ' : '') + eur(sv.price) : '';
     const row = (label, value, key) => h('div', { class: 'tk-r' + (value ? '' : ' no') }, [
       h('dt', { text: label }),
@@ -695,7 +716,7 @@
         h('span', { class: 'tk-code' }, ['Code', h('b', { text: r.code })])
       ]),
       h('dl', {}, [
-        q('Quand', cap(dayFull(r.day)) + ' · ' + t24(r.start), 'Jusqu’à ' + t24(r.start + r.svc.dur) + ' · ' + durText(r.svc.dur), 'big'),
+        q('Quand', cap(dayFull(r.day)) + ' · ' + hm(r.start), 'Jusqu’à ' + hm(r.start + r.svc.dur) + ' · ' + durText(r.svc.dur), 'big'),
         q('Quoi', r.svc.name, (r.svc.from ? 'dès ' : '') + eur(r.svc.price) + ', à régler au salon' + (r.deposit > 0 ? ' (acompte de ' + eur(r.deposit) + ' déduit)' : '')),
         q('Avec qui', r.barber ? r.barber.name : 'Un barbier du salon'),
         q('Où', shop.name || 'Barber L’Architecte', (shop.address || '16, place Pélabon') + ' · ' + (shop.zip || '13013') + ' ' + (shop.city || 'Marseille'), 'where')
@@ -736,7 +757,7 @@
   function stepBarbier(st) {
     const opt = (id, b) => {
       const n = S.hint[holdSvc() + '|' + id], away = b && b.away;
-      const right = away || n === undefined ? null : n ? h('span', { class: 'so-r wh' }, [h('b', { text: t24(n.m) }), h('small', { text: dayWord(n.day) })]) : h('span', { class: 'so-r wh' }, h('small', { text: 'Complet sur 14 jours' }));
+      const right = away || n === undefined ? null : n ? h('span', { class: 'so-r wh' }, [h('b', { text: hm(n.m) }), h('small', { text: dayWord(n.day) })]) : h('span', { class: 'so-r wh' }, h('small', { text: 'Complet sur 14 jours' }));
       return h('button', { type: 'button', class: 'so wo', disabled: !!away, 'aria-pressed': String(S.staffSet && S.staff === id), on: { click: (e) => { for (const o of $$('.so', st)) o.setAttribute('aria-pressed', String(o === e.currentTarget)); chooseStaff(id); } } }, [
         b ? mono(b) : h('span', { class: 'mono any', 'aria-hidden': 'true', text: '?' }),
         h('span', { class: 'so-l' }, [h('span', { class: 'so-n', text: b ? b.name : 'Peu importe' }), h('span', { class: 'so-d', text: away ? away.note : b ? b.bio || '' : 'Le premier barbier libre' })]),
@@ -808,7 +829,7 @@
       ])
     ]);
     st.append(form);
-    if (dep > 0) st.append(h('p', { class: 'note dep', text: 'Un acompte de ' + eur(dep) + ' est demandé pour cette prestation, déduit au salon. Tu le règles en ligne juste après, dans les ' + (bk.pendingPayMin || 15) + ' minutes. Annulé plus de ' + bk.cancelUntilHours + ' h avant, il est remboursé.' }));
+    if (dep > 0) st.append(h('p', { class: 'note dep', text: 'Un acompte de ' + eur(dep) + ' est demandé pour cette prestation, déduit au salon. Tu le règles en ligne juste après, dans les ' + (bk.pendingPayMin || 15) + ' minutes.' + (cancelH() ? ' Annulé plus de ' + cancelH() + NB + 'h avant, il est remboursé.' : '') }));
     if (S.sal.mode === 'demo') st.append(h('p', { class: 'note demo', text: 'Salon de démonstration : n’entre pas tes vraies coordonnées. Aucun SMS n’est envoyé, aucun paiement n’est débité.' }));
     st.append(h('p', { class: 'note' }, ['Sans compte. Tes coordonnées servent à ce rendez-vous. Ta formule, ton barbier, ton prénom et ton numéro restent aussi sur ce téléphone, pour reprendre plus vite la prochaine fois. ', h('a', { href: '/confidentialite', target: '_blank', rel: 'noopener', text: 'Comment elles sont traitées' })]));
   }
@@ -827,7 +848,7 @@
     act.append(h('a', { class: 'btn ghost', href: S.sal.shop.mapsUrl, target: '_blank', rel: 'noopener', text: 'Itinéraire' }));
     st.append(act);
     if (r.manage) {
-      st.append(h('a', { class: 'mg-l', href: r.manage }, [h('span', {}, ['Déplacer ou annuler ce rendez-vous', h('small', { text: 'Sur la page de ton rendez-vous, jusqu’à ' + bk.cancelUntilHours + ' h avant.' })]), icon('out')]));
+      st.append(h('a', { class: 'mg-l', href: r.manage }, [h('span', {}, ['Déplacer ou annuler ce rendez-vous', h('small', { text: 'Sur la page de ton rendez-vous' + (cancelH() ? ', jusqu’à ' + cancelH() + NB + 'h avant.' : '.') })]), icon('out')]));
     }
     const li = (ic, t, s) => h('li', {}, [icon(ic), h('span', {}, [t, s ? h('small', { text: s }) : null])]);
     const list = h('ul', { class: 'nxt', 'aria-labelledby': 'nxt-h' });
@@ -856,7 +877,7 @@
     if (S.step === 'infos') {
       act.append(
         h('button', { type: 'submit', form: 'bk-form', class: 'btn', 'aria-disabled': S.busy ? 'true' : null }, S.busy ? [h('span', { class: 'spin', 'aria-hidden': 'true' }), 'On réserve…'] : ['Confirmer le rendez-vous', sv ? ' · ' + (sv.from ? 'dès ' : '') + eur(sv.price) : '']),
-        h('p', { class: 'bk-terms' }, ['En réservant, tu acceptes les ', h('a', { href: '/cgv', target: '_blank', rel: 'noopener', text: 'CGV' }), '. Annulation gratuite en ligne jusqu’à ' + bk.cancelUntilHours + ' h avant. Paiement au salon' + (depositFor(sv) > 0 ? ', acompte déduit.' : '.')])
+        h('p', { class: 'bk-terms' }, ['En réservant, tu acceptes les ', h('a', { href: '/cgv', target: '_blank', rel: 'noopener', text: 'CGV' }), '.' + (cancelH() ? ' Annulation gratuite en ligne jusqu’à ' + cancelH() + NB + 'h avant.' : '') + ' Paiement au salon' + (depositFor(sv) > 0 ? ', acompte déduit.' : '.')])
       );
     } else if (S.step === 'prestation' ? !!S.svc : S.step === 'barbier' ? S.staffSet : S.day != null) {
       // a step already answered (a shortcut, or a Retour): the same button carries on
@@ -920,7 +941,7 @@
     const last = S.me && S.bySlug[S.me.svc];
     S.homeSvc = last ? last.id : S.svcs.length ? S.svcs[0].id : null;
     if (last) S.svc = last.id;
-    if (sal.shop && sal.shop.mapsUrl) { $('#ft-maps').href = sal.shop.mapsUrl; $('#pv-link').href = sal.shop.mapsUrl; }
+    if (sal.shop && sal.shop.mapsUrl) { $('#ft-maps').href = sal.shop.mapsUrl; document.querySelectorAll('[data-maps]').forEach((a) => { a.href = sal.shop.mapsUrl; }); $('#pv-link').href = sal.shop.mapsUrl; }
     if (sal.hoursText) $('#ft-h').textContent = sal.hoursText + '.' + (sal.closedText ? ' Fermé ' + sal.closedText + '.' : '');
     renderHeroChips(); renderHero(); renderNow(); renderTeam(); renderCarte(); renderCuts();
     status();
