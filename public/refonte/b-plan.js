@@ -2,7 +2,7 @@
   var $ = function (id) { return document.getElementById(id); };
   var ORDER = ['jkut', 'soldat', 'esteban', 'frank'];
   var PIC = { jkut: 'img/jkut.png', soldat: 'img/soldat.jpeg', esteban: 'img/esteban.png', frank: 'img/frank.png' };
-  var S = { svc: null, day: null, m: null, barber: null, hold: null, avail: null, tab: 'jkut', exp: 0, timer: null, busy: false };
+  var S = { picked: false, svc: null, day: null, m: null, barber: null, hold: null, avail: null, tab: 'jkut', exp: 0, timer: null, busy: false };
   var ROWS = []; for (var r = 540; r <= 1080; r += 30) ROWS.push(r);
   function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function longDay(s) { var d = LA.parseDay(s); return LA.DAYS[d.getDay()] + ' ' + d.getDate() + ' ' + LA.MONTHS[d.getMonth()]; }
@@ -76,8 +76,15 @@
       S.avail = days;
       var cur = days.filter(function (d) { return d.day === S.day; })[0];
       if (!keep || !cur || !cur.open) { var f = days.filter(function (d) { return d.open && d.slots.length; })[0]; S.day = f ? f.day : (days[0] && days[0].day); }
-      renderDays(); renderGrid();
+      autoTab(); renderDays(); renderGrid();
     }).catch(function () { $('gridwrap').innerHTML = '<div class="empty">Le planning ne répond pas. Réessayez dans un instant ou écrivez-nous.</div>'; });
+  }
+  function autoTab() {
+    if (S.picked) return;
+    var d = S.avail && S.avail.filter(function (x) { return x.day === S.day; })[0]; if (!d) return;
+    var c = {}, best = null; d.slots.forEach(function (s) { c[s.s] = (c[s.s] || 0) + 1; });
+    ORDER.forEach(function (id) { if (c[id] && (!best || c[id] > c[best])) best = id; });
+    if (best) S.tab = best;
   }
   function renderDays() {
     var h = '';
@@ -192,10 +199,10 @@
   document.addEventListener('click', function (e) {
     var t = e.target.closest('[data-svc],[data-day],[data-m],[data-tab],[data-pick]'); if (!t) return;
     if (t.hasAttribute('data-svc')) pickService(t.getAttribute('data-svc'));
-    else if (t.hasAttribute('data-day')) { if (S.hold) drop(false); S.day = t.getAttribute('data-day'); renderDays(); renderGrid(); }
-    else if (t.hasAttribute('data-tab')) { S.tab = t.getAttribute('data-tab'); renderGrid(); }
+    else if (t.hasAttribute('data-day')) { if (S.hold) drop(false); S.day = t.getAttribute('data-day'); autoTab(); renderDays(); renderGrid(); }
+    else if (t.hasAttribute('data-tab')) { S.picked = true; S.tab = t.getAttribute('data-tab'); renderGrid(); }
     else if (t.hasAttribute('data-m')) { S.tab = t.getAttribute('data-b'); pickSlot(t.getAttribute('data-b'), +t.getAttribute('data-m')); }
-    else if (t.hasAttribute('data-pick')) { S.tab = t.getAttribute('data-pick'); if (S.svc) renderGrid(); $('rdv').scrollIntoView({ behavior: 'smooth' }); }
+    else if (t.hasAttribute('data-pick')) { S.picked = true; S.tab = t.getAttribute('data-pick'); if (S.svc) renderGrid(); $('rdv').scrollIntoView({ behavior: 'smooth' }); }
   });
   $('first').addEventListener('click', firstFree);
   $('form').addEventListener('submit', submit);
