@@ -10,6 +10,7 @@ import { cap, dates, plural, time } from '../../../lib/format';
 import { Icon } from '../../../ui/Icon';
 import { Button, Note, Sheet, Skeleton, toast, toastError } from '../../../ui/kit';
 import { useApp } from '../../state';
+import './report.css';
 
 type Slot = { staffId: string; day: string; start: number };
 type Row = { id: string; day: string; start: number; dur: number; staffId: string; name: string; services: string[]; price: number; deposit: number; textable: boolean; phone: string; kind: 'same' | 'nearest' | 'call'; to: Slot | null; options: Slot[] };
