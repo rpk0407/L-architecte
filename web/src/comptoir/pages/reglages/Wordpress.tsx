@@ -16,12 +16,14 @@ import { Bascule } from './wordpress/Bascule';
 import { FileList, Issues, Sample, Templates } from './wordpress/Files';
 import './wordpress.css';
 
-type Known = { known: Set<number>; again: Set<number>; erased: Map<number, number>; imported: Map<number, W.Prior>; inWindow: W.InWindow[]; busy: W.Busy[]; haveCards: Set<number>; haveCarnets: Set<number> };
+type Known = { known: Set<number>; via: Map<number, 'phone' | 'email'>; again: Set<number>; erased: Map<number, number>; imported: Map<number, W.Prior>; inWindow: W.InWindow[]; busy: W.Busy[]; open: W.Open[]; haveCards: Set<number>; haveCarnets: Set<number> };
 type Dropped = { name: string; text: string; key: string; modified: number };
 type Halt = { transient: boolean; words?: string };
 type Done = { id: string; next?: string; failed?: boolean; halt?: Halt };
 
 const MB = 1024 * 1024;
+/** where the Comptoir lives (lib/router.tsx): for the links that open in another tab, so the dropped files stay on this page */
+const BASE = '/comptoir';
 const when = (r: { day?: string; start?: number }) => (r.day ? cap(dates.dayShort(r.day)) + ' ' + r.day.slice(0, 4) + (r.start != null ? ' · ' + time(r.start) : '') : '');
 /** « 27 octobre à 10:12 » */
 const stamp = (ms: number) => { const p = dates.localParts(ms); return p.d + ' ' + dates.MONTHS_FR[p.m - 1] + ' à ' + dates.hhmm(p.min); };
@@ -145,10 +147,11 @@ export default function Wordpress() {
     try {
       const ids = W.preview(p, { services: {}, staff: {} }, now()).identities;
       const keys = ids.flatMap((list, g) => list.map((k) => ({ ...k, g })));
-      const known = new Set<number>(), again = new Set<number>(), erased = new Map<number, number>(), imported = new Map<number, W.Prior>();
+      const known = new Set<number>(), again = new Set<number>(), erased = new Map<number, number>(), imported = new Map<number, W.Prior>(), via = new Map<number, 'phone' | 'email'>();
       for (const part of W.chunks(keys, 400, 40000)) {
-        const r = await api.post<{ known: number[]; again?: number[]; erased?: { i: number; at: number }[] }>('/api/v1/import/preview', { keys: part.map(({ g, ...k }) => k) });
-        for (const i of r.known) known.add(part[i].g);
+        const r = await api.post<{ known: number[]; via?: ('phone' | 'email')[]; again?: number[]; erased?: { i: number; at: number }[] }>('/api/v1/import/preview', { keys: part.map(({ g, ...k }) => k) });
+        // the same number wins over the same e-mail when a person's rows give both
+        r.known.forEach((i, n) => { const g = part[i].g, v = r.via?.[n] || 'phone'; known.add(g); if (via.get(g) !== 'phone') via.set(g, v); });
         for (const i of r.again || []) again.add(part[i].g);
         for (const x of r.erased || []) erased.set(part[x.i].g, Math.max(x.at, erased.get(part[x.i].g) || 0));
       }
@@ -165,13 +168,13 @@ export default function Wordpress() {
       for (let i = 0; i < p.windows.length; i += 12) for (const x of (await api.post<{ inWindow?: W.InWindow[] }>('/api/v1/import/preview', { window: p.windows.slice(i, i + 12) })).inWindow || []) inWin.set(x.wp, x);
       const inWindow = [...inWin.values()];
       const days = [...new Set(p.bookings.filter((b) => b.day >= boot.today).map((b) => b.day))];
-      const busy: W.Busy[] = [];
-      for (let i = 0; i < days.length; i += 120) busy.push(...((await api.post<{ busy?: W.Busy[] }>('/api/v1/import/preview', { busy: days.slice(i, i + 120) })).busy || []));
+      const busy: W.Busy[] = [], open: W.Open[] = [];
+      for (let i = 0; i < days.length; i += 120) { const r = await api.post<{ busy?: W.Busy[]; open?: W.Open[] }>('/api/v1/import/preview', { busy: days.slice(i, i + 120) }); busy.push(...(r.busy || [])); open.push(...(r.open || [])); }
       // the cards and carnets of the files that the salon already has
       const haveCards = new Set<number>(), haveCarnets = new Set<number>();
       for (let i = 0; i < p.giftcards.length; i += 500) for (const j of (await api.post<{ haveCards?: number[] }>('/api/v1/import/preview', { gift: p.giftcards.slice(i, i + 500).map((g) => g.code.slice(0, 40)) })).haveCards || []) haveCards.add(i + j);
       for (let i = 0; i < p.packs.length; i += 500) for (const j of (await api.post<{ haveCarnets?: number[] }>('/api/v1/import/preview', { packs: p.packs.slice(i, i + 500).map((k) => ({ phone: k.phone.slice(0, 32) })) })).haveCarnets || []) haveCarnets.add(i + j);
-      setServer({ known, again, erased, imported, inWindow, busy, haveCards, haveCarnets });
+      setServer({ known, via, again, erased, imported, inWindow, busy, open, haveCards, haveCarnets });
       // a barber left unmatched whose bookings an earlier run put on a chair: that chair again
       const prior = W.priorStaff(p, imported);
       setStaffMap((m) => Object.fromEntries(Object.entries(m).map(([name, v]) => [name, !v && prior[name] && chairIds.has(prior[name]) ? prior[name] : v])));
@@ -245,7 +248,7 @@ export default function Wordpress() {
     try {
       // the run is opened with what the files held, so its report can say that the numbers add up
       const shas = await Promise.all(files.map((f) => W.sha16(f.text)));
-      const { id } = await post<{ id: string }>('/api/v1/import/runs', W.runBody(parsed, pv, map, shas, parts.length), 'wp-' + rid + '-start');
+      const { id } = await post<{ id: string }>('/api/v1/import/runs', W.runBody(parsed, pv, map, shas, parts.length, now()), 'wp-' + rid + '-start');
       opened = id;
       let made = 0, clientsAdded = 0;
       const changed = { moved: 0, closed: 0, gone: 0, cancelledNow: 0, reopened: 0, changed: 0 };
@@ -279,6 +282,7 @@ export default function Wordpress() {
     } finally { setProgress(null); setWaiting(false); }
   };
 
+  const decide = pv ? pv.review.filter((r) => DECIDE.has(r.kind || '')).length : 0;
   const showReport = (reports.length > 0 || !!done) && (!pv || !!done);
   const demo = boot.mode === 'demo';
   const names = seen.staff.map(([n]) => n).filter(Boolean);
@@ -319,9 +323,18 @@ export default function Wordpress() {
           <section className="col" style={{ gap: 10 }} aria-label="Aperçu" data-guide="wp-apercu">
             <div className="card-h" style={{ margin: 0 }}><h2><Icon name="eye" size={16} />3 · Ce qui va être repris</h2><span className="faint" style={{ fontSize: 13 }} aria-live="polite">{checking ? 'Vérification des fiches…' : ''}</span></div>
             {checkErr ? <Note tone="warn" icon="alert"><span style={{ flex: 1 }}>{checkErr}</span> <Button size="sm" onClick={retryCheck}>Réessayer</Button></Note> : null}
+            {/* the dry run in one sentence: nothing is written until the button below */}
+            <p className="wp-dry"><b>Rien n’est encore écrit.</b> Si tu importes maintenant : {[
+              c.newClients ? plural(c.newClients, 'fiche client créée', 'fiches clients créées') : 'aucune nouvelle fiche client',
+              c.merged ? plural(c.merged, 'personne fusionnée', 'personnes fusionnées') + ' avec une fiche du salon' + (server ? ' (' + [pv.mergedBy.phone ? pv.mergedBy.phone + ' par le même numéro' : '', pv.mergedBy.email ? pv.mergedBy.email + ' par le même e-mail' : ''].filter(Boolean).join(', ') + ')' : '') : '',
+              c.past + c.noShow ? plural(c.past + c.noShow, 'visite passée reprise', 'visites passées reprises') : '',
+              c.upcoming + c.toReopen ? plural(c.upcoming + c.toReopen, 'rendez-vous à venir mis', 'rendez-vous à venir mis') + ' dans l’agenda' : 'aucun nouveau rendez-vous à venir',
+              nChanges ? plural(nChanges, 'changement repris', 'changements repris') + ' de l’ancien site (annulé, déplacé, modifié ou supprimé)' : '',
+              c.already ? plural(c.already, 'rendez-vous déjà repris ne bouge pas', 'rendez-vous déjà repris ne bougent pas') : ''
+            ].filter(Boolean).join(' ; ')}.{decide ? ' ' + plural(decide, 'ligne demande', 'lignes demandent') + ' ton avis, juste en dessous.' : ''}</p>
             <div className="kpis k5 wp-kpis" aria-live="polite">
               <Kpi k="Nouveaux clients" v={c.newClients} s="fiches créées" icon="user" />
-              <Kpi k="Fusionnés" v={c.merged} s="même numéro ou e-mail qu’une fiche" icon="clients" />
+              <Kpi k="Fusionnés" v={c.merged} s={c.merged && server ? [pv.mergedBy.phone ? pv.mergedBy.phone + ' par le même numéro' : '', pv.mergedBy.email ? pv.mergedBy.email + ' par le même e-mail' : ''].filter(Boolean).join(', ') : 'même numéro ou e-mail qu’une fiche'} icon="clients" />
               <Kpi k="Visites passées" v={c.past + c.noShow} s={c.noShow ? 'dont ' + plural(c.noShow, 'absence') : 'pour le rythme de chacun'} icon="scissors" />
               <Kpi k="À venir" v={c.upcoming} s="rendez-vous dans l’agenda, sans SMS" icon="calendar" hot={c.upcoming > 0} />
               <Kpi k="Annulés" v={c.cancelled + c.toCancel} s={c.toCancel ? 'dont ' + c.toCancel + ' depuis le premier import' : 'gardés dans l’historique'} icon="x" />
@@ -355,7 +368,7 @@ export default function Wordpress() {
 
           {pv.review.length ? <Review title="À regarder" rows={pv.review} /> : null}
 
-          <Card title="4 · Fais correspondre" guide="wp-correspondance" icon="link">
+          <div id="wp-map" /><Card title="4 · Fais correspondre" guide="wp-correspondance" icon="link">
             {seen.services.length ? (
               <div className="wp-map">
                 <p className="section-k">Prestations</p>
@@ -408,15 +421,36 @@ export default function Wordpress() {
   );
 }
 
+/** The kinds of line where a human decides (the others only tell): they come first, each with its one gesture. */
+const DECIDE = new Set(['overlap', 'hours', 'staff', 'service', 'twin', 'name']);
+/** Step 4, and in it the select of that barber or service: one choice there settles every line of that name. */
+function toMap(kind: string, of?: string) {
+  const calm = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const label = (kind === 'staff' ? 'Barbier pour « ' + (of || 'sans barbier') : 'Prestation pour « ' + (of || '')) + ' »';
+  const el = [...document.querySelectorAll<HTMLSelectElement>('.wp-map select')].find((x) => x.getAttribute('aria-label') === label) || document.getElementById('wp-map');
+  el?.scrollIntoView({ behavior: calm ? 'auto' : 'smooth', block: 'center' });
+  if (el instanceof HTMLSelectElement) el.focus({ preventScroll: true });
+}
+/** The one gesture of a line: the agenda at that slot (a new tab: the files stay here), the matching of step 4, or what happens after the import. */
+function Act({ r }: { r: W.ReviewRow }) {
+  if ((r.kind === 'overlap' || r.kind === 'hours') && r.day) return <a className="btn btn-subtle btn-sm wp-act" href={BASE + '/agenda?day=' + r.day} target="_blank" rel="noopener">Voir l’agenda du {dates.dayShort(r.day)}</a>;
+  if (r.kind === 'staff' || r.kind === 'service') return <Button size="sm" variant="subtle" className="wp-act" onClick={() => toMap(r.kind!, r.of)}>{r.kind === 'staff' ? 'Choisir le barbier' : 'Choisir la prestation'}</Button>;
+  if (r.kind === 'twin' || r.kind === 'name') return <span className="badge wp-act">à trancher après l’import</span>;
+  return null;
+}
+
 /** The lines to look at before sending: eight, then fifty more at a time (a big export can raise thousands). */
-function Review({ title, rows }: { title: string; rows: W.ReviewRow[] }) {
+function Review({ title, rows: all }: { title: string; rows: W.ReviewRow[] }) {
   const [n, setN] = useState(8);
+  // the lines that ask for a decision first, in the order they came
+  const rows = useMemo(() => [...all.filter((r) => DECIDE.has(r.kind || '')), ...all.filter((r) => !DECIDE.has(r.kind || ''))], [all]);
   const list = rows.slice(0, n);
   const body = (
     <>
       <ul className="list wp-review">{list.map((r, i) => (
         <li key={i} className="li">
           <span className="li-main"><b>{r.name || 'Ligne'}{r.wp ? <span className="faint"> · n° {r.wp}</span> : null}</b><small>{[when(r), r.text].filter(Boolean).join(' · ')}</small></span>
+          <Act r={r} />
         </li>
       ))}</ul>
       {rows.length > list.length ? <Button variant="ghost" block onClick={() => setN(n + 50)}>Voir {Math.min(50, rows.length - n)} lignes de plus ({rows.length - list.length} restantes)</Button> : null}

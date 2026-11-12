@@ -5,7 +5,7 @@ import { HttpError, failureGuard } from './kit.js';
 import { signLink } from '../auth/session.js';
 import { str, int, day, opt, obj, arr, parse } from '../lib/validate.js';
 import { safeEqual, sha256 } from '../lib/util.js';
-import { importBatch, importGiftcard, importPack, knownClient, priorView, rowTomb, inWindow, busyView, haveView, startImportRun, finishImportRun, runSummary, runLines } from '../commands/import.js';
+import { importBatch, importGiftcard, importPack, knownClient, knownVia, priorView, rowTomb, inWindow, busyView, openView, haveView, startImportRun, finishImportRun, undoImportRun, undoable, reconOf, runSummary, runLines } from '../commands/import.js';
 import { tombKeyOf } from '../commands/clients.js';
 
 export const previewSchema = obj({
@@ -29,19 +29,22 @@ export function importRoutes(app) {
   app.post('/api/v1/import/preview', (r) => {
     const x = parse(previewSchema, r.body);
     const key = tombKeyOf(r.rt.secret);
-    const known = [], again = [], erased = [];
-    (x.keys || []).forEach((k, i) => { const w = knownClient(r.s, k, key); if (w === 'salon') known.push(i); else if (w === 'wordpress') again.push(i); else if (w === 'erased') erased.push({ i, at: rowTomb(r.s, k, key).at }); });
+    const known = [], again = [], erased = [], via = [];
+    (x.keys || []).forEach((k, i) => { const w = knownClient(r.s, k, key); if (w === 'salon') { known.push(i); via.push(knownVia(r.s, k)); } else if (w === 'wordpress') again.push(i); else if (w === 'erased') erased.push({ i, at: rowTomb(r.s, k, key).at }); });
     const appts = priorView(r.s, x.wp || (x.who || []).map((w) => w.wp), x.who);
-    return { known, again, erased, imported: appts.map((a) => a.wp), appts, ...(x.window ? { inWindow: inWindow(r.s, x.window, r.local.day) } : {}), ...(x.busy ? { busy: busyView(r.s, x.busy) } : {}), ...(x.gift || x.packs ? (({ cards, carnets }) => ({ haveCards: cards, haveCarnets: carnets }))(haveView(r.s, x.gift, x.packs)) : {}) };
+    return { known, ...(via.length ? { via } : {}), again, erased, imported: appts.map((a) => a.wp), appts, ...(x.window ? { inWindow: inWindow(r.s, x.window, r.local.day) } : {}), ...(x.busy ? { busy: busyView(r.s, x.busy), open: openView(r.s, x.busy) } : {}), ...(x.gift || x.packs ? (({ cards, carnets }) => ({ haveCards: cards, haveCarnets: carnets }))(haveView(r.s, x.gift, x.packs)) : {}) };
   }, { cap: 'settings' });
   // a run's record (projections/imports.js): the last 20, and one with its lines (names rebuilt from the files, never stored)
   app.post('/api/v1/import/runs', (r) => r.run(startImportRun, r.body), { cap: 'settings' });
   app.post('/api/v1/import/runs/:id/finish', (r) => r.run(finishImportRun, { id: r.params.id }), { cap: 'settings' });
+  app.post('/api/v1/import/runs/:id/undo', (r) => r.run(undoImportRun, { id: r.params.id }), { cap: 'settings' });
   app.get('/api/v1/import/runs', (r) => ({ runs: r.s.imports.order.slice(-20).reverse().map((id) => runSummary(r.s, r.s.imports.runs.get(id))) }), { cap: 'settings' });
   app.get('/api/v1/import/runs/:id', (r) => {
     const run = r.s.imports.runs.get(r.params.id);
     if (!run) throw new HttpError(404, 'not_found', 'Cette reprise n’existe pas.');
-    return { run: runSummary(r.s, run), lines: runLines(r.s, run) };
+    // recon: the old site's count against the agenda's; undo: whether « Annuler cette reprise » is still possible, and why not
+    const { ok, why, ...n } = undoable(r.s, run);
+    return { run: runSummary(r.s, run), lines: runLines(r.s, run), recon: reconOf(r.s, run), undo: { ok, why: why || '', ...n } };
   }, { cap: 'settings' });
   // the key of the erased files' tombstones (commands/clients.js): an erased client stays out
   app.post('/api/v1/import/batch', (r) => { r.meta.tombKey = tombKeyOf(r.rt.secret); return r.run(importBatch, r.body); }, { cap: 'settings' });

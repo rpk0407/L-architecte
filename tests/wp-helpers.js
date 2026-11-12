@@ -3,7 +3,7 @@
 // (web/src/lib/wpimport.ts) runs as is in Node.
 import { salon, DAY } from './helpers.js';
 import * as W from '../web/src/lib/wpimport.ts';
-import { importBatch, startImportRun, finishImportRun, knownClient, rowTomb, priorView, inWindow, busyView, runLines } from '../server/commands/import.js';
+import { importBatch, startImportRun, finishImportRun, knownClient, rowTomb, priorView, inWindow, busyView, openView, runLines } from '../server/commands/import.js';
 import { addStaff } from '../server/commands/team.js';
 import { addService } from '../server/commands/catalog.js';
 import { tombKeyOf } from '../server/commands/clients.js';
@@ -53,7 +53,7 @@ export async function ask(t, p, map) {
   const imported = withFixes(s, p, new Map(priorView(s, p.bookings.map((b) => b.wp)).map((a) => [a.wp, a])), t.clock.now);
   const days = [...new Set(p.bookings.filter((b) => b.day >= today).map((b) => b.day))].slice(0, 120);
   const svcDur = Object.fromEntries([...s.services.values()].map((x) => [x.id, { dur: x.dur, buffer: x.buffer || 0 }]));
-  const opts = { known, again, erased, imported, chairs: chairsOf(t), today, inWindow: inWindow(s, p.windows, today), busy: busyView(s, days), svcDur };
+  const opts = { known, again, erased, imported, chairs: chairsOf(t), today, inWindow: inWindow(s, p.windows, today), busy: busyView(s, days), open: openView(s, days), svcDur };
   return { pv: W.preview(p, map, t.clock.now, opts), opts, imported };
 }
 /** Files in, answers out: the preview, the rows, every batch (no run record: see import-report.test.js for the run). */
@@ -68,7 +68,7 @@ export async function pass(t, files, map, { run = false, chunk = 150 } = {}) {
   ];
   const answers = [];
   // with a run: the record the report is made from (the lines, with their names rebuilt from the state)
-  const id = run ? (await t.engine.run(startImportRun, W.runBody(p, pv, m, p.files.map(() => '0123456789abcdef'), parts.length), owner(t))).id : null;
+  const id = run ? (await t.engine.run(startImportRun, W.runBody(p, pv, m, p.files.map(() => '0123456789abcdef'), parts.length, t.clock.now), owner(t))).id : null;
   for (const [i, body] of parts.entries()) answers.push(await t.engine.run(importBatch, id ? { ...body, run: id, i } : body, owner(t)));
   if (id) await t.engine.run(finishImportRun, { id }, owner(t));
   const record = id ? t.engine.state.imports.runs.get(id) : null;

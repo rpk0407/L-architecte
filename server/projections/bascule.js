@@ -8,7 +8,7 @@
 import { TEMPLATE_FLAGS } from '../core/templates.js';
 
 /** The steps only the owner can tick (WordPress and IONOS are outside the Comptoir). */
-export const ITEMS = /** @type {const} */ (['reminders-off', 'cold-backup', 'app-password', 'ancien-noindex', 'licences', 'ancien-removed']);
+export const ITEMS = /** @type {const} */ (['reminders-off', 'cold-backup', 'app-password', 'ancien-noindex', 'licences', 'ancien-removed', 'exceptions-ok']);
 
 /** @type {import('../core/extensions.js').Extension} */
 export const basculeExtension = {
@@ -28,7 +28,7 @@ export const basculeExtension = {
       B.history.push({ at: (d && d.at) || e.at, reason: String((d && d.reason) || ''), frozenAt: B.frozenAt, switchedAt: B.switchedAt, forced: !!B.forced });
       if (!B.sinceAt) B.sinceAt = B.frozenAt || B.switchedAt;
       B.frozenAt = 0; B.switchedAt = 0; B.forced = null;
-      for (const k of ['reminders-off', 'app-password', 'licences', 'ancien-removed']) delete B.ticks[k];
+      for (const k of ['reminders-off', 'app-password', 'licences', 'ancien-removed', 'exceptions-ok']) delete B.ticks[k];
     },
     'bascule.switched': (s, e, d) => {
       if (s.bascule.switchedAt) return;
@@ -102,4 +102,30 @@ export function lateBookings(s) {
   let n = 0;
   for (const a of s.appts.values()) if (a.source === 'import' && a.ext && a.ext.run === run.id && a.createdAt > frozen && a.createdAt < run.startedAt) n++;
   return n;
+}
+
+/** Is the final sync's export older than the freeze (less ten minutes)? It cannot hold what changed on the old site since: not a final sync. @param {any} s */
+export function staleSync(s) {
+  const frozen = s.bascule && s.bascule.frozenAt, run = finalSync(s);
+  if (!frozen || !run) return false;
+  const at = exportOf(run).at;
+  return !!at && at < frozen - STALE_EXPORT_MS;
+}
+
+/**
+ * The reminders the new salon wrote for a booking of the old site while WordPress still sent its own (before its reminders were cut:
+ * the tick, else the freeze; never cut: all of them). They wait behind the hold, and must not leave when the sends open: the client
+ * already has WordPress's reminder for that visit.
+ * @param {any} s @returns {any[]} the queued messages
+ */
+export function remindedThere(s) {
+  const B = s.bascule || {};
+  const cut = (B.ticks && B.ticks['reminders-off']) || B.frozenAt || Infinity;
+  const out = [];
+  for (const m of s.messages.values()) {
+    if (m.status !== 'queued' || !m.apptId || !/^reminder/.test(m.template) || !(m.at < cut)) continue;
+    const a = s.appts.get(m.apptId);
+    if (a && a.source === 'import') out.push(m);
+  }
+  return out;
 }

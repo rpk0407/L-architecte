@@ -6,14 +6,15 @@ import { useState, type ReactNode } from 'react';
 import { api, qs } from '../../../../lib/api';
 import { ago, dates, plural, time } from '../../../../lib/format';
 import { prime, refreshAll, useQuery } from '../../../../lib/query';
+import { Link } from '../../../../lib/router';
 import { Icon } from '../../../../ui/Icon';
 import { Button, Note, Skeleton, confirm, toast, toastError } from '../../../../ui/kit';
 import { useApp } from '../../../state';
 import './bascule.css';
 
 type State = 'ok' | 'todo' | 'warn' | 'err' | 'info';
-type Step = { id: string; state: State; line: string; at?: number; field?: string };
-type Data = { steps: Step[]; hold: { on: boolean; queued: number; lost?: number }; since: { at: number; count: number; changes?: number }; rolledBack?: { at: number; reason: string }[]; domain: string; demo: boolean };
+type Step = { id: string; state: State; line: string; at?: number; field?: string; day?: string };
+type Data = { steps: Step[]; hold: { on: boolean; queued: number; lost?: number }; reminded?: number; since: { at: number; count: number; changes?: number }; rolledBack?: { at: number; reason: string }[]; domain: string; demo: boolean };
 type Backups = { blob: boolean; key: boolean; last: { at: number } | null; off: string };
 
 const KEY = 'lx-domain';
@@ -62,7 +63,7 @@ function Records() {
   );
 }
 
-/** « Sauvegarder maintenant »: the last encrypted backup, before the first pass and before the final sync (no run can be undone). */
+/** « Sauvegarder maintenant »: the last encrypted backup, before the first pass and before the final sync (a run can be taken back only while nothing was touched since). */
 function BackupBar() {
   const { boot, now } = useApp();
   const { data, refresh } = useQuery<Backups>('/api/v1/backups');
@@ -72,7 +73,7 @@ function BackupBar() {
   const go = async () => { setBusy(true); try { await api.post('/api/v1/backups/now'); toast({ title: 'Sauvegarde faite', sub: 'Chiffrée et rangée avec les autres.', icon: 'shieldOk' }); await refresh(); } catch (e) { toastError(e); } finally { setBusy(false); } };
   return (
     <div className="jj-backup" data-guide="jj-backup">
-      <span><b>Sauvegarde avant d’importer</b> <small>Dernière : {last}. Une reprise ne s’annule pas, la sauvegarde si.</small></span>
+      <span><b>Sauvegarde avant d’importer</b> <small>Dernière : {last}. Une reprise ne s’annule d’un geste que tant que rien n’a été touché depuis ; la sauvegarde, toujours.</small></span>
       <Button size="sm" variant="subtle" icon="shield" busy={busy} disabled={!data.blob || !data.key} onClick={() => void go()}>Sauvegarder maintenant</Button>
     </div>
   );
@@ -108,15 +109,15 @@ export function Bascule() {
   }), 'WordPress est noté comme bloqué');
   const open = async (reason?: string) => {
     // the dialog is made from the card: what leaves, what is lost, what is still undone (and red or to do: a second question)
-    const held = data?.hold.queued || 0, lost = data?.hold.lost || 0;
-    const left = [['cold-backup', 'la copie de l’ancien site'], ['dns', 'les DNS du domaine'], ['redirects', 'les anciennes adresses'], ['ancien', 'l’ancien site garé'], ['final-sync', 'la synchro finale']] as const;
+    const held = data?.hold.queued || 0, lost = data?.hold.lost || 0, there = data?.reminded || 0;
+    const left = [['capacity', 'la place de chaque rendez-vous dans l’agenda'], ['cold-backup', 'la copie de l’ancien site'], ['dns', 'les DNS du domaine'], ['redirects', 'les anciennes adresses'], ['ancien', 'l’ancien site garé'], ['final-sync', 'la synchro finale']] as const;
     const by = Object.fromEntries((data?.steps || []).map((x) => [x.id, x])) as Record<string, Step>;
     const undone = left.filter(([id]) => by[id] && by[id].state !== 'ok' && by[id].state !== 'info');
     const bad = undone.filter(([id]) => by[id].state === 'todo' || by[id].state === 'err');
     const names = (l: typeof undone) => l.map(([, n]) => n).join(', ');
     const ok = await confirm({
       title: 'Ouvrir les envois ?', ok: 'Ouvrir les envois',
-      body: 'Dès maintenant, le salon envoie ses rappels et ses messages aux clients. ' + (held ? plural(held, 'message part', 'messages partent') : 'Aucun message n’attend') + (lost ? ', ' + plural(lost, 'sera perdu', 'seront perdus') + ' (plus de 6 h de retard)' : '') + '.' + (undone.length ? ' Pas encore fait ou à vérifier : ' + names(undone) + '.' : '')
+      body: 'Dès maintenant, le salon envoie ses rappels et ses messages aux clients. ' + (held ? plural(held, 'message part', 'messages partent') : 'Aucun message n’attend') + (lost ? ', ' + plural(lost, 'sera perdu', 'seront perdus') + ' (plus de 6 h de retard)' : '') + '.' + (there ? ' ' + plural(there, 'rappel écrit', 'rappels écrits') + ' pendant que WordPress envoyait encore les siens ne ' + (there > 1 ? 'partent' : 'part') + ' pas : ces clients ont déjà celui de WordPress.' : '') + (undone.length ? ' Pas encore fait ou à vérifier : ' + names(undone) + '.' : '')
     });
     if (!ok) return;
     // one of them is red or still to do: the second confirmation says so
@@ -136,9 +137,14 @@ export function Bascule() {
   const by = Object.fromEntries(data.steps.map((x) => [x.id, x])) as Record<string, Step>;
   const st = (id: string): Step => by[id] || { id, state: 'info', line: '' };
   const switched = st('switch').state === 'ok';
-  const ready = st('freeze').state === 'ok' && st('final-sync').state === 'ok';
+  // the domain and the old addresses come before the sends: a text sent now would carry a link to a site the domain does not serve yet
+  // (« à vérifier », a check the network could not make, does not shut the button: the confirmation asks)
+  const notYet = (id: string) => st(id).state === 'todo' || st(id).state === 'err';
+  const placed = st('capacity').state === 'ok' || st('capacity').state === 'info';
+  const ready = st('freeze').state === 'ok' && st('final-sync').state === 'ok' && placed && !notYet('dns') && !notYet('redirects');
   // why « Ouvrir les envois » is greyed out, in words
-  const waits = st('freeze').state !== 'ok' ? 'Dis d’abord que WordPress est bloqué (étape 2).' : st('final-sync').state === 'err' ? 'Coupe la réservation en ligne sur WordPress, puis refais la synchro finale (étape 3).' : st('final-sync').state !== 'ok' ? 'Fais d’abord la synchro finale, après le blocage (étape 3).' : '';
+  const waits = st('freeze').state !== 'ok' ? 'Dis d’abord que WordPress est bloqué (étape 2).' : st('final-sync').state === 'err' ? 'La synchro finale est à refaire (étape 3) : lis sa ligne, puis dépose un export fait maintenant.' : st('final-sync').state !== 'ok' ? 'Fais d’abord la synchro finale, après le blocage (étape 3).'
+    : !placed ? 'Des rendez-vous à venir n’ont pas leur place dans l’agenda (sous « Synchro finale », étape 3) : règle-les d’abord.' : notYet('dns') ? 'Le domaine ne pointe pas encore vers le nouveau site (étape « Domaine ») : les liens des SMS n’ouvriraient pas le bon site.' : notYet('redirects') ? 'Les anciennes adresses ne sont pas encore vérifiées sur le domaine (étape « Anciennes adresses »).' : '';
   const done = (id: string) => st(id).state === 'ok';
   const text = typed ?? data.domain;
 
@@ -154,7 +160,18 @@ export function Bascule() {
     },
     {
       id: 'final-sync', title: 'Synchro finale',
-      go: !switched && (!done('final-sync') || st('final-sync').state === 'err') ? <Button variant={st('freeze').state === 'ok' ? 'primary' : 'subtle'} icon="download" onClick={toDrop}>Synchroniser</Button> : undefined
+      go: !switched && (!done('final-sync') || st('final-sync').state === 'err') ? <Button variant={st('freeze').state === 'ok' ? 'primary' : 'subtle'} icon="download" onClick={toDrop}>Synchroniser</Button> : undefined,
+      // with the sync: every booking of the old site still to come has a barber the agenda shows and a day the salon works. A closed day
+      // the owner keeps for these clients is her word, asked again after each new pass
+      extra: !switched && (st('capacity').state === 'err' || st('capacity').state === 'warn') ? (
+        <div className={'jj-place ' + st('capacity').state} data-place={st('capacity').state}>
+          <p><Icon name="alert" size={15} /><b>Une place dans l’agenda pour chacun.</b> {st('capacity').line}</p>
+          <div className="jj-after">
+            {st('capacity').day ? <Link to={'/agenda?day=' + st('capacity').day} className="btn btn-subtle"><Icon name="calendar" />Voir l’agenda de ce jour</Link> : null}
+            {st('capacity').state === 'warn' ? <Button variant="subtle" icon="check" busy={busy === 'exceptions-ok'} onClick={() => tick('exceptions-ok')}>Je les garde en exception</Button> : null}
+          </div>
+        </div>
+      ) : done('final-sync') && st('capacity').state === 'ok' ? <p className="jj-sub">{st('capacity').line}</p> : undefined
     },
     {
       id: 'cold-backup', title: 'Copie complète de l’ancien site',
@@ -196,7 +213,7 @@ export function Bascule() {
             <ul aria-labelledby="jj-before">{BEFORE.map((x) => <li key={x}>{x}</li>)}</ul>
           </div>
           {force === null
-          ? <button type="button" className="jj-link" onClick={() => setForce('')}>La synchro finale est impossible ? Forcer la bascule</button>
+          ? <button type="button" className="jj-link" onClick={() => setForce('')}>Une étape est impossible ? Forcer la bascule</button>
           : (
             <form className="jj-force" onSubmit={(e) => { e.preventDefault(); void open(force.trim()); }}>
               <label htmlFor="jj-reason">Pourquoi forcer la bascule ?</label>
@@ -233,7 +250,7 @@ export function Bascule() {
   return (
     <section className="card col jj" style={{ gap: 14 }} aria-label="Jour J" data-guide="wp-jourj">
       <div className="card-h"><h2><Icon name="bolt" size={16} />Jour J</h2>{data.demo ? <span className="badge badge-info">démo</span> : null}</div>
-      <p className="muted jj-intro">Les dix étapes du jour de la bascule, dans l’ordre. Les coches viennent de ce que le Comptoir peut vérifier ; le reste, c’est toi qui le dis. Rien ici ne touche à WordPress ni aux DNS.</p>
+      <p className="muted jj-intro">Les dix étapes du jour de la bascule, dans l’ordre : WordPress bloqué, synchro finale, domaine, anciennes adresses, puis seulement les envois. Les coches viennent de ce que le Comptoir peut vérifier ; le reste, c’est toi qui le dis. Rien ici ne touche à WordPress ni aux DNS.</p>
       {data.hold.on ? <Note icon="lock">Avant la bascule, le salon n’envoie aucun SMS ni e-mail à un client : WordPress envoie encore les siens.{data.hold.queued ? ' ' + data.hold.queued + (data.hold.queued > 1 ? ' messages attendent' : ' message attend') + ' la bascule.' : ''}</Note> : null}
       {!switched && (st('first-run').state !== 'ok' || !done('final-sync') || st('final-sync').state === 'warn') ? <BackupBar /> : null}
       <ol className="jj-list" aria-label="Les étapes du jour J">

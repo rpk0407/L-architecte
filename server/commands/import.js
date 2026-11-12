@@ -10,10 +10,11 @@
 import { fail } from '../core/engine.js';
 import { str, int, bool, opt, obj, arr, day, id, oneOf, money, record, parse, InvalidInput } from '../lib/validate.js';
 import { normPhoneImport, isEmail, isLandline, capFirst, sha256, normGiftCode, giftCode } from '../lib/util.js';
-import { addDays, instantOf, dayShort, fmtTime } from '../../shared/dates.js';
+import { addDays, instantOf, dayShort, fmtTime, localParts } from '../../shared/dates.js';
 import { fmtEur } from '../../shared/money.js';
 import { retentionCutoff } from '../../shared/retention.js';
 import { getClient, totalDur } from './common.js';
+import { shopIntervals, staffIntervals } from '../domain/availability.js';
 import { erasedTomb } from './clients.js';
 import { runOpen } from '../projections/imports.js';
 
@@ -43,6 +44,8 @@ export const KIND_TEXT = {
   changed: 'Modifié sur l’ancien site depuis le premier import[ ({names})] : mis à jour ici, vérifie',
   'changed:handled': 'Modifié sur l’ancien site[ ({names})], mais déjà pris en charge ici : pas changé, vérifie',
   overlap: 'Chevauche un autre rendez-vous',
+  hours: 'Hors des horaires du nouveau salon : gardé tel quel (l’ancien site l’avait accepté), vérifie dans l’agenda',
+  'hours:closed': 'Le nouveau salon est fermé ce jour-là : gardé tel quel (l’ancien site l’avait accepté), déplace-le ou ouvre ce jour',
   today: 'Terminé aujourd’hui sur l’ancien site : s’il y a été encaissé, ne l’encaisse pas ici',
   moved: 'Déplacé sur l’ancien site[ : était {was}]',
   'moved:both': 'Déplacé ici et sur l’ancien site : vérifie le créneau[ (ici {was})]',
@@ -85,7 +88,7 @@ export const KIND_TEXT = {
   email: 'E-mail illisible[ : « {email} »] : pas gardé'
 };
 /** The kinds that ask the owner to do something (« À faire »); the rest is « Pour info ». */
-export const TODO_KINDS = new Set(['pending', 'paid', 'refund', 'changed', 'overlap', 'today', 'moved', 'cancelled', 'gone-handled', 'name', 'new-number', 'new-email', 'staff', 'giftcard', 'pack', 'reopened', 'person', 'unreadable']);
+export const TODO_KINDS = new Set(['pending', 'paid', 'refund', 'changed', 'overlap', 'hours', 'today', 'moved', 'cancelled', 'gone-handled', 'name', 'new-number', 'new-email', 'staff', 'giftcard', 'pack', 'reopened', 'person', 'unreadable']);
 /** Variants of a kind that ask something of the owner although the kind is only « Pour info »: an upcoming booking lost to its service label, a booking that turned « Erreur » after it came in. */
 const TODO_VARIANTS = new Set(['service:upcoming', 'error:since']);
 const isTodo = (kind, v) => TODO_KINDS.has(kind) || TODO_VARIANTS.has(kind + ':' + (v || ''));
@@ -143,6 +146,9 @@ const startSchema = obj({
   site: opt(obj({ url: str({ max: 200 }) })),
   // how many batches the browser plans, to say « interrompue à 3/12 » when it stops
   parts: opt(int({ min: 0, max: 5000 })),
+  // what the export holds to come and not cancelled (the old site's own count, to set against the agenda once the run is through): how many,
+  // from when to when, and per day and barber for the two weeks ahead (the chair the name was matched to, '' when none). No personal data
+  ahead: opt(obj({ n: count, from: opt(day()), to: opt(day()), days: arr(obj({ day: day(), staffId: opt(str({ max: 40 })), name: opt(str({ max: 80 })), n: count }), { max: 400 }) })),
   // the lines nobody could read (file, line, WordPress number, the bad value), kept so the report lists them: 500 at most, the count stays exact
   problems: opt(arr(obj({ file: str({ max: 80 }), line: int({ min: 0, max: 100000000 }), wp: opt(wpId), text: str({ max: 160 }) }), { max: 500 }))
 });
@@ -179,6 +185,12 @@ export function knownClient(s, x, tombKey = '') {
   const cid = (x.wpUser && known(s).wp.get(x.wpUser)) || (phone && s.clientByPhone.get(phone)) || (email && known(s).email.get(email)) || null;
   if (!cid) return rowTomb(s, x, tombKey) ? 'erased' : null;
   return getClient(s, cid).source === 'wordpress' ? 'wordpress' : 'salon';
+}
+
+/** How a row finds a file of the salon: by its number, else its e-mail (the preview's « fusionnés », with the reason). @returns {'phone'|'email'} */
+export function knownVia(s, x) {
+  const phone = x.phone ? normPhoneImport(x.phone, x.prefix) : null;
+  return (x.wpUser && known(s).wp.get(x.wpUser)) || (phone && s.clientByPhone.get(phone)) ? 'phone' : 'email';
 }
 
 /** The tombstone of an erased file this row's number or e-mail matches (clients.js erasedTomb), or null. */
@@ -678,6 +690,23 @@ function overlaps(s, mine, b, ignore) {
   return hit;
 }
 
+/**
+ * Does the new salon work then? '' when the barber's hours hold the whole visit; 'closed' when the salon is shut that day (a closure,
+ * a weekday it does not open); 'off' otherwise (after closing, over the break, the barber's day off). Never a reason to refuse a booking
+ * of the old site: it is kept and listed.
+ * @param {any} s @param {{ day: string, start: number, dur: number, staffId: string }} b @returns {''|'closed'|'off'}
+ */
+export function outsideHours(s, b) {
+  if (staffIntervals(s, b.staffId, b.day).some((iv) => iv[0] <= b.start && b.start + b.dur <= iv[1])) return '';
+  return shopIntervals(s, b.day).length ? 'off' : 'closed';
+}
+/** The barbers' hours on these days, for the preview (the same check before anything is written). @param {any} s @param {string[]} days */
+export function openView(s, days) {
+  const out = [];
+  for (const st of s.staff.values()) if (st.active && st.chair && !st.legacy) for (const d of days) out.push({ day: d, staffId: st.id, iv: staffIntervals(s, st.id, d), shut: !shopIntervals(s, d).length });
+  return out;
+}
+
 /** The deposit sentence at the start of an upcoming booking's note, as the first run wrote it: a new amount replaces it, the rest of the note stays. */
 const PAID_NOTE = /^(?:Déjà payé en entier sur l’ancien site \([^)]*\)|Acompte de [^·]*? déjà payé sur l’ancien site)(?: · |$)/;
 const paidNote = (paid, price) => (paid ? (paid >= price ? 'Déjà payé en entier sur l’ancien site (' + fmtEur(paid) + ')' : 'Acompte de ' + fmtEur(paid) + ' déjà payé sur l’ancien site') : '');
@@ -731,6 +760,8 @@ function delta(s, ctx, r, a, row, run) {
         ext2.slot = wpSlot;
         note(out, row, 'moved', { was });
         if (overlaps(s, run.mine, to, a.id)) note(out, row, 'overlap');
+        const off = outsideHours(s, to);
+        if (off) note(out, row, 'hours', {}, off === 'closed' ? 'closed' : '');
         slot = { day: to.day, start: to.start, staffId: to.staffId };
         did = 'moved';
       }
@@ -939,6 +970,9 @@ export const importBatch = {
       if (paidText) note(out, row, 'paid', { amount: fmtEur(r.paid) }, r.paid >= price ? 'full' : '');
       // availability rules are skipped (the old site accepted it), but a double booking is worth a look
       if (overlaps(s, mine, { day: r.day, start: r.start, dur, staffId }, a.id)) note(out, row, 'overlap');
+      // nor are the new salon's hours: kept (an exception), and listed
+      const off = outsideHours(s, { day: r.day, start: r.start, dur, staffId });
+      if (off) note(out, row, 'hours', {}, off === 'closed' ? 'closed' : '');
     }
     // the files this batch made keep the oldest creation time the old site gave their rows
     P.settle();
@@ -1132,3 +1166,84 @@ export function runLines(s, r) {
   for (const x of r.problems || []) lines.push({ kind: 'unreadable', wp: x.wp || 0, day: '', start: null, name: '', staff: '', text: x.file + (x.line ? ' · ligne ' + x.line : '') + ' · ' + x.text, todo: true });
   return lines;
 }
+
+/* ---------------- after a run: the count to check against WordPress, and taking the run back ---------------- */
+
+/**
+ * « WordPress : N rendez-vous à venir du … au … ; ici : N »: what the export held to come (run.ahead, counted by the browser from the files)
+ * against the bookings of the old site that are in the agenda now, in all and per barber and day for the two weeks after the run. A gap is
+ * a booking the run could not place (a service or a barber left unmatched: its line is in the report) or one handled here since.
+ * @param {any} s @param {any} run @param {string} [today] the first day of the two weeks (the run's own day by default)
+ */
+export function reconOf(s, run, today = localParts(run.at).day) {
+  const ahead = run.ahead;
+  if (!ahead) return null;
+  const from = ahead.from || today, to = ahead.to || today, end = addDays(today, 13);
+  const cell = new Map();
+  const at = (day, staffId, name) => { const k = day + '|' + staffId; let c = cell.get(k); if (!c) cell.set(k, (c = { day, staffId, staff: (s.staff.get(staffId) || {}).name || name || 'Sans barbier', wordpress: 0, here: 0 })); return c; };
+  for (const x of ahead.days) if (x.day >= today && x.day <= end) at(x.day, x.staffId && x.staffId !== LEGACY_STAFF ? x.staffId : '', x.name).wordpress += x.n;
+  let here = 0;
+  for (const a of s.appts.values()) {
+    if (!a.ext || !a.ext.wp || !ACTIVE.has(a.status) || a.day < from || a.day > to) continue;
+    here++;
+    if (a.day >= today && a.day <= end) at(a.day, a.staffId).here++;
+  }
+  const days = [...cell.values()].sort((x, y) => (x.day < y.day ? -1 : x.day > y.day ? 1 : x.staff.localeCompare(y.staff)));
+  return { wordpress: { n: ahead.n, from, to }, here: { n: here }, gap: Math.abs(ahead.n - here), days };
+}
+
+const pl = (n, one, many) => n + ' ' + (n > 1 ? many : one);
+/**
+ * Can this run be taken back? Only while what it added is still as it came: it is the latest run that wrote something, it changed no
+ * booking of an earlier run (a delta's cancellations and moves are the old site's, not additions), the sends are not open, and none of
+ * its bookings, files, cards or carnets was used since. `why` is the sentence the owner reads when it is no longer possible.
+ * @param {any} s @param {any} run @returns {{ ok: boolean, why?: string, code?: string, appts: number, clients: number, giftcards: number, packs: number, kept: number }}
+ */
+export function undoable(s, run) {
+  const id = run.id;
+  const appts = [...s.appts.values()].filter((a) => a.ext && a.ext.run === id);
+  const files = [...s.clients.values()].filter((c) => c.ext && c.ext.run === id);
+  const cards = [...s.giftcards.values()].filter((g) => g.run === id), packs = [...s.packs.values()].filter((k) => k.run === id);
+  const n = { appts: appts.length, clients: files.length, giftcards: cards.length, packs: packs.length, kept: ((run.counts || {}).clients || {}).merged || 0 };
+  const no = (code, why) => ({ ok: false, code, why, ...n });
+  if (run.undoneAt) return no('undone', 'Cette reprise est déjà annulée.');
+  if (s.bascule && s.bascule.switchedAt) return no('switched', 'Les envois sont ouverts : des clients ont pu recevoir un message pour ces rendez-vous. Une reprise ne s’annule plus après la bascule.');
+  const later = s.imports.order.slice(s.imports.order.indexOf(id) + 1).map((x) => s.imports.runs.get(x)).some((r) => r && r.batches > 0 && !r.undoneAt);
+  if (later) return no('later', 'Une reprise plus récente s’appuie sur celle-ci : annule d’abord la plus récente.');
+  const a = (run.counts || {}).appts || {};
+  const changed = (a.moved || 0) + (a.closed || 0) + (a.changed || 0) + (a.updated || 0) + (a.cancelledNow || 0) + (a.gone || 0) + (a.reopened || 0);
+  if (changed) return no('delta', 'Cette reprise a aussi mis à jour ' + pl(changed, 'rendez-vous déjà repris', 'rendez-vous déjà repris') + ' (annulés, déplacés ou modifiés sur WordPress) : elle ne s’annule pas d’un geste. Dépose un export plus récent pour corriger, ou demande à ton prestataire de restaurer la sauvegarde.');
+  if (s.loyalty && s.loyalty.launched && s.loyalty.launched.at > run.at) return no('touched', 'La fidélité a été lancée depuis sur ces visites : cette reprise ne s’annule plus.');
+  const mine = new Set(appts.map((x) => x.id)), ids = new Set(files.map((c) => c.id));
+  const usedAppts = appts.filter((x) => x.saleId || x.deposit || movedHere(x) || Object.keys(x.statusAt || {}).length || (x.status === 'cancelled' && !(x.cancel && x.cancel.by === 'salon' && x.cancel.reason === CANCEL_REASON))).length;
+  if (usedAppts) return no('touched', pl(usedAppts, 'rendez-vous de cette reprise a été modifié', 'rendez-vous de cette reprise ont été modifiés') + ' ici depuis (arrivé, encaissé, déplacé ou annulé) : elle ne s’annule plus d’un geste.');
+  const sent = [...s.messages.values()].some((m) => m.status !== 'queued' && ((m.apptId && mine.has(m.apptId)) || (m.cid && ids.has(m.cid))));
+  if (sent) return no('touched', 'Un message est déjà parti vers un client de cette reprise : elle ne s’annule plus.');
+  const kids = new Set([...s.clients.values()].map((c) => c.mergedInto).filter(Boolean));
+  const busy = new Set();
+  for (const x of s.appts.values()) if (ids.has(x.clientId) && !mine.has(x.id)) busy.add(x.clientId);
+  for (const x of s.sales.values()) if (ids.has(x.clientId)) busy.add(x.clientId);
+  for (const k of s.packs.values()) if (ids.has(k.clientId) && k.run !== id) busy.add(k.clientId);
+  for (const c of files) if (c.erased || c.mergedInto || kids.has(c.id) || c.marketing || (c.phone || '') !== (c.wpPhone || '') || String(c.email || '') !== (c.wpEmail || '')) busy.add(c.id);
+  if (busy.size) return no('touched', pl(busy.size, 'fiche créée par cette reprise a servi', 'fiches créées par cette reprise ont servi') + ' ici depuis (rendez-vous pris ici, vente, fusion, numéro ou e-mail changé) : elle ne s’annule plus d’un geste.');
+  if (cards.some((g) => g.uses.length || g.status !== 'active') || packs.some((k) => k.used > 0 || k.voided)) return no('touched', 'Une carte cadeau ou un carnet de cette reprise a déjà servi : elle ne s’annule plus.');
+  if (!n.appts && !n.clients && !n.giftcards && !n.packs) return no('empty', 'Cette reprise n’a rien ajouté : il n’y a rien à annuler.');
+  return { ok: true, ...n };
+}
+
+/**
+ * « Annuler cette reprise »: what the run added leaves the salon (projections/imports.js, import.undone), exactly and only that. Refused
+ * with its reason once something was touched (undoable). The salon's own files the run completed (an e-mail, a last name) keep it.
+ */
+export const undoImportRun = {
+  run(s, input, ctx) {
+    ctx.need('settings');
+    const x = parse(obj({ id: id() }), input);
+    const r = s.imports.runs.get(x.id);
+    if (!r) fail(404, 'not_found', 'Cette reprise n’existe pas.');
+    const u = undoable(s, r);
+    if (!u.ok) fail(409, u.code || 'touched', u.why || 'Cette reprise ne s’annule plus.');
+    ctx.emit('import.undone', { id: r.id, appts: u.appts, clients: u.clients, giftcards: u.giftcards, packs: u.packs });
+    return { id: r.id, appts: u.appts, clients: u.clients, giftcards: u.giftcards, packs: u.packs, kept: u.kept };
+  }
+};

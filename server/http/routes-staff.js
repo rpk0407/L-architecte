@@ -28,6 +28,7 @@ import { parseSearch, searchRank } from '../domain/client-search.js';
 import { teamViewOf } from '../settings/team.js';
 import { attribution } from '../domain/attribution.js';
 import { rebookable } from '../domain/rebook.js';
+import { messageId } from '../domain/messages.js';
 import { webhookUrl } from '../messaging/sms.js';
 import { TEMPLATE_FLAGS } from '../core/templates.js';
 import { cutoverHeld } from '../projections/bascule.js';
@@ -186,7 +187,7 @@ function badges(r) {
   const toPay = S.toPayAppts(s, L.day, L.min).filter((a) => !mineOnly || a.staffId === r.me.id).length;
   const queue = [...s.queue.values()].filter((q) => q.status === 'waiting' || q.status === 'called').length;
   let relances = 0;
-  if (r.caps.has('marketing')) for (const [id, st] of clientStats(s, L.day, r.now)) { const c = st.overdue && s.clients.get(id); if (c && rebookable(c, st)) relances++; }
+  if (r.caps.has('marketing')) for (const [id, st] of clientStats(s, L.day, r.now)) { const c = st.overdue && s.clients.get(id); if (c && rebookable(c, st, s, L.day)) relances++; }
   const waitlist = [...s.waitlist.values()].filter((w) => w.status === 'waiting' && w.day >= L.day).length;
   // files past the 3 years /confidentialite promises: on the Clients tab, so the purge does not wait on a memory
   const retention = r.caps.has('client.erase') ? C.inactiveClients(s, L.day).length : 0;
@@ -508,7 +509,7 @@ export function staffRoutes(app) {
     const segs = {
       all: () => true, nouveaux: (c) => st(c).firstDay && diffDays(st(c).firstDay, L.day) <= 30 || !st(c).visits, fideles: (c) => st(c).loyal,
       // the same people as Relances: late on their rhythm and agreed to the offers
-      relancer: (c) => st(c).overdue && rebookable(c, st(c)), absents: (c) => st(c).noShows > 0, abonnes: (c) => membersOf(s, c.id).some((m) => isLive(m, L.day, graceOf(s))) || [...s.packs.values()].some((k) => k.clientId === c.id && k.used < k.total),
+      relancer: (c) => st(c).overdue && rebookable(c, st(c), s, L.day), absents: (c) => st(c).noShows > 0, abonnes: (c) => membersOf(s, c.id).some((m) => isLive(m, L.day, graceOf(s))) || [...s.packs.values()].some((k) => k.clientId === c.id && k.used < k.total),
       vip: (c) => (c.tags || []).includes('VIP'), anniversaires: (c) => c.birthday && c.birthday.slice(3, 5) === month,
       doublons: (c) => dups.has(c.id), inactifs: (c) => inactive.has(c.id)
     };
@@ -766,7 +767,9 @@ export function staffRoutes(app) {
     const stats = clientStats(s, r.local.day, r.now);
     const overdue = [...s.clients.values()].filter((c) => !c.erased && !c.mergedInto && c.sms && c.phone && stats.get(c.id)?.overdue);
     // without consent to the offers, no follow-up: they are counted, not listed
-    const items = overdue.filter((c) => rebookable(c, stats.get(c.id)))
+    // texted today and gone: out of the list, as out of the badge and the Accueil's card; still held for the morning: kept, it says when it leaves
+    const held = (c) => { const m = s.messages.get(messageId('rebook_' + c.id + '_' + r.local.day)); return !!m && m.status === 'queued' && m.dueAt > r.now; };
+    const items = overdue.filter((c) => rebookable(c, stats.get(c.id)) && (rebookable(c, stats.get(c.id), s, r.local.day) || held(c)))
       .map((c) => clientCard(s, c, r.caps, stats, r.now)).sort((a, b) => (a.dueIn ?? 0) - (b.dueIn ?? 0)).slice(0, 200);
     /** @type {Map<string, any>} */
     const recent = new Map();

@@ -6,6 +6,9 @@
 
 export const PAY = 'sln_step_page=summary&submit_summary=next&sln_booking_id=4410-0cc175b9c0f1b6a831c399e269772661&pay_remaining_amount=0';
 
+/** The old booking pages, whose address the plugin's own links start with. */
+const BOOKING = '/(rdv-en-ligne|booking|thank-you-for-booking)';
+
 /** @type {[string, number, string, string][]} */
 export const CASES = [
   ['/Main.dc', 307, '/', '/Main.dc'], ['/Cockpit.dc', 307, '/comptoir', '/Cockpit.dc'], ['/Parcours.dc', 307, '/demo', '/Parcours.dc'],
@@ -16,6 +19,14 @@ export const CASES = [
   ['/?sln_step_page=summary', 307, '/ancien-lien?sln_step_page=summary', '/?sln_step_page'],
   ['/?page_id=2', 308, '/?reserver&page_id=2', '/?page_id'],
   ['/rdv-en-ligne', 308, '/?reserver', '/rdv-en-ligne'], ['/booking', 308, '/?reserver', '/booking'],
+  // the plugin writes its links on the booking page's own address (the pay and cancel links of its SMS and e-mails): straight to /ancien-lien,
+  // not through /?reserver (one hop less on a phone, and the booking sheet does not open under a link that asks for one booking)
+  ['/rdv-en-ligne?' + PAY, 307, '/ancien-lien?' + PAY, BOOKING + '?sln_booking_id'],
+  ['/rdv-en-ligne?sln-api=cancel_booking&booking_id=12-abc', 307, '/ancien-lien?sln-api=cancel_booking&booking_id=12-abc', BOOKING + '?sln-api'],
+  ['/booking?sln_customer_login=9f2c41&feedback_id=4410', 307, '/ancien-lien?sln_customer_login=9f2c41&feedback_id=4410', BOOKING + '?sln_customer_login'],
+  ['/rdv-en-ligne?booking_id=4410&sln_reschedule_booking=1', 307, '/ancien-lien?booking_id=4410&sln_reschedule_booking=1', BOOKING + '?sln_reschedule_booking'],
+  ['/thank-you-for-booking?sln_step_page=thankyou', 307, '/ancien-lien?sln_step_page=thankyou', BOOKING + '?sln_step_page'],
+  ['/sln_attendant', 308, '/?reserver', '/sln_attendant'], ['/index.php', 308, '/', '/index.php'],
   ['/thank-you-for-booking', 308, '/', '/thank-you-for-booking'], ['/salon-de-coiffure', 308, '/', '/salon-de-coiffure'], ['/news', 308, '/', '/news'],
   ['/mon-compte', 308, '/mon-rendez-vous', '/mon-compte'], ['/booking-my-account', 308, '/mon-rendez-vous', '/booking-my-account'],
   ['/nos-services', 308, '/#carte', '/nos-services'], ['/creations', 308, '/#coupes', '/creations'],

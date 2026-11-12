@@ -7,13 +7,13 @@
 // ticks and the list of features waiting for the switch (domain/features.js). Owner only ('settings').
 import dns from 'node:dns';
 import { HttpError, guard } from './kit.js';
-import { cutoverHold, heldByCutover, finalSync, lateBookings, exportOf, STALE_EXPORT_MS } from '../projections/bascule.js';
-import { freezeWordpress, markSwitched, tickBascule, rollbackBascule } from '../commands/bascule.js';
+import { cutoverHold, heldByCutover, finalSync, lateBookings, exportOf, STALE_EXPORT_MS, remindedThere } from '../projections/bascule.js';
+import { freezeWordpress, markSwitched, tickBascule, rollbackBascule, noPlace } from '../commands/bascule.js';
 import { CANCEL_REASON, GONE_REASON } from '../commands/import.js';
 import { featuresOf } from '../domain/features.js';
 import { staleReason } from './scheduler.js';
 import { CASES } from '../../shared/redirects.js';
-import { localParts, dayParts, MONTHS_FR, MONTHS_SH, hhmm } from '../../shared/dates.js';
+import { localParts, dayParts, instantOf, MONTHS_FR, MONTHS_SH, hhmm } from '../../shared/dates.js';
 import { fmtPhone } from '../lib/util.js';
 import { csv } from '../lib/csv.js';
 
@@ -71,20 +71,20 @@ function local(loc, origin) {
   try { const u = new URL(loc, origin); return u.origin === origin ? u.pathname + u.search + u.hash : u.href; } catch { return String(loc); }
 }
 
-/** @typedef {{ id: string, state: 'ok'|'todo'|'warn'|'err'|'info', line: string, at?: number, field?: string }} Step */
+/** @typedef {{ id: string, state: 'ok'|'todo'|'warn'|'err'|'info', line: string, at?: number, field?: string, day?: string }} Step */
 
 /** « 29 oct. 00:31 » */
 const stamp = (ms) => { const p = localParts(ms); const d = dayParts(p.day); return d.d + ' ' + MONTHS_SH[d.m - 1] + ' ' + hhmm(p.min); };
 /**
  * The final sync's line: which export it was made from. An export older than the freeze (less ten minutes) cannot hold what changed
- * after it: the step reads « à vérifier », the switch is not blocked and its confirmation says it again.
+ * after it: the step is red and the switch is refused (commands/bascule.js, stale_export) until a fresh export is dropped.
  * @param {any} run @param {number} frozenAt @returns {Step}
  */
 function finalLine(run, frozenAt) {
   const ex = exportOf(run);
   const done = hhmm(localParts(run.finishedAt).min);
   if (!ex.at) return { id: 'final-sync', state: 'ok', at: run.finishedAt, line: 'Faite à ' + done + ', après le gel.' };
-  if (ex.at < frozenAt - STALE_EXPORT_MS) return { id: 'final-sync', state: 'warn', at: run.finishedAt, line: 'Export du ' + stamp(ex.at) + ' : plus ancien que le gel de WordPress (' + stamp(frozenAt) + '). Refais l’export après le gel et dépose-le, sinon ce qui a changé depuis n’est pas repris.' };
+  if (ex.at < frozenAt - STALE_EXPORT_MS) return { id: 'final-sync', state: 'err', at: run.finishedAt, line: 'Export du ' + stamp(ex.at) + ' : plus ancien que le gel de WordPress (' + stamp(frozenAt) + '). Refais l’export après le gel et dépose-le, sinon ce qui a changé depuis n’est pas repris.' };
   return { id: 'final-sync', state: 'ok', at: run.finishedAt, line: 'Export du ' + stamp(ex.at) + ' · ' + pl(ex.rows, 'rendez-vous', 'rendez-vous') + (ex.newest ? ' · le plus récent pris le ' + stamp(ex.newest) : '') + ' · repris à ' + done + ', après le gel.' };
 }
 
@@ -266,8 +266,10 @@ export function changedHere(s) {
 /** Texts waiting for the switch: queued for a client, not expired. @param {any} s @param {number} now */
 export function heldQueued(s, now) {
   if (!cutoverHold(s)) return 0;
+  // the reminders WordPress already sent its own for do not leave at the switch (projections/bascule.js remindedThere)
+  const there = new Set(remindedThere(s));
   let n = 0;
-  for (const m of s.messages.values()) if (m.status === 'queued' && heldByCutover(m) && !staleReason(s, m, now)) n++;
+  for (const m of s.messages.values()) if (m.status === 'queued' && heldByCutover(m) && !there.has(m) && !staleReason(s, m, now)) n++;
   return n;
 }
 /** Texts that waited for the switch so long that they would be dropped as expired when it opens (more than 6 h late): lost, and said before the switch. */
@@ -315,6 +317,14 @@ export async function basculeOf(rt, o = {}) {
     : sync ? finalLine(sync, B.frozenAt)
       : { id: 'final-sync', state: 'todo', line: B.frozenAt ? 'Refais l’export de WordPress et dépose-le : seul ce qui a changé depuis le gel est repris.' : 'Elle vient après le gel de WordPress : refais l’export et dépose-le.' });
 
+  // every booking of the old site still to come needs a barber the agenda shows and a day the salon works
+  const place = noPlace(s, localParts(now).day);
+  const firstOf = (l) => 'le premier le ' + dm(instantOf(l[0].day, l[0].start)) + ' à ' + hhmm(l[0].start);
+  steps.push(place.gone.length ? { id: 'capacity', state: 'err', day: place.gone[0].day, line: pl(place.gone.length, 'rendez-vous à venir') + ' sur un barbier qui n’a plus de place dans l’agenda (' + firstOf(place.gone) + ') : ouvre l’agenda et déplace-' + (place.gone.length > 1 ? 'les' : 'le') + ' vers un barbier actif.' }
+    : place.shut.length && !place.accepted ? { id: 'capacity', state: 'warn', day: place.shut[0].day, line: pl(place.shut.length, 'rendez-vous à venir tombe', 'rendez-vous à venir tombent') + ' un jour où le salon est fermé ou le barbier absent (' + firstOf(place.shut) + ') : déplace-' + (place.shut.length > 1 ? 'les' : 'le') + ', ou garde-' + (place.shut.length > 1 ? 'les' : 'le') + ' en exception.' }
+      : !s.apptByWp.size ? { id: 'capacity', state: 'info', line: 'Vérifié après chaque reprise : un barbier actif et un jour ouvert pour chaque rendez-vous à venir.' }
+        : { id: 'capacity', state: 'ok', ...(place.shut.length ? { at: tick('exceptions-ok') } : {}), line: place.shut.length ? pl(place.shut.length, 'rendez-vous gardé', 'rendez-vous gardés') + ' en exception, un jour fermé : ' + (place.shut.length > 1 ? 'ils restent' : 'il reste') + ' dans l’agenda.' : 'Chaque rendez-vous à venir repris de WordPress a un barbier actif et un jour ouvert.' });
+
   steps.push(tick('cold-backup') ? { id: 'cold-backup', state: 'ok', at: tick('cold-backup'), line: 'Copie rangée hors ligne, chiffrée. À effacer dans 12 mois.' }
     : { id: 'cold-backup', state: 'todo', line: 'Prends la base et le dossier wp-content de l’ancien site avant de résilier : rien d’autre ne les garde.' });
 
@@ -359,6 +369,8 @@ export async function basculeOf(rt, o = {}) {
   const taken = takenHere(s), changes = changedHere(s);
   return {
     steps, hold: { on: cutoverHold(s), queued: held, lost: lostQueued(s, now) },
+    // reminders written here while WordPress still sent its own: they will not leave at the switch (commands/bascule.js markSwitched)
+    reminded: cutoverHold(s) ? remindedThere(s).length : 0,
     since: { at: B.sinceAt || B.frozenAt || B.switchedAt || 0, count: taken.length + changes.length, changes: changes.length }, rolledBack: B.history.slice(-3), domain, demo
   };
 }
