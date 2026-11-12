@@ -17,9 +17,10 @@
 /** @typedef {{ v: number, at: string, done: boolean }} TourPrefs */
 // WP3 · the Accueil's own choices, all optional (absent: the role's defaults): homeCards the order he pinned inside a
 //   group, homeHidden the cards he masked, homeDay 'salon' | 'moi' for someone with a chair and the salon's rights
-//   (absent: 'salon'), tabs his three phone tabs after « Accueil », views his saved lists { page, name, query }.
+//   (absent: 'salon'), tabs his three phone tabs after « Accueil », views his saved lists { page, name, query }, homeBlocks the page's own
+//   blocks he keeps in sight { prochain, fauteuils, jour } (absent: all three, or what this device chose before).
 /** @typedef {{ page: string, name: string, query: string }} SavedView */
-/** @typedef {{ home: 'auto'|'accueil'|'espace'|'agenda'|'pilotage', notify: 'mine'|'all'|'none', buzz: boolean, cards: string[], hidden: string[], blur: 'auto'|'on'|'off', cal: number, calName: boolean, tour: TourPrefs, homeCards?: string[], homeHidden?: string[], homeDay?: 'salon'|'moi', tabs?: string[], views?: SavedView[] }} Prefs */
+/** @typedef {{ home: 'auto'|'accueil'|'espace'|'agenda'|'pilotage', notify: 'mine'|'all'|'none', buzz: boolean, cards: string[], hidden: string[], blur: 'auto'|'on'|'off', cal: number, calName: boolean, tour: TourPrefs, homeCards?: string[], homeHidden?: string[], homeDay?: 'salon'|'moi', tabs?: string[], views?: SavedView[], homeBlocks?: { prochain: boolean, fauteuils: boolean, jour: boolean } }} Prefs */
 
 export const HOMES = /** @type {const} */ (['auto', 'accueil', 'espace', 'agenda', 'pilotage']);
 /** whose day the Accueil shows to someone who has both a chair and the salon's rights */

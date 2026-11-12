@@ -95,7 +95,7 @@ export default function Salon({ s }: SectionProps) {
         <p className="muted" style={{ fontSize: 13.5 }}>{cgv ? 'CGV en vigueur : version du ' + cgv.d + (cgv.d === 1 ? 'er' : '') + ' ' + dates.MONTHS_FR[cgv.m - 1] + ' ' + cgv.y + '. ' : ''}La version change d’elle-même quand tu modifies l’acompte ou l’annulation dans Réservation.</p>
       </Card>
       <Card title="Liens" icon="link">
-        <p className="muted" style={{ fontSize: 13.5 }}>Le lien d’avis Google se règle avec la demande d’avis, dans <Link to="/reglages/messages">Messages › Avis Google</Link>.</p>
+        <p className="muted" style={{ fontSize: 13.5 }}>Le lien d’avis Google se règle avec la demande d’avis, dans <Link to="/reglages/messages" className="link">Messages › Avis Google</Link>.</p>
         {input('mapsUrl', 'Lien Google Maps', { type: 'url' })}
         {input('instagram', 'Instagram du salon', { type: 'url' })}
       </Card>

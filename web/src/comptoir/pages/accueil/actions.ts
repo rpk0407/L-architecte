@@ -60,7 +60,8 @@ export function hiddenAfter(hidden: readonly string[], id: string, show: boolean
   return show ? rest : [...rest, id];
 }
 
-/** The page's own blocks, which this person may switch off on this device (`lx-accueil-blocs`). */
+/** The page's own blocks, which this person may switch off: his prefs (`homeBlocks`), with what this device kept
+ *  before (`lx-accueil-blocs`) as the first-run fallback. */
 export type Blocks = { prochain: boolean; fauteuils: boolean; jour: boolean };
 export const BLOCKS_KEY = 'lx-accueil-blocs';
 export const ALL_BLOCKS: Blocks = { prochain: true, fauteuils: true, jour: true };

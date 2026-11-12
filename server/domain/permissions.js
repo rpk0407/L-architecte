@@ -47,7 +47,7 @@ const ALL = Object.keys(CAPS);
 const BASE = {
   owner: ALL,
   manager: ALL.filter((c) => !['settings', 'devices', 'client.erase', 'data'].includes(c)),
-  desk: ['agenda.all', 'agenda.edit', 'agenda.own', 'sale.create', 'sale.all', 'drawer', 'client.view', 'client.edit', 'client.contact', 'client.rebook', 'marketing', 'report.own'],
+  desk: ['agenda.all', 'agenda.edit', 'agenda.own', 'sale.create', 'sale.discount', 'sale.all', 'drawer', 'client.view', 'client.edit', 'client.contact', 'client.rebook', 'marketing', 'report.own'],
   barber: ['agenda.all', 'agenda.own', 'sale.create', 'sale.discount', 'client.view', 'client.edit', 'report.own']
 };
 

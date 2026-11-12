@@ -1461,7 +1461,7 @@ html{scroll-behavior:auto}
 <div class="fld"><label for="f-phone">Téléphone</label><input id="f-phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="06 12 34 56 78" value="{{fPhone}}" onChange="{{setPhone}}"><span class="{{phoneCls}}">{{phoneHint}}</span></div>
 <div class="fld"><label for="f-email">E-mail <span class="opt-l">facultatif</span></label><input id="f-email" type="email" inputmode="email" autocomplete="email" value="{{fEmail}}" onChange="{{setEmail}}"><span class="hint">Pour recevoir le rendez-vous dans ton agenda.</span></div>
 <div class="fld"><label for="f-note">Un mot pour ton barbier <span class="opt-l">facultatif</span></label><input id="f-note" type="text" placeholder="Ex. : dégradé bas, garder la longueur" value="{{fNote}}" onChange="{{setNote}}"></div>
-<button type="button" class="{{smsCls}}" role="switch" aria-checked="{{smsOn}}" onClick="{{toggleSms}}"><span class="sw-t"><b>Rappel par SMS la veille</b><small>Avec un lien pour déplacer ou annuler.</small></span><span class="sw-k" aria-hidden="true"><i></i></span></button>
+<button type="button" class="{{smsCls}}" role="switch" aria-checked="{{smsOn}}" onClick="{{toggleSms}}"><span class="sw-t"><b>{{smsTitle}}</b><small>Avec un lien pour déplacer ou annuler.</small></span><span class="sw-k" aria-hidden="true"><i></i></span></button>
 <button type="button" id="f-mkt" class="{{mktCls}}" role="switch" aria-checked="{{mktOn}}" onClick="{{toggleMkt}}"><span class="sw-t"><b>Les bons plans du salon par SMS</b><small>Places de dernière minute, rappel de coupe. Tu arrêtes quand tu veux : STOP, comme indiqué dans chaque SMS.</small></span><span class="sw-k" aria-hidden="true"><i></i></span></button>
 <p class="priv">Tes coordonnées servent à ce rendez-vous, et aux bons plans seulement si tu coches. <a href="{{dataHref}}" target="_blank" rel="noopener">Comment elles sont traitées</a></p>
 <sc-if value="{{bkMbr}}" hint-placeholder-val="{{ false }}"><p class="dep">Réservé avec ton abonnement&nbsp;: si la coupe tombe dans ton mois, elle est incluse, et rien n’est demandé en ligne.</p></sc-if>
@@ -3504,6 +3504,9 @@ const BookingMixin = {
     v.setPhone = (e) => this.setState({ fPhone: fmtPhone(e.target.value) });
     v.setEmail = (e) => this.setState({ fEmail: e.target.value });
     v.setNote = (e) => this.setState({ fNote: e.target.value });
+    // the reminder of the eve as the salon set it (GET /api/public/salon `reminder`): its hour, or no promise when it is off
+    const rem = sal && sal.reminder && typeof sal.reminder.hour === 'number' ? sal.reminder : { on: true, hour: 18 };
+    v.smsTitle = rem.on ? 'Rappel par SMS la veille à ' + rem.hour + ' h' : 'Confirmation par SMS';
     v.smsOn = !!s.fSms;
     v.smsCls = 'sw' + (s.fSms ? ' on' : '');
     // the offers come by SMS: no SMS, no offers (a yes that could never be used is no consent at all)
@@ -3512,7 +3515,7 @@ const BookingMixin = {
     v.mktCls = 'sw' + (s.fMkt ? ' on' : '');
     v.toggleMkt = () => this.setState(this.state.fMkt ? { fMkt: false } : { fMkt: true, fSms: true });
     const phd = String(s.fPhone || '').replace(/\D/g, '');
-    v.phoneHint = phd.length > 0 && (phd.length < 10 || phd.charAt(0) !== '0') ? 'Un numéro français à 10 chiffres, comme 06 12 34 56 78.' : s.fMkt ? 'Pour la confirmation, le rappel et les bons plans.' : 'Pour la confirmation et le rappel, rien d’autre.';
+    v.phoneHint = phd.length > 0 && (phd.length < 10 || phd.charAt(0) !== '0') ? 'Un numéro français à 10 chiffres, comme 06 12 34 56 78.' : s.fMkt ? (rem.on ? 'Pour la confirmation, le rappel et les bons plans.' : 'Pour la confirmation et les bons plans.') : rem.on ? 'Pour la confirmation et le rappel, rien d’autre.' : 'Pour la confirmation, rien d’autre.';
     v.phoneCls = 'hint' + (phd.length > 0 && (phd.length < 10 || phd.charAt(0) !== '0') ? ' warn' : '');
     v.dataHref = '/confidentialite';
     v.hasTerms = step === 'info' && dep > 0;

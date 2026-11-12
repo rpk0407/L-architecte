@@ -19,6 +19,8 @@ import { clearDraft, draftKey, loadDraft, saveDraft, tabStore } from './draft';
 
 type Kind = 'service' | 'product' | 'giftcard' | 'pack' | 'fee';
 // base: the price the line starts from (the booked one for an appointment), now: today's catalogue price
+/** why « Valider » is off without a connection: nothing would be recorded */
+const OFFLINE_WHY = 'Hors ligne : l’encaissement attend le retour de la connexion.';
 type Line = { key: string; kind: Kind; ref: string | null; name: string; qty: number; unit: number; base: number; now: number; booked?: boolean; from: boolean; staffId: string | null; packId: string | null; discount: number; vat: number; recipient?: string; rewardId?: string;
   // PAY-05: the membership that pays the cut (0 €, the month is already paid), what the till said of it, and the cuts the person decided himself
   memberId?: string | null; force?: boolean; memberOff?: boolean; auto?: boolean; cover?: { label: string; note: string; canForce: boolean; retry?: boolean } };
@@ -36,7 +38,7 @@ const draftSig = (ls: Line[], d: { amount: number; reason: string } | null, t: {
 export const qrOff = (boot: Pick<Boot, 'mode' | 'providers'>) => boot.mode !== 'demo' && boot.providers.payments === 'simulated';
 
 export function Checkout({ apptId, drawerOpen, onClose }: { apptId: string | null; drawerOpen: boolean; onClose: () => void }) {
-  const { boot, staffById, serviceById, can, now, pulse } = useApp();
+  const { boot, staffById, serviceById, can, now, pulse, offline } = useApp();
   const today = pulse?.today || boot.today;
   const S = boot.settings.payments;
   const noQr = qrOff(boot);
@@ -335,7 +337,8 @@ export function Checkout({ apptId, drawerOpen, onClose }: { apptId: string | nul
         </>
       ) : left < 0 ? <Note tone="warn" icon="alert">Les paiements dépassent le total de {eur(-left)}. Retire un paiement.</Note> : null}
 
-      <Button variant="primary" size="xl" block data-guide="tk-validate" busy={busy || checking} disabled={left !== 0 || !lines.length || lines.some((l) => l.cover?.retry)} onClick={() => submit()} icon="check">{left === 0 && lines.length ? 'Valider l’encaissement · ' + eur(totals.due) : 'Encaisser'}</Button>
+      <Button variant="primary" size="xl" block data-guide="tk-validate" busy={busy || checking} disabled={offline || left !== 0 || !lines.length || lines.some((l) => l.cover?.retry)} title={offline ? OFFLINE_WHY : undefined} aria-describedby={offline ? 'tk-off' : undefined} onClick={() => submit()} icon="check">{left === 0 && lines.length ? 'Valider l’encaissement · ' + eur(totals.due) : 'Encaisser'}</Button>
+      {offline ? <p id="tk-off" className="off-why" role="status"><Icon name="alert" size={14} />{OFFLINE_WHY}</p> : null}
 
       <AddSheet open={modal === 'add'} onClose={() => setModal('')} onAdd={(ls) => { setLines((x) => { const next = [...x, ...ls]; if (ls.some((l) => l.kind === 'pack')) { const svc = serviceById.get(ls.find((l) => l.kind === 'pack')!.ref!); const cut = next.find((l) => l.kind === 'service' && !l.packId && !l.memberId && (!svc?.pack?.serviceIds?.length || svc.pack.serviceIds.includes(l.ref!))); if (cut) cut.packId = 'new'; } return next; }); setModal(''); }} performer={performer} />
       <DiscountModal open={modal === 'discount'} onClose={() => setModal('')} gross={lines.filter((l) => l.kind !== 'giftcard' && !paidBy(l)).reduce((t, l) => t + l.unit * l.qty - l.discount, 0)} maxPct={maxPct} value={disc} onSet={(d) => { setDisc(d); setModal(''); }} />
@@ -444,7 +447,7 @@ function DiscountModal({ open, onClose, gross, maxPct, value, onSet }: { open: b
       {txt.trim() && typed == null ? <Note tone="warn" icon="alert">Un montant en euros, par exemple 2,50.</Note> : null}
       <div className="chips">{[...REASONS, OTHER].map((r) => <Chip key={r} small on={reason === r} onClick={() => setReason(r)}>{r}</Chip>)}</div>
       {reason === OTHER ? <Field label="Raison" htmlFor="dc-r" hint="Reste au salon : le reçu du client indique « Autre »."><input id="dc-r" className="input" value={other} onChange={(e) => setOther(e.target.value)} maxLength={40} placeholder="Ex. : coupe de l’enfant offerte" data-autofocus /></Field> : null}
-      {pct > maxPct + 0.01 ? <Note tone="err" icon="alert">C’est au-dessus de ta limite ({maxPct} %).</Note> : null}
+      {pct > maxPct + 0.01 ? <Note tone="err" icon="alert">C’est au-dessus de ta limite ({maxPct} %). Au-delà, c’est le gérant ou le responsable qui la fait.</Note> : null}
       <div className="acts">{value ? <Button variant="ghost" onClick={() => onSet(null)}>Retirer la remise</Button> : null}<Button variant="primary" disabled={!amount || pct > maxPct + 0.01 || !why} onClick={() => onSet({ amount, reason: why })}>Appliquer −{eur(amount, { decimals: amount % 100 !== 0 })}</Button></div>
     </Modal>
   );

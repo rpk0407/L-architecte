@@ -29,7 +29,8 @@ export function Today({ t }: { t: CockpitToday }) {
             <div title={HOW.planned}>
               <dt>Chiffre prévu</dt>
               <dd><Money cents={t.planned} /></dd>
-              <small>{t.left && t.left !== t.count ? <>encore <Money cents={t.expected} /> à venir</> : 'prix des rendez-vous du jour'}</small>
+              {/* the Accueil's « encore prévus », the same figure under the same words */}
+              <small>{(t.started && !t.over) || (t.left && t.left !== t.count) ? <><Money cents={t.expected} /> encore prévus</> : 'prix des rendez-vous du jour'}</small>
             </div>
             <div title={HOW.free}>
               <dt>Libre à vendre</dt>

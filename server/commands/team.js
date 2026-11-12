@@ -259,7 +259,8 @@ export const NEAREST_MAX_MIN = 90;
  * hours off included), or nothing: ask the client (call him when it is too late for him to change online).
  * Defaults never overlap each other, and no alternative overlaps another row's default (two alternatives picked by
  * hand may: the sheet and applyHandover check that). Pure: state in, plan out.
- * @param {any} s @param {any} t the absence (posted, or about to be) @param {{ now: number, local: { day: string, min: number } }} o
+ * @param {any} s @param {any} t the absence (posted, or about to be) @param {{ now: number, local: { day: string, min: number }, nearestMax?: number }} o
+ *   nearestMax: how far the nearest time may be and still be the default (commands/report.js takes any time of the day)
  * @returns {{ a: any, same: { staffId: string, day: string, start: number } | null, nearest: { staffId: string, day: string, start: number } | null, choice: 'same'|'nearest'|'ask', online: boolean }[]}
  */
 export function handoverPlan(s, t, o) {
@@ -285,7 +286,7 @@ export function handoverPlan(s, t, o) {
     }
     return nearest;
   };
-  const near = (a, x) => !!x && Math.abs(x.start - a.start) <= NEAREST_MAX_MIN;
+  const near = (a, x) => !!x && Math.abs(x.start - a.start) <= (o.nearestMax ?? NEAREST_MAX_MIN);
   // first pass, in time order: each default takes its chair
   const rows = timeoffConflicts(h, t, o).map((a) => {
     const other = poolOf(a).find((p) => p.st.id !== t.staffId && free(a, p.st.id, a.start));
@@ -347,8 +348,8 @@ const planSchema = obj({
   ask: opt(arr(id(), { max: 300 })), cancel: opt(arr(id(), { max: 300 }))
 });
 /** Who the owner reads in a refusal: the first name and the time, never the phone. */
-const firstOf = (s, a) => { const c = a.clientId ? s.clients.get(a.clientId) : null; return (c && !c.erased && c.first) || (a.name || '').split(' ')[0] || 'Client'; };
-const whoAt = (s, a) => firstOf(s, a) + ' (' + dayWords(a.day) + ' ' + fmtTime(a.start) + ')';
+export const firstOf = (s, a) => { const c = a.clientId ? s.clients.get(a.clientId) : null; return (c && !c.erased && c.first) || (a.name || '').split(' ')[0] || 'Client'; };
+export const whoAt = (s, a) => firstOf(s, a) + ' (' + dayWords(a.day) + ' ' + fmtTime(a.start) + ')';
 
 /** Two moves of the plan on the same chair at the same time (two alternatives picked by hand): said before anything runs. */
 function planClash(s, moves) {
@@ -518,6 +519,8 @@ const prefsSchema = obj({
   // his three phone tabs after « Accueil », his saved lists (8 at most: a page, a name, the query string it reopens)
   homeCards: opt(arr(str({ min: 1, max: 40, pattern: /^[A-Za-z0-9_-]+$/ }), { max: 20 })), homeHidden: opt(arr(str({ min: 1, max: 40, pattern: /^[A-Za-z0-9_-]+$/ }), { max: 20 })),
   homeDay: opt(oneOf(HOME_DAYS)),
+  // the Accueil's own blocks (Prochain, Fauteuils, Aujourd’hui), shown or not: they follow the person to another phone
+  homeBlocks: opt(obj({ prochain: bool(), fauteuils: bool(), jour: bool() })),
   tabs: opt(arr(str({ min: 1, max: 40, pattern: /^[a-z0-9-]+$/ }), { max: 3 })),
   views: opt(arr(obj({ page: str({ min: 1, max: 40, pattern: /^[a-z0-9-]+$/ }), name: str({ min: 1, max: 30 }), query: str({ max: 200 }) }), { max: 8 }))
 });

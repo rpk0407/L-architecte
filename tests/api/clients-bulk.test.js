@@ -164,6 +164,24 @@ test('300 files tagged in one request: one write of the journal, the change repo
   assert.ok(ids.every((id) => tagsOf(id).includes('Fidélité')));
   assert.ok(!tagsOf(big[300]).includes('Fidélité'), 'nobody else');
   assert.equal((await rt.engine.verify()).ok, true, 'the chain still verifies');
+  // the activity log shows it as ONE line, grouped as it is read (the journal keeps its 300 events, no new type)
+  const log = (await b.get('/api/v1/audit?limit=5&type=client.')).json.items;
+  assert.deepEqual([log[0].label, log[0].summary, log[0].count, log[0].type, log[0].actor], ['300 fiches', 'tag Fidélité ajouté', 300, 'client.updated', 'Le gérant']);
+  assert.deepEqual([log[0].v, log[0].vTo], [added[0].v, added[299].v]);
+  assert.notEqual(log[1].count, 300);
+  assert.ok(log[1].v < log[0].v, 'the line before it is what came before the 300');
+  assert.equal(rt.engine.journal.length, before + 300);
+  // taken off again: one line too, with the tag's name; a single file's edit stays a line of its own
+  const off = await bulk(b, { op: 'untag', ids: ids.slice(0, 40), tag: 'Fidélité' });
+  assert.equal(off.json.changed, 40);
+  assert.equal((await b.patch('/api/v1/clients/' + ids[299], { tags: ['Fidélité', 'Seul'] })).status, 200);
+  const log2 = (await b.get('/api/v1/audit?limit=3&type=client.')).json.items;
+  assert.deepEqual(log2.map((x) => [x.label, x.summary, x.count]), [['Fiche client modifiée', '', undefined], ['40 fiches', 'tag Fidélité retiré', 40], ['300 fiches', 'tag Fidélité ajouté', 300]]);
+  // the next page starts before the group, never inside it
+  const page2 = (await b.get('/api/v1/audit?limit=3&type=client.&before=' + log2[2].v)).json.items;
+  assert.ok(page2.every((x) => (x.vTo || x.v) < added[0].v));
+  assert.equal((await bulk(b, { op: 'tag', ids: ids.slice(0, 40), tag: 'Fidélité' })).json.changed, 40);
+  assert.equal((await b.patch('/api/v1/clients/' + ids[299], { tags: ['Fidélité'] })).status, 200);
 
   // again: those who have it are left alone (no event), and said so
   const again = await writes(() => bulk(b, { op: 'tag', ids: big.slice(250, 350), tag: 'Fidélité' }));
@@ -336,12 +354,21 @@ test('rights per role: each operation asks the right the single action asks toda
   }
   assert.equal(rt.engine.journal.length, len, 'a refused request writes nothing');
   assert.ok(![...S().messages.values()].some((m) => ids.includes(m.cid) && m.template === 'rebook' && m.at === clock.now));
-  // …but an ordinary tag is « Modifier les fiches clients », which he has on each file today
-  const plain = await bulk(barber, { op: 'tag', ids, tag: 'Dégradé' });
-  assert.equal(plain.status, 200, plain.text);
-  assert.equal(plain.json.changed, 10);
+  // …and no tag on many files either, by ids or by filter, dry or not: a barber edits one file at a time
+  for (const body of [{ op: 'tag', ids, tag: 'Dégradé' }, { op: 'untag', ids, tag: 'Dégradé' }, { op: 'tag', ids: [ids[0]], tag: 'Dégradé' }, { op: 'tag', filter: { q: 'wassim' }, tag: 'Dégradé' }]) {
+    const r = await bulk(barber, body);
+    assert.equal(r.status, 403, JSON.stringify(body) + ' → ' + r.text);
+    assert.equal(r.json.error.code, 'forbidden');
+    assert.match(r.json.error.message, /une fiche à la fois/);
+  }
+  assert.equal(rt.engine.journal.length, len, 'a refused request writes nothing');
+  assert.ok(!ids.some((cid) => tagsOf(cid).includes('Dégradé')));
+  // the single-file edit stays his (« Modifier les fiches clients »), journalled under his name
+  const one = await barber.patch('/api/v1/clients/' + ids[0], { tags: ['Dégradé'] });
+  assert.equal(one.status, 200, one.text);
+  assert.deepEqual(tagsOf(ids[0]), ['Dégradé']);
   assert.equal(rt.engine.journal[rt.engine.journal.length - 1].actor.id, barber.id, 'journalled under his name');
-  // the owner switches « Modifier les fiches » off for nobody: a barber without the right would get 403; shown with the desk's export below
+  await barber.patch('/api/v1/clients/' + ids[0], { tags: [] });
 
   // the front desk: tags, « confiance » and texts; no export
   const desk = await asStaff('Inès');
@@ -359,7 +386,8 @@ test('rights per role: each operation asks the right the single action asks toda
     assert.equal((await bulk(who, { op: 'sms', ids, dry: true })).status, 200);
     assert.equal((await bulk(who, { op: 'export', ids })).status, 200);
   }
-  assert.equal((await bulk(await owner(), { op: 'untag', ids, tag: 'Dégradé' })).json.changed, 10);
+  // nothing of the barber's refused tag is left to take off
+  assert.equal((await bulk(await owner(), { op: 'untag', ids, tag: 'Dégradé' })).json.changed, 0);
 });
 
 /* ---------------- texts ---------------- */

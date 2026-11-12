@@ -59,6 +59,39 @@ test('barbers are capped on discounts and need a reason', async () => {
   assert.equal(r.totals.revenue, 2700);
 });
 
+test('the front desk gives a discount up to 20 % of the ticket, never above; owner and manager stay uncapped', async () => {
+  const t = await salon();
+  const { addStaff } = await import('../../server/commands/team.js');
+  const { capsOf } = await import('../../server/domain/permissions.js');
+  const as = async (name, role) => {
+    const r = await t.engine.run(addStaff, { name, role }, t.asOwner());
+    const st = t.engine.state.staff.get(r.id);
+    return { actor: { t: 'staff', id: st.id }, staff: st, caps: capsOf(st, t.engine.state.settings) };
+  };
+  const desk = await as('Inès', 'desk');
+  assert.ok(desk.caps.has('sale.discount'));
+  const line = { lines: [{ kind: 'service', ref: t.ids.beard }] }; // 30 €: 20 % is 6 €
+  const a = await apptFor(t, 'Ali', 600, 'beard');
+  // one cent over the cap: refused in plain words that name who can, and nothing is written
+  const n = t.engine.journal.length;
+  const e = await rejects(t.engine.run(S.checkout, { apptId: a.id, ...line, discount: { amount: 601, reason: 'Fidélité' }, payments: [{ method: 'card', amount: 2399 }] }, desk), 'discount');
+  assert.equal(e.status, 403);
+  assert.match(e.message, /20 %/);
+  assert.match(e.message, /gérant ou le responsable/);
+  assert.equal(t.engine.journal.length, n);
+  // a line discount counts like a ticket discount
+  await rejects(t.engine.run(S.checkout, { apptId: a.id, lines: [{ kind: 'service', ref: t.ids.beard, discount: 700 }], payments: [{ method: 'card', amount: 2300 }] }, desk), 'discount');
+  // exactly 20 %: accepted
+  const r = await t.engine.run(S.checkout, { apptId: a.id, ...line, discount: { amount: 600, reason: 'Fidélité' }, payments: [{ method: 'card', amount: 2400 }] }, desk);
+  assert.equal(r.totals.revenue, 2400);
+  // owner and manager: unchanged, no cap
+  const manager = await as('Mona', 'manager');
+  for (const who of [manager, t.asOwner()]) {
+    const ok = await t.engine.run(S.checkout, { ...line, discount: { amount: 1500, reason: 'Geste commercial' }, payments: [{ method: 'card', amount: 1500 }] }, who);
+    assert.equal(ok.totals.revenue, 1500);
+  }
+});
+
 test('fixed prices cannot be edited at the till, “dès” prices can go up', async () => {
   const t = await salon();
   const a = await apptFor(t);

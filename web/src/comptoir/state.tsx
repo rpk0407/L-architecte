@@ -1,6 +1,6 @@
 // Who is signed in, what the salon looks like, and the live pulse that keeps every screen fresh.
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { api, onSignedOut, onStoreHealth } from '../lib/api';
+import { api, onNet, onSignedOut, onStoreHealth } from '../lib/api';
 import { refreshAll, forget, useQuery } from '../lib/query';
 import { toast, STALE_MS } from '../ui/kit';
 import type { Boot, FeedItem, Prefs, Pulse, Staff, Service } from './types';
@@ -25,7 +25,8 @@ type Ctx = {
   reloadBoot: () => Promise<void>;
   /** device clock of the last pulse that answered (TEAM-02: <Stale at={pulseAt}> on phone pages) */
   pulseAt: number;
-  /** no answer for 2 minutes or the device says it is offline: one-tap actions wait (TEAM-04, TEAM-05a) */
+  /** two requests in a row never reached the server, no answer for 2 minutes, or the device says it is offline: the
+   *  banner shows and the buttons that write wait (TEAM-04, TEAM-05a) */
   offline: boolean;
 };
 const C = createContext<Ctx | null>(null);
@@ -44,6 +45,8 @@ export function toastFor(f: FeedItem, me: { id: string; prefs?: Pick<Prefs, 'not
  *  pointerdown, keydown or new version for 2 minutes. The first gesture, the page coming back to the front, or a move to
  *  the Agenda or the Caisse brings 4 s back. */
 const PULSE_FAST = 4000, PULSE_SLOW = 15000, PULSE_IDLE_MS = 120000;
+/** a request that never reached the server may be a blip: one more is asked this soon, and two in a row say « Hors ligne » */
+const PROBE_MS = 1500;
 const LIVE_PAGES = new Set(['agenda', 'caisse']);
 const livePage = () => LIVE_PAGES.has(location.pathname.replace(/^\/comptoir\/?/, '').split('/')[0]);
 /** did the pulse change anything a screen shows? (`now` and `feed` alone do not: `now` is read through ctx.now()) */
@@ -69,6 +72,8 @@ export function AppProvider({ initial, onOut, children }: { initial: Boot; onOut
   const pulseAtRef = useRef(Date.now());
   const [pulseAt, setPulseAt] = useState(() => pulseAtRef.current);
   const [offline, setOffline] = useState(false);
+  /** requests in a row that never reached the server (0 once one answers) */
+  const fails = useRef(0);
   const onOutRef = useRef(onOut);
   onOutRef.current = onOut;
   const meRef = useRef(boot.me);
@@ -103,8 +108,25 @@ export function AppProvider({ initial, onOut, children }: { initial: Boot; onOut
     let touched = Date.now();   // last gesture or last new version
     const wake = () => { touched = Date.now(); };
     const delay = () => (document.visibilityState === 'visible' && !livePage() && Date.now() - touched > PULSE_IDLE_MS ? PULSE_SLOW : PULSE_FAST);
+    // requests in a row that never reached the server (lib/api onNet): the second one says « Hors ligne » within seconds
+    // instead of waiting for the 2 minutes of the stale check; any answer clears it
+    let ticking = false;
+    const off = () => setOffline((was) => { if (!was) setPulseAt(pulseAtRef.current); return true; });
+    const unNet = onNet((ok) => {
+      if (ok) {
+        if (!fails.current) return;
+        fails.current = 0; setOffline(false);
+        // back: the screen catches up now, not at the next beat
+        if (!ticking) { clearTimeout(timer); timer = window.setTimeout(tick, 0); }
+        return;
+      }
+      fails.current++;
+      if (fails.current >= 2 || (typeof navigator !== 'undefined' && navigator.onLine === false)) off();
+      else if (!ticking) { clearTimeout(timer); timer = window.setTimeout(tick, PROBE_MS); }
+    });
     const tick = async () => {
       if (document.visibilityState === 'hidden') { timer = window.setTimeout(tick, PULSE_FAST); return; }
+      ticking = true;
       try {
         const p = await api.get<Pulse>('/api/v1/pulse?since=' + version.current);
         if (!alive) return;
@@ -129,7 +151,10 @@ export function AppProvider({ initial, onOut, children }: { initial: Boot; onOut
           }
         }
       } catch { /* offline: the next tick retries */ }
-      if (alive) timer = window.setTimeout(tick, delay());
+      ticking = false;
+      // the usual beat (4 s on Agenda and Caisse) is untouched; only a first failure is asked again sooner, and while
+      // offline every page keeps the fast beat so the banner clears as soon as the connection is back
+      if (alive) { clearTimeout(timer); timer = window.setTimeout(tick, fails.current === 1 ? PROBE_MS : fails.current > 1 ? PULSE_FAST : delay()); }
     };
     timer = window.setTimeout(tick, 1500);
     // a gesture after a slow stretch: pulse now (the timer may be 15 s away) and go back to 4 s
@@ -139,11 +164,15 @@ export function AppProvider({ initial, onOut, children }: { initial: Boot; onOut
       if (slow) { clearTimeout(timer); timer = window.setTimeout(tick, 0); }
     };
     const vis = () => { if (document.visibilityState === 'visible') { wake(); clearTimeout(timer); tick(); } };
+    // the device says the connection is back: ask now
+    const back = () => { if (!ticking) { clearTimeout(timer); timer = window.setTimeout(tick, 0); } };
+    addEventListener('online', back);
     document.addEventListener('visibilitychange', vis);
     addEventListener('pointerdown', gesture, { passive: true });
     addEventListener('keydown', gesture);
     return () => {
-      alive = false; clearTimeout(timer);
+      alive = false; clearTimeout(timer); unNet();
+      removeEventListener('online', back);
       document.removeEventListener('visibilitychange', vis);
       removeEventListener('pointerdown', gesture); removeEventListener('keydown', gesture);
     };
@@ -153,7 +182,7 @@ export function AppProvider({ initial, onOut, children }: { initial: Boot; onOut
   // the answer changes, so this check re-renders nothing on a quiet screen
   useEffect(() => {
     const check = () => {
-      const off = (typeof navigator !== 'undefined' && navigator.onLine === false) || Date.now() - pulseAtRef.current > STALE_MS;
+      const off = (typeof navigator !== 'undefined' && navigator.onLine === false) || fails.current >= 2 || Date.now() - pulseAtRef.current > STALE_MS;
       setOffline((was) => {
         if (off && !was) setPulseAt(pulseAtRef.current);
         return off;

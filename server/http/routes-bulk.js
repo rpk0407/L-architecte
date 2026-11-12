@@ -114,6 +114,8 @@ export function bulkRoutes(app) {
     const named = r.body && Array.isArray(r.body.ids) ? r.body.ids.length : 0;
     if (named > BULK_MAX) throw new HttpError(400, 'too_many', fr(BULK_MAX) + ' fiches au plus à la fois (' + fr(named) + ' ici). Affine le filtre, ou fais-le en plusieurs fois.', { total: named, max: BULK_MAX });
     const x = parse(schema, r.body);
+    // a barber edits the files of his clients one at a time: an action on many files is the desk's, the manager's and the owner's
+    if (r.me.role === 'barber') throw new HttpError(403, 'forbidden', 'Les actions sur plusieurs fiches sont réservées à l’accueil, au responsable et au gérant. Tu peux modifier une fiche à la fois.');
     if (!r.caps.has(NEED[x.op]) || (x.tag === 'confiance' && !r.caps.has('agenda.edit'))) throw new HttpError(403, 'forbidden', 'Tu n’as pas accès à cette action.');
     if (!x.ids === !x.filter) throw new HttpError(400, 'invalid', 'Une liste de fiches ou un filtre, l’un des deux.');
     if ((x.op === 'tag' || x.op === 'untag') && !x.tag) throw new HttpError(400, 'invalid', 'Quelle étiquette ?');

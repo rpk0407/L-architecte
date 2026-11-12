@@ -1,5 +1,5 @@
-// WP5 · « Personnaliser » (the model of Mon espace's): the page's blocks (Prochain, Fauteuils, Aujourd’hui: this device),
-// then each card with ↑ / ↓ and a switch (his prefs: homeCards, homeHidden; they follow him from one device to the next).
+// WP5 · « Personnaliser » (the model of Mon espace's): the page's blocks (Prochain, Fauteuils, Aujourd’hui: prefs.homeBlocks),
+// then each card with ↑ / ↓ and a switch (his prefs: homeCards, homeHidden); all follow him from one device to the next.
 // Every change is saved at once; « Remettre par défaut » gives the salon's order back. The server orders cards by group
 // first, so an arrow only moves a card among its own group. The phone's tabs are the phone shell's (WP4).
 import { useState } from 'react';
@@ -37,10 +37,10 @@ export function Customize({ open, onClose, home, blocks, setBlocks, onSaved }: {
   return (
     <Sheet open={open} onClose={onClose} title="Personnaliser" kicker="Accueil"
       footer={<><Button variant="ghost" disabled={offline} onClick={() => void reset()}>Remettre par défaut</Button><span className="grow" /><Button variant="primary" onClick={onClose}>Terminé</Button></>}>
-      <p className="section-k">La journée · sur cet appareil</p>
+      <p className="section-k">La journée · sur tous tes appareils</p>
       <ul className="hm-custom">
         {(Object.keys(BLOCK_NAME) as (keyof Blocks)[]).map((k) => (
-          <li key={k}><Switch on={blocks[k]} onChange={(on) => { setBlocks({ ...blocks, [k]: on }); setSaid(BLOCK_NAME[k] + (on ? ' affiché' : ' masqué')); }} title={BLOCK_NAME[k]} /></li>
+          <li key={k}><Switch on={blocks[k]} onChange={(on) => { setBlocks({ ...blocks, [k]: on }); setSaid(BLOCK_NAME[k] + (on ? ' affiché' : ' masqué')); }} title={BLOCK_NAME[k]} disabled={offline} /></li>
         ))}
       </ul>
       <p className="section-k">À traiter · sur tous tes appareils</p>

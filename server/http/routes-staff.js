@@ -3,7 +3,7 @@
 // re-check finer rules (own chair, discount caps) inside the commands.
 import { HttpError } from './kit.js';
 import { agendaView, apptView, clientCard, clientFull, saleView, staffView, serviceView, productView, typedFor } from './views.js';
-import { freeSlots, staffIntervals, walkinEstimate } from '../domain/availability.js';
+import { freeSlots, staffIntervals, walkinEstimate, UNDECIDED } from '../domain/availability.js';
 import { clientStats, report, previousPeriod, goalOf, goalShares, autoGoal } from '../domain/insights.js';
 import { staffStatement } from '../domain/statement.js';
 import { drawerExpected, dayTotals, zFigures, METHOD_LABEL, ticketNo, closureNo } from '../domain/cash.js';
@@ -24,6 +24,7 @@ import * as C from '../commands/clients.js';
 import * as S from '../commands/sales.js';
 import { sendRebook } from '../commands/messages.js';
 import { rangeWords, timeoffConflicts } from '../commands/team.js';
+import { AWAY_LABEL } from '../commands/report.js';
 import { parseSearch, searchRank } from '../domain/client-search.js';
 import { teamViewOf } from '../settings/team.js';
 import { attribution } from '../domain/attribution.js';
@@ -215,6 +216,35 @@ function orphans(r) {
   return { items: list.sort((a, b) => a.day.localeCompare(b.day)), requests };
 }
 
+/**
+ * « À rappeler »: the clients still booked that day on the chair of a barber who is away (the rest of his day closed
+ * from the Agenda, label « Absent »; or, for someone who does not see Équipe's plan, an absence posted there), with
+ * their number for whoever reads numbers. Read from the state each time: a client moved, cancelled or seen leaves it.
+ */
+function toCall(r, day) {
+  if (!r.caps.has('agenda.edit') || day < r.local.day) return [];
+  const s = r.s, o = { now: r.now, local: r.local };
+  const contact = r.caps.has('client.contact');
+  const out = [];
+  for (const st of s.staff.values()) {
+    if (!st.active || !st.chair) continue;
+    const closed = [...(s.blocksByDay.get(day) || [])].some((id) => { const b = s.blocks.get(id); return !!b && b.staffId === st.id && b.label === AWAY_LABEL; });
+    const offs = r.caps.has('team') ? [] : [...s.timeoff.values()].filter((t) => t.staffId === st.id && day >= t.from && day <= t.to && !UNDECIDED.has(t.status));
+    if (!closed && !offs.length) continue;
+    const seen = new Map();
+    for (const t of closed ? [{ staffId: st.id, from: day, to: day }] : offs.map((t) => ({ ...t, from: day, to: day }))) for (const a of timeoffConflicts(s, t, o)) seen.set(a.id, a);
+    if (!seen.size) continue;
+    out.push({
+      staffId: st.id, timeoffId: closed || !offs.length ? null : offs[0].id,
+      rows: [...seen.values()].sort((a, b) => a.start - b.start).map((a) => {
+        const c = a.clientId ? s.clients.get(a.clientId) : null;
+        return { id: a.id, start: a.start, dur: a.dur, name: c && !c.erased ? c.first + (c.last ? ' ' + c.last.charAt(0) + '.' : '') : a.name || 'Client', services: a.services.map((x) => x.name), phone: contact && c && !c.erased && c.phone ? fmtPhone(c.phone) : '' };
+      })
+    });
+  }
+  return out;
+}
+
 /** The file a client route names, followed through merges; an erased file is still found (it says so). */
 export function fileOf(r) {
   let c = r.s.clients.get(r.params.id);
@@ -392,7 +422,7 @@ export function staffRoutes(app) {
     if (v.closure && !r.caps.has('closure') && !r.caps.has('report.shop')) v.closure = { number: v.closure.number, auto: !!v.closure.auto };
     const L = r.local;
     const est = day === L.day ? walkinEstimate(r.s, r.now, L) : null;
-    return { ...v, kpis: dayKpis(r, day), walkin: est, drawer: r.s.drawer ? { open: true, since: r.s.drawer.openedAt } : { open: false }, absences: orphans(r) };
+    return { ...v, kpis: dayKpis(r, day), walkin: est, drawer: r.s.drawer ? { open: true, since: r.s.drawer.openedAt } : { open: false }, absences: orphans(r), toCall: toCall(r, day) };
   }, { cap: 'agenda.own' });
 
   app.get('/api/v1/week', (r) => {

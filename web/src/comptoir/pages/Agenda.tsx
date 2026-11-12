@@ -12,6 +12,7 @@ import { PageTitle } from '../App';
 import { FeedList } from '../Feed';
 import { Board } from './agenda/Board';
 import { ApptSheet, BlockSheet, CreateSheet, WalkinSheet, type Prefill } from './agenda/Sheets';
+import { ReportSheet, undoReport, useCountdown, type ReportAbout, type Reported } from './agenda/Report';
 import type { Agenda as AgendaData, Appt } from '../types';
 import './agenda.css';
 
@@ -31,6 +32,9 @@ export default function Agenda() {
   const [create, setCreate] = useState<Prefill | null>(null);
   const [walkin, setWalkin] = useState(false);
   const [block, setBlock] = useState<{ staffId: string; day: string; start: number; absent?: boolean } | null | false>(false);
+  // « Reporter ses rendez-vous »: the sheet, and what it just moved (« Annuler » stays on the page until the texts leave)
+  const [report, setReport] = useState<ReportAbout | null>(null);
+  const [reported, setReported] = useState<Reported | null>(null);
   const [menu, setMenu] = useState<{ x: number; y: number; staffId?: string; min?: number; blockId?: string; lane?: boolean } | null>(null);
 
   // deep links from the palette and the feed: ?new=1, ?walkin=1
@@ -92,6 +96,8 @@ export default function Agenda() {
       {view === 'semaine' ? <Week day={day} today={today} onPick={(d) => setQuery({ day: d === today ? null : d, vue: null })} /> : (
         <>
           <AbsentBanner data={data} today={today} />
+          {reported && reported.moved.length ? <ReportedBanner r={reported} onGone={() => setReported(null)} /> : null}
+          {can('agenda.edit') && data?.toCall?.length ? <ToCall data={data} onReport={setReport} onOpen={(id) => setQuery({ rdv: id })} /> : null}
           {data?.closed ? <div className="note ok"><Icon name="lock" /><div><b>Journée clôturée</b> · {/* the Z's figures only reach whoever closes or reads the salon's money; the others get its number */}{data.closure ? 'Z' + String(data.closure.number).padStart(4, '0') + (typeof data.closure.net === 'number' ? ' · ' + eur(data.closure.net) : '') : ''}. Les ventes de ce jour ne peuvent plus être modifiées.</div></div> : null}
           {/* on a phone the file and the tickets to ring up sit under the planning: their counts stay in sight, one tap away */}
           {day === today && data && !data.closed && ((data.queue || []).length || (toPay.length && can('sale.create'))) ? (
@@ -168,6 +174,7 @@ export default function Agenda() {
             {/* a barber who is not coming: whoever edits every chair's agenda already may block his day (no new right) */}
             <p className="k">{staffById.get(menu.staffId!)?.name}</p>
             <button type="button" onClick={() => setBlock({ staffId: menu.staffId!, day, start: Math.floor(nowMin / 15) * 15, absent: true })}><Icon name="alert" />Absent aujourd’hui : fermer le reste de sa journée</button>
+            <button type="button" onClick={() => setReport({ staffId: menu.staffId!, day })}><Icon name="move" />Reporter ses rendez-vous</button>
             <button type="button" onClick={() => setBlock({ staffId: menu.staffId!, day, start: Math.ceil(nowMin / 15) * 15 })}><Icon name="block" />Pause maintenant</button>
           </>
         ) : menu ? (
@@ -182,7 +189,48 @@ export default function Agenda() {
       <ApptSheet id={sel} onClose={() => setQuery({ rdv: null })} />
       <CreateSheet open={!!create} prefill={create} onClose={() => setCreate(null)} onCreated={(id, d) => setQuery({ day: d === today ? null : d, rdv: id })} />
       <WalkinSheet open={walkin} onClose={() => setWalkin(false)} freeNow={freeNow} />
-      <BlockSheet open={!!block} prefill={block || null} onClose={() => setBlock(false)} />
+      <BlockSheet open={!!block} prefill={block || null} onClose={() => setBlock(false)} onAbsent={(staffId, d) => { if (data?.appts.some((a) => a.staffId === staffId && ['pending', 'booked', 'arrived'].includes(a.status) && (d !== today || a.start + a.dur > nowMin))) setReport({ staffId, day: d }); else toast({ title: 'Reste de la journée fermé', sub: 'Plus rien n’est proposé sur le site. Aucun rendez-vous à reporter.', icon: 'block' }); }} />
+      <ReportSheet about={report} onClose={() => setReport(null)} onDone={setReported} />
+    </>
+  );
+}
+
+/** What a report just moved: « Annuler » while the texts are held, then the line goes away by itself. */
+function ReportedBanner({ r, onGone }: { r: Reported; onGone: () => void }) {
+  const left = useCountdown(r.until);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { if (!left) onGone(); }, [left]);
+  const n = r.moved.length;
+  return (
+    <div className="note ok ag-reported" role="status">
+      <Icon name="check" />
+      <div className="grow"><b>{n} rendez-vous de {r.who} {n > 1 ? 'déplacés' : 'déplacé'}</b> · les SMS partent dans {left} s</div>
+      <Button size="sm" variant="subtle" icon="undo" busy={busy} onClick={async () => { setBusy(true); await undoReport(r.moved); onGone(); }}>Annuler</Button>
+    </div>
+  );
+}
+
+/** « À rappeler »: the clients still booked with a barber who is away today, to call or to report in one go. */
+function ToCall({ data, onReport, onOpen }: { data: AgendaData; onReport: (a: ReportAbout) => void; onOpen: (id: string) => void }) {
+  const { staffById } = useApp();
+  return (
+    <>
+      {(data.toCall || []).map((g) => (
+        <section key={g.staffId} className="card ag-call" aria-label={'À rappeler : ' + (staffById.get(g.staffId)?.name || '')}>
+          <header className="ag-call-h">
+            <div className="grow"><p className="section-k">À rappeler</p><b>{staffById.get(g.staffId)?.name || 'Un barbier'} est absent · {g.rows.length} {g.rows.length > 1 ? 'clients encore chez lui' : 'client encore chez lui'}</b></div>
+            <Button size="sm" variant="primary" icon="move" onClick={() => onReport(g.timeoffId ? { timeoffId: g.timeoffId } : { staffId: g.staffId, day: data.day })}>Reporter ses rendez-vous</Button>
+          </header>
+          <ul className="list">
+            {g.rows.map((r) => (
+              <li key={r.id} className="li ag-call-r">
+                <button type="button" className="li-main ag-call-o" onClick={() => onOpen(r.id)}><b><span className="tnum">{time(r.start)}</span> · {r.name}</b><small>{r.services.join(' + ')}</small></button>
+                {r.phone ? <a className="btn btn-sm btn-subtle ag-call-tel" href={'tel:' + r.phone.replace(/\s/g, '')}><Icon name="phone" size={15} />{r.phone}</a> : <span className="badge">pas de numéro</span>}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))}
     </>
   );
 }

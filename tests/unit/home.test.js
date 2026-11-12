@@ -219,6 +219,14 @@ test('day: today from now on, next first, twelve at most and the rest counted', 
   v = view(t);
   assert.equal(v.day.appts.length + v.day.more, cockpit(t.engine.state, { range: 'day', day: TUE, today: TUE, now: t.clock.now }).cash.remaining);
   assert.deepEqual(v.day.appts.map((a) => a.start), [750, 750], 'a slot that is over is no longer « to come »');
+  // a barber's first fact says what it counts: his whole day, and how many are still to come (the list under it)
+  const b = view(t, 'Ali');
+  assert.equal(b.day.appts.length, 1);
+  assert.deepEqual(b.line.facts[0], { k: 'rdv', label: 'rendez-vous aujourd’hui · 1 à venir', v: 8 });
+  go(t, TUE, 8, 30);
+  assert.deepEqual(view(t, 'Ali').line.facts[0], { k: 'rdv', label: 'rendez-vous aujourd’hui · 8 à venir', v: 8 });
+  go(t, TUE, 19, 30);
+  assert.deepEqual(view(t, 'Ali').line.facts[0], { k: 'rdv', label: 'rendez-vous aujourd’hui', v: 8 });
 });
 
 /* ---------------- privacy, role by role ---------------- */

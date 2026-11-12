@@ -211,7 +211,8 @@ function build(s, me, now) {
     const mine = T.chairs.find((x) => x.id === me.id);
     const ahead = C.ahead.chairs.find((x) => x.id === me.id);
     if (moment === 'ferme') facts = ahead ? [fact('libres-7j', 'libres sur 7 jours', ahead.freeMin, 'min')] : [];
-    else if (mine) facts = [fact('rdv', 'rendez-vous', mine.count), fact('libres', 'libres', mine.freeMin, 'min'), ...(can('sale.create') ? [fact('a-encaisser', 'à encaisser', toPay.length)] : [])];
+    // the label says what it counts: his whole day, and how many of them are still to come (the list under it)
+    else if (mine) facts = [fact('rdv', 'rendez-vous aujourd’hui' + (moment === 'apres' ? '' : ' · ' + coming.length + ' à venir'), mine.count), fact('libres', 'libres', mine.freeMin, 'min'), ...(can('sale.create') ? [fact('a-encaisser', 'à encaisser', toPay.length)] : [])];
     note = mine && mine.away ? 'Tu es absent aujourd’hui' : mine && mine.off ? 'Tu ne travailles pas aujourd’hui' : '';
   }
   const line = { label, facts: facts.slice(0, MAX_FACTS), ...(note ? { note } : {}) };

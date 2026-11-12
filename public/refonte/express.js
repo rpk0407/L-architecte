@@ -475,6 +475,8 @@
   /* ---------- booking ---------- */
   const svcNow = () => S.byId[S.svc] || null;
   /** Until how many hours before the client may cancel for free: the salon's own setting (GET /api/public/salon), null when it says none (the sentence is then left out, never guessed). */
+  /** the reminder of the eve, from GET /api/public/salon (`reminder`): 18 h and on while the salon cannot be reached */
+  const reminderOf = () => { const r = S.sal && S.sal.reminder; return r && typeof r.hour === 'number' ? r : { on: true, hour: 18 }; };
   const cancelH = () => { const n = S.sal && S.sal.booking ? S.sal.booking.cancelUntilHours : null; return typeof n === 'number' && n > 0 ? n : null; };
   const holdSvc = () => S.svc || S.homeSvc;
   function clearSlot() { S.day = null; S.start = null; S.slotStaff = null; }
@@ -822,7 +824,7 @@
       fld('f-phone', 'Téléphone', false, { type: 'tel', inputmode: 'tel', autocomplete: 'tel', required: true, maxlength: '24' }, 'Exemple : 06 12 34 56 78.', 'phone'),
       fld('f-email', 'E-mail', true, { type: 'email', inputmode: 'email', autocomplete: 'email', maxlength: '120' }, 'Pour recevoir aussi la confirmation par e-mail.', 'email'),
       // service messages of this rendez-vous, not marketing: sent by default (sms: true), with a discreet way out
-      h('p', { class: 'sms-i', id: 'sms-i' }, [icon('sms'), h('span', { text: 'On t’envoie la confirmation par SMS, et un rappel la veille à 18 h, avec un lien pour déplacer ou annuler.' })]),
+      h('p', { class: 'sms-i', id: 'sms-i' }, [icon('sms'), h('span', { text: 'On t’envoie la confirmation par SMS' + (reminderOf().on ? ', et un rappel la veille à ' + reminderOf().hour + ' h' : '') + ', avec un lien pour déplacer ou annuler.' })]),
       h('label', { class: 'ck', for: 'f-nosms' }, [
         h('input', Object.assign({ id: 'f-nosms', type: 'checkbox', 'aria-describedby': 'sms-i', on: { change: (e) => { S.f.sms = !e.target.checked; } } }, S.f.sms ? {} : { checked: true })),
         h('span', { text: 'Je ne veux pas de SMS' })
@@ -858,8 +860,10 @@
       if (sms) list.append(li('sms', when + (pending ? 'confirmation par SMS' : 'Confirmation par SMS'), 'Au ' + r.phone + '.'));
       if (r.email) list.append(li('mail', when + (pending ? 'confirmation par e-mail' : 'Confirmation par e-mail'), 'À ' + r.email + ', avec le rendez-vous pour ton agenda.'));
       else list.append(li('mail', 'Pas d’e-mail', 'Tu n’as pas donné d’adresse : la confirmation ne part pas par e-mail.'));
-      if (sms && r.day === S.today) list.append(li('bell', 'C’est aujourd’hui', 'Pas de rappel la veille, donc : garde le lien de ton rendez-vous.'));
-      else if (sms) list.append(li('bell', 'Rappel par SMS la veille à 18 h', 'Avec un lien pour déplacer ou annuler.'));
+      // the reminder as the salon set it (its hour; nothing said when it is switched off)
+      if (sms && !reminderOf().on) { /* no reminder to promise */ }
+      else if (sms && r.day === S.today) list.append(li('bell', 'C’est aujourd’hui', 'Pas de rappel la veille, donc : garde le lien de ton rendez-vous.'));
+      else if (sms) list.append(li('bell', 'Rappel par SMS la veille à ' + reminderOf().hour + ' h', 'Avec un lien pour déplacer ou annuler.'));
       else list.append(li('bell', 'Pas de SMS', r.sms ? 'Les SMS ne sont pas branchés pour l’instant : garde le lien de ton rendez-vous.' : 'Tu as choisi de ne pas en recevoir : garde le lien de ton rendez-vous.'));
       if (S.sal.mode === 'demo') list.append(li('check', 'Salon de démonstration', 'Ici, aucun SMS ni e-mail ne part vraiment.'));
     }

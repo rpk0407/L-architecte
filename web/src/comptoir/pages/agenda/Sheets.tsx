@@ -1,6 +1,6 @@
 // Everything that opens from the agenda: an appointment, a new booking, a move, a walk-in, a block.
 import { useEffect, useMemo, useState } from 'react';
-import { api, qs } from '../../../lib/api';
+import { api, ApiError, qs } from '../../../lib/api';
 import { refreshAll, useQuery } from '../../../lib/query';
 import { navigate } from '../../../lib/router';
 import { cap, dates, dayShortWord, dayWord, dur, eur, hhmm, rhythmWords, sinceWords, STATUS, SOURCE, time, ago } from '../../../lib/format';
@@ -224,7 +224,7 @@ export function ApptSheet({ id, onClose }: { id: string | null; onClose: () => v
 export type Prefill = { day?: string; start?: number; staffId?: string; clientId?: string; serviceIds?: string[] };
 
 export function CreateSheet({ open, prefill, onClose, onCreated }: { open: boolean; prefill: Prefill | null; onClose: () => void; onCreated?: (id: string, day: string) => void }) {
-  const { boot, staffById, can } = useApp();
+  const { boot, staffById, can, offline } = useApp();
   const [q, setQ] = useState('');
   const [client, setClient] = useState<ClientCard | null>(null);
   const [mode, setMode] = useState<'search' | 'new' | 'none'>('search');
@@ -291,7 +291,8 @@ export function CreateSheet({ open, prefill, onClose, onCreated }: { open: boole
   };
   return (
     <Sheet open={open} onClose={onClose} title="Nouveau rendez-vous" kicker={fixed && when ? dayShortWord(when.day, boot.today) + ' · ' + time(when.start) + ' · ' + staffById.get(when.staffId)?.name : 'Au téléphone ou au comptoir'}
-      footer={<><span className="sum"><b><Money cents={total} /></b><span>{svc.length ? dur(length) : 'Choisis une prestation'}{when && when.start >= 0 ? ' · ' + dayShortWord(when.day, boot.today) + ' ' + time(when.start) : ''}</span></span><Button variant="primary" size="lg" disabled={!valid} busy={busy} onClick={() => submit()}>Réserver</Button></>}>
+      footer={<><span className="sum"><b><Money cents={total} /></b><span>{svc.length ? dur(length) : 'Choisis une prestation'}{when && when.start >= 0 ? ' · ' + dayShortWord(when.day, boot.today) + ' ' + time(when.start) : ''}</span></span><Button variant="primary" size="lg" disabled={!valid || offline} title={offline ? 'Hors ligne : la réservation attend le retour de la connexion.' : undefined} aria-describedby={offline ? 'cr-off' : undefined} busy={busy} onClick={() => submit()}>Réserver</Button></>}>
+      {offline ? <p id="cr-off" className="off-why" role="status"><Icon name="alert" size={14} />Hors ligne : la réservation attend le retour de la connexion.</p> : null}
       <div className="col" style={{ gap: 10 }}>
         <p className="section-k">Client</p>
         {client ? (
@@ -370,7 +371,7 @@ export function WalkinSheet({ open, onClose, freeNow, prefill }: { open: boolean
 /* ---------------- block a slot ---------------- */
 
 /** absent: opened from a chair's header for a barber who is not coming (the rest of his day, reason « Absent »). */
-export function BlockSheet({ open, onClose, prefill }: { open: boolean; onClose: () => void; prefill: { staffId: string; day: string; start: number; absent?: boolean } | null }) {
+export function BlockSheet({ open, onClose, prefill, onAbsent }: { open: boolean; onClose: () => void; prefill: { staffId: string; day: string; start: number; absent?: boolean } | null; onAbsent?: (staffId: string, day: string) => void }) {
   const { boot, can } = useApp();
   const [staff, setStaff] = useState(prefill?.staffId || boot.me.id);
   const [start, setStart] = useState(prefill?.start ?? 780);
@@ -382,17 +383,23 @@ export function BlockSheet({ open, onClose, prefill }: { open: boolean; onClose:
   const go = async () => {
     setBusy(true);
     try {
-      await api.post('/api/v1/blocks', { staffId: staff, day, start, ...(len === 'end' ? { end: 1440, label: label === 'Pause' ? 'Fermé' : label } : { dur: len, label }) });
-      toast(len === 'end' ? { title: 'Reste de la journée fermé', sub: 'Plus rien n’est proposé sur le site. Ses rendez-vous déjà pris restent à déplacer un par un.', icon: 'block', ttl: 7000 } : { title: 'Créneau bloqué', sub: 'Il n’est plus proposé sur le site.', icon: 'block' });
+      const away = !!prefill?.absent && len === 'end';
+      try { await api.post('/api/v1/blocks', { staffId: staff, day, start, ...(len === 'end' ? { end: 1440, label: label === 'Pause' ? 'Fermé' : label } : { dur: len, label }) }); }
+      // a day already full or already closed has nothing left to block: his clients are still to report
+      catch (e) { if (!(away && e instanceof ApiError && e.code === 'nothing')) throw e; }
+      // away: the next sheet says it (a toast would sit on its title)
+      if (!away) toast(len === 'end' ? { title: 'Reste de la journée fermé', sub: 'Plus rien n’est proposé sur le site. Les rendez-vous déjà pris ne bougent pas.', icon: 'block' } : { title: 'Créneau bloqué', sub: 'Il n’est plus proposé sur le site.', icon: 'block' });
       refreshAll(); onClose();
+      // then where to put his booked clients, in one go (agenda/Report.tsx)
+      if (away) onAbsent?.(staff, day);
     } catch (e) { toastError(e); } finally { setBusy(false); }
   };
   const times = [];
   for (let m = 540; m <= 1095; m += 15) times.push(m);
   return (
     <Sheet open={open} onClose={onClose} title={prefill?.absent ? 'Absent aujourd’hui' : 'Bloquer un créneau'} kicker={cap(dayWord(day, boot.today))}
-      footer={<><span className="grow muted" style={{ fontSize: 13 }}>Disparaît du site aussitôt.</span><Button variant="primary" size="lg" busy={busy} onClick={go}>Bloquer</Button></>}>
-      {prefill?.absent ? <Note tone="warn" icon="alert">Le reste de sa journée est fermé et n’est plus proposé sur le site. Ses rendez-vous déjà pris ne bougent pas : ouvre chacun et touche « Déplacer ». Une absence de plusieurs jours se pose avec le gérant, dans Équipe.</Note> : null}
+      footer={<><span className="grow muted" style={{ fontSize: 13 }}>Disparaît du site aussitôt.</span><Button variant="primary" size="lg" busy={busy} onClick={go}>{prefill?.absent && len === 'end' ? 'Fermer et reporter ses rendez-vous' : 'Bloquer'}</Button></>}>
+      {prefill?.absent ? <Note tone="warn" icon="alert">Le reste de sa journée est fermé et n’est plus proposé sur le site. Juste après, on te propose où replacer ses rendez-vous déjà pris, en une fois. Une absence de plusieurs jours se pose avec le gérant, dans Équipe.</Note> : null}
       <div className="col" style={{ gap: 10 }}><p className="section-k">Barbier</p><StaffPicker value={staff} onChange={setStaff} any={false} /></div>
       <Field label="À partir de" htmlFor="bl-s"><select id="bl-s" className="select" value={start} onChange={(e) => setStart(+e.target.value)}>{times.map((m) => <option key={m} value={m}>{hhmm(m)}</option>)}</select></Field>
       <div className="col" style={{ gap: 10 }}><p className="section-k">Durée</p><div className="chips">{[15, 30, 45, 60, 90].map((d) => <Chip key={d} on={len === d} onClick={() => setLen(d)}>{dur(d)}</Chip>)}<Chip on={len === 'end'} onClick={() => setLen('end')}>Jusqu’à la fermeture</Chip></div></div>

@@ -402,7 +402,7 @@
       '<p class="hold' + (left ? '' : ' gone') + '" id="hold" role="status"><i aria-hidden="true"></i><span>' + (left ? 'Créneau gardé pour toi' : 'Le créneau n’est plus gardé : confirme vite.') + '</span><b id="holdLeft">' + (left ? Math.floor(left / 60) + ':' + pad(left % 60) : '') + '</b></p>' +
       '<div class="fld"><label for="f-first">Prénom</label><input id="f-first" name="first" type="text" autocomplete="given-name" autocapitalize="words" required maxlength="40" value="' + esc(S.form.first) + '" aria-describedby="h-first"><span class="hint warn" id="h-first" hidden></span></div>' +
       '<div class="fld"><label for="f-phone">Téléphone portable</label><input id="f-phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" required placeholder="06 12 34 56 78" value="' + esc(S.form.phone) + '" aria-describedby="h-phone"><span class="hint" id="h-phone">' + PHONE_HINT + '</span></div>' +
-      (smsOn() ? '<p class="sms-i"><span>' + esc(reminderDue(S.day) ? 'On t’envoie la confirmation par SMS, et un rappel la veille à 18' + NB + 'h.' : 'On t’envoie la confirmation par SMS.') + '</span><label class="sms-no" for="f-nosms"><input id="f-nosms" name="noSms" type="checkbox"' + (S.noSms ? ' checked' : '') + '><span>Je ne veux pas de SMS</span></label></p>' : '') +
+      (smsOn() ? '<p class="sms-i"><span>' + esc(reminderDue(S.day) ? 'On t’envoie la confirmation par SMS, et un rappel la veille à ' + reminderOf().hour + NB + 'h.' : 'On t’envoie la confirmation par SMS.') + '</span><label class="sms-no" for="f-nosms"><input id="f-nosms" name="noSms" type="checkbox"' + (S.noSms ? ' checked' : '') + '><span>Je ne veux pas de SMS</span></label></p>' : '') +
       '<div class="fld"><label for="f-email">E-mail <span class="opt-l">(facultatif)</span></label><input id="f-email" name="email" type="email" inputmode="email" autocomplete="email" maxlength="120" value="' + esc(S.form.email) + '" aria-describedby="h-email"><span class="hint" id="h-email">Pour recevoir aussi la confirmation par e-mail.</span></div>' +
       (dep ? '<p class="dep">Un acompte de ' + esc(eur(dep)) + ' est demandé pour cette prestation, déduit au salon.' + (hrs ? ' Annulé plus de ' + hrs + NB + 'h avant, il est remboursé.' : '') + '</p>' : '') +
       '<p class="priv">Tes coordonnées servent à ce rendez-vous. <a href="/confidentialite" target="_blank" rel="noopener">Comment elles sont traitées</a></p>' +
@@ -411,7 +411,9 @@
   /* the confirmation and the reminder are service messages of the appointment: sent unless the client says no (never a promotion) */
   const PHONE_HINT = 'Pour ce rendez-vous, rien d’autre.';
   function smsOn() { return !demo && S.salon.sms !== false; }
-  function reminderDue(day) { const n = now(), dd = diffDays(n.day, day); return dd > 1 || (dd === 1 && n.min < 18 * 60); }
+  /* the reminder of the eve, from GET /api/public/salon (`reminder`): its hour, and nothing promised when it is off */
+  function reminderOf() { const r = S.salon && S.salon.reminder; return r && typeof r.hour === 'number' ? r : { on: true, hour: 18 }; }
+  function reminderDue(day) { const R = reminderOf(), n = now(), dd = diffDays(n.day, day); return R.on && (dd > 1 || (dd === 1 && n.min < R.hour * 60)); }
   function placeLine() { const sh = S.salon.shop || {}; return sh.address ? sh.address + ', ' + [sh.zip, sh.city].filter(Boolean).join(' ') : '16, place Pélabon, 13013 Marseille'; }
   function stepDone() {
     const r = S.result, sv = S.bySvc[r.svcId], staff = S.byStaff[r.staffId], pend = r.status === 'pending' && r.deposit > 0, sms = smsOn() && r.sms !== false;
@@ -421,7 +423,7 @@
       const pre = pend ? 'Une fois l’acompte réglé : ' : '';
       if (sms) li.push(pre + '<b>' + (pend ? 'confirmation' : 'Confirmation') + ' par SMS</b>' + (r.email ? ' et <b>par e-mail</b> à ' + esc(r.email) : '') + '.');
       else if (r.email) li.push(pre + '<b>' + (pend ? 'confirmation' : 'Confirmation') + ' par e-mail</b> à ' + esc(r.email) + '.');
-      if (sms && reminderDue(r.day)) li.push('<b>Rappel par SMS la veille à 18' + NB + 'h</b>, avec le lien pour déplacer ou annuler.');
+      if (sms && reminderDue(r.day)) li.push('<b>Rappel par SMS la veille à ' + reminderOf().hour + NB + 'h</b>, avec le lien pour déplacer ou annuler.');
       li.push('Un empêchement ? Ta page de rendez-vous te laisse <b>déplacer ou annuler</b>' + (cancelH() ? ' jusqu’à ' + cancelH() + NB + 'h avant' : '') + '.');
     }
     const maps = (S.salon.shop && S.salon.shop.mapsUrl) || $('[data-maps]').href;

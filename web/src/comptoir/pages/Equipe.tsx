@@ -10,6 +10,7 @@ import { photoOf, useApp } from '../state';
 import { PageTitle } from '../App';
 import type { Agenda, Staff } from '../types';
 import { PhoneList, PhoneQR, usePhones } from './reglages/Phone';
+import { ReportSheet } from './agenda/Report';
 import './equipe.css';
 
 // conflicts: appointments still on it; status: a request (pending, refused); publicNote: what the site may say meanwhile
@@ -360,6 +361,9 @@ function PlanList({ plan, picks, setPicks, editable, flag }: { plan: Plan; picks
 /** The plan of an absence already posted (from its list, the agenda's banner or an approved request). */
 export function HandoverSheet({ id, onClose }: { id: string | null; onClose: () => void }) {
   const { staffById } = useApp();
+  // « Reporter ses rendez-vous »: the same absence, the best place for each client in one go (agenda/Report.tsx)
+  const [report, setReport] = useState(false);
+  useEffect(() => { setReport(false); }, [id]);
   const plan = usePlan(id ? { id } : null);
   const [picks, setPicks] = useState<Picks>({});
   const [busy, setBusy] = useState(false);
@@ -372,12 +376,15 @@ export function HandoverSheet({ id, onClose }: { id: string | null; onClose: () 
     try { const r = await applyPlan(id, d, picks); setPicks({}); setFlag(''); if (!r.left) onClose(); } catch (e) { setFlag(refusedRow(e)); toastError(e); } finally { setBusy(false); }
   };
   const who = d ? staffById.get(d.staffId)?.name || '' : '';
-  return (
+  const sheet = (
     <Sheet open={!!id} onClose={onClose} wide title={d ? 'Les clients de ' + who : 'Absence'} kicker={d ? 'Absent ' + rangeText(d) : undefined}
       footer={<><Button variant="ghost" onClick={onClose}>Fermer</Button><span className="grow" /><Button variant="primary" icon="sms" busy={busy} disabled={!d || !d.count} onClick={go}>Appliquer et prévenir</Button></>}>
+      {d && d.count ? <div className="eq-report"><Button variant="subtle" icon="move" onClick={() => setReport(true)}>Reporter ses rendez-vous</Button><small className="faint">La meilleure place pour chacun, en une fois, avec 1 min pour annuler.</small></div> : null}
       {plan.error ? <Note tone="err" icon="alert">{plan.error}</Note> : !d ? <Skeleton h={220} r={18} /> : d.count ? <PlanList plan={d} picks={picks} setPicks={setPicks} editable flag={flag} /> : <Note tone="ok" icon="check">Plus aucun rendez-vous chez {who} pendant son absence.</Note>}
     </Sheet>
   );
+  if (id && report) return <ReportSheet about={{ timeoffId: id }} onClose={() => setReport(false)} />;
+  return sheet;
 }
 
 /** The appointment a refused plan names (a slot taken since the preview, two rows on one chair): its row is marked. */

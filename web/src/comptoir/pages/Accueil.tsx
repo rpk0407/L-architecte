@@ -48,8 +48,11 @@ export default function Accueil() {
   const [shown, setShown] = useState(false);
   useEffect(() => { if (!shown) return; const t = window.setTimeout(() => setShown(false), REVEAL_MS); return () => clearTimeout(t); }, [shown]);
 
+  // the page's blocks are the person's (prefs.homeBlocks: they follow him to another phone); what this device chose
+  // before is only the first-run fallback, and stays written so the switch answers at once
   const [rawBlocks, setRawBlocks] = useLocal<unknown>(BLOCKS_KEY, ALL_BLOCKS);
-  const blocks = blocksOf(rawBlocks);
+  const [pending, setPending] = useState<unknown>(null);
+  const blocks = blocksOf(pending || boot.me.prefs?.homeBlocks || rawBlocks);
   const [use, setUse] = useState<Usage>(() => readUsage(store(), Date.now()));
   const useRef_ = useRef(use);
   useRef_.current = use;
@@ -87,6 +90,10 @@ export default function Accueil() {
   const usual = boot.services.find((s) => s.slug === 'cl')?.id;
 
   const setPrefs = async (patch: Record<string, unknown>) => { await api.patch('/api/v1/prefs', patch); await Promise.all([app.reloadBoot(), refresh()]); };
+  const saveBlocks = (b: typeof blocks) => {
+    setPending(b); setRawBlocks(b);
+    api.patch('/api/v1/prefs', { homeBlocks: b }).then(() => app.reloadBoot()).catch(toastError).finally(() => setPending(null));
+  };
   const run = (c: HomeCard) => {
     track(done(useRef_.current, c.id, Date.now()));
     const s = stepOf(c);
@@ -193,7 +200,7 @@ export default function Accueil() {
         </div>
       </div>
 
-      <Customize open={custom} onClose={() => setCustom(false)} home={d} blocks={blocks} setBlocks={setRawBlocks} onSaved={refresh} />
+      <Customize open={custom} onClose={() => setCustom(false)} home={d} blocks={blocks} setBlocks={saveBlocks} onSaved={refresh} />
       <Suspense fallback={null}>
         {appt ? <ApptSheet id={appt} onClose={() => setAppt(null)} /> : null}
         {walk ? <WalkinSheet open onClose={() => setWalk(null)} freeNow={free} prefill={walk} /> : null}

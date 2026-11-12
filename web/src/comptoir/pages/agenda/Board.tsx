@@ -186,7 +186,7 @@ export const Board = memo(function Board(p: BoardProps) {
                   </div>
                 ))}
                 {bandsOf(l.id).map((b) => (
-                  <div key={'clash' + b.from} className="clash-band" role="status" style={{ top: b.above ? y(b.from) - BAND : y(b.from) + 1 }}><Icon name="alert" size={11} /><span>Chevauchement · {b.n} clients</span></div>
+                  <div key={'clash' + b.from} className="clash-band" role="status" style={{ top: b.above ? y(b.from) - BAND : y(b.from) + 1 }}><Icon name="alert" size={11} />{/* the count first and never cut: on a narrow chair (the 1024 px tablet) only the word gives way */}<b>{b.n} clients</b><span>· chevauchement</span></div>
                 ))}
                 {appts.filter((a) => a.staffId === l.id && a.status !== 'cancelled').map((a) => (
                   <ApptCard key={a.id} a={a} px={px} top={y(a.start)} inset={insetOf(a)} laneColor={l.color} place={places.get(a.id)} clash={clashOf(a)} selected={p.selected === a.id} dragging={drag?.a.id === a.id}

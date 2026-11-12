@@ -17,7 +17,10 @@
   const MO = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
   const MOS = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
   const ADDRESS = '16, place Pélabon, 13013 Marseille';
+  // the reminder of the eve: its hour and whether it is on come from the salon (GET /api/public/salon `reminder`); 18 h
+  // is only what is said while the salon cannot be reached
   const REMINDER_HOUR = 18;
+  function reminderOf() { const r = S.salon && S.salon.reminder; return r && typeof r.hour === 'number' ? r : { on: true, hour: REMINDER_HOUR }; }
 
   /* ---------- days and hours (the salon's own calendar: 'YYYY-MM-DD' and minutes after midnight) ---------- */
   const utc = (day) => { const p = day.split('-'); return new Date(Date.UTC(+p[0], +p[1] - 1, +p[2])); };
@@ -763,8 +766,9 @@
     }
   }
   function setStaffQuiet(id) { S.staff = id; S.tab = Math.max(0, S.barbers.findIndex((b) => b.id === id)); S.tabTouched = true; }
-  // the reminder leaves the eve at 18 h: no promise for a cut today, nor for tomorrow once 18 h has passed
-  function reminderPossible(day) { const n = diffDays(S.today, day); return n > 1 || (n === 1 && S.nowMin < REMINDER_HOUR * 60); }
+  // the reminder leaves the eve at its hour: no promise for a cut today, nor for tomorrow once that hour has passed,
+  // nor at all when the salon switched reminders off
+  function reminderPossible(day) { const R = reminderOf(), n = diffDays(S.today, day); return R.on && (n > 1 || (n === 1 && S.nowMin < R.hour * 60)); }
   function renderForm() {
     const sv = S.svc, h = S.hold;
     const dep = depositOf(sv), hours = cancelH();
@@ -777,7 +781,7 @@
     demo.hidden = !(S.sim || S.salon.mode === 'demo');
     demo.textContent = S.sim ? 'Mode démo : le salon n’est pas joignable d’ici. Rien n’est réservé ni envoyé.' : 'Démo : n’entre pas tes vraies coordonnées, tout est visible. Aucun SMS n’est envoyé, aucun paiement n’est débité.';
     // confirmation and reminder are service messages, on by default; no reminder is promised for a cut today
-    $('sms-i').textContent = 'On t’envoie la confirmation par SMS' + (h && reminderPossible(h.day) ? ', et un rappel la veille à ' + REMINDER_HOUR + ' h.' : '.');
+    $('sms-i').textContent = 'On t’envoie la confirmation par SMS' + (h && reminderPossible(h.day) ? ', et un rappel la veille à ' + reminderOf().hour + ' h.' : '.');
     showErr('');
     tickHold();
   }
@@ -869,7 +873,7 @@
       if (pending) lines.push('Ton rendez-vous est confirmé dès que l’acompte est réglé.');
       else if (k.sms) lines.push('Confirmation par SMS' + (k.email ? ' et par e-mail (' + k.email + ').' : '. Pas d’e-mail : tu n’as pas donné d’adresse.'));
       else lines.push(k.email ? 'Confirmation par e-mail (' + k.email + '). Pas de SMS, comme tu l’as demandé.' : 'Pas de SMS ni d’e-mail, comme tu l’as demandé : garde ton code et le lien pour déplacer ou annuler.');
-      if (k.reminder) lines.push('Rappel par SMS la veille à ' + REMINDER_HOUR + ' h, avec le lien pour déplacer ou annuler.');
+      if (k.reminder) lines.push('Rappel par SMS la veille à ' + reminderOf().hour + ' h, avec le lien pour déplacer ou annuler.');
       if (S.salon.mode === 'demo') lines.push('Démo : aucun SMS ni e-mail ne part vraiment.');
     }
     const ul = $('done-l'); ul.textContent = '';

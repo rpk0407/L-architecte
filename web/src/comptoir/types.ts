@@ -8,7 +8,8 @@ export type TourPrefs = { v: number; at: string; done: boolean };
 // homeDay whose day it shows to someone with a chair and the salon's rights (absent: 'salon'), tabs the three phone tabs
 // after « Accueil », views the saved lists (8 at most)
 export type SavedView = { page: string; name: string; query: string };
-export type Prefs = { home: 'auto' | 'accueil' | 'espace' | 'agenda' | 'pilotage'; notify: 'mine' | 'all' | 'none'; buzz: boolean; cards: string[]; hidden: string[]; blur: 'auto' | 'on' | 'off'; cal: number; calName: boolean; tour?: TourPrefs; homeCards?: string[]; homeHidden?: string[]; homeDay?: 'salon' | 'moi'; tabs?: string[]; views?: SavedView[] };
+// homeBlocks: the Accueil's own blocks he keeps in sight (absent: all, or this device's earlier choice)
+export type Prefs = { homeBlocks?: { prochain: boolean; fauteuils: boolean; jour: boolean }; home: 'auto' | 'accueil' | 'espace' | 'agenda' | 'pilotage'; notify: 'mine' | 'all' | 'none'; buzz: boolean; cards: string[]; hidden: string[]; blur: 'auto' | 'on' | 'off'; cal: number; calName: boolean; tour?: TourPrefs; homeCards?: string[]; homeHidden?: string[]; homeDay?: 'salon' | 'moi'; tabs?: string[]; views?: SavedView[] };
 export type Me = Staff & { caps: string[]; device: { id: string; name: string; personal?: boolean } | null; session: 'pwd' | 'pin'; prefs: Prefs };
 export type Service = { id: string; slug: string | null; name: string; short: string; category: string; price: number; from: boolean; dur: number; buffer: number; online: boolean; deposit: number | null; vat: number; order: number; description: string; includes: string[]; pack: { credits: number; days: number; serviceIds?: string[] } | null; tag?: string; active: boolean };
 export type Product = { id: string; name: string; price: number; cost: number; stock: number; low: number; vat: number; sku: string; category: string; active: boolean };
@@ -51,7 +52,9 @@ export type Hold = { id: string; staffId: string; start: number; dur: number; ex
 export type QueueItem = { id: string; name: string; hasPhone: boolean; serviceId: string; staffId: string; status: 'waiting' | 'called'; at: number; calledAt: number | null };
 export type Wait = { id: string; first: string; staffId: string; serviceId: string; from: number; to: number; status: string; offer: any; at: number };
 export type Kpis = { total: number; done: number; noShows: number; upcoming: number; revenue: number | null; tips: number | null; planned: number | null; fill: number; scope: 'own' | 'shop' | 'desk' };
-export type Agenda = { day: string; lanes: Lane[]; appts: Appt[]; blocks: Block[]; holds: Hold[]; waitlist: Wait[]; queue: QueueItem[]; closed: boolean; closure: any; kpis: Kpis; walkin: { minutes: number | null; queued: number } | null; drawer: { open: boolean; since?: number } };
+export type Agenda = { day: string; lanes: Lane[]; appts: Appt[]; blocks: Block[]; holds: Hold[]; waitlist: Wait[]; queue: QueueItem[]; closed: boolean; closure: any; kpis: Kpis; walkin: { minutes: number | null; queued: number } | null; drawer: { open: boolean; since?: number };
+  // « À rappeler »: clients still booked on the chair of a barber who is away that day (for whoever edits every chair)
+  toCall?: { staffId: string; timeoffId: string | null; rows: { id: string; start: number; dur: number; name: string; services: string[]; phone: string }[] }[] };
 // staffId: the chair a line is about (a barber's own toasts); null on a line only for the cap it names, which may name
 // its subject in aboutStaffId (an absence told to the team holders)
 export type FeedItem = { v: number; at: number; by: string; kind: string; title: string; sub: string; apptId?: string; saleId?: string; day?: string; money?: boolean; staffId?: string | null; aboutStaffId?: string };

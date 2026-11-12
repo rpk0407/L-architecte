@@ -186,6 +186,14 @@ export function TourWelcome({ canOpen }: { canOpen: (path: string) => boolean })
   );
 }
 
+/** In the avatar menu of a phone: « Comment marche cette page ? », only on a page that has guide steps for this person. */
+export function TourPageItem({ canOpen }: { canOpen: (path: string) => boolean }) {
+  const all = usePlan(canOpen);
+  useRoute();
+  if (!pageSteps(all, location.pathname).length) return null;
+  return <button type="button" onClick={() => startTour('page')}><Icon name="info" />Comment marche cette page ?</button>;
+}
+
 /** In the top bar: « Visite guidée » until he has been through it, then the page's « ? » (its own steps only). */
 export function TourButtons({ canOpen }: { canOpen: (path: string) => boolean }) {
   const t = useTourPrefs();

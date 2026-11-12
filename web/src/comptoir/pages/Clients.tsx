@@ -113,7 +113,9 @@ function ClientList({ active }: { active: string | null }) {
   const pager = usePages(key + '|' + sort);
   const listed = seg !== 'doublons' && seg !== 'abonnes';
   const selection = useSelection(key, listed ? data?.total : undefined);
-  const acts: BulkActs = { sms: can('marketing'), tag: can('client.edit'), exp: can('client.export') };
+  // a barber edits one file at a time: no action on many (the server refuses them too, routes-bulk.js)
+  const many = boot.me.role !== 'barber';
+  const acts: BulkActs = { sms: many && can('marketing'), tag: many && can('client.edit'), exp: many && can('client.export') };
   const canSelect = listed && (acts.sms || acts.tag || acts.exp);
   const picking = canSelect && selection.on;
   // the row scrolls sideways: the open segment stays in sight (a rare one sits at the far end)

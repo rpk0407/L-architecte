@@ -17,7 +17,7 @@ Four roles, each a set of capabilities (`server/domain/permissions.js`). Every w
 | Team, catalogue | ✓ | ✓ | | |
 | Settings, devices, data, GDPR erasure | ✓ | | | |
 
-The owner adjusts the barbers' toggles in Réglages › Équipe et accès; the matrix shown there is computed by the server from the saved settings. Discounts are capped by role (barbers 10 % by default, front desk 20 %).
+The owner adjusts the barbers' toggles in Réglages › Équipe et accès; the matrix shown there is computed by the server from the saved settings. Discounts are capped by role (barbers 10 % by default, front desk 20 %), enforced at the till by the server. An action on many client files at once (`POST /api/v1/clients/bulk`) is refused to a barber whatever his toggles: he edits one file at a time. « Reporter ses rendez-vous » (a sick barber's day moved in one command, `server/commands/report.js`) asks the right of a single move on any chair (`agenda.edit`: owner, manager, front desk).
 
 What each person sees of the others (TEAM-01):
 - `report.shop` is the owner's and the managers' only, for good: no switch gives it to a barber, so every colleague's revenue, commission, rates and tips, the sales and VAT exports with clients' names, the tickets on a client file and every owner read gated on it stay theirs. A test pins that a barber gets 403 on the sales, VAT, commissions, clients and journal exports under every team setting.

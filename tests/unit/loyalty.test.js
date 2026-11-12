@@ -176,11 +176,12 @@ test('a barber applies a reward: the cut at 0 €, its discount the reward’s, 
   // a discount the barber types is checked as before: 20 % is over his 10 %
   await rejects(t.pay(nael, [t.cut()], { as: ali, due: 2000, discount: { amount: 500, reason: 'Geste commercial' } }), 'discount');
 
-  // the desk has no right to discounts, and may still apply a reward: the system checked it
+  // the desk's own discounts are capped at 20 % (tests/unit/sales.test.js); a reward is not one: the system checked it,
+  // so 25 € off a 30 € service passes
   const desk = await t.e.run(addStaff, { name: 'Inès', role: 'desk' }, t.asOwner());
   const st = t.s().staff.get(desk.id);
   const asDesk = { actor: { t: 'staff', id: st.id }, staff: st, caps: capsOf(st, t.s().settings) };
-  assert.ok(!asDesk.caps.has('sale.discount'));
+  assert.ok(asDesk.caps.has('sale.discount'));
   await t.fill(nael, 4);
   t.go(d(7));
   const nrw = rewardsOf(t.s(), nael, d(7))[0].id;

@@ -198,7 +198,7 @@ export const checkout = {
       if (!ctx.can('sale.discount')) fail(403, 'discount', 'Tu ne peux pas faire de remise.');
       const base = lines.filter((l) => l.kind !== 'giftcard').reduce((t, l) => t + l.unit * l.qty - (l.reward ? l.reward.amount : 0), 0);
       const pct = base ? (granted * 100) / base : 100;
-      if (pct > maxDiscountPct(ctx.staff, s.settings) + 0.001) fail(403, 'discount', `Remise maximale : ${maxDiscountPct(ctx.staff, s.settings)} %.`);
+      if (pct > maxDiscountPct(ctx.staff, s.settings) + 0.001) fail(403, 'discount', `Remise maximale pour ton rôle : ${maxDiscountPct(ctx.staff, s.settings)} %. Au-delà, c’est le gérant ou le responsable qui la fait.`, { max: maxDiscountPct(ctx.staff, s.settings) });
       if (x.discount && x.discount.amount > 0 && !x.discount.reason) fail(400, 'invalid', 'Indique la raison de la remise.');
     }
     const why = x.discount ? x.discount.reason || '' : '';

@@ -4,8 +4,9 @@ import { createPortal } from 'react-dom';
 import { api } from '../lib/api';
 import { Link, navigate, useRoute } from '../lib/router';
 import { useHotkeys, useIsPhone, useLocal } from '../lib/hooks';
+import { dates, time } from '../lib/format';
 import { Icon } from '../ui/Icon';
-import { Avatar, Button, ConfirmHost, Empty, Menu, Sheet, Stale, Toasts, dismiss, toast, Skeleton } from '../ui/kit';
+import { Avatar, Button, ConfirmHost, Empty, Menu, Sheet, Toasts, dismiss, toast, Skeleton } from '../ui/kit';
 import { AppProvider, photoOf, useApp } from './state';
 import { forgetHome, homeOf } from './home';
 import { Login, linkToken, type AuthState } from './Login';
@@ -20,6 +21,7 @@ const tourChunk = () => import('./guide/ComptoirTour');
 const ComptoirTour = lazy(() => tourChunk().then((m) => ({ default: m.ComptoirTour })));
 const TourWelcome = lazy(() => tourChunk().then((m) => ({ default: m.TourWelcome })));
 const TourButtons = lazy(() => tourChunk().then((m) => ({ default: m.TourButtons })));
+const TourPageItem = lazy(() => tourChunk().then((m) => ({ default: m.TourPageItem })));
 const startTour = (scope: 'tour' | 'page', from: 'start' | 'resume' = 'start') => { tourChunk().then((m) => m.startTour(scope, from)).catch(() => {}); };
 
 // The page chunks by name: Root asks for the opening page's while auth/state and bootstrap are on their way.
@@ -231,12 +233,12 @@ function Shell() {
         {boot.mode === 'demo' ? <div className="demo-band">Démo · aucune donnée réelle, aucun SMS ni paiement réel{app.can('settings') ? <> · <button type="button" onClick={() => navigate('/reglages/donnees')}>remettre à zéro</button></> : null}</div> : null}
         {/* a breakdown the owner was told by e-mail today (SMS, planificateur, sauvegarde): it stays in sight while the day lasts */}
         {(app.pulse?.alerts ?? boot.alerts ?? []).map((w) => <div key={w} className="alert-band" role="alert"><Icon name="alert" size={15} /><span>{w}</span></div>)}
+        {/* no connection: said calmly within seconds, with the hour of what is on screen; gone as soon as it is back */}
+        {app.offline ? <div className="offline-band" role="status" data-offline><Icon name="alert" size={15} /><span><b>Hors ligne</b> : ce que tu vois date de {time(dates.localParts(app.pulseAt + (app.now() - Date.now())).min)}. Les encaissements ne sont pas enregistrés tant que la connexion n’est pas revenue.</span></div> : null}
         <header className={'top' + (scrolled ? ' scrolled' : '')}>
           <div className="top-title" id="page-title" />
           <div className="top-acts">
             {phone ? null : <Suspense fallback={null}><TourButtons canOpen={canOpen} /></Suspense>}
-            {/* no answer for 2 minutes (a phone out of signal, back from sleep): what is shown is from then */}
-            {app.offline ? <Stale at={app.pulseAt} now={Date.now()} /> : null}
             <Button icon="search" aria-label="Rechercher (⌘K)" title="Rechercher · ⌘K" onClick={() => setPalette(true)} />
             <Button className="hide-phone" icon={priv === '1' ? 'eyeOff' : 'eye'} aria-label={priv === '1' ? 'Afficher les montants' : 'Masquer les montants'} title="Masquer les montants à l’écran" aria-pressed={priv === '1'} onClick={toggleMask} />
             <Button className="hide-phone" icon={theme === 'dark' ? 'sun' : 'moon'} aria-label="Changer de thème" onClick={toggleTheme} />
@@ -275,7 +277,8 @@ function Shell() {
         <button type="button" onClick={() => navigate('/reglages/compte')}><Icon name="key" />Mon mot de passe et mon code</button>
         {/* the phone's top bar keeps loupe, bell and avatar: the rest is here */}
         {phone ? <button type="button" onClick={() => startTour('tour', 'resume')}><Icon name="sparkle" />Visite guidée</button> : null}
-        {phone ? <button type="button" onClick={() => startTour('page')}><Icon name="info" />Comment marche cette page ?</button> : null}
+        {/* only on a page that has guide steps (the tour's chunk knows them) */}
+        {phone ? <Suspense fallback={null}><TourPageItem canOpen={canOpen} /></Suspense> : null}
         {phone ? <button type="button" onClick={toggleMask}><Icon name={priv === '1' ? 'eye' : 'eyeOff'} />{priv === '1' ? 'Afficher les montants' : 'Masquer les montants'}</button> : null}
         <button type="button" onClick={toggleTheme}><Icon name={theme === 'dark' ? 'sun' : 'moon'} />{theme === 'dark' ? 'Thème clair' : 'Thème sombre'}</button>
         <button type="button" onClick={() => startTour('tour', 'start')}><Icon name="sparkle" />Revoir la visite</button>

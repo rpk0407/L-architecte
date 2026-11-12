@@ -180,22 +180,27 @@ test('prefs: the Accueil’s keys are stored for the person, bounded like the ot
   const b = await owner();
   const r = await b.patch('/api/v1/prefs', {
     home: 'accueil', homeCards: ['relances', 'stock'], homeHidden: ['purge'], tabs: ['agenda', 'caisse', 'clients'], homeDay: 'moi',
-    views: [{ page: 'clients', name: 'À relancer', query: 'segment=relancer&tri=overdue' }]
+    views: [{ page: 'clients', name: 'À relancer', query: 'segment=relancer&tri=overdue' }],
+    homeBlocks: { prochain: true, fauteuils: false, jour: true }
   });
   assert.equal(r.status, 200, r.text);
   const me = (await b.get('/api/v1/bootstrap')).json.me;
   assert.deepEqual(me.prefs, { ...prefsDefaults('owner'), ...me.prefs });
   assert.deepEqual([me.prefs.home, me.prefs.homeCards, me.prefs.homeHidden, me.prefs.tabs, me.prefs.homeDay], ['accueil', ['relances', 'stock'], ['purge'], ['agenda', 'caisse', 'clients'], 'moi']);
   assert.deepEqual(me.prefs.views, [{ page: 'clients', name: 'À relancer', query: 'segment=relancer&tri=overdue' }]);
+  // the page's blocks follow the person: read back on another device (a second sign-in)
+  assert.deepEqual(me.prefs.homeBlocks, { prochain: true, fauteuils: false, jour: true });
+  assert.deepEqual((await (await owner()).get('/api/v1/bootstrap')).json.me.prefs.homeBlocks, { prochain: true, fauteuils: false, jour: true });
   const ids = (n) => Array.from({ length: n }, (_, i) => 'c' + i);
   for (const bad of [
     { homeCards: ids(21) }, { homeHidden: ids(21) }, { homeCards: ['pas un id !'] }, { tabs: ['agenda', 'caisse', 'clients', 'rapports'] }, { homeDay: 'tous' }, { home: 'cockpit' },
+    { homeBlocks: { prochain: 'non', fauteuils: true, jour: true } }, { homeBlocks: { prochain: true } }, { homeBlocks: [true, true, true] },
     { views: Array.from({ length: 9 }, (_, i) => ({ page: 'clients', name: 'v' + i, query: '' })) },
     { views: [{ page: 'clients', name: 'x'.repeat(31), query: '' }] }, { views: [{ page: 'clients', name: 'ok', query: 'q'.repeat(201) }] }
   ]) assert.equal((await b.patch('/api/v1/prefs', bad)).status, 400, JSON.stringify(bad).slice(0, 60));
   // the hidden card is gone from his Accueil; back to the defaults for the other tests
   assert.ok(!(await b.get('/api/v1/home')).json.cards.some((c) => c.id === 'purge'));
-  assert.equal((await b.patch('/api/v1/prefs', { home: 'auto', homeCards: [], homeHidden: [], tabs: [], views: [], homeDay: 'salon' })).status, 200);
+  assert.equal((await b.patch('/api/v1/prefs', { home: 'auto', homeCards: [], homeHidden: [], tabs: [], views: [], homeDay: 'salon', homeBlocks: { prochain: true, fauteuils: true, jour: true } })).status, 200);
 });
 
 test('measured: response time warm and after a write (printed; the budget is 20 ms warm)', async () => {
