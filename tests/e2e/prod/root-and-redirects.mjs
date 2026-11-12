@@ -111,7 +111,7 @@ export default async ({ h, page }) => {
     throw new Error(from + ': more than 5 redirects');
   }
   for (const [from, end] of [['/rdv-en-ligne/', '/?reserver'], ['/?page_id=2', '/?reserver&page_id=2'], ['/wp-admin/', '/comptoir'],
-    ['/rdv-en-ligne/?' + PAY, '/ancien-lien?reserver&' + PAY]]) {
+    ['/rdv-en-ligne/?' + PAY, '/ancien-lien?' + PAY]]) {
     const r = await follow(from);
     if (r.url !== end || r.status !== 200) throw new Error(from + ' ends at ' + r.status + ' ' + r.url + ', expected 200 ' + end);
   }
