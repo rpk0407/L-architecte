@@ -35,6 +35,7 @@ import { TEMPLATE_FLAGS } from '../core/templates.js';
 import { cutoverHeld } from '../projections/bascule.js';
 import { maybeTick, dispatchNow } from './scheduler.js';
 import { waitUntil } from '@vercel/functions';
+import { handBadge } from './routes-channels.js';
 
 const dayParam = (r, name = 'day') => { const d = r.query.get(name); return d && isDay(d) ? d : r.local.day; };
 
@@ -195,7 +196,8 @@ function badges(r) {
   // absences barbers asked for, waiting for the owner (Équipe)
   let requests = 0;
   if (r.caps.has('team')) for (const q of s.timeoffRequests.values()) if (q.status === 'pending' && q.to >= L.day) requests++;
-  return { toPay, queue, relances, waitlist, retention, requests };
+  // « mode téléphone »: the texts to clients waiting for this person on the Messages screen (messaging/hand.js)
+  return { toPay, queue, relances, waitlist, retention, requests, ...handBadge(r) };
 }
 
 /**

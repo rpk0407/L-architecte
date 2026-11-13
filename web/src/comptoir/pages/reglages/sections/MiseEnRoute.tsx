@@ -11,6 +11,7 @@ import { Button, Empty, Note, Skeleton, toast, toastError } from '../../../../ui
 import { REVIEW_HOWTO, REVIEW_KIND, reviewLinkKind } from '../../../../lib/reviews';
 import { useApp } from '../../../state';
 import { startTour } from '../../../guide/ComptoirTour';
+import Preset from './Preset';
 import './mise-en-route.css';
 
 type Channel = { provider: string | null; failed24h: number; queuedNoProvider: number };
@@ -97,12 +98,12 @@ export function stepsOf(h: Health, robots: boolean | null, countries: string[], 
 
   out.push({ id: 'menu', title: 'Carte', tone: st.services.online ? 'ok' : 'todo', to: '/catalogue', go: 'Catalogue',
     line: st.services.online ? s(st.services.online, 'prestation visible', 'prestations visibles') + ' sur le site.'
-      : st.services.active ? 'Aucune prestation n’est réservable en ligne : le site n’a rien à proposer.' : 'Aucune prestation : reprends la carte de l’ancien site en un geste.' });
+      : st.services.active ? 'Aucune prestation n’est réservable en ligne : le site n’a rien à proposer.' : 'Aucune prestation : « Le salon, en un geste » ci-dessus crée la carte de l’ancien site.' });
 
   const chairs = st.team.chairs;
   const noPin = chairs.filter((c) => !c.pin).map((c) => c.name);
   out.push({ id: 'team', title: 'Équipe', tone: chairs.length && !noPin.length ? 'ok' : 'todo', to: '/equipe', go: 'Équipe',
-    line: !chairs.length ? 'Aucun fauteuil : ajoute chaque barbier avec son code, l’agenda s’ouvre avec eux.'
+    line: !chairs.length ? 'Aucun fauteuil : « Le salon, en un geste » ci-dessus crée les quatre barbiers avec leurs horaires, puis donne un code à chacun.'
       : noPin.length ? 'Sans code : ' + noPin.join(', ') + '. Sans code, pas de connexion sur la tablette.' : s(chairs.length, 'fauteuil') + ', chacun avec son code.' });
 
   out.push({ id: 'device', title: 'Tablette enregistrée', tone: st.devices ? 'ok' : 'todo', to: '/reglages/appareils', go: 'Appareils',
@@ -253,7 +254,7 @@ const ICON: Record<Tone, string> = { ok: 'check', todo: '', warn: 'alert', err: 
 const WORD: Record<Tone, string> = { ok: 'fait', todo: 'à faire', warn: 'à vérifier', err: 'en panne', info: 'démo' };
 
 export default function MiseEnRoute() {
-  const { boot, now } = useApp();
+  const { boot, now, can } = useApp();
   const { data, error, loading, refresh } = useHealth();
   const robots = useRobots();
   if (loading && !data) return <Skeleton h={520} r={22} />;
@@ -276,6 +277,8 @@ export default function MiseEnRoute() {
           <Button variant="subtle" icon="sparkle" onClick={() => startTour('tour', 'start')}>Revoir la visite</Button>
         </div>
       </section>
+      {/* the real salon in one confirmed step: the team, the menu, the hours (not in the demo, which has its own salon) */}
+      {data.mode === 'production' && can('settings') ? <Preset /> : null}
       <ol className="mr-list" aria-label="Étapes de mise en route" data-guide="mer-list">
         {steps.map((x, i) => (
           <li key={x.id} className={'mr-step ' + x.tone} data-step={x.id} data-done={x.tone === 'ok' ? '1' : '0'}>

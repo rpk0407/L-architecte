@@ -427,12 +427,16 @@
       li.push('Un empêchement ? Ta page de rendez-vous te laisse <b>déplacer ou annuler</b>' + (cancelH() ? ' jusqu’à ' + cancelH() + NB + 'h avant' : '') + '.');
     }
     const maps = (S.salon.shop && S.salon.shop.mapsUrl) || $('[data-maps]').href;
+    // the salon's WhatsApp number is set (GET /api/public/salon `whatsapp`): the client opens the chat himself, with the
+    // booking's code in the message. Not while the deposit is unpaid, nor in the simulation
+    const waNum = String(S.salon.whatsapp || '');
+    const wa = !demo && !pend && /^\d{8,15}$/.test(waNum) ? 'https://wa.me/' + waNum + '?text=' + encodeURIComponent('Bonjour, je viens de réserver chez L’Architecte : ' + dayLong(r.day) + ' à ' + th(r.start).replace(/[\u00a0\u202f]/g, ' ') + '. Référence ' + r.code + '. Merci de me confirmer ici.') : '';
     const row = (k, v, big) => '<div class="tk-r"><dt>' + k + '</dt><dd' + (big ? ' class="tk-w"' : '') + '>' + v + '</dd></div>';
     return '<div class="st done"><div class="ok"><span class="ok-c" aria-hidden="true"><svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="M13 25l7.5 7.5L35 17"/></svg></span><p class="ok-code">' + (pend ? 'Rendez-vous en attente de l’acompte' : 'Rendez-vous confirmé') + '<br>Code <b>' + esc(r.code) + '</b></p></div>' +
       '<dl class="tk">' + row('Quoi', esc(sv.name + ' · ' + sv.dur + ' min · ' + eur(sv.price, sv.from))) + row('Avec qui', esc(staff ? staff.name : 'Un barbier du salon')) +
       row('Quand', esc(cap(dayLong(r.day)) + ' à ' + th(r.start)), true) + row('Où', 'Barber L’Architecte<br>' + esc(placeLine())) + '</dl>' +
       (pend && r.payment && r.payment.url ? '<div class="pay-b"><p>Un acompte de ' + esc(eur(r.deposit)) + ' confirme ce créneau. Il est déduit au salon.' + (S.salon.booking && S.salon.booking.pendingPayMin ? ' Tu as ' + S.salon.booking.pendingPayMin + ' minutes pour le régler.' : '') + '</p><a class="btn" href="' + esc(r.payment.url) + '">Régler l’acompte · ' + esc(eur(r.deposit)) + '</a></div>' : '') +
-      '<div class="done-act">' + (r.ics ? '<a class="btn' + (pend ? ' ghost' : '') + '" href="' + r.ics + '" download="rdv-larchitecte.ics">Ajouter à mon agenda</a>' : '') + '<a class="btn ghost" href="' + esc(maps) + '" target="_blank" rel="noopener">Itinéraire</a></div>' +
+      '<div class="done-act">' + (r.ics ? '<a class="btn' + (pend ? ' ghost' : '') + '" href="' + r.ics + '" download="rdv-larchitecte.ics">Ajouter à mon agenda</a>' : '') + '<a class="btn ghost" href="' + esc(maps) + '" target="_blank" rel="noopener">Itinéraire</a>' + (wa ? '<a class="btn ghost" data-wa href="' + esc(wa) + '" target="_blank" rel="noopener">Recevoir la confirmation sur WhatsApp</a>' : '') + '</div>' +
       (r.manage ? '<a class="mg-l" href="' + esc(r.manage) + '">Déplacer ou annuler ce rendez-vous</a>' : '') +
       '<p class="sg-h after-h">Et maintenant</p><ul class="after">' + li.map((x) => '<li><span>' + x + '</span></li>').join('') + '</ul></div>';
   }

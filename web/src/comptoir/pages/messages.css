@@ -1,0 +1,23 @@
+/* Messages (mode téléphone): one message at a time, thumb-sized buttons, the phone first */
+.mh { display: flex; flex-direction: column; gap: 14px; max-width: 560px; }
+.mh-head { display: flex; flex-direction: column; gap: 6px; }
+.mh-head .muted { font-size: 13.5px; line-height: 1.45; }
+.mh-count { font: 400 26px/1.15 var(--serif); }
+.mh-count b { font-weight: 400; font-variant-numeric: tabular-nums; }
+.mh-count .faint { font: 500 13.5px/1 var(--sans); }
+.mh-card { display: flex; flex-direction: column; gap: 12px; }
+.mh-who { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.mh-who b { font: 600 17px/1.25 var(--sans); min-width: 0; }
+.mh-appt { display: flex; align-items: center; gap: 7px; font-size: 13.5px; color: var(--tx2); }
+.mh-text { margin: 0; }
+.mh-text p { font-size: 15px; line-height: 1.5; overflow-wrap: anywhere; white-space: pre-wrap; }
+.mh-why { font-size: 12.5px; line-height: 1.4; }
+.mh-acts { display: flex; flex-direction: column; gap: 8px; }
+.mh-card a.btn { text-decoration: none; }
+.mh-card a.btn.is-busy { opacity: .6; pointer-events: none; }
+.mh-skip { align-self: center; min-height: 44px; padding: 0 12px; font-size: 13.5px; }
+.mh-rest { display: flex; flex-direction: column; gap: 4px; }
+.mh-foot { display: flex; flex-direction: column; gap: 8px; padding: 2px 4px 8px; }
+.mh-foot p { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; line-height: 1.45; color: var(--tx3); }
+.mh-foot p svg { flex: none; margin-top: 2px; }
+.mh-foot .link { min-height: 44px; display: inline-flex; align-items: center; }

@@ -35,6 +35,8 @@ export const COMPTOIR_PLACES: readonly Place[] = [
   { path: '/comptoir/clients?segment=abonnes', label: 'Clients · Abonnés', targets: ['members-kpis', 'members-presence', 'members-missed', 'members-list', 'members-notyet', 'members-weeks', 'members-thisweek', 'members-write', 'members-carnets'] },
   // one client's file: a regular with the most to show (ComptoirTour resolves it)
   { path: '/comptoir/clients/:id', label: 'Clients · La fiche', targets: ['file-head', 'file-chips', 'file-kpis', 'file-tech', 'file-abonnement', 'member-offer', 'member-cancel', 'clients.notes-coupe', 'file-carnets', 'file-prefs', 'client-account', 'client-account-invite', 'client-account-revoke', 'client-account-detach', 'clients.loyalty', 'file-history'] },
+  // « mode téléphone »: the texts to clients a person sends from WhatsApp (in the menu while the salon sends by hand)
+  { path: '/comptoir/messages', label: 'Messages' },
   { path: '/comptoir/relances', label: 'Relances · À relancer' },
   { path: '/comptoir/relances/attente', label: 'Relances · Liste d’attente' },
   { path: '/comptoir/relances/demandes', label: 'Relances · Demandes' },

@@ -11,7 +11,6 @@
 .ag-grid > .ag-side { grid-area: s; }
 .ag-side { display: flex; flex-direction: column; gap: 16px; position: sticky; top: 76px; max-height: calc(100vh - 92px); overflow: auto; scrollbar-width: none; }
 .ag-side::-webkit-scrollbar { display: none; }
-.ag-jump { display: none; }
 @media (max-width: 1280px) { .ag-grid { grid-template-columns: minmax(0, 1fr) 300px; } }
 /* the salon tablet (1024 × 768): the side column climbs beside the figures, which pack into two short rows */
 @media (max-width: 1100px) {
@@ -25,15 +24,17 @@
   .ag-side { gap: 12px; }
   .ag-side .card { padding: 14px; }
 }
+/* a phone: the planning first (its week strip and its names stay in sight), the day's figures and the side cards
+   under it; « Rendez-vous », « Passage » and « Encaisser » are in the bar above the tabs (accueil/Dock.tsx) */
 @media (max-width: 760px) {
-  .ag-grid { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'k' 'b' 's'; gap: 16px; }
+  .ag-grid { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'b' 'k' 's'; gap: 16px; }
   .ag-side { position: static; max-height: none; }
-  .ag-jump { display: flex; gap: 8px; margin: -4px 0 2px; }
-  .ag-jump .chip { min-height: 44px; }
-  .ag-date h2 { font-size: 25px !important; }
-  .ag-acts { width: 100%; }
-  .ag-acts .seg, .ag-acts .ph-hide { display: none; }
-  .ag-acts .btn-primary { flex: 1; }
+  .ag-head { margin-bottom: -6px; }
+  .ag-date { width: 100%; }
+  .ag-date > label { flex: 1; min-width: 0; text-align: center; }
+  .ag-date h2 { font-size: 23px !important; overflow: hidden; text-overflow: ellipsis; }
+  .ag-date .today { display: none; }
+  .ag-acts { display: none; }
 }
 
 /* the board */
@@ -62,7 +63,18 @@
 .lane { position: relative; border-left: 1px solid var(--line); cursor: cell; }
 .lane:first-child { border-left: 0; }
 .lane.drop { background: rgba(235, 70, 57, .04); }
-.off { position: absolute; left: 0; right: 0; background: repeating-linear-gradient(135deg, var(--line) 0 2px, transparent 2px 9px); pointer-events: none; }
+.off { position: absolute; left: 0; right: 0; display: grid; place-items: center; overflow: hidden; background: repeating-linear-gradient(135deg, var(--line) 0 2px, transparent 2px 9px); pointer-events: none; }
+/* not bookable, and why: closed (faint stripes, no word), a pause (a plain band), away (tight stripes) */
+.off span { padding: 2px 8px; border-radius: 999px; background: var(--panel); font: 600 11px/1.2 var(--sans); color: var(--tx2); }
+.off-pause { background: var(--panel2); }
+.off-absent { background: repeating-linear-gradient(135deg, var(--line2) 0 2px, transparent 2px 6px), var(--bg2); }
+/* a free stretch reads « Libre 30 min ». On a wide screen it is only the word (the column takes the touch) */
+.fr { position: absolute; left: 3px; right: 3px; z-index: 1; display: grid; place-items: center; border-radius: 9px; border: 1px dashed var(--line3); background: var(--ok-bg); color: var(--ok-tx); font: 500 11px/1.2 var(--sans); text-align: center; overflow: hidden; }
+.fr b { font-weight: 700; }
+.fr.short span { white-space: nowrap; }
+.fr:active { background: rgba(74, 222, 128, .22); }
+.fr-deco { left: 5px; right: 5px; place-items: start; padding: 5px 9px; border: 0; background: none; color: var(--tx3); pointer-events: none; }
+.fr-deco span { white-space: nowrap; }
 .ap { position: absolute; left: 5px; right: 5px; z-index: 2; display: flex; flex-direction: column; justify-content: center; gap: 3px; padding: 5px 9px 5px 12px; border-radius: 11px; background: var(--panel3); box-shadow: inset 0 0 0 1px var(--line2); text-align: left; overflow: hidden; cursor: pointer; transition: transform .15s var(--ease), box-shadow .15s, background-color .25s, opacity .2s; touch-action: pan-y; user-select: none; -webkit-user-select: none; }
 .ap::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--lc, var(--tx3)); }
 .ap:hover { box-shadow: inset 0 0 0 1px var(--tx2); }
@@ -200,4 +212,110 @@
 .ag-call-o { text-align: left; min-height: 44px; justify-content: center; }
 @media (max-width: 760px) {
   .ag-call-h .btn { flex: 1 1 100%; }
+}
+
+/* ---------------- the agenda on a phone (agenda/Phone.tsx) ---------------- */
+.board.agp { overflow: visible; border-radius: 0; background: transparent; }
+.agp-sticky { position: sticky; top: var(--agp-top, 56px); z-index: 8; display: flex; flex-direction: column; gap: 8px; padding-top: 6px; background: var(--bg); }
+.agp-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; touch-action: pan-y; }
+.agp-d { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 56px; padding: 6px 2px; border-radius: 14px; background: var(--panel); }
+.agp-d small { font: 600 10.5px/1 var(--sans); color: var(--tx2); }
+.agp-d b { font: 600 17px/1 var(--sans); }
+.agp-d.today small { color: var(--accent2); }
+.agp-d.today { box-shadow: inset 0 0 0 1.5px var(--accent-line); }
+.agp-d.shut b { color: var(--tx3); }
+.agp-d[aria-pressed='true'] { background: var(--tx); color: var(--bg); box-shadow: none; }
+.agp-d[aria-pressed='true'] small, .agp-d[aria-pressed='true'].shut b { color: inherit; opacity: .75; }
+.agp-load { display: block; width: 70%; max-width: 30px; height: 4px; border-radius: 2px; background: var(--line2); overflow: hidden; }
+.agp-d.shut .agp-load, .agp-d.shut[aria-pressed='true'] .agp-load { background: transparent; }
+.agp-load i { display: block; height: 100%; border-radius: 2px; background: var(--ok); }
+.agp-load i[data-full] { background: var(--accent); }
+.agp-d[aria-pressed='true'] .agp-load { background: rgba(0, 0, 0, .18); }
+.agp-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 46px; }
+.agp-bar .seg button { min-height: 40px; padding: 0 15px; font-size: 13.5px; }
+.agp-bar .chip, .agp-bar .btn { min-height: 44px; flex: none; }
+.agp .lane-pick { padding: 0; overscroll-behavior-x: contain; }
+.agp .lane-pick .chip { flex: none; min-height: 40px; }
+.agp-heads { overflow: hidden; border-radius: 16px 16px 0 0; background: var(--panel); border-bottom: 1px solid var(--line); }
+.agp-heads-in { display: grid; width: 100%; }
+.agp-h { display: flex; align-items: center; gap: 6px; min-width: 0; min-height: 46px; padding: 4px 4px 4px 6px; border-left: 1px solid var(--line); text-align: left; }
+.agp-h:nth-child(2) { border-left: 0; }
+button.agp-h:active { background: var(--panel2); }
+.agp-dot { flex: none; width: 9px; height: 9px; border-radius: 50%; }
+.agp-h.live .agp-dot { box-shadow: 0 0 0 2px var(--panel), 0 0 0 3.5px var(--accent); }
+.agp-h-t { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.agp-h-t b { font: 600 14.5px/1.1 var(--sans); }
+.agp-h-t small { font-size: 12.5px; line-height: 1.15; color: var(--tx2); }
+.agp-heads.compact .agp-h-t b { font-size: 12.5px; }
+.agp-heads.compact .agp-h-t small { font-size: 11px; }
+.agp-h-t small.is-free { color: var(--ok-tx); }
+.agp-h-t small.is-busy { color: var(--accent2); }
+.agp-h-t small.is-off { color: var(--tx3); }
+.agp-h-t small.clash { color: var(--warn-tx); font-weight: 700; }
+/* the zone the finger swipes: up and down is the page's scroll, sideways is the day (or the barber) */
+.agp-zone { touch-action: pan-y; overflow: clip; border-radius: 0 0 16px 16px; }
+.agp-zone[data-wide] { touch-action: pan-x pan-y; }
+.agp-body { min-height: 240px; background: var(--panel); }
+.agp-liste .agp-zone, .agp-liste .agp-body { border-radius: 16px; }
+.agp-grid.wide { overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x proximity; scroll-padding-left: var(--gut, 36px); scrollbar-width: none; }
+.agp-grid.wide::-webkit-scrollbar { display: none; }
+.agp-grid.wide .agp-tl, .agp-heads.wide .agp-heads-in { width: max-content; }
+.agp-tl { position: relative; display: grid; background-image: linear-gradient(var(--line2) 1px, transparent 1px), linear-gradient(var(--line) 1px, transparent 1px); background-repeat: repeat-y; }
+.agp-hours span { right: 6px; font-size: 11px; }
+.agp-grid.compact .agp-hours span { right: 5px; font-size: 10.5px; }
+.agp-grid.wide .agp-hours { position: sticky; left: 0; z-index: 6; background: var(--panel); }
+.agp-grid.wide .agp-lane { scroll-snap-align: start; }
+.agp-lane { cursor: default; }
+.agp-lane:nth-child(2) { border-left: 0; }
+/* the line of the hour runs under the cards (a name is never struck through) and over the free stretches */
+.agp-now { left: var(--gut, 36px); z-index: 1; height: 1.5px; box-shadow: none; }
+.agp-now span { z-index: 7; }
+.agp-now span { position: absolute; right: 100%; top: -9px; margin-right: 3px; display: inline-flex; align-items: center; height: 18px; padding: 0 4px; border-radius: 999px; background: var(--accent); color: var(--ink); font: 700 10px/1 var(--sans); }
+.agp-now::before { display: none; }
+/* an appointment in a narrow column */
+.agp-ap { left: 2px; right: 2px; gap: 2px; padding: 2px 3px 2px 7px; border-radius: 8px; transition: none; }
+.agp-ap .ap-n { flex: none; font-size: 12px; line-height: 1.15; }
+.agp-ap .ap-s { font-size: 10.5px; align-items: center; }
+.agp-ap .ap-s b.ap-t { font-size: 10.5px; }
+.agp-ap.short { padding-top: 0; padding-bottom: 0; }
+.agp-ap.shared { padding: 2px 2px 2px 6px; }
+.agp-ap.shared .ap-n { font-size: 11px; -webkit-line-clamp: 1; }
+.agp-miss { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--warn); }
+.agp-grid.compact .bl { left: 2px; right: 2px; padding: 3px 5px; border-radius: 8px; font-size: 10.5px; }
+.agp-grid.compact .fr { left: 2px; right: 2px; border-radius: 8px; }
+.agp-grid.compact .off span { padding: 1px 6px; font-size: 10.5px; }
+.agp-barbier .ap { transition: none; }
+.agp-barbier .fr { background: rgba(74, 222, 128, .06); font-size: 12.5px; }
+/* the day as a list */
+.agp-list { display: flex; flex-direction: column; padding: 2px 12px 6px 0; }
+.agp-hour { display: grid; grid-template-columns: 46px minmax(0, 1fr); }
+.agp-hour + .agp-hour { border-top: 1px solid var(--line); }
+.agp-hour h3 { padding: 19px 0 0 12px; font: 600 12.5px/1 var(--sans); color: var(--tx3); white-space: nowrap; }
+.agp-hour > ul > li + li { border-top: 1px solid var(--line); }
+.agp-hour > ul > li.agp-nowrow { border-top: 2px solid var(--accent); }
+.agp-row { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 58px; padding: 7px 0; text-align: left; }
+.agp-row.sel { background: var(--panel2); }
+.agp-row-h { flex: none; width: 44px; font: 600 14px/1 var(--sans); }
+.agp-row-t { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.agp-row-t b { font: 600 14.5px/1.2 var(--sans); }
+.agp-row-t small { font-size: 12.5px; line-height: 1.25; color: var(--tx2); }
+.agp-row-e { flex: none; max-width: 40%; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; min-width: 0; }
+.agp-row-e small { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; font-size: 12px; color: var(--tx2); }
+.agp-row-e small i { flex: none; width: 8px; height: 8px; border-radius: 50%; }
+.agp-st { padding: 3px 8px; border-radius: 999px; background: var(--panel3); font: 600 11.5px/1.2 var(--sans); white-space: nowrap; }
+.agp-st.in_chair { background: var(--accent); color: var(--ink); }
+.agp-st.arrived { background: var(--ok-bg); color: var(--ok-tx); }
+.agp-st.late, .agp-st.pending, .agp-st.no_show { background: var(--warn-bg); color: var(--warn-tx); }
+.agp-st.done { background: transparent; color: var(--tx3); padding-right: 0; }
+.agp-row.st-done .agp-row-t, .agp-row.st-done .agp-row-h, .agp-row.st-no_show .agp-row-t, .agp-row.st-no_show .agp-row-h { opacity: .55; }
+.agp-row.st-no_show .agp-row-t b { text-decoration: line-through; }
+.agp-none { padding: 8px 0; }
+@media (max-width: 350px) {
+  .agp-bar .seg button { padding: 0 11px; font-size: 13px; }
+  .agp-d { min-height: 52px; border-radius: 12px; }
+  .agp-heads.compact .agp-h { gap: 4px; padding-left: 4px; }
+  .agp-heads.compact .agp-dot { width: 7px; height: 7px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .agp-grid.wide { scroll-behavior: auto; scroll-snap-type: none; }
 }

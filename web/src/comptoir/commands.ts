@@ -43,6 +43,7 @@ const PAGES: Entry[] = [
   pg('agenda', 'Agenda', 'agenda', ['rendez-vous', 'planning', 'liste d attente'], 'agenda.own'),
   pg('caisse', 'Caisse', 'caisse', ['tickets', 'ventes', 'encaissement'], 'sale.create'),
   pg('clients', 'Clients', 'clients', ['fiches', 'habitues', 'fichier clients'], 'client.view'),
+  pg('messages', 'Messages', 'sms', ['whatsapp', 'a envoyer', 'confirmations', 'rappels', 'telephone'], 'agenda.own'),
   pg('relances', 'Relances', 'relances', ['messages', 'habitues en retard', 'demandes'], 'marketing'),
   pg('rapports', 'Rapports', 'rapports', ['chiffres', 'statistiques', 'exports', 'chiffre d affaires'], 'report.own'),
   pg('equipe', 'Équipe', 'equipe', ['barbiers', 'conges', 'paie', 'personnes'], 'team'),

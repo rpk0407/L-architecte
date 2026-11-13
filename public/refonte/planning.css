@@ -427,6 +427,8 @@ position:relative;font:400 17px/1.5 var(--f-sans);color:var(--os);background:var
 .done-l li::before{content:"";width:8px;height:8px;margin-top:7px;border-radius:50%;background:var(--vert)}
 .done-a{display:grid;gap:10px;margin-top:20px}
 .done-a .btn{width:100%}
+.done-a .done-wa{grid-column:1/-1}
+.done-a [hidden]{display:none}
 .done-code{margin:16px 0 6px!important;font-size:13.5px;color:var(--cendre2)}
 .done-code b{font:600 14px/1 var(--f-sans);letter-spacing:.06em;color:var(--encre)}
 

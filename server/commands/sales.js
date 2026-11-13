@@ -456,7 +456,8 @@ export function checkRefund(s, input, ctx) {
   const x = parse(refundSchema, input);
   const sale = s.sales.get(x.saleId);
   if (!sale) fail(404, 'not_found', 'Ticket introuvable.');
-  if (s.closures.has(ctx.local.day)) fail(409, 'day_closed', 'La journée est clôturée.');
+  // a credit note is dated the day it is made: once today's Z is sealed, the next one belongs to tomorrow's till
+  if (s.closures.has(ctx.local.day)) fail(409, 'day_closed', 'La journée est clôturée : l’avoir se fera demain, daté de demain.');
   const plan = refundPlan(s, sale);
   // a month of a membership that still runs goes back through its withdrawal or cancellation (commands/memberships.js),
   // which end the contract first: a credit note at the till would leave the member covered and renewing
@@ -492,7 +493,8 @@ export function checkRefund(s, input, ctx) {
     if (x.amount < liability) fail(400, 'invalid', 'Une carte cadeau annulée se rembourse en entier (' + eu(liability) + ').');
     // what was already given back without lines comes off what these lines may still take
     const room = plan.free + picked.filter((o) => o.kind === 'pack').reduce((t, o) => t + Math.max(0, o.value), 0);
-    if (max - liability > room) fail(409, 'refunded', 'Une partie du ticket est déjà remboursée : au plus ' + eu(room + liability) + ' pour ces lignes, ou rembourse un montant sans ligne.', { max: room + liability });
+    // (whatever the amount typed: the lines ticked are worth more than what is left, so the way out is an amount without a line)
+    if (max - liability > room) fail(409, 'refunded', 'Une partie du ticket est déjà remboursée sans ligne : ces lignes valent plus que ce qui reste. Décoche-les et rembourse un montant, au plus ' + eu(room + liability) + '.', { max: room + liability });
     // less than the lines are worth: each line gives back its share (a gift card always its whole value), so the
     // credit note's lines add up to its amount, the VAT below follows them and what is left of a line stays its own
     if (x.amount < max) {
@@ -662,7 +664,7 @@ export const openDrawer = {
     ctx.need('drawer');
     const float = parse(money(500000), input.float);
     if (s.drawer) fail(409, 'open', 'La caisse est déjà ouverte.');
-    if (s.closures.has(ctx.local.day)) fail(409, 'day_closed', 'La journée est clôturée.');
+    if (s.closures.has(ctx.local.day)) fail(409, 'day_closed', 'La journée est clôturée : la caisse se rouvre demain.');
     const did = ctx.id('dr');
     ctx.emit('drawer.opened', { id: did, float, day: ctx.local.day });
     return { id: did };

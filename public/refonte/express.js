@@ -836,6 +836,12 @@
     st.append(h('p', { class: 'note' }, ['Sans compte. Tes coordonnées servent à ce rendez-vous. Ta formule, ton barbier, ton prénom et ton numéro restent aussi sur ce téléphone, pour reprendre plus vite la prochaine fois. ', h('a', { href: '/confidentialite', target: '_blank', rel: 'noopener', text: 'Comment elles sont traitées' })]));
   }
 
+  /** https://wa.me/<the salon's number>?text=…: a chat with the salon, the message ready, the booking's code in it. '' without a number. */
+  function waConfirmUrl(number, day, start, code) {
+    if (!/^\d{8,15}$/.test(String(number || ''))) return '';
+    return 'https://wa.me/' + number + '?text=' + encodeURIComponent('Bonjour, je viens de réserver chez L’Architecte : ' + dayFull(day) + ' à ' + hm(start).replace(/[\u00a0\u202f]/g, ' ') + '. Référence ' + code + '. Merci de me confirmer ici.');
+  }
+
   function stepDone(st) {
     const r = S.result, pending = r.status === 'pending', bk = S.sal.booking, sms = r.sms && S.sal.sms !== false;
     st.append(ticketDone());
@@ -848,6 +854,10 @@
     const act = h('div', { class: 'done-act' });
     if (S.icsUrl) act.append(h('a', { class: 'btn', href: S.icsUrl, download: 'rdv-larchitecte.ics', text: 'Ajouter à mon agenda' }));
     act.append(h('a', { class: 'btn ghost', href: S.sal.shop.mapsUrl, target: '_blank', rel: 'noopener', text: 'Itinéraire' }));
+    // the salon's WhatsApp number is set (GET /api/public/salon `whatsapp`): the client opens the chat himself, the text
+    // carries the booking's code, the salon answers him there. Not while the deposit is unpaid, nor in the simulation
+    const wa = !pending && !S.demo ? waConfirmUrl(S.sal.whatsapp, r.day, r.start, r.code) : '';
+    if (wa) act.append(h('a', { class: 'btn ghost', href: wa, target: '_blank', rel: 'noopener', 'data-wa': '', text: 'Recevoir la confirmation sur WhatsApp' }));
     st.append(act);
     if (r.manage) {
       st.append(h('a', { class: 'mg-l', href: r.manage }, [h('span', {}, ['Déplacer ou annuler ce rendez-vous', h('small', { text: 'Sur la page de ton rendez-vous' + (cancelH() ? ', jusqu’à ' + cancelH() + NB + 'h avant.' : '.') })]), icon('out')]));

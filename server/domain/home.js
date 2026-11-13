@@ -43,11 +43,13 @@ export const MAX_FACTS = 3;
 export const MAX_APPTS = 12;
 export const MAX_TAKE = 3;
 export const MAX_PREVIEW = 3;
+/** a client booked and not there this many minutes after his hour is « en retard » */
+export const LATE_MIN = 5;
 
 /** the groups in the order they are shown: what blocks, what someone waits for, what brings money, upkeep */
 export const GROUPS = /** @type {const} */ (['bloque', 'attend', 'rapporte', 'entretien']);
 /** every card, in its default order */
-export const CARD_IDS = /** @type {const} */ (['z', 'encaisser', 'prochain', 'absence-demande', 'orphelins', 'demandes', 'relances', 'semaine', 'echecs', 'stock', 'purge', 'comptable', 'objectif']);
+export const CARD_IDS = /** @type {const} */ (['z', 'encaisser', 'retard', 'prochain', 'absence-demande', 'orphelins', 'demandes', 'relances', 'semaine', 'echecs', 'stock', 'purge', 'comptable', 'objectif']);
 /** the cards that engage the salon: a person's « masquer » does not remove them */
 const NO_HIDE = new Set(['z', 'absence-demande']);
 
@@ -93,10 +95,16 @@ const startAfter = (ivs, min) => { const next = ivs.map((x) => x[0]).filter((a) 
  * open and he is not at work (a break or hours off: back at `until`; a day off or an absence: null). 'ferme': the salon
  * is not open now (opens at `until`, null when it does not open again today, or once the day is sealed by its Z).
  * Everything from availability.js: his hours (staffIntervals), what takes his time (busyIntervals), and isFree for each
- * service with its buffer, as GET /api/v1/slots asks it.
+ * service with its buffer, as GET /api/v1/slots asks it. `now`: on a busy chair, the client who is there (his
+ * appointment, to open it in one touch), null for a pause, a blocked or a held slot.
  */
-function chairOf(s, st, day, nowMin, now, shop, sealed, services) {
-  const none = (state, until) => ({ staffId: st.id, name: st.name, state, until, freeMin: 0, canTake: [] });
+function chairOf(s, st, day, nowMin, now, shop, sealed, services, nameOfAppt) {
+  // who is on this chair now: the client installed, else the one whose slot runs (arrived, or booked and expected)
+  const here = [...(s.apptsByDay.get(day) || [])].map((id) => s.appts.get(id)).filter((a) => a && a.staffId === st.id && !a.saleId
+    && (a.status === 'in_chair' || ((a.status === 'arrived' || a.status === 'booked') && a.start <= nowMin && a.start + a.dur > nowMin)))
+    .sort((a, b) => (a.status === 'in_chair' ? 0 : 1) - (b.status === 'in_chair' ? 0 : 1) || a.start - b.start)[0];
+  const cur0 = here ? { id: here.id, client: nameOfAppt(here), status: here.status, end: here.start + here.dur } : null;
+  const none = (state, until) => ({ staffId: st.id, name: st.name, state, until, freeMin: 0, canTake: [], now: state === 'occupe' ? cur0 : null });
   const work = staffIntervals(s, st.id, day);
   if (shop.length && !work.length) return none('absent', null);
   if (sealed || !shop.some(([a, b]) => nowMin >= a && nowMin < b)) return none('ferme', sealed ? null : startAfter(shop, nowMin));
@@ -112,7 +120,7 @@ function chairOf(s, st, day, nowMin, now, shop, sealed, services) {
     if (canTake.length >= MAX_TAKE) break;
     if (canDo(st, [sv.id]) && isFree(s, st.id, day, nowMin, sv.dur + (sv.buffer || 0), { now })) canTake.push({ serviceId: sv.id, short: sv.short || sv.name });
   }
-  return { staffId: st.id, name: st.name, state: 'libre', until: free[0][1], freeMin: free[0][1] - nowMin, canTake };
+  return { staffId: st.id, name: st.name, state: 'libre', until: free[0][1], freeMin: free[0][1] - nowMin, canTake, now: null };
 }
 
 /** Today from now on: in the chair, arrived, or booked and not over (the cockpit's « still to come »), and a deposit still awaited. */
@@ -147,15 +155,18 @@ function build(s, me, now) {
   const seen = scope === 'salon' ? staff : staff.filter((x) => x.id === me.id);
   const services = [...s.services.values()].filter((x) => x.active && !x.legacy && !x.pack).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   const ids = new Set(seen.map((x) => x.id));
+  // late: minutes since his hour, for a client booked who has not been marked « arrivé » (LATE_MIN and more)
+  const lateOf = (a) => (a.status === 'booked' && nowMin - a.start >= LATE_MIN ? nowMin - a.start : 0);
   const row = (a) => ({
     id: a.id, start: a.start, dur: a.dur, client: apptView(s, a, caps, null, now).name,
-    services: a.services.map((x) => (s.services.get(x.id) || {}).short || x.name).join(' + '), staffId: a.staffId, status: a.status
+    services: a.services.map((x) => (s.services.get(x.id) || {}).short || x.name).join(' + '), staffId: a.staffId, status: a.status,
+    ...(lateOf(a) ? { late: lateOf(a) } : {})
   });
   const coming = comingOf(s, today, nowMin, now).filter((a) => ids.has(a.staffId)).sort((a, b) => a.start - b.start || (rank.get(a.staffId) ?? 99) - (rank.get(b.staffId) ?? 99));
   const appts = coming.slice(0, MAX_APPTS).map(row);
   const nextA = coming.find((a) => a.status !== 'in_chair');
   const next = nextA ? appts.find((x) => x.id === nextA.id) || row(nextA) : null;
-  const day = { scope, canSwitch, appts, more: coming.length - appts.length, next, chairs: seen.map((st) => chairOf(s, st, today, nowMin, now, shop, sealed, services)) };
+  const day = { scope, canSwitch, appts, more: coming.length - appts.length, next, chairs: seen.map((st) => chairOf(s, st, today, nowMin, now, shop, sealed, services, (a) => apptView(s, a, caps, null, now).name)) };
 
   /* what waits for a payment: the Caisse badge's list, his own for a barber */
   const toPay = can('sale.create') ? toPayAppts(s, today, nowMin).filter((a) => wide || a.staffId === me.id) : [];
@@ -246,6 +257,16 @@ function build(s, me, now) {
       why: wide ? 'Des rendez-vous finis ou au fauteuil n’ont pas encore de ticket.' : 'Tes rendez-vous finis ou au fauteuil n’ont pas encore de ticket.',
       preview: list.map((a) => { const r = row(a); return { id: a.id, text: r.client + ' · ' + r.services }; }),
       action: { kind: 'go', label: 'Encaisser', to: '/caisse' }
+    });
+  }
+  // clients expected and not there: one touch opens the first (arrivé, appeler, absent are in his sheet)
+  const lates = coming.filter((a) => lateOf(a));
+  if (lates.length) {
+    add('retard', 'attend', lates.length, {
+      title: lates.length > 1 ? lates.length + ' clients en retard' : row(lates[0]).client + ' en retard de ' + fmtDur(lateOf(lates[0])),
+      why: 'L’heure du rendez-vous est passée de ' + LATE_MIN + ' minutes ou plus et le client n’est pas noté arrivé.',
+      preview: lates.map((a) => ({ id: a.id, text: row(a).client + ' · ' + fmtTime(a.start) + (wide ? ' · ' + who(a.staffId) : '') })),
+      action: { kind: 'go', label: lates.length > 1 ? 'Voir le premier' : 'Ouvrir', to: '/agenda?rdv=' + lates[0].id }
     });
   }
   if (scope === 'moi' && me.chair && next && next.staffId === me.id) {

@@ -8,6 +8,8 @@ import { clientStats } from '../domain/insights.js';
 import { membersOf, liveIn, weekUse } from '../domain/membership.js';
 import { rhythmOf } from '../../shared/membership-words.js';
 import { SECRET_TEMPLATES, SECRET_ERROR } from '../core/templates.js';
+import { handEligible, handRefusal, maySend } from '../messaging/hand.js';
+import { cutoverHeld } from '../projections/bascule.js';
 
 // a client seen less than a week ago is not drifting away ("déjà 0 jours depuis ta dernière coupe")
 const MIN_DAYS = 7;
@@ -38,12 +40,44 @@ export const messageResult = {
     const error = input.error ? (secret ? SECRET_ERROR : String(input.error).slice(0, 160)) : '';
     // a contract's acknowledgement that failed waits for the next try (legal: retried until sent, core/templates.js)
     const retry = status === 'queued' && Number.isFinite(input.retryAt) ? { dueAt: Math.max(ctx.now, input.retryAt) } : {};
-    ctx.emit('message.updated', { id: m.id, patch: { status, ...(status === 'queued' ? {} : { sentAt: ctx.now }), providerRef: input.providerRef || null, error, tries: (m.tries || 0) + 1, ...via, ...fallback, ...retry } });
+    // manual: the automatic way gave it back (WhatsApp refused it and no SMS route stands behind): it waits for a person
+    // on the Messages screen, and no dispatch takes it again (messaging/hand.js byHand)
+    const manual = status === 'queued' && input.manual === true ? { manual: true } : {};
+    ctx.emit('message.updated', { id: m.id, patch: { status, ...(status === 'queued' ? {} : { sentAt: ctx.now }), providerRef: input.providerRef || null, error, tries: (m.tries || 0) + 1, ...via, ...fallback, ...retry, ...manual } });
     // the text that tells a file imported from WordPress about the new site has left: relation texts may follow (FID-01)
     const left = status === 'sent' || (status === 'simulated' && s.mode === 'demo');
     const c = left && m.informs ? fileOf(s, m.cid) : null;
     if (c && !c.erased && !(s.informed && s.informed.has(c.id))) ctx.emit('client.informed', { cid: c.id, msgId: m.id });
     return { ok: true };
+  }
+};
+
+/**
+ * « Mode téléphone »: a person sent this text from the salon's phone (WhatsApp opened by the Messages screen with the
+ * text ready) and says so, or sets it aside (`skip`: told at the counter, not worth sending). Recorded once: a second
+ * tap, or the same request played again, changes nothing. Who may: the desk, a manager, the owner for every client; a
+ * barber for the clients of his own appointments (messaging/hand.js maySend). Never before the switch from WordPress
+ * (the hold), never to a client who switched the salon's messages off since the text was written.
+ */
+export const handSent = {
+  run(s, input, ctx) {
+    const m = s.messages.get(String((input && input.id) || ''));
+    if (!m || !handEligible(m)) fail(404, 'not_found', 'Message introuvable.');
+    if (!maySend(s, m, { caps: ctx.caps, staffId: ctx.staff ? ctx.staff.id : undefined })) fail(403, 'forbidden', 'Ce message n’est pas pour un de tes clients.');
+    if (m.via === 'hand' && (m.status === 'sent' || m.status === 'skipped')) return { ok: true, already: true, status: m.status };
+    if (m.status !== 'queued') fail(409, 'gone', m.status === 'sent' ? 'Ce message est déjà parti.' : 'Ce message n’est plus à envoyer.');
+    if (cutoverHeld(s, m)) fail(409, 'held', 'Les messages aux clients attendent la bascule depuis l’ancien site : rien ne part avant.');
+    const no = handRefusal(s, m);
+    if (no) {
+      ctx.emit('message.updated', { id: m.id, patch: { status: 'skipped', error: no, via: 'hand' } });
+      return { ok: false, skipped: no };
+    }
+    const skip = !!(input && input.skip);
+    ctx.emit('message.updated', { id: m.id, patch: { status: skip ? 'skipped' : 'sent', sentAt: ctx.now, via: 'hand', by: ctx.actor.id, tries: (m.tries || 0) + 1, ...(skip ? { error: 'Écarté à la main' } : {}) } });
+    // as for an automatic send: the text that tells a file imported from WordPress about the new site has left
+    const c = !skip && m.informs ? fileOf(s, m.cid) : null;
+    if (c && !c.erased && !(s.informed && s.informed.has(c.id))) ctx.emit('client.informed', { cid: c.id, msgId: m.id });
+    return { ok: true, status: skip ? 'skipped' : 'sent' };
   }
 };
 

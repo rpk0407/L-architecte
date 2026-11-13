@@ -12,7 +12,7 @@ import { Icon } from '../../../ui/Icon';
 import { Avatar, Button, Chip, Field, Modal, Money, Note, Seg, Sheet, Skeleton, confirm, toast, toastError } from '../../../ui/kit';
 import { useApp } from '../../state';
 import type { Appt, ApptService, Boot, ClientCard, ClientFull, Cover, Service } from '../../types';
-import { GiftCode, Receipt, Voucher, printNow, type VoucherCard } from './Receipt';
+import { GiftCode, Receipt, Voucher, printNow, rate, type VoucherCard } from './Receipt';
 import { LoyaltyDone, RewardChip } from './RewardChip';
 import { TillChips } from './TillChips';
 import { clearDraft, draftKey, loadDraft, saveDraft, tabStore } from './draft';
@@ -313,7 +313,7 @@ export function Checkout({ apptId, drawerOpen, onClose }: { apptId: string | nul
 
       <div className="tk-sum">
         {totals.discount ? <div className="kv"><span>Remise{disc?.reason ? ' · ' + disc.reason : ''}</span><b className="money">−{eur(totals.discount)}</b></div> : null}
-        {totals.vat.map((v) => <div key={v.rate} className="kv"><span>dont TVA {v.rate / 100} %</span><span className="money tnum">{eur(v.tax, { decimals: true })}</span></div>)}
+        {totals.vat.map((v) => <div key={v.rate} className="kv"><span>dont TVA {rate(v.rate)}</span><span className="money tnum">{eur(v.tax, { decimals: true })}</span></div>)}
         {totals.liability ? <div className="kv"><span>Cartes cadeaux (hors TVA)</span><span className="money">{eur(totals.liability)}</span></div> : null}
         {totals.tip ? <div className="kv"><span>Pourboire · {staffById.get(tip!.staffId)?.name}</span><span className="money">{eur(totals.tip)}</span></div> : null}
         <div className="tk-total"><span>À payer</span><b className="money tnum">{eur(totals.due, { decimals: totals.due % 100 !== 0 })}</b></div>

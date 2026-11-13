@@ -14,6 +14,7 @@ import { TEMPLATE_FLAGS } from '../core/templates.js';
 import { addDays, weekday } from '../../shared/dates.js';
 import { cutoverHold, cutoverHeld, finalSync } from '../projections/bascule.js';
 import { heldQueued } from './routes-bascule.js';
+import { publicUrlProblem } from './runtime.js';
 
 const HOUR = 3600000;
 /** the external scheduler is fine when it called under 15 minutes ago; past 30 during opening hours, held texts are not leaving */
@@ -70,6 +71,24 @@ export function journalFacts(rt) {
 function emailProvider(rt) {
   if (rt.email) return rt.email.name || 'brevo';
   return rt.cfg.email ? rt.cfg.email.kind || 'brevo' : null;
+}
+
+/**
+ * Online payments in one word, with the reason when they are off, so nobody has to guess from « simulé »:
+ * 'demo' (the test page), 'off' (no key: the till works without, no deposit is asked), 'no_webhook_secret' (the key is
+ * there but Stripe's notices could not be checked, so nothing is plugged in), 'test' (a test key in production: test
+ * cards confirm bookings with no money), 'live'.
+ * @param {any} rt @param {boolean} prod @returns {{ state: 'demo'|'off'|'no_webhook_secret'|'test'|'live', problem: string }}
+ */
+export function stripeState(rt, prod) {
+  if (!prod) return { state: 'demo', problem: '' };
+  const c = rt.cfg.stripe;
+  if (rt.pay.name === 'stripe') {
+    return rt.pay.live ? { state: 'live', problem: '' }
+      : { state: 'test', problem: 'Stripe est branché avec une clé de test (sk_test_) : une carte de test confirme une réservation et la caisse déduit son acompte sans qu’aucun argent n’ait bougé. Passe aux clés réelles et au webhook réel avant d’ouvrir les réservations.' };
+  }
+  if (c && !c.webhookSecret) return { state: 'no_webhook_secret', problem: 'STRIPE_SECRET_KEY est posée sans STRIPE_WEBHOOK_SECRET : Stripe reste coupé (aucun acompte en ligne, QR de la caisse éteint) tant que le secret du webhook n’est pas ajouté, puis redéployé.' };
+  return { state: 'off', problem: '' };
 }
 
 /**
@@ -216,7 +235,9 @@ export async function healthOf(rt, L) {
       at: age == null ? null : now - age, ageMs: age, cron: !!rt.cfg.cronSecret, cronAt: cronAge == null ? null : now - cronAge, cronAgeMs: cronAge,
       open, overdue: late.overdue, late24h: late.late, lastLate: late.last, okMs: TICK_OK_MS, lateMs: TICK_LATE_MS
     },
-    stripe: { provider: rt.pay.name, live: !!rt.pay.live, lastWebhook: j.stripe || null },
+    // where the journal lives: 'memory' on a real salon means every ticket is lost at the next restart
+    store: { kind: rt.store.kind, durable: rt.store.kind !== 'memory' },
+    stripe: { provider: rt.pay.name, live: !!rt.pay.live, lastWebhook: j.stripe || null, ...stripeState(rt, prod) },
     // MSG-02: the route in use (provider, and WhatsApp in front of it when it is on) and the last text that failed
     // FID-01: the oldest text a client asked for still waiting, the last text that left by SMS (from the salon's phone when it
     // is the provider), and whether the cron calls too seldom for the phone (5 texts a dispatch: one call a minute)
@@ -230,6 +251,10 @@ export async function healthOf(rt, L) {
     // when the chain was last checked, on the salon's clock; `events` is the journal now (it grew since, maybe)
     integrity: { ...j.integrity, at: now - (Date.now() - j.checked), events: e.journal.length },
     publicUrl, publicUrlCustom: /^https:\/\//.test(publicUrl) && !!host && !/(^|\.)vercel\.app$/i.test(host) && host !== 'localhost',
+    // PUBLIC_URL set but unusable (no https, a path): every SMS link and Stripe's return address would be wrong
+    publicUrlProblem: prod ? publicUrlProblem(rt.cfg.publicUrl) : '',
+    // what the configuration itself says is missing or wrong (runtime.js), the same list as Réglages › Données › Système
+    warnings: [...rt.warnings],
     // LX_INDEX (read once, runtime.js) takes effect with the build of this deployment, which reads the same environment
     indexable: rt.cfg.index === true,
     setup: {

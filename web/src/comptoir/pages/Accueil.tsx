@@ -4,7 +4,7 @@
 // with « lu à … » (never on a shared salon screen; removed at sign-out), then replaced.
 import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
 import { api } from '../../lib/api';
-import { useInterval, useLocal } from '../../lib/hooks';
+import { useInterval, useIsPhone, useLocal } from '../../lib/hooks';
 import { useQuery } from '../../lib/query';
 import { Link, navigate } from '../../lib/router';
 import { Icon } from '../../ui/Icon';
@@ -12,24 +12,30 @@ import { Button, Empty, Seg, Skeleton, toast, toastError } from '../../ui/kit';
 import { useApp, useMaskedAmounts, useSharedScreen } from '../state';
 import { PageTitle } from '../App';
 import type { Home, HomeAppt, HomeCard, HomeChair } from '../types';
-import { ALL_BLOCKS, BLOCKS_KEY, blocksOf, fold, hiddenAfter, nameOf, stepOf } from './accueil/actions';
-import { allShut, chairText, dayOf, factText, firstTake, freeNow, hm, readAt, splitLabel, statusWord } from './accueil/format';
+import { ALL_BLOCKS, BLOCKS_KEY, PHONE_APPTS, blocksOf, fold, hiddenAfter, nameOf, stepOf } from './accueil/actions';
+import { allShut, chairText, chairWho, dayOf, factText, firstTake, freeNow, hm, readAt, splitLabel, statusWord } from './accueil/format';
 import { readSnap, writeSnap } from './accueil/snapshot';
 import { done, isLater, keep, later, readUsage, toAsk, writeUsage, type Usage } from './accueil/usage';
 import { Card } from './accueil/Card';
 import { Customize } from './accueil/Customize';
+import { Dock } from './accueil/Dock';
 import './accueil.css';
 
 // the Agenda's sheets and Équipe's plan of an absence: fetched when first asked for (and warmed up once the page is read)
 const sheets = () => import('./accueil/sheets');
 const WalkinSheet = lazy(() => sheets().then((m) => ({ default: m.WalkinSheet })));
 const ApptSheet = lazy(() => sheets().then((m) => ({ default: m.ApptSheet })));
+const CreateSheet = lazy(() => sheets().then((m) => ({ default: m.CreateSheet })));
 const HandoverSheet = lazy(() => import('./Equipe').then((m) => ({ default: m.HandoverSheet })));
 
 const KEY = '/api/v1/home';
 /** The amounts of a shared salon screen start hidden; a tap on the eye shows them for 30 seconds (as Pilotage). */
 const REVEAL_MS = 30000;
 const store = () => { try { return localStorage; } catch { return null; } };
+/** What the read says beyond the shared types (server/domain/home.js): the client on a busy chair, the minutes a booked
+ *  client is late. Both are optional: a copy kept by an older visit has neither. */
+type ChairX = HomeChair & { now?: { id: string; client: string } | null };
+type ApptX = HomeAppt & { late?: number };
 
 export default function Accueil() {
   const app = useApp();
@@ -59,7 +65,9 @@ export default function Accueil() {
   const track = (next: Usage) => { setUse(next); writeUsage(store(), next); };
 
   const [appt, setAppt] = useState<string | null>(null);
-  const [walk, setWalk] = useState<{ staffId: string; serviceId?: string } | null>(null);
+  const [walk, setWalk] = useState<{ staffId?: string; serviceId?: string } | null>(null);
+  const [create, setCreate] = useState(false);
+  const phone = useIsPhone();
   const [handover, setHandover] = useState<string | null>(null);
   const [custom, setCustom] = useState(false);
   const [all, setAll] = useState(false);
@@ -88,6 +96,13 @@ export default function Accueil() {
   const free = freeNow(d.day.chairs);
   const shut = allShut(d.day.chairs);
   const usual = boot.services.find((s) => s.slug === 'cl')?.id;
+  // a phone shows the first rows of « Aujourd’hui »; the rest is counted, one touch from the Agenda
+  const rows: ApptX[] = phone ? d.day.appts.slice(0, PHONE_APPTS) : d.day.appts;
+  const more = d.day.more + d.day.appts.length - rows.length;
+  // the quick gestures: « Encaisser » opens the one ticket waiting, or the till
+  const pay = d.cards.find((c) => c.id === 'encaisser');
+  const toTill = () => navigate(pay && pay.count === 1 && pay.preview[0] ? '/caisse?rdv=' + pay.preview[0].id : '/caisse');
+  const books = can('agenda.own') || can('agenda.all');
 
   const setPrefs = async (patch: Record<string, unknown>) => { await api.patch('/api/v1/prefs', patch); await Promise.all([app.reloadBoot(), refresh()]); };
   const saveBlocks = (b: typeof blocks) => {
@@ -134,20 +149,22 @@ export default function Accueil() {
         {d.line.note ? <p className="hm-note">{d.line.note}</p> : null}
       </header>
 
+      <Dock onNew={books ? () => setCreate(true) : undefined} onWalkin={books && d.moment !== 'ferme' ? () => setWalk({}) : undefined} onPay={can('sale.create') ? toTill : undefined} toPay={pay ? pay.count : 0} />
+
       {error ? (
         <div className="hm-fail" role="alert"><Icon name="alert" size={16} /><span>Pas de réponse du serveur : ce que tu vois a été {readAt(d.asOf)}.</span><Button busy={refreshing} onClick={() => { void refresh(); }}>Réessayer</Button></div>
       ) : null}
 
       <div className="hm-grid">
         <div className="hm-day">
-          {blocks.prochain ? <Next a={d.day.next} moment={d.moment} name={who(d.day.next?.staffId || '')?.name} dot={d.day.next ? dot(d.day.next.staffId) : null} onOpen={setAppt} /> : null}
+          {blocks.prochain ? <Next a={d.day.next as ApptX | null} moment={d.moment} name={who(d.day.next?.staffId || '')?.name} dot={d.day.next ? dot(d.day.next.staffId) : null} onOpen={setAppt} /> : null}
 
           {blocks.fauteuils && d.day.chairs.length ? (
             <section className="hm-block" aria-labelledby="hm-ch" data-guide="accueil.fauteuils">
               <h2 id="hm-ch" className="section-k">{d.day.chairs.length > 1 ? 'Fauteuils' : 'Mon fauteuil'}</h2>
               <ul className="hm-chairs">
                 {shut ? <li className="hm-chair"><span className="hm-chair-t"><b>Tous les fauteuils</b><small>{chairText(d.day.chairs[0])}</small></span></li>
-                  : d.day.chairs.map((c) => <Chair key={c.staffId} c={c} dot={dot(c.staffId)} onTake={() => setWalk({ staffId: c.staffId, serviceId: firstTake(c, usual) })} />)}
+                  : d.day.chairs.map((c: ChairX) => <Chair key={c.staffId} c={c} dot={dot(c.staffId)} onOpen={setAppt} onTake={() => setWalk({ staffId: c.staffId, serviceId: firstTake(c, usual) })} />)}
               </ul>
             </section>
           ) : null}
@@ -158,18 +175,18 @@ export default function Accueil() {
                 <h2 id="hm-td" className="section-k">Aujourd’hui{d.day.scope === 'moi' && d.day.canSwitch ? ' · moi' : ''}</h2>
                 {d.day.canSwitch ? <span aria-busy={busy}><Seg label="Quelle journée" value={d.day.scope} onChange={(v) => { if (v !== d.day.scope) void scope(v); }} options={[{ v: 'salon', t: 'Salon' }, { v: 'moi', t: 'Moi' }]} /></span> : null}
               </div>
-              {d.day.appts.length ? (
+              {rows.length ? (
                 <ul className="hm-appts">
-                  {d.day.appts.map((a) => (
+                  {rows.map((a) => (
                     <li key={a.id}><button type="button" className="hm-appt" onClick={() => setAppt(a.id)}>
                       <span className="hm-appt-h tnum">{hm(a.start)}</span>
-                      <span className="hm-appt-t"><b className="ellipsis">{a.client}</b><small className="ellipsis">{a.services}{statusWord(a) ? ' · ' + statusWord(a) : ''}</small></span>
+                      <span className="hm-appt-t"><b className="ellipsis">{a.client}</b><small className={'ellipsis' + (a.late ? ' hm-late' : '')}>{a.services}{statusWord(a) ? ' · ' + statusWord(a) : ''}</small></span>
                       <span className="hm-appt-w">{dot(a.staffId)}<small className="ellipsis">{who(a.staffId)?.name}</small></span>
                     </button></li>
                   ))}
                 </ul>
               ) : <p className="hm-none muted">{d.moment === 'ferme' ? 'Aucun rendez-vous aujourd’hui.' : 'Plus de rendez-vous à venir aujourd’hui.'}</p>}
-              {can('agenda.own') ? <Link to="/agenda" className="hm-link">{d.day.more > 0 ? 'et ' + d.day.more + (d.day.more > 1 ? ' autres' : ' autre') : 'Ouvrir l’agenda'}<Icon name="arrowR" size={15} /></Link> : null}
+              {can('agenda.own') ? <Link to="/agenda" className="hm-link">{more > 0 ? 'et ' + more + (more > 1 ? ' autres dans l’agenda' : ' autre dans l’agenda') : 'Ouvrir l’agenda'}<Icon name="arrowR" size={15} /></Link> : null}
             </section>
           ) : null}
         </div>
@@ -204,6 +221,7 @@ export default function Accueil() {
       <Suspense fallback={null}>
         {appt ? <ApptSheet id={appt} onClose={() => setAppt(null)} /> : null}
         {walk ? <WalkinSheet open onClose={() => setWalk(null)} freeNow={free} prefill={walk} /> : null}
+        {create ? <CreateSheet open prefill={{ day: today }} onClose={() => setCreate(false)} onCreated={() => { void refresh(); }} /> : null}
         {handover ? <HandoverSheet id={handover} onClose={() => setHandover(null)} /> : null}
       </Suspense>
     </div>
@@ -211,14 +229,14 @@ export default function Accueil() {
 }
 
 /** « Prochain »: the next client who is not in a chair yet, his hour, what he comes for and with whom. */
-function Next({ a, moment, name, dot, onOpen }: { a: HomeAppt | null; moment: Home['moment']; name?: string; dot: ReactNode; onOpen: (id: string) => void }) {
+function Next({ a, moment, name, dot, onOpen }: { a: ApptX | null; moment: Home['moment']; name?: string; dot: ReactNode; onOpen: (id: string) => void }) {
   return (
     <section className="hm-block" aria-labelledby="hm-nx" data-guide="accueil.prochain">
       <h2 id="hm-nx" className="section-k">Prochain</h2>
       {a ? (
         <button type="button" className="hm-next" onClick={() => onOpen(a.id)}>
           <span className="hm-next-h tnum">{hm(a.start)}</span>
-          <span className="hm-next-t"><b className="ellipsis">{a.client}</b><small className="ellipsis">{a.services}{statusWord(a) ? ' · ' + statusWord(a) : ''}</small></span>
+          <span className="hm-next-t"><b className="ellipsis">{a.client}</b><small className={'ellipsis' + (a.late ? ' hm-late' : '')}>{a.services}{statusWord(a) ? ' · ' + statusWord(a) : ''}</small></span>
           <span className="hm-appt-w">{dot}<small className="ellipsis">{name}</small></span>
           <Icon name="arrowR" size={16} />
         </button>
@@ -227,12 +245,14 @@ function Next({ a, moment, name, dot, onOpen }: { a: HomeAppt | null; moment: Ho
   );
 }
 
-/** One chair: who, its state in plain words, and one button when someone can sit down now. */
-function Chair({ c, dot, onTake }: { c: HomeChair; dot: ReactNode; onTake: () => void }) {
+/** One chair: who, its state in plain words (and with whom when a client is there: the row then opens his
+ *  appointment), and one button when someone can sit down now. */
+function Chair({ c, dot, onTake, onOpen }: { c: ChairX; dot: ReactNode; onTake: () => void; onOpen: (id: string) => void }) {
+  const who = chairWho(c);
+  const text = <span className="hm-chair-t"><b className="ellipsis">{c.name}</b><small>{chairText(c)}{who ? ' · ' + who : ''}</small></span>;
   return (
     <li className={'hm-chair' + (c.state === 'libre' ? ' free' : '')}>
-      {dot}
-      <span className="hm-chair-t"><b className="ellipsis">{c.name}</b><small>{chairText(c)}</small></span>
+      {c.now ? <button type="button" className="hm-chair-o" onClick={() => onOpen(c.now!.id)} aria-label={c.name + ' : ' + chairText(c) + (who ? ', ' + who : '') + '. Ouvrir le rendez-vous'}>{dot}{text}<Icon name="chevR" size={16} /></button> : <>{dot}{text}</>}
       {c.canTake.length ? <Button icon="walk" onClick={onTake} aria-label={'Prendre un passage chez ' + c.name}>Prendre un passage</Button> : null}
     </li>
   );

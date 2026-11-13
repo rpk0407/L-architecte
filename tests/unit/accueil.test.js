@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { stepOf, fold, MAX_CARDS, moved, hiddenAfter, blocksOf, ALL_BLOCKS, BLOCK_NAME, CARD_NAME, GROUP_LABEL, nameOf, isEstimate, shownAmount, BLOCKS_KEY } from '../../web/src/comptoir/pages/accueil/actions.ts';
 import { USAGE_KEY, USAGE_DAYS, LATER_ASK, prune, readUsage, writeUsage, done, later, keep, isLater, toAsk } from '../../web/src/comptoir/pages/accueil/usage.ts';
-import { hm, readAt, dayOf, factText, splitLabel, chairText, allShut, freeNow, firstTake, statusWord } from '../../web/src/comptoir/pages/accueil/format.ts';
+import { hm, readAt, dayOf, factText, splitLabel, chairText, chairWho, allShut, freeNow, firstTake, statusWord } from '../../web/src/comptoir/pages/accueil/format.ts';
 import { SNAP_KEY, readSnap, writeSnap, clearSnap } from '../../web/src/comptoir/pages/accueil/snapshot.ts';
 import { homeOf } from '../../web/src/comptoir/home.ts';
 import { CARD_IDS, home } from '../../server/domain/home.js';
@@ -177,6 +177,13 @@ test('format: one row for a salon shut everywhere the same way; who is free; the
   assert.equal(statusWord({ status: 'arrived' }), 'Arrivé');
   assert.equal(statusWord({ status: 'in_chair' }), 'Au fauteuil');
   assert.equal(statusWord({ status: 'pending' }), 'Acompte en attente');
+  // a client expected and not there: the minutes the server counted, in words
+  assert.equal(statusWord({ status: 'booked', late: 12 }).replaceAll(NB, ' '), 'En retard de 12 min');
+  assert.equal(statusWord({ status: 'booked', late: 0 }), '');
+  // a busy chair says with whom; a pause, a free chair or an older copy of the answer say nothing more
+  assert.equal(chairWho({ now: { client: 'Louis B.' } }), 'avec Louis B.');
+  assert.equal(chairWho({ now: null }), '');
+  assert.equal(chairWho({}), '');
 });
 
 /* ---------------- snapshot.ts ---------------- */

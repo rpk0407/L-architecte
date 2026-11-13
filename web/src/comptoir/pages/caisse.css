@@ -71,7 +71,7 @@
   .cs-side { position: static; }
   .cs-idle { display: none; }
   .cs-grid.has-ticket .cs-side { display: none; }
-  .cs-back { display: inline-flex; align-items: center; gap: 6px; margin: 0 0 10px; padding: 6px 10px 6px 4px; border-radius: 10px; font: 600 14px/1 var(--sans); color: var(--tx2); }
+  .cs-back { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; margin: 0 0 4px; padding: 6px 12px 6px 4px; border-radius: 10px; font: 600 14px/1 var(--sans); color: var(--tx2); }
 }
 /* Caisse & clôture: two cards side by side, one column on a phone */
 .cs-grid.closing { grid-template-columns: repeat(2, minmax(0, 1fr)); }

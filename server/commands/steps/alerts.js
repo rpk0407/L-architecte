@@ -43,7 +43,7 @@ export function smsFailing(s, since) {
 /**
  * The longest wait, today, of a message nothing dispatched in time: due, on a channel with a provider, not held for the
  * switch, and no claim of any message within SILENT_MS of its time (a backlog draining ten at a time is not silence).
- * @param {{ sms?: boolean, email?: boolean }} providers @returns {number} ms, 0 when the scheduler kept up
+ * @param {{ sms?: boolean, email?: boolean, byHand?: (m: any) => boolean }} providers @returns {number} ms, 0 when the scheduler kept up
  */
 export function silence(s, now, since, providers) {
   const msgs = [...s.messages.values()];
@@ -58,6 +58,8 @@ export function silence(s, now, since, providers) {
     if (cutoverHeld(s, m) || (switched && due < switched && (!m.claimedAt || m.claimedAt >= switched))) continue;
     // a text put back for a later try (a contract's acknowledgement) was dispatched once already
     if (m.tries) continue;
+    // « mode téléphone »: a text that waits for a person on the Messages screen (messaging/hand.js), not for the scheduler
+    if (typeof providers.byHand === 'function' && providers.byHand(m)) continue;
     const next = firstAfter(due);
     const wait = (next || now) - due;
     if (wait > SILENT_MS && wait > worst) worst = wait;

@@ -52,5 +52,9 @@ export function firstTake(c: Pick<HomeChair, 'canTake'>, usual?: string): string
 }
 
 const STATUS: Partial<Record<HomeAppt['status'], string>> = { pending: 'Acompte en attente', arrived: 'Arrivé', in_chair: 'Au fauteuil' };
-/** What to say of an appointment beyond its hour (« À venir » goes without saying). */
-export const statusWord = (a: Pick<HomeAppt, 'status'>): string => STATUS[a.status] || '';
+/** What to say of an appointment beyond its hour (« À venir » goes without saying); a client expected and not there
+ *  is « En retard de 10 min » (`late`: the minutes the server counted). */
+export const statusWord = (a: Pick<HomeAppt, 'status'> & { late?: number }): string => (a.late ? 'En retard de ' + fmtDur(a.late) : STATUS[a.status] || '');
+
+/** Who is on a busy chair: « avec Louis B. » (nothing for a pause or a blocked slot). */
+export const chairWho = (c: { now?: { client: string } | null }): string => (c.now && c.now.client ? 'avec ' + c.now.client : '');

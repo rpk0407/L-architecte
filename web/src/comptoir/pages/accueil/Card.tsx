@@ -11,7 +11,8 @@ export function Card({ c, onRun, onLater, onHide }: { c: HomeCard; onRun: () => 
   const [menu, setMenu] = useState<DOMRect | null>(null);
   const [why, setWhy] = useState(false);
   return (
-    <li className="hm-card" data-card={c.id}>
+    // the whole card answers the touch (a big target on a phone); its button stays the one named action
+    <li className="hm-card" data-card={c.id} onClick={(e) => { if (!(e.target as HTMLElement).closest('button, a, [role="menu"]')) onRun(); }}>
       <div className="hm-card-t">
         <h3>{c.title}{c.amount != null ? <span className="hm-amt"> · {isEstimate(c.id) ? 'env. ' : ''}<Money cents={shownAmount(c.id, c.amount)} /></span> : null}</h3>
         {c.preview.length ? <ul>{c.preview.slice(0, 3).map((p) => <li key={p.id}>{p.text}</li>)}</ul> : null}

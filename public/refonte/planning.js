@@ -879,6 +879,12 @@
     const ul = $('done-l'); ul.textContent = '';
     lines.forEach((t) => ul.appendChild(el('li', '', t)));
     $('done-ics').href = icsUrl(k);
+    // the salon's WhatsApp number is set (GET /api/public/salon `whatsapp`): the client opens the chat himself, with the
+    // booking's code in the message. Not while the deposit is unpaid, nor in the simulation
+    const wa = $('done-wa'), waNum = String((S.salon && S.salon.whatsapp) || '');
+    const waOk = !S.sim && !pending && /^\d{8,15}$/.test(waNum);
+    wa.hidden = !waOk;
+    if (waOk) wa.href = 'https://wa.me/' + waNum + '?text=' + encodeURIComponent('Bonjour, je viens de réserver chez L’Architecte : ' + dayLong(k.day) + ' à ' + th(k.start).replace(/[\u00a0\u202f]/g, ' ') + '. Référence ' + r.code + '. Merci de me confirmer ici.');
     const mg = $('done-manage');
     mg.hidden = !r.manage; if (r.manage) mg.href = r.manage;
     const code = $('done-code'); code.textContent = 'Ton code : '; code.appendChild(el('b', '', r.code));

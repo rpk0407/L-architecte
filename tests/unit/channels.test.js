@@ -1,4 +1,4 @@
-// MSG-02 · The salon's own phone (SMS Gateway for Android) and WhatsApp (Brevo), with SMS as the fallback: the requests
+// MSG-02 · The salon's own phone (SMS Gateway for Android) and WhatsApp (Meta's Cloud API, direct), with SMS as the fallback: the requests
 // each provider gets, the webhook of the phone (STOP, replies, delivery reports), the route each text takes and records,
 // the pacing of the phone, the settings of the WhatsApp templates, and the Canal d'envoi API.
 import { test } from 'node:test';
@@ -11,7 +11,7 @@ import { sendRebook } from '../../server/commands/messages.js';
 import { updateSettings } from '../../server/commands/shop.js';
 import * as S from '../../server/commands/sales.js';
 import { gatewaySms, gatewayStop, parseSmsWebhook, webhookKey, GATEWAY_URL, GATEWAY_STOP } from '../../server/messaging/sms.js';
-import { brevoWhatsapp, waNumber, BREVO_WHATSAPP_URL } from '../../server/messaging/whatsapp.js';
+import { metaWhatsapp, waNumber, GRAPH_URL, GRAPH_VERSION } from '../../server/messaging/whatsapp.js';
 import { dispatch } from '../../server/http/scheduler.js';
 import { createRuntime, readConfig } from '../../server/http/runtime.js';
 import { handle } from '../../server/http/app.js';
@@ -30,7 +30,7 @@ const fakeSms = (name = 'brevo', extra = {}) => { const sent = []; return { name
 const fakeWa = (fail = '') => { const sent = []; return { name: 'whatsapp', sent, async send(to, msg) { sent.push({ to, msg }); if (fail) throw new Error('WhatsApp : ' + fail); return { ref: 'wa-' + sent.length }; } }; };
 const rtOf = (t, x = {}) => ({ engine: t.engine, sms: null, email: null, whatsapp: null, cfg: { cronSecret: '' }, origin: 'https://salon.test', ...x });
 const msgs = (t, tpl) => [...t.engine.state.messages.values()].filter((m) => !tpl || m.template === tpl);
-const WA = { enabled: true, templates: { confirmation: { id: 12, params: ['prenom', 'date', 'heure', 'barbier', 'lien'] }, reminder: { id: 13, params: ['heure', 'barbier'] } } };
+const WA = { enabled: true, templates: { confirmation: { name: 'rdv_confirmation', lang: 'fr', params: ['prenom', 'date', 'heure', 'barbier', 'lien'] }, reminder: { name: 'rdv_rappel', params: ['heure', 'barbier'] } } };
 const book = (t, x = {}) => t.engine.run(A.bookOnline, { serviceIds: [t.ids.cut], staffId: t.ids.Ali, day: LATER, start: 600, first: 'karim', last: 'Benali', phone: '0611223344', ...x }, t.asClient);
 
 test('the salon phone: Basic auth, the text and the number as SMS Gateway expects them, its id as the reference', async () => {
@@ -78,39 +78,42 @@ test('the STOP mention from the salon’s phone names the salon’s number, once
   assert.equal(gatewayStop('Salut, STOP : réponds STOP', ' STOP au 36173'), 'Salut, STOP : réponds STOP');
 });
 
-test('WhatsApp through Brevo: the sender and the client without +, the template, its variables in order', async () => {
+test('WhatsApp straight to Meta: the phone id in the address, the token as Bearer, the template by name with its variables', async () => {
   assert.equal(waNumber('+33 6 12 34 56 78'), '33612345678');
   assert.equal(waNumber('06 12 34 56 78'), '33612345678');
   assert.equal(waNumber('12'), '');
-  const f = fakeFetch(201, { messageId: '23befbae-1505' });
-  const wa = brevoWhatsapp({ apiKey: 'xkeysib-1', senderNumber: '+33491000000', fetchImpl: f });
-  const r = await wa.send('+33612345678', { templateId: 12, params: [['prenom', 'Karim'], ['date', 'Jeudi 5 nov.'], ['heure', '10 h']] });
-  assert.deepEqual(r, { ref: '23befbae-1505' });
-  assert.equal(f.calls[0].url, BREVO_WHATSAPP_URL);
-  assert.equal(f.calls[0].url, 'https://api.brevo.com/v3/whatsapp/sendMessage');
-  assert.equal(f.calls[0].init.headers['api-key'], 'xkeysib-1');
-  const b = f.calls[0].body;
-  assert.equal(b.senderNumber, '33491000000');
-  assert.deepEqual(b.contactNumbers, ['33612345678']);
-  assert.equal(b.templateId, 12);
-  // by position and by name, in the template's order
-  assert.deepEqual(Object.entries(b.params), [['1', 'Karim'], ['2', 'Jeudi 5 nov.'], ['3', '10 h'], ['prenom', 'Karim'], ['date', 'Jeudi 5 nov.'], ['heure', '10 h']]);
-  await assert.rejects(brevoWhatsapp({ apiKey: 'k', senderNumber: '+33491000000', fetchImpl: fakeFetch(400, { code: 'invalid_parameter', message: 'Template not approved' }) }).send('+33612345678', { templateId: 1, params: [] }), /WhatsApp : Template not approved/);
-  // a template without variables sends no params at all
-  const g = fakeFetch(201, { messageId: 'x' });
-  await brevoWhatsapp({ apiKey: 'k', senderNumber: '+33491000000', fetchImpl: g }).send('+33612345678', { templateId: 1, params: [] });
-  assert.equal('params' in g.calls[0].body, false);
+  const f = fakeFetch(200, { messaging_product: 'whatsapp', contacts: [{ input: '33612345678', wa_id: '33612345678' }], messages: [{ id: 'wamid.HBgL123', message_status: 'accepted' }] });
+  const wa = metaWhatsapp({ token: 'EAAG-SECRET', phoneId: '106540352242922', fetchImpl: f });
+  const r = await wa.send('+33612345678', { name: 'rdv_confirmation', lang: 'fr', params: [['prenom', 'Karim'], ['date', 'Jeudi 5 nov.'], ['heure', '10 h']] });
+  assert.deepEqual(r, { ref: 'wamid.HBgL123' });
+  assert.equal(f.calls[0].url, GRAPH_URL + '/' + GRAPH_VERSION + '/106540352242922/messages');
+  assert.equal(f.calls[0].init.headers.authorization, 'Bearer EAAG-SECRET');
+  assert.deepEqual(f.calls[0].body, {
+    messaging_product: 'whatsapp', recipient_type: 'individual', to: '33612345678', type: 'template',
+    template: { name: 'rdv_confirmation', language: { code: 'fr' }, components: [{ type: 'body', parameters: [
+      { type: 'text', parameter_name: 'prenom', text: 'Karim' }, { type: 'text', parameter_name: 'date', text: 'Jeudi 5 nov.' }, { type: 'text', parameter_name: 'heure', text: '10 h' }] }] }
+  });
+  // Meta's refusal, in words the owner can act on, with its code; never the token
+  const refused = fakeFetch(404, { error: { message: '(#132001) Template name does not exist in the translation', type: 'OAuthException', code: 132001, error_data: { messaging_product: 'whatsapp', details: 'template name (rdv_confirmation) does not exist in fr' }, fbtrace_id: 'A1' } });
+  const err = await metaWhatsapp({ token: 'EAAG-SECRET', phoneId: '1', fetchImpl: refused }).send('+33612345678', { name: 'rdv_confirmation', params: [] }).catch((e) => e);
+  assert.match(err.message, /^WhatsApp : modèle introuvable ou pas encore approuvé dans cette langue \(Meta 132001, modèle rdv_confirmation\)$/);
+  assert.equal(err.code, 132001);
+  assert.doesNotMatch(err.message, /SECRET/);
+  // a template without variables sends no components at all
+  const g = fakeFetch(200, { messages: [{ id: 'wamid.x' }] });
+  await metaWhatsapp({ token: 'k', phoneId: '1', fetchImpl: g }).send('+33612345678', { name: 'bonjour', params: [] });
+  assert.equal('components' in g.calls[0].body.template, false);
 });
 
-test('the WhatsApp mapping is checked: positive ids, the server’s own variable names, null takes one out', async () => {
+test('the WhatsApp mapping is checked: a template name as Meta writes them, the server’s own variable names, null takes one out', async () => {
   const t = await salon();
   const set = (whatsapp) => t.engine.run(updateSettings, { messages: { whatsapp } }, t.asOwner());
   await set(WA);
   assert.deepEqual(t.engine.state.settings.messages.whatsapp, WA);
-  for (const bad of [{ id: 0, params: [] }, { id: -3, params: [] }, { id: 1.5, params: [] }, { id: 'abc', params: [] }, { id: 4, params: ['nom'] }, { id: 4, params: ['prenom', '{lien}'] }, { id: 4 }]) {
-    await assert.rejects(set({ templates: { review: bad } }), (e) => e.status === 400, JSON.stringify(bad));
+  for (const bad of [{ name: '', params: [] }, { name: 'Rdv Confirmation', params: [] }, { name: 12, params: [] }, { id: 12, params: [] }, { name: 'rdv', lang: 'français', params: [] }, { name: 'rdv', params: ['nom'] }, { name: 'rdv', params: ['prenom', '{lien}'] }, { name: 'rdv' }]) {
+    await assert.rejects(set({ templates: { cancelled: bad } }), (e) => e.status === 400, JSON.stringify(bad));
   }
-  await assert.rejects(set({ templates: { inconnu: { id: 4, params: [] } } }), (e) => e.status === 400, 'only texts the server sends');
+  await assert.rejects(set({ templates: { inconnu: { name: 'rdv', params: [] } } }), (e) => e.status === 400, 'only texts the server sends');
   await set({ templates: { reminder: null } });
   assert.equal(t.engine.state.settings.messages.whatsapp.templates.reminder, null);
   assert.deepEqual(t.engine.state.settings.messages.whatsapp.templates.confirmation, WA.templates.confirmation, 'the others stay');
@@ -133,7 +136,8 @@ test('WhatsApp on: a mapped text goes by WhatsApp with its variables in order, a
   assert.equal(sms.sent.length, 0, 'no SMS on top');
   assert.equal(wa.sent.length, 1);
   assert.equal(wa.sent[0].to, '+33611223344');
-  assert.equal(wa.sent[0].msg.templateId, 12);
+  assert.equal(wa.sent[0].msg.name, 'rdv_confirmation');
+  assert.equal(wa.sent[0].msg.lang, 'fr');
   assert.deepEqual(wa.sent[0].msg.params.map(([k]) => k), ['prenom', 'date', 'heure', 'barbier', 'lien']);
   assert.deepEqual(wa.sent[0].msg.params.slice(0, 4).map(([, v]) => v), ['Karim', 'Jeu. 5 nov.', '10 h', 'Ali']);
   assert.match(wa.sent[0].msg.params[4][1], /^https:\/\/x\/r\//);
@@ -159,21 +163,25 @@ test('WhatsApp refuses: the same dispatch sends it by SMS, once, and records why
   assert.equal(m.fallback, 'WhatsApp : Template not approved');
   await dispatch(rtOf(t, { sms, whatsapp: wa }));
   assert.equal(wa.sent.length + sms.sent.length, 2, 'never twice');
-  // WhatsApp refusing and no SMS route behind it: failed, with WhatsApp's reason
+  // WhatsApp refusing and no SMS route behind it: back in the queue for a person (the Messages screen), with WhatsApp's
+  // reason, and no dispatch takes it again
   const u = await salon();
   await u.engine.run(updateSettings, { messages: { whatsapp: WA } }, u.asOwner());
   await book(u);
-  await dispatch(rtOf(u, { whatsapp: fakeWa('Number not on WhatsApp') }));
+  const wa3 = fakeWa('Number not on WhatsApp');
+  await dispatch(rtOf(u, { whatsapp: wa3 }));
   const [n] = msgs(u, 'confirmation');
-  assert.equal(n.status, 'failed');
-  assert.equal(n.via, 'whatsapp');
-  assert.equal(n.error, 'WhatsApp : Number not on WhatsApp');
+  assert.equal(n.status, 'queued');
+  assert.equal(n.manual, true);
+  assert.equal(n.fallback, 'WhatsApp : Number not on WhatsApp');
+  await dispatch(rtOf(u, { whatsapp: wa3 }));
+  assert.equal(wa3.sent.length, 1, 'tried once');
 });
 
 test('by SMS: a text without a WhatsApp template, the salon’s own words, a missing variable, WhatsApp switched off', async () => {
   const t = await salon();
   // an offer cannot be mapped at all (FID-01: WhatsApp carries service texts only)
-  await assert.rejects(t.engine.run(updateSettings, { messages: { whatsapp: { ...WA, templates: { ...WA.templates, rebook: { id: 20, params: ['prenom', 'jours', 'lien'] } } } } }, t.asOwner()), (e) => e.status === 400);
+  await assert.rejects(t.engine.run(updateSettings, { messages: { whatsapp: { ...WA, templates: { ...WA.templates, rebook: { name: 'relance', params: ['prenom', 'jours', 'lien'] } } } } }, t.asOwner()), (e) => e.status === 400);
   await t.engine.run(updateSettings, { messages: { whatsapp: WA } }, t.asOwner());
   // the 'cancelled' text has no mapping
   const a = await book(t);
@@ -198,7 +206,7 @@ test('by SMS: a text without a WhatsApp template, the salon’s own words, a mis
   assert.equal(by('confirmation', d).via, 'sms');
   assert.equal(by('confirmation', d).fallback, 'WhatsApp : {lien} manque pour ce message');
   // Karim's confirmation (link and all) went by WhatsApp: the only one
-  assert.deepEqual(wa.sent.map((x) => x.msg.templateId), [12]);
+  assert.deepEqual(wa.sent.map((x) => x.msg.name), ['rdv_confirmation']);
   // switched off: what waits goes by SMS
   const u = await salon();
   await u.engine.run(updateSettings, { messages: { whatsapp: WA } }, u.asOwner());
@@ -323,15 +331,18 @@ test('configuration: the salon phone and WhatsApp from the environment, Brevo as
   assert.deepEqual(readConfig({ SMS_PROVIDER: 'brevo', BREVO_API_KEY: 'k' }).sms, { kind: 'brevo', apiKey: 'k', sender: 'LArchitecte' });
   assert.equal(readConfig({ SMS_PROVIDER: 'constructor' }).sms, null);
   assert.ok(readConfig({ SMS_PROVIDER: 'orange' }).smsProviderUnknown);
-  assert.deepEqual(readConfig({ BREVO_API_KEY: 'k', WHATSAPP_SENDER: '+33 4 91 00 00 00' }).whatsapp, { apiKey: 'k', senderNumber: '+33491000000' });
-  assert.equal(readConfig({ WHATSAPP_SENDER: '+33491000000' }).whatsapp, null, 'Brevo’s key too');
+  // WhatsApp: straight to Meta with its two variables; Brevo's key alone plugs no WhatsApp any more
+  assert.deepEqual(readConfig({ WHATSAPP_TOKEN: 'tok', WHATSAPP_PHONE_ID: '1065', WHATSAPP_SENDER: '+33 4 91 00 00 00' }).whatsapp, { kind: 'meta', token: 'tok', phoneId: '1065', version: undefined, senderNumber: '+33491000000' });
+  assert.equal(readConfig({ BREVO_API_KEY: 'k', WHATSAPP_SENDER: '+33491000000' }).whatsapp, null);
+  assert.equal(readConfig({ WHATSAPP_TOKEN: 'tok' }).whatsapp, null, 'the phone id too');
+  assert.ok(readConfig({ WHATSAPP_TOKEN: 'tok' }).whatsappIncomplete);
   assert.ok(readConfig({ BREVO_API_KEY: 'k', WHATSAPP_SENDER: 'salon' }).whatsappSenderInvalid);
 });
 
 test('Canal d’envoi: the routes and what is configured, never a secret; a test per route, through that route', async () => {
   const clock = { now: at(DAY, 10) };
   const env = { LX_MODE: 'production', SESSION_SECRET: 'test-secret-0123456789', SETUP_TOKEN: 'tok-0123456789', PUBLIC_URL: 'https://barberlarchitecte.com',
-    SMS_PROVIDER: 'brevo', BREVO_API_KEY: 'xkeysib-SECRET-1', SMSGATE_USERNAME: 'GATEUSER', SMSGATE_PASSWORD: 'gate-SECRET-2', WHATSAPP_SENDER: '+33491000000' };
+    SMS_PROVIDER: 'brevo', BREVO_API_KEY: 'xkeysib-SECRET-1', SMSGATE_USERNAME: 'GATEUSER', SMSGATE_PASSWORD: 'gate-SECRET-2', WHATSAPP_SENDER: '+33491000000', WHATSAPP_TOKEN: 'EAAG-SECRET-3', WHATSAPP_PHONE_ID: '106540352242922' };
   const rt = await createRuntime({ env, store: memoryStore(), clock: () => clock.now });
   const o = browser(rt);
   assert.equal((await o.post('/api/setup', { token: 'tok-0123456789', name: 'Karim', email: 'patron@larchitecte.test', password: 'Pelabon-13013' })).status, 200);
@@ -340,13 +351,15 @@ test('Canal d’envoi: the routes and what is configured, never a secret; a test
   assert.equal(c.json.active, 'brevo');
   assert.deepEqual(c.json.routes.map((x) => [x.key, x.configured, x.active]), [['brevo', true, true], ['gateway', true, false]]);
   assert.equal(c.json.routes[1].host, 'api.sms-gate.app');
-  assert.deepEqual({ ...c.json.whatsapp }, { configured: true, live: true, enabled: false, sender: '04 91 00 00 00', senderInvalid: false });
+  assert.deepEqual({ ...c.json.whatsapp }, { configured: true, live: true, enabled: false, sender: '04 91 00 00 00', senderInvalid: false, mode: 'sms', effective: 'sms', incomplete: false, number: '', waiting: 0, hold: false });
+  assert.deepEqual(c.json.metaTemplates.map((x) => [x.key, x.name, x.mapped]), [['confirmation', 'rdv_confirmation', false], ['moved', 'rdv_deplace', false], ['reminder', 'rdv_rappel', false], ['cancelled', 'rdv_annule', false]]);
+  assert.equal(c.json.email.provider, null);
   assert.equal(c.json.templates.find((x) => x.key === 'review').category, 'sms', 'a review request leaves by SMS only (FID-01)');
   assert.equal(c.json.templates.find((x) => x.key === 'rebook').category, 'sms');
   assert.equal(c.json.templates.find((x) => x.key === 'confirmation').category, 'utility');
   assert.deepEqual(c.json.templates.find((x) => x.key === 'confirmation').vars, ['prenom', 'date', 'heure', 'barbier', 'lien']);
   assert.ok(c.json.vars.includes('prestation'));
-  assert.doesNotMatch(c.text, /SECRET|GATEUSER|xkeysib/, 'no key, password or username in the answer');
+  assert.doesNotMatch(c.text, /SECRET|GATEUSER|xkeysib|EAAG/, 'no key, token, password or username in the answer');
   // the test of a route not in use yet goes through that route; the one in use through the provider
   const phone = fakeSms('gateway'), brevo = fakeSms('brevo'), wa = fakeWa();
   rt.smsRoute = (k) => ({ gateway: phone, brevo })[k] || null;
@@ -363,11 +376,11 @@ test('Canal d’envoi: the routes and what is configured, never a secret; a test
   assert.equal((await o.post('/api/v1/messages/channels/test', { route: 'gateway', phone: '04 91 00 00 00' })).json.error.code, 'not_mobile');
   // WhatsApp needs an approved template first
   assert.equal((await o.post('/api/v1/messages/channels/test', { route: 'whatsapp', phone: '0612345678' })).json.error.code, 'no_template');
-  assert.equal((await o.patch('/api/v1/settings', { messages: { whatsapp: { templates: { reminder: { id: 13, params: ['heure', 'barbier'] } } } } })).status, 200);
+  assert.equal((await o.patch('/api/v1/settings', { messages: { whatsapp: { templates: { reminder: { name: 'rdv_rappel', params: ['heure', 'barbier'] } } } } })).status, 200);
   r = await o.post('/api/v1/messages/channels/test', { route: 'whatsapp', phone: '0612345678' });
   assert.equal(r.status, 200, JSON.stringify(r.json));
   assert.equal(r.json.template, 'reminder');
-  assert.equal(wa.sent[0].msg.templateId, 13);
+  assert.equal(wa.sent[0].msg.name, 'rdv_rappel');
   assert.deepEqual(wa.sent[0].msg.params.map(([k, v]) => [k, v.replace(/\s/g, ' ')]), [['heure', '10 h'], ['barbier', 'ton barbier']]);
   assert.equal((await o.get('/api/v1/messages/channels')).json.templates.find((x) => x.key === 'reminder').mapped, true);
   // a refusal is told as such

@@ -62,7 +62,9 @@ export default {
       'TVA du mois (aide à la déclaration) :',
       ...v.rows.map((x) => '· ' + String(x.rate / 100).replace('.', ',') + ' % : base ' + fmtEur(x.base, { decimals: true }) + ', TVA ' + fmtEur(x.tax, { decimals: true })),
       '· Total TVA : ' + fmtEur(v.tax, { decimals: true }),
-      '', 'Ce message part tout seul chaque mois depuis le logiciel de caisse du salon. Une question : réponds au gérant' + (shop.email ? ', ' + shop.email : '') + '.'
+      // a management till (docs/security.md, « Fiscal note »): the accountant must not take these for the certified till's Z
+      '', 'Ces chiffres viennent du logiciel de gestion du salon (Le Comptoir), qui n’est pas sa caisse certifiée : le Z fiscal et les tickets légaux restent ceux de la caisse certifiée, à rapprocher de ces écritures.',
+      '', 'Ce message part tout seul chaque mois depuis le logiciel de gestion du salon. Une question : réponds au gérant' + (shop.email ? ', ' + shop.email : '') + '.'
     ];
     queueMessage(s, ctx, {
       key: packKey(month), channel: 'email', template: PACK_TEMPLATE, to: C.accountant.email, vars: {},

@@ -3,10 +3,11 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from '../../../ui/Icon';
 import { Avatar, Chip, Money } from '../../../ui/kit';
-import { hhmm, time } from '../../../lib/format';
+import { dur, hhmm, time } from '../../../lib/format';
 import { useIsPhone, useMedia } from '../../../lib/hooks';
 import type { Agenda, Appt, Lane } from '../../types';
 import { layoutOverlaps, type Place } from './overlap';
+import { drawnRange, freeGaps, offZones, OFF_LABEL } from './day';
 
 export type BoardProps = {
   data: Agenda;
@@ -40,14 +41,10 @@ export const Board = memo(function Board(p: BoardProps) {
   const isToday = p.data.day === p.today;
 
   // the drawn range: opening hours, stretched to anything booked outside them
-  const [from, to] = useMemo(() => {
-    let a = 9 * 60, b = 18 * 60 + 30;
-    const starts = lanes.flatMap((l) => l.work.map((w) => w[0])).concat(appts.map((x) => x.start));
-    const ends = lanes.flatMap((l) => l.work.map((w) => w[1])).concat(appts.map((x) => x.start + x.dur));
-    if (starts.length) a = Math.min(...starts);
-    if (ends.length) b = Math.max(...ends);
-    return [Math.floor(a / 60) * 60, Math.ceil(b / 60) * 60];
-  }, [lanes, appts]);
+  const [from, to] = useMemo(() => drawnRange(lanes.map((l) => l.work), appts), [lanes, appts]);
+  // what is free reads « Libre 30 min »: from now on today, nothing on a day gone by (agenda/day.ts)
+  const floor = p.data.day < p.today ? Infinity : isToday ? Math.ceil(p.nowMin / 5) * 5 : 0;
+  const shopOpen = lanes.some((l) => l.work.length > 0);
   const height = (to - from) * px;
   const y = (m: number) => (m - from) * px;
 
@@ -121,7 +118,9 @@ export const Board = memo(function Board(p: BoardProps) {
   const hours = [];
   for (let m = from; m <= to; m += 60) hours.push(m);
   const nowY = isToday && p.nowMin >= from && p.nowMin <= to ? y(p.nowMin) : null;
-  const cols = phone ? '46px minmax(0, 1fr)' : `56px repeat(${visible.length}, minmax(${tablet ? 112 : 140}px, 1fr))`;
+  // five chairs and more: narrower columns, so the last one is not cut off beside the side column
+  const minCol = visible.length > 4 ? (tablet ? 84 : 110) : tablet ? 112 : 140;
+  const cols = phone ? '46px minmax(0, 1fr)' : `56px repeat(${visible.length}, minmax(${minCol}px, 1fr))`;
 
   return (
     <section className="board" aria-label="Planning de la journée" data-guide="ag-board">
@@ -160,12 +159,10 @@ export const Board = memo(function Board(p: BoardProps) {
       <div className="board-scroll" ref={scrollRef}>
       <div className="tl" style={{ gridTemplateColumns: phone ? '46px minmax(0, 1fr)' : '56px minmax(0, 1fr)', height }}>
         <div className="hours" aria-hidden>{hours.map((m) => <span key={m} style={{ top: y(m) }}>{hhmm(m)}</span>)}</div>
-        <div className="lanes-g" style={{ gridTemplateColumns: `repeat(${visible.length}, minmax(${phone ? 0 : tablet ? 112 : 140}px, 1fr))`, backgroundSize: `100% ${60 * px}px, 100% ${30 * px}px` }}>
+        <div className="lanes-g" style={{ gridTemplateColumns: `repeat(${visible.length}, minmax(${phone ? 0 : minCol}px, 1fr))`, backgroundSize: `100% ${60 * px}px, 100% ${30 * px}px` }}>
           {visible.map((l) => {
-            const offIv: [number, number][] = [];
-            let t = from;
-            for (const [a, b] of [...l.work].sort((x, z) => x[0] - z[0])) { if (a > t) offIv.push([t, a]); t = Math.max(t, b); }
-            if (t < to) offIv.push([t, to]);
+            const offIv = offZones(l.work, from, to, shopOpen);
+            const free = freeGaps(l.work, [...appts.filter((a) => a.staffId === l.id && !['cancelled', 'no_show'].includes(a.status)), ...blocks.filter((b) => b.staffId === l.id), ...holds.filter((h) => h.staffId === l.id)], floor);
             return (
               <div key={l.id} className={'lane' + (drag && drag.staffId === l.id ? ' drop' : '')} data-lane={l.id}
                 onClick={(e) => {
@@ -174,7 +171,9 @@ export const Board = memo(function Board(p: BoardProps) {
                   const m = Math.floor(((e.clientY - r.top) / px + from) / 15) * 15;
                   p.onEmpty(l.id, Math.max(from, Math.min(to - 15, m)), { x: e.clientX, y: e.clientY });
                 }}>
-                {offIv.map(([a, b]) => <div key={a} className="off" style={{ top: y(a), height: (b - a) * px }} />)}
+                {offIv.map((z) => <div key={z.a} className={'off off-' + z.kind} style={{ top: y(z.a), height: (z.b - z.a) * px }}>{z.kind !== 'ferme' && (z.b - z.a) * px >= 22 ? <span>{OFF_LABEL[z.kind]}</span> : null}</div>)}
+                {/* a free stretch says so; the touch goes through to the column, which offers to book there */}
+                {free.map(([a, b]) => <div key={'f' + a} className="fr fr-deco" style={{ top: y(a) + 1, height: (b - a) * px - 2 }} aria-hidden><span>Libre {dur(b - a)}</span></div>)}
                 {blocks.filter((b) => b.staffId === l.id).map((b) => (
                   <button key={b.id} type="button" className="bl" style={{ top: y(b.start) + 1, height: b.dur * px - 2 }} onClick={(e) => p.onBlock(b.id, { x: e.clientX, y: e.clientY })} aria-label={'Bloqué ' + time(b.start) + ' – ' + time(b.start + b.dur) + ' : ' + b.label}>
                     <Icon name="block" size={13} />{b.label} · {hhmm(b.start)}
@@ -206,7 +205,14 @@ export const Board = memo(function Board(p: BoardProps) {
   );
 });
 
-function ApptCard({ a, px, top, inset = 0, laneColor, place, clash = [], selected, dragging, ghost, bad, fresh, showMoney, onPointerDown, onPointerMove, onPointerUp, onClick }: {
+/** What a card says aloud: the hour, who, what, its state, and what to know before touching it. */
+export function apptLabel(a: Appt, missed: string, clash: Appt[]): string {
+  return `${time(a.start)}, ${a.name}, ${a.services.map((s) => s.name).join(' et ')}, ${a.status === 'in_chair' ? 'au fauteuil' : a.status === 'done' ? 'terminé' : a.status === 'no_show' ? 'absent' : a.status === 'arrived' ? 'arrivé' : a.status === 'pending' ? 'acompte en attente' : 'à venir'}${missed ? ', ' + missed : ''}${clash.length ? ', chevauchement avec ' + clash.map((o) => o.name).join(' et ') : ''}`;
+}
+/** a client who already missed: the count in words on the card, not one more icon to decode */
+export const missedOf = (a: Appt): string => ((a.client?.badges || []).includes('absences') && a.client && a.client.noShows ? a.client.noShows + (a.client.noShows > 1 ? ' absences' : ' absence') : '');
+
+export function ApptCard({ a, px, top, inset = 0, laneColor, place, clash = [], selected, dragging, ghost, bad, fresh, showMoney, onPointerDown, onPointerMove, onPointerUp, onClick }: {
   a: Appt; px: number; top: number; inset?: number; laneColor: string; place?: Place; clash?: Appt[]; selected?: boolean; dragging?: boolean; ghost?: boolean; bad?: boolean; fresh?: boolean; showMoney: boolean;
   onPointerDown?: (e: React.PointerEvent) => void; onPointerMove?: (e: React.PointerEvent) => void; onPointerUp?: (e: React.PointerEvent) => void; onClick?: () => void;
 }) {
@@ -215,10 +221,9 @@ function ApptCard({ a, px, top, inset = 0, laneColor, place, clash = [], selecte
   const badges = a.client?.badges || [];
   const shared = !!place && place.cols > 1;
   const cls = ['ap', 'st-' + a.status, short ? 'short' : '', selected ? 'sel' : '', dragging ? 'dragging' : '', ghost ? 'ghost' : '', bad ? 'bad' : '', fresh ? 'fresh' : '', clash.length ? 'clash' : '', shared ? 'shared' : ''].filter(Boolean).join(' ');
-  // a client who already missed: the count in words on the card, not one more icon to decode
-  const missed = badges.includes('absences') && a.client && a.client.noShows ? a.client.noShows + (a.client.noShows > 1 ? ' absences' : ' absence') : '';
+  const missed = missedOf(a);
   const svc = a.services.map((s) => s.name.replace('Coupe + ', '+ ').replace(' de barbe', '')).join(' · ');
-  const label = `${time(a.start)}, ${a.name}, ${a.services.map((s) => s.name).join(' et ')}, ${a.status === 'in_chair' ? 'au fauteuil' : a.status === 'done' ? 'terminé' : a.status === 'no_show' ? 'absent' : a.status === 'arrived' ? 'arrivé' : a.status === 'pending' ? 'acompte en attente' : 'à venir'}${missed ? ', ' + missed : ''}${clash.length ? ', chevauchement avec ' + clash.map((o) => o.name).join(' et ') : ''}`;
+  const label = apptLabel(a, missed, clash);
   // its share of the column when it is not alone at that time
   const share = place && shared ? { left: `calc(5px + (100% - 10px) * ${place.col} / ${place.cols})`, right: 'auto', width: `calc((100% - 10px) / ${place.cols} - ${place.col < place.cols - 1 ? 3 : 0}px)` } : null;
   return (

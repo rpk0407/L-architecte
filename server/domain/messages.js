@@ -7,7 +7,7 @@ import { afterQuiet, withStop } from '../../shared/sms.js';
 import { maskPhone, maskEmail, isEmail, isLandline } from '../lib/util.js';
 import { fmtEur } from '../../shared/money.js';
 import { TEMPLATE_FLAGS, classOf } from '../core/templates.js';
-import { waVarNames } from '../settings/messages.js';
+import { waVarNames, waMode } from '../settings/messages.js';
 import { neverInformed } from '../projections/informed.js';
 
 export function renderTemplate(tpl, vars) {
@@ -99,12 +99,12 @@ export function consentGone(s, m) {
  * and the salon's own words (a typed relance, an answer to a request) cannot ride on a fixed template, so those go by SMS.
  * Service texts only (FID-01): a review request or an offer would need the client's separate yes to WhatsApp, which the
  * salon does not collect, so those always leave by SMS.
- * @returns {{ id: number, params: string[] } | null}
+ * @returns {{ name: string, lang?: string, params: string[] } | null}
  */
 export function waMapping(M, template, custom = false) {
   const w = M && M.whatsapp;
-  const t = w && w.enabled && w.templates && classOf(template) === 'service' ? w.templates[template] : null;
-  return !custom && t && t.id > 0 ? t : null;
+  const t = w && waMode(M) === 'auto' && w.templates && classOf(template) === 'service' && Object.hasOwn(w.templates, template) ? w.templates[template] : null;
+  return !custom && t && t.name ? t : null;
 }
 /** The variables a WhatsApp template may need, as text: kept with the SMS (pii) so the scheduler can fill the template. */
 function waVars(vars) {

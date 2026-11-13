@@ -33,6 +33,7 @@ const LOAD: Record<string, () => Promise<{ default: ComponentType }>> = {
   caisse: () => import('./pages/Caisse'),
   clients: () => import('./pages/Clients'),
   relances: () => import('./pages/Relances'),
+  messages: () => import('./pages/Messages'),
   rapports: () => import('./pages/Rapports'),
   equipe: () => import('./pages/Equipe'),
   catalogue: () => import('./pages/Catalogue'),
@@ -45,6 +46,7 @@ const Agenda = lazy(LOAD.agenda);
 const Caisse = lazy(LOAD.caisse);
 const Clients = lazy(LOAD.clients);
 const Relances = lazy(LOAD.relances);
+const Messages = lazy(LOAD.messages);
 const Rapports = lazy(LOAD.rapports);
 const Equipe = lazy(LOAD.equipe);
 const Catalogue = lazy(LOAD.catalogue);
@@ -62,6 +64,8 @@ const ROUTES: Record<string, Route> = {
   caisse: { C: Caisse, title: 'Caisse', cap: 'sale.create' },
   clients: { C: Clients, title: 'Clients', cap: 'client.view' },
   relances: { C: Relances, title: 'Relances' },
+  // « mode téléphone »: the texts to clients a person sends from WhatsApp (a barber: his own clients')
+  messages: { C: Messages, title: 'Messages', cap: 'agenda.own' },
   rapports: { C: Rapports, title: 'Rapports', cap: 'report.own' },
   equipe: { C: Equipe, title: 'Équipe' },
   catalogue: { C: Catalogue, title: 'Catalogue' },
@@ -133,6 +137,8 @@ type NavItem = { to: string; page: string; label: string; icon: string; cap?: st
 function useNav(): NavItem[] {
   const { can, pulse, boot } = useApp();
   const b = pulse?.badges;
+  // the texts waiting for this person, and whether the salon sends by hand at all (else the page stays out of the menu)
+  const hand = b as { hand?: number; handOn?: boolean } | undefined;
   const items: NavItem[] = [
     // everyone's Accueil (WP5), then the owner's and the managers' Pilotage (TEAM-05a) and a chair's Mon espace (TEAM-04); /comptoir alone opens each person's home (home.ts)
     { to: '/accueil', page: 'accueil', label: 'Accueil', icon: 'house' },
@@ -141,6 +147,7 @@ function useNav(): NavItem[] {
     { to: '/agenda', page: 'agenda', label: 'Agenda', icon: 'agenda', cap: 'agenda.own' },
     { to: '/caisse', page: 'caisse', label: 'Caisse', icon: 'caisse', cap: 'sale.create', badge: b?.toPay },
     { to: '/clients', page: 'clients', label: 'Clients', icon: 'clients', cap: 'client.view', badge: b?.retention, soft: true },
+    ...(hand?.handOn || hand?.hand ? [{ to: '/messages', page: 'messages', label: 'Messages', icon: 'sms', cap: 'agenda.own', badge: hand.hand }] : []),
     { to: '/relances', page: 'relances', label: 'Relances', icon: 'relances', cap: 'marketing', badge: b?.relances, soft: true },
     { to: '/rapports', page: 'rapports', label: can('report.shop') ? 'Rapports' : 'Mes chiffres', icon: 'rapports', cap: 'report.own' },
     { to: '/equipe', page: 'equipe', label: 'Équipe', icon: 'equipe', cap: 'team', badge: (b as { requests?: number } | undefined)?.requests },

@@ -8,7 +8,8 @@ import { demoTick } from '../domain/seed.js';
 import { startsAt } from '../domain/policy.js';
 import { nightlyBackup, backupsOf, backupState, backupOff, ownBackups, salonOf, keyProblem } from '../core/backup.js';
 import { webhookUrl, gatewayStop } from '../messaging/sms.js';
-import { waMapping, fillBody, attachmentsOf } from '../domain/messages.js';
+import { fillBody, attachmentsOf } from '../domain/messages.js';
+import { byHand, handEligible, handStale, waTemplateOf } from '../messaging/hand.js';
 import { TEMPLATE_FLAGS, classOf } from '../core/templates.js';
 import { digestDue } from '../commands/steps/digest.js';
 import { localParts } from '../../shared/dates.js';
@@ -51,13 +52,15 @@ function within(p, ms) {
 async function tickMeta(rt, meta) {
   const e = rt.engine;
   const out = { ...meta, providers: { sms: !!rt.sms, email: !!rt.email } };
+  // a text that waits for a person (the Messages screen, messaging/hand.js) is not a scheduler that stopped
+  const hand = (m) => byHand(e.state, rt, m);
   // CPT-01a: the closures' signing key and the version the technical log records (commands/steps/fiscal.js)
   Object.assign(out, { signer: rt.signer, software: SOFTWARE });
   // the owner's alerts of the day (commands/steps/alerts.js): which channels can send, and the last backup this instance
   // knows of once it has looked tonight (nightlyBackup lists the store again while that one is old): no lookup here
   const known = backupState(rt);
   const watched = !backupOff(rt) && !!backupsOf(rt) && !keyProblem(rt.cfg.backupKey) && !!known.tried;
-  Object.assign(out, { health: { providers: { sms: !!rt.sms || !!rt.whatsapp, email: !!rt.email }, backup: watched && known.last ? { at: known.last.at, off: '', error: known.error || '' } : null } });
+  Object.assign(out, { health: { providers: { sms: !!rt.sms || !!rt.whatsapp, email: !!rt.email, byHand: hand }, backup: watched && known.last ? { at: known.last.at, off: '', error: known.error || '' } : null } });
   const local = localParts(e.clock());
   if (!digestDue(e.state, local)) return out;
   const off = backupOff(rt), blob = off ? null : backupsOf(rt), st = backupState(rt);
@@ -95,7 +98,7 @@ export function staleReason(s, m, now) {
  * WhatsApp off sends the waiting ones by SMS.
  */
 export function waRoute(s, m) {
-  return m.channel !== 'email' && m.wa ? waMapping(s.settings.messages, m.template) : null;
+  return waTemplateOf(s, m);
 }
 
 /** Before each text to a phone that throttles (the salon's own, paceMs): wait until paceMs since the last one. */
@@ -152,11 +155,13 @@ async function sendText(rt, s, m, beforeSms) {
     if (missing) fallback = 'WhatsApp : {' + missing + '} manque pour ce message';
     else {
       try {
-        const r = await rt.whatsapp.send(m.to, { templateId: t.id, params: t.params.map((k) => [k, m.wa[k]]) });
+        const r = await rt.whatsapp.send(m.to, { name: t.name, lang: t.lang, params: t.params.map((k) => [k, m.wa[k]]) });
         return { status: 'sent', providerRef: r.ref, via: 'whatsapp' };
       } catch (err) { fallback = String(err && err.message || err); }
     }
-    if (!rt.sms) return { status: 'failed', error: fallback, via: 'whatsapp' };
+    // no SMS route behind WhatsApp: a text a person can send goes back to the queue for the Messages screen (mode
+    // téléphone), with Meta's reason; anything else fails with it
+    if (!rt.sms) return handEligible(m) ? { status: 'queued', manual: true, fallback, via: 'whatsapp' } : { status: 'failed', error: fallback, via: 'whatsapp' };
   }
   if (!rt.sms) return { status: 'failed', error: 'Aucun fournisseur SMS', via: 'sms', fallback };
   await beforeSms();
@@ -197,9 +202,11 @@ export async function dispatch(rt, limit = 10, o = {}) {
   // Before the switch (WP-10) a text to a client waits too, whatever provider an early variable plugged in: WordPress
   // still sends its own reminders, and the links would open a site that is not live. Every channel goes through here
   const hold = cutoverHold(e.state);
-  const live = (m) => demo || ((m.channel === 'email' ? !!rt.email : !!rt.sms || (!!wa && !!waRoute(e.state, m))) && !(hold && heldByCutover(m)));
-  if (!demo && !rt.sms && !rt.email && !wa) return 0;
+  // a text that waits for a person (mode téléphone, messaging/hand.js) is never taken here, in demo either
+  const live = (m) => !byHand(e.state, rt, m) && (demo || ((m.channel === 'email' ? !!rt.email : !!rt.sms || (!!wa && !!waRoute(e.state, m))) && !(hold && heldByCutover(m))));
   const now = e.clock();
+  await expireHand(rt, now, hold);
+  if (!demo && !rt.sms && !rt.email && !wa) return 0;
   const only = o.only || null;
   // outcomes an earlier dispatch could not write (the store refused every try): written first, and their messages are
   // not taken again meanwhile, even once the tick has released their claim: the provider already has them
@@ -254,6 +261,24 @@ export async function dispatch(rt, limit = 10, o = {}) {
   }
   await saveOutcomes(rt, outcomes);
   return outcomes.length;
+}
+
+/**
+ * The texts that waited for a person and are no longer worth sending (the appointment has started, or was cancelled):
+ * closed here, so the Messages screen and the outbox agree. Not while the switch from WordPress holds them: the bascule
+ * counts those itself.
+ */
+async function expireHand(rt, now, hold) {
+  const e = rt.engine;
+  const gone = [];
+  for (const m of e.state.messages.values()) {
+    if (m.status !== 'queued' || !byHand(e.state, rt, m) || (hold && heldByCutover(m))) continue;
+    const why = handStale(e.state, m, now);
+    if (why) gone.push({ id: m.id, status: 'expired', error: why });
+    if (gone.length >= 100) break;
+  }
+  if (!gone.length) return;
+  try { await e.batch((step) => { for (const x of gone) step(messageResult, x, SYSTEM); }); } catch (err) { console.error('[lx] dispatch hand', err && err.message ? err.message : err); }
 }
 
 const SAVE_TRIES = 5;

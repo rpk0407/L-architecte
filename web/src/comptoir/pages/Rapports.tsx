@@ -624,6 +624,8 @@ function Exports({ from, to, month, shop, canTeam, canClosure, canData, mode }: 
       <div className="card-h"><h2><Icon name="download" size={16} />Exports</h2><span className="faint" style={{ fontSize: 13 }}>Période affichée · CSV compatible Excel</span></div>
       <div className="rp-exports">{items.map((x) => <a key={x.t} className="rp-exp" href={x.href} download><Icon name={x.icon} /><span><b>{x.t}</b><small>{x.s}</small></span><Icon name="download" /></a>)}</div>
       {canClosure && mode === 'production' ? <p className="faint" style={{ fontSize: 12.5, marginTop: 10 }}>Les tickets et les Z ne se modifient jamais : l’export est la copie fidèle du journal.</p> : null}
+      {/* a management till: its Z and VAT files are never the legal ones (docs/security.md, « Fiscal note ») */}
+      {mode === 'production' ? <p className="faint" data-gestion style={{ fontSize: 12.5, marginTop: 6 }}><b>Chiffres de gestion.</b> Le Z fiscal et le ticket légal sont ceux de ta caisse certifiée : dis-le à ton comptable en lui envoyant ces fichiers.</p> : null}
     </section>
   );
 }

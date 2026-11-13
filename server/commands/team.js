@@ -28,6 +28,7 @@ function initialsOf(name) {
 }
 function checkSchedule(sc) { if (sc) for (const k of Object.keys(sc)) checkIntervals(sc[k], 'horaires'); }
 function owners(s) { return [...s.staff.values()].filter((x) => x.active && x.role === 'owner'); }
+const OPEN = new Set(['pending', 'booked', 'arrived']);
 
 /** What a patch really changes in someone's pay or rank (a field sent with its current value is no change). */
 function govChanges(st, patch) {
@@ -89,9 +90,46 @@ export const updateStaff = {
     if (!Object.keys(rest).length && email === undefined) return { ok: true };
     ctx.emit('staff.updated', { id: st.id, patch: rest }, email !== undefined ? { email } : undefined);
     for (const c of changes) told(ctx, st, c);
-    return { ok: true };
+    // a weekly day off, shorter days or a chair taken away never move a client by themselves: the appointments already
+    // booked outside the new hours are counted, and Équipe sends them through « Reporter ses rendez-vous »
+    if (rest.schedule === undefined && rest.chair === undefined) return { ok: true };
+    const after = { ...s, staff: new Map(s.staff).set(st.id, { ...st, ...rest }) };
+    return { ok: true, stranded: strandedAppts(after, st.id, { now: ctx.now, local: ctx.local }).length };
   }
 };
+
+/** Is [start, end] inside one of these intervals? */
+const within = (iv, start, end) => iv.some(([a, b]) => a <= start && end <= b);
+/** The label of the absence archiveStaff posts for someone who leaves with clients still booked. */
+export const DEPARTURE = 'Départ';
+
+/**
+ * The appointments still to come that fall outside the barber's working hours as they are now: his week (a new weekly
+ * day off, a shorter day), the salon's hours and exceptional closures. Those inside an absence are not counted: they
+ * have their own list (timeoffConflicts). Nothing for someone who left: archiveStaff posts his departure as an absence.
+ * @param {any} s @param {string} staffId @param {{ now: number, local: { day: string, min: number } }} o
+ */
+export function strandedAppts(s, staffId, o) {
+  const st = s.staff.get(staffId);
+  if (!st || !st.active) return [];
+  // his hours as if he took no time off: an absence is another matter, with its own plan
+  const h = { ...s, timeoff: new Map() };
+  const offs = [...s.timeoff.values()].filter((t) => t.staffId === staffId);
+  const out = [];
+  for (const [d, ids] of s.apptsByDay) {
+    if (d < o.local.day) continue;
+    let iv = null;
+    for (const id of ids) {
+      const a = s.appts.get(id);
+      if (!a || a.staffId !== staffId || !OPEN.has(a.status) || !occupies(a, o.now, s)) continue;
+      if (d === o.local.day && a.start + a.dur <= o.local.min) continue;
+      if (offs.some((t) => d >= t.from && d <= t.to && (t.startMin == null || t.from !== t.to || (a.start < t.endMin && a.start + a.dur > t.startMin)))) continue;
+      iv = iv || staffIntervals(h, staffId, d);
+      if (!within(iv, a.start, a.start + a.dur)) out.push(a);
+    }
+  }
+  return out.sort((a, b) => a.day.localeCompare(b.day) || a.start - b.start);
+}
 
 export const archiveStaff = {
   run(s, input, ctx) {
@@ -106,8 +144,31 @@ export const archiveStaff = {
       for (const d of s.devices.values()) if (d.personal && d.staffId === st.id && !d.revoked) ctx.emit('device.revoked', { id: d.id });
       if (s.prefs && prefsOf(s, st).cal) ctx.emit('prefs.set', { staffId: st.id, prefs: { cal: 0 } });
     }
-    ctx.emit(input.restore ? 'staff.restored' : 'staff.archived', { id: st.id });
-    return { ok: true };
+    if (input.restore) {
+      // back in the team: the absence his departure posted goes with it (one he asked for himself stays)
+      for (const t of s.timeoff.values()) if (t.staffId === st.id && t.departure) ctx.emit('timeoff.removed', { id: t.id });
+      ctx.emit('staff.restored', { id: st.id });
+      return { ok: true };
+    }
+    if (!st.active) return { ok: true };
+    // he leaves with clients still booked: nobody is orphaned in silence. His departure is posted as an absence that
+    // covers them, so they show wherever clients wait to be replaced (Accueil, the agenda's banner, Équipe) and go
+    // through the same plan as any absence: another barber, another time, or a call.
+    const o = { now: ctx.now, local: ctx.local };
+    const left = [...s.appts.values()].filter((a) => a.staffId === st.id && OPEN.has(a.status) && occupies(a, ctx.now, s) && (a.day > o.local.day || (a.day === o.local.day && a.start + a.dur > o.local.min)));
+    let absence = null;
+    if (left.length) {
+      const to = left.reduce((m, a) => (a.day > m ? a.day : m), o.local.day);
+      const posted = [...s.timeoff.values()].find((t) => t.staffId === st.id && t.departure);
+      if (posted && posted.to >= to) absence = posted.id;
+      else {
+        if (posted) ctx.emit('timeoff.removed', { id: posted.id });
+        absence = ctx.id('to');
+        ctx.emit('timeoff.added', { id: absence, staffId: st.id, from: o.local.day, to, reason: DEPARTURE, departure: true });
+      }
+    }
+    ctx.emit('staff.archived', { id: st.id });
+    return { ok: true, absence, conflicts: left.length };
   }
 };
 
@@ -164,7 +225,7 @@ export function parseTimeOff(input) {
 export const addTimeOff = {
   run(s, input, ctx) {
     const t = parseTimeOff(input);
-    getStaff(s, t.staffId);
+    if (!getStaff(s, t.staffId).active) fail(404, 'not_found', 'Membre de l’équipe introuvable.');
     const self = ctx.staff && ctx.staff.id === t.staffId;
     if (!ctx.can('team') && !self) fail(403, 'forbidden', 'Seul le gérant pose les absences de l’équipe.');
     const tid = ctx.id('to');
@@ -209,6 +270,11 @@ export const removeTimeOff = {
     if (!t && !q) fail(404, 'not_found', 'Absence introuvable.');
     const staffId = (t || q).staffId;
     if (!ctx.can('team') && !(ctx.staff && ctx.staff.id === staffId)) fail(403, 'forbidden', 'Action réservée au gérant.');
+    // the absence of someone who left is what keeps his clients in sight: it stays until each one is replaced
+    if (t && t.departure && !(s.staff.get(staffId) || {}).active) {
+      const n = timeoffConflicts(s, t, { now: ctx.now, local: ctx.local }).length;
+      if (n) fail(409, 'has_appts', (n > 1 ? n + ' rendez-vous sont' : 'Un rendez-vous est') + ' encore à son nom : replace-les d’abord.', { count: n });
+    }
     // a withdrawn request leaves the state: its event says whose it was and what it said, for the feed
     if (t) ctx.emit('timeoff.removed', { id: input.id });
     else ctx.emit('timeoff.withdrawn', { id: q.id, staffId, from: q.from, to: q.to, ...(q.startMin != null ? { startMin: q.startMin, endMin: q.endMin } : {}), was: q.status });
@@ -216,7 +282,6 @@ export const removeTimeOff = {
   }
 };
 
-const OPEN = new Set(['pending', 'booked', 'arrived']);
 /** The state as if this absence were posted: a preview asks before it exists. */
 function withAbsence(s, t) {
   if (s.timeoff.has(t.id)) return s;

@@ -5,7 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { salon, at } from '../helpers.js';
-import { home, RELANCES_MIN, MAX_APPTS, MAX_TAKE, MAX_FACTS, MAX_PREVIEW, CARD_IDS, GROUPS } from '../../server/domain/home.js';
+import { home, RELANCES_MIN, MAX_APPTS, MAX_TAKE, MAX_FACTS, MAX_PREVIEW, CARD_IDS, GROUPS, LATE_MIN } from '../../server/domain/home.js';
 import { rebookable, relances } from '../../server/domain/rebook.js';
 import { freeSlots, isFree } from '../../server/domain/availability.js';
 import { cockpit } from '../../server/domain/cockpit.js';
@@ -23,6 +23,8 @@ import { updateSettings, addClosure } from '../../server/commands/shop.js';
 import { HOMES, HOME_DAYS } from '../../server/projections/staffprefs.js';
 
 const TUE = '2026-11-03', SUN = '2026-11-08';
+/** fmtTime and fmtDur write a narrow no-break space inside an hour */
+const NB = /[\u00a0\u202f]/g;
 const WEEK = { 2: [[540, 780], [810, 1110]], 3: [[540, 1110]], 4: [[540, 1110]], 5: [[540, 1110]], 6: [[540, 1110]] };
 
 /** the read, for the owner or for a named member of the fixture */
@@ -327,6 +329,65 @@ test('card z: a past day without its Z blocks; it cannot be hidden; nobody witho
   assert.ok(!view(t).quiet.includes('caisse'));
 });
 
+test('chairs: a busy chair names the client who is there (to open his appointment), never for a pause or a free chair', async () => {
+  const t = await salon({ day: TUE, hour: 9 });
+  const id = await book(t, 'Ali', 600);
+  go(t, TUE, 9, 50);
+  let ali = view(t).day.chairs.find((c) => c.name === 'Ali');
+  assert.deepEqual([ali.state, ali.now], ['libre', null], 'free: nobody');
+  // expected and his slot running: he is the one the chair waits for
+  go(t, TUE, 10, 2);
+  ali = view(t).day.chairs.find((c) => c.name === 'Ali');
+  assert.equal(ali.state, 'occupe');
+  assert.deepEqual([ali.now.id, ali.now.client, ali.now.status], [id, 'Yanis M.', 'booked']);
+  await t.engine.run(setStatus, { id, status: 'arrived' }, t.asOwner());
+  await t.engine.run(setStatus, { id, status: 'in_chair' }, t.asOwner());
+  // still in the chair after his slot: the chair stays busy, with him
+  go(t, TUE, 10, 50);
+  ali = view(t).day.chairs.find((c) => c.name === 'Ali');
+  assert.deepEqual([ali.state, ali.until, ali.now.id, ali.now.status], ['occupe', null, id, 'in_chair']);
+  // his own chair for a barber, with the same words; a colleague's chair is not in his answer at all
+  assert.equal(view(t, 'Ali').day.chairs[0].now.id, id);
+  assert.ok(view(t, 'Ben').day.chairs.every((c) => c.staffId === t.ids.Ben && c.now === null));
+  // a pause (a block) keeps the chair busy with nobody on it
+  const u = await salon({ day: TUE, hour: 10 });
+  await u.engine.run(addBlock, { staffId: u.ids.Ali, day: TUE, start: 600, dur: 30, label: 'Pause' }, u.asOwner());
+  go(u, TUE, 10, 5);
+  const paused = view(u).day.chairs.find((c) => c.name === 'Ali');
+  assert.deepEqual([paused.state, paused.until, paused.now], ['occupe', 630, null]);
+});
+
+test('late: a client booked and not there five minutes after his hour is counted late, on his row and in one card', async () => {
+  const t = await salon({ day: TUE, hour: 9 });
+  const a = await book(t, 'Ali', 600);
+  const b = await book(t, 'Ben', 600, { client: { first: 'Thierry', last: 'Henry', phone: '06 99 88 77 55' } });
+  go(t, TUE, 10, LATE_MIN - 1);
+  assert.ok(!card(view(t), 'retard'), 'four minutes: not yet');
+  assert.ok(view(t).day.appts.every((x) => !('late' in x)));
+  go(t, TUE, 10, 12);
+  let v = view(t);
+  let c = card(v, 'retard');
+  assert.deepEqual([c.group, c.count, c.title, c.action.kind, c.action.to, c.canHide], ['attend', 2, '2 clients en retard', 'go', '/agenda?rdv=' + a, true]);
+  assert.deepEqual(c.preview.map((x) => x.text.replace(NB, ' ')), ['Yanis M. · 10 h · Ali', 'Thierry H. · 10 h · Ben']);
+  assert.deepEqual(v.day.appts.map((x) => x.late), [12, 12]);
+  assert.equal(v.day.next.late, 12, 'the next client is the one who is late');
+  assert.equal(c.amount, undefined);
+  // one arrives: he is no longer late, the other one is named
+  await t.engine.run(setStatus, { id: a, status: 'arrived' }, t.asOwner());
+  go(t, TUE, 10, 13);
+  v = view(t);
+  c = card(v, 'retard');
+  assert.equal(c.title.replace(NB, ' '), 'Thierry H. en retard de 13 min');
+  assert.deepEqual([c.count, c.action.label, c.action.to], [1, 'Ouvrir', '/agenda?rdv=' + b]);
+  assert.ok(!('late' in v.day.appts.find((x) => x.id === a)));
+  // each barber his own: Ali has nobody late any more, Ben has his client (no barber's name on his own card)
+  assert.ok(!card(view(t, 'Ali'), 'retard'));
+  assert.deepEqual(card(view(t, 'Ben'), 'retard').preview.map((x) => x.text.replace(NB, ' ')), ['Thierry H. · 10 h']);
+  // once his slot is over he is not « à venir » any more: the card goes (the agenda still marks him absent or not)
+  go(t, TUE, 10, 45);
+  assert.ok(!card(view(t), 'retard'));
+});
+
 test('cards encaisser and prochain: counts from toPayAppts, each barber his own', async () => {
   const t = await salon({ day: TUE, hour: 9 });
   await book(t, 'Ali', 600);
@@ -527,7 +588,7 @@ test('contract: shape, groups in order, a « why » on every card, one object pe
   const v = view(t);
   assert.deepEqual(Object.keys(v).sort(), ['asOf', 'cards', 'day', 'finDeMois', 'line', 'moment', 'quiet']);
   assert.deepEqual(Object.keys(v.day).sort(), ['appts', 'canSwitch', 'chairs', 'more', 'next', 'scope']);
-  assert.deepEqual(Object.keys(v.day.chairs[0]).sort(), ['canTake', 'freeMin', 'name', 'staffId', 'state', 'until']);
+  assert.deepEqual(Object.keys(v.day.chairs[0]).sort(), ['canTake', 'freeMin', 'name', 'now', 'staffId', 'state', 'until']);
   assert.deepEqual(v.cards.map((c) => c.id), ['z', 'encaisser', 'demandes', 'stock']);
   const order = v.cards.map((c) => GROUPS.indexOf(c.group));
   assert.deepEqual(order, [...order].sort((a, b) => a - b));

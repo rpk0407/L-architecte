@@ -28,6 +28,7 @@ import { fmtEur } from '../../shared/money.js';
 import { claimFromLink } from './routes-loyalty.js';
 import { receiptLoyalty } from '../domain/loyalty.js';
 import { readMemberToken, MEMBER_BOOK } from '../auth/member-token.js';
+import { salonWhatsapp } from '../settings/messages.js';
 
 /** The demo, for real: both the configuration and the journal say so (a demo journal opened in production is not one). */
 export const isDemo = (r) => r.rt.cfg.mode === 'demo' && r.s.mode === 'demo';
@@ -176,6 +177,9 @@ export function publicRoutes(app) {
       // sms: does a text really leave? payments.live: is a deposit really taken online? (false: the site books without one)
       deposits: live ? s.settings.deposits : { ...s.settings.deposits, mode: 'none' }, services, menu, barbers, sms: !!r.rt.sms || isDemo(r),
       // the reminder of the eve, as Réglages › Messages has it: the site promises it at that hour, or not at all when it is off
+      // the salon's own WhatsApp number (digits, country code) once set in Réglages: the booking's last step then offers
+      // « Recevoir la confirmation sur WhatsApp », a chat the client opens himself. null: no button
+      whatsapp: salonWhatsapp(s.settings.messages) || null,
       reminder: { on: s.settings.messages.reminder !== false, hour: s.settings.messages.reminderHour ?? 18 }, payments: { provider: r.rt.pay.name, live }, mode: s.mode, today: L.day, now: r.now
     }, 200, { 'cache-control': 'public, max-age=0, s-maxage=20, stale-while-revalidate=60' });
   });

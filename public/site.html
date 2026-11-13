@@ -1488,6 +1488,7 @@ html{scroll-behavior:auto}
 <div class="done-act">
 <sc-if value="{{hasIcs}}" hint-placeholder-val="{{ false }}"><a class="btn ghost" href="{{icsUrl}}" download="rdv-larchitecte.ics">Ajouter à mon agenda</a></sc-if>
 <a class="btn ghost" href="{{mapsUrl}}" target="_blank" rel="noopener">Itinéraire</a>
+<sc-if value="{{hasWa}}" hint-placeholder-val="{{ false }}"><a class="btn ghost" data-wa href="{{waUrl}}" target="_blank" rel="noopener">Recevoir la confirmation sur WhatsApp</a></sc-if>
 </div>
 <div class="mng">
 <sc-if value="{{notAsking}}" hint-placeholder-val="{{ true }}"><button type="button" class="tl" onClick="{{goMove}}">Déplacer</button><button type="button" class="tl" onClick="{{askCancel}}">Annuler</button></sc-if>
@@ -3554,6 +3555,11 @@ const BookingMixin = {
     v.asking = !!b.ask; v.notAsking = !b.ask;
     v.hasIcs = !!s.icsUrl && step === 'done' && !v.needPay;
     v.icsUrl = s.icsUrl || '';
+    // the salon's WhatsApp number is set (GET /api/public/salon `whatsapp`): the client opens the chat himself, with the
+    // booking's code in the message; the salon answers him there. Not while the deposit is unpaid
+    const waNum = sal && /^\d{8,15}$/.test(String(sal.whatsapp || '')) ? String(sal.whatsapp) : '';
+    v.hasWa = !!waNum && !!r && step === 'done' && !v.needPay && !!r.code;
+    v.waUrl = v.hasWa ? 'https://wa.me/' + waNum + '?text=' + encodeURIComponent('Bonjour, je viens de réserver chez L’Architecte : ' + LXE.dayLong(r.day) + ' à ' + String(LXE.fmtH(r.time)).replace(/[\u00a0\u202f]/g, ' ') + '. Référence ' + r.code + '. Merci de me confirmer ici.') : '';
     v.restart = () => this.openWith({ formula: b.f, fresh: true });
 
     /* the footer: a running summary and one clear action */

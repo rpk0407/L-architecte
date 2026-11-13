@@ -123,7 +123,7 @@ test('the owner’s tour follows a day at the salon: Mise en route, Agenda, Cais
   const all = planFor(owner);
   assert.equal(all[0].id, 'mer.head', 'it starts with Mise en route');
   const pages = [...new Set(all.map((s) => s.place.split('?')[0].replace(/^\/comptoir\//, '').split('/')[0]))];
-  const order = ['reglages', 'accueil', 'pilotage', 'espace', 'agenda', 'caisse', 'clients', 'relances', 'rapports', 'equipe', 'catalogue'];
+  const order = ['reglages', 'accueil', 'pilotage', 'espace', 'agenda', 'caisse', 'clients', 'messages', 'relances', 'rapports', 'equipe', 'catalogue'];
   // Mise en route first, Réglages' other sections last: the page ranks never go back
   const ranks = all.map((s) => placeOf(s, COMPTOIR_PLACES).rank);
   assert.ok(ranks.every((r, i) => !i || r >= ranks[i - 1]), 'places in order');

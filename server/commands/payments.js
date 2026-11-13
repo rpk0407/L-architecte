@@ -86,13 +86,16 @@ export const createPayment = {
   }
 };
 
-/** Called by the webhook (or the simulated checkout). Idempotent: a second notification is ignored. */
+/** Called by the webhook (or the simulated checkout). Idempotent: a second notification is ignored, before or after a refund. */
 export const paymentSucceeded = {
   run(s, input, ctx) {
     const pid = input.id || s.paymentByRef.get(input.providerRef || '');
     const py = s.payments.get(pid || '');
     if (!py) fail(404, 'not_found', 'Paiement inconnu.');
     if (py.status === 'paid') return { ok: true, already: true };
+    // paid once and given back in full since (a late payment, a cancellation in time): the provider repeating its
+    // notice days later must not make it « paid » again, or the till would offer to keep or deduct money already returned
+    if (py.status === 'refunded' && py.paidAt) return { ok: true, already: true };
     if (input.amount != null && input.amount !== py.amount && py.kind !== 'guarantee') fail(409, 'amount', 'Montant reçu différent du montant attendu.');
     // the provider's customer and card ids tie a person to a card: in pii under the file, so its erasure takes them;
     // with no file (a QR at the till) they are not kept at all. The charge ref stays in data: reconciliation needs it

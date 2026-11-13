@@ -101,7 +101,9 @@ export default function Wordpress() {
     // profile (a barber) or the archived « Ancienne prestation » (a service) only when it is history alone; with upcoming
     // bookings the owner picks. A near spelling (« J Kut ») is proposed, and said.
     const near: Record<string, boolean> = {};
-    setSvcMap((m) => { const r = W.suggestServices(p, services, now(), m); for (const g of r.guessed) near['v:' + g] = true; return r.map; });
+    // an old title the names cannot match (the 5-visit « Abonnement ») is known to the salon's preset: its alias is a first guess, never over a choice
+    const aliases = await api.get<{ aliases?: Record<string, string> }>('/api/v1/preset').then((r) => r.aliases || {}, () => ({} as Record<string, string>));
+    setSvcMap((m) => { const r = W.suggestServices(p, services, now(), { ...aliases, ...m }); for (const g of r.guessed) near['v:' + g] = true; return r.map; });
     setStaffMap((m) => { const r = W.suggestStaff(p, chairs, now(), m); for (const g of r.guessed) near['s:' + g] = true; return r.map; });
     setGuessed((g) => ({ ...g, ...near }));
     await check(p);

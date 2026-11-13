@@ -1,0 +1,19 @@
+/* The quick gestures (accueil/Dock.tsx). Phone: a bar that stays above the tabs (64 px + the safe area), under the thumb.
+   Wider: a plain row. Only the Comptoir's tokens. */
+.dock { display: flex; gap: 8px; min-width: 0; }
+.dock-b { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 48px; padding: 0 18px; border-radius: 999px; background: var(--panel2); box-shadow: inset 0 0 0 1px var(--line2); font: 600 14px/1 var(--sans); white-space: nowrap; }
+.dock-b:hover { background: var(--panel3); }
+.dock-b svg { flex: none; }
+.dock-main { background: var(--accent); color: var(--ink); box-shadow: none; }
+.dock-main:hover { background: var(--accent); filter: brightness(1.06); }
+.dock-n { display: inline-grid; place-items: center; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 999px; background: var(--accent); color: var(--ink); font: 700 12px/1 var(--sans); }
+@media (max-width: 760px) {
+  .dock { position: sticky; bottom: calc(72px + var(--safe-b)); z-index: 12; gap: 6px; padding: 6px; border-radius: 30px; background: color-mix(in srgb, var(--bg2) 90%, transparent); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); box-shadow: 0 10px 30px rgba(0, 0, 0, .4), inset 0 0 0 1px var(--line2); }
+  .dock-b { flex: 1 1 0; min-width: 0; padding: 0 8px; font-size: 13.5px; box-shadow: none; }
+  .dock-main { flex: 1.25 1 0; }
+}
+@media (max-width: 350px) {
+  .dock-b { gap: 5px; padding: 0 4px; font-size: 12.5px; }
+  .dock-b svg { width: 16px; height: 16px; }
+  .dock-b:not(.dock-main) svg { display: none; }
+}

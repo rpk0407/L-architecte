@@ -64,21 +64,21 @@ export default function Messages({ s, data }: SectionProps) {
   const bad = TPL.find((t) => (M.templates[t.k] || '').trim().length < 10);
   return (
     <div className="col" style={{ gap: 16 }}>
-      <Card title="Envois automatiques" guide="messages-auto" icon="bolt" aside={<span className={'badge ' + (boot.providers.sms ? 'badge-ok' : boot.mode === 'demo' ? 'badge-info' : 'badge-warn')}>{boot.providers.sms ? 'SMS via ' + smsVia(boot.providers.sms) : boot.mode === 'demo' ? 'Démo · simulé' : 'Aucun fournisseur'}</span>}>
+      <Card title="Envois automatiques" guide="messages-auto" icon="bolt" aside={<span className={'badge ' + (boot.providers.sms ? 'badge-ok' : boot.mode === 'demo' ? 'badge-info' : 'badge-warn')}>{boot.providers.sms ? 'SMS via ' + smsVia(boot.providers.sms) : boot.mode === 'demo' ? 'Démo · simulé' : 'Sans fournisseur SMS'}</span>}>
         {toggles.map(([k, t, h]) => <Switch key={k} on={!!M[k]} onChange={(v) => m.setV({ ...M, [k]: v })} title={t} hint={h} />)}
         <div className="grid2">
           <Field label="Heure du rappel de la veille"><select className="input select" value={M.reminderHour} onChange={(e) => m.setV({ ...M, reminderHour: Number(e.target.value) })}>{Array.from({ length: 14 }, (_, i) => i + 8).map((h) => <option key={h} value={h}>{h} h</option>)}</select></Field>
         </div>
         <Note icon="moon">{quietWords(M.quiet)} Les avis, les relances et les places libérées attendent le matin.</Note>
-        {!boot.providers.sms && boot.mode !== 'demo' ? <Note tone="warn" icon="alert">Branche Brevo, le téléphone du salon ou Twilio (Canal d’envoi, ci-dessous) pour que les SMS partent vraiment. En attendant, ils restent dans la boîte d’envoi.</Note> : null}
+        {!boot.providers.sms && boot.mode !== 'demo' ? <Note icon="info">Sans fournisseur SMS, rien n’est perdu : les messages aux clients arrivent sur l’écran Messages, à envoyer depuis le WhatsApp du salon (« Messages aux clients », ci-dessous). Les demandes d’avis et les relances, elles, attendent un fournisseur SMS.</Note> : null}
       </Card>
       <Canal s={s} />
       <Avis s={s} data={data} />
-      <Card title="E-mails aux clients" icon="mail" aside={<span className={'badge ' + (mailer ? 'badge-ok' : boot.mode === 'demo' ? 'badge-info' : 'badge-warn')}>{mailer ? 'E-mail via ' + cap(mailer) : boot.mode === 'demo' ? 'Démo · simulé' : 'Aucun fournisseur'}</span>}>
+      <Card title="E-mails aux clients" icon="mail" aside={<span className={'badge ' + (mailer ? 'badge-ok' : boot.mode === 'demo' ? 'badge-info' : 'badge-warn')}>{mailer ? (mailer === 'smtp' ? 'Par la boîte du salon' : 'E-mail via ' + cap(mailer)) : boot.mode === 'demo' ? 'Démo · simulé' : 'Aucun fournisseur'}</span>}>
         <Switch on={M.email !== false} onChange={(v) => m.setV({ ...M, email: v })} title="Confirmation et annulation par e-mail" hint="Aux clients qui ont donné leur e-mail, avec ou sans SMS : le rendez-vous à ajouter à l’agenda (fichier .ics) et le bouton « Gérer mon rendez-vous », puis le déplacement ou l’annulation." />
         <Switch on={!!M.reminderEmail} onChange={(v) => m.setV({ ...M, reminderEmail: v })} title="Rappel par e-mail" hint="À l’heure du rappel de la veille, aux clients qui ont donné leur e-mail, avec ou sans SMS, et le bouton « Gérer mon rendez-vous ». Éteint tant que tu ne l’allumes pas." />
         <Note icon="info">Un SMS de confirmation ou de rappel que le fournisseur refuse part une fois par e-mail quand le client a donné son adresse{M.email !== false ? '' : ' (éteint avec les e-mails de confirmation)'}. Rien n’est jamais envoyé deux fois.</Note>
-        {!mailer && boot.mode !== 'demo' ? <Note tone="warn" icon="alert">Ajoute <code>BREVO_API_KEY</code> et <code>EMAIL_FROM</code> (par exemple <code>rdv@barberlarchitecte.com</code>, une adresse validée dans Brevo) pour que les e-mails partent. En attendant, ils restent dans la boîte d’envoi.</Note> : null}
+        {!mailer && boot.mode !== 'demo' ? <Note tone="warn" icon="alert">Pour que les e-mails partent par la boîte du salon, ajoute dans Vercel <code>SMTP_HOST</code>, <code>SMTP_PORT</code>, <code>SMTP_USER</code>, <code>SMTP_PASS</code> et <code>EMAIL_FROM</code> (par exemple <code>rdv@barberlarchitecte.com</code>, une adresse de cette boîte). En attendant, ils restent dans la boîte d’envoi. Le test est dans « Messages aux clients ».</Note> : null}
       </Card>
       <Card title="Me prévenir" icon="bell">
         <Field label="Mon e-mail" htmlFor="nt-to" error={badEmail ? 'Adresse e-mail invalide' : null} hint={N.to ? undefined : 'Vide : l’e-mail de ton compte' + (boot.me.email ? ' (' + boot.me.email + ')' : '') + '.'}>
