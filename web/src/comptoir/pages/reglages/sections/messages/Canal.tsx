@@ -59,8 +59,10 @@ export default function Canal({ s }: { s: any }) {
   const W = w.v;
   const sms = d.routes.find((r) => r.active);
   const eff = d.whatsapp.effective;
-  const tone = demo ? 'badge-info' : eff === savedMode ? 'badge-ok' : 'badge-warn';
-  const inUse = demo ? 'Démo · simulé' : eff === savedMode ? MODE_WORDS[eff] : MODE_WORDS[eff] + ' (en attendant)';
+  // the demo simulates the automatic ways; sending by hand is the same there as anywhere
+  const simulated = demo && eff !== 'phone';
+  const tone = simulated ? 'badge-info' : eff === savedMode ? 'badge-ok' : 'badge-warn';
+  const inUse = simulated ? 'Démo · simulé' : eff === savedMode ? MODE_WORDS[eff] : MODE_WORDS[eff] + ' (en attendant)';
   const badNumber = !numberOk(W.number);
 
   const onSave = async () => {
@@ -93,7 +95,7 @@ export default function Canal({ s }: { s: any }) {
   const smsMissing = sms || demo ? '' : 'Aucun fournisseur SMS branché (voir plus bas).';
   const modes: { k: Mode; t: string; d: string; state: string; ok: boolean }[] = [
     { k: 'phone', t: 'WhatsApp, depuis le téléphone du salon', d: 'Marche dès maintenant, sans compte ni abonnement. Le Comptoir écrit chaque message ; sur l’écran Messages, un bouton ouvre WhatsApp, tu appuies sur Envoyer. Gratuit.', state: 'Prêt.', ok: true },
-    { k: 'auto', t: 'WhatsApp automatique', d: 'Les messages partent tout seuls, directement par Meta, sans intermédiaire. Environ 3 centimes par message. À préparer une fois (compte Meta, numéro, modèles).', state: autoMissing || 'Branché' + (d.whatsapp.sender ? ', depuis le ' + d.whatsapp.sender : '') + '.', ok: !autoMissing },
+    { k: 'auto', t: 'WhatsApp automatique', d: 'Les messages partent tout seuls, directement par Meta, sans intermédiaire. Meta facture chaque message, quelques centimes. À préparer une fois (compte Meta, un deuxième numéro, quatre modèles).', state: autoMissing || (demo ? 'Démo : rien ne part.' : 'Branché' + (d.whatsapp.sender ? ', depuis le ' + d.whatsapp.sender : '') + '.'), ok: !autoMissing },
     { k: 'sms', t: 'SMS', d: 'Par un fournisseur (Brevo, payant au SMS) ou par le forfait du téléphone du salon. Les demandes d’avis et les relances restent toujours des SMS.', state: smsMissing || (sms ? 'En service : ' + ROUTE[sms.key].t + '.' : 'Démo : rien ne part.'), ok: !smsMissing }
   ];
   const chosen = modes.find((m) => m.k === W.mode)!;

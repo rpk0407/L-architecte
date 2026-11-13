@@ -82,7 +82,7 @@ function emailProvider(rt) {
  */
 export function stripeState(rt, prod) {
   if (!prod) return { state: 'demo', problem: '' };
-  const c = rt.cfg.stripe;
+  const c = rt.cfg && rt.cfg.stripe;
   if (rt.pay.name === 'stripe') {
     return rt.pay.live ? { state: 'live', problem: '' }
       : { state: 'test', problem: 'Stripe est branché avec une clé de test (sk_test_) : une carte de test confirme une réservation et la caisse déduit son acompte sans qu’aucun argent n’ait bougé. Passe aux clés réelles et au webhook réel avant d’ouvrir les réservations.' };
@@ -236,7 +236,7 @@ export async function healthOf(rt, L) {
       open, overdue: late.overdue, late24h: late.late, lastLate: late.last, okMs: TICK_OK_MS, lateMs: TICK_LATE_MS
     },
     // where the journal lives: 'memory' on a real salon means every ticket is lost at the next restart
-    store: { kind: rt.store.kind, durable: rt.store.kind !== 'memory' },
+    store: { kind: (rt.store && rt.store.kind) || 'memory', durable: !!rt.store && rt.store.kind !== 'memory' },
     stripe: { provider: rt.pay.name, live: !!rt.pay.live, lastWebhook: j.stripe || null, ...stripeState(rt, prod) },
     // MSG-02: the route in use (provider, and WhatsApp in front of it when it is on) and the last text that failed
     // FID-01: the oldest text a client asked for still waiting, the last text that left by SMS (from the salon's phone when it
@@ -254,7 +254,7 @@ export async function healthOf(rt, L) {
     // PUBLIC_URL set but unusable (no https, a path): every SMS link and Stripe's return address would be wrong
     publicUrlProblem: prod ? publicUrlProblem(rt.cfg.publicUrl) : '',
     // what the configuration itself says is missing or wrong (runtime.js), the same list as Réglages › Données › Système
-    warnings: [...rt.warnings],
+    warnings: [...(rt.warnings || [])],
     // LX_INDEX (read once, runtime.js) takes effect with the build of this deployment, which reads the same environment
     indexable: rt.cfg.index === true,
     setup: {

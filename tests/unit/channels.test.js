@@ -336,6 +336,8 @@ test('configuration: the salon phone and WhatsApp from the environment, Brevo as
   assert.equal(readConfig({ BREVO_API_KEY: 'k', WHATSAPP_SENDER: '+33491000000' }).whatsapp, null);
   assert.equal(readConfig({ WHATSAPP_TOKEN: 'tok' }).whatsapp, null, 'the phone id too');
   assert.ok(readConfig({ WHATSAPP_TOKEN: 'tok' }).whatsappIncomplete);
+  // templates created at Meta with numbered variables ({{1}}, {{2}}): the values go by position
+  assert.equal(readConfig({ WHATSAPP_TOKEN: 'tok', WHATSAPP_PHONE_ID: '1065', WHATSAPP_PARAMS: 'positional' }).whatsapp.named, false);
   assert.ok(readConfig({ BREVO_API_KEY: 'k', WHATSAPP_SENDER: 'salon' }).whatsappSenderInvalid);
 });
 

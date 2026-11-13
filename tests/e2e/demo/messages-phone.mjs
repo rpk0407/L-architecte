@@ -37,8 +37,34 @@ export default async ({ h, page, ctx }) => {
   const av = (await h.api('/api/public/availability?services=' + svc.id + '&staff=any&from=' + salon.today + '&days=8', { session: false })).json;
   const day = av.days.filter((d) => d.day > salon.today && d.slots.length >= 2)[0];
   const people = [['Zinedine', '06 55 01 02 03'], ['Youri', '07 55 04 05 06']];
-  for (const [i, [first, phone]] of people.entries()) {
-    const r = await h.api('/api/public/bookings', { session: false, body: { serviceIds: [svc.id], staffId: 'any', day: day.day, start: day.slots[i * 2 < day.slots.length ? i * 2 : i].m, first, phone } });
+  // Zinedine books on the site, on his phone: the last step offers « Recevoir la confirmation sur WhatsApp », a chat
+  // with the salon's number, the message ready with the booking's code (read, never followed)
+  const site = await h.newPage({ viewport });
+  await blockWhatsapp(site.context(), opened);
+  await site.goto(h.base + '/');
+  await site.locator('.cta').first().click();
+  await site.locator('.bk button.so', { hasText: 'Coupe + taille de barbe' }).click();
+  await site.locator('.bk button.wh').first().click();
+  await site.locator('.bk button.sl').first().waitFor({ timeout: 8000 });
+  await site.locator('.bk button.sl').first().click();
+  await site.fill('#f-first', people[0][0]);
+  await site.fill('#f-phone', people[0][1]);
+  await site.locator('.bk-foot .btn').click();
+  await h.expectText(site, 'C’est réservé, Zinedine');
+  const wa = site.getByRole('link', { name: 'Recevoir la confirmation sur WhatsApp' });
+  await wa.waitFor({ timeout: 5000 });
+  const waHref = await wa.getAttribute('href');
+  if (!waHref.startsWith('https://wa.me/33612345678?text=')) throw new Error('the site’s button does not open the salon’s chat: ' + waHref);
+  const said = decodeURIComponent(waHref.split('?text=')[1]);
+  if (!/^Bonjour, je viens de réserver chez L’Architecte : .+ à \d+ h( \d\d)?\. Référence LA-[A-Z0-9]+\. Merci de me confirmer ici\.$/.test(said)) throw new Error('the prefilled message is not the expected one: ' + said);
+  if ((await wa.boundingBox()).height < 44) throw new Error('the WhatsApp button on the site is too small for a thumb');
+  await noSideScroll(site, 'the site’s confirmation step');
+  await h.shot(site, 'site-done-whatsapp');
+  // Youri books too (the API the site calls)
+  {
+    const [first, phone] = people[1];
+    const free = (await h.api('/api/public/availability?services=' + svc.id + '&staff=any&from=' + day.day + '&days=1', { session: false })).json.days[0];
+    const r = await h.api('/api/public/bookings', { session: false, body: { serviceIds: [svc.id], staffId: 'any', day: free.day, start: free.slots[free.slots.length - 1].m, first, phone } });
     if (r.status !== 201 || r.json.status !== 'booked') throw new Error('booking failed: ' + r.status + ' ' + r.text);
   }
   // the demo's own older texts are set aside through the API, so the screen holds exactly these two

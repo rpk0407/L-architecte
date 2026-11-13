@@ -64,6 +64,8 @@ export default function Messages({ s, data }: SectionProps) {
   const bad = TPL.find((t) => (M.templates[t.k] || '').trim().length < 10);
   return (
     <div className="col" style={{ gap: 16 }}>
+      {/* first: how the texts reach the clients at all (WhatsApp by hand, WhatsApp automatic, SMS) */}
+      <Canal s={s} />
       <Card title="Envois automatiques" guide="messages-auto" icon="bolt" aside={<span className={'badge ' + (boot.providers.sms ? 'badge-ok' : boot.mode === 'demo' ? 'badge-info' : 'badge-warn')}>{boot.providers.sms ? 'SMS via ' + smsVia(boot.providers.sms) : boot.mode === 'demo' ? 'Démo · simulé' : 'Sans fournisseur SMS'}</span>}>
         {toggles.map(([k, t, h]) => <Switch key={k} on={!!M[k]} onChange={(v) => m.setV({ ...M, [k]: v })} title={t} hint={h} />)}
         <div className="grid2">
@@ -72,7 +74,6 @@ export default function Messages({ s, data }: SectionProps) {
         <Note icon="moon">{quietWords(M.quiet)} Les avis, les relances et les places libérées attendent le matin.</Note>
         {!boot.providers.sms && boot.mode !== 'demo' ? <Note icon="info">Sans fournisseur SMS, rien n’est perdu : les messages aux clients arrivent sur l’écran Messages, à envoyer depuis le WhatsApp du salon (« Messages aux clients », ci-dessous). Les demandes d’avis et les relances, elles, attendent un fournisseur SMS.</Note> : null}
       </Card>
-      <Canal s={s} />
       <Avis s={s} data={data} />
       <Card title="E-mails aux clients" icon="mail" aside={<span className={'badge ' + (mailer ? 'badge-ok' : boot.mode === 'demo' ? 'badge-info' : 'badge-warn')}>{mailer ? (mailer === 'smtp' ? 'Par la boîte du salon' : 'E-mail via ' + cap(mailer)) : boot.mode === 'demo' ? 'Démo · simulé' : 'Aucun fournisseur'}</span>}>
         <Switch on={M.email !== false} onChange={(v) => m.setV({ ...M, email: v })} title="Confirmation et annulation par e-mail" hint="Aux clients qui ont donné leur e-mail, avec ou sans SMS : le rendez-vous à ajouter à l’agenda (fichier .ics) et le bouton « Gérer mon rendez-vous », puis le déplacement ou l’annulation." />

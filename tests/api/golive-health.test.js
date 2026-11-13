@@ -109,8 +109,8 @@ test('docs/mise-en-ligne.md names every variable the server reads, the Stripe ev
   const { readFileSync } = await import('node:fs');
   const read = (f) => readFileSync(new URL('../../' + f, import.meta.url), 'utf8');
   const page = read('docs/mise-en-ligne.md');
-  // every production variable of server/http/runtime.js (the development-only ones stay in operations.md)
-  const DEV = new Set(['LX_DATA_FILE', 'LX_FAKE_NOW', 'LX_INSECURE_COOKIES', 'LX_BLOB_PREFIX', 'LX_BLOB_ACCESS', 'VERCEL', 'VERCEL_ENV', 'VERCEL_URL', 'VERCEL_PROJECT_PRODUCTION_URL', 'TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_FROM', 'SMSGATE_URL', 'WHATSAPP_API_VERSION']);
+  // every production variable of server/http/runtime.js (the development-only and fine-tuning ones stay in operations.md)
+  const DEV = new Set(['LX_DATA_FILE', 'LX_FAKE_NOW', 'LX_INSECURE_COOKIES', 'LX_BLOB_PREFIX', 'LX_BLOB_ACCESS', 'VERCEL', 'VERCEL_ENV', 'VERCEL_URL', 'VERCEL_PROJECT_PRODUCTION_URL', 'TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_FROM', 'SMSGATE_URL', 'WHATSAPP_API_VERSION', 'WHATSAPP_PARAMS']);
   const vars = new Set([...read('server/http/runtime.js').matchAll(/env\.([A-Z][A-Z0-9_]+)/g)].map((m) => m[1]).filter((v) => !DEV.has(v)));
   assert.ok(vars.size >= 15, [...vars].join(', '));
   for (const v of vars) assert.ok(page.includes('`' + v) || page.includes(v + '`') || page.includes('`' + v + '`'), 'docs/mise-en-ligne.md does not say what breaks without ' + v);

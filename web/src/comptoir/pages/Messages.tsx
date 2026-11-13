@@ -26,10 +26,10 @@ type Hand = {
 
 const TONE: Record<string, string> = { Annulation: 'badge-warn', Déplacement: 'badge-info', Rappel: 'badge-accent', 'Rappel du jour': 'badge-accent' };
 
-/** « 2 ont coupé les messages du salon, 1 n’a pas de portable » */
+/** « 2 ont les messages du salon coupés, 1 n’a pas de numéro de portable » */
 export function leftWords(l: { optout: number; nomobile: number }): string {
   const parts = [];
-  if (l.optout) parts.push(l.optout + (l.optout > 1 ? ' ont coupé' : ' a coupé') + ' les messages du salon');
+  if (l.optout) parts.push(l.optout + (l.optout > 1 ? ' ont' : ' a') + ' les messages du salon coupés');
   if (l.nomobile) parts.push(l.nomobile + (l.nomobile > 1 ? ' n’ont pas' : ' n’a pas') + ' de numéro de portable');
   return parts.join(', ');
 }

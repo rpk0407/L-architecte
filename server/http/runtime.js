@@ -65,7 +65,7 @@ const parseFrom = MAIL.parseFrom;
 /** WhatsApp: Meta's Cloud API when its two variables are there, else Brevo's (same key as the SMS), else none. */
 function whatsappConfig(env) {
   const sender = waNumber(env.WHATSAPP_SENDER) ? '+' + waNumber(env.WHATSAPP_SENDER) : '';
-  if (WA.metaWhatsapp && env.WHATSAPP_TOKEN && env.WHATSAPP_PHONE_ID) return { kind: 'meta', token: env.WHATSAPP_TOKEN, phoneId: env.WHATSAPP_PHONE_ID, version: env.WHATSAPP_API_VERSION || undefined, senderNumber: sender };
+  if (WA.metaWhatsapp && env.WHATSAPP_TOKEN && env.WHATSAPP_PHONE_ID) return { kind: 'meta', token: env.WHATSAPP_TOKEN, phoneId: env.WHATSAPP_PHONE_ID, version: env.WHATSAPP_API_VERSION || undefined, senderNumber: sender, ...(env.WHATSAPP_PARAMS === 'positional' ? { named: false } : {}) };
   if (/** @type {any} */ (WA).brevoWhatsapp && env.BREVO_API_KEY && sender) return { kind: 'brevo', apiKey: env.BREVO_API_KEY, senderNumber: sender };
   return null;
 }

@@ -108,8 +108,8 @@ export function handRefusal(s, m) {
 /**
  * The queue of the Messages screen for one person: what to send now, oldest first within each kind of urgency (what is
  * about today before tomorrow's reminders), and who is left out, with the reason.
- * `left`: clients with an appointment today or tomorrow who get no message at all, counted by reason, so nobody thinks
- * they were told. `later`: texts already written whose hour has not come (a reminder waits for its evening).
+ * `left`: clients with an appointment today or tomorrow who get no message at all, counted by reason (optout: the
+ * messages are switched off on the file or for this booking; nomobile: no mobile number), so nobody thinks they were told. `later`: texts already written whose hour has not come (a reminder waits for its evening).
  * @param {any} s @param {{ sms?: any, whatsapp?: any }} rt @param {number} now @param {{ day: string, min: number }} local
  * @param {{ caps: Set<string>, staffId?: string }} who
  */
@@ -138,7 +138,8 @@ export function handQueue(s, rt, now, local, who) {
   // today's appointments and tomorrow's whose client the salon cannot write to at all: no text was ever queued for them
   const tomorrow = addDays(local.day, 1);
   for (const a of s.appts.values()) {
-    if (a.status !== 'booked' || (a.day !== local.day && a.day !== tomorrow) || startsAt(a) <= now) continue;
+    // the demo's own bookings are staged without texts (domain/seed.js): they say nothing about a client's choice
+    if (a.status !== 'booked' || a.demo || (a.day !== local.day && a.day !== tomorrow) || startsAt(a) <= now) continue;
     if (!maySend(s, { apptId: a.id }, who)) continue;
     const c = a.clientId ? fileOf(s, a.clientId) : null;
     if (!c || c.erased || seen.has(c.id)) continue;

@@ -90,6 +90,12 @@ export default function Agenda() {
   // a touch on a free stretch of the phone planning books there: the barber and the hour are already chosen
   const onFree = useEvent((staffId: string, min: number) => setCreate({ day, start: min, staffId }));
   const setPhoneView = useEvent((v: PhoneView) => setRawView(v));
+  // what the phone planning shows beside its switch and on a closed day: kept from one render to the next, or the
+  // planning (memo) would be drawn again at every pulse
+  const queued = data && !data.closed && day === today ? (data.queue || []).length : 0;
+  const phoneExtra = useMemo(() => (day !== today ? <Button size="sm" variant="ghost" onClick={() => goDay(null)}>Aujourd’hui</Button>
+    : queued ? <button type="button" className="chip chip-sm" onClick={() => document.querySelector('[data-guide="ag-queue"]')?.scrollIntoView({ behavior: 'smooth', block: 'center' })}><Icon name="walk" size={14} />File · {queued}</button> : null), [day, today, queued]);
+  const phoneClosed = useMemo(() => <ClosedDay day={day} today={today} onGo={goDay} />, [day, today]);
 
   const k = data?.kpis;
   const next = data && day === today ? data.appts.filter((a) => ['booked', 'arrived', 'pending'].includes(a.status) && a.start + 5 >= nowMin && (can('agenda.all') || a.staffId === boot.me.id)).sort((a, b) => a.start - b.start)[0] : null;
@@ -146,9 +152,7 @@ export default function Agenda() {
               <PhoneAgenda data={data} loading={loading} error={error && !data ? <Empty icon="alert" title="Agenda indisponible">{error.message}</Empty> : undefined}
                 day={day} today={today} nowStep={Math.ceil(nowMin / 5) * 5} view={viewOf(rawView)} setView={setPhoneView} lane={lane} setLane={setLane}
                 selected={sel} myId={boot.me.id} canSeeMoney={moneyOk && k!.scope === 'shop'}
-                extra={day !== today ? <Button size="sm" variant="ghost" onClick={() => goDay(null)}>Aujourd’hui</Button>
-                  : data && !data.closed && (data.queue || []).length ? <button type="button" className="chip chip-sm" onClick={() => document.querySelector('[data-guide="ag-queue"]')?.scrollIntoView({ behavior: 'smooth', block: 'center' })}><Icon name="walk" size={14} />File · {data.queue.length}</button> : null}
-                closed={<ClosedDay day={day} today={today} onGo={goDay} />}
+                extra={phoneExtra} closed={phoneClosed}
                 onDay={goDay} onOpen={open} onFree={onFree} onEmpty={onEmpty} onBlock={onBlock} onLane={day === today && can('agenda.edit') ? onLane : undefined} />
             ) : loading ? <Skeleton h={560} r={22} /> : error ? <Empty icon="alert" title="Agenda indisponible">{error.message}</Empty> : data ? (
               !data.lanes.length || (data.lanes.every((l) => !l.work.length) && !data.appts.length) ? <ClosedDay day={day} today={today} onGo={goDay} /> :
