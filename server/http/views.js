@@ -103,13 +103,33 @@ export function typedFor(a, c) {
   return x && y && !x.startsWith(y) && !y.startsWith(x) ? typed : '';
 }
 
+/**
+ * A date of a weekly carnet bought with its dates: « coupe 3 sur 5 », and what the till does with it. sell: the carnet is
+ * not paid yet, the ticket sells it (its service, its price) and this cut is its first; deposit: the 80 € paid online,
+ * to put on that ticket; packId: the carnet that pays this cut.
+ */
+export function formuleBrief(s, a) {
+  const f = formuleOfAppt(s, a.id);
+  const r = f ? rankOf(s, a.id) : null;
+  if (!f || !r) return null;
+  const sv = s.services.get(f.serviceId);
+  const pay = payState(s, f);
+  const dep = pay === 'online' ? paidOnline(s, f) : null;
+  return {
+    id: f.id, n: r.n, of: r.of, pay, packId: f.packId || null,
+    sell: !f.packId && sv && sv.active ? { serviceId: sv.id, name: sv.name, price: sv.price } : null,
+    deposit: dep ? { paymentId: dep.paymentId, paid: dep.amount } : null
+  };
+}
+
 export function apptView(s, a, caps, stats, now = Date.now()) {
   const c = a.clientId ? s.clients.get(a.clientId) : null;
   return {
     id: a.id, code: a.code, staffId: a.staffId, anyStaff: a.anyStaff, day: a.day, start: a.start, dur: a.dur, services: a.services, price: a.price,
     status: a.status, source: a.source, note: a.note || '', name: c ? nameOn(a, c) : a.name || 'Client',
     client: c ? clientCard(s, c, caps, stats, now) : null, deposit: a.deposit, guarantee: a.guarantee || null, saleId: a.saleId, createdAt: a.createdAt,
-    statusAt: a.statusAt || {}, cancel: a.cancel, moves: a.moves || 0, demo: !!a.demo, legacy: !!a.legacy, paidOld: a.ext && a.ext.paid && !a.saleId ? a.ext.paid : 0
+    statusAt: a.statusAt || {}, cancel: a.cancel, moves: a.moves || 0, demo: !!a.demo, legacy: !!a.legacy, paidOld: a.ext && a.ext.paid && !a.saleId ? a.ext.paid : 0,
+    ...(formuleBrief(s, a) ? { formule: formuleBrief(s, a) } : {})
   };
 }
 

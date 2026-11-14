@@ -42,7 +42,11 @@ export const TEMPLATES = {
   memberCard: "L'Architecte : pour mettre à jour la carte de ton abonnement {formule} : {lien}",
   // AC-01: the salon sends a client the way into his space (AC-02's invite from the file); {lien} /moi?garder=…
   // (« tickets », not « reçus »: a ç would make it a Unicode SMS)
-  accesInvite: "L'Architecte : ouvre ton espace (tes rendez-vous, tes tickets) : {lien}"
+  accesInvite: "L'Architecte : ouvre ton espace (tes rendez-vous, tes tickets) : {lien}",
+  // the weekly carnet bought with its dates (commands/formule.js): the first cut missed with nothing paid, {nombre} other
+  // dates freed; and the last cut taken, « Reprendre 5 coupes » ({nombre}: the cuts of a new one)
+  formuleReleased: "L'Architecte : {prenom}, ta 1re coupe n'a pas eu lieu et le carnet n'est pas payé : tes {nombre} autres rendez-vous sont libérés. Pour reprendre : {lien}",
+  formuleRenew: "L'Architecte : {prenom}, c'était la dernière coupe de ton carnet. Reprendre {nombre} coupes : {lien}"
 };
 
 // What a text is, beyond its words, keyed like TEMPLATES (the same owner adds both). Three classes, one rule each
@@ -77,6 +81,8 @@ export const TEMPLATE_FLAGS = {
   // AC-01: the sign-in code (its fixed words live in domain/otp.js, not here) and the salon's invite to the space
   otp: { requested: true },
   accesInvite: { requested: true },
+  // the carnet's last cut: about a right he holds, never to a client who said STOP, never at night
+  formuleRenew: { relation: true, quiet: true },
   // AC-02: a copy of his data, e-mailed to a client who asked for it from his space
   dataExport: { requested: true }
 };

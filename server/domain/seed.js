@@ -61,7 +61,7 @@ const SERVICES = [
   { slug: 'tb', name: 'Taille de barbe', category: 'Barbe', price: 1800, dur: 30, includes: ['Taille', 'Mise en forme', 'Huile'], w: 5 },
   { slug: 'cb', name: 'Cover barbe', category: 'Barbe', price: 1500, dur: 30, includes: ['Couleur de la barbe', 'Soin'], w: 2 },
   // the prepaid pack is a « carnet », sold at the till (« abonnement » is the monthly membership below)
-  { slug: 'ab', name: 'Carnet 5 coupes', short: 'Carnet', category: 'Carnet', price: 8000, dur: 30, online: false, includes: ['5 coupes sur 5 semaines', 'Sans barbe'], description: '16 € la coupe. Il se prend au salon : on fixe tes coupes avec toi.', tag: '16 € la coupe', w: 0, pack: { credits: 5, days: 70 } }
+  { slug: 'ab', name: 'Carnet 5 coupes', short: 'Carnet', category: 'Carnet', price: 8000, dur: 30, includes: ['5 coupes, une par semaine', 'Shampooing et coiffage', 'Sans la barbe'], description: '16 € la coupe. Tu choisis tes 5 rendez-vous en réservant, un par semaine.', tag: '16 € la coupe', w: 0, pack: { credits: 5, days: 35, weekly: true, missed: 'lost' } }
 ];
 
 /*
@@ -261,7 +261,7 @@ export async function buildDemoJournal(nowReal, opt = {}) {
     slugId[sv.slug] = res.id;
   }
   // the carnet covers the classic cut only
-  await eng.run(updateService, { id: slugId.ab, patch: { pack: { credits: 5, days: 70, serviceIds: [slugId.cl] } } }, base);
+  await eng.run(updateService, { id: slugId.ab, patch: { pack: { credits: 5, days: 35, serviceIds: [slugId.cl], weekly: true, missed: 'lost' } } }, base);
   await eng.run(updateSettings, { membership: { enabled: true, plans: PLANS.map(({ slugs, ...p }) => ({ ...p, serviceIds: slugs.map((k) => slugId[k]), online: true, active: true })) } }, base);
   // FID-02: the stamp card, launched before the history so its tickets earn for real: 9 paid visits, the 10th cut
   // offered up to 25 €, referral on (off in production)
@@ -444,7 +444,7 @@ export async function buildDemoJournal(nowReal, opt = {}) {
       const isCut = cur.services.length === 1 && eng.state.services.get(cur.services[0].id)?.slug === 'cl';
       if (c && c.abo && isCut) {
         const pk = c.packId ? eng.state.packs.get(c.packId) : null;
-        if (pk && pk.used < pk.total) packId = pk.id;
+        if (pk && pk.used < pk.total && pk.expires >= day) packId = pk.id;
       }
       let input = demoCheckoutInput(eng.state, cur, r, { packId, member: memberCut(eng.state, cur, day) });
       if (c && c.abo && isCut && !packId) {
