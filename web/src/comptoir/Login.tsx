@@ -41,7 +41,7 @@ export function Login({ state, onDone }: { state: AuthState; onDone: () => void 
     <div className="auth">
       <div className="auth-box">
         <div className="auth-brand">
-          <span className="brand-mark" aria-hidden>L’A</span>
+          <span className="brand-logo" role="img" aria-label="L’Architecte Barbershop" />
           <h1>Le Comptoir</h1>
           <p style={{ overflowWrap: 'anywhere' }}>{state.shop.name}{state.device ? ' · ' + state.device.name : ''}</p>
         </div>
@@ -168,7 +168,7 @@ function LinkPhone({ token, state, onDone }: { token: string; state: AuthState; 
     <div className="auth">
       <div className="auth-box">
         <div className="auth-brand">
-          <span className="brand-mark" aria-hidden>L’A</span>
+          <span className="brand-logo" role="img" aria-label="L’Architecte Barbershop" />
           <h1>Le Comptoir</h1>
           <p>{state.shop.name}</p>
         </div>

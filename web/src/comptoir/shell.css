@@ -100,6 +100,7 @@
 .auth-box { width: min(520px, 100%); display: flex; flex-direction: column; gap: 22px; animation: rise .5s var(--ease-out) both; }
 .auth-brand { display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; }
 .auth-brand .brand-mark { width: 64px; height: 64px; font-size: 28px; }
+.brand-logo { display: block; width: 120px; aspect-ratio: 858 / 912; margin: 0 auto 4px; background: currentColor; -webkit-mask: url(/img/logo-clair.png) center / contain no-repeat; mask: url(/img/logo-clair.png) center / contain no-repeat; }
 .auth-brand h1 { font: italic 400 46px/1 var(--serif); letter-spacing: -.015em; }
 .auth-brand p { color: var(--tx2); font-size: 14px; }
 .team { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 10px; }
