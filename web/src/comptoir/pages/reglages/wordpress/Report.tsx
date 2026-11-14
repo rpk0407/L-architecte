@@ -2,18 +2,21 @@
 // files held against what was made, already there, skipped (by reason) and left out; the rows that want a look, grouped by
 // reason; the CSV to hand to whoever helps. Counts come from lib/wpimport.ts `reconcile`, the lines from GET /import/runs/:id.
 import { useEffect, useRef, useState } from 'react';
-import { useQuery } from '../../../../lib/query';
+import { api } from '../../../../lib/api';
+import { refreshAll, useQuery } from '../../../../lib/query';
 import { Link } from '../../../../lib/router';
 import { ago, cap, dates, plural, time } from '../../../../lib/format';
-import { kindTitle as group, reconcile, reportCsv, SKIP_WORDS, type ReportLine, type Recon, type RunRecord } from '../../../../lib/wpimport';
+import { kindTitle as group, reconcile, reportCsv, SKIP_WORDS, type ReportLine, type Recon, type ReconCheck, type RunRecord, type UndoState } from '../../../../lib/wpimport';
 import { Icon } from '../../../../ui/Icon';
-import { Button, Chip, Empty, Note, Skeleton } from '../../../../ui/kit';
+import { Button, Chip, Empty, Note, Skeleton, confirm, toast, toastError } from '../../../../ui/kit';
 import { useApp } from '../../../state';
 import { Card } from '../shared';
 import { saveText } from './save';
 
 type Summary = RunRecord & { reviewTotal?: number; reviewKept?: number };
-type Detail = { run: Summary; lines: ReportLine[] };
+type Detail = { run: Summary; lines: ReportLine[]; recon?: ReconCheck | null; undo?: UndoState };
+/** '2026-11-10' → '10 nov.' */
+const dm = (day: string) => { const p = dates.dayParts(day); return p.d + ' ' + dates.MONTHS_SH[p.m - 1]; };
 
 const stamp = (ms: number) => { const p = dates.localParts(ms); return p.d + ' ' + dates.MONTHS_FR[p.m - 1] + ' à ' + dates.hhmm(p.min); };
 const sourceWords = (r: Summary) => (r.source === 'site' ? 'site connecté' : plural(r.files.length, 'fichier'));
@@ -47,7 +50,17 @@ export function Report({ runs, runId, onPick, next, halt, focus }: { runs: Summa
 
 function Body({ d, next, halt }: { d: Detail; next?: string; halt?: Halt }) {
   const { run, lines } = d;
-  const { now } = useApp();
+  const { now, reloadBoot } = useApp();
+  const [undoing, setUndoing] = useState(false);
+  const gone = !!run.undoneAt;
+  const u = d.undo;
+  const undo = async () => {
+    if (!u) return;
+    const what = [u.appts ? plural(u.appts, 'rendez-vous') : '', u.clients ? plural(u.clients, 'fiche client créée', 'fiches clients créées') : '', u.giftcards ? plural(u.giftcards, 'carte cadeau', 'cartes cadeaux') : '', u.packs ? plural(u.packs, 'carnet') : ''].filter(Boolean).join(', ');
+    if (!(await confirm({ title: 'Annuler cette reprise ?', ok: 'Annuler cette reprise', danger: true, body: 'Ce que cette reprise a ajouté est retiré du salon, et rien d’autre : ' + what + '. Aucun message ne part.' + (u.kept ? ' ' + plural(u.kept, 'fiche du salon complétée garde ce que WordPress lui a apporté', 'fiches du salon complétées gardent ce que WordPress leur a apporté') + ' (e-mail, nom).' : '') + ' Tu pourras redéposer les fichiers ensuite.' }))) return;
+    setUndoing(true);
+    try { await api.post('/api/v1/import/runs/' + run.id + '/undo', {}); toast({ title: 'Reprise annulée', sub: what + ' retirés. Le salon est comme avant ce passage.', icon: 'check' }); refreshAll(); await reloadBoot(); } catch (e) { toastError(e); refreshAll(); } finally { setUndoing(false); }
+  };
   const rep = reconcile(run);
   const done = !!run.finishedAt;
   // the run this tab just saw stop is not « en cours », whatever the clock says
@@ -62,9 +75,9 @@ function Body({ d, next, halt }: { d: Detail; next?: string; halt?: Halt }) {
     <>
       <Card
         title={'Reprise du ' + stamp(run.at) + ' · ' + sourceWords(run)} icon="journal"
-        aside={<span className={'badge ' + (done ? 'badge-ok' : live ? 'badge-info' : 'badge-warn')}>{done ? <><Icon name="check" />Terminée</> : live ? <>En cours</> : <><Icon name="alert" />{stopped}</>}</span>}
+        aside={gone ? <span className="badge badge-warn"><Icon name="undo" />Annulée</span> : <span className={'badge ' + (done ? 'badge-ok' : live ? 'badge-info' : 'badge-warn')}>{done ? <><Icon name="check" />Terminée</> : live ? <>En cours</> : <><Icon name="alert" />{stopped}</>}</span>}
       >
-        {done ? null : live ? <Note icon="info">Cette reprise est en cours (dans un autre onglet ?). Attends qu’elle se termine avant d’en lancer une autre.</Note>
+        {gone ? <Note tone="warn" icon="undo">Cette reprise a été annulée le {stamp(run.undoneAt!)} : ce qu’elle avait ajouté n’est plus dans le salon. Le tableau ci-dessous dit ce qu’elle avait fait.</Note> : done ? null : live ? <Note icon="info">Cette reprise est en cours (dans un autre onglet ?). Attends qu’elle se termine avant d’en lancer une autre.</Note>
           : halt && !halt.transient ? <Note tone="err" icon="alert">{(halt.words || 'Une ligne est refusée par le salon') + '.'} Le reste n’a pas été envoyé : télécharge le rapport et envoie-le à ton prestataire.</Note>
           : <Note tone="warn" icon="alert">Relance l’import avec les mêmes fichiers : rien ne sera compté deux fois.</Note>}
         {run.source === 'site' && run.site ? <p className="muted" style={{ fontSize: 13 }}>Lu sur {run.site.url}</p> : (
@@ -80,12 +93,16 @@ function Body({ d, next, halt }: { d: Detail; next?: string; halt?: Halt }) {
         {done ? (gap !== 0 ? <Note tone="err" icon="alert">Écart de {gap} : envoie ce rapport au prestataire.</Note>
           : unread > 0 ? <Note tone="warn" icon="alert">{plural(unread, 'ligne n’a pas pu être lue', 'lignes n’ont pas pu être lues')} : voir la liste « Lignes illisibles » plus bas. Le reste est compté. <span className="faint">Chaque autre ligne est reprise, déjà là, ignorée avec sa raison, ou laissée de côté.</span></Note>
           : <Note tone="ok" icon="check">Tout est compté ✓ <span className="faint">Chaque ligne des fichiers est reprise, déjà là, ignorée avec sa raison, ou laissée de côté.</span></Note>) : null}
+        {d.recon && !gone && done ? <Check r={d.recon} /> : null}
         {run.counts.appts?.gone ? <p className="muted" style={{ fontSize: 13 }}>{plural(run.counts.appts.gone, 'rendez-vous supprimé', 'rendez-vous supprimés')} sur l’ancien site, annulé{run.counts.appts.gone > 1 ? 's' : ''} ici sans SMS.</p> : null}
         <div className="row wr-acts">
           <Button icon="download" onClick={() => download(run, lines, rep)}>Télécharger le rapport (CSV)</Button>
           <Link to="/clients?segment=doublons" className="btn btn-subtle">Voir les doublons possibles</Link>
           {next ? <Link to={'/agenda?day=' + next} className="btn btn-subtle">Voir l’agenda du {dates.dayShort(next)}</Link> : null}
+          {u && u.ok && !live ? <Button variant="danger" icon="undo" busy={undoing} onClick={() => void undo()}>Annuler cette reprise</Button> : null}
         </div>
+        {u && !u.ok && !gone && u.why ? <p className="faint wr-undo"><b>« Annuler cette reprise » n’est plus possible.</b> {u.why}</p>
+          : u && u.ok ? <p className="faint wr-undo">« Annuler cette reprise » retire exactement ce que ce passage a ajouté ({plural(u.appts, 'rendez-vous')}, {plural(u.clients, 'fiche', 'fiches')}), tant que rien n’a été touché depuis.</p> : null}
       </Card>
       <Lines lines={lines} finished={done} truncated={(run.reviewTotal ?? 0) > (run.reviewKept ?? 0)} />
     </>
@@ -150,6 +167,8 @@ function Lines({ lines, truncated, finished }: { lines: ReportLine[]; truncated:
             <ul className="list wr-list">{rows.map((l, i) => (
               <li key={i} className="li">
                 <span className="li-main"><b>{l.name || 'Ligne'}{l.wp ? <span className="faint"> · n° {l.wp}</span> : null}</b><small>{[when(l), l.staff, l.text].filter(Boolean).join(' · ')}</small></span>
+                {AGENDA.has(l.kind) && l.day ? <Link to={'/agenda?day=' + l.day} className="btn btn-subtle btn-sm wr-act">Voir l’agenda du {dm(l.day)}</Link>
+                  : PEOPLE.has(l.kind) && l.todo ? <Link to="/clients?segment=doublons" className="btn btn-subtle btn-sm wr-act">Fusionner ou garder à part</Link> : null}
               </li>
             ))}</ul>
             {list.length > rows.length ? <Button variant="ghost" block onClick={() => setMore({ ...more, [key]: true })}>Voir les {list.length}</Button> : null}
@@ -158,6 +177,47 @@ function Lines({ lines, truncated, finished }: { lines: ReportLine[]; truncated:
       }) : <Empty icon="check" title="Aucune ligne dans cette vue" />}
       {truncated ? <p className="faint" style={{ fontSize: 12.5 }}>Les 5 000 premières lignes sont gardées ; les comptes ci-dessus restent exacts.</p> : null}
     </Card>
+  );
+}
+
+/** The one gesture of a line: the agenda at that slot, or the two files side by side (Clients › Doublons probables). */
+const AGENDA = new Set(['overlap', 'hours', 'moved', 'reopened', 'pending']);
+const PEOPLE = new Set(['person', 'email-elsewhere', 'new-number', 'new-email']);
+
+/**
+ * The count the owner checks against WordPress with her own eyes: what the export held to come, what the agenda holds of it now, then the
+ * same per barber and per day for the two weeks ahead (server/commands/import.js reconOf).
+ */
+function Check({ r }: { r: ReconCheck }) {
+  const even = r.wordpress.n === r.here.n;
+  const off = r.days.filter((x) => x.wordpress !== x.here).length;
+  return (
+    <div className="wr-check">
+      <Note tone={even ? 'ok' : 'warn'} icon={even ? 'check' : 'alert'}>
+        <b>WordPress : {plural(r.wordpress.n, 'rendez-vous')} à venir{r.wordpress.n ? ' du ' + dm(r.wordpress.from) + ' au ' + dm(r.wordpress.to) : ''} ; ici : {r.here.n}.</b>
+        <span> {even ? 'Le compte est bon. Ouvre le calendrier de WordPress sur la même période : tu dois y lire le même nombre (sans les annulés).' : 'Écart de ' + r.gap + ' : ' + (r.wordpress.n > r.here.n ? 'ce sont les rendez-vous à venir que la reprise n’a pas pu placer (prestation ou barbier sans correspondance) ou qui ont été annulés ici depuis. Ils sont dans « Lignes à regarder », À faire.' : 'des rendez-vous repris plus tôt ne sont plus dans cet export, ou la période exportée est plus courte.')}</span>
+      </Note>
+      {r.days.length ? (
+        <details className="wr-days" open={!even || off > 0}>
+          <summary>Par barbier et par jour, les 14 prochains jours{off ? ' · ' + plural(off, 'écart') : ' · tout correspond'}</summary>
+          <div className="table-wrap">
+            <table className="table wr-table wr-days-t">
+              <caption className="vh">Rendez-vous à venir par jour et par barbier : dans WordPress, et ici</caption>
+              <thead><tr><th scope="col">Jour</th><th scope="col">Barbier</th><th scope="col" className="num">WordPress</th><th scope="col" className="num">Ici</th><th scope="col"><span className="vh">Agenda</span></th></tr></thead>
+              <tbody>{r.days.map((x) => (
+                <tr key={x.day + x.staffId + x.staff} className={x.wordpress !== x.here ? 'wr-gap' : undefined}>
+                  <th scope="row" data-label="Jour">{cap(dates.dayShort(x.day))}</th>
+                  <td data-label="Barbier">{x.staff}</td>
+                  <td className="num" data-label="WordPress">{x.wordpress}</td>
+                  <td className="num" data-label="Ici">{x.here}{x.wordpress !== x.here ? <Icon name="alert" size={14} /> : null}</td>
+                  <td className="wr-more"><Link to={'/agenda?day=' + x.day} className="wr-day-link" aria-label={'Voir l’agenda du ' + dm(x.day)}><Icon name="calendar" size={16} /></Link></td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
+        </details>
+      ) : <p className="faint" style={{ fontSize: 12.5 }}>Aucun rendez-vous à venir dans les 14 prochains jours.</p>}
+    </div>
   );
 }
 
@@ -179,7 +239,7 @@ function Recent({ runs, id, onPick, halted }: { runs: Summary[]; id: string; onP
               <small>{bits.join(' · ')}</small>
             </button>
             {r.id === id ? <span className="badge">Affichée</span> : null}
-            <span className={'badge ' + (r.finishedAt ? 'badge-ok' : going(r, now()) && r.id !== halted ? 'badge-info' : 'badge-warn')}>{r.finishedAt ? 'Terminée' : going(r, now()) && r.id !== halted ? 'En cours' : 'Interrompue'}</span>
+            <span className={'badge ' + (r.undoneAt ? 'badge-warn' : r.finishedAt ? 'badge-ok' : going(r, now()) && r.id !== halted ? 'badge-info' : 'badge-warn')}>{r.undoneAt ? 'Annulée' : r.finishedAt ? 'Terminée' : going(r, now()) && r.id !== halted ? 'En cours' : 'Interrompue'}</span>
           </li>
         );
       })}</ul>

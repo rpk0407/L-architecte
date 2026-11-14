@@ -5,7 +5,7 @@ import { fail } from '../core/engine.js';
 import { str, int, bool, opt, obj, arr, id, oneOf, money, record, day as dayField, parse } from '../lib/validate.js';
 import { ticketTotals } from '../../shared/money.js';
 import { maxDiscountPct } from '../domain/permissions.js';
-import { drawerExpected, dayTotals, zRecord, missedZ, hadTill, dayWords, refundNo, ticketNo } from '../domain/cash.js';
+import { drawerExpected, heldCash, dayTotals, zRecord, missedZ, hadTill, dayWords, refundNo, ticketNo } from '../domain/cash.js';
 import { getService, getProduct, getClient, getAppt, getStaff } from './common.js';
 import { giftCode, normGiftCode, normPhone, sha256 } from '../lib/util.js';
 import { addDays, isDay, fmtTime, MONTHS_FR } from '../../shared/dates.js';
@@ -66,6 +66,19 @@ export const checkout = {
     if (s.closures.has(day)) fail(409, 'day_closed', 'La journée est clôturée : plus aucun encaissement possible aujourd’hui.');
     const P = s.settings.payments;
     const appt = x.apptId ? getAppt(s, x.apptId) : null;
+    // on the barber's phone (PhoneCheckout): the owner's switch, and a barber rings up his own appointment only
+    const phone = input.phone === true && ctx.actor.t === 'staff';
+    const pocket = phone && ctx.staff && ctx.staff.role === 'barber';
+    if (phone) {
+      ctx.need('sale.phone');
+      if (!appt) fail(400, 'invalid', 'Sur le téléphone, on encaisse un rendez-vous.');
+      if (pocket && appt.staffId !== ctx.staff.id) fail(403, 'own', 'Sur ton téléphone, tu encaisses tes propres clients.');
+      // today's client, once he is there: never a booking of another day, one not started, or one marked absent
+      if (appt.status !== 'done' && !appt.saleId && appt.status !== 'cancelled') {
+        const started = appt.status === 'in_chair' || ((appt.status === 'booked' || appt.status === 'arrived') && appt.start <= ctx.local.min);
+        if (appt.day !== day || !started) fail(409, 'not_yet', 'Ce rendez-vous ne s’encaisse pas maintenant : le client doit être là aujourd’hui.');
+      }
+    }
     if (appt && (appt.status === 'done' || appt.saleId)) fail(409, 'paid', 'Ce rendez-vous est déjà encaissé.');
     if (appt && appt.status === 'cancelled') fail(409, 'cancelled', 'Ce rendez-vous est annulé.');
     // online: the buyer's file sellGiftcardOnline adds in this same command (not in the state yet)
@@ -198,7 +211,7 @@ export const checkout = {
       if (!ctx.can('sale.discount')) fail(403, 'discount', 'Tu ne peux pas faire de remise.');
       const base = lines.filter((l) => l.kind !== 'giftcard').reduce((t, l) => t + l.unit * l.qty - (l.reward ? l.reward.amount : 0), 0);
       const pct = base ? (granted * 100) / base : 100;
-      if (pct > maxDiscountPct(ctx.staff, s.settings) + 0.001) fail(403, 'discount', `Remise maximale : ${maxDiscountPct(ctx.staff, s.settings)} %.`);
+      if (pct > maxDiscountPct(ctx.staff, s.settings) + 0.001) fail(403, 'discount', `Remise maximale pour ton rôle : ${maxDiscountPct(ctx.staff, s.settings)} %. Au-delà, c’est le gérant ou le responsable qui la fait.`, { max: maxDiscountPct(ctx.staff, s.settings) });
       if (x.discount && x.discount.amount > 0 && !x.discount.reason) fail(400, 'invalid', 'Indique la raison de la remise.');
     }
     const why = x.discount ? x.discount.reason || '' : '';
@@ -216,10 +229,12 @@ export const checkout = {
       const out = { method: p.method, amount: p.amount };
       if (p.method === 'cash') {
         if (!P.cash) fail(409, 'off', 'Les espèces sont désactivées.');
-        if (!s.drawer) fail(409, 'drawer_closed', 'La caisse n’est pas ouverte. Ouvre-la avec le fond de caisse.');
+        // cash a barber takes on his phone stays with him until he hands it to the drawer (moveDrawer staffId)
+        if (pocket && s.settings.team.barberPhoneCash === false) fail(403, 'cash', 'Le gérant n’autorise pas les espèces sur ton téléphone : carte ou QR, ou passe à l’accueil.');
+        if (!pocket && !s.drawer) fail(409, 'drawer_closed', 'La caisse n’est pas ouverte. Ouvre-la avec le fond de caisse.');
         const given = p.given ?? p.amount;
         if (given < p.amount) fail(400, 'invalid', 'Le montant reçu est inférieur à la somme due.');
-        Object.assign(out, { given, change: given - p.amount, drawerId: s.drawer.id });
+        Object.assign(out, { given, change: given - p.amount, ...(pocket ? { heldBy: ctx.staff.id } : { drawerId: s.drawer.id }) });
       } else if (p.method === 'card') {
         if (!P.card) fail(409, 'off', 'Le paiement par carte est désactivé.');
       } else if (p.method === 'online' || p.method === 'deposit') {
@@ -456,7 +471,8 @@ export function checkRefund(s, input, ctx) {
   const x = parse(refundSchema, input);
   const sale = s.sales.get(x.saleId);
   if (!sale) fail(404, 'not_found', 'Ticket introuvable.');
-  if (s.closures.has(ctx.local.day)) fail(409, 'day_closed', 'La journée est clôturée.');
+  // a credit note is dated the day it is made: once today's Z is sealed, the next one belongs to tomorrow's till
+  if (s.closures.has(ctx.local.day)) fail(409, 'day_closed', 'La journée est clôturée : l’avoir se fera demain, daté de demain.');
   const plan = refundPlan(s, sale);
   // a month of a membership that still runs goes back through its withdrawal or cancellation (commands/memberships.js),
   // which end the contract first: a credit note at the till would leave the member covered and renewing
@@ -492,7 +508,8 @@ export function checkRefund(s, input, ctx) {
     if (x.amount < liability) fail(400, 'invalid', 'Une carte cadeau annulée se rembourse en entier (' + eu(liability) + ').');
     // what was already given back without lines comes off what these lines may still take
     const room = plan.free + picked.filter((o) => o.kind === 'pack').reduce((t, o) => t + Math.max(0, o.value), 0);
-    if (max - liability > room) fail(409, 'refunded', 'Une partie du ticket est déjà remboursée : au plus ' + eu(room + liability) + ' pour ces lignes, ou rembourse un montant sans ligne.', { max: room + liability });
+    // (whatever the amount typed: the lines ticked are worth more than what is left, so the way out is an amount without a line)
+    if (max - liability > room) fail(409, 'refunded', 'Une partie du ticket est déjà remboursée sans ligne : ces lignes valent plus que ce qui reste. Décoche-les et rembourse un montant, au plus ' + eu(room + liability) + '.', { max: room + liability });
     // less than the lines are worth: each line gives back its share (a gift card always its whole value), so the
     // credit note's lines add up to its amount, the VAT below follows them and what is left of a line stays its own
     if (x.amount < max) {
@@ -662,7 +679,7 @@ export const openDrawer = {
     ctx.need('drawer');
     const float = parse(money(500000), input.float);
     if (s.drawer) fail(409, 'open', 'La caisse est déjà ouverte.');
-    if (s.closures.has(ctx.local.day)) fail(409, 'day_closed', 'La journée est clôturée.');
+    if (s.closures.has(ctx.local.day)) fail(409, 'day_closed', 'La journée est clôturée : la caisse se rouvre demain.');
     const did = ctx.id('dr');
     ctx.emit('drawer.opened', { id: did, float, day: ctx.local.day });
     return { id: did };
@@ -671,11 +688,17 @@ export const openDrawer = {
 export const moveDrawer = {
   run(s, input, ctx) {
     ctx.need('drawer');
-    const x = parse(obj({ amount: int({ min: -1000000, max: 1000000 }), reason: str({ min: 2, max: 80 }) }), input);
+    const x = parse(obj({ amount: int({ min: -1000000, max: 1000000 }), reason: str({ min: 2, max: 80 }), staffId: opt(id()) }), input);
     if (!s.drawer) fail(409, 'closed', 'La caisse n’est pas ouverte.');
     if (!x.amount) fail(400, 'invalid', 'Indique un montant.');
     if (x.amount < 0 && drawerExpected(s, s.drawer) + x.amount < 0) fail(409, 'invalid', 'Il n’y a pas autant d’espèces dans la caisse.');
-    ctx.emit('drawer.moved', { id: ctx.id('dm'), drawerId: s.drawer.id, amount: x.amount, reason: x.reason });
+    // a barber's cash put in the drawer: never more than he holds
+    if (x.staffId) {
+      const st = getStaff(s, x.staffId);
+      const held = heldCash(s).get(st.id) || 0;
+      if (x.amount < 0 || x.amount > held) fail(409, 'invalid', st.name + ' a ' + fmtEur(held) + ' en espèces à remettre.', { held });
+    }
+    ctx.emit('drawer.moved', { id: ctx.id('dm'), drawerId: s.drawer.id, amount: x.amount, reason: x.reason, ...(x.staffId ? { staffId: x.staffId } : {}) });
     return { ok: true };
   }
 };

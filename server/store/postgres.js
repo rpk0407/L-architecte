@@ -3,6 +3,7 @@
 // the primary key on (epoch, v) is what makes two simultaneous writers impossible.
 import pg from 'pg';
 import { randomBytes } from 'node:crypto';
+import { GENESIS } from '../core/journal.js';
 
 /** @typedef {import('./memory.js').Store} Store */
 /** @typedef {import('../core/journal.js').JEvent} JEvent */
@@ -93,8 +94,11 @@ export function postgresStore(o) {
         await client.query('begin');
         const cur = (await client.query(`select v from lx_meta where k = 'epoch'`)).rows[0].v;
         if (cur !== ep) { await client.query('rollback'); return { ok: false }; }
-        const max = Number((await client.query(`select coalesce(max(v), 0) as m from lx_events where epoch = $1`, [ep])).rows[0].m);
-        if (list[0].v !== max + 1) { await client.query('rollback'); return { ok: false }; }
+        // the last event stored: the append must follow its version and be chained to its hash (a write sealed on events
+        // this journal never held has the right version and the wrong `p`). Events are never updated but for their pii,
+        // and the primary key still refuses a version someone else takes after this read.
+        const last = (await client.query(`select v, h from lx_events where epoch = $1 order by v desc limit 1`, [ep])).rows[0];
+        if (list[0].v !== (last ? Number(last.v) : 0) + 1 || list[0].p !== (last ? last.h : GENESIS)) { await client.query('rollback'); return { ok: false }; }
         for (let i = 0; i < list.length; i += 400) {
           const chunk = list.slice(i, i + 400);
           const params = [];

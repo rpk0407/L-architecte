@@ -1,8 +1,26 @@
 // @ts-check
 // Messages: which automatic SMS go out, when, and the owner's version of each text; whether clients also get e-mails;
-// which ones go by WhatsApp, with which approved template (MSG-02).
-import { str, int, bool, opt, obj, arr, record, nullable, InvalidInput } from '../lib/validate.js';
+// which way the texts to clients leave (SMS, WhatsApp by hand from the salon's phone, WhatsApp automatic through Meta),
+// and for the automatic way, which approved template each one uses (MSG-02).
+import { str, int, bool, opt, obj, arr, record, nullable, oneOf, InvalidInput } from '../lib/validate.js';
 import { TEMPLATES, classOf } from '../core/templates.js';
+import { waMobile } from '../messaging/whatsapp.js';
+
+/** The ways the service texts to clients leave. 'sms': a provider's SMS; 'phone': WhatsApp, by hand, from the Comptoir's
+ *  Messages screen (one tap per message, no account); 'auto': WhatsApp through Meta's API, with approved templates. */
+export const WA_MODES = /** @type {const} */ (['sms', 'phone', 'auto']);
+/**
+ * The way chosen in Réglages. A salon set up before the choice existed only has `enabled` (true: automatic).
+ * @returns {'sms'|'phone'|'auto'}
+ */
+export function waMode(M) {
+  const w = (M && M.whatsapp) || {};
+  return WA_MODES.includes(w.mode) ? w.mode : w.enabled ? 'auto' : 'sms';
+}
+/** The salon's own WhatsApp number as wa.me takes it (digits, country code), or '': the site's button needs it. */
+export const salonWhatsapp = (M) => waMobile((M && M.whatsapp && M.whatsapp.number) || '');
+/** The keys a WhatsApp template can be given for: the texts the server sends, and 'moved' (a confirmation after a move). */
+const WA_KEYS = () => [...Object.keys(TEMPLATES), 'moved'];
 
 // France, Belgium, Switzerland, Luxembourg and French overseas (+262 La Réunion and Mayotte, +590 Guadeloupe and the
 // Saint-Martin/Saint-Barthélemy islands, +594 Guyane, +596 Martinique, +508 Saint-Pierre-et-Miquelon, +681 Wallis-et-Futuna,
@@ -34,7 +52,9 @@ const waVar = () => ({
 /** The mapping, one entry per text the server sends: a service text's template, or null to take one out (a relation or
  *  marketing text can only be taken out, never mapped). */
 const waTemplates = () => {
-  const rec = record(new RegExp('^(' + Object.keys(TEMPLATES).join('|') + ')$'), nullable(obj({ id: int({ min: 1 }), params: arr(waVar(), { max: 10 }) })), { max: Math.max(20, Object.keys(TEMPLATES).length) });
+  // name: the template's name at Meta (lowercase letters, digits, underscores); lang: its language there (fr, fr_FR…)
+  const entry = obj({ name: str({ min: 1, max: 120, pattern: /^[a-z0-9_]+$/ }), lang: opt(str({ min: 2, max: 10, pattern: /^[a-z]{2,3}(_[A-Z]{2})?$/ })), params: arr(waVar(), { max: 10 }) });
+  const rec = record(new RegExp('^(' + WA_KEYS().join('|') + ')$'), nullable(entry), { max: Math.max(20, WA_KEYS().length) });
   return {
     parse(x, p) {
       const out = rec.parse(x, p);
@@ -43,6 +63,17 @@ const waTemplates = () => {
     }
   };
 };
+
+/** The salon's WhatsApp number as typed ("06 12 34 56 78", "+33 6…"), kept as "+33612345678"; '' clears it. */
+const waSalonNumber = () => ({
+  parse(x, p) {
+    if (typeof x !== 'string' || x.length > 30) throw new InvalidInput(p, 'numéro attendu');
+    if (!x.trim()) return '';
+    const n = waMobile(x);
+    if (!n) throw new InvalidInput('', 'Ce numéro n’est pas un portable WhatsApp. Exemple : 06 12 34 56 78.');
+    return '+' + n;
+  }
+});
 
 export default /** @type {const} */ ({
   key: 'messages',
@@ -55,9 +86,15 @@ export default /** @type {const} */ ({
     countries: [...COUNTRIES],
     // WP-02: the confirmation (with the calendar file) and the cancellation also by e-mail, to clients who gave one
     email: true,
-    // MSG-02: by WhatsApp when switched on and the text has an approved template here ({ id: Brevo's template id, params:
-    // the variables in the template's order}); a text without one goes by SMS. null takes a mapping out.
-    whatsapp: { enabled: false, templates: /** @type {Record<string, { id: number, params: string[] } | null>} */ ({}) }
+    // the reminder of the evening before also by e-mail, to clients who gave an address (with the « Gérer mon rendez-vous »
+    // link). Off until the owner decides. Whatever it says, a confirmation or a reminder whose SMS failed for good goes
+    // once by e-mail when `email` is on, and a booking that missed the evening reminder gets the 2-hours one (system.js)
+    reminderEmail: false,
+    // MSG-02: by WhatsApp when switched on and the text has an approved template here ({ name: the template's name at
+    // Meta, lang: its language, params: the variables in the template's order}); a text without one goes by SMS, or
+    // waits for a person on the Messages screen. null takes a mapping out. `mode` ('sms', 'phone', 'auto': waMode above)
+    // and `number` (the salon's own WhatsApp number, for the site's button) are absent until the owner chooses.
+    whatsapp: { enabled: false, templates: /** @type {Record<string, { name: string, lang?: string, params: string[] } | null>} */ ({}) }
   }),
   schema: obj({
     confirmation: opt(bool()), reminder: opt(bool()), reminderHour: opt(int({ min: 8, max: 21 })), reminder2h: opt(bool()), review: opt(bool()),
@@ -68,9 +105,12 @@ export default /** @type {const} */ ({
     // it can be reworded, never removed
     stopSuffix: opt(str({ min: 6, max: 40, trim: false, pattern: /\bSTOP\b/ })),
     countries: opt(arr(str({ min: 2, max: 5, pattern: /^\+\d{1,4}$/ }), { min: 1, max: 40 })),
-    email: opt(bool()),
+    email: opt(bool()), reminderEmail: opt(bool()),
     whatsapp: opt(obj({
       enabled: opt(bool()),
+      mode: opt(oneOf(WA_MODES)),
+      // '' takes it out; else a mobile a chat can be opened with (a landline is refused: the button would open nothing)
+      number: opt(waSalonNumber()),
       templates: opt(waTemplates())
     }))
   })

@@ -112,6 +112,66 @@ export function mergedFill(from, into) {
   return fill;
 }
 
+/* ---------------- bulk (WP8): one tag on many files, one write ---------------- */
+
+/** The most files one bulk request may name: over it the request is refused whole (http/routes-bulk.js says it in words). */
+export const BULK_MAX = 2000;
+/** the tags one file holds at most (the `tags` field above) */
+const TAGS_MAX = 8;
+const tagSchema = obj({ ids: arr(id(), { min: 1, max: BULK_MAX }), tag: str({ min: 1, max: 24 }), remove: opt(bool()) });
+/**
+ * Add a tag to many files, or take it off (`remove`). One run = one append of the journal: every file that changes gets
+ * the event a single edit writes (client.updated { patch: { tags } }, no personal data), all of them or none. The rights
+ * are those of the single edit (updateClient): `client.edit`, and `agenda.edit` for the tag that spares the deposit.
+ * A file that already has the tag (or never had it) gets no event; an erased, merged or unknown id is counted in
+ * `missing`, a file already at 8 tags in `full`: neither stops the others. `ids`: the files that really changed, which
+ * is what « Annuler » sends back with the inverse (the files that had the tag before keep it).
+ */
+export const tagClients = {
+  run(s, input, ctx) {
+    ctx.need('client.edit');
+    const x = parse(tagSchema, input);
+    // sparing clients the deposit asked of those who missed is a money decision: who edits every booking takes it
+    if (x.tag === TRUSTED) ctx.need('agenda.edit');
+    const remove = !!x.remove;
+    const ids = [...new Set(x.ids)];
+    const changed = [];
+    let unchanged = 0, missing = 0, full = 0;
+    for (const cid of ids) {
+      const c = s.clients.get(cid);
+      if (!c || c.erased || c.mergedInto) { missing++; continue; }
+      const tags = c.tags || [];
+      if (tags.includes(x.tag) !== remove) { unchanged++; continue; }
+      if (!remove && tags.length >= TAGS_MAX) { full++; continue; }
+      ctx.emit('client.updated', { id: c.id, cid: c.id, patch: { tags: remove ? tags.filter((t) => t !== x.tag) : [...tags, x.tag] }, fields: [] });
+      changed.push(c.id);
+    }
+    return { tag: x.tag, remove, matched: ids.length, changed: changed.length, unchanged, missing, full, ids: changed };
+  },
+  /** a retry on an instance that never saw the first answer: the files its events changed (the rest is not in the journal) */
+  replay(events) {
+    const ids = events.filter((e) => e.type === 'client.updated').map((e) => e.data.id);
+    return { matched: ids.length, changed: ids.length, unchanged: 0, missing: 0, full: 0, ids };
+  }
+};
+
+const exportedSchema = obj({ count: int({ min: 1, max: BULK_MAX }), by: str({ min: 1, max: 12, pattern: /^(ids|filter)$/ }), segment: opt(str({ max: 24, pattern: /^[a-z]*$/ })), search: opt(bool()) });
+/**
+ * An export of client files leaves a line in the journal: who, when, how many, by a selection or by a filter (which
+ * segment, and whether a search narrowed it), never whom and never the words searched. Written as the technical log's
+ * « export » entry (tech.logged { kind: 'export' }, projections/fiscal.js): it shows in Réglages › Journal d’activité
+ * under the person's name, and in the technical log. No file is sent unless this was written (http/routes-bulk.js).
+ */
+export const logClientExport = {
+  run(s, input, ctx) {
+    ctx.need('client.export');
+    const x = parse(exportedSchema, input);
+    ctx.emit('tech.logged', { kind: 'export', what: 'clients', count: x.count, by: x.by, ...(x.segment ? { segment: x.segment } : {}), ...(x.search ? { search: true } : {}) });
+    return { ok: true, count: x.count };
+  },
+  replay(events) { const e = events.find((x) => x.type === 'tech.logged'); return { ok: true, count: e ? e.data.count : 0 }; }
+};
+
 const distinctSchema = obj({ a: id(), b: id() });
 /** Two files the duplicate finder pairs, that are in fact two people (two Yanis Benali): never suggested again. */
 export const markDistinct = {
@@ -254,6 +314,9 @@ export const eraseClient = {
     if (open.memberships.length) fail(409, 'member', 'Cette fiche a un abonnement en cours : résilie-le d’abord.', { open });
     if ((open.appts.length || open.packs.length || open.giftcards.length) && !x.cancelUpcoming) fail(409, 'open', 'Cette fiche a encore ' + openWords(open) + '.', { open });
     const ids = fileIds(s, c);
+    // a child's file booked by this parent on the site (ext.parent): no phone, only his first name and age, reachable only
+    // through the parent; it leaves with the parent's file
+    for (const k of s.clients.values()) if (!k.erased && k.ext && k.ext.parent && ids.includes(k.ext.parent) && !ids.includes(k.id)) ids.push(k.id);
     const texts = [];
     for (const o of open.appts) {
       const a = s.appts.get(o.id);
@@ -270,12 +333,23 @@ export const eraseClient = {
     if (texts.length) return { ...done, erased: false, texts };
     // nobody to offer a freed slot to any more
     const idSet = new Set(ids);
-    for (const w of s.waitlist.values()) if (idSet.has(w.clientId) && (w.status === 'waiting' || w.status === 'offered')) {
+    // what the same person typed before the file existed, or beside it: a waiting-list entry, a walk-in, a text to that
+    // number carry no file, so the erasure names them by id (drop: their personal data leaves the store with the file's)
+    const phones = new Set(ids.map((cid) => (s.clients.get(cid) || {}).phone).filter(Boolean));
+    const theirs = (x, fileId) => !fileId && !!x && phones.has(x);
+    const loose = [];
+    for (const w of s.waitlist.values()) {
+      const own = idSet.has(w.clientId), same = theirs(w.phone, w.clientId);
+      if (!own && !same) continue;
+      if (same) loose.push(w.id);
+      if (w.status !== 'waiting' && w.status !== 'offered') continue;
       ctx.emit('waitlist.updated', { id: w.id, patch: { status: 'removed' } });
       if (w.offer && w.offer.holdId && s.holds.has(w.offer.holdId)) ctx.emit('hold.released', { id: w.offer.holdId });
     }
+    for (const q of s.queue.values()) if (theirs(q.phone, q.clientId)) loose.push(q.id);
+    for (const m of s.messages.values()) if (theirs(m.to, m.cid)) loose.push(m.id);
     // a referral names the other person too (FID-02): its events are dropped by id, whichever side is erased
-    const linked = referralEventIds(s, ids);
+    const linked = [...referralEventIds(s, ids), ...loose];
     ctx.emit('client.erased', { id: c.id, cid: c.id, ids, tombs: tombsOfFiles(s, ids, ctx.meta.tombKey), ...(linked.length ? { drop: linked } : {}) });
     return { ...done, erased: true, texts };
   }

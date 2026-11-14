@@ -11,6 +11,7 @@ import { Button, Empty, Note, Skeleton, toast, toastError } from '../../../../ui
 import { REVIEW_HOWTO, REVIEW_KIND, reviewLinkKind } from '../../../../lib/reviews';
 import { useApp } from '../../../state';
 import { startTour } from '../../../guide/ComptoirTour';
+import Preset from './Preset';
 import './mise-en-route.css';
 
 type Channel = { provider: string | null; failed24h: number; queuedNoProvider: number };
@@ -97,12 +98,12 @@ export function stepsOf(h: Health, robots: boolean | null, countries: string[], 
 
   out.push({ id: 'menu', title: 'Carte', tone: st.services.online ? 'ok' : 'todo', to: '/catalogue', go: 'Catalogue',
     line: st.services.online ? s(st.services.online, 'prestation visible', 'prestations visibles') + ' sur le site.'
-      : st.services.active ? 'Aucune prestation n’est réservable en ligne : le site n’a rien à proposer.' : 'Aucune prestation : reprends la carte de l’ancien site en un geste.' });
+      : st.services.active ? 'Aucune prestation n’est réservable en ligne : le site n’a rien à proposer.' : 'Aucune prestation : « Le salon, en un geste » ci-dessus crée la carte de l’ancien site.' });
 
   const chairs = st.team.chairs;
   const noPin = chairs.filter((c) => !c.pin).map((c) => c.name);
   out.push({ id: 'team', title: 'Équipe', tone: chairs.length && !noPin.length ? 'ok' : 'todo', to: '/equipe', go: 'Équipe',
-    line: !chairs.length ? 'Aucun fauteuil : ajoute chaque barbier avec son code, l’agenda s’ouvre avec eux.'
+    line: !chairs.length ? 'Aucun fauteuil : « Le salon, en un geste » ci-dessus crée les quatre barbiers avec leurs horaires, puis donne un code à chacun.'
       : noPin.length ? 'Sans code : ' + noPin.join(', ') + '. Sans code, pas de connexion sur la tablette.' : s(chairs.length, 'fauteuil') + ', chacun avec son code.' });
 
   out.push({ id: 'device', title: 'Tablette enregistrée', tone: st.devices ? 'ok' : 'todo', to: '/reglages/appareils', go: 'Appareils',
@@ -130,10 +131,10 @@ export function stepsOf(h: Health, robots: boolean | null, countries: string[], 
     extra: <TestSms disabled={!demo && !sms.provider} /> });
 
   const em = h.email;
-  out.push({ id: 'email', title: 'E-mail', to: '/reglages/messages', go: 'Messages',
+  out.push({ id: 'email', title: 'E-mail', to: '/reglages/ionos', go: 'Connexion IONOS',
     tone: demo ? 'info' : !em.provider ? 'todo' : em.failed24h ? 'warn' : 'ok',
     line: demo ? 'Démo : les e-mails sont simulés.'
-      : !em.provider ? 'Pas encore branché' + (em.queuedNoProvider ? ' : ' + s(em.queuedNoProvider, 'e-mail attend', 'e-mails attendent') + '.' : ' : aucun e-mail ne part (confirmation, résumé du soir).')
+      : !em.provider ? 'Pas encore branché' + (em.queuedNoProvider ? ' : ' + s(em.queuedNoProvider, 'e-mail attend', 'e-mails attendent') + '.' : ' : aucun e-mail ne part (confirmation, résumé du soir).') + ' Connexion IONOS donne les valeurs de ta boîte à taper dans Vercel.'
         : 'Branché' + (em.failed24h ? ', mais ' + s(em.failed24h, 'e-mail a échoué', 'e-mails ont échoué') + ' en 24 h.' : '.') + (st.import.hold.on ? ' Les e-mails aux clients attendent la bascule (Jour J).' : '') });
 
   // REV-02: the link the review request leads to must open the Google review form, not the profile or the map
@@ -170,7 +171,8 @@ export function stepsOf(h: Health, robots: boolean | null, countries: string[], 
   if (!h.indexable) dom.push('indexation coupée (LX_INDEX)');
   if (robots === false && h.indexable) dom.push('robots.txt ferme encore le site : redéploie');
   out.push({ id: 'domain', title: 'Domaine et indexation', tone: !dom.length && robots !== false ? 'ok' : 'todo', to: '/', go: 'Voir le site', external: true,
-    line: dom.length ? cap1(dom.join(' ; ')) + '.' : h.publicUrl.replace(/^https:\/\//, '') + ' répond et Google peut indexer le site.' });
+    line: dom.length ? cap1(dom.join(' ; ')) + '.' : h.publicUrl.replace(/^https:\/\//, '') + ' répond et Google peut indexer le site.',
+    more: <>Le jour J seulement : les deux lignes à changer chez IONOS, et « Vérifier », sont dans <Link to="/reglages/ionos" className="link">Connexion IONOS</Link>.</> });
 
   out.push({ id: 'booking', title: 'Réservation test de bout en bout', tone: st.siteBooking ? 'ok' : 'todo', to: '/?reserver', go: 'Réserver sur le site', external: true,
     line: st.siteBooking ? 'Dernière réservation faite sur le site ' + since(st.siteBooking) + '.'
@@ -253,7 +255,7 @@ const ICON: Record<Tone, string> = { ok: 'check', todo: '', warn: 'alert', err: 
 const WORD: Record<Tone, string> = { ok: 'fait', todo: 'à faire', warn: 'à vérifier', err: 'en panne', info: 'démo' };
 
 export default function MiseEnRoute() {
-  const { boot, now } = useApp();
+  const { boot, now, can } = useApp();
   const { data, error, loading, refresh } = useHealth();
   const robots = useRobots();
   if (loading && !data) return <Skeleton h={520} r={22} />;
@@ -276,6 +278,8 @@ export default function MiseEnRoute() {
           <Button variant="subtle" icon="sparkle" onClick={() => startTour('tour', 'start')}>Revoir la visite</Button>
         </div>
       </section>
+      {/* the real salon in one confirmed step: the team, the menu, the hours (not in the demo, which has its own salon) */}
+      {data.mode === 'production' && can('settings') ? <Preset /> : null}
       <ol className="mr-list" aria-label="Étapes de mise en route" data-guide="mer-list">
         {steps.map((x, i) => (
           <li key={x.id} className={'mr-step ' + x.tone} data-step={x.id} data-done={x.tone === 'ok' ? '1' : '0'}>

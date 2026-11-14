@@ -41,7 +41,7 @@ export type FileReport = {
   at?: number; newest?: number;
 };
 export type Period = { from: string; to: string };
-export type Problem = { file: string; line: number; text: string; kind?: 'status-unknown'; wp?: number };
+export type Problem = { file: string; line: number; text: string; kind?: 'status-unknown'; wp?: number; /** the cells of the line and of its file's header, as they were read: the CSV to fix and drop again (fixCsv) */ raw?: string[]; head?: string[] };
 export type Parsed = {
   bookings: WpBooking[]; clients: WpClient[]; giftcards: WpGift[]; packs: WpPack[]; files: FileReport[]; problems: Problem[];
   /** the periods the files cover (a CSV with its « de / à » preamble); WXR and a CSV without one cover nothing */
@@ -472,14 +472,14 @@ export function readFiles(files: { name: string; text: string; modified?: number
         const r = rows[i], c = h.c;
         const wp = wpIdOf(cell(r, c.id));
         const line = lineOf(i);
-        if (!wp) { problems.push({ file: f.name, line, text: 'Ligne sans ID' }); bad++; continue; }
+        if (!wp) { problems.push({ file: f.name, line, text: 'Ligne sans ID', raw: r, head: rows[h.at] }); bad++; continue; }
         // the same booking in two exports: the one read from the most recently modified file stands
         const prior = src.get(wp);
         if (prior && !(mod > prior.mod)) { dupes++; continue; }
         const when = parseWhen(cell(r, c.when), { monthFirst });
         const status = parseStatus(cell(r, c.status));
-        if (!when) { problems.push({ file: f.name, line, wp, text: 'Date illisible : « ' + cell(r, c.when).replace(/\s+/g, ' ').slice(0, 40) + ' »' }); bad++; unreadable.add(wp); continue; }
-        if (!status) { problems.push({ file: f.name, line, wp, text: 'État inconnu : « ' + cell(r, c.status).replace(/\s+/g, ' ').slice(0, 40) + ' »' }); bad++; unreadable.add(wp); continue; }
+        if (!when) { problems.push({ file: f.name, line, wp, text: 'Date illisible : « ' + cell(r, c.when).replace(/\s+/g, ' ').slice(0, 40) + ' »', raw: r, head: rows[h.at] }); bad++; unreadable.add(wp); continue; }
+        if (!status) { problems.push({ file: f.name, line, wp, text: 'État inconnu : « ' + cell(r, c.status).replace(/\s+/g, ' ').slice(0, 40) + ' »', raw: r, head: rows[h.at] }); bad++; unreadable.add(wp); continue; }
         if (prior) { const old = reports[prior.rep]; old.rows--; old.dupes = (old.dupes || 0) + 1; }
         const created = cell(r, c.created) ? parseWhen(cell(r, c.created), { monthFirst }) : null;
         const { price, deposit } = parsePrice(cell(r, c.price));
@@ -706,7 +706,9 @@ export function chunks<T>(rows: T[], max = 150, bytes = 48000): T[][] {
 
 export type Mapping = { services: Record<string, string>; staff: Record<string, string> };
 export const LEGACY = 'legacy';
-export type ReviewRow = { wp?: number; day?: string; start?: number; name: string; text: string; kind?: string };
+export type ReviewRow = { wp?: number; day?: string; start?: number; name: string; text: string; kind?: string; /** the barber's or the service's name on the old site, for the one gesture that settles the line (« Fais correspondre ») */ of?: string };
+/** A barber's hours on a day (POST /api/v1/import/preview, `open`): the same check as the batch makes, before anything is written. */
+export type Open = { day: string; staffId: string; iv: [number, number][]; shut: boolean };
 export type Identity = { phone?: string; prefix?: string; email?: string; wpUser?: number };
 /** Where a booking an earlier run brought in stands now (POST /api/v1/import/preview). */
 export type Prior = {
@@ -951,6 +953,8 @@ export type Busy = { day: string; staffId: string; start: number; dur: number };
 export type PreviewOpts = {
   known?: Set<number>; again?: Set<number>; erased?: Map<number, number>; imported?: Map<number, Prior>; chairs?: Set<string>; today?: string;
   inWindow?: InWindow[]; busy?: Busy[]; svcDur?: Record<string, { dur: number; buffer?: number }>;
+  /** the barbers' hours on the days to come; and how each known group finds its file (its number, or its e-mail) */
+  open?: Open[]; via?: Map<number, 'phone' | 'email'>;
   /** the cards and carnets of the files (by index) the salon already has: a second drop is no work */
   haveCards?: Set<number>; haveCarnets?: Set<number>;
 };
@@ -1043,6 +1047,7 @@ export function preview(p: Parsed, map: Mapping, now: number, o: PreviewOpts = {
   const { P, g, cg, out: left, left: isLeft } = plan(p, { known, again, erased, today, map, now, chairs: o.chairs });
   const eff = effective(p);
   const groups = new Set<number>();
+  const mergedBy = { phone: 0, email: 0 };
   const counts = { newClients: 0, merged: 0, past: 0, noShow: 0, upcoming: 0, cancelled: 0, skipped: 0, unmapped: 0, already: 0, toCancel: 0, toMove: 0, toClose: 0, toReopen: 0, toUpdate: 0, erased: 0, giftcards: p.giftcards.filter((_, i) => !o.haveCards?.has(i)).length, packs: p.packs.filter((_, i) => !o.haveCarnets?.has(i)).length };
   const review: ReviewRow[] = [];
   /** the chairs' bookings per day: the agenda's first, then this run's own */
@@ -1054,6 +1059,10 @@ export function preview(p: Parsed, map: Mapping, now: number, o: PreviewOpts = {
     const sv = [...new Set(b.services.map((n) => svcOf(map, n)).filter(Boolean))].map((id) => o.svcDur?.[id]).filter(Boolean) as { dur: number; buffer?: number }[];
     return sv.length ? sv.reduce((t, x) => t + x.dur, 0) + Math.max(0, ...sv.map((x) => x.buffer || 0)) : 30;
   };
+  const hours = new Map((o.open || []).map((x) => [x.day + '|' + x.staffId, x]));
+  /** the first name each number came with, and the people each full name stands for: said before anything is written */
+  const firstOf = new Map<string, string>(), namesakes = new Map<string, Map<number, { wp: number; day: string; start: number; name: string }>>();
+  const differs = (a?: string, b?: string) => { const x = flat(a || ''), y = flat(b || ''); return !!x && !!y && !x.startsWith(y) && !y.startsWith(x); };
   let retentionRows = 0;
   p.bookings.forEach((b, i) => {
     const gi = g[i];
@@ -1092,7 +1101,7 @@ export function preview(p: Parsed, map: Mapping, now: number, o: PreviewOpts = {
     if (!mapped(b, map) || viaLegacy) {
       counts.unmapped++;
       const lost = b.services.filter((n) => !svcOf(map, n) || (viaLegacy && svcOf(map, n) === LEGACY)).join(', ') || 'aucune';
-      review.push({ ...row, kind: 'service', text: 'Prestation inconnue : ' + lost + (out === 'booked' ? ' : ce rendez-vous à venir n’est pas dans l’agenda, ajoute-le à la main' : ' (ligne ignorée)') });
+      review.push({ ...row, kind: 'service', of: b.services.find((n) => !svcOf(map, n) || (viaLegacy && svcOf(map, n) === LEGACY)), text: 'Prestation inconnue : ' + lost + (out === 'booked' ? ' : ce rendez-vous à venir n’est pas dans l’agenda, ajoute-le à la main' : ' (ligne ignorée)') });
       return;
     }
     if (gi >= 0) groups.add(gi);
@@ -1100,22 +1109,41 @@ export function preview(p: Parsed, map: Mapping, now: number, o: PreviewOpts = {
     if (e.phone && !normPhoneImport(e.phone, e.prefix)) review.push({ ...row, kind: 'phone', text: 'Numéro illisible : « ' + e.phone.slice(0, 40) + ' »' });
     if (e.email && !isEmail(e.email)) review.push({ ...row, kind: 'email', text: 'E-mail illisible : « ' + e.email.slice(0, 60) + ' » : pas gardé' });
     if (!e.phone && !e.email) review.push({ ...row, kind: 'phone', text: b.phone || b.email ? 'Numéro ou e-mail partagé par plusieurs personnes : rendez-vous sans fiche client' : 'Ni numéro ni e-mail : rendez-vous sans fiche client' });
+    // one number, two first names (a father booking for his son): one file, and the booking keeps the name typed. Said here as the report will say it
+    const num = e.phone ? normPhoneImport(e.phone, e.prefix) : null;
+    if (num && b.first) {
+      const was = firstOf.get(num);
+      if (!was) firstOf.set(num, b.first);
+      else if (differs(was, b.first)) review.push({ ...row, kind: 'name', text: 'Même numéro que ' + was + ', autre prénom : une seule fiche (celle de ' + was + '), ce rendez-vous garde son prénom. Famille ?' });
+    }
+    // one full name, two people as the files read them (nothing ties the number of one to the e-mail of the other)
+    const full = flat(b.first) && flat(b.last) ? flat(b.first) + ' ' + flat(b.last) : '';
+    if (full && gi >= 0 && !known.has(gi) && !again.has(gi)) { const m = namesakes.get(full) || new Map(); if (!m.has(gi)) m.set(gi, row); namesakes.set(full, m); }
     if (out === 'done') counts.past++;
     else if (out === 'no_show') counts.noShow++;
     else if (out === 'cancelled') counts.cancelled++;
     else {
       if (reopen) { counts.toReopen++; review.push({ ...row, kind: 'reopened', text: 'Rétabli sur l’ancien site : remis dans l’agenda, vérifie le créneau' }); } else counts.upcoming++;
       const staffId = staffOf(map, b.staff);
-      if (!staffId || staffId === LEGACY || (o.chairs && !o.chairs.has(staffId))) { review.push({ ...row, kind: 'staff', text: 'À venir : choisis un barbier actif pour « ' + (b.staff || 'Sans barbier') + ' »' }); return; }
+      if (!staffId || staffId === LEGACY || (o.chairs && !o.chairs.has(staffId))) { review.push({ ...row, kind: 'staff', of: b.staff, text: 'À venir : choisis un barbier actif pour « ' + (b.staff || 'Sans barbier') + ' »' }); return; }
       const lane = b.day + '|' + staffId, dur = durOf(b);
       const list = lanes.get(lane) || [];
       if (list.some((x) => x.start < b.start + dur && b.start < x.start + x.dur)) review.push({ ...row, kind: 'overlap', text: 'Chevauche un autre rendez-vous' });
       lanes.set(lane, [...list, { start: b.start, dur }]);
+      // outside the new salon's hours: kept all the same (the old site accepted it), and said
+      const h = hours.get(lane);
+      if (h && !h.iv.some((v) => v[0] <= b.start && b.start + dur <= v[1])) review.push({ ...row, kind: 'hours', text: h.shut ? 'Le nouveau salon est fermé ce jour-là : gardé tel quel, déplace-le ou ouvre ce jour' : 'Hors des horaires du nouveau salon : gardé tel quel, vérifie dans l’agenda' });
     }
   });
   eff.clients.forEach((c, i) => { const x = cg[i]; if (x >= 0 && !erased.has(x) && !left.has(x)) groups.add(x); });
   // a file an earlier run created is neither new nor merged (the server counts it as neither)
   for (const x of groups) if (!again.has(x)) counts[known.has(x) ? 'merged' : 'newClients']++;
+  // why a person is merged with a file of the salon: the same number, or (without it) the same e-mail
+  for (const x of groups) if (!again.has(x) && known.has(x)) mergedBy[o.via?.get(x) === 'email' ? 'email' : 'phone']++;
+  for (const m of namesakes.values()) {
+    const made = [...m].filter(([x]) => groups.has(x)).map(([, r]) => r);
+    for (const r of made.slice(1)) review.push({ ...r, kind: 'twin', text: 'Peut-être la même personne qu’un autre ' + r.name + ' de ces fichiers (même nom, mais rien ne relie le numéro de l’un à l’e-mail ou au numéro de l’autre) : deux fiches seront créées. Après l’import, « Voir les doublons possibles » les fusionne d’un geste si c’est bien elle' });
+  }
 
   // deleted on the old site: still to come inside a period an export covers, and in none of the files. Those nobody
   // handled here are cancelled; the server tells the others apart and lists them for a look
@@ -1146,7 +1174,7 @@ export function preview(p: Parsed, map: Mapping, now: number, o: PreviewOpts = {
     retention: people_.retention, noVisit: people_.noVisit, duplicate, unreadable: bad.bookings + bad.giftcards + bad.packs,
     by: { bookings: duplicate + bad.bookings + retentionRows, clients: people_.retention + people_.noVisit, giftcards: bad.giftcards, packs: bad.packs }
   };
-  return { counts, review, identities: P.ids, gone: gone.map((x) => x.wp), goneOpen: gone.filter((x) => x.open).length, warning, notes: notesOf(p, today, eff.shared.size), totals, excluded, skippedPeople };
+  return { counts, mergedBy, review, identities: P.ids, gone: gone.map((x) => x.wp), goneOpen: gone.filter((x) => x.open).length, warning, notes: notesOf(p, today, eff.shared.size), totals, excluded, skippedPeople };
 }
 
 /** A value the server would refuse (and with it the whole batch) is left out instead: a 12-hour WXR duration. */
@@ -1201,7 +1229,29 @@ export async function sha16(text: string): Promise<string> {
 }
 
 /** The body of POST /api/v1/import/runs: what the files held and what was left out before sending (see `preview`). */
-export function runBody(p: Parsed, pv: ReturnType<typeof preview>, map: Mapping, shas: string[], parts: number) {
+/**
+ * What the export holds to come and not cancelled, as the owner can count it in WordPress's own calendar: how many, between which days, and
+ * per day and barber for the two weeks ahead (the report sets it against the agenda: server/commands/import.js reconOf).
+ */
+export function aheadOf(p: Parsed, map: Mapping, now: number, today = dates.localParts(now).day) {
+  const end = dates.addDays(today, 13);
+  const by = new Map<string, { day: string; staffId: string; name: string; n: number }>();
+  let n = 0, from = '', to = '';
+  for (const b of p.bookings) {
+    if (b.day < today || outcome(b, now) !== 'booked') continue;
+    n++;
+    if (!from || b.day < from) from = b.day;
+    if (b.day > to) to = b.day;
+    if (b.day > end) continue;
+    const staffId = staffOf(map, b.staff) || '', k = b.day + '|' + staffId + '|' + b.staff;
+    const c = by.get(k) || { day: b.day, staffId, name: b.staff.slice(0, 80), n: 0 };
+    c.n++;
+    by.set(k, c);
+  }
+  return { n, ...(from ? { from, to } : {}), days: [...by.values()].slice(0, 400) };
+}
+
+export function runBody(p: Parsed, pv: ReturnType<typeof preview>, map: Mapping, shas: string[], parts: number, now?: number) {
   const windows = [...new Map(p.windows.map((w) => [w.from + w.to, w])).values()].slice(0, 12);
   return {
     source: 'files' as const,
@@ -1212,6 +1262,7 @@ export function runBody(p: Parsed, pv: ReturnType<typeof preview>, map: Mapping,
       staff: Object.fromEntries(Object.entries(map.staff).slice(0, 100).map(([k, v]) => [k.slice(0, 80), v || LEGACY]))
     },
     totals: pv.totals, excluded: pv.excluded, skippedPeople: pv.skippedPeople, parts,
+    ...(now != null && p.files.some((f) => (f.kind === 'bookings' || f.kind === 'wxr') && f.rows > 0) ? { ahead: aheadOf(p, map, now) } : {}),
     // the lines nobody could read, kept with the run so the report lists them (the cell's bad value, never a name)
     problems: p.problems.slice(0, 500).map((x) => ({ file: x.file.slice(0, 80), line: Math.max(0, Math.min(100000000, x.line)), ...(x.wp ? { wp: x.wp } : {}), text: x.text.slice(0, 160) }))
   };
@@ -1239,6 +1290,9 @@ export type RunRecord = {
   excluded: { retention: number; noVisit: number; duplicate: number; unreadable: number; by?: Record<string, number> };
   counts: RunCounts; skip: Record<string, number>; skippedPeople?: number;
 };
+/** GET /api/v1/import/runs/:id `recon` and `undo` (server/commands/import.js reconOf, undoable). */
+export type ReconCheck = { wordpress: { n: number; from: string; to: string }; here: { n: number }; gap: number; days: { day: string; staffId: string; staff: string; wordpress: number; here: number }[] };
+export type UndoState = { ok: boolean; why: string; appts: number; clients: number; giftcards: number; packs: number; kept: number };
 export type ReportLine = { kind: string; wp: number; day: string; start: number | null; name: string; staff: string; text: string; todo: boolean };
 /** Why rows are skipped, in the owner's words (the keys of a run's `skip`). */
 export const SKIP_WORDS: Record<string, string> = {
@@ -1301,6 +1355,7 @@ export function olderExport(files: Pick<FileReport, 'kind' | 'at' | 'newest'>[],
 /** What each kind of line is called in the report's groups (the line itself says the rest). */
 const KIND_TITLE: Record<string, string> = {
   pending: 'En attente sur l’ancien site', paid: 'Déjà payé sur l’ancien site', overlap: 'Chevauchements', today: 'Terminés aujourd’hui sur l’ancien site', moved: 'Déplacés',
+  hours: 'Hors des horaires du nouveau salon', twin: 'Peut-être la même personne',
   cancelled: 'Annulés sur l’ancien site mais déjà pris en charge', service: 'Prestations inconnues', staff: 'Barbiers à choisir', phone: 'Numéros illisibles', erased: 'Clients effacés',
   giftcard: 'Cartes cadeaux non reprises', pack: 'Carnets non repris', error: 'État « Erreur » sur l’ancien site', unpaid: 'Paiement en ligne jamais terminé', retention: 'Plus de 3 ans sans visite',
   gone: 'Supprimés sur l’ancien site', 'gone-handled': 'Supprimés sur l’ancien site mais déjà pris en charge', name: 'Même numéro, autre prénom', 'email-elsewhere': 'E-mail déjà sur une autre fiche',
@@ -1350,6 +1405,25 @@ export function refusalWords(message: string, body: { appts?: { wp?: number }[];
 export function problemsCsv(list: { file: string; line: number; wp?: number; text: string }[]) {
   const head = ['fichier', 'ligne', 'n° WordPress', 'raison'];
   return '\uFEFF' + [head, ...list.map((x) => [x.file, x.line || '', x.wp || '', x.text])].map((r) => r.map(csvCell).join(';')).join('\r\n') + '\r\n';
+}
+
+/**
+ * The unreadable lines of the bookings exports as a file to fix and drop again: each export's own header, its lines as they were written,
+ * and the reason in a last column (the reader ignores a column it does not know). Null when no line can be given back this way.
+ */
+export function fixCsv(list: Problem[]): string | null {
+  const rows = list.filter((x) => x.raw && x.head);
+  if (!rows.length) return null;
+  const out: (string | number)[][] = [];
+  let head = '';
+  for (const x of rows) {
+    const h = x.head!.join('\u0001');
+    if (h !== head) { head = h; out.push([...x.head!, 'POURQUOI (à corriger)']); }
+    out.push([...x.head!.map((_, i) => x.raw![i] ?? ''), x.text]);
+  }
+  // `,` and the plugin's own header: the fixed file is read as an export is
+  const cell = (v: string | number) => { const t = String(v); return /[,"\n\r]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t; };
+  return '\uFEFF' + out.map((r) => r.map(cell).join(',')).join('\r\n') + '\r\n';
 }
 
 /** The two small files typed by hand, as a model to fill in: a header and one example line (UTF-8 with a BOM, `;`, as French Excel opens it). */

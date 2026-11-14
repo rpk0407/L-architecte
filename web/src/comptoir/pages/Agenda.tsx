@@ -1,19 +1,31 @@
 // L'agenda: the day of the salon, live.
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { api, qs } from '../../lib/api';
-import { refreshAll, useQuery } from '../../lib/query';
+import { load, peek, refreshAll, useQuery } from '../../lib/query';
 import { navigate, setQuery, useRoute } from '../../lib/router';
 import { ago, cap, dates, eur, pct, time, hhmm } from '../../lib/format';
-import { useHotkeys, useInterval } from '../../lib/hooks';
+import { useHotkeys, useInterval, useIsPhone, useLocal } from '../../lib/hooks';
 import { Icon } from '../../ui/Icon';
 import { Avatar, Button, Empty, Kpi, Menu, Money, Seg, Skeleton, toast, toastError } from '../../ui/kit';
 import { useApp } from '../state';
 import { PageTitle } from '../App';
 import { FeedList } from '../Feed';
 import { Board } from './agenda/Board';
+import { PhoneAgenda, VIEW_KEY, viewOf, type PhoneView } from './agenda/Phone';
+import { Dock } from './accueil/Dock';
 import { ApptSheet, BlockSheet, CreateSheet, WalkinSheet, type Prefill } from './agenda/Sheets';
+import { ReportSheet, undoReport, useCountdown, type ReportAbout, type Reported } from './agenda/Report';
 import type { Agenda as AgendaData, Appt } from '../types';
 import './agenda.css';
+
+const agendaKey = (day: string) => '/api/v1/agenda?day=' + day;
+/** A handler that keeps its identity from one render to the next: the planning (memo) is not drawn again because the
+ *  page around it was (the pulse, the clock), only when what it shows changes. */
+function useEvent<A extends unknown[], R>(fn: (...a: A) => R): (...a: A) => R {
+  const ref = useRef(fn);
+  ref.current = fn;
+  return useCallback((...a: A) => ref.current(...a), []);
+}
 
 export default function Agenda() {
   const app = useApp();
@@ -27,11 +39,24 @@ export default function Agenda() {
   const [tick, setTick] = useState(0);
   useInterval(() => setTick((t) => t + 1), 30000);
   const nowMin = useMemo(() => dates.localParts(app.now()).min, [tick, pulse?.min]);
-  const { data, loading, error } = useQuery<AgendaData>('/api/v1/agenda?day=' + day);
+  const { data, loading, error } = useQuery<AgendaData>(agendaKey(day));
+  // a phone: the planning has its own layout (agenda/Phone.tsx), its way of reading the day is kept on the device,
+  // and the days on each side are read ahead so a swipe shows them at once
+  const phone = useIsPhone();
+  // (kept per person: a salon phone is shared; a barber starts on his own chair, the others on the whole salon)
+  const [rawView, setRawView] = useLocal<unknown>(VIEW_KEY + ':' + boot.me.id, boot.me.role === 'barber' ? 'barbier' : 'salon');
+  useEffect(() => {
+    if (!phone || view !== 'jour') return;
+    const t = window.setTimeout(() => { for (const d of [dates.addDays(day, 1), dates.addDays(day, -1)]) if (peek(agendaKey(d)) === undefined) void load(agendaKey(d)); }, 250);
+    return () => clearTimeout(t);
+  }, [phone, day, view]);
   const [create, setCreate] = useState<Prefill | null>(null);
   const [walkin, setWalkin] = useState(false);
-  const [block, setBlock] = useState<{ staffId: string; day: string; start: number } | null | false>(false);
-  const [menu, setMenu] = useState<{ x: number; y: number; staffId?: string; min?: number; blockId?: string } | null>(null);
+  const [block, setBlock] = useState<{ staffId: string; day: string; start: number; absent?: boolean } | null | false>(false);
+  // « Reporter ses rendez-vous »: the sheet, and what it just moved (« Annuler » stays on the page until the texts leave)
+  const [report, setReport] = useState<ReportAbout | null>(null);
+  const [reported, setReported] = useState<Reported | null>(null);
+  const [menu, setMenu] = useState<{ x: number; y: number; staffId?: string; min?: number; blockId?: string; lane?: boolean } | null>(null);
 
   // deep links from the palette and the feed: ?new=1, ?walkin=1
   useEffect(() => {
@@ -43,21 +68,34 @@ export default function Agenda() {
     arrowleft: () => setQuery({ day: dates.addDays(day, -1) }), arrowright: () => setQuery({ day: dates.addDays(day, 1) })
   }, [day]);
 
-  const goDay = (d: string | null) => setQuery({ day: d === today ? null : d, rdv: null });
-  const open = (a: Appt) => setQuery({ rdv: a.id });
+  const goDay = useEvent((d: string | null) => setQuery({ day: d === today ? null : d, rdv: null }));
+  const open = useEvent((a: Appt) => setQuery({ rdv: a.id }));
 
   const freeNow = useMemo(() => {
     if (!data || day !== today) return [];
     return data.lanes.filter((l) => l.work.some(([a, b]) => nowMin >= a && nowMin < b) && !data.appts.some((x) => x.staffId === l.id && ['in_chair', 'arrived', 'booked'].includes(x.status) && x.start <= nowMin + 10 && x.start + x.dur > nowMin)).map((l) => l.id);
   }, [data, nowMin]);
 
-  const move = async (a: Appt, staffId: string, start: number) => {
+  const move = useEvent(async (a: Appt, staffId: string, start: number) => {
     try {
       await api.post('/api/v1/appointments/' + a.id + '/move', { day: a.day, start, staffId, notify: true });
       refreshAll();
       toast({ title: 'Déplacé à ' + time(start) + (staffId !== a.staffId ? ' chez ' + staffById.get(staffId)?.name : ''), sub: 'Le client est prévenu par SMS', icon: 'move', action: { label: 'Annuler', run: async () => { await api.post('/api/v1/appointments/' + a.id + '/move', { day: a.day, start: a.start, staffId: a.staffId }); refreshAll(); } } });
     } catch (e) { toastError(e); }
-  };
+  });
+  const canMove = useEvent((a: Appt, to: string) => can('agenda.edit') || (a.staffId === boot.me.id && to === boot.me.id));
+  const onEmpty = useEvent((staffId: string, min: number, at: { x: number; y: number }) => setMenu({ ...at, staffId, min }));
+  const onBlock = useEvent((id: string, at: { x: number; y: number }) => setMenu({ ...at, blockId: id }));
+  const onLane = useEvent((staffId: string, at: { x: number; y: number }) => setMenu({ ...at, staffId, lane: true }));
+  // a touch on a free stretch of the phone planning books there: the barber and the hour are already chosen
+  const onFree = useEvent((staffId: string, min: number) => setCreate({ day, start: min, staffId }));
+  const setPhoneView = useEvent((v: PhoneView) => setRawView(v));
+  // what the phone planning shows beside its switch and on a closed day: kept from one render to the next, or the
+  // planning (memo) would be drawn again at every pulse
+  const queued = data && !data.closed && day === today ? (data.queue || []).length : 0;
+  const phoneExtra = useMemo(() => (day !== today ? <Button size="sm" variant="ghost" onClick={() => goDay(null)}>Aujourd’hui</Button>
+    : queued ? <button type="button" className="chip chip-sm" onClick={() => document.querySelector('[data-guide="ag-queue"]')?.scrollIntoView({ behavior: 'smooth', block: 'center' })}><Icon name="walk" size={14} />File · {queued}</button> : null), [day, today, queued]);
+  const phoneClosed = useMemo(() => <ClosedDay day={day} today={today} onGo={goDay} />, [day, today]);
 
   const k = data?.kpis;
   const next = data && day === today ? data.appts.filter((a) => ['booked', 'arrived', 'pending'].includes(a.status) && a.start + 5 >= nowMin && (can('agenda.all') || a.staffId === boot.me.id)).sort((a, b) => a.start - b.start)[0] : null;
@@ -92,28 +130,35 @@ export default function Agenda() {
       {view === 'semaine' ? <Week day={day} today={today} onPick={(d) => setQuery({ day: d === today ? null : d, vue: null })} /> : (
         <>
           <AbsentBanner data={data} today={today} />
+          {reported && reported.moved.length ? <ReportedBanner r={reported} onGone={() => setReported(null)} /> : null}
+          {can('agenda.edit') && data?.toCall?.length ? <ToCall data={data} onReport={setReport} onOpen={(id) => setQuery({ rdv: id })} /> : null}
           {data?.closed ? <div className="note ok"><Icon name="lock" /><div><b>Journée clôturée</b> · {/* the Z's figures only reach whoever closes or reads the salon's money; the others get its number */}{data.closure ? 'Z' + String(data.closure.number).padStart(4, '0') + (typeof data.closure.net === 'number' ? ' · ' + eur(data.closure.net) : '') : ''}. Les ventes de ce jour ne peuvent plus être modifiées.</div></div> : null}
-          <section className="kpis" aria-label="La journée en chiffres" data-guide="ag-kpis">
-            {desk ? null : moneyOk ? <Kpi k={k!.scope === 'own' ? 'Mon chiffre' : 'Encaissé'} v={<Money cents={k!.revenue} />} s={<>sur <Money cents={k!.planned} /> prévus{k!.tips ? <> · <Money cents={k!.tips} /> de pourboires</> : null}</>} bar={k!.planned ? (k!.revenue || 0) / k!.planned : 0} icon="euro" />
-              : <Kpi k="Mes rendez-vous" v={k ? k.total : '—'} s={k ? k.upcoming + ' à venir' : ''} icon="calendar" />}
-            <Kpi k="Rendez-vous" v={k ? <>{k.done}<small>/ {k.total}</small></> : '—'} s={k ? k.upcoming + ' à venir' + (k.noShows ? ' · ' + k.noShows + ' absent' + (k.noShows > 1 ? 's' : '') : '') : ''} icon="calendar" />
-            <Kpi k={desk ? 'Remplissage salon' : 'Remplissage'} v={k ? pct(k.fill) : '—'} dots={k ? k.fill : 0} s={k ? (k.fill > 0.85 ? 'Presque plein' : k.fill > 0.6 ? 'Belle journée' : 'Il reste de la place') : ''} icon="chair" />
-            {desk ? <Kpi k="À encaisser" v={day === today && !data?.closed ? toPay.length : '—'} s={day !== today ? 'Le jour même' : data?.closed ? 'Journée clôturée' : toPay.length ? 'Prestation' + (toPay.length > 1 ? 's' : '') + ' à passer en caisse' : 'Rien en attente'} icon="caisse" /> : null}
-            {day === today && next ? (
-              <Kpi hot k={<><i style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent)', animation: 'pulse 1.8s infinite' }} />Prochain client</>} v={<span className="kpi-v sm">{next.name}</span>} s={time(next.start) + ' · ' + (staffById.get(next.staffId)?.name || '') + (next.start <= nowMin ? ' · en retard de ' + (nowMin - next.start) + ' min' : ' · dans ' + Math.max(0, next.start - nowMin) + ' min')} onClick={() => open(next)} />
-            ) : (
-              <Kpi k="Sans rendez-vous" v={data?.walkin?.minutes != null ? (data.walkin.minutes < 5 ? 'Tout de suite' : '~' + data.walkin.minutes + ' min') : day === today ? 'Fermé' : '—'} s={data?.walkin ? data.walkin.queued + ' en file' : 'Attente estimée'} icon="walk" />
-            )}
-          </section>
-
+          {/* one grid for the figures, the planning and the side column: on the salon tablet (761–1100 px) the file and
+              « À encaisser » stand beside the figures, in sight without scrolling, instead of under the planning */}
           <div className="ag-grid">
-            {loading ? <Skeleton h={560} r={22} /> : error ? <Empty icon="alert" title="Agenda indisponible">{error.message}</Empty> : data ? (
+            <section className="kpis" aria-label="La journée en chiffres" data-guide="ag-kpis">
+              {desk ? null : moneyOk ? <Kpi k={k!.scope === 'own' ? 'Mon chiffre' : 'Encaissé'} v={<Money cents={k!.revenue} />} s={<>sur <Money cents={k!.planned} /> prévus{k!.tips ? <> · <Money cents={k!.tips} /> de pourboires</> : null}</>} bar={k!.planned ? (k!.revenue || 0) / k!.planned : 0} icon="euro" />
+                : <Kpi k="Mes rendez-vous" v={k ? k.total : '—'} s={k ? k.upcoming + ' à venir' : ''} icon="calendar" />}
+              <Kpi k="Rendez-vous" v={k ? <>{k.done}<small>/ {k.total}</small></> : '—'} s={k ? k.upcoming + ' à venir' + (k.noShows ? ' · ' + k.noShows + ' absent' + (k.noShows > 1 ? 's' : '') : '') : ''} icon="calendar" />
+              <Kpi k={desk ? 'Remplissage salon' : 'Remplissage'} v={k ? pct(k.fill) : '—'} dots={k ? k.fill : 0} s={k ? (k.fill > 0.85 ? 'Presque plein' : k.fill > 0.6 ? 'Belle journée' : 'Il reste de la place') : ''} icon="chair" />
+              {desk ? <Kpi k="À encaisser" v={day === today && !data?.closed ? toPay.length : '—'} s={day !== today ? 'Le jour même' : data?.closed ? 'Journée clôturée' : toPay.length ? 'Prestation' + (toPay.length > 1 ? 's' : '') + ' à passer en caisse' : 'Rien en attente'} icon="caisse" /> : null}
+              {day === today && next ? (
+                <Kpi hot k={<><i style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent)', animation: 'pulse 1.8s infinite' }} />Prochain client</>} v={<span className="kpi-v sm">{next.name}</span>} s={time(next.start) + ' · ' + (staffById.get(next.staffId)?.name || '') + (next.start <= nowMin ? ' · en retard de ' + (nowMin - next.start) + ' min' : ' · dans ' + Math.max(0, next.start - nowMin) + ' min')} onClick={() => open(next)} />
+              ) : (
+                <Kpi k="Sans rendez-vous" v={data?.walkin?.minutes != null ? (data.walkin.minutes < 5 ? 'Tout de suite' : '~' + data.walkin.minutes + ' min') : day === today ? 'Fermé' : '—'} s={data?.walkin ? data.walkin.queued + ' en file' : 'Attente estimée'} icon="walk" />
+              )}
+            </section>
+            {phone ? (
+              <PhoneAgenda data={data} loading={loading} error={error && !data ? <Empty icon="alert" title="Agenda indisponible">{error.message}</Empty> : undefined}
+                day={day} today={today} nowStep={Math.ceil(nowMin / 5) * 5} view={viewOf(rawView)} setView={setPhoneView} lane={lane} setLane={setLane}
+                selected={sel} myId={boot.me.id} canSeeMoney={moneyOk && k!.scope === 'shop'}
+                extra={phoneExtra} closed={phoneClosed}
+                onDay={goDay} onOpen={open} onFree={onFree} onEmpty={onEmpty} onBlock={onBlock} onLane={day === today && can('agenda.edit') ? onLane : undefined} />
+            ) : loading ? <Skeleton h={560} r={22} /> : error ? <Empty icon="alert" title="Agenda indisponible">{error.message}</Empty> : data ? (
               !data.lanes.length || (data.lanes.every((l) => !l.work.length) && !data.appts.length) ? <ClosedDay day={day} today={today} onGo={goDay} /> :
               <Board data={data} today={today} nowMin={nowMin} canSeeMoney={moneyOk && k!.scope === 'shop'} myId={boot.me.id} selected={sel} lane={lane} setLane={setLane}
-                onOpen={open} onMove={move}
-                canMove={(a, to) => can('agenda.edit') || (a.staffId === boot.me.id && to === boot.me.id)}
-                onEmpty={(staffId, min, at) => setMenu({ ...at, staffId, min })}
-                onBlock={(id, at) => setMenu({ ...at, blockId: id })} />
+                onOpen={open} onMove={move} canMove={canMove} onEmpty={onEmpty} onBlock={onBlock}
+                onLane={day === today && can('agenda.edit') ? onLane : undefined} />
             ) : null}
 
             <aside className="ag-side" aria-label="À côté de l’agenda">
@@ -148,11 +193,23 @@ export default function Agenda() {
         </>
       )}
 
+      {/* a phone: the three gestures of the day under the thumb, as on the Accueil */}
+      {phone ? <Dock onNew={() => setCreate({ day })} onWalkin={() => setWalkin(true)} guide={{ new: 'ag-new', walkin: 'ag-walkin' }}
+        onPay={can('sale.create') ? () => navigate(toPay.length === 1 ? '/caisse?rdv=' + toPay[0].id : '/caisse') : undefined} toPay={toPay.length} /> : null}
+
       <Menu anchor={menu ? { x: menu.x, y: menu.y } : null} onClose={() => setMenu(null)}>
         {menu?.blockId ? (
           <>
             <p className="k">Créneau bloqué</p>
             <button type="button" onClick={async () => { try { await api.del('/api/v1/blocks/' + menu.blockId); refreshAll(); toast('Créneau rouvert · il est de nouveau proposé sur le site'); } catch (e) { toastError(e); } }}><Icon name="undo" />Rouvrir ce créneau</button>
+          </>
+        ) : menu?.lane ? (
+          <>
+            {/* a barber who is not coming: whoever edits every chair's agenda already may block his day (no new right) */}
+            <p className="k">{staffById.get(menu.staffId!)?.name}</p>
+            <button type="button" onClick={() => setBlock({ staffId: menu.staffId!, day, start: Math.floor(nowMin / 15) * 15, absent: true })}><Icon name="alert" />Absent aujourd’hui : fermer le reste de sa journée</button>
+            <button type="button" onClick={() => setReport({ staffId: menu.staffId!, day })}><Icon name="move" />Reporter ses rendez-vous</button>
+            <button type="button" onClick={() => setBlock({ staffId: menu.staffId!, day, start: Math.ceil(nowMin / 15) * 15 })}><Icon name="block" />Pause maintenant</button>
           </>
         ) : menu ? (
           <>
@@ -166,7 +223,48 @@ export default function Agenda() {
       <ApptSheet id={sel} onClose={() => setQuery({ rdv: null })} />
       <CreateSheet open={!!create} prefill={create} onClose={() => setCreate(null)} onCreated={(id, d) => setQuery({ day: d === today ? null : d, rdv: id })} />
       <WalkinSheet open={walkin} onClose={() => setWalkin(false)} freeNow={freeNow} />
-      <BlockSheet open={!!block} prefill={block || null} onClose={() => setBlock(false)} />
+      <BlockSheet open={!!block} prefill={block || null} onClose={() => setBlock(false)} onAbsent={(staffId, d) => { if (data?.appts.some((a) => a.staffId === staffId && ['pending', 'booked', 'arrived'].includes(a.status) && (d !== today || a.start + a.dur > nowMin))) setReport({ staffId, day: d }); else toast({ title: 'Reste de la journée fermé', sub: 'Plus rien n’est proposé sur le site. Aucun rendez-vous à reporter.', icon: 'block' }); }} />
+      <ReportSheet about={report} onClose={() => setReport(null)} onDone={setReported} />
+    </>
+  );
+}
+
+/** What a report just moved: « Annuler » while the texts are held, then the line goes away by itself. */
+function ReportedBanner({ r, onGone }: { r: Reported; onGone: () => void }) {
+  const left = useCountdown(r.until);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { if (!left) onGone(); }, [left]);
+  const n = r.moved.length;
+  return (
+    <div className="note ok ag-reported" role="status">
+      <Icon name="check" />
+      <div className="grow"><b>{n} rendez-vous de {r.who} {n > 1 ? 'déplacés' : 'déplacé'}</b> · les SMS partent dans {left} s</div>
+      <Button size="sm" variant="subtle" icon="undo" busy={busy} onClick={async () => { setBusy(true); await undoReport(r.moved); onGone(); }}>Annuler</Button>
+    </div>
+  );
+}
+
+/** « À rappeler »: the clients still booked with a barber who is away today, to call or to report in one go. */
+function ToCall({ data, onReport, onOpen }: { data: AgendaData; onReport: (a: ReportAbout) => void; onOpen: (id: string) => void }) {
+  const { staffById } = useApp();
+  return (
+    <>
+      {(data.toCall || []).map((g) => (
+        <section key={g.staffId} className="card ag-call" aria-label={'À rappeler : ' + (staffById.get(g.staffId)?.name || '')}>
+          <header className="ag-call-h">
+            <div className="grow"><p className="section-k">À rappeler</p><b>{staffById.get(g.staffId)?.name || 'Un barbier'} est absent · {g.rows.length} {g.rows.length > 1 ? 'clients encore chez lui' : 'client encore chez lui'}</b></div>
+            <Button size="sm" variant="primary" icon="move" onClick={() => onReport(g.timeoffId ? { timeoffId: g.timeoffId } : { staffId: g.staffId, day: data.day })}>Reporter ses rendez-vous</Button>
+          </header>
+          <ul className="list">
+            {g.rows.map((r) => (
+              <li key={r.id} className="li ag-call-r">
+                <button type="button" className="li-main ag-call-o" onClick={() => onOpen(r.id)}><b><span className="tnum">{time(r.start)}</span> · {r.name}</b><small>{r.services.join(' + ')}</small></button>
+                {r.phone ? <a className="btn btn-sm btn-subtle ag-call-tel" href={'tel:' + r.phone.replace(/\s/g, '')}><Icon name="phone" size={15} />{r.phone}</a> : <span className="badge">pas de numéro</span>}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))}
     </>
   );
 }

@@ -25,9 +25,13 @@ async function saves(page, tap) {
 
 export default async ({ h, page }) => {
   await pin(page, h.base, 'JKut', '2468');
-  // the home of a chair is Mon espace
+  // every role now opens on the Accueil; Mon espace is one tap away, behind « Plus » on a phone
+  await page.getByRole('heading', { name: 'Accueil', level: 1 }).waitFor({ timeout: 8000 });
+  must(/\/comptoir\/accueil$/.test(page.url()), 'JKut does not land on /comptoir/accueil: ' + page.url());
+  await page.locator('.tabbar').getByRole('button', { name: 'Plus' }).click();
+  await page.getByRole('dialog').getByRole('link', { name: 'Mon espace' }).click();
   await page.getByRole('heading', { name: 'Mon espace', level: 1 }).waitFor({ timeout: 8000 });
-  must(/\/comptoir\/espace$/.test(page.url()), 'JKut does not land on /comptoir/espace: ' + page.url());
+  must(/\/comptoir\/espace$/.test(page.url()), 'the Plus sheet does not lead to /comptoir/espace: ' + page.url());
   await page.getByRole('heading', { name: 'Salut JKut' }).waitFor();
   await page.getByRole('heading', { name: 'Prochain client' }).waitFor();
   await page.getByRole('status').filter({ hasText: /Au fauteuil|Libre jusqu|attendu|arrivé|Occupé|journée/ }).first().waitFor();
@@ -56,9 +60,9 @@ export default async ({ h, page }) => {
   const small = await page.locator('.es button, .es summary, .es a').evaluateAll((els) => els.filter((e) => e.getClientRects().length).map((e) => { const r = e.getBoundingClientRect(); return { t: (e.textContent || '').trim().slice(0, 24), w: Math.round(r.width), h: Math.round(r.height) }; }).filter((x) => x.w < 44 || x.h < 44));
   must(!small.length, 'targets under 44 px: ' + JSON.stringify(small));
 
-  // the tab bar: Mon espace first, one tab per page he can open, then Plus (no gap for a barber who does not ring up)
+  // the tab bar: the Accueil first (his opening page), one tab per page of his role, then Plus (no gap for a barber who does not ring up)
   const tabNames = await page.locator('.tabbar > *').allTextContents();
-  must(/Mon espace/.test(tabNames[0]) && /Plus/.test(tabNames.at(-1)), 'the tab bar reads ' + JSON.stringify(tabNames));
+  must(/Accueil/.test(tabNames[0]) && /Plus/.test(tabNames.at(-1)), 'the tab bar reads ' + JSON.stringify(tabNames));
   must(tabNames.length === 5, 'JKut has four tabs and Plus: ' + JSON.stringify(tabNames));
 
   // his own appointments only: no colleague's name anywhere on the page
@@ -99,11 +103,12 @@ export default async ({ h, page }) => {
   await page.goto(h.base + '/comptoir/espace');
   await page.getByRole('heading', { name: 'Prochain client' }).waitFor();
 
-  // Encaisser opens the till on his appointment
-  await page.getByRole('button', { name: 'Encaisser' }).click();
-  await page.waitForURL(/\/comptoir\/caisse\?rdv=/, { timeout: 8000 });
-  await page.goto(h.base + '/comptoir/espace');
-  await page.getByRole('heading', { name: 'Prochain client' }).waitFor();
+  // Encaisser opens the ticket on his own phone, in a sheet over Mon espace (FEATURE D: caisse/PhoneCheckout.tsx)
+  await page.getByRole('button', { name: 'Encaisser' }).first().click();
+  const paySheet = page.getByRole('dialog').filter({ hasText: 'Sur ton téléphone' });
+  await paySheet.getByText('Comment paie-t-il ?').waitFor({ timeout: 8000 });
+  await paySheet.getByRole('button', { name: 'Fermer' }).click();
+  await paySheet.waitFor({ state: 'detached' });
 
   // Personnaliser: « Mes chiffres » to the top, saved, still there after a reload
   const titles = () => page.locator('.es-card .card-h h2').allTextContents();
@@ -140,6 +145,7 @@ export default async ({ h, page }) => {
   // a barber with few rows left (Frank, mid-afternoon): what is open now is in view, the finished ones are folded
   const fr = await h.newPage({ viewport: { width: 390, height: 844 } });
   await pin(fr, h.base, 'Frank', '1357');
+  await fr.goto(h.base + '/comptoir/espace'); // he opens on the Accueil like everyone
   await fr.getByRole('heading', { name: 'Prochain client' }).waitFor({ timeout: 8000 });
   const ftabs = await fr.locator('.tabbar').boundingBox();
   const open = await fr.locator('.es-row:not(.past)').first().boundingBox();
@@ -150,14 +156,14 @@ export default async ({ h, page }) => {
   const desk = await h.newPage({ viewport: { width: 390, height: 844 } });
   await pin(desk, h.base, 'Inès', '1470');
   must(!(await desk.locator('.tabbar').innerText()).includes('Mon espace'), 'the desk has a Mon espace tab');
-  must(/\/comptoir\/agenda$/.test(desk.url()), 'the desk lands on ' + desk.url());
+  must(/\/comptoir\/accueil$/.test(desk.url()), 'the desk lands on ' + desk.url());
   // a client file opened before Mon espace was ever loaded: the notes block is styled by its own stylesheet
   await desk.goto(h.base + '/comptoir/clients/' + who);
   await desk.getByRole('heading', { name: 'Notes de coupe' }).waitFor({ timeout: 8000 });
   must((await desk.locator('.cn-list li').first().evaluate((e) => getComputedStyle(e).flexDirection)) === 'column', 'the notes of the client file are unstyled');
   await desk.goto(h.base + '/comptoir/espace');
   await h.expectText(desk, 'Mon espace est pour ceux qui ont un fauteuil.');
-  // the bar follows the number of tabs: Agenda, Caisse, Clients and Plus, in four equal columns
+  // the bar follows the number of tabs: Accueil, Agenda, Caisse, Clients and Plus, in five equal columns
   const cols = await desk.locator('.tabbar').evaluate((e) => getComputedStyle(e).gridTemplateColumns.split(' ').length);
-  must(cols === 4, 'the desk’s tab bar has ' + cols + ' columns');
+  must(cols === 5, 'the desk’s tab bar has ' + cols + ' columns');
 };

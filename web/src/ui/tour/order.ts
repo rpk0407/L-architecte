@@ -21,6 +21,7 @@ export type Played = GuideStep & { place: string; label: string };
  */
 export const COMPTOIR_PLACES: readonly Place[] = [
   { path: '/comptoir/reglages/mise-en-route', label: 'Mise en route' },
+  { path: '/comptoir/accueil', label: 'Accueil' },
   { path: '/comptoir/pilotage', label: 'Pilotage' },
   { path: '/comptoir/espace', label: 'Mon espace' },
   { path: '/comptoir/agenda', label: 'Agenda' },
@@ -30,10 +31,13 @@ export const COMPTOIR_PLACES: readonly Place[] = [
   { path: '/comptoir/caisse?rdv=:rdv', label: 'Caisse · Le ticket', targets: ['tk-head', 'till-chips', 'caisse.reward', 'tk-lines', 'till-member-line', 'tk-add', 'till-offer', 'tk-methods', 'tk-validate'] },
   { path: '/comptoir/caisse/ventes', label: 'Caisse · Ventes du jour' },
   { path: '/comptoir/caisse/cloture', label: 'Caisse · Clôture' },
+  { path: '/comptoir/caisse/mois', label: 'Caisse · Le mois' },
   { path: '/comptoir/clients', label: 'Clients' },
   { path: '/comptoir/clients?segment=abonnes', label: 'Clients · Abonnés', targets: ['members-kpis', 'members-presence', 'members-missed', 'members-list', 'members-notyet', 'members-weeks', 'members-thisweek', 'members-write', 'members-carnets'] },
   // one client's file: a regular with the most to show (ComptoirTour resolves it)
   { path: '/comptoir/clients/:id', label: 'Clients · La fiche', targets: ['file-head', 'file-chips', 'file-kpis', 'file-tech', 'file-abonnement', 'member-offer', 'member-cancel', 'clients.notes-coupe', 'file-carnets', 'file-prefs', 'client-account', 'client-account-invite', 'client-account-revoke', 'client-account-detach', 'clients.loyalty', 'file-history'] },
+  // « mode téléphone »: the texts to clients a person sends from WhatsApp (in the menu while the salon sends by hand)
+  { path: '/comptoir/messages', label: 'Messages' },
   { path: '/comptoir/relances', label: 'Relances · À relancer' },
   { path: '/comptoir/relances/attente', label: 'Relances · Liste d’attente' },
   { path: '/comptoir/relances/demandes', label: 'Relances · Demandes' },
@@ -47,7 +51,7 @@ export const COMPTOIR_PLACES: readonly Place[] = [
   ...([
     ['compte', 'Mon compte'], ['salon', 'Le salon'], ['horaires', 'Horaires et fermetures'], ['reservation', 'Réservation en ligne'],
     ['paiements', 'Paiements'], ['abonnements', 'Abonnements'], ['messages', 'Messages'], ['equipe', 'Équipe et accès'], ['objectifs', 'Objectifs'],
-    ['fidelite', 'Fidélité'], ['appareils', 'Appareils'], ['donnees', 'Données et intégrité'], ['wordpress', 'Reprendre WordPress'], ['journal', 'Journal d’activité']
+    ['fidelite', 'Fidélité'], ['appareils', 'Appareils'], ['donnees', 'Données et intégrité'], ['wordpress', 'Reprendre WordPress'], ['ionos', 'Connexion IONOS'], ['journal', 'Journal d’activité']
   ] as const).map(([id, label]) => ({ path: '/comptoir/reglages/' + id, label: 'Réglages · ' + label }))
 ];
 

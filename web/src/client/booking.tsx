@@ -1,7 +1,7 @@
 // A booking's shared bits, for the /r/ page (web/src/client/main.tsx) and the client space (/moi): the words of each
 // status, the .ics file for the phone's calendar, and moving to another slot through the booking's signed /r/ token.
-import { useEffect, useState } from 'react';
-import { api, qs } from '../lib/api';
+import { useEffect, useRef, useState } from 'react';
+import { api, qs, uuid } from '../lib/api';
 import { dates, time } from '../lib/format';
 
 export type Booking = {
@@ -43,17 +43,28 @@ export function Move({ b, token, onDone, onCancel, onPick }: { b: MovableBooking
   const [day, setDay] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
-  useEffect(() => {
-    api.get<{ days: { day: string; open: boolean; slots: { m: number; s: string }[] }[] }>('/api/public/availability' + qs({ services: b.services.map((s) => s.id).join(','), staff: b.anyStaff || !b.staff ? 'any' : b.staff.id, days: 14, move: token }))
-      .then((r) => { const open = r.days.filter((d) => d.open); setDays(open); setDay((open.find((d) => d.slots.length) || open[0])?.day || null); })
-      .catch((e) => setErr(e.message));
-  }, []);
+  /** fresh: after a refusal (409, the slot was just taken) the free slots are read as the journal is, past any cache; the day in view is kept */
+  const load = (fresh?: boolean) => api.get<{ days: { day: string; open: boolean; slots: { m: number; s: string }[] }[] }>('/api/public/availability' + qs({ services: b.services.map((s) => s.id).join(','), staff: b.anyStaff || !b.staff ? 'any' : b.staff.id, days: 14, move: token, fresh: fresh ? 1 : undefined }))
+    .then((r) => { const open = r.days.filter((d) => d.open); setDays(open); setDay((cur) => (fresh && cur && open.some((d) => d.day === cur) ? cur : (open.find((d) => d.slots.length) || open[0])?.day || null)); });
+  useEffect(() => { load().catch((e) => setErr(e.message)); }, []);
+  // one id per attempt: a move whose answer was lost on the way is sent again under the same id (same slot), never done twice
+  const attempt = useRef<{ key: string; id: string } | null>(null);
   const go = async (m: number) => {
     if (!day) return;
     if (onPick) { onPick(day, m); return; }
     setBusy(true); setErr('');
-    try { onDone(await api.post<Booking>('/api/public/bookings/' + encodeURIComponent(token) + '/move', { day, start: m })); }
-    catch (e: any) { setErr(e.message); setBusy(false); }
+    const key = day + '|' + m;
+    if (!attempt.current || attempt.current.key !== key) attempt.current = { key, id: uuid() };
+    try {
+      const done = await api.post<Booking>('/api/public/bookings/' + encodeURIComponent(token) + '/move', { day, start: m }, attempt.current.id);
+      attempt.current = null;
+      onDone(done);
+    } catch (e: any) {
+      // an answer came back: this attempt is over (no network: the id is kept for the next tap on the same hour)
+      if (e?.status) attempt.current = null;
+      setErr(e.message); setBusy(false);
+      if (e?.status === 409) load(true).catch(() => {});
+    }
   };
   const cur = days?.find((d) => d.day === day);
   return (

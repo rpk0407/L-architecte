@@ -148,7 +148,7 @@ export default async ({ h, page }) => {
   // the desk tablet, portrait: the whole salon's day in counts, never in euros
   const tablet = await h.newPage({ viewport: { width: 1024, height: 1366 } });
   await barber(tablet, h.base, 'Inès', '1470');
-  await tablet.goto(h.base + '/comptoir');
+  await tablet.goto(h.base + '/comptoir/agenda'); // /comptoir alone opens the Accueil now (covered by demo/accueil)
   const kpis = tablet.getByRole('region', { name: 'La journée en chiffres' });
   await kpis.getByText('Remplissage salon').waitFor({ timeout: 8000 });
   for (const t of ['Rendez-vous', 'À encaisser']) if (!(await kpis.getByText(t, { exact: true }).count())) throw new Error('desk agenda: KPI "' + t + '" missing');

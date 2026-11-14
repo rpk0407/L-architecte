@@ -23,15 +23,25 @@ const EMPTY = { launched: null, entries: new Map(), rewards: new Map(), bySale: 
 /** @param {any} s */
 const L = (s) => s.loyalty || EMPTY;
 
+// Per `dataVersion` (core/state.js), like domain/insights.js: the cards read clients, sales, appointments, the catalogue,
+// the settings and s.loyalty, none of which a NO_FIGURES event (hold, queued text, preference, linked phone) writes.
 const cache = new WeakMap();
+/** the version of the figures; a projection built by hand has none and falls back on `version` */
+const stamp = (s) => s.dataVersion ?? s.version;
+/** one card per file and per day: a long day without a sale must not keep them all */
+const MEMO_MAX = 5000;
 function memo(s, key, fn) {
+  const v = stamp(s);
   let c = cache.get(s);
-  if (!c || c.version !== s.version) { c = { version: s.version, m: new Map() }; cache.set(s, c); }
-  if (!c.m.has(key)) c.m.set(key, fn());
-  return c.m.get(key);
+  if (!c || c.version !== v) { c = { version: v, m: new Map() }; cache.set(s, c); }
+  if (c.m.has(key)) return c.m.get(key);
+  const value = fn();
+  if (c.m.size >= MEMO_MAX) c.m.clear();
+  c.m.set(key, value);
+  return value;
 }
 /** What memo holds for this version, without computing it (commands run on a state that moves at every write). */
-function cached(s, key) { const c = cache.get(s); return c && c.version === s.version ? c.m.get(key) : undefined; }
+function cached(s, key) { const c = cache.get(s); return c && c.version === stamp(s) ? c.m.get(key) : undefined; }
 
 /** A salon day from an instant: what the projection keeps without a day of its own (a void, a restore). */
 const dayOfAt = (at) => localParts(at).day;

@@ -10,6 +10,7 @@ import { photoOf, useApp } from '../state';
 import { PageTitle } from '../App';
 import type { Agenda, Staff } from '../types';
 import { PhoneList, PhoneQR, usePhones } from './reglages/Phone';
+import { ReportSheet } from './agenda/Report';
 import './equipe.css';
 
 // conflicts: appointments still on it; status: a request (pending, refused); publicNote: what the site may say meanwhile
@@ -360,6 +361,9 @@ function PlanList({ plan, picks, setPicks, editable, flag }: { plan: Plan; picks
 /** The plan of an absence already posted (from its list, the agenda's banner or an approved request). */
 export function HandoverSheet({ id, onClose }: { id: string | null; onClose: () => void }) {
   const { staffById } = useApp();
+  // « Reporter ses rendez-vous »: the same absence, the best place for each client in one go (agenda/Report.tsx)
+  const [report, setReport] = useState(false);
+  useEffect(() => { setReport(false); }, [id]);
   const plan = usePlan(id ? { id } : null);
   const [picks, setPicks] = useState<Picks>({});
   const [busy, setBusy] = useState(false);
@@ -372,12 +376,15 @@ export function HandoverSheet({ id, onClose }: { id: string | null; onClose: () 
     try { const r = await applyPlan(id, d, picks); setPicks({}); setFlag(''); if (!r.left) onClose(); } catch (e) { setFlag(refusedRow(e)); toastError(e); } finally { setBusy(false); }
   };
   const who = d ? staffById.get(d.staffId)?.name || '' : '';
-  return (
+  const sheet = (
     <Sheet open={!!id} onClose={onClose} wide title={d ? 'Les clients de ' + who : 'Absence'} kicker={d ? 'Absent ' + rangeText(d) : undefined}
       footer={<><Button variant="ghost" onClick={onClose}>Fermer</Button><span className="grow" /><Button variant="primary" icon="sms" busy={busy} disabled={!d || !d.count} onClick={go}>Appliquer et prévenir</Button></>}>
+      {d && d.count ? <div className="eq-report"><Button variant="subtle" icon="move" onClick={() => setReport(true)}>Reporter ses rendez-vous</Button><small className="faint">La meilleure place pour chacun, en une fois, avec 1 min pour annuler.</small></div> : null}
       {plan.error ? <Note tone="err" icon="alert">{plan.error}</Note> : !d ? <Skeleton h={220} r={18} /> : d.count ? <PlanList plan={d} picks={picks} setPicks={setPicks} editable flag={flag} /> : <Note tone="ok" icon="check">Plus aucun rendez-vous chez {who} pendant son absence.</Note>}
     </Sheet>
   );
+  if (id && report) return <ReportSheet about={{ timeoffId: id }} onClose={() => setReport(false)} />;
+  return sheet;
 }
 
 /** The appointment a refused plan names (a slot taken since the preview, two rows on one chair): its row is marked. */
@@ -542,7 +549,7 @@ function Member({ st, timeoff }: { st: Staff; timeoff: TimeOff[] }) {
       <div className="eq-member">
         <div className="col" style={{ gap: 16 }}>
           <div data-guide="equipe-profil"><Profile st={st} /></div>
-          {st.chair ? <section className="card" data-guide="equipe-horaires"><div className="card-h"><h2><Icon name="clock" size={16} />Horaires de la semaine</h2></div><ScheduleEditor st={st} /></section> : null}
+          {st.chair ? <section className="card" data-guide="equipe-horaires"><div className="card-h"><h2><Icon name="clock" size={16} />Horaires de la semaine</h2></div><ScheduleEditor st={st} /><Stranded st={st} /></section> : null}
           {st.chair ? <div data-guide="equipe-prestations"><ServicesCard st={st} /></div> : null}
         </div>
         <div className="col" style={{ gap: 16 }}>
@@ -573,8 +580,10 @@ function Profile({ st }: { st: Staff }) {
       const patch: Record<string, unknown> = {};
       const was = from() as Record<string, unknown>;
       for (const [k, v] of Object.entries(f)) if (was[k] !== v) patch[k] = v;
-      await api.patch('/api/v1/staff/' + st.id, patch);
-      toast({ title: 'Fiche enregistrée', icon: 'check' }); refreshAll(); reloadBoot().catch(() => {});
+      const r = await api.patch<{ stranded?: number }>('/api/v1/staff/' + st.id, patch);
+      if (r.stranded) toast({ title: 'Fiche enregistrée', sub: plural(r.stranded, 'rendez-vous', 'rendez-vous') + ' encore à son nom : remets-lui son fauteuil le temps de les reporter, ou déplace-les depuis l’agenda.', icon: 'alert', ttl: 10000 });
+      else toast({ title: 'Fiche enregistrée', icon: 'check' });
+      refreshAll(); reloadBoot().catch(() => {});
     } catch (e) { toastError(e); } finally { setBusy(false); }
   };
   return (
@@ -597,6 +606,7 @@ function Profile({ st }: { st: Staff }) {
       </Field>}
       <Switch on={f.chair} onChange={(v) => setF({ ...f, chair: v, bookable: v ? f.bookable : false })} title="A un fauteuil" hint="Apparaît comme colonne dans l’agenda." />
       <Switch on={f.bookable} disabled={!f.chair} onChange={(v) => setF({ ...f, bookable: v })} title="Réservable en ligne" hint="Les clients peuvent le choisir sur le site." />
+      {st.photo ? <SitePhotoSwitch st={st} /> : null}
       <Field label="Présentation sur le site" hint={f.bio.length + ' / 280'} htmlFor="pf-b"><textarea id="pf-b" className="input textarea" rows={3} maxLength={280} value={f.bio} onChange={(e) => setF({ ...f, bio: e.target.value })} placeholder="Spécialiste des dégradés, 8 ans de métier…" /></Field>
       <div className="grid2">
         <Field label="Instagram" htmlFor="pf-ig"><input id="pf-ig" className="input" value={f.instagram} onChange={(e) => setF({ ...f, instagram: e.target.value })} placeholder="@pseudo" /></Field>
@@ -607,6 +617,28 @@ function Profile({ st }: { st: Staff }) {
   );
 }
 const ROLE_LABEL: Record<string, string> = { barber: 'Barbier', desk: 'Accueil', manager: 'Responsable', owner: 'Gérant' };
+
+/**
+ * « Photo visible sur le site »: the person's photo in « Choisis ton barbier » and in the booking, saved at once (apart
+ * from the card's form). The owner sets anyone's in Équipe, a barber his own in Mon espace. Only with a photo.
+ */
+export function SitePhotoSwitch({ st, self = false }: { st: Staff; self?: boolean }) {
+  const { reloadBoot, offline } = useApp();
+  const [on, setOn] = useState(!!st.photoSite);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { setOn(!!st.photoSite); }, [st.photoSite, st.photo]);
+  const flip = async (v: boolean) => {
+    setBusy(true); setOn(v);
+    try {
+      await api.post('/api/v1/staff/' + st.id + '/photo/site', { on: v });
+      toast({ title: v ? 'Photo visible sur le site' : 'Photo retirée du site', sub: v ? undefined : 'Elle reste dans le Comptoir.', icon: 'check' });
+      refreshAll(); reloadBoot().catch(() => {});
+    } catch (e) { setOn(!v); toastError(e); } finally { setBusy(false); }
+  };
+  const where = self ? 'Ta photo dans « Choisis ton barbier » et quand un client réserve avec toi.' : 'Dans « Choisis ton barbier » et quand un client réserve avec lui.';
+  const hint = st.chair && st.bookable ? where + ' Dans le Comptoir, elle reste.' : (self ? 'Tu n’es pas réservable en ligne : elle apparaîtra quand tu le seras.' : 'Pas réservable en ligne : elle apparaîtra quand il le sera.');
+  return <Switch on={on} disabled={busy || offline} onChange={(v) => void flip(v)} title="Photo visible sur le site" hint={hint} />;
+}
 
 export type Week = Record<number, [number, number][]>;
 export const weekOf = (src?: Record<string, [number, number][]>): Week => Object.fromEntries([0, 1, 2, 3, 4, 5, 6].map((d) => [d, (src?.[d] || []).map((x) => [...x] as [number, number])]));
@@ -665,8 +697,9 @@ export function ScheduleEditor({ st, onSaved }: { st: Staff; onSaved?: () => voi
     if (pb) { toast({ kind: 'err', title: pb }); return; }
     setBusy(true);
     try {
-      await api.patch('/api/v1/staff/' + st.id, { schedule: w });
-      toast({ title: 'Horaires enregistrés', sub: 'Le site propose les nouveaux créneaux tout de suite.', icon: 'check' });
+      const r = await api.patch<{ stranded?: number }>('/api/v1/staff/' + st.id, { schedule: w });
+      if (r.stranded) toast({ title: 'Horaires enregistrés', sub: plural(r.stranded, 'rendez-vous', 'rendez-vous') + ' déjà ' + (r.stranded > 1 ? 'pris tombent' : 'pris tombe') + ' hors de ces horaires : reporte-les, juste en dessous.', icon: 'alert', ttl: 10000 });
+      else toast({ title: 'Horaires enregistrés', sub: 'Le site propose les nouveaux créneaux tout de suite.', icon: 'check' });
       refreshAll(); reloadBoot().catch(() => {}); onSaved?.();
     } catch (e) { toastError(e); } finally { setBusy(false); }
   };
@@ -678,6 +711,29 @@ export function ScheduleEditor({ st, onSaved }: { st: Staff; onSaved?: () => voi
         {dirty ? <><Button variant="ghost" onClick={() => setW(weekOf(st.schedule))}>Annuler</Button><Button variant="primary" busy={busy} onClick={save}>Enregistrer</Button></> : null}
       </div>
     </>
+  );
+}
+
+/**
+ * The appointments already taken that fall outside his hours as they are now (a new weekly day off, a shorter day,
+ * a closure of the salon): nothing moves by itself, each day goes through « Reporter ses rendez-vous ».
+ */
+function Stranded({ st }: { st: Staff }) {
+  const { data } = useQuery<{ count: number; days: { day: string; count: number }[] }>('/api/v1/staff/' + st.id + '/stranded');
+  const [day, setDay] = useState<string | null>(null);
+  if (!data || !data.count) return null;
+  return (
+    <div className="eq-stranded" data-guide="equipe-hors-horaires">
+      <Note tone="warn" icon="alert">
+        <b>{plural(data.count, 'rendez-vous', 'rendez-vous')} déjà {data.count > 1 ? 'pris tombent' : 'pris tombe'} hors de ses horaires.</b> Rien n’est annulé ni déplacé tout seul : reporte chaque journée, le client est prévenu par SMS.
+        <ul className="eq-stranded-l">
+          {data.days.map((d) => (
+            <li key={d.day}><span>{cap(dates.dayLong(d.day))} · {plural(d.count, 'rdv', 'rdv')}</span><Button size="sm" variant="subtle" icon="move" onClick={() => setDay(d.day)}>Reporter</Button></li>
+          ))}
+        </ul>
+      </Note>
+      {day ? <ReportSheet about={{ staffId: st.id, day }} onClose={() => { setDay(null); refreshAll(); }} /> : null}
+    </div>
   );
 }
 
@@ -748,10 +804,7 @@ function Access({ st }: { st: Staff }) {
     if (!await confirm({ title: 'Déconnecter ' + st.name + ' partout ?', body: 'Toutes ses sessions sont fermées immédiatement, sur tous les appareils.', ok: 'Déconnecter', danger: true })) return;
     try { await api.post('/api/v1/staff/' + st.id + '/revoke'); toast('Sessions fermées'); } catch (e) { toastError(e); }
   };
-  const archive = async () => {
-    if (!await confirm({ title: 'Désactiver ' + st.name + ' ?', body: 'Il ne peut plus se connecter et disparaît du site. Son historique, ses ventes et ses chiffres sont conservés. Ses rendez-vous à venir restent dans l’agenda : pense à les réattribuer.', ok: 'Désactiver', danger: true })) return;
-    try { await api.post('/api/v1/staff/' + st.id + '/archive', {}); toast(st.name + ' a été désactivé'); refreshAll(); navigate('/equipe'); } catch (e) { toastError(e); }
-  };
+  const [leaving, setLeaving] = useState(false);
   return (
     <section className="card col" style={{ gap: 10 }}>
       <div className="card-h"><h2><Icon name="key" size={16} />Accès</h2></div>
@@ -761,11 +814,54 @@ function Access({ st }: { st: Staff }) {
       <p className="faint" style={{ fontSize: 12.5 }}>Chacun entre avec son code sur les postes du salon et sur son téléphone lié.</p>
       <div className="row wrap" style={{ gap: 8, marginTop: 4 }}>
         <Button size="sm" variant="ghost" icon="logout" onClick={revoke}>Déconnecter partout</Button>
-        {!me ? <Button size="sm" variant="danger" icon="trash" onClick={archive}>Désactiver</Button> : null}
+        {!me ? <Button size="sm" variant="danger" icon="trash" onClick={() => setLeaving(true)}>{st.chair ? 'Il quitte l’équipe' : 'Désactiver'}</Button> : null}
       </div>
+      <LeaveSheet open={leaving} onClose={() => setLeaving(false)} st={st} />
       <SecretModal open={pin} onClose={() => setPin(false)} st={st} kind="pin" />
       <SecretModal open={pwd} onClose={() => setPwd(false)} st={st} kind="password" />
     </section>
+  );
+}
+
+/**
+ * Someone leaves the team. Today: his account closes, he leaves the site, and the clients still booked with him are
+ * on the plan of his departure (the server posts it as an absence: nobody is orphaned). On a later day: his slots
+ * after it close now, his clients beyond it are replaced now, and his account is closed that day.
+ */
+function LeaveSheet({ open, onClose, st }: { open: boolean; onClose: () => void; st: Staff }) {
+  const { boot } = useApp();
+  const [last, setLast] = useState(boot.today);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { if (open) setLast(boot.today); }, [open]);
+  const later = last > boot.today;
+  const first = dates.addDays(last, 1);
+  // what is still booked with him from then on: read before anything is written
+  const plan = usePlan(open && st.chair ? { staffId: st.id, from: later ? first : boot.today, to: dates.addDays(later ? first : boot.today, 365) } : null);
+  const n = plan.data?.count || 0;
+  const go = async () => {
+    setBusy(true);
+    try {
+      if (later) {
+        const r = await api.post<{ id: string; conflicts: number }>('/api/v1/timeoff', { staffId: st.id, from: first, to: dates.addDays(first, 365), reason: 'Départ' });
+        refreshAll(); onClose();
+        toast({ title: st.name + ' part après le ' + dates.dayShort(last), sub: 'Le site ne le propose plus après cette date. Désactive sa fiche ce jour-là.', icon: 'check', ttl: 9000 });
+        if (r.conflicts) navigate('/equipe?absence=' + r.id);
+        return;
+      }
+      const r = await api.post<{ absence?: string | null; conflicts?: number }>('/api/v1/staff/' + st.id + '/archive', {});
+      refreshAll(); onClose();
+      if (r.conflicts && r.absence) { toast({ title: st.name + ' a quitté l’équipe', sub: plural(r.conflicts, 'client') + ' à replacer : choisis pour chacun.', icon: 'alert', ttl: 9000 }); navigate('/equipe?absence=' + r.absence); }
+      else { toast(st.name + ' a été désactivé'); navigate('/equipe'); }
+    } catch (e) { toastError(e); } finally { setBusy(false); }
+  };
+  return (
+    <Sheet open={open} onClose={onClose} title={st.name + ' quitte l’équipe'} footer={<><Button variant="ghost" onClick={onClose}>Annuler</Button><span className="grow" /><Button variant="danger" busy={busy} onClick={go}>{later ? 'Fermer ses créneaux après cette date' : 'Désactiver maintenant'}</Button></>}>
+      {st.chair ? <Field label="Dernier jour travaillé" hint={later ? 'Il garde son accès et ses rendez-vous jusque-là.' : 'Aujourd’hui : son accès est fermé tout de suite.'} htmlFor="lv-d"><input id="lv-d" className="input" type="date" value={last} min={boot.today} onChange={(e) => e.target.value && setLast(e.target.value)} /></Field> : null}
+      {st.chair && plan.loading ? <Skeleton h={56} r={16} /> : n ? (
+        <Note tone="warn" icon="alert"><b>{plural(n, 'rendez-vous', 'rendez-vous')} à son nom {later ? 'après cette date' : 'à venir'}.</b> Aucun n’est annulé : juste après, tu choisis pour chacun un autre barbier, une autre heure, ou de le rappeler, et le client est prévenu.</Note>
+      ) : st.chair ? <Note tone="ok" icon="check">Aucun rendez-vous à son nom {later ? 'après cette date' : 'à venir'}.</Note> : null}
+      <p className="muted" style={{ fontSize: 13.5 }}>{later ? 'Le site ne le propose plus après le ' + dates.dayLong(last) + '. Reviens ici ce jour-là pour désactiver sa fiche.' : 'Il ne peut plus se connecter, ses téléphones liés sont retirés et il disparaît du site. Son historique, ses ventes et ses chiffres sont conservés.'}</p>
+    </Sheet>
   );
 }
 

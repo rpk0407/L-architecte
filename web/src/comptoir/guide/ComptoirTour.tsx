@@ -111,9 +111,9 @@ async function aFile() {
 
 /* ---------------- the pieces the shell places ---------------- */
 
-/** Homes read at a glance on a phone (TEAM-04: his next client and four rows of his day without scrolling; TEAM-05a: the owner's Pilotage): the welcome
+/** Homes read at a glance on a phone (WP5: the Accueil's sentence, next client and first chair without scrolling; TEAM-04: his next client and four rows of his day without scrolling; TEAM-05a: the owner's Pilotage): the welcome
  *  goes under the page there, and the top bar's « Visite guidée » invites him meanwhile. */
-export const GLANCE_PAGES: readonly string[] = ['pilotage', 'espace'];
+export const GLANCE_PAGES: readonly string[] = ['accueil', 'pilotage', 'espace'];
 
 /** The tour itself, mounted once by the shell; it plays when someone asks (startTour). */
 export function ComptoirTour({ canOpen }: { canOpen: (path: string) => boolean }) {
@@ -184,6 +184,14 @@ export function TourWelcome({ canOpen }: { canOpen: (path: string) => boolean })
       </div>
     </aside>
   );
+}
+
+/** In the avatar menu of a phone: « Comment marche cette page ? », only on a page that has guide steps for this person. */
+export function TourPageItem({ canOpen }: { canOpen: (path: string) => boolean }) {
+  const all = usePlan(canOpen);
+  useRoute();
+  if (!pageSteps(all, location.pathname).length) return null;
+  return <button type="button" onClick={() => startTour('page')}><Icon name="info" />Comment marche cette page ?</button>;
 }
 
 /** In the top bar: « Visite guidée » until he has been through it, then the page's « ? » (its own steps only). */

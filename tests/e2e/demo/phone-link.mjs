@@ -43,7 +43,7 @@ export default async ({ h, page }) => {
   await phone.keyboard.type('2468');
   await phone.keyboard.press('Enter');
   await phone.locator('#page-title h1').waitFor({ timeout: 10000 });
-  await phone.waitForURL(/\/comptoir\/(espace|agenda)(\?|$)/, { timeout: 8000 });
+  await phone.waitForURL(/\/comptoir\/(accueil|espace|agenda)(\?|$)/, { timeout: 8000 });
   await h.shot(phone, 'phone-home');
   // the tablet's QR has done its job
   await page.getByRole('img', { name: /QR code pour lier/ }).waitFor({ state: 'detached', timeout: 15000 });

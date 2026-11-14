@@ -123,16 +123,16 @@ test('the owner’s tour follows a day at the salon: Mise en route, Agenda, Cais
   const all = planFor(owner);
   assert.equal(all[0].id, 'mer.head', 'it starts with Mise en route');
   const pages = [...new Set(all.map((s) => s.place.split('?')[0].replace(/^\/comptoir\//, '').split('/')[0]))];
-  const order = ['reglages', 'pilotage', 'espace', 'agenda', 'caisse', 'clients', 'relances', 'rapports', 'equipe', 'catalogue'];
+  const order = ['reglages', 'accueil', 'pilotage', 'espace', 'agenda', 'caisse', 'clients', 'messages', 'relances', 'rapports', 'equipe', 'catalogue'];
   // Mise en route first, Réglages' other sections last: the page ranks never go back
   const ranks = all.map((s) => placeOf(s, COMPTOIR_PLACES).rank);
   assert.ok(ranks.every((r, i) => !i || r >= ranks[i - 1]), 'places in order');
   const seen = pages.filter((p) => p !== 'reglages');
   assert.deepEqual(seen, order.filter((p) => seen.includes(p)), 'the pages in the spec’s order: ' + pages.join(' › '));
   assert.ok(all.at(-1).place.startsWith('/comptoir/reglages/'), 'Réglages last');
-  // inside a place, `order` first; the Caisse: Encaisser, the ticket, Ventes du jour, Caisse & clôture
+  // inside a place, `order` first; the Caisse: Encaisser, the ticket, Ventes du jour, Caisse & clôture, then Le mois (the owner's)
   const caisse = [...new Set(all.filter((s) => s.place.startsWith('/comptoir/caisse')).map((s) => s.place))];
-  assert.deepEqual(caisse, ['/comptoir/caisse', '/comptoir/caisse?rdv=:rdv', '/comptoir/caisse/ventes', '/comptoir/caisse/cloture']);
+  assert.deepEqual(caisse, ['/comptoir/caisse', '/comptoir/caisse?rdv=:rdv', '/comptoir/caisse/ventes', '/comptoir/caisse/cloture', '/comptoir/caisse/mois']);
   const agenda = all.filter((s) => s.place === '/comptoir/agenda').map((s) => s.order ?? 100);
   assert.deepEqual(agenda, [...agenda].sort((a, b) => a - b));
   // a part that only lives in a view of its page is shown there: the file, the ticket, the Abonnés segment, the week
@@ -150,7 +150,7 @@ test('the owner’s tour follows a day at the salon: Mise en route, Agenda, Cais
 });
 
 test('places: listed order, unlisted pages after their parent, and /moi keeps its signed-in steps', () => {
-  assert.deepEqual(COMPTOIR_PLACES.slice(0, 4).map((p) => p.path), ['/comptoir/reglages/mise-en-route', '/comptoir/pilotage', '/comptoir/espace', '/comptoir/agenda']);
+  assert.deepEqual(COMPTOIR_PLACES.slice(0, 5).map((p) => p.path), ['/comptoir/reglages/mise-en-route', '/comptoir/accueil', '/comptoir/pilotage', '/comptoir/espace', '/comptoir/agenda']);
   assert.ok(matchPath('/comptoir/clients/:id', '/comptoir/clients/abc') && !matchPath('/comptoir/clients/:id', '/comptoir/clients'));
   assert.ok(matchPath('/comptoir/caisse?rdv=:rdv', '/comptoir/caisse'));
   // a Réglages section the list does not know plays after the listed ones, a Caisse tab after the Caisse's

@@ -10,6 +10,9 @@ import digest from './steps/digest.js';
 import simBilling from './steps/sim-billing.js';
 import { periodCloseStep, signStep, jetStep } from './steps/fiscal.js';
 import demoPurge from './steps/demo-purge.js';
+import alerts from './steps/alerts.js';
+import comptaPack from './steps/compta-pack.js';
+import earlier from './steps/earlier.js';
 
 export { missedZ, dayWords };
 /** "samedi 31" for the feed. */
@@ -52,6 +55,12 @@ export const REGISTRY = [
   periodCloseStep,
   signStep,
   jetStep,
+  // the month just closed goes to the accountant when the owner asked for it (Réglages › Comptabilité, after period-close)
+  comptaPack,
+  // FEATURE B: « un créneau s'est libéré plus tôt » to the clients who asked for it on their booking
+  earlier,
+  // the owner hears of a breakdown during the day, once per cause and per day (settings.notify.alerts)
+  alerts,
   // AC-01: the demo forgets its visitors' files two hours after they were made
   demoPurge
 ];

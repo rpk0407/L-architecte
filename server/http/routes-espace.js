@@ -4,11 +4,12 @@
 // asks and nobody else (domain/espace.js).
 import { HttpError } from './kit.js';
 import { fileOf } from './routes-staff.js';
-import { espaceView, noteWho } from '../domain/espace.js';
+import { espaceView, noteWho, planningView, PLAN_DAYS } from '../domain/espace.js';
+import { answerArrival } from '../commands/arrival.js';
 import { addCutNote } from '../commands/cutnotes.js';
 import { cutNotesOf } from '../projections/cutnotes.js';
 import { fileIds } from '../commands/clients.js';
-import { isDay } from '../../shared/dates.js';
+import { isDay, diffDays } from '../../shared/dates.js';
 
 export function espaceRoutes(app) {
   app.get('/api/v1/espace', (r) => {
@@ -17,6 +18,19 @@ export function espaceRoutes(app) {
     // a past day shows what happened, a coming day what is booked; the live parts (now, next) are today's
     return espaceView(r.s, r.me, r.caps, { day: day && isDay(day) ? day : r.local.day, now: r.now });
   }, { cap: 'agenda.own' });
+
+  /** FEATURE C · « Mon planning »: one day of his own column, from a week back to the 14 days ahead. */
+  app.get('/api/v1/espace/planning', (r) => {
+    if (!r.me.chair) throw new HttpError(409, 'no_chair', 'Mon planning est pour ceux qui ont un fauteuil.');
+    const q = r.query.get('day');
+    const day = q && isDay(q) ? q : r.local.day;
+    const ahead = diffDays(r.local.day, day);
+    if (ahead < -7 || ahead >= PLAN_DAYS) throw new HttpError(400, 'invalid', 'Ce jour est hors de ton planning.');
+    return planningView(r.s, r.me, { day, now: r.now });
+  }, { cap: 'agenda.own' });
+
+  /** FEATURE C · « Le client est là ? »: here, later or absent, by the booking's barber (or whoever edits every booking). */
+  app.post('/api/v1/appointments/:id/arrival', (r) => r.run(answerArrival, { id: r.params.id, answer: r.body.answer }), { cap: 'agenda.own' });
 
   /** A note on a cut: by the appointment's barber (or whoever edits every booking), in the chair or within two weeks. */
   app.post('/api/v1/appointments/:id/cut-note', (r) => r.run(addCutNote, { id: r.params.id, text: r.body.text }), { cap: 'agenda.own' });

@@ -100,7 +100,7 @@ export default async ({ h, page }) => {
   await h.expectText(page, 'n’ont pas pu être lues', 20000);
   await page.locator('.wp-issues-list summary').click();
   await h.expectText(page, 'Date illisible');
-  await h.expectText(page, 'Télécharger la liste (CSV)');
+  await h.expectText(page, 'La liste avec les raisons (CSV)');
   await ready();
   await page.getByRole('button', { name: /^Importer \d+ rendez-vous/ }).click();
   await h.expectText(page, 'Terminée', 60000);

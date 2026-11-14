@@ -2,6 +2,11 @@
 // the period before, and the thin bars.
 import type { ReactNode } from 'react';
 import { Icon } from '../../../ui/Icon';
+// @ts-ignore — plain JS module with JSDoc types
+import * as F from '../../../../../shared/figures.js';
+
+/** How each number is computed, one plain sentence each: the copy shared with Rapports and the tests (shared/figures.js). */
+export const HOW = (F as { HOW: Record<'revenue' | 'takings' | 'pace' | 'compare' | 'fill' | 'clients' | 'basket' | 'noShow' | 'margin' | 'free' | 'planned', string> }).HOW;
 
 /** The change from `prev` to `cur`, as a fraction; null when there is nothing to compare with. */
 export const rel = (cur: number, prev: number): number | null => (prev ? (cur - prev) / Math.abs(prev) : null);
@@ -25,10 +30,11 @@ export function Dlt({ cur, prev, against, inverse, soft }: { cur: number; prev: 
   );
 }
 
-/** A tile of the page: the Kpi's look, `wide` over two columns, `guide` the mark the tour points at. */
-export function Tile({ guide, k, icon, v, s, delta, wide, hot, children }: { guide?: string; k: ReactNode; icon: string; v: ReactNode; s?: ReactNode; delta?: ReactNode; wide?: boolean; hot?: boolean; children?: ReactNode }) {
+/** A tile of the page: the Kpi's look, `wide` over two columns, `guide` the mark the tour points at, `how` the way the
+ *  number is computed (a tooltip here; the same sentences are listed under the tiles for a phone). */
+export function Tile({ guide, k, icon, v, s, delta, wide, hot, how, children }: { guide?: string; k: ReactNode; icon: string; v: ReactNode; s?: ReactNode; delta?: ReactNode; wide?: boolean; hot?: boolean; how?: string; children?: ReactNode }) {
   return (
-    <div className={'kpi pl-tile' + (wide ? ' wide' : '') + (hot ? ' hot' : '')} data-guide={guide} role="group" aria-label={typeof k === 'string' ? k : undefined}>
+    <div className={'kpi pl-tile' + (wide ? ' wide' : '') + (hot ? ' hot' : '')} data-guide={guide} role="group" aria-label={typeof k === 'string' ? k : undefined} title={how}>
       <span className="kpi-k"><Icon name={icon} size={15} />{k}{delta}</span>
       <span className="kpi-v">{v}</span>
       {s ? <span className="kpi-s">{s}</span> : null}

@@ -19,6 +19,8 @@ export const SECTION_CAP: Record<string, string> = {
   appareils: 'devices',
   donnees: 'data',
   wordpress: 'settings',
+  // the salon's mailbox and its domain at IONOS: what Vercel holds is the owner's
+  ionos: 'settings',
   journal: 'audit'
 };
 /** Open to every role. */

@@ -9,11 +9,12 @@ import type { AccountState, Me } from '../moi/types';
 import './client.css';
 import './cadeau.css';
 import Member from './abonnement/Member';
+import { Contact, EarlierOffer, readEarlier } from './contact';
 
 function App() {
   const parts = location.pathname.split('/').filter(Boolean);
   const q = new URLSearchParams(location.search);
-  if (parts[0] === 'r' && parts[1]) return <Manage token={parts[1]} back={q.get('paiement')} />;
+  if (parts[0] === 'r' && parts[1]) return <Manage token={parts[1]} back={q.get('paiement')} offer={readEarlier(q.get('plus-tot'))} moveNow={q.has('deplacer')} />;
   if (parts[0] === 'paiement' && parts[1] === 'merci') return <Thanks ok={q.get('paiement') !== 'annule'} member={q.get('abonnement')} />;
   if (parts[0] === 'paiement' && parts[1]) return <Checkout id={parts[1]} />;
   if (parts[0] === 'recu' && parts[1]) return <Receipt token={parts[1]} />;
@@ -45,14 +46,17 @@ function Spinner() { return <div className="c-card c-center" aria-busy="true"><s
 
 /* ---------------- my appointment ---------------- */
 
-function Manage({ token, back }: { token: string; back: string | null }) {
+function Manage({ token, back, offer, moveNow }: { token: string; back: string | null; offer: { day: string; start: number } | null; moveNow: boolean }) {
   const [b, setB] = useState<Booking | null>(null);
+  const [slot, setSlot] = useState(offer);
   const [err, setErr] = useState('');
   const [mode, setMode] = useState<'' | 'move' | 'cancel'>('');
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<{ tone: string; text: string } | null>(back === 'ok' ? { tone: 'ok', text: 'Paiement reçu. On confirme ton rendez-vous…' } : back === 'annule' ? { tone: 'warn', text: 'Paiement annulé. Ton créneau reste gardé quelques minutes : tu peux réessayer.' } : null);
   const load = () => api.get<Booking>('/api/public/bookings/' + encodeURIComponent(token)).then(setB).catch((e) => setErr(e.message));
-  useEffect(() => { load(); if (back) history.replaceState(null, '', location.pathname); }, []);
+  useEffect(() => { load(); if (back || offer || moveNow) history.replaceState(null, '', location.pathname); }, []);
+  // « Déplacer » from the list of /mon-rendez-vous (?deplacer): the move opens at once when it is still allowed
+  useEffect(() => { if (moveNow && b && b.canChange && mode === '') setMode('move'); }, [b && b.code]);
   // after paying, the bank's confirmation can take a few seconds to reach the salon
   useEffect(() => {
     if (back !== 'ok' || !b || b.status !== 'pending') { if (back === 'ok' && b && b.status === 'booked') setNote({ tone: 'ok', text: 'Acompte reçu, ton rendez-vous est confirmé.' }); return; }
@@ -98,6 +102,8 @@ function Manage({ token, back }: { token: string; back: string | null }) {
         <p className="c-addr">{b.shop.address}</p>
       </section>
 
+      {slot && upcoming && mode === '' ? <EarlierOffer b={b} token={token} slot={slot} onDone={(nb) => { setB(nb); setSlot(null); setNote({ tone: 'ok', text: 'C’est avancé. Le message de confirmation part tout de suite.' }); }} onClose={() => setSlot(null)} /> : null}
+
       {b.status === 'pending' && upcoming ? (
         <section className="c-card">
           <p className="c-muted">Ton créneau est gardé quelques minutes. Il sera confirmé dès le paiement de l’acompte, déduit du prix au salon.</p>
@@ -115,7 +121,7 @@ function Manage({ token, back }: { token: string; back: string | null }) {
               <button type="button" className="c-link" onClick={() => setMode('cancel')}>Annuler</button>
             </div>
           ) : ['pending', 'booked'].includes(b.status) ? (
-            <p className="c-muted c-small">Moins de {b.cancelUntilHours} h avant le rendez-vous : pour le déplacer ou l’annuler, appelle le salon{b.shop.phone ? ' au ' : '.'}{b.shop.phone ? <a href={'tel:' + b.shop.phone.replace(/\s/g, '')}>{b.shop.phone}</a> : null}</p>
+            <p className="c-note warn c-small">Il est trop tard pour annuler ou déplacer en ligne : c’est possible jusqu’à {b.cancelUntilHours} h avant le rendez-vous. Pour un empêchement, appelle le salon{b.shop.phone ? ' au ' : '.'}{b.shop.phone ? <a href={'tel:' + b.shop.phone.replace(/\s/g, '')}>{b.shop.phone}</a> : null}</p>
           ) : null}
         </section>
       ) : null}
@@ -129,6 +135,8 @@ function Manage({ token, back }: { token: string; back: string | null }) {
       ) : null}
 
       {mode === 'move' ? <Move b={b} token={token} onDone={(nb) => { setB(nb); setMode(''); setNote({ tone: 'ok', text: 'C’est déplacé. Un SMS de confirmation part tout de suite.' }); }} onCancel={() => setMode('')} /> : null}
+
+      {upcoming && mode === '' && (b.status === 'booked' || b.status === 'pending') ? <Contact token={token} b={b} /> : null}
 
       {upcoming && mode === '' && (b.status === 'booked' || b.status === 'pending') ? <Espace token={token} /> : null}
 

@@ -7,6 +7,7 @@ import { Button } from '../../../../ui/kit';
 import { useApp } from '../../../state';
 import type { EspaceCardMeta, EspaceCardProps, EspaceRow } from '../../../types';
 import { EsCard } from '../shared';
+import { PhoneCheckoutButton } from '../../caisse/PhoneCheckout';
 
 export const meta: EspaceCardMeta = { id: 'journee', title: 'Ma journée', chairOnly: true };
 
@@ -39,6 +40,7 @@ export default function Journee({ data, note }: EspaceCardProps) {
                 <span className="es-rn"><b>{r.name}</b><small>{r.services.join(' + ')}</small></span>
                 {r.late > 0 ? <span className="badge badge-warn">En retard · {r.late} min</span> : WORD[r.status] ? <span className={'badge ' + (TONE[r.status] || '')}>{WORD[r.status]}</span> : null}
               </button>
+              <PhoneCheckoutButton size="sm" row={r} nowMin={data.now ? data.now.min : null} isToday={data.day === data.today} />
               {r.needsNote && (noteOn == null || r.id === noteOn) ? <Button className="es-note" size="sm" variant="ghost" icon="plus" disabled={offline} aria-label={'Ajouter une note de coupe pour ' + r.name} onClick={() => note({ id: r.id, name: r.name })}>note</Button> : null}
             </li>
           ))}

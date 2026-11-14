@@ -263,7 +263,8 @@ function Backups() {
 
 /* ---------------- the activity log ---------------- */
 
-type AuditItem = { v: number; at: number; type: string; label: string; summary: string; actor: string; actorId: string; device: string; hash: string };
+// count, vTo: one line for the events one request wrote on many things (a bulk tag): grouped by the server as it reads
+type AuditItem = { v: number; at: number; type: string; label: string; summary: string; actor: string; actorId: string; device: string; hash: string; count?: number; vTo?: number };
 const KINDS: [string, string][] = [['', 'Tout'], ['appt.', 'Rendez-vous'], ['sale.', 'Ventes'], ['drawer.', 'Caisse'], ['day.', 'Clôtures'], ['client.', 'Clients'], ['staff.', 'Équipe'], ['settings.', 'Réglages'], ['payment.', 'Paiements'], ['device.', 'Appareils']];
 
 function Journal() {
@@ -299,7 +300,7 @@ function Journal() {
             <ul className="rg-log">{xs.map((x) => (
               <li key={x.v}>
                 <span className="t tnum">{clock(x.at)}</span>
-                <span className="m"><b>{x.label}</b>{x.summary ? <span> · {x.summary}</span> : null}<small>{x.actor}{x.device ? ' · ' + x.device : ''} · n° {x.v} · {x.hash}</small></span>
+                <span className="m"><b>{x.label}</b>{x.summary ? <span>{x.count ? ' : ' : ' · '}{x.summary}</span> : null}<small>{x.count ? 'par ' : ''}{x.actor}{x.device ? ' · ' + x.device : ''} · n° {x.v}{x.vTo ? ' à ' + x.vTo : ''} · {x.hash}</small></span>
               </li>
             ))}</ul>
           </section>

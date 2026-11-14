@@ -20,6 +20,8 @@ const AMOUNTS = [2000, 3000, 5000, 8000];
 const NOT_LIVE = 'Les cartes cadeaux en ligne arrivent bientôt : en vente au salon';
 
 // as routes-public.js says them (not imported: that file imports fulfilGiftcard from this one)
+/** When the checkout page lapses, on the salon's clock (routes-public.js lapse: the provider counts on the real one). */
+export const lapse = (r, co) => r.now + Math.max(0, co.exp - Date.now());
 const isDemo = (r) => r.rt.cfg.mode === 'demo' && r.s.mode === 'demo';
 /**
  * Real money only: the simulated provider takes demo money, and a Stripe test key takes Stripe's test cards, never a
@@ -151,7 +153,7 @@ export function giftshopRoutes(app) {
     const back = giftLink(r.rt.secret, id);
     const label = 'Carte cadeau ' + r.s.settings.shop.name + ' · ' + fmtEur(o.amount);
     const co = await r.rt.pay.createCheckout({ id, amount: o.amount, label, email: o.buyer.email || undefined, successUrl: r.origin + back + '?paiement=ok', cancelUrl: r.origin + '/carte-cadeau?paiement=annule' });
-    await r.rt.engine.run(createPayment, { id, kind: 'giftcard', amount: o.amount, provider: r.rt.pay.name, providerRef: co.ref, url: co.url, exp: co.exp, label, order: r.body }, SYSTEM(r));
+    await r.rt.engine.run(createPayment, { id, kind: 'giftcard', amount: o.amount, provider: r.rt.pay.name, providerRef: co.ref, url: co.url, exp: lapse(r, co), label, order: r.body }, SYSTEM(r));
     // the test checkout page has no success address of its own: it is told where to go once "paid"
     const url = r.rt.pay.name === 'simulated' ? co.url + '?retour=' + encodeURIComponent(back) : co.url;
     return json({ id, url, card: back }, 201);

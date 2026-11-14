@@ -6,7 +6,7 @@
 // changes, so a retried tap writes nothing. Personal data stays in pii: events name the file (cid), never a name, number
 // or address. Erasure itself stays the owner's (Clients › fiche › Effacer, with its guard on what is still open).
 import { fail } from '../core/engine.js';
-import { str, bool, opt, nullable, obj, parse } from '../lib/validate.js';
+import { str, bool, opt, nullable, obj, oneOf, parse } from '../lib/validate.js';
 import { isEmail } from '../lib/util.js';
 import { queueMessage, messageId } from '../domain/messages.js';
 import { ownerAlert, originOf } from '../domain/notices.js';
@@ -16,6 +16,8 @@ import { accountsOn } from '../settings/accounts.js';
 import { clientParts, fileIds } from './clients.js';
 import { getClient } from './common.js';
 import { rootFile } from './accounts.js';
+import { NOTIFY_VIA, notifyOptions, contactOwns, comingAppt } from '../domain/notify.js';
+import { clientMayChange } from '../domain/policy.js';
 
 const CLOSED = 'Ton espace s’est fermé. Reconnecte-toi.';
 export const SALON_ONLY = 'Pour ça, passe au salon.';
@@ -188,5 +190,55 @@ export const sendSpaceInvite = {
     while (s.messages.has(messageId('invite_' + c.id + '_' + day + '_' + n))) n++;
     const id = queueMessage(s, ctx, { key: 'invite_' + c.id + '_' + day + '_' + n, template: 'accesInvite', to: c.phone, cid: c.id, vars: { lien: x.link } });
     return { ok: true, sent: !!id, ...(id ? { id } : {}) };
+  }
+};
+
+/* ---------------- FEATURE B · how the salon reaches him, and « préviens-moi si un créneau se libère plus tôt » ---------------- */
+
+/**
+ * The contact's file: the signed-in client's (the session, as own() reads it), or the file the route vouched for from a
+ * booking's signed link (ctx.meta.contact.cid: the person who booked, routes-client.js). Never a value of the body.
+ * @returns {{ c: any, ids: string[] }}
+ */
+function contactOf(s, ctx) {
+  if (ctx.meta && ctx.meta.me) { const { c } = own(s, ctx); return { c, ids: fileIds(s, c) }; }
+  const cid = ctx.actor.t === 'client' && ctx.meta && ctx.meta.contact && ctx.meta.contact.cid;
+  const c = cid ? rootFile(s, cid) : null;
+  if (!c || c.erased) fail(404, 'not_found', 'Ce lien n’est pas (ou plus) valable.');
+  return { c, ids: fileIds(s, c) };
+}
+
+const viaSchema = obj({ via: oneOf(/** @type {readonly string[]} */ (NOTIFY_VIA)) });
+/**
+ * « Comment le salon te prévient »: WhatsApp, SMS or e-mail, for the reminders and « un créneau s'est libéré ». Only a
+ * channel the salon can use for this file (an e-mail on file, WhatsApp on at the salon). One event when it changes.
+ */
+export const setNotifyVia = {
+  run(s, input, ctx) {
+    const { c } = contactOf(s, ctx);
+    const x = parse(viaSchema, input || {});
+    if (!notifyOptions(s, c).includes(x.via)) fail(400, 'invalid', x.via === 'email' ? 'Pas d’e-mail sur ta fiche : donne-le au salon pour être prévenu par e-mail.' : 'Le salon ne peut pas te joindre comme ça pour l’instant.');
+    if ((c.notify || 'sms') === x.via) return { ok: true, changed: false, via: x.via };
+    ctx.emit('client.updated', { id: c.id, cid: c.id, patch: { notify: x.via }, fields: [] });
+    return { ok: true, changed: true, via: x.via };
+  }
+};
+
+const earlierSchema = obj({ id: str({ min: 1, max: 64 }), on: bool() });
+/**
+ * « Préviens-moi si un créneau se libère plus tôt » on one of his bookings to come (his own or one he booked for someone
+ * else), while it may still be moved online. Off again at any time. One event when it changes.
+ */
+export const setEarlierAlert = {
+  run(s, input, ctx) {
+    const { ids } = contactOf(s, ctx);
+    const x = parse(earlierSchema, input || {});
+    const a = s.appts.get(x.id);
+    if (!a || !contactOwns(ids, a, s)) fail(404, 'not_found', 'Rendez-vous introuvable.');
+    if (x.on && (a.status !== 'booked' || !comingAppt(s, a, ctx.now))) fail(409, 'closed', 'Ce rendez-vous ne peut plus être avancé.');
+    if (x.on && !clientMayChange(s, a, ctx.now)) fail(409, 'too_late', 'Ton rendez-vous est trop proche pour être avancé en ligne. Appelle le salon.');
+    if (!!a.earlier === x.on) return { ok: true, changed: false, on: x.on };
+    ctx.emit('appt.updated', { id: a.id, patch: { earlier: x.on }, cid: a.clientId || undefined });
+    return { ok: true, changed: true, on: x.on };
   }
 };

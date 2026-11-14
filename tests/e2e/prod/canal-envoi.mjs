@@ -1,11 +1,12 @@
-// MSG-02 · Réglages › Messages › Canal d'envoi on a production salon whose texts leave from the salon's own phone: the
-// route in use, the test text through a stubbed SMS Gateway (Basic auth, the owner's number), no key nor password on
-// the page, a WhatsApp template mapped and saved, and a client's answer to the phone landing in Relances › Demandes.
+// MSG-02 · Réglages › Messages › Messages aux clients on a production salon whose texts leave from the salon's own phone:
+// the way in use, the test text through a stubbed SMS Gateway (Basic auth, the owner's number), no key, token nor
+// password on the page, the automatic WhatsApp mode chosen and saved with its four templates, and a client's answer to
+// the phone landing in Relances › Demandes.
 // Run by tests/e2e/prod.mjs on its own fresh salon.
 import { createServer } from 'node:http';
 import { webhookKey } from '../../../server/messaging/sms.js';
 
-export const name = 'Canal d’envoi: the salon phone tested through a stub, WhatsApp mapped, an answer in Demandes';
+export const name = 'Messages aux clients: the salon phone tested through a stub, WhatsApp automatique chosen, an answer in Demandes';
 
 // the salon's phone, as its cloud API answers: 202 and an id; every request kept for the checks
 const calls = [];
@@ -19,11 +20,11 @@ const stub = createServer((req, res) => {
 });
 await new Promise((ok) => stub.listen(0, '127.0.0.1', ok));
 const port = /** @type {any} */ (stub.address()).port;
-const SECRETS = ['gate-pass-SECRET', 'xkeysib-SECRET', 'GATEUSER'];
+const SECRETS = ['gate-pass-SECRET', 'xkeysib-SECRET', 'GATEUSER', 'EAAG-SECRET'];
 
 export const env = {
   SMS_PROVIDER: 'gateway', SMSGATE_USERNAME: 'GATEUSER', SMSGATE_PASSWORD: 'gate-pass-SECRET', SMSGATE_URL: 'http://127.0.0.1:' + port + '/3rdparty/v1',
-  BREVO_API_KEY: 'xkeysib-SECRET', WHATSAPP_SENDER: '+33491000000', CRON_SECRET: 'cron-e2e-0123456789'
+  BREVO_API_KEY: 'xkeysib-SECRET', WHATSAPP_SENDER: '+33491000000', WHATSAPP_TOKEN: 'EAAG-SECRET', WHATSAPP_PHONE_ID: '106540352242922', CRON_SECRET: 'cron-e2e-0123456789'
 };
 const PHONE = { width: 390, height: 844 };
 const noSecret = async (page, where) => {
@@ -38,9 +39,10 @@ export default async ({ h, page }) => {
     for (const x of SECRETS) if (api.text.includes(x)) throw new Error('the channels API gives a secret away: ' + x);
 
     await page.goto(h.base + '/comptoir/reglages/messages');
-    const card = page.locator('section.card', { has: page.getByRole('heading', { name: 'Canal d’envoi' }) });
+    const card = page.locator('section.card', { has: page.getByRole('heading', { name: 'Messages aux clients' }) });
     await card.waitFor({ timeout: 10000 });
-    await card.locator('.card-h .badge', { hasText: 'Téléphone du salon' }).waitFor({ timeout: 5000 });
+    await card.locator('.card-h .badge', { hasText: 'SMS' }).waitFor({ timeout: 5000 });
+    await card.locator('.cn-mode.on', { hasText: 'En service : Téléphone du salon (SMS).' }).waitFor({ timeout: 5000 });
     await noSecret(page, 'Réglages › Messages');
     await h.shot(page, 'canal-desktop');
 
@@ -55,28 +57,30 @@ export default async ({ h, page }) => {
     if (c.auth !== 'Basic ' + Buffer.from('GATEUSER:gate-pass-SECRET').toString('base64')) throw new Error('wrong auth');
     if (JSON.stringify(c.body.phoneNumbers) !== '["+33612345678"]' || !/par le téléphone du salon/.test(c.body.textMessage.text)) throw new Error('wrong body ' + JSON.stringify(c.body));
 
-    // WhatsApp: the confirmation's template mapped, a bad variable refused on the spot, then saved
-    await card.getByText('Envoyer par WhatsApp quand un modèle est associé').click();
-    await card.getByLabel('Numéro du modèle : Confirmation').fill('12');
-    await card.getByLabel('Variables : Confirmation').fill('prenom, nom');
-    await card.getByText('Inconnu : nom.').waitFor({ timeout: 3000 });
-    if (!(await card.getByRole('button', { name: 'Enregistrer le canal' }).isDisabled())) throw new Error('a bad mapping can be saved');
-    await card.getByLabel('Variables : Confirmation').fill('prenom, date, heure, barbier, lien');
-    await card.getByRole('button', { name: 'Enregistrer le canal' }).click();
-    await h.expectText(page, 'Canal d’envoi enregistré');
-    await card.locator('.card-h .badge', { hasText: 'WhatsApp + SMS en secours' }).waitFor({ timeout: 5000 });
+    // WhatsApp automatique: plugged (the token and the number's id are in the environment), chosen, saved with the four
+    // templates under their names; the texts to paste at Meta are on the page
+    const auto = card.locator('.cn-mode', { hasText: 'WhatsApp automatique' });
+    await auto.getByText('Branché, depuis le 04 91 00 00 00.').waitFor({ timeout: 3000 });
+    await auto.getByText('Meta facture chaque message', { exact: false }).waitFor({ timeout: 3000 });
+    await auto.getByRole('radio').check();
+    await card.getByRole('button', { name: 'Enregistrer' }).click();
+    await h.expectText(page, 'Messages aux clients : enregistré');
+    await card.locator('.card-h .badge', { hasText: 'WhatsApp automatique' }).waitFor({ timeout: 5000 });
     const saved = (await h.api('/api/v1/settings')).json.settings.messages.whatsapp;
-    if (!saved.enabled || saved.templates.confirmation.id !== 12 || saved.templates.confirmation.params.join() !== 'prenom,date,heure,barbier,lien') throw new Error('not saved: ' + JSON.stringify(saved));
+    if (saved.mode !== 'auto' || !saved.enabled || saved.templates.confirmation.name !== 'rdv_confirmation' || saved.templates.confirmation.params.join() !== 'prenom,date,heure,barbier,lien' || saved.templates.moved.name !== 'rdv_deplace') throw new Error('not saved: ' + JSON.stringify(saved));
+    await card.getByRole('button', { name: /Rappel la veille/ }).click();
+    await card.getByText('Rappel de L\'Architecte : on t\'attend demain à {{heure}} avec {{barbier}}.', { exact: false }).waitFor({ timeout: 3000 });
+    await noSecret(page, 'Réglages › Messages, WhatsApp automatique');
 
     // the phone, on a phone
     const mobile = await h.newPage({ viewport: PHONE });
     await mobile.context().addCookies(await page.context().cookies());
     await mobile.goto(h.base + '/comptoir/reglages/messages');
-    await mobile.getByRole('heading', { name: 'Canal d’envoi' }).waitFor({ timeout: 10000 });
+    await mobile.getByRole('heading', { name: 'Messages aux clients' }).waitFor({ timeout: 10000 });
     const overflow = await mobile.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     if (overflow > 1) throw new Error('the page scrolls sideways on a phone (' + overflow + ' px)');
     await noSecret(mobile, 'Réglages › Messages on a phone');
-    await mobile.getByRole('heading', { name: 'Canal d’envoi' }).scrollIntoViewIfNeeded();
+    await mobile.getByRole('heading', { name: 'Messages aux clients' }).scrollIntoViewIfNeeded();
     await h.shot(mobile, 'canal-phone');
 
     // a client answers the salon's phone: the app posts it to the webhook, the owner reads it in Demandes

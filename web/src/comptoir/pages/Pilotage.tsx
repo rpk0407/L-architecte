@@ -17,6 +17,7 @@ import { Tiles, ExtraTiles } from './pilotage/Tiles';
 import { Team } from './pilotage/Team';
 import { BarberSheet } from './pilotage/BarberSheet';
 import { Equity } from './pilotage/Equity';
+import { Ahead, Today } from './pilotage/Today';
 import './pilotage.css';
 
 // the statement is Rapports' sheet: loaded when it is asked for
@@ -68,6 +69,7 @@ export default function Pilotage() {
     const next = step(kind, base, dir);
     setDay(next >= today ? '' : next);
   };
+  const early = !!d && d.range.live && d.today.open && !d.today.started;
   const row = d && sheet ? d.team.find((x) => x.id === sheet) || null : null;
 
   return (
@@ -81,7 +83,8 @@ export default function Pilotage() {
               <Button icon="chevL" aria-label={kind === 'day' ? 'Reculer d’un jour' : kind === 'week' ? 'Reculer d’une semaine' : 'Reculer d’un mois'} onClick={() => go(-1)} />
               <div className="pl-label" role="status" aria-live="polite">
                 <b>{d ? d.range.label : '…'}</b>
-                {d ? <small className="muted">{current ? 'en cours' : 'terminé'} · comparé {d.range.prevLabel}</small> : null}
+                {/* what the arrows compare, in words (compareOf): « 5 jours ouverts terminés ce mois-ci, comparés aux 5 premiers jours ouverts d’octobre » */}
+                {d ? <small className="muted">{current ? 'en cours' : 'terminé'} · {d.range.compare ? d.range.compare.words : 'comparé ' + d.range.prevLabel}</small> : null}
               </div>
               <Button icon="chevR" aria-label={kind === 'day' ? 'Avancer d’un jour' : kind === 'week' ? 'Avancer d’une semaine' : 'Avancer d’un mois'} disabled={current} onClick={() => go(1)} />
             </div>
@@ -107,13 +110,18 @@ export default function Pilotage() {
         <div className={'pl-body' + (switching ? ' switching' : '')} aria-busy={switching}>
           {failed ? <div className="pl-fail" role="alert"><Icon name="alert" size={16} /><span>Cette période ne s’est pas chargée : ce que tu vois est la précédente.</span><Button onClick={() => { void refresh(); }}>Réessayer</Button></div> : null}
           <Cash cash={d.cash} today={d.range.today} />
+          {/* what is coming, always from now. Before the doors open it leads the page (the result tiles are still empty);
+              later the period's figures come first */}
+          {early ? <div className="pl-coming"><Today t={d.today} /><Ahead a={d.ahead} /></div> : null}
           <Tiles d={d} />
+          {!early && d.range.live ? <div className="pl-coming"><Today t={d.today} /><Ahead a={d.ahead} /></div> : null}
           <div className={'pl-cols' + (d.equity.length ? ' two' : '')}>
             <Team rows={d.team} onOpen={setSheet} />
             <Equity hints={d.equity} onOpen={setSheet} />
           </div>
           <div className="pl-extras"><ExtraTiles from={d.range.from} to={d.range.upTo} /></div>
           <p className="pl-more"><Link to="/rapports" className="link">Tous les chiffres, jour par jour<Icon name="chevR" size={14} /></Link></p>
+          <p className="faint pl-asof">Chiffres lus à {dates.fmtTime(dates.localParts(d.asOf).min)}</p>
           <BarberSheet x={row} d={d} reveal={masked ? { shown, toggle: () => setShown(!shown) } : null} onClose={() => setSheet(null)} onStatement={(id) => { setSheet(null); setStatement({ staffId: id, month: d.range.upTo.slice(0, 7) }); }} />
         </div>
       )}

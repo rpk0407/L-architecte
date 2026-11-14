@@ -134,6 +134,32 @@ test('GET /api/v1/relances: only clients who agreed are listed, the others are c
   assert.deepEqual((await b.get('/api/v1/messages/webhook')).json, { url: null, marketing: ['rebook'] });
 });
 
+test('a client texted today leaves the badge, the Relances list and the Accueil card (one offer a day), not the next day', async () => {
+  const t = await salon();
+  const ids = [];
+  for (let i = 0; i < 6; i++) { const id = await client(t, 'Client' + i, '06111111' + String(10 + i), true); await visit(t, id, addDays(DAY, -40)); ids.push(id); }
+  await t.engine.run(setCredentials, { id: t.ownerId, pwdHash: await hashSecret('Patron-1313!') }, t.asOwner());
+  const rt = await createRuntime({ env: { LX_MODE: 'production', SESSION_SECRET: 'test-secret-0123456789' }, store: t.store, clock: () => t.clock.now });
+  const b = browser(rt);
+  assert.equal((await b.post('/api/auth/login', { email: 'patron@test.fr', password: 'Patron-1313!', remember: true })).status, 200);
+  const counts = async () => ({
+    badge: (await b.get('/api/v1/pulse')).json.badges.relances,
+    list: (await b.get('/api/v1/relances')).json.items.length,
+    card: (await b.get('/api/v1/home')).json.cards.find((c) => c.id === 'relances')?.count ?? 0
+  });
+  const before = await counts();
+  assert.equal(before.badge, 6); assert.equal(before.list, 6);
+  assert.equal(before.card, before.badge, 'the card counts what the badge counts');
+  t.clock.now = at(DAY, 11);
+  assert.equal((await b.post('/api/v1/relances/send', { clientIds: ids.slice(0, 4) })).json.sent, 4);
+  const after = await counts();
+  assert.equal(after.badge, 2); assert.equal(after.list, 2);
+  assert.equal(after.card, 0, 'under the card threshold with two left: no card');
+  // the next day they are late again until they book
+  t.clock.now = at(addDays(DAY, 1), 11);
+  assert.equal((await counts()).badge, 6);
+});
+
 test('nobody seen in the last week gets "déjà 0 jours"', async () => {
   const t = await salon();
   const a = await client(t, 'Karim', '0611111111', true), never = await client(t, 'Sami', '0622222222', true);

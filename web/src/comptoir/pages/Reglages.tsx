@@ -15,6 +15,7 @@ import './reglages.css';
 const System = lazy(() => import('./reglages/System'));
 const Wordpress = lazy(() => import('./reglages/Wordpress'));
 const MiseEnRoute = lazy(() => import('./reglages/sections/MiseEnRoute'));
+const Ionos = lazy(() => import('./reglages/sections/Ionos'));
 
 // The salon sections are one file each but load together, on the first visit to any of them, so moving between them
 // never waits again (as when they were all in Shop).
@@ -43,6 +44,7 @@ type Section = { id: string; label: string; hint: string; icon: string; group: s
 const SECTIONS: Section[] = [
   { id: 'mise-en-route', label: 'Mise en route', hint: 'Ce qu’il reste avant d’ouvrir, et la santé', icon: 'check', group: 'Démarrage', component: () => <MiseEnRoute /> },
   { id: 'wordpress', label: 'Reprendre WordPress', hint: 'Clients, rendez-vous, cartes cadeaux', icon: 'download', group: 'Démarrage', component: () => <Wordpress /> },
+  { id: 'ionos', label: 'Connexion IONOS', hint: 'E-mail du salon, nom de domaine', icon: 'globe', group: 'Démarrage', component: () => <Ionos /> },
   { id: 'compte', label: 'Mon compte', hint: 'Code, mot de passe, profil', icon: 'user', group: 'Moi', component: () => <Account /> },
   { id: 'salon', label: 'Le salon', hint: 'Coordonnées, mentions du ticket', icon: 'map', group: 'Salon', component: salon(() => import('./reglages/sections/Salon')) },
   { id: 'horaires', label: 'Horaires et fermetures', hint: 'Semaine type, jours fériés, congés', icon: 'clock', group: 'Salon', component: salon(() => import('./reglages/sections/Horaires')) },

@@ -8,7 +8,7 @@ import { Icon } from '../../../ui/Icon';
 import { Button, Chip, Empty, Field, Kpi, Modal, Money, Note, Sheet, Skeleton, Switch, confirm, toast, toastError } from '../../../ui/kit';
 import { useApp } from '../../state';
 import type { Sale } from '../../types';
-import { CreditNote, Receipt, printNow, type CreditNoteData } from './Receipt';
+import { CreditNote, Receipt, printNow, rate, type CreditNoteData } from './Receipt';
 
 /** Everything refunded on a ticket: revenue and gift cards cancelled (Sale.refunded is the revenue part only). */
 const refundedAll = (x: Sale) => x.refunds.reduce((t, r) => t + r.amount, 0);
@@ -16,11 +16,16 @@ const refundedAll = (x: Sale) => x.refunds.reduce((t, r) => t + r.amount, 0);
 const refundable = (p: Plan) => p.free > 0 || p.lines.some((l) => l.left > 0);
 
 export function Sales() {
-  const { boot, can, staffById } = useApp();
+  const { boot, pulse, can, staffById } = useApp();
   const route = useRoute();
-  const day = route.query.get('jour') || boot.today;
+  const today = pulse?.today || boot.today;
+  const day = route.query.get('jour') || today;
   const open = route.query.get('ticket');
   const { data, loading } = useQuery<{ day: string; items: Sale[]; totals: any; closed: boolean }>('/api/v1/sales?day=' + day);
+  // a credit note is dated the day it is made: what decides is TODAY's Z, not the Z of the day the ticket was rung up.
+  // A ticket of a sealed day (yesterday's, last week's) is corrected today; once today is sealed, tomorrow.
+  const other = useQuery<{ closed: boolean }>(day === today ? null : '/api/v1/sales?day=' + today);
+  const todayClosed = day === today ? !!data?.closed : !!other.data?.closed;
   const t = data?.totals;
   // by method net of refunds, as on the Z
   const pm = t ? (Object.entries(t.paymentsNet || t.byMethod) as [string, number][]).filter(([, v]) => v).sort((a, b) => b[1] - a[1]) : [];
@@ -55,12 +60,12 @@ export function Sales() {
           </ul>
         )}
       </section>
-      <TicketSheet id={open} onClose={() => setQuery({ ticket: null })} canRefund={can('sale.refund') && !data?.closed} />
+      <TicketSheet id={open} onClose={() => setQuery({ ticket: null })} canRefund={can('sale.refund') && !todayClosed} sealedToday={can('sale.refund') && todayClosed} />
     </>
   );
 }
 
-function TicketSheet({ id, onClose, canRefund }: { id: string | null; onClose: () => void; canRefund: boolean }) {
+function TicketSheet({ id, onClose, canRefund, sealedToday }: { id: string | null; onClose: () => void; canRefund: boolean; sealedToday: boolean }) {
   const { staffById } = useApp();
   const { data: x } = useQuery<Sale>(id ? '/api/v1/sales/' + id : null);
   // the refund plan says whether anything is left (a pack cancelled with cuts taken leaves only those)
@@ -83,7 +88,7 @@ function TicketSheet({ id, onClose, canRefund }: { id: string | null; onClose: (
           <div className="card card-tight">
             {x.lines.map((l, i) => <div key={i} className="kv"><span>{l.qty > 1 ? l.qty + ' × ' : ''}{l.name}{l.staffId ? ' · ' + staffById.get(l.staffId)?.name : ''}</span><b className="money">{eur(l.net, { decimals: true })}</b></div>)}
             {x.totals.discount ? <div className="kv"><span>Remise · {[x.discount?.reason, x.lines.some((l) => (l as { reward?: unknown }).reward) ? 'Fidélité' : ''].filter(Boolean).join(' · ')}</span><b className="money">−{eur(x.totals.discount, { decimals: true })}</b></div> : null}
-            {x.totals.vat.map((v) => <div key={v.rate} className="kv"><span>TVA {v.rate / 100} % sur {eur(v.base, { decimals: true })}</span><span className="money">{eur(v.tax, { decimals: true })}</span></div>)}
+            {x.totals.vat.map((v) => <div key={v.rate} className="kv"><span>TVA {rate(v.rate)} sur {eur(v.base, { decimals: true })}</span><span className="money">{eur(v.tax, { decimals: true })}</span></div>)}
             {x.tip ? <div className="kv"><span>Pourboire · {staffById.get(x.tip.staffId)?.name}</span><b className="money">{eur(x.tip.amount, { decimals: true })}</b></div> : null}
           </div>
           <div className="card card-tight">
@@ -93,6 +98,7 @@ function TicketSheet({ id, onClose, canRefund }: { id: string | null; onClose: (
             <div key={r.id} className="kv rf-kv"><span>{r.ref} · {r.reason} · {METHOD[r.method]}</span><b className="money" style={{ color: 'var(--warn)' }}>−{eur(r.amount, { decimals: true })}</b><Button size="sm" variant="ghost" icon="print" aria-label={'Imprimer l’avoir ' + r.ref} onClick={() => printNote(r.id)} /></div>
           ))}</div> : null}
           <p className="faint" style={{ fontSize: 12.5 }}>Un ticket ne se modifie jamais : une erreur se corrige par un avoir, numéroté et tracé.</p>
+          {sealedToday && open ? <Note icon="lock">La journée d’aujourd’hui est clôturée : l’avoir se fera demain, daté de demain.</Note> : null}
           {note ? <CreditNote note={note} /> : <Receipt sale={x} />}
           <RefundModal open={refund} sale={x} onClose={() => setRefund(false)} onPrint={printNote} />
         </>
@@ -236,7 +242,7 @@ function RefundModal({ open, sale, onClose, onPrint }: { open: boolean; sale: Sa
             {plan?.online ? <Chip on={how === 'online'} onClick={() => setHow('online')}>Sur la carte (en ligne)</Chip> : null}
             <Chip on={how === 'card'} onClick={() => setHow('card')}>Carte (terminal)</Chip><Chip on={how === 'cash'} onClick={() => setHow('cash')}>Espèces</Chip>
           </div>
-          <div className="chips">{REASONS.map((r) => <Chip key={r} small on={reason === r} onClick={() => setReason(r)}>{r}</Chip>)}</div>
+          <div className="chips">{REASONS.map((r) => <Chip key={r} on={reason === r} onClick={() => setReason(r)}>{r}</Chip>)}</div>
           <input className="input" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Raison (obligatoire)" aria-label="Raison du remboursement" />
           <div className="acts"><Button variant="ghost" onClick={onClose}>Annuler</Button><Button variant="danger" busy={busy} disabled={!plan || !amount || short || reason.trim().length < 3} onClick={() => go()}>Rembourser {eur(amount, { decimals: amount % 100 !== 0 })}</Button></div>
         </>

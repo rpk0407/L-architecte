@@ -140,18 +140,18 @@ test('the cap follows the visit’s quarter: 31 March asked on 1 April counts wi
 });
 
 test('WhatsApp carries service texts only: the mapping of a review is ignored, and refused when saved', async () => {
-  const M = { whatsapp: { enabled: true, templates: { reminder: { id: 13, params: ['heure', 'barbier'] }, review: { id: 14, params: ['prenom', 'avis'] } } } };
-  assert.deepEqual(waMapping(M, 'reminder'), { id: 13, params: ['heure', 'barbier'] });
+  const M = { whatsapp: { enabled: true, templates: { reminder: { name: 'rdv_rappel', params: ['heure', 'barbier'] }, review: { name: 'avis', params: ['prenom', 'avis'] } } } };
+  assert.deepEqual(waMapping(M, 'reminder'), { name: 'rdv_rappel', params: ['heure', 'barbier'] });
   assert.equal(waMapping(M, 'review'), null);
   assert.equal(waMapping(M, 'rebook'), null);
   const t = await salon();
-  const e = await t.engine.run(updateSettings, { messages: { whatsapp: { enabled: true, templates: { rebook: { id: 20, params: ['prenom'] } } } } }, t.asOwner()).catch((x) => x);
+  const e = await t.engine.run(updateSettings, { messages: { whatsapp: { enabled: true, templates: { rebook: { name: 'relance', params: ['prenom'] } } } } }, t.asOwner()).catch((x) => x);
   assert.equal(e.status, 400);
   assert.equal(e.message, WA_SMS_ONLY);
   assert.equal(e.message, 'Ce message part par SMS : WhatsApp demande un accord à part du client.');
   // taking one out stays possible (a mapping saved before this rule), and service texts map as before
-  await t.engine.run(updateSettings, { messages: { whatsapp: { enabled: true, templates: { review: null, reminder: { id: 13, params: ['heure'] } } } } }, t.asOwner());
-  assert.equal(t.engine.state.settings.messages.whatsapp.templates.reminder.id, 13);
+  await t.engine.run(updateSettings, { messages: { whatsapp: { enabled: true, templates: { review: null, reminder: { name: 'rdv_rappel', params: ['heure'] } } } } }, t.asOwner());
+  assert.equal(t.engine.state.settings.messages.whatsapp.templates.reminder.name, 'rdv_rappel');
 });
 
 test('a file imported from WordPress: no review before it was told; its reminder tells it, then the review may go', async () => {

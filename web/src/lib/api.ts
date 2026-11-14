@@ -21,6 +21,10 @@ export function onSignedOut(fn: Listener) { signedOut.add(fn); return () => { si
 const storeHealth = new Set<(down: boolean) => void>();
 export function onStoreHealth(fn: (down: boolean) => void) { storeHealth.add(fn); return () => { storeHealth.delete(fn); }; }
 
+/** After every request: did the server answer at all (true), or did the request never reach it (false: no connection)? */
+const netHealth = new Set<(ok: boolean) => void>();
+export function onNet(fn: (ok: boolean) => void) { netHealth.add(fn); return () => { netHealth.delete(fn); }; }
+
 export function uuid() {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID();
   return 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 12);
@@ -45,8 +49,10 @@ async function send<T>(method: string, path: string, body: unknown, opts: { requ
     res = await fetch(path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body), credentials: 'same-origin', signal: opts.signal });
   } catch (e) {
     if ((e as any)?.name === 'AbortError') throw e;
+    netHealth.forEach((fn) => fn(false));
     throw new ApiError(0, 'network', 'Pas de connexion. Vérifie le Wi-Fi puis réessaie.');
   }
+  netHealth.forEach((fn) => fn(true));
   const ct = res.headers.get('content-type') || '';
   const data = ct.includes('application/json') ? await res.json().catch(() => null) : await res.text();
   // a 503 that is not about the database (too many writes at once) says nothing about it

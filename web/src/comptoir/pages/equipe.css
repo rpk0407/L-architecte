@@ -76,3 +76,10 @@
   .eq-off .li-main { flex: 1 1 0; min-width: 0; }
   .eq-off-act { order: 9; flex-basis: 100%; padding-left: 44px; }
 }
+/* « Reporter ses rendez-vous » above the detailed plan: the one-go way, said in a line */
+.eq-report { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; }
+.eq-report .btn { min-height: 44px; }
+/* appointments left outside a barber's hours (a new weekly day off): each day leads to its report */
+.eq-stranded { margin-top: 12px; }
+.eq-stranded-l { margin: 8px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.eq-stranded-l li { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }

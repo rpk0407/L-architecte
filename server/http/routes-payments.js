@@ -11,7 +11,8 @@ import { fulfilGiftcard } from './routes-giftshop.js';
 import { paymentRefundedOutside } from '../commands/payments.js';
 import * as S from '../commands/sales.js';
 import { ticketNo, refundNo, METHOD_LABEL } from '../domain/cash.js';
-import { localParts, dayLong, hhmm } from '../../shared/dates.js';
+import { localParts, dayLong, hhmm, isDay } from '../../shared/dates.js';
+import { tillDay, tillMonth } from '../domain/till.js';
 import { fmtEur } from '../../shared/money.js';
 
 const DAY = 86400000;
@@ -53,6 +54,23 @@ async function webhook(r, name) {
 /* ---------------- the till's online refund ---------------- */
 
 /**
+ * What a gift card paid never leaves the till as money (cash, bank card, online): a credit note gives back at most what
+ * the ticket took in money, less what its earlier credit notes already gave back. Without it a card bought 50 € turns
+ * into 50 € from the drawer, its balance spent only on paper.
+ * @param {any} r @param {any} sale @param {any} body
+ */
+function giftcardStaysSpent(r, sale, body) {
+  const onCard = sale.payments.filter((p) => p.method === 'giftcard').reduce((t, p) => t + p.amount, 0);
+  if (!onCard || !Number.isInteger(body && body.amount)) return;
+  const money = sale.payments.reduce((t, p) => t + p.amount, 0) - onCard;
+  const back = (sale.refundIds || []).reduce((t, id) => t + ((r.s.refunds.get(id) || {}).amount || 0), 0);
+  const left = Math.max(0, money - back);
+  if (body.amount > left) {
+    throw new HttpError(409, 'giftcard_paid', 'Ce ticket a été réglé par carte cadeau pour ' + fmtEur(onCard) + ' : cette part ne se rembourse ni en espèces ni par carte. ' + (left > 0 ? 'Au plus ' + fmtEur(left) + ' à rembourser sur ce ticket.' : 'Rien à rembourser en argent sur ce ticket.'), { left, giftcardPaid: onCard });
+  }
+}
+
+/**
  * A credit note paid back on the ticket's online payment. Every rule of the credit note runs before any money moves.
  * What the provider already gave back without one (its dashboard, outsideOpen) is not refunded again: the credit note
  * only records it, as does `outside: true` (« remboursé hors caisse »: the provider no longer plugged in, or a refund
@@ -63,6 +81,7 @@ async function webhook(r, name) {
  * @param {any} r @param {any} sale @param {any} body
  */
 export async function tillRefund(r, sale, body) {
+  if (!replayed(r)) giftcardStaysSpent(r, sale, body);
   if (body.method !== 'online') return r.run(S.refund, { ...body, saleId: sale.id, providerRef: undefined });
   const rq = (r.req && r.req.headers.get('x-request-id')) || '';
   if (replayed(r)) return r.run(S.refund, { ...body, saleId: sale.id });
@@ -277,4 +296,25 @@ export function paymentRoutes(app) {
     if (!p || !p.paidAt) throw new HttpError(404, 'not_found', 'Paiement introuvable.');
     return { id: p.id, text: dossier(r, p) };
   }, { cap: 'sale.refund' });
+
+  /* ---------------- the Caisse home (phone first) and the month ---------------- */
+
+  // who waits to pay at every chair, what came in today by method and by barber, deposits, memberships, gift cards, cash held by barbers
+  app.get('/api/v1/caisse/jour', (r) => {
+    const day = r.query.get('day');
+    return tillDay(r.s, day && isDay(day) && day <= r.local.day ? day : r.local.day, day && day < r.local.day ? 1440 : r.local.min);
+  }, { cap: 'sale.all' });
+  // the month: by method, by barber with commission and the tips owed to him (the salon's money: report.shop)
+  app.get('/api/v1/caisse/mois', (r) => {
+    const m = r.query.get('month');
+    const month = m && /^\d{4}-(0[1-9]|1[0-2])$/.test(m) && m <= r.local.day.slice(0, 7) ? m : r.local.day.slice(0, 7);
+    return tillMonth(r.s, month, r.local.day, r.now);
+  }, { cap: 'report.shop' });
+  // the receipt's public link, for the barber to send by WhatsApp or e-mail from his own phone (the SMS goes through sendReceipt)
+  app.get('/api/v1/sales/:id/link', (r) => {
+    const x = r.s.sales.get(r.params.id);
+    if (!x || (!r.caps.has('sale.all') && x.cashierId !== r.me.id && !x.lines.some((l) => l.staffId === r.me.id))) throw new HttpError(404, 'not_found', 'Ticket introuvable.');
+    const c = x.clientId ? r.s.clients.get(x.clientId) : null;
+    return { url: r.meta.receiptLink ? r.meta.receiptLink(x) : '', ticket: ticketNo(x.number), amount: x.totals.due, first: c && !c.erased ? c.first : '', email: c && !c.erased && r.caps.has('client.contact') ? c.email || '' : '' };
+  }, { cap: 'sale.create' });
 }

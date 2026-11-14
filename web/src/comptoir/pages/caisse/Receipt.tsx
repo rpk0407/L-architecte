@@ -9,6 +9,8 @@ import { useApp } from '../../state';
 import type { Sale } from '../../types';
 
 export function printNow() { setTimeout(() => window.print(), 50); }
+/** 2000 → « 20 % », 550 → « 5,5 % » (the French decimal comma, on every printed document and on the Z) */
+export const rate = (r: number) => String(r / 100).replace('.', ',') + ' %';
 
 function Shop() {
   const { boot } = useApp();
@@ -35,12 +37,13 @@ export function Receipt({ sale }: { sale: Sale }) {
       {sale.totals.discount ? <div className="r"><span>dont remise</span><span>-{eur(sale.totals.discount, { decimals: true })}</span></div> : null}
       <hr />
       <div className="r"><b>TOTAL TTC</b><b>{eur(sale.totals.total, { decimals: true })}</b></div>
-      {sale.totals.vat.map((v) => <div key={v.rate} className="r"><span>TVA {v.rate / 100} % sur {eur(v.base, { decimals: true })}</span><span>{eur(v.tax, { decimals: true })}</span></div>)}
+      {sale.totals.vat.map((v) => <div key={v.rate} className="r"><span>TVA {rate(v.rate)} sur {eur(v.base, { decimals: true })}</span><span>{eur(v.tax, { decimals: true })}</span></div>)}
       {sale.tip ? <div className="r"><span>Pourboire</span><span>{eur(sale.tip.amount, { decimals: true })}</span></div> : null}
       <hr />
       {sale.payments.map((p, i) => <div key={i} className="r"><span>{METHOD[p.method] || p.method}{p.given ? ' (reçu ' + eur(p.given, { decimals: true }) + ', rendu ' + eur(p.change || 0, { decimals: true }) + ')' : ''}</span><span>{eur(p.amount, { decimals: true })}</span></div>)}
       <hr />
       <p className="c">{boot.settings.payments.receiptFooter}</p>
+      <Gestion doc="ticket" />
     </div>,
     document.body
   );
@@ -106,6 +109,16 @@ export function GiftCode({ card, from, onPrint, note }: { card: VoucherCard; fro
 }
 
 /** A credit note as GET /api/v1/refunds/:id sends it. */
+/**
+ * In production the Comptoir is a management till, not the salon's certified one (docs/security.md, « Fiscal note »):
+ * whatever it prints says so, so a Z or a ticket from here is never taken for the legal one. The demo is nobody's till.
+ */
+function Gestion({ doc }: { doc: 'ticket' | 'z' }) {
+  const { boot } = useApp();
+  if (boot.mode === 'demo') return null;
+  return <p className="c" data-gestion style={{ fontSize: 10, margin: '4px 0' }}>{doc === 'z' ? 'Document de gestion, sans valeur fiscale : le Z fiscal est celui de la caisse certifiée du salon.' : 'Document de gestion : le ticket de caisse légal sort de la caisse certifiée du salon.'}</p>;
+}
+
 export type CreditNoteData = {
   id: string; ref: string; saleId: string; saleRef: string; day: string; at: number; amount: number; liability: number; method: string;
   parts: { method: string; amount: number }[]; reason: string; vat: { rate: number; base: number; tax: number }[];
@@ -129,7 +142,7 @@ export function CreditNote({ note }: { note: CreditNoteData }) {
       {note.lines.length && note.lines.reduce((t, l) => t + l.amount, 0) !== note.amount ? <div className="r"><span>Montant consenti</span><span>{neg(note.amount)}</span></div> : null}
       <hr />
       <div className="r"><b>TOTAL AVOIR TTC</b><b>{neg(note.amount)}</b></div>
-      {note.vat.map((v) => <div key={v.rate} className="r"><span>TVA {v.rate / 100} % sur {neg(v.base)}</span><span>{neg(v.tax)}</span></div>)}
+      {note.vat.map((v) => <div key={v.rate} className="r"><span>TVA {rate(v.rate)} sur {neg(v.base)}</span><span>{neg(v.tax)}</span></div>)}
       {note.liability ? <div className="r"><span>dont carte cadeau (hors TVA)</span><span>{neg(note.liability)}</span></div> : null}
       {revenue && note.liability ? <div className="r"><span>dont chiffre d’affaires</span><span>{neg(revenue)}</span></div> : null}
       <hr />
@@ -137,6 +150,7 @@ export function CreditNote({ note }: { note: CreditNoteData }) {
       <p>Raison : {note.reason}</p>
       <hr />
       <p className="c">Le ticket {note.saleRef} reste inchangé : cet avoir le corrige.</p>
+      <Gestion doc="ticket" />
     </div>,
     document.body
   );
@@ -150,7 +164,6 @@ export type ZFigures = {
 export type ZRow = { k: string; v?: number; t?: string; tone?: 'total' | 'sub' | 'head' };
 
 const ORDER = ['card', 'cash', 'online', 'deposit', 'ancien', 'giftcard'];
-const rate = (r: number) => String(r / 100).replace('.', ',') + ' %';
 const tk = (n: number) => 'T' + String(n).padStart(6, '0');
 
 /** The one Z layout: the screen, the printed Z and the CSV list the same lines in the same order. */
@@ -186,6 +199,7 @@ export function ZReport({ z }: { z: ZFigures & { number: number; day: string; gr
       <hr />
       <div className="r"><b>CLÔTURE Z{String(z.number).padStart(4, '0')}</b><b>{z.day.split('-').reverse().join('/')}</b></div>
       {z.auto ? <p className="c">Faite automatiquement</p> : z.late ? <p className="c">Clôture de rattrapage</p> : z.early ? <p className="c">Clôturée en avance</p> : null}
+      <Gestion doc="z" />
       <hr />
       {zRows(z).map((r, i) => r.tone === 'head' ? <p key={i} style={{ marginTop: 6 }}><b>{r.k}</b></p> : (
         <div key={i} className="r" style={r.tone === 'sub' ? { paddingLeft: 8 } : undefined}>{r.tone === 'total' ? <><b>{r.k}</b><b>{zValue(r)}</b></> : <><span>{r.k}</span><span>{zValue(r)}</span></>}</div>
@@ -223,6 +237,7 @@ export function MonthReport({ p }: { p: PeriodRecord }) {
       <hr />
       <div className="r"><b>{year ? 'CLÔTURE ANNUELLE' : 'CLÔTURE MENSUELLE'} {p.ref}</b><b>{year ? 'Exercice ' + p.period : p.period.slice(5) + '/' + p.period.slice(0, 4)}</b></div>
       <p className="c">Du {fr(p.from)} au {fr(p.to)}</p>
+      <Gestion doc="z" />
       {year
         ? <div className="r"><span>Mois</span><span>{range(p.months, (n) => pad('M', n))}</span></div>
         : <>

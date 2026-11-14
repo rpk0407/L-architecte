@@ -7,7 +7,7 @@ import { afterQuiet, withStop } from '../../shared/sms.js';
 import { maskPhone, maskEmail, isEmail, isLandline } from '../lib/util.js';
 import { fmtEur } from '../../shared/money.js';
 import { TEMPLATE_FLAGS, classOf } from '../core/templates.js';
-import { waVarNames } from '../settings/messages.js';
+import { waVarNames, waMode } from '../settings/messages.js';
 import { neverInformed } from '../projections/informed.js';
 
 export function renderTemplate(tpl, vars) {
@@ -99,12 +99,12 @@ export function consentGone(s, m) {
  * and the salon's own words (a typed relance, an answer to a request) cannot ride on a fixed template, so those go by SMS.
  * Service texts only (FID-01): a review request or an offer would need the client's separate yes to WhatsApp, which the
  * salon does not collect, so those always leave by SMS.
- * @returns {{ id: number, params: string[] } | null}
+ * @returns {{ name: string, lang?: string, params: string[] } | null}
  */
 export function waMapping(M, template, custom = false) {
   const w = M && M.whatsapp;
-  const t = w && w.enabled && w.templates && classOf(template) === 'service' ? w.templates[template] : null;
-  return !custom && t && t.id > 0 ? t : null;
+  const t = w && waMode(M) === 'auto' && w.templates && classOf(template) === 'service' && Object.hasOwn(w.templates, template) ? w.templates[template] : null;
+  return !custom && t && t.name ? t : null;
 }
 /** The variables a WhatsApp template may need, as text: kept with the SMS (pii) so the scheduler can fill the template. */
 function waVars(vars) {
@@ -130,6 +130,30 @@ export const FILLERS = {};
 export function fillBody(m, rt) {
   const f = Object.hasOwn(FILLERS, m.template) ? FILLERS[m.template] : null;
   return f ? f(m, rt) : m.body;
+}
+
+/**
+ * ATTACHERS: the files of a mail that are only built as it leaves, keyed by template like FILLERS: the month's entries
+ * for the accountant are read from the state then, never copied into the journal with the queued message.
+ * A builder that throws fails the message with its words (the outbox shows them).
+ * @type {Record<string, (m: any, rt: any) => import('../messaging/email.js').MailAttachment[]>}
+ */
+export const ATTACHERS = {};
+/** The files a mail leaves with: its attacher's, else what was queued with it. */
+export function attachmentsOf(m, rt) {
+  const f = Object.hasOwn(ATTACHERS, m.template) ? ATTACHERS[m.template] : null;
+  return f ? f(m, rt) : (m.mail || {}).attachments;
+}
+
+/**
+ * « C'est noté » by SMS says the booking stands: never while its deposit is still unpaid (a pending booking moved by
+ * the client, F10 of the back-office audit). Nothing is queued, so the same key is free for the text that follows the
+ * payment (commands/payments.js, which emits appt.confirmed first).
+ */
+function unpaidConfirmation(s, ctx, m) {
+  if (m.template !== 'confirmation' || m.channel === 'email' || !m.apptId) return false;
+  const a = s.appts.get(m.apptId);
+  return !!a && a.status === 'pending' && !ctx.drafts.some((d) => d.type === 'appt.confirmed' && d.data.id === a.id);
 }
 
 /** The line that tells a file imported from WordPress about the new site (decision 9 of the plan: the owner's words). */
@@ -162,7 +186,7 @@ const originOf = (ctx) => String((ctx && ctx.meta && ctx.meta.siteUrl) || '').re
 export function queueMessage(s, ctx, m) {
   const id = messageId(m.key);
   if (s.messages.has(id) || ctx.drafts.some((d) => d.type === 'message.queued' && d.data.id === id)) return null;
-  if (!m.to) return null;
+  if (!m.to || unpaidConfirmation(s, ctx, m)) return null;
   // a landline cannot receive a text: nothing is queued for it (the import's report says « Numéro fixe : pas de SMS »)
   if (m.channel !== 'email' && isLandline(m.to)) return null;
   const M = s.settings.messages;

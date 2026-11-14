@@ -8,7 +8,7 @@
   "trailingSlash": false,
   "regions": ["cdg1"],
   "functions": {
-    "api/main.js": { "maxDuration": 30 }
+    "api/main.js": { "maxDuration": 30, "includeFiles": "server/presets/equipe/**" }
   },
   "redirects": [
     { "source": "/Main.dc", "destination": "/", "permanent": false },
@@ -20,6 +20,11 @@
     { "source": "/", "has": [{ "type": "query", "key": "sln_booking_id" }], "destination": "/ancien-lien", "permanent": false },
     { "source": "/", "has": [{ "type": "query", "key": "sln_step_page" }], "destination": "/ancien-lien", "permanent": false },
     { "source": "/", "has": [{ "type": "query", "key": "page_id", "value": "2" }], "missing": [{ "type": "query", "key": "reserver" }], "destination": "/?reserver", "permanent": true },
+    { "source": "/(rdv-en-ligne|booking|thank-you-for-booking)", "has": [{ "type": "query", "key": "sln-api" }], "destination": "/ancien-lien", "permanent": false },
+    { "source": "/(rdv-en-ligne|booking|thank-you-for-booking)", "has": [{ "type": "query", "key": "sln_customer_login" }], "destination": "/ancien-lien", "permanent": false },
+    { "source": "/(rdv-en-ligne|booking|thank-you-for-booking)", "has": [{ "type": "query", "key": "sln_reschedule_booking" }], "destination": "/ancien-lien", "permanent": false },
+    { "source": "/(rdv-en-ligne|booking|thank-you-for-booking)", "has": [{ "type": "query", "key": "sln_booking_id" }], "destination": "/ancien-lien", "permanent": false },
+    { "source": "/(rdv-en-ligne|booking|thank-you-for-booking)", "has": [{ "type": "query", "key": "sln_step_page" }], "destination": "/ancien-lien", "permanent": false },
     { "source": "/rdv-en-ligne", "destination": "/?reserver", "permanent": true },
     { "source": "/booking", "destination": "/?reserver", "permanent": true },
     { "source": "/thank-you-for-booking", "destination": "/", "permanent": true },
@@ -36,6 +41,8 @@
     { "source": "/(message-exceptionnel|welcome-back-jkut-congrats|jblades-welcome-in-da-team|brews-redken|retrouvez-la-gamme-redken-brews|paiements-par-cb-desormais-acceptes|nous-serons-exceptionnellement-ouverts-les-lundi-21-28-decembre)", "destination": "/", "permanent": true },
     { "source": "/sln_service/:slug*", "destination": "/#carte", "permanent": true },
     { "source": "/go_pricing_tables/:slug*", "destination": "/#carte", "permanent": true },
+    { "source": "/sln_attendant", "destination": "/?reserver", "permanent": true },
+    { "source": "/index.php", "destination": "/", "permanent": true },
     { "source": "/sln_attendant/:slug", "destination": "/?reserver&barbier=:slug", "permanent": true },
     { "source": "/category/:slug*", "destination": "/", "permanent": true },
     { "source": "/(2019|2020)/:path*", "destination": "/", "permanent": true },

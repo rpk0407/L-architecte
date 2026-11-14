@@ -17,6 +17,7 @@ export const CAPS = {
   'agenda.edit': 'Modifier tous les rendez-vous',
   'agenda.own': 'Gérer ses propres rendez-vous',
   'sale.create': 'Encaisser',
+  'sale.phone': 'Encaisser ses clients sur son téléphone',
   'sale.all': 'Voir toutes les ventes',
   'sale.refund': 'Rembourser',
   'sale.discount': 'Faire une remise',
@@ -47,7 +48,7 @@ const ALL = Object.keys(CAPS);
 const BASE = {
   owner: ALL,
   manager: ALL.filter((c) => !['settings', 'devices', 'client.erase', 'data'].includes(c)),
-  desk: ['agenda.all', 'agenda.edit', 'agenda.own', 'sale.create', 'sale.all', 'drawer', 'client.view', 'client.edit', 'client.contact', 'client.rebook', 'marketing', 'report.own'],
+  desk: ['agenda.all', 'agenda.edit', 'agenda.own', 'sale.create', 'sale.discount', 'sale.all', 'drawer', 'client.view', 'client.edit', 'client.contact', 'client.rebook', 'marketing', 'report.own'],
   barber: ['agenda.all', 'agenda.own', 'sale.create', 'sale.discount', 'client.view', 'client.edit', 'report.own']
 };
 
@@ -58,6 +59,8 @@ export function capsOf(staff, settings) {
   if (staff.role === 'barber') {
     const t = settings.team || {};
     if (!t.barberCheckout) caps.delete('sale.create');
+    // on his own phone, his own clients only (commands/sales.js checks the appointment): a part of « Encaisser »
+    if (caps.has('sale.create') && t.barberPhone !== false) caps.add('sale.phone');
     if (!t.barberAllAgenda) caps.delete('agenda.all');
     if (teamViewOf(settings) === 'named') caps.add('report.team');
     if (t.barberRebook) caps.add('client.rebook');

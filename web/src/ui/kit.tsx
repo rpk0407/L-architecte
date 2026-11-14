@@ -215,11 +215,12 @@ export function Toasts() {
   return createPortal(
     <div className="toasts" role="status" aria-live="polite">
       {list.map((t) => (
-        <div key={t.id} className={'toast' + (t.kind === 'err' ? ' err' : t.kind === 'info' ? ' info' : '')}>
+        // a touch anywhere on the message closes it (its own buttons act first): it never stays in the way
+        <div key={t.id} className={'toast' + (t.kind === 'err' ? ' err' : t.kind === 'info' ? ' info' : '')} onClick={() => dismiss(t.id)} title="Toucher pour fermer">
           {t.icon ? <span className="ic"><Icon name={t.icon} /></span> : null}
           <span className="t">{t.title}{t.sub ? <small>{t.sub}</small> : null}</span>
-          {t.action ? <button type="button" onClick={() => { t.action!.run(); dismiss(t.id); }}>{t.action.label}</button> : null}
-          {(t.actions || []).map((a) => <button key={a.label} type="button" onClick={() => { a.run(); dismiss(t.id); }}>{a.label}</button>)}
+          {t.action ? <button type="button" onClick={(e) => { e.stopPropagation(); t.action!.run(); dismiss(t.id); }}>{t.action.label}</button> : null}
+          {(t.actions || []).map((a) => <button key={a.label} type="button" onClick={(e) => { e.stopPropagation(); a.run(); dismiss(t.id); }}>{a.label}</button>)}
         </div>
       ))}
     </div>,

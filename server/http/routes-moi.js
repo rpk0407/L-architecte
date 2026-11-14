@@ -12,7 +12,7 @@ import { dispatchNow } from './scheduler.js';
 import { clientExport } from './routes-staff.js';
 import { ACC_TTL_MS } from './routes-me.js';
 import { rootFile } from '../commands/accounts.js';
-import { updateOwnProfile, setOwnConsent, setOwnPrefs, requestErasure, requestExport, sendSpaceInvite, SALON_ONLY } from '../commands/me.js';
+import { updateOwnProfile, setOwnConsent, setOwnPrefs, requestErasure, requestExport, sendSpaceInvite, setNotifyVia, setEarlierAlert, SALON_ONLY } from '../commands/me.js';
 
 const HOUR = 3600000;
 export const DEMO_MESSAGE = 'Démo : rien n’est changé';
@@ -69,6 +69,23 @@ export function moiRoutes(app) {
     writeGuard(me);
     const b = r.body || {};
     return runAs(r, me)(setOwnConsent, { sms: b.sms, marketing: b.marketing });
+  });
+
+  // FEATURE B: how the salon reaches him (reminders and « un créneau s'est libéré ») — { via: 'sms' | 'whatsapp' | 'email' }
+  app.patch('/api/me/notify', async (r) => {
+    const me = requireMe(r);
+    if (isPersona(me)) return { ok: true, demo: true, message: DEMO_MESSAGE };
+    writeGuard(me);
+    return runAs(r, me)(setNotifyVia, { via: r.body && r.body.via });
+  });
+
+  // FEATURE B: « Préviens-moi si un créneau se libère plus tôt » on one of his bookings to come — { id, on }
+  app.post('/api/me/earlier', async (r) => {
+    const me = requireMe(r);
+    if (isPersona(me)) return { ok: true, demo: true, message: DEMO_MESSAGE };
+    writeGuard(me);
+    const b = r.body || {};
+    return runAs(r, me)(setEarlierAlert, { id: String(b.id || ''), on: !!b.on });
   });
 
   app.patch('/api/me/prefs', async (r) => {

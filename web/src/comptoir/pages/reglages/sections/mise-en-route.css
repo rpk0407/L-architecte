@@ -34,3 +34,15 @@
   .mr-feat { grid-template-columns: minmax(0, 1fr); gap: 8px; padding: 14px; }
   .mr-feat .mr-go { grid-column: 1; justify-self: start; }
 }
+/* « Le salon, en un geste » (the preset) */
+.mr-pre { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 18px; align-items: start; }
+.mr-pre > .note { grid-column: 1 / -1; }
+.mr-pre-b { min-width: 0; }
+.mr-pre-b .section-k { margin-bottom: 6px; }
+.mr-pre-b .li { align-items: flex-start; gap: 10px; }
+.mr-pre-b .li-main small { display: block; overflow-wrap: anywhere; }
+.mr-pre-b .badge { flex: none; margin-top: 2px; }
+.mr-dot { flex: none; width: 10px; height: 10px; margin-top: 6px; border-radius: 50%; }
+.mr-notes { margin: 6px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.mr-codes .mr-code { font-size: 22px; letter-spacing: 0.12em; }
+@media (max-width: 900px) { .mr-pre { grid-template-columns: minmax(0, 1fr); } }

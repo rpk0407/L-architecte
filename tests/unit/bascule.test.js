@@ -494,7 +494,7 @@ test('the routes: owner only, the CSV downloads, ticks and the switch go through
   await o.post('/api/auth/device', { name: 'Tablette' });
   const b = await o.get('/api/v1/bascule');
   assert.equal(b.status, 200, JSON.stringify(b.json));
-  assert.deepEqual(b.json.steps.map((x) => x.id), ['first-run', 'freeze', 'reminders-off', 'final-sync', 'cold-backup', 'dns', 'redirects', 'ancien', 'switch', 'providers', 'app-password', 'licences', 'ancien-removed']);
+  assert.deepEqual(b.json.steps.map((x) => x.id), ['first-run', 'freeze', 'reminders-off', 'final-sync', 'capacity', 'cold-backup', 'dns', 'redirects', 'ancien', 'switch', 'providers', 'app-password', 'licences', 'ancien-removed']);
   assert.equal(b.json.hold.on, false);
   assert.equal((await o.get('/api/v1/bascule?domain=localhost')).status, 400);
   assert.equal((await o.get('/api/v1/bascule?domain=http://x.fr/a')).status, 400);
@@ -600,7 +600,7 @@ async function cardsRun(t) {
   return id;
 }
 
-test('the final sync is a delta: a run of cards only, or of an empty file, is not one; an export older than the freeze is a warning; a fresh one says which', async () => {
+test('the final sync is a delta: a run of cards only, or of an empty file, is not one; an export older than the freeze is refused; a fresh one says which', async () => {
   const t = await salon();
   await run(t, [row(t, 5001)]);
   t.clock.now += HOUR;
@@ -617,9 +617,12 @@ test('the final sync is a delta: a run of cards only, or of an empty file, is no
   t.clock.now += HOUR;
   await run(t, [row(t, 5001)], { file: { at: frozen - 3 * HOUR, newest: frozen - 4 * HOUR } });
   b = await basculeOf(rt());
-  assert.equal(step(b, 'final-sync').state, 'warn');
+  assert.equal(step(b, 'final-sync').state, 'err');
   assert.match(step(b, 'final-sync').line, /^Export du \d+ \S+ \d{2}:\d{2} : plus ancien que le gel de WordPress \(\d+ \S+ \d{2}:\d{2}\)\. Refais l’export après le gel/);
-  // the switch is not blocked by it
+  // the switch is refused over it (an export from before the freeze cannot hold what changed since), until a fresh one is dropped
+  await rejects(t.engine.run(markSwitched, {}, owner(t)), 'stale_export');
+  t.clock.now += 60000;
+  await run(t, [row(t, 5001)], { file: { at: t.clock.now - 30000, newest: frozen - 4 * HOUR } });
   const ready = await t.engine.run(markSwitched, {}, owner(t));
   assert.ok(ready.at);
   assert.equal(t.engine.state.bascule.forced, null);

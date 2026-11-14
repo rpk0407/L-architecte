@@ -133,7 +133,7 @@ export default function Compta({ s }: SectionProps) {
             <Field label="Cabinet" htmlFor="cp-acc-firm"><input id="cp-acc-firm" className="input" autoComplete="off" maxLength={120} value={c.accountant.firm} onChange={(e) => set({ accountant: { ...c.accountant, firm: e.target.value } })} /></Field>
           </div>
           <Field label="E-mail" htmlFor="cp-acc-mail" error={badMail ? 'Adresse e-mail incorrecte' : undefined}><input id="cp-acc-mail" className={'input' + (badMail ? ' err' : '')} type="email" inputMode="email" autoComplete="off" maxLength={120} value={c.accountant.email} aria-invalid={badMail || undefined} onChange={(e) => set({ accountant: { ...c.accountant, email: e.target.value.trim() } })} /></Field>
-          <Switch on={c.autoSend} onChange={(autoSend) => set({ autoSend })} title="Lui envoyer le pack chaque mois" hint="Le mois clôturé, ses fichiers partent seuls à cette adresse, avec le pack comptable." />
+          <Switch on={c.autoSend} onChange={(autoSend) => set({ autoSend })} title="Lui envoyer le pack chaque mois" hint={c.accountant.email.trim() ? 'Le mois clôturé (le 1er, une fois chaque jour compté), ses écritures partent seules à cette adresse : le fichier d’import et sa copie CSV, avec la TVA du mois. L’envoi se retrouve dans Relances › Messages envoyés.' : 'Renseigne son e-mail : sans adresse, rien ne part.'} />
         </div>
       </Card>
 

@@ -11,9 +11,9 @@ import { rhythmOf, perWeekOf, missedOf } from '../../shared/membership-words.js'
 import { localParts, addDays } from '../../shared/dates.js';
 import { cardLine, saleLoyalty } from '../domain/loyalty.js';
 
-/** photo: the version of the person's photo (TEAM-02, /api/v1/staff/:id/photo?v=), null without one */
+/** photo: the version of the person's photo (TEAM-02, /api/v1/staff/:id/photo?v=), null without one; photoSite: shown on the site */
 export function staffView(st, full = false) {
-  const v = { id: st.id, name: st.name, initials: st.initials, color: st.color, role: st.role, roleLabel: ROLES[st.role], chair: !!st.chair, bookable: !!st.bookable, active: st.active, order: st.order ?? 99, bio: st.bio || '', instagram: st.instagram || '', photo: st.photoV || null };
+  const v = { id: st.id, name: st.name, initials: st.initials, color: st.color, role: st.role, roleLabel: ROLES[st.role], chair: !!st.chair, bookable: !!st.bookable, active: st.active, order: st.order ?? 99, bio: st.bio || '', instagram: st.instagram || '', photo: st.photoV || null, photoSite: !!st.photoV && !!st.photoSite };
   if (!full) return v;
   return { ...v, email: st.email || '', services: st.services, schedule: st.schedule || {}, commission: st.commission || { service: 0, product: 0 }, hasPwd: !!st.hasPwd, hasPin: !!st.hasPin };
 }
@@ -88,6 +88,9 @@ export function clientFull(s, c, caps, stats, now = Date.now()) {
 /** « Mourad C. », or « Ilyes (fiche de Mourad C.) » for a booking made on the old site under another first name than the file's (a father booking for his son). */
 function nameOn(a, c) {
   const card = (c.first + ' ' + (c.last ? c.last.charAt(0) + '.' : '')).trim();
+  // booked on the site for someone else (commands/agenda.js bookOnline): « Léo (enfant de Karim B.) »
+  const g = a.ext && a.ext.guest;
+  if (g && a.name && !c.erased && a.clientId === c.id && !g.by) return a.name + (g.kind === 'child' ? ' (enfant ' + (/^[aeiouyhàâäéèêëîïôöûùü]/i.test(card) ? 'd’' : 'de ') : ' (réservé par ') + card + ')';
   const typed = typedFor(a, c);
   return typed ? typed + ' (fiche de ' + card + ')' : card;
 }

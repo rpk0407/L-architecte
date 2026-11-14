@@ -166,6 +166,7 @@ function PrefsCard() {
   };
   // only the pages this build has and this person may open (Mon espace and Pilotage join when they land)
   const homes: { v: Prefs['home']; t: string }[] = [{ v: 'auto', t: 'Auto' }];
+  if (pages.includes('accueil')) homes.push({ v: 'accueil', t: 'Accueil' });
   if (pages.includes('espace') && boot.me.chair) homes.push({ v: 'espace', t: 'Mon espace' });
   homes.push({ v: 'agenda', t: 'Agenda' });
   if (pages.includes('pilotage') && can('report.shop')) homes.push({ v: 'pilotage', t: 'Pilotage' });

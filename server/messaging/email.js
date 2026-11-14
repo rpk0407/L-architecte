@@ -1,7 +1,10 @@
 // @ts-check
-// E-mail delivery through Brevo's transactional API (the same account as the SMS): client confirmations with the
-// calendar file, cancellations, the owner's alerts and summaries. Without BREVO_API_KEY and EMAIL_FROM, or in demo
-// mode, there is no provider: mail waits in the outbox (production) or is marked "simulé" (demo), like SMS.
+// E-mail delivery: client confirmations with the calendar file, cancellations, the owner's alerts and summaries.
+// Two ways, chosen by the environment (http/runtime.js): the salon's own mailbox over SMTP (SMTP_HOST, SMTP_PORT,
+// SMTP_USER, SMTP_PASS, EMAIL_FROM: no extra provider, messaging/smtp.js), or Brevo's transactional API (BREVO_API_KEY).
+// Without either, or in demo mode, there is no provider: mail waits in the outbox (production) or is marked "simulé"
+// (demo), like SMS.
+import { buildMime, smtpSend } from './smtp.js';
 
 /** @typedef {{ name: string, type: string, content: string }} MailAttachment content is the file's text (an .ics) */
 /** @typedef {{ to: string, subject: string, text: string, html?: string, cta?: { label: string, url: string }, links?: string[], attachments?: MailAttachment[], fromName?: string, tag?: string }} Mail */
@@ -68,6 +71,29 @@ export function brevoEmail({ apiKey, from, fromName = '', replyTo = '', fetchImp
       if (res.status === 401) throw new Error('Clé Brevo refusée : vérifie BREVO_API_KEY');
       if (!res.ok) throw new Error(/sender/i.test(j.message || '') ? 'Expéditeur refusé par Brevo : valide EMAIL_FROM dans Brevo (' + j.message + ')' : 'Brevo : ' + (j.message || 'erreur ' + res.status));
       return { ref: String(j.messageId || '') };
+    }
+  };
+}
+
+/**
+ * The salon's own mailbox, over SMTP: one authenticated, encrypted session per message (messaging/smtp.js). The reference
+ * kept is the Message-ID. `from` must be an address of that mailbox's domain (IONOS refuses any other since 2024).
+ * @param {{ host: string, port?: number, user: string, pass: string, from: string, fromName?: string, replyTo?: string,
+ *   secure?: boolean, timeoutMs?: number, tlsOptions?: import('node:tls').ConnectionOptions, send?: typeof smtpSend }} o
+ * @returns {EmailProvider}
+ */
+export function smtpEmail({ host, port = 465, user, pass, from, fromName = '', replyTo = '', secure, timeoutMs, tlsOptions, send = smtpSend }) {
+  return {
+    name: 'smtp',
+    async send(mail) {
+      const name = fromName || mail.fromName || '';
+      const m = buildMime({
+        from, fromName: name, to: mail.to, replyTo, subject: mail.subject, text: mail.text,
+        html: mail.html || mailHtml(mail.text, { cta: mail.cta, links: mail.links, brand: name }),
+        attachments: mail.attachments, tag: mail.tag
+      });
+      await send({ host, port, user, pass, secure, timeoutMs, tlsOptions }, { from, to: mail.to, data: m.data });
+      return { ref: m.id };
     }
   };
 }

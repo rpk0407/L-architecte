@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { refreshAll, useQuery } from '../../lib/query';
 import { useInterval, useMedia } from '../../lib/hooks';
-import { Link } from '../../lib/router';
+import { Link, setQuery, useRoute } from '../../lib/router';
 import { cap, dates, time } from '../../lib/format';
 import { Icon } from '../../ui/Icon';
 import { Avatar, Button, Empty, Skeleton } from '../../ui/kit';
@@ -12,7 +12,10 @@ import { PageTitle } from '../App';
 import type { EspaceData, EspaceNow, NoteTarget } from '../types';
 import { orderedCards } from './espace/registry';
 import { Customize } from './espace/Customize';
+import { SitePhotoSwitch } from './Equipe';
 import { CutNoteSheet } from './espace/CutNoteSheet';
+import { Planning } from './espace/Planning';
+import { ArrivalCards } from './espace/Arrival';
 import './espace.css';
 
 /** Where he stands, in the words of the chip under his name: « Au fauteuil · Karim B. », « Libre jusqu’à 15 h 30 »… */
@@ -43,6 +46,9 @@ export default function Espace() {
   const [custom, setCustom] = useState(false);
   const masked = useMaskedAmounts();
   const [shown, setShown] = useState(false);
+  // FEATURE C: which view of Mon espace (?vue=planning)
+  const route = useRoute();
+  const view: 'cards' | 'planning' = route.query.get('vue') === 'planning' ? 'planning' : 'cards';
   useEffect(() => { if (!shown) return; const t = window.setTimeout(() => setShown(false), REVEAL_MS); return () => clearTimeout(t); }, [shown]);
   // the clock moves without the journal moving (a client gets late, a gap closes): the page asks again every minute
   useInterval(() => { void refresh(); }, 60000);
@@ -62,6 +68,12 @@ export default function Espace() {
           <h2>Salut {me.name}</h2>
           <p className="muted">{cap(dates.dayLong(today))}</p>
         </div>
+        {/* FEATURE C: « Mon planning » (today and the next days) instead of the cards, one tap away; the link keeps the choice */}
+        {boot.me.chair ? (
+          <button type="button" className="es-eye es-vue" data-guide="espace.vue" aria-pressed={view === 'planning'} onClick={() => setQuery({ vue: view === 'planning' ? null : 'planning' })}>
+            <Icon name={view === 'planning' ? 'house' : 'calendar'} size={16} />{view === 'planning' ? 'Aujourd’hui' : 'Mon planning'}
+          </button>
+        ) : null}
       </header>
       <div className="es-state">
         {status ? <span className={'es-status' + (status.tone ? ' ' + status.tone : '')} data-guide="espace.statut" role="status"><i aria-hidden />{status.text}</span> : null}
@@ -72,7 +84,8 @@ export default function Espace() {
         ) : null}
       </div>
 
-      {!boot.me.chair ? (
+      {boot.me.chair ? <ArrivalCards /> : null}
+      {boot.me.chair && view === 'planning' ? <Planning note={setNoting} hide={masked && !shown} /> : !boot.me.chair ? (
         <section className="card"><Empty icon="chair" title="Pas de fauteuil, pas de Mon espace" action={<Link to="/agenda" className="btn btn-subtle">Ouvrir l’agenda</Link>}>Mon espace est pour ceux qui ont un fauteuil.</Empty></section>
       ) : loading ? <div className="col" style={{ gap: 14 }}><Skeleton h={230} r={22} /><Skeleton h={260} r={22} /></div> : !data && error ? (
         <section className="card"><Empty icon="alert" title="Mon espace est indisponible" action={<Button variant="primary" onClick={() => { void refresh(); }}>Réessayer</Button>}>{error.message}</Empty></section>
@@ -85,6 +98,8 @@ export default function Espace() {
               <div key={i} className="es-col">{col.map(({ meta, C }) => <C key={meta.id} data={data} reload={reload} note={setNoting} />)}</div>
             )) : cards.map(({ meta, C }) => <C key={meta.id} data={data} reload={reload} note={setNoting} />)}
           </div>
+          {/* his own photo on the site: his to hide (the owner can too, in Équipe) */}
+          {me.photo ? <section className="card es-site" data-guide="espace.photo-site"><SitePhotoSwitch st={me} self /></section> : null}
           <div className="es-foot"><Button variant="ghost" icon="edit" onClick={() => setCustom(true)} data-guide="espace.personnaliser">Personnaliser</Button></div>
         </>
       ) : null}

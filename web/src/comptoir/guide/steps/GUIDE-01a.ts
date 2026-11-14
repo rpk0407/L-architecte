@@ -51,7 +51,7 @@ const steps: GuideStep[] = [
   { id: 'caisse.closed', page: '/comptoir/caisse', target: 'cs-closed', order: 5,
     title: 'La journée est clôturée', body: 'Le Z du jour est scellé : les ventes reprennent demain. Une erreur se corrige par un avoir, depuis « Voir les tickets ».' },
   { id: 'caisse.tabs', page: '/comptoir/caisse', target: 'cs-tabs', order: 10,
-    title: 'Encaisser, Ventes du jour, Caisse & clôture', body: 'Les trois temps de la caisse : encaisser un client, revoir les tickets du jour, puis compter le tiroir et clôturer le soir.' },
+    title: 'Encaisser, Ventes du jour, Caisse & clôture', body: 'Les temps de la caisse : encaisser un client, revoir les tickets du jour, puis compter le tiroir et clôturer le soir. Le gérant a aussi « Le mois ».' },
   { id: 'caisse.online', page: '/comptoir/caisse', target: 'cs-online', roles: TILL, order: 15,
     title: 'En ligne · à traiter', body: 'Les paiements du site qui demandent une décision : l’acompte d’un absent, un litige, un remboursement. Chaque ligne dit quoi faire.' },
   { id: 'caisse.free', page: '/comptoir/caisse', target: 'cs-free', order: 20,
@@ -72,6 +72,15 @@ const steps: GuideStep[] = [
     title: 'Comment paie-t-il ?', body: 'Carte, espèces, QR code ou carte cadeau, et tu peux en mélanger plusieurs. Les espèces calculent la monnaie à rendre.' },
   { id: 'caisse.validate', page: '/comptoir/caisse', target: 'tk-validate', order: 70,
     title: 'Valider l’encaissement', body: 'S’allume quand tout est payé. L’écran suivant propose le reçu et son prochain rendez-vous.' },
+
+  { id: 'caisse.day', page: '/comptoir/caisse', target: 'cs-day', roles: TILL, order: 80,
+    title: 'Encaissé aujourd’hui', body: 'L’argent du jour par moyen et par barbier, pourboires à part, avec les acomptes, les abonnements renouvelés ou refusés et les cartes cadeaux.' },
+  { id: 'caisse.held', page: '/comptoir/caisse', target: 'cs-held', roles: TILL, order: 90,
+    title: 'Espèces chez les barbiers', body: 'Ce que chaque barbier a encaissé en espèces sur son téléphone et garde sur lui. « Remis à la caisse » le met dans le tiroir.' },
+
+  /* ---------------- Caisse › Le mois ---------------- */
+  { id: 'mois.money', page: '/comptoir/caisse/mois', target: 'cs-month', roles: BOSS, order: 10,
+    title: 'Le mois', body: 'L’encaissé du mois par moyen et par barbier, les commissions et les pourboires à reverser. Les flèches remontent les mois passés.' },
 
   /* ---------------- Caisse › Ventes du jour ---------------- */
   { id: 'ventes.day', page: '/comptoir/caisse/ventes', target: 'sales-day', order: 10,

@@ -7,6 +7,7 @@ import { str, int, opt, obj, oneOf, either, parse } from '../lib/validate.js';
 import { normPhone, isEmail, capFirst } from '../lib/util.js';
 import { instantOf, isDay } from '../../shared/dates.js';
 import { queueMessage, apptVars } from '../domain/messages.js';
+import { forFirstIn } from '../domain/notify.js';
 import { mailConfirmation, mailOwner } from '../domain/mails.js';
 import { payDeadline } from '../domain/policy.js';
 import { busyIntervals } from '../domain/availability.js';
@@ -86,13 +87,16 @@ export const createPayment = {
   }
 };
 
-/** Called by the webhook (or the simulated checkout). Idempotent: a second notification is ignored. */
+/** Called by the webhook (or the simulated checkout). Idempotent: a second notification is ignored, before or after a refund. */
 export const paymentSucceeded = {
   run(s, input, ctx) {
     const pid = input.id || s.paymentByRef.get(input.providerRef || '');
     const py = s.payments.get(pid || '');
     if (!py) fail(404, 'not_found', 'Paiement inconnu.');
     if (py.status === 'paid') return { ok: true, already: true };
+    // paid once and given back in full since (a late payment, a cancellation in time): the provider repeating its
+    // notice days later must not make it « paid » again, or the till would offer to keep or deduct money already returned
+    if (py.status === 'refunded' && py.paidAt) return { ok: true, already: true };
     if (input.amount != null && input.amount !== py.amount && py.kind !== 'guarantee') fail(409, 'amount', 'Montant reçu différent du montant attendu.');
     // the provider's customer and card ids tie a person to a card: in pii under the file, so its erasure takes them;
     // with no file (a QR at the till) they are not kept at all. The charge ref stays in data: reconciliation needs it
@@ -113,7 +117,9 @@ export const paymentSucceeded = {
         ctx.emit('appt.confirmed', { id: a.id, cid: a.clientId || undefined });
         const c = a.clientId ? getClient(s, a.clientId) : null;
         if (c && c.phone && a.sms && s.settings.messages.confirmation) {
-          queueMessage(s, ctx, { key: 'conf_' + a.id + '_' + a.moves, template: 'confirmation', to: c.phone, cid: c.id, apptId: a.id, vars: apptVars(s, a, ctx.meta.linkFor) });
+          // a child's or a friend's place on this contact's file: « avec JKut pour Léo », as the booking's own text said
+          const v = apptVars(s, a, ctx.meta.linkFor), pour = forFirstIn(s, [c.id], a);
+          queueMessage(s, ctx, { key: 'conf_' + a.id + '_' + a.moves, template: 'confirmation', to: c.phone, cid: c.id, apptId: a.id, vars: pour ? { ...v, prenom: c.first || v.prenom, barbier: v.barbier + ' pour ' + pour } : v });
         }
         // the e-mail with the calendar file, and the owner's alert of an online booking, wait for the deposit (WP-02)
         const paid = { ...a, status: 'booked', deposit: a.deposit && py.kind === 'deposit' ? { ...a.deposit, paid: py.amount } : a.deposit };

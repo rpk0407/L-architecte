@@ -129,3 +129,19 @@ export const METHOD_LABEL = { card: 'Carte (TPE)', cash: 'Espèces', online: 'Pa
 export const ticketNo = (n) => 'T' + String(n).padStart(6, '0');
 export const refundNo = (n) => 'A' + String(n).padStart(6, '0');
 export const closureNo = (n) => 'Z' + String(n).padStart(4, '0');
+
+/**
+ * Cash barbers took on their phone (a payment with heldBy, commands/sales.js) and have not yet put in the drawer
+ * (drawer.moved with their staffId), less what came back out of it in their name: staff id → cents held. The drawer's
+ * own count never includes it (drawerExpected reads drawerId only), so the end of day says « chez JKut : 25 € » apart.
+ * @returns {Map<string, number>}
+ */
+export function heldCash(s) {
+  /** @type {Map<string, number>} */
+  const out = new Map();
+  const add = (id, v) => out.set(id, (out.get(id) || 0) + v);
+  for (const x of s.sales.values()) for (const p of x.payments) if (p.method === 'cash' && p.heldBy) add(p.heldBy, p.amount);
+  for (const d of s.drawers.values()) for (const m of d.moves || []) if (m.staffId) add(m.staffId, -m.amount);
+  for (const [k, v] of out) if (!v) out.delete(k);
+  return out;
+}

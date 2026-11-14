@@ -2,11 +2,12 @@
 // The e-mails about one appointment: the client's confirmation (with the calendar file and the "Gérer mon rendez-vous"
 // link) and cancellation, and the owner's alert for each online booking or cancellation. Each is queued like an SMS
 // (domain/messages.js), with a deterministic key, and left by the scheduler (messaging/email.js).
-import { dayParts, dayLong, DAYS_SH, fmtTime, pad2 } from '../../shared/dates.js';
+import { addDays, dayParts, dayLong, DAYS_SH, fmtTime, pad2 } from '../../shared/dates.js';
 import { fmtEur } from '../../shared/money.js';
 import { apptIcs } from '../lib/ics.js';
 import { isEmail } from '../lib/util.js';
 import { queueMessage } from './messages.js';
+import { forFirstIn } from './notify.js';
 
 /** Where the owner's mail goes: settings.notify.to, else the owner account's own e-mail (both kept in pii). */
 export function ownerEmail(s) {
@@ -37,10 +38,12 @@ export function mailConfirmation(s, ctx, a, o) {
   const shop = s.settings.shop, barber = barberOf(s, a);
   const when = dayFr(a.day) + ' à ' + fmtTime(a.start);
   const moved = (a.moves || 0) > 0;
+  // a place booked for a child or a friend on this contact's file: « avec JKut pour Léo »
+  const g = forFirstIn(s, [a.clientId], a), pour = g ? ' pour ' + g : '';
   const paid = a.deposit && a.deposit.paid ? ' · acompte de ' + fmtEur(a.deposit.paid, { decimals: true }) + ' réglé' : '';
   const text = [
     hello(o.first), '',
-    (moved ? 'Ton rendez-vous est déplacé : ' : 'C’est noté : ') + when + ' avec ' + barber + '.',
+    (moved ? 'Ton rendez-vous est déplacé : ' : 'C’est noté : ') + when + ' avec ' + barber + pour + '.',
     what(a) + ' · ' + price(a) + paid, '',
     shop.name, where(shop),
     ...(o.link ? ['', 'Gérer mon rendez-vous (déplacer ou annuler) : ' + o.link] : []),
@@ -48,9 +51,36 @@ export function mailConfirmation(s, ctx, a, o) {
   ].join('\n');
   return queueMessage(s, ctx, {
     key: 'mconf_' + a.id + '_' + (a.moves || 0), channel: 'email', template: 'confirmation', to: o.to, cid: a.clientId, apptId: a.id, vars: {},
-    subject: (moved ? 'Rendez-vous déplacé : ' : 'Rendez-vous confirmé : ') + when + ' · ' + shop.name, text,
+    subject: (moved ? 'Rendez-vous déplacé : ' : 'Rendez-vous confirmé : ') + when + pour + ' · ' + shop.name, text,
     cta: o.link ? { label: 'Gérer mon rendez-vous', url: o.link } : undefined, links: [o.link || ''],
     attachments: [{ name: 'rendez-vous.ics', type: 'text/calendar; charset=utf-8; method=PUBLISH', content: apptIcs(shop, a, { barber, link: o.link, now: ctx.now }) }]
+  });
+}
+
+/**
+ * The client's reminder by e-mail: the evening before (settings.messages.reminderEmail), two hours before for a booking
+ * that missed the evening one, or in place of a reminder SMS that failed for good (commands/system.js decides which).
+ * One key per appointment, day and kind, whoever asks: the reminder and the fallback never both leave.
+ * @param {{ to: string, first?: string, link?: string, soon?: boolean, today: string }} o soon: the 2-hours one
+ */
+export function mailReminder(s, ctx, a, o) {
+  if (!isEmail(o.to)) return null;
+  const shop = s.settings.shop, barber = barberOf(s, a);
+  const time = fmtTime(a.start);
+  const day = a.day === o.today ? 'aujourd’hui' : a.day === addDays(o.today, 1) ? 'demain' : dayFr(a.day);
+  const g = forFirstIn(s, [a.clientId], a), pour = g ? ' pour ' + g : '';
+  const text = [
+    hello(o.first), '',
+    'Un petit rappel : on t’attend ' + day + ' à ' + time + ' avec ' + barber + pour + '.',
+    what(a) + ' · ' + price(a), '',
+    shop.name, where(shop),
+    ...(o.link ? ['', 'Un imprévu ? Déplace ou annule ici : ' + o.link] : []),
+    '', 'À ' + (a.day === o.today ? 'tout à l’heure' : 'bientôt') + ' !'
+  ].join('\n');
+  return queueMessage(s, ctx, {
+    key: (o.soon ? 'mrem2_' : 'mrem_') + a.id + '_' + a.day, channel: 'email', template: o.soon ? 'reminder2h' : 'reminder', to: o.to, cid: a.clientId, apptId: a.id, vars: {},
+    subject: 'Rappel : ' + day + ' à ' + time + ' avec ' + barber + pour + ' · ' + shop.name, text,
+    cta: o.link ? { label: 'Gérer mon rendez-vous', url: o.link } : undefined, links: [o.link || '']
   });
 }
 

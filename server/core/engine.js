@@ -4,6 +4,9 @@
 // A write is: decide on the current state → seal the resulting events → append them if, and only if,
 // nobody appended since (compare-and-swap on the version). On a conflict the engine catches up and
 // decides again. Two phones booking the same chair at the same second: exactly one wins.
+//
+// The writes of one instance go one after the other (an in-process queue): each decides on the state the previous one
+// left, so they never conflict with each other. The store's compare-and-swap stays the only guard between instances.
 import { seal, verifyChain } from './journal.js';
 import { emptyState, evolve } from './state.js';
 import { localParts } from '../../shared/dates.js';
@@ -113,6 +116,19 @@ export function createEngine(store, opts = {}) {
   /** erasures the store has not applied yet (it failed after the append, or before a restart): retried after each read */
   /** @type {((e: JEvent) => boolean)[]} */
   let redactLater = [];
+  /** the write queue: the end of the last write asked of this instance (never rejects) */
+  let writing = Promise.resolve();
+
+  /**
+   * Run a write once every write asked before it is over, whatever their outcome. Reads do not wait.
+   * Not re-entrant: a write must not await another write of the same engine from inside (no caller does).
+   * @template T @param {() => Promise<T>} fn @returns {Promise<T>}
+   */
+  function queued(fn) {
+    const p = writing.then(fn);
+    writing = p.then(() => {}, () => {});
+    return p;
+  }
 
   // nothing read is trusted any more: the next sync reads everything again, and until it does nothing is served stale
   function rebuild() { state = emptyState(); journal = []; lastSync = 0; lastSyncOk = 0; }
@@ -135,6 +151,22 @@ export function createEngine(store, opts = {}) {
     }
   }
 
+  /**
+   * The events of `list` this projection does not hold yet. One it already holds (a read and a write of this instance
+   * crossed: both carry the same committed events) is skipped only if it is the same event, by its hash; anything else
+   * is a real divergence, reported as a gap.
+   * @param {JEvent[]} list
+   */
+  function unseen(list) {
+    let i = 0;
+    while (i < list.length && list[i].v <= state.version) {
+      const have = journal[list[i].v - 1];
+      if (!have || have.v !== list[i].v || have.h !== list[i].h) throw new Error('journal gap at ' + list[i].v);
+      i++;
+    }
+    return i ? list.slice(i) : list;
+  }
+
   async function redactPending() {
     const todo = redactLater; redactLater = [];
     for (const m of todo) {
@@ -151,7 +183,7 @@ export function createEngine(store, opts = {}) {
       epoch = r.epoch;
       const full = r.events[0] && r.events[0].v === 1 ? r : await store.read(0);
       apply(full.events);
-    } else apply(r.events);
+    } else apply(unseen(r.events));
     lastSync = Date.now();
     lastSyncOk = clock();
     if (redactLater.length) await redactPending();
@@ -228,7 +260,10 @@ export function createEngine(store, opts = {}) {
    * @param {any} input
    * @param {{ actor: Actor, staff?: any, caps?: Set<string>, meta?: any, requestId?: string }} base
    */
-  async function run(handler, input, base) {
+  function run(handler, input, base) { return queued(() => runNow(handler, input, base)); }
+
+  /** @param {Handler} handler @param {any} input @param {{ actor: Actor, staff?: any, caps?: Set<string>, meta?: any, requestId?: string }} base */
+  async function runNow(handler, input, base) {
     const key = keyOf(base.actor, base.requestId);
     for (let attempt = 0; attempt < 8; attempt++) {
       try { await sync(attempt > 0); }
@@ -253,7 +288,16 @@ export function createEngine(store, opts = {}) {
         return storeDown(STORE_LOST)(e);
       });
       if (!r.ok) continue;
-      apply(sealed, true);
+      // committed: from here the answer is the result, whatever happens to this instance's memory
+      try { apply(unseen(sealed), true); }
+      catch (e) {
+        if (!String(e && /** @type {any} */ (e).message).startsWith('journal gap')) throw e;
+        // the projection is not where this write left from (the journal was wiped or read again from the start while the
+        // append travelled): nothing in memory is trusted, it is read again before the answer leaves
+        console.error('[lx] projection out of step after a committed write, read again:', /** @type {any} */ (e).message);
+        rebuild(); epoch = '';
+        await sync(true).catch(() => {});
+      }
       await afterAppend(sealed);
       if (key) {
         results.set(key, result);
@@ -281,7 +325,10 @@ export function createEngine(store, opts = {}) {
    * state rebuilt from the store, so nothing half-applied ever survives.
    * @param {(step: (h: Handler, input: any, base: { actor: Actor, staff?: any, caps?: Set<string>, meta?: any }) => any) => void | Promise<void>} fn
    */
-  async function batch(fn) {
+  function batch(fn) { return queued(() => batchNow(fn)); }
+
+  /** @param {(step: (h: Handler, input: any, base: { actor: Actor, staff?: any, caps?: Set<string>, meta?: any }) => any) => void | Promise<void>} fn */
+  async function batchNow(fn) {
     await sync(true);
     /** @type {JEvent[]} */
     const sealed = [];
@@ -311,21 +358,25 @@ export function createEngine(store, opts = {}) {
   }
 
   /** Append a journal built elsewhere (the demo seed) to an empty store. */
-  async function adopt(events) {
-    await sync(true);
-    if (state.version > 0) return false;
-    const r = await store.append(events, epoch);
-    if (!r.ok) { await sync(true); return false; }
-    apply(events);
-    return true;
+  function adopt(events) {
+    return queued(async () => {
+      await sync(true);
+      if (state.version > 0) return false;
+      const r = await store.append(events, epoch);
+      if (!r.ok) { await sync(true); return false; }
+      apply(unseen(events));
+      return true;
+    });
   }
 
-  async function reset() {
-    epoch = await store.reset();
-    rebuild();
-    lastSync = Date.now();
-    lastSyncOk = clock();
-    results.clear();
+  function reset() {
+    return queued(async () => {
+      epoch = await store.reset();
+      rebuild();
+      lastSync = Date.now();
+      lastSyncOk = clock();
+      results.clear();
+    });
   }
 
   const api = {

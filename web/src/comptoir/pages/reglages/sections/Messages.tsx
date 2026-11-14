@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { cap, plural, time } from '../../../../lib/format';
 import { useQuery } from '../../../../lib/query';
+import { Link } from '../../../../lib/router';
 import { Icon } from '../../../../ui/Icon';
 import { Field, Note, Switch } from '../../../../ui/kit';
 import { useApp } from '../../../state';
@@ -22,8 +23,8 @@ const TPL: { k: string; t: string; when: string; vars: string[] }[] = [
   { k: 'cancelled', t: 'Annulation', when: 'quand le salon annule', vars: ['date', 'heure', 'lien'] },
   { k: 'receipt', t: 'Reçu', when: 'à la demande, après encaissement', vars: ['prenom', 'ticket', 'montant', 'lien', 'fidelite'] }
 ];
-type Notify = { to: string; phone: string; newBooking: boolean; cancel: boolean; evening: string; weekly: boolean };
-const NOTIFY: Notify = { to: '', phone: '', newBooking: true, cancel: true, evening: '20:00', weekly: true };
+type Notify = { to: string; phone: string; newBooking: boolean; cancel: boolean; evening: string; weekly: boolean; alerts: boolean };
+const NOTIFY: Notify = { to: '', phone: '', newBooking: true, cancel: true, evening: '20:00', weekly: true, alerts: true };
 const EVENINGS = ['18:00', '18:30', '19:00', '19:30', '20:00', '20:30', '21:00', '21:30', '22:00'];
 const EMAIL = /^[^@\s]{1,64}@[^@\s]{1,190}\.[^@\s]{2,}$/;
 const toMin = (h: string) => Number(h.slice(0, 2)) * 60 + Number(h.slice(3, 5));
@@ -60,23 +61,26 @@ export default function Messages({ s, data }: SectionProps) {
     for (const k of Object.keys(v) as (keyof Notify)[]) if (v[k] !== n0[k]) (out as Record<string, unknown>)[k] = v[k];
     return out;
   };
-  const toggles: [string, string, string][] = [['confirmation', 'Confirmation de rendez-vous', 'Avec le lien pour déplacer ou annuler soi-même.'], ['reminder', 'Rappel la veille', 'Le meilleur remède contre les absences.'], ['reminder2h', 'Rappel 2 h avant', 'En plus, pour les oublis du jour même.'], ['waitlist', 'Place libérée', 'Proposée au premier de la liste d’attente.'], ['rebook', 'Relances', 'Proposées dans Relances, jamais envoyées sans toi.']];
+  const toggles: [string, string, string][] = [['confirmation', 'Confirmation de rendez-vous', 'Avec le lien pour déplacer ou annuler soi-même.'], ['reminder', 'Rappel la veille', 'Le meilleur remède contre les absences.'], ['reminder2h', 'Rappel 2 h avant', 'En plus, pour tous les rendez-vous. Éteint, il part quand même pour une réservation qui n’a pas eu le rappel de la veille (prise après l’heure du rappel ou le jour même, au moins 4 h avant) : jamais pendant les heures calmes.'], ['waitlist', 'Place libérée', 'Proposée au premier de la liste d’attente.'], ['rebook', 'Relances', 'Proposées dans Relances, jamais envoyées sans toi.']];
   const bad = TPL.find((t) => (M.templates[t.k] || '').trim().length < 10);
   return (
     <div className="col" style={{ gap: 16 }}>
-      <Card title="Envois automatiques" guide="messages-auto" icon="bolt" aside={<span className={'badge ' + (boot.providers.sms ? 'badge-ok' : boot.mode === 'demo' ? 'badge-info' : 'badge-warn')}>{boot.providers.sms ? 'SMS via ' + smsVia(boot.providers.sms) : boot.mode === 'demo' ? 'Démo · simulé' : 'Aucun fournisseur'}</span>}>
+      {/* first: how the texts reach the clients at all (WhatsApp by hand, WhatsApp automatic, SMS) */}
+      <Canal s={s} />
+      <Card title="Envois automatiques" guide="messages-auto" icon="bolt" aside={<span className={'badge ' + (boot.providers.sms ? 'badge-ok' : boot.mode === 'demo' ? 'badge-info' : 'badge-warn')}>{boot.providers.sms ? 'SMS via ' + smsVia(boot.providers.sms) : boot.mode === 'demo' ? 'Démo · simulé' : 'Sans fournisseur SMS'}</span>}>
         {toggles.map(([k, t, h]) => <Switch key={k} on={!!M[k]} onChange={(v) => m.setV({ ...M, [k]: v })} title={t} hint={h} />)}
         <div className="grid2">
           <Field label="Heure du rappel de la veille"><select className="input select" value={M.reminderHour} onChange={(e) => m.setV({ ...M, reminderHour: Number(e.target.value) })}>{Array.from({ length: 14 }, (_, i) => i + 8).map((h) => <option key={h} value={h}>{h} h</option>)}</select></Field>
         </div>
         <Note icon="moon">{quietWords(M.quiet)} Les avis, les relances et les places libérées attendent le matin.</Note>
-        {!boot.providers.sms && boot.mode !== 'demo' ? <Note tone="warn" icon="alert">Branche Brevo, le téléphone du salon ou Twilio (Canal d’envoi, ci-dessous) pour que les SMS partent vraiment. En attendant, ils restent dans la boîte d’envoi.</Note> : null}
+        {!boot.providers.sms && boot.mode !== 'demo' ? <Note icon="info">Sans fournisseur SMS, rien n’est perdu : les messages aux clients arrivent sur l’écran Messages, à envoyer depuis le WhatsApp du salon (« Messages aux clients », ci-dessous). Les demandes d’avis et les relances, elles, attendent un fournisseur SMS.</Note> : null}
       </Card>
-      <Canal s={s} />
       <Avis s={s} data={data} />
-      <Card title="E-mails aux clients" icon="mail" aside={<span className={'badge ' + (mailer ? 'badge-ok' : boot.mode === 'demo' ? 'badge-info' : 'badge-warn')}>{mailer ? 'E-mail via ' + cap(mailer) : boot.mode === 'demo' ? 'Démo · simulé' : 'Aucun fournisseur'}</span>}>
+      <Card title="E-mails aux clients" icon="mail" aside={<span className={'badge ' + (mailer ? 'badge-ok' : boot.mode === 'demo' ? 'badge-info' : 'badge-warn')}>{mailer ? (mailer === 'smtp' ? 'Par la boîte du salon' : 'E-mail via ' + cap(mailer)) : boot.mode === 'demo' ? 'Démo · simulé' : 'Aucun fournisseur'}</span>}>
         <Switch on={M.email !== false} onChange={(v) => m.setV({ ...M, email: v })} title="Confirmation et annulation par e-mail" hint="Aux clients qui ont donné leur e-mail, avec ou sans SMS : le rendez-vous à ajouter à l’agenda (fichier .ics) et le bouton « Gérer mon rendez-vous », puis le déplacement ou l’annulation." />
-        {!mailer && boot.mode !== 'demo' ? <Note tone="warn" icon="alert">Ajoute <code>BREVO_API_KEY</code> et <code>EMAIL_FROM</code> (par exemple <code>rdv@barberlarchitecte.com</code>, une adresse validée dans Brevo) pour que les e-mails partent. En attendant, ils restent dans la boîte d’envoi.</Note> : null}
+        <Switch on={!!M.reminderEmail} onChange={(v) => m.setV({ ...M, reminderEmail: v })} title="Rappel par e-mail" hint="À l’heure du rappel de la veille, aux clients qui ont donné leur e-mail, avec ou sans SMS, et le bouton « Gérer mon rendez-vous ». Éteint tant que tu ne l’allumes pas." />
+        <Note icon="info">Un SMS de confirmation ou de rappel que le fournisseur refuse part une fois par e-mail quand le client a donné son adresse{M.email !== false ? '' : ' (éteint avec les e-mails de confirmation)'}. Rien n’est jamais envoyé deux fois.</Note>
+        {!mailer && boot.mode !== 'demo' ? <Note tone="warn" icon="alert">Pour que les e-mails partent par la boîte IONOS du salon, ajoute dans Vercel <code>SMTP_HOST</code>, <code>SMTP_PORT</code>, <code>SMTP_USER</code>, <code>SMTP_PASS</code> et <code>EMAIL_FROM</code> : <Link to="/reglages/ionos" className="link">Connexion IONOS</Link> donne les valeurs à taper et l’e-mail test. En attendant, ils restent dans la boîte d’envoi.</Note> : null}
       </Card>
       <Card title="Me prévenir" icon="bell">
         <Field label="Mon e-mail" htmlFor="nt-to" error={badEmail ? 'Adresse e-mail invalide' : null} hint={N.to ? undefined : 'Vide : l’e-mail de ton compte' + (boot.me.email ? ' (' + boot.me.email + ')' : '') + '.'}>
@@ -91,6 +95,7 @@ export default function Messages({ s, data }: SectionProps) {
             <Field label="Aussi par SMS, au" htmlFor="nt-phone" error={badPhone ? 'Numéro invalide' : null} hint={badPhone ? undefined : 'Facultatif. Vide : par e-mail seulement.'}><input id="nt-phone" className="input" type="tel" inputMode="tel" autoComplete="tel" maxLength={24} placeholder="06 12 34 56 78" value={N.phone} onChange={(e) => n.setV({ ...N, phone: e.target.value.replace(/[^\d +().-]/g, '') })} /></Field>
           </div>
         ) : null}
+        <Switch on={N.alerts !== false} onChange={(v) => n.setV({ ...N, alerts: v })} title="Les pannes, dans la journée" hint="Un e-mail dès que plusieurs SMS de suite échouent, que le planificateur reste muet plus de 30 minutes ou que la sauvegarde a plus de 36 h. En mode téléphone, aussi les messages aux clients encore à envoyer à 21 h (les rappels de demain). Une seule alerte par panne et par jour." />
         <Switch on={N.weekly} onChange={(v) => n.setV({ ...N, weekly: v })} title="Le bilan de la semaine" hint="Le lundi à 8 h : chiffre d’affaires, visites, absences, meilleur barbier, prestations les plus demandées." />
       </Card>
       <Card title="Bons plans et STOP" guide="messages-stop" icon="shield">

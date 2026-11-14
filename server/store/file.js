@@ -3,6 +3,7 @@
 import { readFileSync, appendFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { randomBytes } from 'node:crypto';
+import { follows } from './memory.js';
 
 /** @typedef {import('./memory.js').Store} Store */
 /** @typedef {import('../core/journal.js').JEvent} JEvent */
@@ -23,7 +24,7 @@ export function fileStore(path) {
     async append(list, ep) {
       if (ep !== epoch) return { ok: false };
       if (!list.length) return { ok: true };
-      if (list[0].v !== events.length + 1) return { ok: false };
+      if (list[0].v !== events.length + 1 || !follows(list, events[events.length - 1])) return { ok: false };
       appendFileSync(path, list.map((e) => JSON.stringify(e)).join('\n') + '\n');
       events = events.concat(list.map((e) => structuredClone(e)));
       return { ok: true };

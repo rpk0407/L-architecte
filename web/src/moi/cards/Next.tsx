@@ -76,6 +76,15 @@ export default function Next({ me, reload }: CardProps) {
     try { const r = await api.post<{ url: string }>('/api/public/bookings/' + tok + '/pay', {}); location.href = r.url; }
     catch (e: any) { setNote({ tone: 'warn', text: e.message }); setBusy(false); }
   };
+  const earlier = async () => {
+    if (me.demo) { setNote({ tone: 'ok', text: 'Ici, le salon te prévient dès qu’un créneau plus tôt se libère.' + DEMO_NOTE }); return; }
+    setBusy(true);
+    try {
+      await api.post('/api/me/earlier', { id: b.id, on: !b.earlier });
+      setNote({ tone: 'ok', text: b.earlier ? 'C’est retiré : ton rendez-vous reste comme il est.' : 'C’est noté. Si un créneau plus tôt se libère, on te prévient.' });
+      reload();
+    } catch (e: any) { setNote({ tone: 'warn', text: e.message }); } finally { setBusy(false); }
+  };
   const cancel = async () => {
     if (me.demo) {
       setSim((x) => ({ ...x, [b.id]: 'cancelled' })); setMode(''); setPick(null);
@@ -97,7 +106,7 @@ export default function Next({ me, reload }: CardProps) {
       {live}
       <section className="c-card c-ticket m-hero" aria-labelledby="m-hero-w" data-guide="moi.next">
         <div className="c-row"><span className={'c-pill ' + status[1]}>{status[0]}</span><span className="c-code">Code <b>{b.code}</b></span></div>
-        <p className="c-k">{list.length > 1 && b.id !== list[0].id ? 'Plus tard' : 'Ton prochain rendez-vous'}</p>
+        <p className="c-k">{b.forFirst ? 'Pour ' + b.forFirst : list.length > 1 && b.id !== list[0].id ? 'Plus tard' : 'Ton prochain rendez-vous'}</p>
         <h2 className="m-when" id="m-hero-w">{whenShort(b.day, b.start)}</h2>
         <div className="c-what">
           <span>{what}{b.staff ? ' · avec ' + b.staff.name : ''}<small>{dates.fmtDur(b.dur)} · {eur(b.price)}</small></span>
@@ -113,6 +122,12 @@ export default function Next({ me, reload }: CardProps) {
           ) : tel ? <a className="m-act wide" href={tel}><Icon name="phone" size={22} /><span>Appeler le salon</span></a> : null}
         </div>
         <p className="m-policy">{b.canChange ? 'Modifiable jusqu’à ' + untilWords(b.changeUntil) + '. Après, appelle le salon.' : 'Pour le déplacer ou l’annuler maintenant, appelle le salon' + (me.shop.phone ? ' au ' + me.shop.phone : '') + '.'}</p>
+        {b.status === 'booked' && b.canChange ? (
+          <button type="button" className="m-earlier" aria-pressed={!!b.earlier} disabled={busy} onClick={earlier} data-guide="moi.earlier">
+            <span><b>Préviens-moi si un créneau se libère plus tôt</b><small>{b.earlier ? 'C’est noté : un message part si un créneau plus tôt se libère' + (b.staff ? ' avec ' + b.staff.name : '') + '.' : 'Avec le même barbier. Rien ne bouge sans ton accord.'}</small></span>
+            <i aria-hidden>{b.earlier ? '✓' : '+'}</i>
+          </button>
+        ) : null}
         {b.status === 'pending' && b.deposit ? (
           <div className="m-dep">
             <p>Acompte de {eur(b.deposit.amount, { decimals: b.deposit.amount % 100 !== 0 })} à régler pour confirmer, déduit du prix au salon.</p>
@@ -138,7 +153,7 @@ export default function Next({ me, reload }: CardProps) {
           <p className="c-k" id="m-others-t">Aussi à venir</p>
           <ul aria-labelledby="m-others-t">
             {list.filter((x) => x.id !== b.id).map((x: MeUpcoming) => (
-              <li key={x.id}><button type="button" onClick={() => choose(x.id)}><span><b>{whenShort(x.day, x.start)}{x.staff ? ' · ' + x.staff.name : ''}</b><small>{x.services.map((s) => s.name).join(' + ')}</small></span><Icon name="chevR" size={18} /></button></li>
+              <li key={x.id}><button type="button" onClick={() => choose(x.id)}><span><b>{whenShort(x.day, x.start)}{x.staff ? ' · ' + x.staff.name : ''}</b><small>{(x.forFirst ? 'Pour ' + x.forFirst + ' · ' : '') + x.services.map((s) => s.name).join(' + ')}</small></span><Icon name="chevR" size={18} /></button></li>
             ))}
           </ul>
         </div>

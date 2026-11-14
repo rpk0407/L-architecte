@@ -1,11 +1,13 @@
 // Horaires et fermetures: the usual week, exceptional closures and openings, the public holidays worth closing.
 import { useState } from 'react';
 import { api } from '../../../../lib/api';
-import { refreshAll } from '../../../../lib/query';
+import { refreshAll, useQuery } from '../../../../lib/query';
+import { Link } from '../../../../lib/router';
 import { cap, dates, plural, time } from '../../../../lib/format';
 import { Button, Chip, Note, confirm, toast, toastError } from '../../../../ui/kit';
 import { useApp } from '../../../state';
 import { TimeSelect, WeekEditor, weekMinutes, weekOf, weekProblem, type Week } from '../../Equipe';
+import { ReportSheet } from '../../agenda/Report';
 import { Card, SaveBar, useSave, useSection, type SectionProps } from '../shared';
 
 function holidays(year: number) {
@@ -16,6 +18,13 @@ function holidays(year: number) {
   const easter = year + '-' + String(month).padStart(2, '0') + '-' + String(day).padStart(2, '0');
   const fixed: [string, string][] = [['01-01', 'Jour de l’an'], ['05-01', 'Fête du travail'], ['05-08', 'Victoire 1945'], ['07-14', 'Fête nationale'], ['08-15', 'Assomption'], ['11-01', 'Toussaint'], ['11-11', 'Armistice'], ['12-25', 'Noël']];
   return [...fixed.map(([md, label]) => ({ day: year + '-' + md, label })), { day: dates.addDays(easter, 1), label: 'Lundi de Pâques' }, { day: dates.addDays(easter, 39), label: 'Ascension' }, { day: dates.addDays(easter, 50), label: 'Lundi de Pentecôte' }].sort((x, y) => x.day.localeCompare(y.day));
+}
+
+/** The French public holidays of the twelve months from `today` (today included), in order. */
+export function holidaysAhead(today: string) {
+  const y = Number(today.slice(0, 4));
+  const end = dates.addDays(today, 365);
+  return [...holidays(y), ...holidays(y + 1)].filter((h) => h.day >= today && h.day <= end);
 }
 
 type Opening = { id?: string; day: string; intervals: [number, number][]; label: string; staff: 'all' | string[] };
@@ -35,11 +44,27 @@ export default function Horaires({ s }: SectionProps) {
   const [cl, setCl] = useState({ from: boot.today, to: boot.today, label: 'Congés' });
   const closures: { id: string; from: string; to: string; label: string }[] = s.closures || [];
   const upcoming = closures.filter((c) => c.to >= boot.today);
-  const y = Number(boot.today.slice(0, 4));
-  const suggest = [...holidays(y), ...holidays(y + 1)].filter((h) => h.day >= boot.today && dates.diffDays(boot.today, h.day) <= 200 && (s.hours[dates.weekday(h.day)] || []).length && !closures.some((c) => c.from <= h.day && c.to >= h.day)).slice(0, 4);
+  // the public holidays of the twelve months to come on which the salon would be open: proposed, never closed by themselves
+  const suggest = holidaysAhead(boot.today).filter((h) => (s.hours[dates.weekday(h.day)] || []).length && !closures.some((c) => c.from <= h.day && c.to >= h.day));
+  // the appointments already taken on the days closed: closing cancels nobody, each barber's day goes through its report
+  const taken = useQuery<{ items: { id: string; count: number; days: { day: string; staffId: string; count: number }[] }[] }>('/api/v1/settings/closures/conflicts');
+  const takenOn = (id: string) => taken.data?.items.find((x) => x.id === id);
+  const [report, setReport] = useState<{ staffId: string; day: string } | null>(null);
+  const [closing, setClosing] = useState(false);
+  const post = (body: { from: string; to: string; label: string }) => api.post<{ conflicts: number }>('/api/v1/settings/closures', body);
+  const said = (n: number, many = false) => (n
+    ? toast({ title: many ? 'Jours fériés fermés' : 'Fermeture ajoutée', sub: plural(n, 'rendez-vous', 'rendez-vous') + ' déjà pris ' + (many ? 'ces jours-là' : 'sur ces dates') + ' : rien n’est annulé, reporte-les juste en dessous.', icon: 'alert', ttl: 10000 })
+    : toast({ title: many ? 'Jours fériés fermés' : 'Fermeture ajoutée', sub: 'Plus aucune réservation en ligne ces jours-là.', icon: 'lock' }));
   const addClosure = async (body: { from: string; to: string; label: string }) => {
-    try { await api.post('/api/v1/settings/closures', body); toast({ title: 'Fermeture ajoutée', sub: 'Plus aucune réservation en ligne ces jours-là.', icon: 'lock' }); refreshAll(); }
+    try { const r = await post(body); said(r.conflicts || 0); refreshAll(); }
     catch (e) { toastError(e); }
+  };
+  const closeAll = async () => {
+    if (!await confirm({ title: 'Fermer ces ' + suggest.length + ' jours fériés ?', body: suggest.map((h) => h.label + ' (' + dates.dayShort(h.day) + ')').join(', ') + '. Le site ne proposera plus ces jours-là ; tu peux en rouvrir un à tout moment.', ok: 'Fermer ces jours' })) return;
+    setClosing(true);
+    let n = 0;
+    try { for (const h of suggest) n += (await post({ from: h.day, to: h.day, label: h.label })).conflicts || 0; said(n, true); }
+    catch (e) { toastError(e); } finally { setClosing(false); refreshAll(); }
   };
   const total = weekMinutes(hours.v);
 
@@ -90,19 +115,41 @@ export default function Horaires({ s }: SectionProps) {
         {upcoming.length ? (
           <ul className="list">{upcoming.map((c) => (
             <li key={c.id} className="li">
-              <span className="li-main"><b>{c.label}</b><small>{c.from === c.to ? cap(dates.dayLong(c.from)) : 'Du ' + dates.dayShort(c.from) + ' au ' + dates.dayShort(c.to) + ' · ' + plural(dates.diffDays(c.from, c.to) + 1, 'jour')}</small></span>
+              <span className="li-main">
+                <b>{c.label}</b><small>{c.from === c.to ? cap(dates.dayLong(c.from)) : 'Du ' + dates.dayShort(c.from) + ' au ' + dates.dayShort(c.to) + ' · ' + plural(dates.diffDays(c.from, c.to) + 1, 'jour')}</small>
+                {takenOn(c.id) ? (
+                  <span className="rg-taken" data-closure={c.id} style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6 }}>
+                    <small style={{ color: 'var(--warn-tx)' }}>{plural(takenOn(c.id)!.count, 'rendez-vous', 'rendez-vous')} déjà pris : rien n’est annulé, reporte ou rappelle chaque client.</small>
+                    {takenOn(c.id)!.days.map((d) => (
+                      <span key={d.day + d.staffId} className="row wrap" style={{ gap: 8 }}>
+                        <small>{cap(dates.dayShort(d.day))} · {staffById.get(d.staffId)?.name || 'Barbier'} · {plural(d.count, 'rdv', 'rdv')}</small>
+                        <Button size="sm" variant="subtle" icon="move" onClick={() => setReport({ staffId: d.staffId, day: d.day })}>Reporter</Button>
+                        <Link to={'/agenda?day=' + d.day} className="link" style={{ fontSize: 12.5 }}>Voir l’agenda</Link>
+                      </span>
+                    ))}
+                  </span>
+                ) : null}
+              </span>
               <Button size="sm" variant="ghost" icon="trash" aria-label="Supprimer" onClick={async () => { if (!await confirm({ title: 'Rouvrir ces jours ?', ok: 'Rouvrir' })) return; try { await api.del('/api/v1/settings/closures/' + c.id); refreshAll(); } catch (e) { toastError(e); } }} />
             </li>
           ))}</ul>
         ) : <p className="muted">Aucune fermeture prévue.</p>}
-        {suggest.length ? <div className="col" style={{ gap: 8 }}><p className="section-k">Jours fériés à venir, salon normalement ouvert</p><div className="chips">{suggest.map((h) => <Chip key={h.day} small onClick={() => addClosure({ from: h.day, to: h.day, label: h.label })}>+ {h.label} · {dates.dayShort(h.day)}</Chip>)}</div></div> : null}
+        {suggest.length ? (
+          <div className="col" style={{ gap: 8 }} data-guide="horaires-feries">
+            <p className="section-k">Jours fériés des 12 mois à venir, salon normalement ouvert</p>
+            <p className="faint" style={{ fontSize: 12.5 }}>Touche ceux où tu ne travailles pas. Ceux que tu laisses restent ouverts.</p>
+            <div className="chips">{suggest.map((h) => <Chip key={h.day} small disabled={closing} onClick={() => addClosure({ from: h.day, to: h.day, label: h.label })}>+ {h.label} · {dates.dayShort(h.day)}</Chip>)}</div>
+            {suggest.length > 1 ? <div className="row"><Button size="sm" variant="ghost" icon="lock" busy={closing} onClick={closeAll}>Fermer ces {suggest.length} jours fériés</Button></div> : null}
+          </div>
+        ) : null}
         <div className="rg-closure">
           <input className="input" value={cl.label} maxLength={60} onChange={(e) => setCl({ ...cl, label: e.target.value })} aria-label="Motif" />
           <input className="input" type="date" value={cl.from} min={boot.today} onChange={(e) => e.target.value && setCl({ ...cl, from: e.target.value, to: cl.to < e.target.value ? e.target.value : cl.to })} aria-label="Du" />
           <input className="input" type="date" value={cl.to} min={cl.from} onChange={(e) => e.target.value && setCl({ ...cl, to: e.target.value })} aria-label="Au" />
           <Button variant="primary" icon="plus" disabled={!cl.label.trim()} onClick={() => addClosure(cl)}>Fermer</Button>
         </div>
-        <p className="faint" style={{ fontSize: 12.5 }}>Les rendez-vous déjà pris ces jours-là ne sont pas annulés automatiquement : déplace-les depuis l’agenda.</p>
+        <p className="faint" style={{ fontSize: 12.5 }}>Fermer retire ces jours du site tout de suite. Les rendez-vous déjà pris ne sont jamais annulés tout seuls : ils s’affichent sous la fermeture, avec « Reporter » pour chaque barbier. Pour l’absence d’un seul barbier : Équipe › Poser une absence.</p>
+        {report ? <ReportSheet about={report} onClose={() => { setReport(null); refreshAll(); }} /> : null}
       </Card>
       <Card title="Ouvertures exceptionnelles" guide="horaires-ouvertures" icon="sun">
         <p className="muted" style={{ fontSize: 13.5 }}>Un jour où le salon ouvre alors qu’il est fermé d’habitude, ou avec d’autres horaires. Le site l’annonce deux semaines avant et propose ses créneaux.</p>

@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Barber L’Architecte · Choisis ton barbier et réserve · Marseille 13e</title>
+<meta name="description" content="Barbier place Pélabon, Marseille 13e. Ta prestation, ton barbier, ton créneau : la réservation prend moins d’une minute, sans compte.">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#D3D0C8">
+<link rel="icon" href="../icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="../apple-touch-icon.png">
+<meta property="og:image" content="https://barberlarchitecte.com/img/og-larchitecte.jpg">
+<link rel="preload" href="../fonts/instrument-serif-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="../fonts/instrument-sans-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="barbier.css">
+<script src="barbier.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">Aller au contenu</a>
+<p class="demo-b" id="demo" role="status" hidden><i aria-hidden="true"></i><span>Mode démo · créneaux simulés, rien n’est envoyé</span></p>
+
+<header class="tb light" id="tb">
+<a class="wm" href="#frais" aria-label="L’Architecte, retour en haut"><span class="wm-logo" aria-hidden="true"></span><span class="wm-t"><span class="wm-a">L’Architecte</span><span class="wm-b">Barber · Marseille</span></span></a>
+<button type="button" class="tb-ch" id="chBtn" aria-label="Ouvrir le sommaire" aria-expanded="false" aria-controls="menu">
+<span class="tb-cw" aria-hidden="true"><span class="tb-cn" id="chNum"></span><span class="tb-ct" id="chName">Sommaire</span></span>
+<span class="tb-ic" aria-hidden="true"><i></i><i></i></span>
+</button>
+</header>
+
+<nav class="mn" id="menu" aria-label="Sommaire" hidden>
+<div class="mn-in">
+<p class="mn-k">Sommaire</p>
+<ol class="mn-l">
+<li style="--i:0"><a href="#barbiers"><span class="mn-n">01</span><span class="mn-t">Les barbiers</span><span class="mn-d">Choisis le tien, ou le premier de libre</span></a></li>
+<li style="--i:1"><a href="#carte"><span class="mn-n">02</span><span class="mn-t">La carte</span><span class="mn-d">Les prix, sans surprise</span></a></li>
+<li style="--i:2"><a href="#coupes"><span class="mn-n">03</span><span class="mn-t">Le travail</span><span class="mn-d">Sorti du fauteuil</span></a></li>
+<li style="--i:3"><a href="#preuve"><span class="mn-n">04</span><span class="mn-t">La preuve</span><span class="mn-d">5,0 sur 316 avis Google</span></a></li>
+<li style="--i:4"><a href="#venir"><span class="mn-n">05</span><span class="mn-t">Venir</span><span class="mn-d">16, place Pélabon, Marseille 13<sup>e</sup></span></a></li>
+</ol>
+<div class="mn-foot">
+<p class="mn-st" data-open><i aria-hidden="true"></i><span data-open-t>Du mardi au samedi, 9 h – 18 h 30</span></p>
+<p class="mn-ad">16, place Pélabon · 13013 Marseille</p>
+<button type="button" class="btn" data-act="book">Réserver</button>
+</div>
+</div>
+</nav>
+
+<div class="cta" id="cta"><button type="button" class="btn" data-act="book"><span>Réserver</span><small id="ctaSub"></small></button></div>
+
+<main id="main">
+<div class="dk">
+<section class="hero" id="frais" data-tone="light" aria-labelledby="t-hero">
+<h1 class="vh" id="t-hero">Frais. Barber L’Architecte, barbier place Pélabon à Marseille</h1>
+<div class="hr-ph"><img src="../img/fade.jpg" width="1220" height="1194" alt="Client de profil : cheveux décolorés, dégradé à blanc net sur les côtés" fetchpriority="high"></div>
+<div class="hr-top">
+<div class="hr-word"><canvas class="ht" id="heroCv" aria-hidden="true"></canvas></div>
+<p class="hr-sub">Barbier, place Pélabon.<br>Marseille 13<sup>e</sup>.</p>
+<a class="hr-rate" href="#preuve"><svg class="stars" viewBox="0 0 120 22" aria-hidden="true"><path d="M11 1.6l2.7 6.2 6.7.6-5.1 4.5 1.5 6.6L11 16l-5.8 3.5 1.5-6.6L1.6 8.4l6.7-.6z"/><path transform="translate(24 0)" d="M11 1.6l2.7 6.2 6.7.6-5.1 4.5 1.5 6.6L11 16l-5.8 3.5 1.5-6.6L1.6 8.4l6.7-.6z"/><path transform="translate(48 0)" d="M11 1.6l2.7 6.2 6.7.6-5.1 4.5 1.5 6.6L11 16l-5.8 3.5 1.5-6.6L1.6 8.4l6.7-.6z"/><path transform="translate(72 0)" d="M11 1.6l2.7 6.2 6.7.6-5.1 4.5 1.5 6.6L11 16l-5.8 3.5 1.5-6.6L1.6 8.4l6.7-.6z"/><path transform="translate(96 0)" d="M11 1.6l2.7 6.2 6.7.6-5.1 4.5 1.5 6.6L11 16l-5.8 3.5 1.5-6.6L1.6 8.4l6.7-.6z"/></svg><span>5,0 · 316 avis Google</span></a>
+</div>
+<div class="hr-next-w">
+<button type="button" class="hr-next" data-act="next">
+<span class="hr-next-t"><span class="hr-next-k"><i aria-hidden="true"></i>Prochain créneau</span><span class="hr-next-v" id="nextV">Voir les créneaux</span></span>
+<span class="hr-next-a" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h15M13 6l6 6-6 6"/></svg></span>
+</button>
+</div>
+<div class="hr-veil" aria-hidden="true"></div>
+</section>
+
+<section class="team" id="barbiers" data-ch="01" data-name="Les barbiers" data-tone="dark" aria-labelledby="t-team">
+<img class="team-bg" src="../img/salon.jpg" width="1220" height="901" alt="" loading="lazy">
+<div class="wrap">
+<div class="team-hd">
+<p class="kk" data-rv><span>01</span>L’équipe</p>
+<h2 class="h2" id="t-team" data-rv>Choisis ton barbier.</h2>
+<p class="bc-lead" data-rv>Touche un nom : ton barbier est déjà choisi. Reste ta prestation, ton créneau, ton prénom.</p>
+</div>
+<div class="bc-g" id="cards" aria-live="polite" aria-busy="true"></div>
+<p class="bc-foot" data-rv><span>Sans compte · moins d’une minute</span><span id="avNote"></span></p>
+</div>
+</section>
+</div>
+
+<section class="carte sheet" id="carte" data-ch="02" data-name="La carte" data-tone="light" aria-labelledby="t-carte">
+<div class="wrap">
+<p class="kk" data-rv><span>02</span>La carte</p>
+<h2 class="h2" id="t-carte" data-rv>Les prix, sans surprise.</h2>
+<div class="cr-tabs" id="tabs" role="tablist" aria-label="Catégories de la carte"></div>
+<ul class="cr" id="menuList" role="tabpanel" aria-label="La carte"></ul>
+<p class="cr-foot">Carte bancaire acceptée au salon · <a href="/carte-cadeau">Offrir une carte cadeau</a></p>
+</div>
+</section>
+
+<section class="cuts sheet" id="coupes" data-ch="03" data-name="Le travail" data-tone="dark" aria-labelledby="t-cuts">
+<div class="wrap">
+<p class="kk" data-rv><span>03</span>Le travail</p>
+<h2 class="h2" id="t-cuts" data-rv>Sorti du fauteuil.</h2>
+</div>
+<div class="ct-row" id="cuts" tabindex="0" role="group" aria-label="Quelques coupes du salon"></div>
+</section>
+
+<section class="pv sheet" id="preuve" data-ch="04" data-name="La preuve" data-tone="dark" aria-labelledby="t-pv">
+<div class="wrap">
+<div class="pv-hd">
+<div>
+<p class="kk" data-rv><span>04</span>La preuve</p>
+<h2 class="h2" id="t-pv" data-rv>Ne nous crois pas sur parole.</h2>
+</div>
+<div class="pv-score" data-rv>
+<p class="vh">Note de 5,0 sur 5, sur 316 avis Google</p>
+<p class="pv-big" aria-hidden="true">5,0</p>
+<p class="pv-meta" aria-hidden="true"><svg class="stars" viewBox="0 0 120 22"><path d="M11 1.6l2.7 6.2 6.7.6-5.1 4.5 1.5 6.6L11 16l-5.8 3.5 1.5-6.6L1.6 8.4l6.7-.6z"/><path transform="translate(24 0)" d="M11 1.6l2.7 6.2 6.7.6-5.1 4.5 1.5 6.6L11 16l-5.8 3.5 1.5-6.6L1.6 8.4l6.7-.6z"/><path transform="translate(48 0)" d="M11 1.6l2.7 6.2 6.7.6-5.1 4.5 1.5 6.6L11 16l-5.8 3.5 1.5-6.6L1.6 8.4l6.7-.6z"/><path transform="translate(72 0)" d="M11 1.6l2.7 6.2 6.7.6-5.1 4.5 1.5 6.6L11 16l-5.8 3.5 1.5-6.6L1.6 8.4l6.7-.6z"/><path transform="translate(96 0)" d="M11 1.6l2.7 6.2 6.7.6-5.1 4.5 1.5 6.6L11 16l-5.8 3.5 1.5-6.6L1.6 8.4l6.7-.6z"/></svg><span>316 avis Google</span></p>
+</div>
+</div>
+<div class="pv-qs">
+<figure class="pv-q" data-rv><blockquote>« Ce n’est pas une simple coupe, c’est une réelle <em>construction au millimètre</em>. »</blockquote><figcaption><span class="pv-av" aria-hidden="true">M</span><span>Maï<small>Avis Google · févr. 2026</small></span></figcaption></figure>
+<figure class="pv-q" data-rv style="--d:1"><blockquote>« …accueil chaleureux… très bonne ambiance <em>amicale, convivial, et familiale</em>… je suis vraiment très satisfait. »</blockquote><figcaption><span class="pv-av" aria-hidden="true">E</span><span>Elias R.<small>Avis Google · mars 2026</small></span></figcaption></figure>
+<figure class="pv-q" data-rv style="--d:2"><blockquote>« Très sympa et <em>très à l’écoute</em>. »</blockquote><figcaption><span class="pv-av" aria-hidden="true">C</span><span>Un client<small>Avis Google · mars 2026</small></span></figcaption></figure>
+</div>
+<a class="tl pv-link" id="mapsRead" href="https://www.google.com/maps/search/?api=1&amp;query=L%27Architecte%20coiffeur&amp;query_place_id=ChIJJSWkBLy_yRIRbgAQcMwb-JY" target="_blank" rel="noopener">Lire les 316 avis sur Google</a>
+</div>
+</section>
+</main>
+
+<footer class="ft sheet" id="venir" data-ch="05" data-name="Venir" data-tone="light" aria-labelledby="t-ft">
+<div class="wrap ft-g">
+<figure class="ft-ph" data-rv><img src="../img/salon.jpg" width="1220" height="901" alt="Le salon : long miroir bordé de LED rouge, canapés noir et rouge, fauteuils et bacs à shampooing" decoding="async" fetchpriority="low"><figcaption class="ft-cap"><span><b>Barber L’Architecte</b>16, place Pélabon, 13013 Marseille</span><a data-maps href="https://www.google.com/maps/search/?api=1&amp;query=L%27Architecte%20coiffeur&amp;query_place_id=ChIJJSWkBLy_yRIRbgAQcMwb-JY" target="_blank" rel="noopener" aria-label="Itinéraire vers le salon (Google Maps)">Itinéraire</a></figcaption></figure>
+<div>
+<p class="kk" data-rv><span>05</span>Venir</p>
+<h2 class="h2" id="t-ft" data-rv>16, place Pélabon.</h2>
+<address class="ft-ad"><span class="vh">Barber L’Architecte, 16, place Pélabon, </span><span class="ft-city">13013 Marseille</span></address>
+<p class="ft-st" data-open><i aria-hidden="true"></i><span data-open-t>Du mardi au samedi, 9 h – 18 h 30</span></p>
+<p class="ft-h" id="hoursLine">Du mardi au samedi, 9 h – 18 h 30</p>
+<div class="ft-cta">
+<button type="button" class="btn" data-act="book">Réserver</button>
+<a class="btn ghost" data-maps href="https://www.google.com/maps/search/?api=1&amp;query=L%27Architecte%20coiffeur&amp;query_place_id=ChIJJSWkBLy_yRIRbgAQcMwb-JY" target="_blank" rel="noopener">Itinéraire</a>
+</div>
+<ul class="ft-links">
+<li><a href="/mon-rendez-vous">Mon rendez-vous</a></li>
+<li><a href="/contact">Écrire au salon</a></li>
+<li><a href="/carte-cadeau">Carte cadeau</a></li>
+<li><a href="/mentions-legales">Mentions légales</a></li>
+<li><a href="/confidentialite">Confidentialité</a></li>
+<li><a href="/cgv">CGV</a></li>
+</ul>
+<span class="ft-mark" role="img" aria-label="Le logo de L’Architecte : haircuts and beards, barbershop, established in 2009"></span>
+<p class="ft-legal">© Barber L’Architecte · Marseille</p>
+</div>
+</div>
+</footer>
+
+<div class="bk-veil" id="veil" data-act="close"></div>
+<div class="bk" id="bk" role="dialog" aria-modal="true" aria-labelledby="bkT" aria-hidden="true">
+<div class="bk-top">
+<button type="button" class="bk-back" id="bkBack" data-act="back" aria-label="Retour"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg><span>Retour</span></button>
+<p class="bk-k" id="bkK">Étape 1 sur 4</p>
+<button type="button" class="bk-x" data-act="close" aria-label="Fermer la réservation"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+</div>
+<div class="bk-prog" id="bkProg" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+<h2 class="bk-t" id="bkT" tabindex="-1">Choisis ta prestation</h2>
+<div class="bk-body" id="bkBody"></div>
+<aside class="bk-rc" id="bkRc" aria-label="Récapitulatif de ton rendez-vous"></aside>
+<div class="bk-foot" id="bkFoot" hidden></div>
+</div>
+<noscript><p style="position:relative;z-index:99;padding:20px;background:#ECE8E0;color:#0F0E0D">Pour réserver en ligne, active JavaScript. Le salon : 16, place Pélabon, 13013 Marseille, du mardi au samedi, 9 h – 18 h 30.</p></noscript>
+</body>
+</html>

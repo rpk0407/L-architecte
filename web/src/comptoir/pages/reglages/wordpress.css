@@ -106,3 +106,19 @@
 /* touch targets: the buttons of the files, the models, the lines nobody could read */
 .wp-files .btn, .wp-models .btn, .wp-issues .btn, .wp-steps .btn { min-height: 44px; }
 .wp-files .btn-icon { min-width: 44px; }
+
+/* The dry run in one sentence, the one gesture of a line to look at, the count to check against WordPress, taking a run back */
+.wp-dry { margin: 0; padding: 12px 14px; border-radius: 12px; background: var(--panel2); font-size: 14.5px; line-height: 1.45; color: var(--tx); }
+.wp-review .li, .wr-list .li { flex-wrap: wrap; gap: 6px 10px; }
+.wp-review .li-main, .wr-list .li-main { flex: 1 1 220px; min-width: 0; }
+.wp-review .li-main small, .wr-list .li-main small { overflow-wrap: anywhere; }
+.wp-act, .wr-act { flex: none; min-height: 44px; white-space: nowrap; }
+span.wp-act { min-height: 0; }
+.wr-check { display: flex; flex-direction: column; gap: 8px; }
+.wr-days summary { min-height: 44px; display: flex; align-items: center; font: 600 14px/1.2 var(--sans); color: var(--tx2); cursor: pointer; }
+.wr-days-t td, .wr-days-t th { font-variant-numeric: tabular-nums; }
+.wr-days-t td.num svg { margin-left: 6px; vertical-align: -2px; color: var(--warn); }
+.wr-gap th, .wr-gap td { background: color-mix(in srgb, var(--warn) 10%, transparent); }
+.wr-day-link { display: inline-grid; place-items: center; width: 44px; height: 44px; border-radius: 12px; background: var(--panel2); color: var(--tx2); }
+.wr-day-link:focus-visible { outline: 2px solid var(--accent2); outline-offset: 2px; }
+.wr-undo { margin: 0; font-size: 12.5px; }

@@ -5,7 +5,7 @@
 // name only when he asks for it, never a number, a note or a price).
 import { HttpError, guard } from './kit.js';
 import { signLink, checkLink } from '../auth/session.js';
-import { issuePhoneLink, setPrefs, setPhoto, revokeDevice } from '../commands/team.js';
+import { issuePhoneLink, setPrefs, setPhoto, setPhotoSite, revokeDevice } from '../commands/team.js';
 import { prefsOf } from '../projections/staffprefs.js';
 import { buildCalendar } from '../lib/ics.js';
 import { addDays } from '../../shared/dates.js';
@@ -127,6 +127,8 @@ export function teamMeRoutes(app) {
   /* ---------------- my photo ---------------- */
 
   app.post('/api/v1/staff/:id/photo', (r) => r.run(setPhoto, { staffId: r.params.id, data: r.body.data }));
+  // « Photo visible sur le site »: himself (Mon espace) or the owner (Équipe)
+  app.post('/api/v1/staff/:id/photo/site', (r) => r.run(setPhotoSite, { staffId: r.params.id, on: r.body.on === true }));
   app.get('/api/v1/staff/:id/photo', (r) => photoResponse(r, r.params.id));
   /** The sign-in faces: only on a salon device (a linked phone: its own person's), before anyone signs in. */
   app.get('/api/auth/photo/:id', (r) => {

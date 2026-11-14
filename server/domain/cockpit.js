@@ -2,11 +2,11 @@
 // TEAM-05a · Pilotage: the owner's whole salon in one read. A period (day, week or month) in figures against the one before,
 // each barber in chair order, the till's state, and the fairness hints. Every number comes from report() and goalOf(), the
 // reads Rapports, the agenda and the statement already use, so the three screens always say the same thing. Owner and
-// managers only (report.shop). Memoised by (journal version, range, day), for the current minute.
-import { addDays, dayParts, dayRange, diffDays, fmtDur, localParts, monthEnd, monthStart, weekStart, MONTHS_FR, MONTHS_SH, DAYS_FR } from '../../shared/dates.js';
+// managers only (report.shop). Memoised by (range, day), for the current minute: see the two memos below.
+import { addDays, dayParts, dayRange, diffDays, fmtDur, localParts, monthEnd, monthStart, weekStart, MONTHS_FR, MONTHS_SH, DAYS_FR, DAYS_SH } from '../../shared/dates.js';
 import { carnetCutValue, goalOf, openDays, report } from './insights.js';
-import { staffIntervals } from './availability.js';
-import { hadTill, missedZ } from './cash.js';
+import { busyIntervals, occupies, shopIntervals, staffIntervals, subtract, UNDECIDED } from './availability.js';
+import { dayTotals, hadTill, missedZ } from './cash.js';
 import { closingWarnings } from '../commands/tick-steps.js';
 import { closingMin, remainingAppts, toPayAppts } from '../commands/sales.js';
 
@@ -20,11 +20,17 @@ const MAX_HINTS = 3;
 /** idle chair time this week that is worth a line, and how much more than the others' average */
 const IDLE_MIN = 180;
 
-const cache = new WeakMap();
-/** @template T @param {any} s @param {string} key @param {number} minute @param {() => T} fn @returns {T} */
-function memo(s, key, minute, fn) {
+// Two memos, because two parts of this view do not age alike (core/state.js NO_FIGURES):
+// - `whole`, on the journal `version`: « libre à vendre » (chairLoad, for today and the days ahead) reads the live holds
+//   through busyIntervals(), so a slot being booked on the site must show here at once: any event puts the view together again;
+// - `figures`, on `dataVersion`: everything else (figuresOf: the period, the team, the till, the hints), which reads no
+//   hold, no message, no preference and no linked phone, and only the minute of `now`. A hold or a queued text keeps it.
+// Nothing under figuresOf may call busyIntervals() or read s.holds, s.messages, s.reviewClicks, s.prefs.
+const whole = new WeakMap(), figures = new WeakMap();
+/** @template T @param {WeakMap<object, any>} cache @param {number} version @param {any} s @param {string} key @param {number} minute @param {() => T} fn @returns {T} */
+function memo(cache, version, s, key, minute, fn) {
   let c = cache.get(s);
-  if (!c || c.version !== s.version) { c = { version: s.version, m: new Map() }; cache.set(s, c); }
+  if (!c || c.version !== version) { c = { version, m: new Map() }; cache.set(s, c); }
   const hit = c.m.get(key);
   if (hit && hit.minute === minute) return hit.value;
   const value = fn();
@@ -73,6 +79,133 @@ export function periodOf(range, day, today) {
   return { range, day: d, from, to, upTo, prev: { from: prevFrom, to: pt < prevEnd ? pt : prevEnd }, label, prevLabel, live, partial: live && n === 1 };
 }
 
+/** « d’octobre », « de novembre » */
+const ofMonth = (m) => (/^[aeiouéèh]/i.test(m) ? 'd’' : 'de ') + m;
+const days_ = (n, what) => n + ' ' + what.split(' ').map((w) => (n > 1 ? w + 's' : w)).join(' ');
+
+/**
+ * What the deltas of a period really compare, like for like (the audit's P0-1). One definition for every tile:
+ * - a day: the same weekday a week earlier, whole. Before the doors open there is nothing to compare (`prev` null: no
+ *   arrow); while the day runs it is a part against a whole (`soft`: no alarm colour).
+ * - a week or a month over: the whole period against the whole one before; the words give the open days of each.
+ * - a week or a month still running: only its open days already finished (today counts once the salon has closed),
+ *   against the same number of open days from the start of the period before. Tuesday 10 November at 7:30 reads
+ *   « 5 jours ouverts terminés contre les 5 premiers jours ouverts d’octobre », not ten calendar days against ten.
+ *   No finished open day yet (Tuesday morning after a closed Monday): nothing to compare, no arrow.
+ * `cur` is the side of the current period the deltas read (it can stop yesterday while the tiles show today too).
+ * @param {any} s @param {ReturnType<typeof periodOf>} p @param {string} today @param {number} nowMin minutes of today
+ */
+export function compareOf(s, p, today, nowMin) {
+  const hours = (d) => shopIntervals(s, d);
+  const none = (words) => ({ cur: null, prev: null, curDays: 0, prevDays: 0, soft: false, words });
+  if (p.range === 'day') {
+    const iv = hours(p.day), last = DAYS_FR[dayParts(p.day).wd] + ' dernier';
+    if (!p.live) return { cur: { from: p.from, to: p.to }, prev: p.prev, curDays: iv.length ? 1 : 0, prevDays: openDays(s, p.prev.from, p.prev.to), soft: false, words: 'comparé à ' + last };
+    if (!iv.length) return none('salon fermé aujourd’hui : rien à comparer');
+    if (nowMin < Math.min(...iv.map((x) => x[0]))) return none('le salon n’a pas encore ouvert : la comparaison avec ' + last + ' viendra dans la journée');
+    return { cur: { from: p.from, to: p.to }, prev: p.prev, curDays: 1, prevDays: 1, soft: true, words: 'journée en cours, comparée à ' + last + ' en entier' };
+  }
+  const month = p.range === 'month';
+  const prevEnd = month ? monthEnd(p.prev.from) : addDays(p.prev.from, 6);
+  const before = month ? ofMonth(MONTHS_FR[dayParts(p.prev.from).m - 1]) : 'de la semaine dernière';
+  if (!p.live) {
+    const a = openDays(s, p.from, p.to), b = openDays(s, p.prev.from, prevEnd);
+    const whole = month ? 'mois entier comparé au mois ' + before + ' entier' : 'semaine entière comparée à la semaine d’avant';
+    return { cur: { from: p.from, to: p.to }, prev: { from: p.prev.from, to: prevEnd }, curDays: a, prevDays: b, soft: false, words: whole + (a !== b ? ' (' + days_(a, 'jour ouvert') + ' contre ' + b + ')' : ' (' + days_(a, 'jour ouvert') + ' chacun)') };
+  }
+  // today is finished once the salon has closed (or is closed all day): until then it stays out of both sides
+  const iv = hours(today);
+  const over = !iv.length || nowMin >= Math.max(...iv.map((x) => x[1]));
+  const to = over ? today : addDays(today, -1);
+  const n = to >= p.from ? openDays(s, p.from, to) : 0;
+  const here = month ? 'ce mois-ci' : 'cette semaine';
+  if (!n) return none('pas encore de jour ouvert terminé ' + here + ' : rien à comparer pour l’instant');
+  // the same number of open days from the start of the period before
+  let k = 0, prevTo = p.prev.from;
+  for (const d of dayRange(p.prev.from, prevEnd)) { if (hours(d).length) { k++; prevTo = d; if (k === n) break; } }
+  if (!k) return none('le salon était fermé sur la période d’avant : rien à comparer');
+  const first = k === 1 ? 'au premier jour ouvert ' : 'aux ' + k + ' premiers jours ouverts ';
+  return { cur: { from: p.from, to }, prev: { from: p.prev.from, to: prevTo }, curDays: n, prevDays: k, soft: false, words: days_(n, 'jour ouvert terminé') + ' ' + here + ', ' + (n > 1 ? 'comparés ' : 'comparé ') + first + before };
+}
+
+/** Money actually received over the days (card, cash, online), as each day's Z counts it (`takings`): the one « Encaissé ». */
+function takingsOf(s, days) { return days.reduce((t, d) => t + (hadTill(s, d) ? dayTotals(s, d).takings : 0), 0); }
+
+/* ---------------- what is coming: today and the next days (the audit's C1 and C2) ----------------
+ * One definition of a day's load for both: per chair, the minutes he works (staffIntervals), the minutes booked (every
+ * appointment that still holds its time: occupies()), and the minutes still free to sell: his hours from now on, less the
+ * appointments, the blocks posed in the agenda (pause, training) and the baskets being paid. Fill = booked ÷ worked. */
+
+/** @param {any} s @param {{ id: string }} c @param {string} day @param {number} now @param {number} fromMin only the free time after this minute */
+function chairLoad(s, c, day, now, fromMin) {
+  const work = staffIntervals(s, c.id, day);
+  const capMin = work.reduce((t, [a, b]) => t + b - a, 0);
+  let bookedMin = 0, count = 0, left = 0, planned = 0, expected = 0, first = null;
+  for (const id of s.apptsByDay.get(day) || []) {
+    const a = s.appts.get(id);
+    if (!a || a.legacy || a.staffId !== c.id || !occupies(a, now, s)) continue;
+    bookedMin += a.dur; count++; planned += a.price || 0;
+    if (first == null || a.start < first) first = a.start;
+    // still to come: not started, not paid
+    if (!a.saleId && (a.status === 'booked' || a.status === 'pending' || a.status === 'arrived') && a.start >= fromMin) { left++; expected += a.price || 0; }
+  }
+  const ahead = work.map(([a, b]) => /** @type {[number, number]} */ ([Math.max(a, fromMin), b])).filter(([a, b]) => b > a);
+  const free = subtract(ahead, busyIntervals(s, c.id, day, { now }));
+  const freeMin = free.reduce((t, [a, b]) => t + b - a, 0);
+  // the longest free stretch, worth a line when it is an hour or more
+  const gap = free.reduce((best, x) => (!best || x[1] - x[0] > best[1] - best[0] ? x : best), /** @type {[number, number]|null} */ (null));
+  return { capMin, bookedMin, count, left, planned, expected, first, freeMin, gap: gap && gap[1] - gap[0] >= 60 ? gap : null };
+}
+
+/**
+ * Today before it happens: the appointments booked and what they are worth, what is still to come, each chair's fill
+ * and free time left to sell, who is off. Always today, whatever the period shown.
+ */
+function todayOf(s, today, now, nowMin, chairs) {
+  const shop = shopIntervals(s, today);
+  const opensAt = shop.length ? Math.min(...shop.map((x) => x[0])) : null, closesAt = shop.length ? Math.max(...shop.map((x) => x[1])) : null;
+  const rows = chairs.map((c) => {
+    const x = chairLoad(s, c, today, now, nowMin);
+    const off = !x.capMin && shop.length > 0;
+    // off because of an absence (decided), or simply not his day
+    const away = off && [...s.timeoff.values()].some((t) => t.staffId === c.id && today >= t.from && today <= t.to && !UNDECIDED.has(t.status));
+    return { id: c.id, name: c.name, color: c.color, capMin: x.capMin, bookedMin: x.bookedMin, fill: x.capMin ? Math.min(1, x.bookedMin / x.capMin) : 0, count: x.count, freeMin: x.freeMin, gap: x.gap, off, away, planned: x.planned, expected: x.expected, left: x.left, first: x.first };
+  });
+  const sum = (f) => rows.reduce((t, x) => t + f(x), 0);
+  const capMin = sum((x) => x.capMin), bookedMin = sum((x) => x.bookedMin);
+  const firsts = rows.map((x) => x.first).filter((x) => x != null);
+  return {
+    day: today, open: shop.length > 0, opensAt, closesAt, started: opensAt != null && nowMin >= opensAt, over: closesAt != null && nowMin >= closesAt,
+    count: sum((x) => x.count), planned: sum((x) => x.planned), left: sum((x) => x.left), expected: sum((x) => x.expected),
+    firstAt: firsts.length ? Math.min(...firsts) : null, capMin, bookedMin, fill: capMin ? Math.min(1, bookedMin / capMin) : 0, freeMin: sum((x) => x.freeMin),
+    chairs: rows.map(({ planned: _p, expected: _e, left: _l, first: _f, ...x }) => x)
+  };
+}
+
+/** The next AHEAD_DAYS days after today: the salon's fill and free time day by day, and each chair's. */
+export const AHEAD_DAYS = 7;
+function aheadOf(s, today, now, chairs) {
+  const days = dayRange(addDays(today, 1), addDays(today, AHEAD_DAYS));
+  const grid = chairs.map((c) => days.map((d) => chairLoad(s, c, d, now, 0)));
+  const col = (i) => grid.map((row) => row[i]);
+  const tot = (xs, f) => xs.reduce((t, x) => t + f(x), 0);
+  const dayRows = days.map((d, i) => {
+    const xs = col(i), capMin = tot(xs, (x) => x.capMin), bookedMin = tot(xs, (x) => x.bookedMin);
+    const p = dayParts(d);
+    return { day: d, label: DAYS_SH[p.wd] + ' ' + p.d, open: shopIntervals(s, d).length > 0, capMin, bookedMin, fill: capMin ? Math.min(1, bookedMin / capMin) : 0, freeMin: tot(xs, (x) => x.freeMin), count: tot(xs, (x) => x.count), planned: tot(xs, (x) => x.planned) };
+  });
+  const capMin = tot(dayRows, (x) => x.capMin), bookedMin = tot(dayRows, (x) => x.bookedMin);
+  return {
+    from: days[0], to: days[days.length - 1], days: dayRows,
+    capMin, bookedMin, fill: capMin ? Math.min(1, bookedMin / capMin) : 0, freeMin: tot(dayRows, (x) => x.freeMin), count: tot(dayRows, (x) => x.count), planned: tot(dayRows, (x) => x.planned),
+    chairs: chairs.map((c, j) => {
+      const cm = tot(grid[j], (x) => x.capMin), bm = tot(grid[j], (x) => x.bookedMin);
+      // one cell per day: his fill, null on a day he does not work
+      return { id: c.id, name: c.name, color: c.color, fill: cm ? Math.min(1, bm / cm) : 0, freeMin: tot(grid[j], (x) => x.freeMin), days: grid[j].map((x) => (x.capMin ? Math.min(1, x.bookedMin / x.capMin) : null)) };
+    })
+  };
+}
+
 /** « 6 h », « 6 h 30 » */
 const hours = (min) => fmtDur(Math.round(min / 15) * 15).replace(/ /g, ' ');
 
@@ -85,17 +218,6 @@ function discountsOf(s, days) {
     given += Math.max(0, (x.totals.discount || 0) - x.lines.reduce((t, l) => t + (l.reward ? l.reward.amount || 0 : 0), 0));
   }
   return given;
-}
-
-/** The price of the no-shows nobody paid for: no deposit kept (a no-show fee rung up as a stand-alone line is not linked to the appointment, so it is not seen here). */
-function lostOf(s, days) {
-  let lost = 0;
-  for (const d of days) for (const id of s.apptsByDay.get(d) || []) {
-    const a = s.appts.get(id);
-    if (!a || a.legacy || a.status !== 'no_show' || (a.deposit && a.deposit.paid > 0)) continue;
-    lost += a.price || 0;
-  }
-  return lost;
 }
 
 /** What is owed to clients: live gift card balances, and the cuts left on carnets at their value. */
@@ -207,29 +329,39 @@ function equityOf(s, today, now, chairs) {
  * @param {{ range: 'day'|'week'|'month', day: string, today: string, now: number }} q
  */
 export function cockpit(s, q) {
-  const minute = Math.floor(q.now / 60000);
-  return memo(s, ['cockpit', q.range, q.day, q.today].join('|'), minute, () => build(s, q));
+  const minute = Math.floor(q.now / 60000), key = ['cockpit', q.range, q.day, q.today].join('|');
+  return memo(whole, s.version, s, key, minute, () => {
+    // a projection built by hand has no dataVersion: its figures follow `version`, as the whole view does
+    const f = memo(figures, s.dataVersion ?? s.version, s, key, minute, () => figuresOf(s, q));
+    const { today, now } = q;
+    return {
+      asOf: now, range: f.range, kpis: f.kpis, team: f.team, cash: f.cash,
+      // what is coming, always from now: today's appointments and the next days' fill (only chairs still in the team)
+      today: todayOf(s, today, now, localParts(now).min, f.active), ahead: aheadOf(s, today, now, f.active),
+      equity: f.equity
+    };
+  });
 }
 
-function build(s, q) {
+/** Everything of the view that no hold changes (see the two memos above); `active`: the chairs still in the team, in order. */
+function figuresOf(s, q) {
   const { today, now } = q;
   const p = periodOf(q.range, q.day, today);
-  const days = dayRange(p.from, p.upTo), prevDays = dayRange(p.prev.from, p.prev.to);
-  const cur = report(s, { from: p.from, to: p.upTo, staffId: null, today, now });
-  const prv = report(s, { from: p.prev.from, to: p.prev.to, staffId: null, today, now });
   const local = localParts(now);
+  const days = dayRange(p.from, p.upTo);
+  const cur = report(s, { from: p.from, to: p.upTo, staffId: null, today, now });
+  // the deltas read like for like (compareOf): `cmp` is the current side, `prv` the one before; null when nothing compares
+  const c = compareOf(s, p, today, local.min);
+  const cmp = c.cur ? (c.cur.to === p.upTo ? cur : report(s, { from: c.cur.from, to: c.cur.to, staffId: null, today, now })) : null;
+  const prv = c.prev ? report(s, { from: c.prev.from, to: c.prev.to, staffId: null, today, now }) : null;
+  const cmpDays = c.cur ? dayRange(c.cur.from, c.cur.to) : [], prevDays = c.prev ? dayRange(c.prev.from, c.prev.to) : [];
 
-  // the salon's month goal, where it stands on the last day read; the straight-line projection only while the month runs
+  // the salon's month goal, where it stands on the last day read; « à ce rythme » is goalOf's, the same as Rapports'
   const goalNow = p.upTo === today ? now : undefined;
   const g = goalOf(s, null, p.upTo, goalNow);
   /** @type {any} */
   let goal = null;
-  if (g.target > 0) {
-    const m0 = monthStart(p.upTo), m1 = monthEnd(p.upTo);
-    const elapsed = openDays(s, m0, p.upTo), total = openDays(s, m0, m1);
-    const running = p.upTo < m1 && elapsed >= 3;
-    goal = { ...g, projection: running ? Math.round((g.done / elapsed) * total / 100) * 100 : null, monthLabel: cap(MONTHS_FR[Number(p.upTo.slice(5, 7)) - 1]) };
-  }
+  if (g.target > 0) goal = { ...g, monthLabel: cap(MONTHS_FR[Number(p.upTo.slice(5, 7)) - 1]) };
 
   // chairs in the salon's order, never by takings; an archived chair stays while he has figures in the period
   const rowOf = new Map(cur.staff.map((x) => [x.id, x]));
@@ -249,28 +381,37 @@ function build(s, q) {
   });
 
   const clients = { total: cur.clients, new: cur.newClients, returning: Math.max(0, cur.clients - cur.newClients) };
+  /** one side of a comparison: the figures the deltas read */
+  const side = (r, ds) => ({
+    cashed: r.revenue, performed: r.performed ?? 0, fill: r.occupancy, clients: r.clients, newClients: r.newClients,
+    noShows: r.noShows, noShowRate: r.noShowRate, avgTicket: r.avgTicket, rebookRate: rebookOf(r), returned60: returnedOf(r),
+    tips: r.tips, discounts: discountsOf(s, ds), refunds: r.refunds, lost: r.noShowLost
+  });
   const kpis = {
-    cashed: { value: cur.revenue, prev: prv.revenue, tickets: cur.tickets, goal, series: cur.series.map((d) => d.revenue) },
+    // cashed: the revenue (Chiffre d’affaires TTC, credit notes deducted on their own day); takings: the money that came
+    // in (card, cash, online: gift cards sold and tips in, what was settled by gift card or deposit out), as the Z counts it
+    cashed: { value: cur.revenue, valueHT: cur.revenueHT, prev: prv ? prv.revenue : 0, tickets: cur.tickets, served: cur.served, prepaidSold: cur.prepaidSold, takings: takingsOf(s, days), goal, series: cur.series.map((d) => d.revenue) },
     performed: cur.performed ?? 0, gap: cur.gap || { prepaidSold: 0, prepaidUsed: 0, rewards: 0, unassigned: 0 },
-    fill: { value: cur.occupancy, prev: prv.occupancy, chairs: team.map((x) => ({ id: x.id, name: x.name, color: x.color, value: x.occupancy })) },
+    fill: { value: cur.occupancy, prev: prv ? prv.occupancy : 0, chairs: team.map((x) => ({ id: x.id, name: x.name, color: x.color, value: x.occupancy })) },
     clients,
-    noShows: { count: cur.noShows, rate: cur.noShowRate, lost: lostOf(s, days) },
+    noShows: { count: cur.noShows, rate: cur.noShowRate, lost: cur.noShowLost },
     lateCancels: cur.lateCancels,
     avgTicket: cur.avgTicket, rebookRate: rebookOf(cur), returned60: returnedOf(cur),
     tips: cur.tips, discounts: discountsOf(s, days), refunds: cur.refunds,
     outstanding: outstandingOf(s, today),
-    prev: {
-      cashed: prv.revenue, performed: prv.performed ?? 0, fill: prv.occupancy, clients: prv.clients, newClients: prv.newClients,
-      noShows: prv.noShows, noShowRate: prv.noShowRate, avgTicket: prv.avgTicket, rebookRate: rebookOf(prv), returned60: returnedOf(prv),
-      tips: prv.tips, discounts: discountsOf(s, prevDays), refunds: prv.refunds, lost: lostOf(s, prevDays)
-    }
+    cmp: cmp ? side(cmp, cmpDays) : null,
+    prev: prv ? side(prv, prevDays) : null
   };
 
   return {
-    asOf: now,
-    range: { kind: p.range, day: p.day, from: p.from, to: p.to, upTo: p.upTo, label: p.label, prevLabel: p.prevLabel, prev: p.prev, today, live: p.live, partial: p.partial, closed: p.range === 'day' && !openDays(s, p.from, p.to) },
+    range: {
+      kind: p.range, day: p.day, from: p.from, to: p.to, upTo: p.upTo, label: p.label, prevLabel: p.prevLabel, prev: c.prev || p.prev, today, live: p.live, partial: p.partial, closed: p.range === 'day' && !openDays(s, p.from, p.to),
+      // what the deltas compare, in words and in days; null sides: no delta is shown
+      compare: { cur: c.cur, prev: c.prev, curDays: c.curDays, prevDays: c.prevDays, soft: c.soft, words: c.words }
+    },
     kpis, team, cash: cashOf(s, today, local.min),
     // built last: it needs the rows above and says nothing below its thresholds
-    equity: equityOf(s, today, now, chairs.filter((x) => x.active))
+    equity: equityOf(s, today, now, chairs.filter((x) => x.active)),
+    active: chairs.filter((x) => x.active)
   };
 }

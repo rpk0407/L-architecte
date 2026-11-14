@@ -8,12 +8,23 @@ import { payRulesOf } from '../settings/team.js';
 
 /** @typedef {import('../core/state.js').State} State */
 
+// Memoised per `dataVersion` (core/state.js): a hold, a queued text, a preference move the journal and none of these
+// figures, so they keep what was computed. Nothing memoised here may read s.holds, s.messages, s.reviewClicks, s.prefs or
+// the linked phones (the NO_FIGURES list): busyIntervals(), which counts the holds, stays out of this file.
+// A projection built by hand has no dataVersion: it falls back on `version`, as before.
 const cache = new WeakMap();
+/** the keys of a live period carry five minutes of `now`: on a salon where no figure moves they would pile up */
+const MEMO_MAX = 400;
 function memo(s, key, fn) {
+  const v = s.dataVersion ?? s.version;
   let c = cache.get(s);
-  if (!c || c.version !== s.version) { c = { version: s.version, m: new Map() }; cache.set(s, c); }
-  if (!c.m.has(key)) c.m.set(key, fn());
-  return c.m.get(key);
+  if (!c || c.version !== v) { c = { version: v, m: new Map() }; cache.set(s, c); }
+  if (c.m.has(key)) return c.m.get(key);
+  const value = fn();
+  // counted after fn(): a read memoised inside it (report asks teamRows and clientStats) is never dropped under its caller
+  if (c.m.size >= MEMO_MAX) c.m.clear();
+  c.m.set(key, value);
+  return value;
 }
 
 function mode(counts) {
@@ -87,12 +98,50 @@ export function clientStats(s, today, now) {
   });
 }
 
+/* ---------------- the chairs a period is measured on ----------------
+ * One definition for every fill rate, « heures libres » and automatic goal of the reports: a barber archived since still
+ * counts for the days before he left (his hours as they were, his appointments already do), so archiving someone never
+ * rewrites a past month. The day he left is the day of `staff.archived` (revokedAt, set by that event: no migration);
+ * from that day on he has no hours. Booking and the agenda keep staffIntervals(): nobody books an archived chair. */
+
+/** The day an archived chair left, null while he is active (or was never a chair). */
+function goneDay(st) { return st && st.chair && !st.active && st.revokedAt ? localParts(st.revokedAt).day : null; }
+
+/** A barber's working intervals for the reports: staffIntervals(), and for an archived chair his hours before he left. */
+export function chairIntervals(s, staffId, day) {
+  const st = s.staff.get(staffId);
+  if (!st || !st.chair) return [];
+  if (st.active) return staffIntervals(s, staffId, day);
+  const gone = goneDay(st);
+  if (!gone || day >= gone) return [];
+  const view = memo(s, 'asActive|' + staffId, () => ({ ...s, staff: new Map([[staffId, { ...st, active: true }]]) }));
+  return staffIntervals(view, staffId, day);
+}
+
+/** The chairs a period starting on `from` is measured on: the active ones, and those archived after it began. */
+export function chairIds(s, from) {
+  return [...s.staff.values()].filter((x) => x.chair && (x.active || /** @type {string} */ (goneDay(x) || '') > from)).map((x) => x.id);
+}
+
 /** Capacity in minutes of every chair over a set of days. */
 function capacity(s, days, staffIds) {
   let m = 0;
-  for (const d of days) for (const id of staffIds) for (const [a, b] of staffIntervals(s, id, d)) m += b - a;
+  for (const d of days) for (const id of staffIds) for (const [a, b] of chairIntervals(s, id, d)) m += b - a;
   return m;
 }
+
+/* ---------------- definitions shared by Pilotage, Rapports and the mails ---------------- */
+
+/**
+ * What one no-show cost: the price of the appointment less the deposit kept. One formula for Pilotage and Rapports.
+ * A no-show fee rung up later is a stand-alone ticket line, not linked to the appointment: it cannot be deducted here.
+ */
+export const noShowLoss = (a) => Math.max(0, (a.price || 0) - ((a.deposit && a.deposit.paid) || 0));
+
+/** A ticket line of something served or sold over the counter (a cut, a product): what « Clients » and « Panier moyen » count. */
+const isServed = (l) => l.kind === 'service' || l.kind === 'product';
+/** Money received for later: a carnet or a month of membership (a gift card is a debt, never revenue). */
+const isPrepaid = (l) => l.kind === 'pack' || l.kind === 'membership';
 
 /* ---------------- what a barber performed (TEAM-03) ----------------
  * Chiffre réalisé: the net of the service, product and fee lines he performed (never a gift card, a carnet or a month of
@@ -336,7 +385,7 @@ function teamRows(s, q) {
     for (const x of rows.values()) {
       const st = s.staff.get(x.id);
       let cap = 0, pastCap = 0;
-      if (st && st.chair) for (const d of days) for (const [a, b] of staffIntervals(s, x.id, d)) { cap += b - a; pastCap += past(d, a, b); }
+      if (st && st.chair) for (const d of days) for (const [a, b] of chairIntervals(s, x.id, d)) { cap += b - a; pastCap += past(d, a, b); }
       // someone with no chair shows only for a carnet sold under 'seller' (or its refund)
       if (!x.chair && !x.revenue && !x.refunds && !x.tickets.size) continue;
       const com = st && st.commission ? st.commission : { service: 0, product: 0 };
@@ -389,6 +438,10 @@ export function report(s, q) {
     /** @type {Record<string, number>} */
     const methods = {};
     let revenue = 0, revenueHT = 0, vatTax = 0, tips = 0, tickets = 0, refunds = 0, liability = 0, productRevenue = 0;
+    // Clients, Panier moyen: the people served. A ticket counts when it carries a cut or a product (isServed); a month of
+    // membership charged, a carnet or a gift card sold alone is nobody in the chair. A ticket without a client file is one
+    // client. Panier moyen = what those lines were paid ÷ those tickets (refunds of the period's own tickets deducted).
+    let served = 0, basket = 0, anonymous = 0, prepaidSold = 0;
     const clients = new Set();
     for (const d of days) for (const sid of s.salesByDay.get(d) || []) {
       const x = s.sales.get(sid);
@@ -396,7 +449,9 @@ export function report(s, q) {
       const lines = one ? x.lines.filter((l) => l.staffId === one) : x.lines;
       if (one && !lines.length && !(x.tip && x.tip.staffId === one)) continue;
       liability += lines.filter((l) => l.kind === 'giftcard').reduce((t, l) => t + l.net, 0);
-      if (x.clientId) clients.add(x.clientId);
+      const counter = lines.filter(isServed);
+      if (counter.length) { served++; basket += counter.reduce((t, l) => t + l.net, 0); if (x.clientId) clients.add(x.clientId); else anonymous++; }
+      prepaidSold += lines.filter(isPrepaid).reduce((t, l) => t + l.net, 0);
       if (!one) {
         revenue += x.totals.revenue; tips += x.totals.tip; tickets++;
         revenueHT += x.totals.revenueHT; vatTax += x.totals.vat.reduce((t, r) => t + r.tax, 0);
@@ -412,7 +467,8 @@ export function report(s, q) {
           byCategory.set(cat, (byCategory.get(cat) || 0) + l.net);
         } else if (l.kind === 'product') {
           const e = byProduct.get(l.ref) || { id: l.ref, name: l.name, count: 0, revenue: 0, margin: 0 };
-          e.count += l.qty; e.revenue += l.net; e.margin += l.net - (l.cost || 0) * l.qty; byProduct.set(l.ref, e);
+          // margin on the price before VAT, as the Catalogue computes it (the purchase price is typed HT)
+          e.count += l.qty; e.revenue += l.net; e.margin += htOf(l.net, l.vat || 0) - (l.cost || 0) * l.qty; byProduct.set(l.ref, e);
           if (!one) productRevenue += l.net;
         }
         // a membership's month (PAY-02): the salon's, no barber's row
@@ -436,9 +492,28 @@ export function report(s, q) {
         for (const p of refundParts(r)) if (p.revenue) methods['refund_' + p.method] = (methods['refund_' + p.method] || 0) + p.revenue;
       }
     }
+    // a credit note is dated the day it is made (as the Z and the books date it), never the day of its ticket
+    for (const r of s.refunds.values()) {
+      if (!inRange(r.day)) continue;
+      const sale = s.sales.get(r.saleId);
+      if (!sale) continue;
+      for (const sh of refundShares(s, r)) {
+        const l = sale.lines[sh.i];
+        if (!l || (one && l.staffId !== one)) continue;
+        if (isPrepaid(l)) prepaidSold -= sh.amount;
+        // the basket only loses what was given back on a ticket of the period: an older ticket's refund is not today's client
+        if (isServed(l) && inRange(sale.day)) basket -= sh.amount;
+        if (l.kind === 'product') {
+          // a product given back: its sale and its margin come off (the goods return with their purchase price)
+          const e = byProduct.get(l.ref) || { id: l.ref, name: l.name, count: 0, revenue: 0, margin: 0 };
+          e.revenue -= sh.amount; e.margin -= htOf(sh.amount, sh.vat) - (l.net ? Math.round(((l.cost || 0) * l.qty * sh.amount) / l.net) : 0);
+          byProduct.set(l.ref, e);
+        }
+      }
+    }
     // appointments: sources, absences, occupancy
     const sources = { site: 0, phone: 0, walkin: 0, salon: 0 };
-    let done = 0, noShows = 0, cancelled = 0, lateCancels = 0, bookedMin = 0, newClients = 0;
+    let done = 0, noShows = 0, cancelled = 0, lateCancels = 0, bookedMin = 0, newClients = 0, noShowLost = 0;
     const heat = Array.from({ length: 7 }, () => new Array(24).fill(0));
     for (const d of days) for (const aid of s.apptsByDay.get(d) || []) {
       const a = s.appts.get(aid);
@@ -448,7 +523,7 @@ export function report(s, q) {
       // upcoming bookings taken over from the old site were booked online there
       const src = a.source === 'import' ? 'site' : a.source;
       sources[src] = (sources[src] || 0) + 1;
-      if (a.status === 'no_show') { noShows++; continue; }
+      if (a.status === 'no_show') { noShows++; noShowLost += noShowLoss(a); continue; }
       bookedMin += a.dur;
       if (a.status === 'done') done++;
       const wd = weekday(d);
@@ -456,20 +531,22 @@ export function report(s, q) {
     }
     if (one) newClients = mine ? mine.newClients : 0;
     else { const stats = clientStats(s, q.today, q.now); for (const c of clients) { const st = stats.get(c); if (st && st.firstDay && inRange(st.firstDay)) newClients++; } }
-    const ids = one ? [one] : [...s.staff.values()].filter((x) => x.chair && x.active).map((x) => x.id);
+    const ids = one ? [one] : chairIds(s, q.from);
     const cap = capacity(s, days, ids);
     // heatmap as occupancy ratio: booked minutes / chairs open in that hour
     const heatCap = Array.from({ length: 7 }, () => new Array(24).fill(0));
     for (const d of days) {
       const wd = weekday(d);
-      for (const id of ids) for (const [a, b] of staffIntervals(s, id, d)) for (let m = a; m < b; m += 30) { const h = Math.floor(m / 60); heatCap[wd][h] += 30; }
+      for (const id of ids) for (const [a, b] of chairIntervals(s, id, d)) for (let m = a; m < b; m += 30) { const h = Math.floor(m / 60); heatCap[wd][h] += 30; }
     }
     const heatmap = heat.map((row, wd) => row.map((v, h) => (heatCap[wd][h] ? Math.min(1, v / heatCap[wd][h]) : null)));
     const staffRows = team.rows.filter((x) => (one ? x.id === one : true)).map(({ days: _d, ...x }) => x);
     return {
       from: q.from, to: q.to, days: days.length,
-      revenue, revenueHT, vat: vatTax, tips, tickets, avgTicket: tickets ? Math.round(revenue / tickets) : 0, refunds, liability, productRevenue,
-      clients: clients.size, newClients, done, noShows, cancelled, lateCancels,
+      revenue, revenueHT, vat: vatTax, tips, tickets, refunds, liability, productRevenue,
+      // one barber: his Chiffre réalisé ÷ his tickets (teamRows); the shop: the served tickets' basket (see above)
+      avgTicket: one ? (tickets ? Math.round(revenue / tickets) : 0) : served ? Math.round(basket / served) : 0,
+      served, prepaidSold, clients: clients.size + anonymous, newClients, done, noShows, noShowLost, cancelled, lateCancels,
       noShowRate: done + noShows ? noShows / (done + noShows) : 0,
       occupancy: cap ? Math.min(1, bookedMin / cap) : 0,
       series: [...byDay.values()], staff: staffRows,
@@ -489,17 +566,20 @@ export function report(s, q) {
 
 /**
  * Each active chair's share of the month's open chair minutes (staff id → 0..1), for the automatic goals.
+ * A chair archived during the month keeps the share of the days he worked; one archived before it has none.
  * @param {State} s @param {string} day any day of the month
  */
 export function goalShares(s, day) {
   return memo(s, 'shares|' + day.slice(0, 7), () => {
     const md = dayRange(monthStart(day), monthEnd(day));
-    const ids = [...s.staff.values()].filter((x) => x.chair && x.active).map((x) => x.id);
+    const ids = chairIds(s, md[0]);
     const caps = new Map(ids.map((id) => [id, capacity(s, md, [id])]));
     const all = [...caps.values()].reduce((t, v) => t + v, 0);
     return new Map(ids.map((id) => [id, all ? /** @type {number} */ (caps.get(id)) / all : 0]));
   });
 }
+/** Open days needed before « À ce rythme » draws a line. */
+export const PACE_MIN = 2;
 /** The automatic goal: the salon's target × his share of the chair minutes, rounded to 10 €. */
 export const autoGoal = (monthCents, share) => Math.round((monthCents * share) / 1000) * 1000;
 
@@ -518,17 +598,31 @@ export function goalOf(s, staffId, day, now = instantOf(day, 1439)) {
   const q = (from) => ({ from, to: day, staffId, today: day, now });
   const doneOf = (from) => (staffId ? (teamRows(s, q(from)).rows.find((x) => x.id === staffId) || { revenue: 0 }).revenue : report(s, q(from)).revenue);
   const done = doneOf(ms);
-  const open = (d) => (staffId ? staffIntervals(s, staffId, d) : shopIntervals(s, d)).length > 0;
+  const hoursOf = (d) => (staffId ? chairIntervals(s, staffId, d) : shopIntervals(s, d));
+  const open = (d) => hoursOf(d).length > 0;
   const openDaysLeft = dayRange(day, me).filter(open).length;
+  // « À ce rythme »: the one projection, for Pilotage and Rapports. done ÷ open days elapsed × open days of the month,
+  // where the day read counts only for the share of its opening hours already past at `now` (0 before the doors open,
+  // 1 after closing): a morning never reads as a lost day. No line before PACE_MIN open days: two points prove nothing.
+  const nowAt = localParts(now);
+  const nowMin = nowAt.day > day ? 1440 : nowAt.day < day ? 0 : nowAt.min;
+  const todayIv = hoursOf(day);
+  const todayMin = todayIv.reduce((t, [a, b]) => t + b - a, 0);
+  const frac = todayMin ? todayIv.reduce((t, [a, b]) => t + Math.max(0, Math.min(b, nowMin) - a), 0) / todayMin : 0;
+  const elapsed = (day > ms ? dayRange(ms, addDays(day, -1)).filter(open).length : 0) + frac;
+  const total = dayRange(ms, me).filter(open).length;
+  const projection = elapsed >= PACE_MIN && elapsed < total ? Math.round(((done / elapsed) * total) / 100) * 100 : null;
   const left = Math.max(0, target - done);
   const ws = weekStart(day) < ms ? ms : weekStart(day);
   const we = addDays(weekStart(day), 6) > me ? me : addDays(weekStart(day), 6);
-  const ids = staffId ? [staffId] : [...s.staff.values()].filter((x) => x.chair && x.active).map((x) => x.id);
+  const ids = staffId ? [staffId] : chairIds(s, ms);
   const monthCap = capacity(s, dayRange(ms, me), ids);
   const weekCap = capacity(s, dayRange(ws, we), ids);
   return {
     staffId, month: day.slice(0, 7), target, auto: !!staffId && typed == null, done, pct: target ? done / target : 0,
     perDay: openDaysLeft ? Math.ceil(left / openDaysLeft / 100) * 100 : 0, openDaysLeft,
+    // pace: open days elapsed (the day read pro rata) of the month's open days; expected: where the bar should be by now
+    projection, pace: { elapsed: Math.round(elapsed * 100) / 100, total }, expected: total ? Math.min(1, elapsed / total) : 0,
     week: { from: ws, to: we, target: monthCap ? Math.round((target * weekCap) / monthCap / 100) * 100 : 0, done: doneOf(ws) }
   };
 }

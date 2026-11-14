@@ -1,6 +1,6 @@
 // Who is signed in, what the salon looks like, and the live pulse that keeps every screen fresh.
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
-import { api, onSignedOut, onStoreHealth } from '../lib/api';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { api, onNet, onSignedOut, onStoreHealth } from '../lib/api';
 import { refreshAll, forget, useQuery } from '../lib/query';
 import { toast, STALE_MS } from '../ui/kit';
 import type { Boot, FeedItem, Prefs, Pulse, Staff, Service } from './types';
@@ -25,7 +25,8 @@ type Ctx = {
   reloadBoot: () => Promise<void>;
   /** device clock of the last pulse that answered (TEAM-02: <Stale at={pulseAt}> on phone pages) */
   pulseAt: number;
-  /** no answer for 2 minutes or the device says it is offline: one-tap actions wait (TEAM-04, TEAM-05a) */
+  /** two requests in a row never reached the server, no answer for 2 minutes, or the device says it is offline: the
+   *  banner shows and the buttons that write wait (TEAM-04, TEAM-05a) */
   offline: boolean;
 };
 const C = createContext<Ctx | null>(null);
@@ -40,6 +41,25 @@ export function toastFor(f: FeedItem, me: { id: string; prefs?: Pick<Prefs, 'not
   const n = me.prefs?.notify || 'all';
   return n === 'all' || (n === 'mine' && (!f.staffId || f.staffId === me.id));
 }
+/** Pulse cadence: 4 s while someone is there (and always on the Agenda and the Caisse); 15 s once the page has seen no
+ *  pointerdown, keydown or new version for 2 minutes. The first gesture, the page coming back to the front, or a move to
+ *  the Agenda or the Caisse brings 4 s back. */
+const PULSE_FAST = 4000, PULSE_SLOW = 15000, PULSE_IDLE_MS = 120000;
+/** a request that never reached the server may be a blip: one more is asked this soon, and two in a row say « Hors ligne » */
+const PROBE_MS = 1500;
+const LIVE_PAGES = new Set(['agenda', 'caisse']);
+const livePage = () => LIVE_PAGES.has(location.pathname.replace(/^\/comptoir\/?/, '').split('/')[0]);
+/** did the pulse change anything a screen shows? (`now` and `feed` alone do not: `now` is read through ctx.now()) */
+function samePulse(a: Pulse | null, b: Pulse) {
+  if (!a) return false;
+  if (a.version !== b.version || a.cfg !== b.cfg || a.today !== b.today || a.min !== b.min) return false;
+  const x = a.badges, y = b.badges;
+  if (x.toPay !== y.toPay || x.queue !== y.queue || x.relances !== y.relances || x.waitlist !== y.waitlist || x.retention !== y.retention) return false;
+  // the menu's Messages entry and Équipe's requests move without the journal (a reminder becomes due at its hour)
+  if (x.hand !== y.hand || x.handOn !== y.handOn || x.requests !== y.requests) return false;
+  const p = a.alerts || [], q = b.alerts || [];
+  return p.length === q.length && p.every((w, i) => w === q[i]);
+}
 /** the pulse and a page's query can both be refused at once: one notice is enough */
 let idleToldAt = 0;
 
@@ -49,20 +69,27 @@ export function AppProvider({ initial, onOut, children }: { initial: Boot; onOut
   const [feed, setFeed] = useState<FeedItem[]>([]);
   const [unread, setUnread] = useState(0);
   const [storeDown, setStoreDown] = useState(false);
-  const [pulseAt, setPulseAt] = useState(() => Date.now());
-  const [clockNow, setClockNow] = useState(() => Date.now());
+  // the device clock of the last pulse that answered lives in a ref; `pulseAt` (context) only moves when the screen is
+  // about to show it, i.e. when `offline` turns on, so a quiet pulse does not re-render every consumer
+  const pulseAtRef = useRef(Date.now());
+  const [pulseAt, setPulseAt] = useState(() => pulseAtRef.current);
+  const [offline, setOffline] = useState(false);
+  /** requests in a row that never reached the server (0 once one answers) */
+  const fails = useRef(0);
+  const onOutRef = useRef(onOut);
+  onOutRef.current = onOut;
   const meRef = useRef(boot.me);
   meRef.current = boot.me;
   const version = useRef(initial.version);
   const offset = useRef(initial.now - Date.now());
-  const caps = new Set(boot.me.caps);
+  const caps = useMemo(() => new Set(boot.me.caps), [boot.me.caps]);
 
   // the first page of the feed, then the pulse appends to it
   const first = useQuery<{ items: FeedItem[] }>('/api/v1/feed');
   useEffect(() => { if (first.data && !feed.length) setFeed(first.data.items); }, [first.data]);
 
   useEffect(() => onSignedOut((e) => {
-    forget(); onOut();
+    forget(); onOutRef.current();
     // the server ended a PIN session left alone: say why the tablet is back on the code pad
     if (e.code === 'pin_idle' && Date.now() - idleToldAt > 5000) {
       idleToldAt = Date.now();
@@ -80,15 +107,37 @@ export function AppProvider({ initial, onOut, children }: { initial: Boot; onOut
 
   useEffect(() => {
     let alive = true, timer = 0;
+    let touched = Date.now();   // last gesture or last new version
+    const wake = () => { touched = Date.now(); };
+    const delay = () => (document.visibilityState === 'visible' && !livePage() && Date.now() - touched > PULSE_IDLE_MS ? PULSE_SLOW : PULSE_FAST);
+    // requests in a row that never reached the server (lib/api onNet): the second one says « Hors ligne » within seconds
+    // instead of waiting for the 2 minutes of the stale check; any answer clears it
+    let ticking = false;
+    const off = () => setOffline((was) => { if (!was) setPulseAt(pulseAtRef.current); return true; });
+    const unNet = onNet((ok) => {
+      if (ok) {
+        if (!fails.current) return;
+        fails.current = 0; setOffline(false);
+        // back: the screen catches up now, not at the next beat
+        if (!ticking) { clearTimeout(timer); timer = window.setTimeout(tick, 0); }
+        return;
+      }
+      fails.current++;
+      if (fails.current >= 2 || (typeof navigator !== 'undefined' && navigator.onLine === false)) off();
+      else if (!ticking) { clearTimeout(timer); timer = window.setTimeout(tick, PROBE_MS); }
+    });
     const tick = async () => {
-      if (document.visibilityState === 'hidden') { timer = window.setTimeout(tick, 4000); return; }
+      if (document.visibilityState === 'hidden') { timer = window.setTimeout(tick, PULSE_FAST); return; }
+      ticking = true;
       try {
         const p = await api.get<Pulse>('/api/v1/pulse?since=' + version.current);
         if (!alive) return;
         offset.current = p.now - Date.now();
-        setPulse(p);
-        setPulseAt(Date.now());
+        pulseAtRef.current = Date.now();
+        setOffline(false);
+        setPulse((prev) => (samePulse(prev, p) ? prev : p));
         if (p.version !== version.current) {
+          touched = Date.now();
           version.current = p.version;
           refreshAll();
           if (p.feed.length) {
@@ -104,38 +153,64 @@ export function AppProvider({ initial, onOut, children }: { initial: Boot; onOut
           }
         }
       } catch { /* offline: the next tick retries */ }
-      if (alive) timer = window.setTimeout(tick, 4000);
+      ticking = false;
+      // the usual beat (4 s on Agenda and Caisse) is untouched; only a first failure is asked again sooner, and while
+      // offline every page keeps the fast beat so the banner clears as soon as the connection is back
+      if (alive) { clearTimeout(timer); timer = window.setTimeout(tick, fails.current === 1 ? PROBE_MS : fails.current > 1 ? PULSE_FAST : delay()); }
     };
     timer = window.setTimeout(tick, 1500);
-    const vis = () => { if (document.visibilityState === 'visible') { clearTimeout(timer); tick(); } };
+    // a gesture after a slow stretch: pulse now (the timer may be 15 s away) and go back to 4 s
+    const gesture = () => {
+      const slow = Date.now() - touched > PULSE_IDLE_MS;
+      wake();
+      if (slow) { clearTimeout(timer); timer = window.setTimeout(tick, 0); }
+    };
+    const vis = () => { if (document.visibilityState === 'visible') { wake(); clearTimeout(timer); tick(); } };
+    // the device says the connection is back: ask now
+    const back = () => { if (!ticking) { clearTimeout(timer); timer = window.setTimeout(tick, 0); } };
+    addEventListener('online', back);
     document.addEventListener('visibilitychange', vis);
-    return () => { alive = false; clearTimeout(timer); document.removeEventListener('visibilitychange', vis); };
+    addEventListener('pointerdown', gesture, { passive: true });
+    addEventListener('keydown', gesture);
+    return () => {
+      alive = false; clearTimeout(timer); unNet();
+      removeEventListener('online', back);
+      document.removeEventListener('visibilitychange', vis);
+      removeEventListener('pointerdown', gesture); removeEventListener('keydown', gesture);
+    };
   }, []);
 
-  // the stale chip and `offline` follow the clock, not only the pulses (a phone back from sleep)
+  // the stale chip and `offline` follow the clock, not only the pulses (a phone back from sleep); the state only moves when
+  // the answer changes, so this check re-renders nothing on a quiet screen
   useEffect(() => {
-    const t = window.setInterval(() => setClockNow(Date.now()), 15000);
-    const on = () => setClockNow(Date.now());
-    addEventListener('online', on); addEventListener('offline', on);
-    return () => { clearInterval(t); removeEventListener('online', on); removeEventListener('offline', on); };
+    const check = () => {
+      const off = (typeof navigator !== 'undefined' && navigator.onLine === false) || fails.current >= 2 || Date.now() - pulseAtRef.current > STALE_MS;
+      setOffline((was) => {
+        if (off && !was) setPulseAt(pulseAtRef.current);
+        return off;
+      });
+    };
+    const t = window.setInterval(check, 15000);
+    addEventListener('online', check); addEventListener('offline', check);
+    return () => { clearInterval(t); removeEventListener('online', check); removeEventListener('offline', check); };
   }, []);
-  const offline = (typeof navigator !== 'undefined' && navigator.onLine === false) || Math.max(clockNow, pulseAt) - pulseAt > STALE_MS;
 
-  const reloadBoot = async () => { const b = await api.get<Boot>('/api/v1/bootstrap'); setBoot(b); };
+  const reloadBoot = useCallback(async () => { const b = await api.get<Boot>('/api/v1/bootstrap'); setBoot(b); }, []);
   useEffect(() => { if (pulse && pulse.cfg !== boot.cfg) reloadBoot().catch(() => {}); }, [pulse?.cfg]);
 
-  const value: Ctx = {
-    boot,
-    can: (c) => caps.has(c),
-    staffById: new Map(boot.staff.map((s) => [s.id, s])),
-    serviceById: new Map(boot.services.map((s) => [s.id, s])),
+  const staffById = useMemo(() => new Map(boot.staff.map((s) => [s.id, s])), [boot.staff]);
+  const serviceById = useMemo(() => new Map(boot.services.map((s) => [s.id, s])), [boot.services]);
+  const can = useCallback((c: string) => caps.has(c), [caps]);
+  const markRead = useCallback(() => setUnread(0), []);
+  const now = useCallback(() => Date.now() + offset.current, []);
+  const signOut = useCallback(async () => { await api.post('/api/auth/logout').catch(() => {}); forget(); onOutRef.current(); }, []);
+  const value = useMemo<Ctx>(() => ({
+    boot, can, staffById, serviceById,
     pulse, storeDown, feed, unread,
-    markRead: () => setUnread(0),
-    now: () => Date.now() + offset.current,
-    signOut: async () => { await api.post('/api/auth/logout').catch(() => {}); forget(); onOut(); },
-    lock: async () => { await api.post('/api/auth/logout').catch(() => {}); forget(); onOut(); },
+    markRead, now,
+    signOut, lock: signOut,
     reloadBoot, pulseAt, offline
-  };
+  }), [boot, can, staffById, serviceById, pulse, storeDown, feed, unread, markRead, now, signOut, reloadBoot, pulseAt, offline]);
   return (
     <C.Provider value={value}>
       {storeDown ? (

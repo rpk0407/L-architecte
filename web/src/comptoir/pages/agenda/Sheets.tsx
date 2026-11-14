@@ -1,6 +1,6 @@
 // Everything that opens from the agenda: an appointment, a new booking, a move, a walk-in, a block.
 import { useEffect, useMemo, useState } from 'react';
-import { api, qs } from '../../../lib/api';
+import { api, ApiError, qs } from '../../../lib/api';
 import { refreshAll, useQuery } from '../../../lib/query';
 import { navigate } from '../../../lib/router';
 import { cap, dates, dayShortWord, dayWord, dur, eur, hhmm, rhythmWords, sinceWords, STATUS, SOURCE, time, ago } from '../../../lib/format';
@@ -9,7 +9,10 @@ import { shopOpenOn } from '../../../lib/hours';
 import { Icon } from '../../../ui/Icon';
 import { Avatar, Button, Chip, Field, Money, Note, Sheet, Switch, confirm, toast, toastError, Skeleton } from '../../../ui/kit';
 import { useApp } from '../../state';
-import type { Appt, ClientCard, ClientFull, Service } from '../../types';
+import type { Agenda, Appt, ClientCard, ClientFull, Service } from '../../types';
+import { overlapping } from './overlap';
+import './walkin.css';
+import { arrivalWords } from '../espace/Arrival';
 
 /* ---------------- shared pickers ---------------- */
 
@@ -106,16 +109,28 @@ export function ApptSheet({ id, onClose }: { id: string | null; onClose: () => v
   };
   const status = (s: string, ok: string) => run(s, () => api.post('/api/v1/appointments/' + a!.id + '/status', { status: s }), ok);
   const cancel = async () => {
-    const paid = a!.deposit && a!.deposit.paid;
-    const yes = await confirm({ title: 'Annuler ce rendez-vous ?', body: `${a!.name} · ${dayShortWord(a!.day, boot.today)} à ${time(a!.start)}. Le créneau redevient libre${boot.settings.booking.waitlist ? ' et la liste d’attente est prévenue' : ''}.${paid ? ' L’acompte de ' + eur(a!.deposit!.paid) + ' sera remboursé.' : ''}`, ok: 'Oui, annuler', danger: true });
+    const paid = (a!.deposit && a!.deposit.paid) || 0;
+    // the refund is only promised to whoever will really trigger it (`sale.refund`); the others read who must do it
+    const refunds = !!paid && can('sale.refund');
+    const money = !paid ? '' : refunds ? ' L’acompte de ' + eur(paid) + ' sera remboursé sur sa carte.' : ' Attention : l’acompte de ' + eur(paid) + ' ne sera pas remboursé par cette annulation. Seul le gérant peut le rembourser (Caisse › En ligne) : préviens-le.';
+    const yes = await confirm({ title: 'Annuler ce rendez-vous ?', body: `${a!.name} · ${dayShortWord(a!.day, boot.today)} à ${time(a!.start)}. Le créneau redevient libre${boot.settings.booking.waitlist ? ' et la liste d’attente est prévenue' : ''}.${money}`, ok: 'Oui, annuler', cancel: 'Non, le garder', danger: true });
     if (!yes) return;
     run('cancel', async () => {
-      const r = await api.post<{ refundError?: string }>('/api/v1/appointments/' + a!.id + '/cancel', { reason: 'Annulé par le salon', notify: true, refundDeposit: !!paid && can('sale.refund') });
-      // the booking is cancelled either way; the deposit that did not go back is said, to be done from the provider
-      if (r.refundError) toast({ kind: 'err', title: 'Acompte non remboursé chez Stripe : ' + r.refundError, icon: 'alert', ttl: 9000 });
-    }, 'Rendez-vous annulé · le client est prévenu');
+      const r = await api.post<{ refunded?: boolean; refundError?: string; depositLeft?: number }>('/api/v1/appointments/' + a!.id + '/cancel', { reason: 'Annulé par le salon', notify: true, refundDeposit: refunds });
+      // the last word comes from the server's answer: what really happened to the deposit, not what was hoped
+      if (r.refunded) toast({ title: 'Rendez-vous annulé · acompte de ' + eur(paid) + ' remboursé', sub: 'Le client est prévenu.', icon: 'check' });
+      else if (r.refundError) toast({ kind: 'err', title: 'Rendez-vous annulé, mais acompte non remboursé chez Stripe : ' + r.refundError, icon: 'alert', ttl: 9000 });
+      else if (r.depositLeft) toast({ kind: 'info', title: 'Rendez-vous annulé · acompte de ' + eur(r.depositLeft) + ' pas encore remboursé', sub: 'Le gérant décide dans Caisse › En ligne : préviens-le.', icon: 'alert', ttl: 9000 });
+      else toast({ title: 'Rendez-vous annulé · le client est prévenu', icon: 'check' });
+    });
     onClose();
   };
+  // an absence marked by mistake is taken back from the message itself
+  const absent = () => run('no_show', async () => {
+    await api.post('/api/v1/appointments/' + a!.id + '/status', { status: 'no_show' });
+    const id = a!.id;
+    toast({ title: 'Marqué absent · le créneau est libéré', icon: 'check', action: { label: 'Annuler', run: async () => { try { await api.post('/api/v1/appointments/' + id + '/status', { status: 'booked' }); refreshAll(); refresh(); } catch (e) { toastError(e); } } } });
+  });
   const saveTech = () => { if (data?.client && tech !== data.client.tech) run('tech', () => api.patch('/api/v1/clients/' + data.client!.id, { tech }), 'Fiche technique enregistrée'); };
   const doMove = () => moveTo && run('move', () => api.post('/api/v1/appointments/' + a!.id + '/move', { ...moveTo, notify: true }), 'Rendez-vous déplacé · SMS envoyé').then(() => setMode('view'));
   const doEdit = () => run('edit', () => api.patch('/api/v1/appointments/' + a!.id, { serviceIds: edit.serviceIds, note: edit.note }), 'Rendez-vous modifié').then(() => setMode('view'));
@@ -153,12 +168,23 @@ export function ApptSheet({ id, onClose }: { id: string | null; onClose: () => v
           <div className="ap-hero">
             <span className={'status ' + a.status}><i />{STATUS[a.status]}{a.statusAt[a.status] ? ' · ' + ago(a.statusAt[a.status]) : ''}</span>
             <p>{cap(dayWord(a.day, boot.today))} · {time(a.start)} – {time(a.start + a.dur)} · avec {st?.name}{a.anyStaff ? ' (sans préférence)' : ''}</p>
+            {arrivalWords(a as any) ? <p className="faint" data-arrival-state>{arrivalWords(a as any)}</p> : null}
             <div className="row wrap" style={{ gap: 6 }}>
               <span className="badge">{SOURCE[a.source] || a.source}</span>
               {(a.client?.badges || []).map((b) => <span key={b} className={'badge ' + (b === 'nouveau' ? 'badge-info' : b === 'fidèle' ? 'badge-ok' : b === 'absences' ? 'badge-warn' : b === 'VIP' ? 'badge-accent' : '')}>{b}</span>)}
               {a.deposit ? <span className={'badge ' + (a.deposit.paid ? 'badge-ok' : 'badge-warn')}><Icon name="card" />{a.deposit.paid ? 'Acompte payé ' + eur(a.deposit.paid) : 'Acompte en attente ' + eur(a.deposit.amount)}</span> : null}
             </div>
           </div>
+          {/* the frequent gestures sit right under the header, full size (44 px), « Annuler » kept apart */}
+          {['booked', 'pending', 'arrived', 'in_chair'].includes(a.status) ? (
+            <div className="acts-row" data-guide="ap-acts">
+              <Button variant="subtle" icon="move" onClick={() => { setMoveTo(null); setMode('move'); }}>Déplacer</Button>
+              {['booked', 'arrived'].includes(a.status) && a.day <= boot.today ? <Button variant="subtle" icon="alert" busy={busy === 'no_show'} onClick={absent}>Absent</Button> : null}
+              <Button variant="subtle" icon="edit" onClick={() => { setEdit({ serviceIds: a.services.map((s) => s.id), note: a.note }); setMode('edit'); }}>Modifier</Button>
+              {data?.client?.hasPhone && can('client.contact') ? <a className="btn btn-subtle" href={'tel:' + data.client.phone.replace(/\s/g, '')}><Icon name="phone" />Appeler</a> : null}
+              <Button variant="danger" icon="x" className="acts-cancel" busy={busy === 'cancel'} onClick={cancel}>Annuler</Button>
+            </div>
+          ) : null}
           <div className="card card-tight">
             {a.services.map((s) => <div key={s.id} className="kv"><span>{s.name} · {dur(s.dur)}</span><b><Money cents={s.price} />{s.from ? ' +' : ''}</b></div>)}
             {data?.client ? <div className="kv"><span>Téléphone</span><b>{data.client.hasPhone ? data.client.phone : '—'}</b></div> : null}
@@ -189,15 +215,6 @@ export function ApptSheet({ id, onClose }: { id: string | null; onClose: () => v
               <ul className="msgs">{data.messages.map((m) => { const ok = m.status === 'sent' || (m.status === 'simulated' && boot.mode === 'demo'); return <li key={m.id}><i className={ok ? 'ok' : ''}>{ok ? <Icon name="check" /> : null}</i><span className="grow" style={{ flex: '1 0 auto' }}>{TPL[m.template] || m.template}{m.channel === 'email' ? ' par e-mail' : ''}</span><small className="faint" style={{ textAlign: 'right' }}>{m.channel === 'email' ? smsState(m.status, boot.mode === 'demo', (boot.providers as { email?: string | null }).email || null, true) : smsState(m.status, boot.mode === 'demo', boot.providers.sms)}<span style={{ whiteSpace: 'nowrap' }}>{ago(m.status === 'expired' ? m.at : m.sentAt || m.at)}</span></small></li>; })}</ul>
             </div>
           ) : null}
-          {['booked', 'pending', 'arrived', 'in_chair'].includes(a.status) ? (
-            <div className="acts-row">
-              <Button variant="ghost" size="sm" icon="move" onClick={() => { setMoveTo(null); setMode('move'); }}>Déplacer</Button>
-              <Button variant="ghost" size="sm" icon="edit" onClick={() => { setEdit({ serviceIds: a.services.map((s) => s.id), note: a.note }); setMode('edit'); }}>Modifier</Button>
-              {data?.client?.hasPhone && can('client.contact') ? <a className="btn btn-ghost btn-sm" href={'tel:' + data.client.phone.replace(/\s/g, '')}><Icon name="phone" />Appeler</a> : null}
-              {['booked', 'arrived'].includes(a.status) && (a.day < boot.today || (a.day === boot.today)) ? <Button variant="ghost" size="sm" icon="alert" busy={busy === 'no_show'} onClick={() => status('no_show', 'Marqué absent · le créneau est libéré')}>Absent</Button> : null}
-              <Button variant="danger" size="sm" icon="x" busy={busy === 'cancel'} onClick={cancel}>Annuler</Button>
-            </div>
-          ) : null}
         </>
       )}
     </Sheet>
@@ -209,7 +226,7 @@ export function ApptSheet({ id, onClose }: { id: string | null; onClose: () => v
 export type Prefill = { day?: string; start?: number; staffId?: string; clientId?: string; serviceIds?: string[] };
 
 export function CreateSheet({ open, prefill, onClose, onCreated }: { open: boolean; prefill: Prefill | null; onClose: () => void; onCreated?: (id: string, day: string) => void }) {
-  const { boot, staffById, can } = useApp();
+  const { boot, staffById, can, offline } = useApp();
   const [q, setQ] = useState('');
   const [client, setClient] = useState<ClientCard | null>(null);
   const [mode, setMode] = useState<'search' | 'new' | 'none'>('search');
@@ -255,14 +272,29 @@ export function CreateSheet({ open, prefill, onClose, onCreated }: { open: boole
       onClose();
     } catch (e: any) {
       if (e.status === 409 && e.extra?.canForce && !force) {
-        const yes = await confirm({ title: e.code === 'outside' ? 'En dehors des horaires' : 'Créneau déjà pris', body: e.message + ' Le réserver quand même ?', ok: 'Forcer' });
+        // a double booking is never forced blind: the confirmation names who is already there
+        let ask = { title: e.code === 'outside' ? 'En dehors des horaires' : 'Créneau déjà pris', body: e.message + ' Le réserver quand même ?', ok: 'Forcer' };
+        if (e.code === 'taken') {
+          try {
+            const ag = await api.get<Agenda>('/api/v1/agenda?day=' + when.day);
+            const hit = overlapping(ag.appts.filter((o) => o.staffId === when.staffId && !['cancelled', 'no_show'].includes(o.status)), when.start, length);
+            const blk = overlapping(ag.blocks.filter((o) => o.staffId === when.staffId), when.start, length);
+            const st = staffById.get(when.staffId)?.name || 'Ce barbier';
+            if (hit.length) {
+              const names = hit.map((o) => o.name + ' (' + time(o.start) + ' – ' + time(o.start + o.dur) + ')').join(' et ');
+              ask = { title: 'Chevauchement avec ' + hit.map((o) => o.name).join(' et '), body: st + ' a déjà ' + names + '. Réserver ' + (who || 'ce client') + ' à ' + time(when.start) + ' quand même ? Les deux rendez-vous seront côte à côte dans l’agenda, marqués « Chevauchement ».', ok: 'Réserver quand même' };
+            } else if (blk.length) ask = { title: 'Créneau bloqué', body: st + ' a bloqué ce moment (' + blk[0].label + ', ' + time(blk[0].start) + ' – ' + time(blk[0].start + blk[0].dur) + '). Réserver quand même ?', ok: 'Réserver quand même' };
+          } catch { /* the agenda did not answer: the server's own words are asked */ }
+        }
+        const yes = await confirm(ask);
         if (yes) { setBusy(false); return submit(true); }
       } else toastError(e);
     } finally { setBusy(false); }
   };
   return (
     <Sheet open={open} onClose={onClose} title="Nouveau rendez-vous" kicker={fixed && when ? dayShortWord(when.day, boot.today) + ' · ' + time(when.start) + ' · ' + staffById.get(when.staffId)?.name : 'Au téléphone ou au comptoir'}
-      footer={<><span className="sum"><b><Money cents={total} /></b><span>{svc.length ? dur(length) : 'Choisis une prestation'}{when && when.start >= 0 ? ' · ' + dayShortWord(when.day, boot.today) + ' ' + time(when.start) : ''}</span></span><Button variant="primary" size="lg" disabled={!valid} busy={busy} onClick={() => submit()}>Réserver</Button></>}>
+      footer={<><span className="sum"><b><Money cents={total} /></b><span>{svc.length ? dur(length) : 'Choisis une prestation'}{when && when.start >= 0 ? ' · ' + dayShortWord(when.day, boot.today) + ' ' + time(when.start) : ''}</span></span><Button variant="primary" size="lg" disabled={!valid || offline} title={offline ? 'Hors ligne : la réservation attend le retour de la connexion.' : undefined} aria-describedby={offline ? 'cr-off' : undefined} busy={busy} onClick={() => submit()}>Réserver</Button></>}>
+      {offline ? <p id="cr-off" className="off-why" role="status"><Icon name="alert" size={14} />Hors ligne : la réservation attend le retour de la connexion.</p> : null}
       <div className="col" style={{ gap: 10 }}>
         <p className="section-k">Client</p>
         {client ? (
@@ -304,14 +336,15 @@ export function CreateSheet({ open, prefill, onClose, onCreated }: { open: boole
 
 /* ---------------- walk-in ---------------- */
 
-export function WalkinSheet({ open, onClose, freeNow }: { open: boolean; onClose: () => void; freeNow: string[] }) {
+/** prefill (the Accueil's « Prendre un passage » on a chair's row): that barber, and a prestation he can take now. */
+export function WalkinSheet({ open, onClose, freeNow, prefill }: { open: boolean; onClose: () => void; freeNow: string[]; prefill?: { staffId?: string; serviceId?: string } | null }) {
   const { boot, staffById } = useApp();
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [svc, setSvc] = useState<string[]>([]);
   const [staff, setStaff] = useState('any');
   const [busy, setBusy] = useState('');
-  useEffect(() => { if (open) { setName(''); setPhone(''); setStaff('any'); setSvc(boot.services.filter((s) => s.slug === 'cl').map((s) => s.id).slice(0, 1)); } }, [open]);
+  useEffect(() => { if (open) { setName(''); setPhone(''); setStaff(prefill?.staffId || 'any'); setSvc(prefill?.serviceId ? [prefill.serviceId] : boot.services.filter((s) => s.slug === 'cl').map((s) => s.id).slice(0, 1)); } }, [open]);
   const add = async (seatWith?: string) => {
     setBusy(seatWith || 'add');
     try {
@@ -325,7 +358,7 @@ export function WalkinSheet({ open, onClose, freeNow }: { open: boolean; onClose
   const free = freeNow.filter((id) => staff === 'any' || staff === id);
   return (
     <Sheet open={open} onClose={onClose} title="Un passage" kicker="Sans rendez-vous"
-      footer={<>{free.slice(0, 1).map((id) => <Button key={id} variant="solid" icon="chair" busy={busy === id} disabled={!svc.length} onClick={() => add(id)}>Installer chez {staffById.get(id)?.name}</Button>)}<span className="grow" /><Button variant="primary" size="lg" busy={busy === 'add'} disabled={!svc.length} onClick={() => add()}>Ajouter à la file</Button></>}>
+      footer={<div className="wk-foot">{free.slice(0, 1).map((id) => <Button key={id} variant="solid" icon="chair" busy={busy === id} disabled={!svc.length} onClick={() => add(id)}>Installer chez {staffById.get(id)?.name}</Button>)}<span className="grow" /><Button variant="primary" size="lg" busy={busy === 'add'} disabled={!svc.length} onClick={() => add()}>Ajouter à la file</Button></div>}>
       <div className="grid2 stack">
         <Field label="Prénom" htmlFor="wk-n"><input id="wk-n" className="input" value={name} onChange={(e) => setName(e.target.value)} data-autofocus placeholder="Facultatif" /></Field>
         <Field label="Téléphone" htmlFor="wk-p" hint="On lui écrit quand c’est son tour : il peut attendre au café"><input id="wk-p" className="input" type="tel" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Facultatif" /></Field>
@@ -339,32 +372,40 @@ export function WalkinSheet({ open, onClose, freeNow }: { open: boolean; onClose
 
 /* ---------------- block a slot ---------------- */
 
-export function BlockSheet({ open, onClose, prefill }: { open: boolean; onClose: () => void; prefill: { staffId: string; day: string; start: number } | null }) {
+/** absent: opened from a chair's header for a barber who is not coming (the rest of his day, reason « Absent »). */
+export function BlockSheet({ open, onClose, prefill, onAbsent }: { open: boolean; onClose: () => void; prefill: { staffId: string; day: string; start: number; absent?: boolean } | null; onAbsent?: (staffId: string, day: string) => void }) {
   const { boot, can } = useApp();
   const [staff, setStaff] = useState(prefill?.staffId || boot.me.id);
   const [start, setStart] = useState(prefill?.start ?? 780);
   const [len, setLen] = useState<number | 'end'>(30);
   const [label, setLabel] = useState('Pause');
   const [busy, setBusy] = useState(false);
-  useEffect(() => { if (open) { setStaff(prefill?.staffId || (can('agenda.edit') ? boot.staff.find((s) => s.chair)?.id || boot.me.id : boot.me.id)); setStart(prefill?.start ?? 780); setLen(30); setLabel('Pause'); } }, [open]);
+  useEffect(() => { if (open) { setStaff(prefill?.staffId || (can('agenda.edit') ? boot.staff.find((s) => s.chair)?.id || boot.me.id : boot.me.id)); setStart(prefill?.start ?? 780); setLen(prefill?.absent ? 'end' : 30); setLabel(prefill?.absent ? 'Absent' : 'Pause'); } }, [open]);
   const day = prefill?.day || boot.today;
   const go = async () => {
     setBusy(true);
     try {
-      await api.post('/api/v1/blocks', { staffId: staff, day, start, ...(len === 'end' ? { end: 1440, label: label === 'Pause' ? 'Fermé' : label } : { dur: len, label }) });
-      toast({ title: 'Créneau bloqué', sub: 'Il n’est plus proposé sur le site.', icon: 'block' });
+      const away = !!prefill?.absent && len === 'end';
+      try { await api.post('/api/v1/blocks', { staffId: staff, day, start, ...(len === 'end' ? { end: 1440, label: label === 'Pause' ? 'Fermé' : label } : { dur: len, label }) }); }
+      // a day already full or already closed has nothing left to block: his clients are still to report
+      catch (e) { if (!(away && e instanceof ApiError && e.code === 'nothing')) throw e; }
+      // away: the next sheet says it (a toast would sit on its title)
+      if (!away) toast(len === 'end' ? { title: 'Reste de la journée fermé', sub: 'Plus rien n’est proposé sur le site. Les rendez-vous déjà pris ne bougent pas.', icon: 'block' } : { title: 'Créneau bloqué', sub: 'Il n’est plus proposé sur le site.', icon: 'block' });
       refreshAll(); onClose();
+      // then where to put his booked clients, in one go (agenda/Report.tsx)
+      if (away) onAbsent?.(staff, day);
     } catch (e) { toastError(e); } finally { setBusy(false); }
   };
   const times = [];
   for (let m = 540; m <= 1095; m += 15) times.push(m);
   return (
-    <Sheet open={open} onClose={onClose} title="Bloquer un créneau" kicker={cap(dayWord(day, boot.today))}
-      footer={<><span className="grow muted" style={{ fontSize: 13 }}>Disparaît du site aussitôt.</span><Button variant="primary" size="lg" busy={busy} onClick={go}>Bloquer</Button></>}>
+    <Sheet open={open} onClose={onClose} title={prefill?.absent ? 'Absent aujourd’hui' : 'Bloquer un créneau'} kicker={cap(dayWord(day, boot.today))}
+      footer={<><span className="grow muted" style={{ fontSize: 13 }}>Disparaît du site aussitôt.</span><Button variant="primary" size="lg" busy={busy} onClick={go}>{prefill?.absent && len === 'end' ? 'Fermer et reporter ses rendez-vous' : 'Bloquer'}</Button></>}>
+      {prefill?.absent ? <Note tone="warn" icon="alert">Le reste de sa journée est fermé et n’est plus proposé sur le site. Juste après, on te propose où replacer ses rendez-vous déjà pris, en une fois. Une absence de plusieurs jours se pose avec le gérant, dans Équipe.</Note> : null}
       <div className="col" style={{ gap: 10 }}><p className="section-k">Barbier</p><StaffPicker value={staff} onChange={setStaff} any={false} /></div>
       <Field label="À partir de" htmlFor="bl-s"><select id="bl-s" className="select" value={start} onChange={(e) => setStart(+e.target.value)}>{times.map((m) => <option key={m} value={m}>{hhmm(m)}</option>)}</select></Field>
       <div className="col" style={{ gap: 10 }}><p className="section-k">Durée</p><div className="chips">{[15, 30, 45, 60, 90].map((d) => <Chip key={d} on={len === d} onClick={() => setLen(d)}>{dur(d)}</Chip>)}<Chip on={len === 'end'} onClick={() => setLen('end')}>Jusqu’à la fermeture</Chip></div></div>
-      <div className="col" style={{ gap: 10 }}><p className="section-k">Raison</p><div className="chips">{['Pause', 'Déjeuner', 'Rendez-vous perso', 'Formation', 'Shooting photo'].map((l) => <Chip key={l} on={label === l} onClick={() => setLabel(l)}>{l}</Chip>)}</div></div>
+      <div className="col" style={{ gap: 10 }}><p className="section-k">Raison</p><div className="chips">{[...(prefill?.absent ? ['Absent'] : []), 'Pause', 'Déjeuner', 'Rendez-vous perso', 'Formation', 'Shooting photo'].map((l) => <Chip key={l} on={label === l} onClick={() => setLabel(l)}>{l}</Chip>)}</div></div>
     </Sheet>
   );
 }

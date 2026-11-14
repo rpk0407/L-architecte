@@ -152,7 +152,7 @@ export default async ({ h, page }) => {
   await h.expectText(page, 'n’ont pas pu être lues', 20000);
   await page.locator('.wp-issues-list summary').click();
   await h.expectText(page, 'Date illisible');
-  const [ldl] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Télécharger la liste (CSV)' }).click()]);
+  const [ldl] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'La liste avec les raisons (CSV)' }).click()]);
   if (ldl.suggestedFilename() !== 'lignes-illisibles.csv') throw new Error('the list: ' + ldl.suggestedFilename());
   const list = (await readFile(await ldl.path(), 'utf8')).replace(/^﻿/, '').split('\r\n').filter(Boolean);
   if (list[0] !== 'fichier;ligne;n° WordPress;raison' || list.length < 2 || !/^A18-dates-and-times-edge\.csv;\d+;/.test(list[1])) throw new Error('the list of unreadable lines: ' + list.slice(0, 3).join(' / '));

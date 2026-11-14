@@ -10,6 +10,7 @@ import { Button, Empty, Field, Modal, Note, Skeleton, confirm, toast, toastError
 import { useApp } from '../../state';
 import { MonthReport, ZReport, printNow, zRows, zValue, type PeriodRecord, type ZFigures } from './Receipt';
 import type { Agenda } from '../../types';
+import { HeldCashCard } from './DayMoney';
 
 type Remaining = { name: string; start: number; staff: string };
 type Closure = ZFigures & { number: number; day: string; at: number; grandTotal: number; seal: string; early?: boolean; late?: boolean; auto?: boolean };
@@ -122,6 +123,7 @@ export function Closing() {
         {data.last ? <p className="faint" style={{ fontSize: 12.5 }}>Dernier comptage {ago(data.last.closedAt, t)} : {eur(data.last.counted, { decimals: true })}{data.last.diff ? ', écart ' + eur(data.last.diff, { decimals: true }) + (data.last.note ? ' (' + data.last.note + ')' : '') : ', juste'}.</p> : null}
       </section>
 
+      <HeldCashCard />
       <section className="card col" style={{ gap: 14 }} data-guide="cl-z">
         <div className="card-h"><h2><Icon name="lock" size={16} />Clôture du jour</h2>{data.closure ? <span className="badge badge-ok">{zNo(data.closure.number)}</span> : null}</div>
         {can('closure') ? data.missed.map((m, i) => (

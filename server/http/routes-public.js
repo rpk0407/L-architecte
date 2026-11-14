@@ -7,6 +7,7 @@ import { clientMayChange, payWindowMin, payDeadline } from '../domain/policy.js'
 import { signLink, checkLink } from '../auth/session.js';
 import { addDays, isDay, diffDays, dayLong } from '../../shared/dates.js';
 import { newId, safeEqual } from '../lib/util.js';
+import { createHmac } from 'node:crypto';
 import * as A from '../commands/agenda.js';
 import { createPayment, paymentSucceeded, paymentEnded } from '../commands/payments.js';
 import { ticketNo } from '../domain/cash.js';
@@ -27,6 +28,8 @@ import { fmtEur } from '../../shared/money.js';
 import { claimFromLink } from './routes-loyalty.js';
 import { receiptLoyalty } from '../domain/loyalty.js';
 import { readMemberToken, MEMBER_BOOK } from '../auth/member-token.js';
+import { salonWhatsapp } from '../settings/messages.js';
+import { effectiveMode } from '../messaging/hand.js';
 
 /** The demo, for real: both the configuration and the journal say so (a demo journal opened in production is not one). */
 export const isDemo = (r) => r.rt.cfg.mode === 'demo' && r.s.mode === 'demo';
@@ -34,6 +37,17 @@ export const isDemo = (r) => r.rt.cfg.mode === 'demo' && r.s.mode === 'demo';
 export const payLive = (r) => r.rt.pay.name !== 'simulated' || isDemo(r);
 // the actor is chained and can never be erased: no name in it, ever (the client's details travel as pii)
 const CLIENT = (r) => ({ actor: /** @type {const} */ ({ t: 'client', id: 'web', n: '' }), caps: new Set(), meta: { ...r.meta, payLive: payLive(r), payProvider: r.rt.pay.name } });
+/**
+ * Who holds a slot, for the cap on holds (commands/agenda.js holdSlot): the address under the salon's key, cut short and
+ * new every day. Never the address itself: a hold's event is chained and cannot be erased.
+ */
+const visitorOf = (r) => (r.ip ? createHmac('sha256', String(r.rt.secret)).update('lx-hold|' + r.local.day + '|' + r.ip).digest('base64url').slice(0, 12) : '');
+/**
+ * The idempotency key of a visitor's request (x-request-id, checked in app.js: 8 to 64 letters, digits, dashes), kept
+ * apart per route. Every visitor is the same actor, so the id itself is the secret: the site draws a random one.
+ * @param {any} r @param {string} what @returns {{ requestId?: string }}
+ */
+const retryKey = (r, what) => { const id = r.req.headers.get('x-request-id'); return id ? { requestId: what + ':' + id } : {}; };
 const PROVIDER = (r, id) => ({ actor: /** @type {const} */ ({ t: 'provider', id }), caps: new Set(), meta: r.meta });
 
 // once today's Z is done (an early close), the shop takes nobody else: the site stops saying "Ouvert"
@@ -64,7 +78,9 @@ function bookingView(r, a) {
   const pay = a.deposit && a.deposit.paymentId ? s.payments.get(a.deposit.paymentId) : [...s.payments.values()].find((p) => p.apptId === a.id && p.kind === 'deposit' && p.status === 'pending');
   return {
     code: a.code, status: a.status, day: a.day, start: a.start, dur: a.dur, services: a.services.map((x) => ({ id: x.id, name: x.name, price: x.price, from: x.from })), price: a.price,
-    staff: st ? { id: st.id, name: st.name, initials: st.initials, color: st.color } : null, anyStaff: a.anyStaff, first: c ? c.first : '',
+    staff: st ? { id: st.id, name: st.name, initials: st.initials, color: st.color } : null, anyStaff: a.anyStaff,
+    // a place booked for someone else shows the name typed for it, never what the salon's file says (privacy)
+    first: a.ext && a.ext.guest ? a.name || '' : c ? c.first : '', ...(a.ext && a.ext.guest ? { guest: a.ext.guest.kind } : {}),
     deposit: a.deposit ? { amount: a.deposit.amount, paid: a.deposit.paid || 0, url: pay && pay.status === 'pending' ? pay.url : null } : null,
     canChange: ['booked', 'pending'].includes(a.status) && clientMayChange(s, a, r.rt.engine.clock()), cancelUntilHours: s.settings.booking.cancelUntilHours,
     shop: { name: s.settings.shop.name, address: s.settings.shop.address + ', ' + s.settings.shop.zip + ' ' + s.settings.shop.city, phone: s.settings.shop.phone, mapsUrl: s.settings.shop.mapsUrl },
@@ -81,6 +97,13 @@ function apptFromToken(r) {
 }
 
 /**
+ * When a checkout page lapses, on the salon's clock: the provider counts its lifetime on the real one. The two are the
+ * same in production; a demo with its clock moved (LX_FAKE_NOW) keeps a page that lives as long as the provider said.
+ * @param {{ now: number }} r @param {{ exp: number }} co
+ */
+export const lapse = (r, co) => r.now + Math.max(0, co.exp - Date.now());
+
+/**
  * Ask the provider for a checkout page and record it.
  * @param {any} r
  * @param {{ kind: string, amount: number, label: string, apptId: string|null, returnPath: string, email?: string }} o
@@ -91,7 +114,7 @@ export async function startPayment(r, { kind, amount, label, apptId, returnPath,
   const origin = r.origin;
   const payMin = kind === 'deposit' ? payWindowMin(r.s, { stripe: r.rt.pay.name === 'stripe' }) : undefined;
   const co = await r.rt.pay.createCheckout({ id, amount, label, email, payMin, successUrl: origin + returnPath + (returnPath.includes('?') ? '&' : '?') + 'paiement=ok', cancelUrl: origin + returnPath + (returnPath.includes('?') ? '&' : '?') + 'paiement=annule' });
-  await r.rt.engine.run(createPayment, { id, kind, amount, provider: r.rt.pay.name, providerRef: co.ref, url: co.url, apptId, exp: co.exp, label }, { actor: { t: 'system', id: 'payments' }, caps: new Set(['sale.create']), meta: r.meta });
+  await r.rt.engine.run(createPayment, { id, kind, amount, provider: r.rt.pay.name, providerRef: co.ref, url: co.url, apptId, exp: lapse(r, co), label }, { actor: { t: 'system', id: 'payments' }, caps: new Set(['sale.create']), meta: r.meta });
   return { id, url: co.url };
 }
 
@@ -129,6 +152,14 @@ export async function refundOnline(r, payment, reason, amount) {
   return { ok: true };
 }
 
+/**
+ * The photo the site may show of a barber: an active chair, bookable online, with a photo he (or the owner) keeps
+ * « visible sur le site ». Anyone else, an archived barber at once included, has none there.
+ */
+const sitePhoto = (s, st) => (st && st.active && st.chair && st.bookable && st.photoSite && st.photoV ? s.staffPhotos.get(st.id) || null : null);
+/** Its address on the site: the version in it, so a new photo is a new address. */
+const sitePhotoUrl = (s, st) => { const ph = sitePhoto(s, st); return ph ? '/api/public/barbers/' + encodeURIComponent(st.id) + '/photo?v=' + ph.v : undefined; };
+
 /** Client traffic carries the reminders too, so they leave even when no one has the Comptoir open (at most once a minute). */
 function background(r) { const t = maybeTick(r.rt, r.meta); if (t) waitUntil(t); }
 
@@ -143,8 +174,9 @@ export function publicRoutes(app) {
     // the whole price list (the CGV show it, the site's FAQ quotes it): booked at the salon only when online is false
     const menu = active.map((x) => ({ slug: x.slug || null, name: x.name, category: x.category, price: x.price, from: !!x.from, dur: x.dur, online: x.online !== false }));
     const chairs = [...s.staff.values()].filter((x) => x.active && x.chair && x.bookable).sort((a, b) => (a.order ?? 99) - (b.order ?? 99));
-    // the team's photo (TEAM-02) is the Comptoir's, not the site's
-    const barbers = chairs.map((x) => ({ ...staffView(x), photo: undefined, away: awayOf(s, x, L.day) }));
+    // photo: the address of his photo when he shows it on the site (« Photo visible sur le site »), absent otherwise;
+    // the Comptoir's version number and the switch itself are the Comptoir's
+    const barbers = chairs.map((x) => ({ ...staffView(x), photoSite: undefined, photo: sitePhotoUrl(s, x), away: awayOf(s, x, L.day) }));
     // the days it opens when it usually doesn't, or with other hours; one a closure covers is closed (it wins, as in
     // availability.js), and one for named barbers nobody can be booked on (archived, all away) is not announced
     const closures = s.settings.closures.filter((c) => c.to >= L.day);
@@ -155,8 +187,27 @@ export function publicRoutes(app) {
       shop: { ...s.settings.shop }, hours: s.settings.hours, hoursText: hoursText(s.settings.hours), closedText: closedText(s.settings.hours), closures, openings,
       booking: { enabled: b.enabled, stepMin: b.stepMin, minNoticeMin: b.minNoticeMin, maxDaysAhead: b.maxDaysAhead, holdMin: b.holdMin, pendingPayMin: payWindowMin(s, { stripe: r.rt.pay.name === 'stripe' }), cancelUntilHours: b.cancelUntilHours, waitlist: b.waitlist, walkinWait: b.walkinWait },
       // sms: does a text really leave? payments.live: is a deposit really taken online? (false: the site books without one)
-      deposits: live ? s.settings.deposits : { ...s.settings.deposits, mode: 'none' }, services, menu, barbers, sms: !!r.rt.sms || isDemo(r), payments: { provider: r.rt.pay.name, live }, mode: s.mode, today: L.day, now: r.now
+      deposits: live ? s.settings.deposits : { ...s.settings.deposits, mode: 'none' }, services, menu, barbers, sms: !!r.rt.sms || isDemo(r),
+      // the reminder of the eve, as Réglages › Messages has it: the site promises it at that hour, or not at all when it is off
+      // the salon's own WhatsApp number (digits, country code) once set in Réglages: the booking's last step then offers
+      // « Recevoir la confirmation sur WhatsApp », a chat the client opens himself. null: no button
+      whatsapp: salonWhatsapp(s.settings.messages) || null,
+      // the way the confirmation and the reminder really reach the client: 'whatsapp' when the salon's number is set and
+      // its texts leave by WhatsApp (by hand from the salon's phone, or automatic), 'sms' otherwise. The site says so
+      channel: salonWhatsapp(s.settings.messages) && effectiveMode(s, r.rt) !== 'sms' ? 'whatsapp' : 'sms',
+      reminder: { on: s.settings.messages.reminder !== false, hour: s.settings.messages.reminderHour ?? 18 }, payments: { provider: r.rt.pay.name, live }, mode: s.mode, today: L.day, now: r.now
     }, 200, { 'cache-control': 'public, max-age=0, s-maxage=20, stale-while-revalidate=60' });
+  });
+
+  // a barber's photo for the site: only the image, only for one the site lists who shows it (sitePhoto), 404 otherwise.
+  // Cached by the visitor's browser under its version; never kept by the CDN, so a photo hidden or a barber archived
+  // leaves the site with the salon's next answer
+  app.get('/api/public/barbers/:id/photo', (r) => {
+    const ph = sitePhoto(r.s, r.s.staff.get(r.params.id));
+    const v = r.query.get('v');
+    const m = ph && (!v || v === String(ph.v)) ? /^data:(image\/(?:jpeg|webp));base64,(.+)$/.exec(ph.data) : null;
+    if (!m) throw new HttpError(404, 'not_found', 'Pas de photo.');
+    return new Response(Buffer.from(m[2], 'base64'), { status: 200, headers: { 'content-type': m[1], 'cache-control': v ? 'private, max-age=86400' : 'no-cache', 'x-content-type-options': 'nosniff', 'cross-origin-resource-policy': 'same-origin' } });
   });
 
   app.get('/api/public/live', (r) => {
@@ -189,13 +240,18 @@ export function publicRoutes(app) {
       // a day sealed early (Z done) is closed, not "complet"
       out.push({ day, open: !s.closures.has(day) && shopIntervals(s, day).length > 0, slots: slots.map((x) => ({ m: x.m, s: x.staffId })) });
     }
-    const cacheable = !ignoreAppt && !q.get('hold');
-    return json({ dur, days: out, now: r.now }, 200, { 'cache-control': cacheable ? 'public, max-age=0, s-maxage=5, stale-while-revalidate=10' : 'no-store' });
+    // fresh: the site's next read after a hold, a booking or a 409 « créneau pris », which must see the journal as it is.
+    // Never stale-while-revalidate here: a salon's traffic is low, the stale copy would be the one nearly everyone gets
+    const cacheable = !ignoreAppt && !q.get('hold') && !q.has('fresh');
+    return json({ dur, days: out, now: r.now }, 200, { 'cache-control': cacheable ? 'public, max-age=0, s-maxage=5' : 'no-store' });
   });
 
   app.post('/api/public/holds', async (r) => {
     guard('hold|' + r.ip, 30, 60000);
-    return r.rt.engine.run(A.holdSlot, r.body, CLIENT(r));
+    // each hold is an event kept for good: a client looking around takes a few dozen at most
+    guard('holdh|' + r.ip, 120, 3600000, 'Trop de créneaux regardés d’un coup. Patiente un peu, ou appelle le salon.');
+    const ctx = CLIENT(r);
+    return r.rt.engine.run(A.holdSlot, r.body, { ...ctx, meta: { ...ctx.meta, visitor: visitorOf(r) }, ...retryKey(r, 'hold') });
   });
   app.del('/api/public/holds/:id', async (r) => r.rt.engine.run(A.releaseHold, { id: r.params.id }, CLIENT(r)));
 
@@ -205,17 +261,53 @@ export function publicRoutes(app) {
     // PAY-04: « Réserver ma coupe » from the member page carries its booking link (mbr, signed for booking only): the one
     // way a guest booking is a member's
     const mt = r.body && typeof r.body.mbr === 'string' ? readMemberToken(r.rt.secret, r.body.mbr.slice(0, 200), r.now, MEMBER_BOOK) : null;
-    const ctx = CLIENT(r);
+    // the site sends one id per attempt (x-request-id): when the answer was lost on the way and the client tries again,
+    // the engine gives the first answer back and nothing is booked twice
+    const ctx = { ...CLIENT(r), ...retryKey(r, 'book') };
+    const again = !!ctx.requestId && r.rt.engine.knows(ctx.actor, ctx.requestId) === 'answered';
     const res = await r.rt.engine.run(A.bookOnline, { ...r.body, demo: undefined }, mt && 'id' in mt ? { ...ctx, meta: { ...ctx.meta, memberId: mt.id } } : ctx);
-    const token = signLink(r.rt.secret, 'appt', res.code);
-    let payment = null;
-    if (res.status === 'pending' && res.deposit > 0) {
-      const sv = r.s.appts.get(res.id);
-      payment = await startPayment(r, { kind: 'deposit', amount: res.deposit, label: 'Acompte · ' + sv.services.map((x) => x.name).join(' + '), apptId: res.id, returnPath: '/r/' + token, email: r.body.email });
+    // one booking can hold up to four people (« Ajouter une personne »): each place has its own link to move, cancel or pay
+    const places = res.people || [res];
+    const outs = [];
+    for (const x of places) {
+      const token = signLink(r.rt.secret, 'appt', x.code);
+      let payment = null;
+      // a retry finds the booking as it now stands: its deposit page is the one already opened, never a second one
+      const now = r.s.appts.get(x.id);
+      const open = again ? [...r.s.payments.values()].find((p) => p.apptId === x.id && p.kind === 'deposit' && p.status === 'pending') : null;
+      // in a booking of several people, any place taken back means the whole booking was (its deposit page failed)
+      if (again && (x.status === 'pending' || res.people) && (!now || now.status === 'cancelled')) throw new HttpError(409, 'gone', 'Cette réservation n’a pas abouti : rien n’est enregistré. Choisis ton créneau à nouveau.');
+      const status = again && now ? now.status : x.status;
+      if (open) payment = { id: open.id, url: open.url };
+      else if (status === 'pending' && x.deposit > 0) {
+        const sv = r.s.appts.get(x.id);
+        try {
+          payment = await startPayment(r, { kind: 'deposit', amount: x.deposit, label: 'Acompte · ' + sv.services.map((y) => y.name).join(' + ') + (sv.ext && sv.ext.guest && sv.name ? ' · ' + sv.name : ''), apptId: x.id, returnPath: '/r/' + token, email: r.body.email });
+        } catch (e) {
+          // no page to pay on (the provider is down, or its page could not be recorded): the booking would hold the slot
+          // unpaid, with no link and no text, against its own client's retry. Taken back at once (every place still
+          // waiting for its deposit), and said plainly
+          console.error('[lx] deposit checkout failed, booking taken back', x.id, e && (/** @type {any} */ (e).detail || /** @type {any} */ (e).message));
+          // a booking of several people goes whole: a place confirmed without a deposit is taken back too, so the words
+          // below (« ton rendez-vous n'est pas enregistré ») stay true and a new try does not book anyone twice
+          for (const y of places) {
+            if (y.status !== 'pending' && !res.people) continue;
+            try { await r.rt.engine.run(A.expirePending, { id: y.id, reason: 'Paiement en ligne indisponible', ...(res.people ? { group: true } : {}) }, { actor: { t: 'system', id: 'payments' }, caps: new Set(), meta: r.meta }); }
+            catch (e2) { console.error('[lx] booking not taken back', y.id, e2 && /** @type {any} */ (e2).message); }
+          }
+          // the provider's answer already put in French for a client (payments/stripe.js: 502 « réessaie dans un instant »)
+          if (e && /** @type {any} */ (e).expose) throw e;
+          throw new HttpError(503, 'pay_unavailable', 'Le paiement en ligne est momentanément indisponible : ton rendez-vous n’est pas enregistré et rien n’est débité. Réessaie dans un instant, ou appelle le salon.', { retry: true, phone: r.s.settings.shop.phone });
+        }
+      }
+      outs.push({ code: x.code, token, manage: r.origin + '/r/' + token, status, deposit: x.deposit, staffId: x.staffId, payment, ...(x.member ? { member: x.member } : {}),
+        ...(res.people ? { first: x.first, day: x.day, start: x.start, guest: x.guest, price: x.price } : {}) });
     }
+    const head = outs[0];
     // FID-02: a booking that came through a referrer's link (?parrain=); a refusal never touches the booking
-    const ref = r.body && r.body.parrain ? await claimFromLink(r, res.id, r.body.parrain) : null;
-    return json({ code: res.code, token, manage: r.origin + '/r/' + token, status: res.status, deposit: res.deposit, staffId: res.staffId, payment, ...(res.member ? { member: res.member } : {}), ...(ref ? { referral: { ok: !!ref.ok, why: ref.ok ? null : ref.why } } : {}) }, 201);
+    const ref = r.body && r.body.parrain && !again ? await claimFromLink(r, res.id, r.body.parrain) : null;
+    const { first: _f, day: _d, start: _s, guest: _g, price: _p, ...one } = head;
+    return json({ ...one, ...(res.people ? { people: outs } : {}), ...(ref ? { referral: { ok: !!ref.ok, why: ref.ok ? null : ref.why } } : {}) }, 201);
   });
 
   app.get('/api/public/bookings/:token', (r) => bookingView(r, apptFromToken(r)));
@@ -231,7 +323,7 @@ export function publicRoutes(app) {
   app.post('/api/public/bookings/:token/move', async (r) => {
     guard('mv|' + r.ip, 10, 60000);
     const a = apptFromToken(r);
-    await r.rt.engine.run(A.moveByClient, { id: a.id, day: r.body.day, start: r.body.start, holdId: r.body.holdId }, CLIENT(r));
+    await r.rt.engine.run(A.moveByClient, { id: a.id, day: r.body.day, start: r.body.start, holdId: r.body.holdId }, { ...CLIENT(r), ...retryKey(r, 'move') });
     return bookingView(r, r.s.appts.get(a.id));
   });
 

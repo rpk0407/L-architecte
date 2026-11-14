@@ -133,8 +133,9 @@ export function minStartFor(s, day, local, { online = true } = {}) {
   const ahead = diffDays(local.day, day);
   if (ahead < 0) return Infinity;
   if (online && ahead > s.settings.booking.maxDaysAhead) return Infinity;
-  if (ahead > 0) return 0;
-  return online ? local.min + s.settings.booking.minNoticeMin : local.min;
+  if (!online) return ahead > 0 ? 0 : local.min;
+  // the notice runs on from today into the days ahead: 24 h asked at 23:00 leaves nothing before 23:00 tomorrow
+  return Math.max(0, local.min + s.settings.booking.minNoticeMin - ahead * 1440);
 }
 
 /**

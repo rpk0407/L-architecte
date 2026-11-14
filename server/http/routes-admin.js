@@ -17,6 +17,7 @@ import { monthNo, yearNo } from '../domain/fiscal.js';
 import { fmtPhone, safeEqual } from '../lib/util.js';
 import { csv } from '../lib/csv.js';
 import * as T from '../commands/team.js';
+import * as R from '../commands/report.js';
 import * as K from '../commands/catalog.js';
 import * as SH from '../commands/shop.js';
 import { refundPlan, sendGiftcode, reissueGiftcard } from '../commands/sales.js';
@@ -82,6 +83,37 @@ function memberSummary(s, type, d) {
 
 /** Z CSV columns, written out: a gift card used or a deposit settles a ticket without money coming in that day. */
 const Z_CSV_METHOD = { card: 'Encaissé carte (TPE)', cash: 'Encaissé espèces', online: 'Encaissé paiement en ligne', deposit: 'Réglé par acompte en ligne', ancien: 'Réglé par acompte de l’ancien site', giftcard: 'Réglé par carte cadeau' };
+
+/** The request an event was written by (its idempotency key), or '' for an event written alone. */
+function requestKey(e) {
+  const m = /^(rq_[0-9a-f]+)_\d+$/.exec(e.id || '');
+  return m ? m[1] : '';
+}
+/** How many events of the journal are read back to name the tag a bulk removal took off. */
+const TAG_LOOKBACK = 20000;
+/**
+ * The words of a grouped line. A tag put on (or taken off) many files: « 327 fiches » · « tag VIP ajouté »; anything
+ * else: « 3 × Rendez-vous déplacé ».
+ * @param {any[]} j the journal @param {any[]} g the events of one request and one type @param {number} lo where the request starts in j
+ */
+function groupWords(j, g, lo) {
+  const tagsOnly = g.every((e) => e.type === 'client.updated' && e.data.patch && Array.isArray(e.data.patch.tags) && Object.keys(e.data.patch).length === 1);
+  if (!tagsOnly) return { label: g.length + ' × ' + (LABELS[g[0].type] || g[0].type), summary: '' };
+  // added: every file ends with the same new tag. Removed: the tag the first file had just before and has no more
+  const lastOf = (e) => e.data.patch.tags[e.data.patch.tags.length - 1];
+  const first = g[0];
+  let prev = null;
+  for (let i = lo - 1; i >= 0 && i >= lo - TAG_LOOKBACK && !prev; i--) {
+    const e = j[i], d = e.data || {};
+    if (d.id !== first.data.id || !e.type.startsWith('client.')) continue;
+    if (e.type === 'client.updated' && d.patch && Array.isArray(d.patch.tags)) prev = d.patch.tags;
+    else if (e.type === 'client.added') prev = d.tags || [];
+  }
+  const now = first.data.patch.tags;
+  const added = prev ? now.length > prev.length : g.every((e) => e.data.patch.tags.length && lastOf(e) === lastOf(first));
+  const tag = added ? lastOf(first) : prev ? prev.find((t) => !now.includes(t)) : '';
+  return { label: g.length + ' fiches', summary: 'tag ' + (tag ? tag + ' ' : '') + (added ? 'ajouté' : 'retiré') };
+}
 
 function summary(s, e) {
   const d = e.data || {};
@@ -168,6 +200,20 @@ function backDay(s, t) {
   const h = s.timeoff.has(t.id) ? s : { ...s, timeoff: new Map(s.timeoff).set('_preview', { ...t, id: '_preview' }) };
   for (let d = addDays(t.to, 1), i = 0; i < 62; d = addDays(d, 1), i++) if (staffIntervals(h, t.staffId, d).length) return d;
   return null;
+}
+/** « Reporter ses rendez-vous »: each appointment still on the absent barber's chair, where it would go (to: null, à
+ *  rappeler) and what may be picked instead; the number only for whoever reads full numbers (to call them). */
+function reportView(r, t) {
+  const s = r.s;
+  const contact = r.caps.has('client.contact');
+  const rows = R.reportPlan(s, t, { now: r.now, local: r.local }).map(({ a, kind, to, options }) => {
+    const c = a.clientId ? s.clients.get(a.clientId) : null;
+    return {
+      id: a.id, day: a.day, start: a.start, dur: a.dur, staffId: a.staffId, name: clientWord(s, a), services: a.services.map((x) => x.name), price: a.price,
+      deposit: a.deposit && a.deposit.paid ? a.deposit.paid : 0, textable: T.textable(s, a), phone: contact && c && !c.erased && c.phone ? fmtPhone(c.phone) : '', kind, to, options
+    };
+  });
+  return { staffId: t.staffId, from: t.from < r.local.day ? r.local.day : t.from, to: t.to, timeoffId: t.id || null, count: rows.length, rows, undoMs: R.REPORT_UNDO_MS };
 }
 const conflictCount = (r, t) => T.timeoffConflicts(r.s, t, { now: r.now, local: r.local }).length;
 
@@ -261,6 +307,17 @@ export function adminRoutes(app) {
   }, { cap: 'agenda.edit' });
   app.del('/api/v1/timeoff/:id', (r) => r.run(T.removeTimeOff, { id: r.params.id }), { cap: 'agenda.own' });
 
+  // « Reporter ses rendez-vous » (commands/report.js): the plan for a barber away the rest of a day ({ staffId, day })
+  // or over a posted absence ({ timeoffId }), its apply in one command, and its « Annuler ». The right is the one of
+  // moving any chair's appointment (agenda.edit: owner, manager, front desk), checked again inside each command
+  const about = (b) => (b && b.timeoffId ? { timeoffId: String(b.timeoffId) } : { staffId: String((b && b.staffId) || ''), ...(b && b.day ? { day: String(b.day) } : {}) });
+  app.post('/api/v1/agenda/report/preview', (r) => {
+    if (r.body && r.body.day && !isDay(String(r.body.day))) throw new HttpError(400, 'invalid', 'Date attendue.');
+    return reportView(r, R.absenceFor(r.s, about(r.body), { local: r.local }));
+  }, { cap: 'agenda.edit' });
+  app.post('/api/v1/agenda/report', (r) => r.run(R.reportAppointments, { staffId: r.body.staffId, moves: r.body.moves }), { cap: 'agenda.edit' });
+  app.post('/api/v1/agenda/report/undo', (r) => r.run(R.undoReport, { moves: r.body.moves }), { cap: 'agenda.edit' });
+
   /* catalogue */
   app.get('/api/v1/catalog', (r) => ({
     services: [...r.s.services.values()].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)).map(serviceView),
@@ -323,12 +380,27 @@ export function adminRoutes(app) {
     const hide = new Set(['appt.held', 'hold.released', 'message.updated', 'demo.seeded']);
     const out = [];
     const j = r.rt.engine.journal;
+    const shown = (e) => !(hide.has(e.type) || (type && !e.type.startsWith(type)) || (actor && e.actor.id !== actor));
+    const line = (e) => ({ v: e.v, at: e.at, type: e.type, label: LABELS[e.type] || e.type, summary: summary(s, e), actor: actorName(s, e.actor), actorId: e.actor.id, device: e.actor.dev ? (s.devices.get(e.actor.dev) || {}).name || '' : '', hash: e.h.slice(0, 12) });
     for (let i = j.length - 1; i >= 0 && out.length < limit; i--) {
       const e = j[i];
-      if (e.v >= before || hide.has(e.type)) continue;
-      if (type && !e.type.startsWith(type)) continue;
-      if (actor && e.actor.id !== actor) continue;
-      out.push({ v: e.v, at: e.at, type: e.type, label: LABELS[e.type] || e.type, summary: summary(s, e), actor: actorName(s, e.actor), actorId: e.actor.id, device: e.actor.dev ? (s.devices.get(e.actor.dev) || {}).name || '' : '', hash: e.h.slice(0, 12) });
+      if (e.v >= before || !shown(e)) continue;
+      // a write on many things at once (a tag on 327 files, a day reported) is ONE line here: the events one request
+      // wrote share its id (engine.js keyOf: rq_<hash>_<n>); those of the same type are grouped as they are read, the
+      // journal keeps one event each
+      const key = requestKey(e);
+      if (!key) { out.push(line(e)); continue; }
+      let lo = i;
+      while (lo > 0 && requestKey(j[lo - 1]) === key) lo--;
+      const block = j.slice(lo, i + 1).filter(shown);
+      for (const t of [...new Set(block.map((x) => x.type))].reverse()) {
+        const g = block.filter((x) => x.type === t);
+        const last = g[g.length - 1];
+        if (g.length === 1) out.push(line(last));
+        // v: its first event (the next page asks « before » it), vTo: its last
+        else out.push({ ...line(last), v: g[0].v, vTo: last.v, count: g.length, ...groupWords(j, g, lo) });
+      }
+      i = lo;
     }
     return { items: out, head: s.head, version: s.version };
   }, { cap: 'audit' });

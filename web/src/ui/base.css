@@ -70,8 +70,15 @@ img, svg { display: block; }
 @keyframes rise { from { opacity: 0; transform: translateY(10px); } }
 @keyframes pop { 0% { transform: scale(.6); opacity: 0; } 60% { transform: scale(1.06); } 100% { transform: none; opacity: 1; } }
 @keyframes shake { 10%, 90% { transform: translateX(-2px); } 20%, 80% { transform: translateX(4px); } 30%, 50%, 70% { transform: translateX(-7px); } 40%, 60% { transform: translateX(7px); } }
-@keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(235, 70, 57, .55); } 70%, 100% { box-shadow: 0 0 0 9px rgba(235, 70, 57, 0); } }
-@keyframes pulseOk { 0% { box-shadow: 0 0 0 0 rgba(74, 222, 128, .5); } 70%, 100% { box-shadow: 0 0 0 8px rgba(74, 222, 128, 0); } }
+/* « pulse »: a ring that grows and fades. Animated on a pseudo-element with transform + opacity only (compositor, no paint),
+   never on box-shadow: a tablet left on the agenda used to spend 12 s of main thread per minute on it. */
+@keyframes pulse { 0% { transform: scale(1); opacity: .55; } 70%, 100% { transform: scale(3.25); opacity: 0; } }
+@keyframes pulseOk { 0% { transform: scale(1); opacity: .5; } 70%, 100% { transform: scale(3.25); opacity: 0; } }
+.eq-status.accent i, .es-status.accent i, .status.in_chair i, i[style*='animation: pulse '], .pill.live i, .es-status.ok i, i[style*='animation: pulseOk'] { position: relative; animation: none !important; }
+.eq-status.accent i::after, .es-status.accent i::after, .status.in_chair i::after, i[style*='animation: pulse ']::after,
+.pill.live i::after, .es-status.ok i::after, i[style*='animation: pulseOk']::after { content: ''; position: absolute; inset: 0; border-radius: 50%; pointer-events: none; }
+.eq-status.accent i::after, .es-status.accent i::after, .status.in_chair i::after, i[style*='animation: pulse ']::after { background: rgb(235, 70, 57); animation: pulse 1.8s infinite; }
+.pill.live i::after, .es-status.ok i::after, i[style*='animation: pulseOk']::after { background: rgb(74, 222, 128); animation: pulseOk 2.2s infinite; }
 @keyframes shimmer { 100% { background-position: -200% 0; } }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }

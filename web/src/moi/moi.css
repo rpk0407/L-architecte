@@ -280,3 +280,20 @@
 @media (prefers-reduced-motion: reduce) {
   .m-page *, .m-sheet * { transition: none !important; }
 }
+
+/* FEATURE B · « préviens-moi » on the hero, « Ce qui manque », « Tes paiements » */
+.m-earlier { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 56px; padding: 10px 14px; border-radius: 16px; background: var(--tk-chip); color: var(--tk); text-align: left; }
+.m-earlier span { display: flex; flex-direction: column; gap: 3px; }
+.m-earlier b { font: 600 15px/1.3 var(--sans); }
+.m-earlier small { font-size: 13px; line-height: 1.35; color: var(--tk-2); }
+.m-earlier i { flex: none; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; font-style: normal; font-weight: 700; box-shadow: inset 0 0 0 1.5px currentColor; }
+.m-earlier[aria-pressed='true'] i { background: var(--ok); color: var(--on-ok); box-shadow: none; }
+.m-todo { gap: 12px; }
+.m-todo-l { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; }
+.m-todo-l li { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 14px; border-radius: 16px; background: var(--tint); }
+.m-todo-l li.warn { background: var(--warn-bg); box-shadow: inset 3px 0 0 var(--warn); }
+.m-todo-l b { font: 600 16px/1.3 var(--sans); }
+.m-todo-l span { font-size: 14.5px; line-height: 1.45; color: var(--ink2); }
+.m-todo-l .c-btn { min-height: 46px; margin-top: 4px; }
+.m-pay-a { flex: none; font: 600 15px/1 var(--sans); font-variant-numeric: tabular-nums; }
+.m-pay-a.back { color: var(--ok); }

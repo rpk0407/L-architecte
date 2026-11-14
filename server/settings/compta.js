@@ -14,8 +14,10 @@
 //   journals        the journal codes of the files
 //   accountant      who receives the pack (CPT-05): name, firm, e-mail. They name a person: commands/shop.js keeps them in
 //                   the event's pii, out of the chain
-//   autoSend        the month's pack goes by itself once the accountant's e-mail is set (CPT-05)
-//   ereporting      the e-reporting of B2C sales (from 1 September 2027), its cadence (CPT-05)
+//   autoSend        the month's pack goes by itself once the accountant's e-mail is set (CPT-05): a tick step
+//                   (commands/steps/compta-pack.js) e-mails the closed month's entries, never before the switch
+//   ereporting      the e-reporting of B2C sales (from 1 September 2027), its cadence (CPT-05). Kept for later: no
+//                   server code reads it yet, and no screen offers it (tests/unit/compta-pack.test.js holds both true)
 // No import of the engine here: the settings registry (index.js) loads this file while the engine is still loading.
 import { str, bool, opt, obj, oneOf, day, InvalidInput } from '../lib/validate.js';
 import { ACCOUNT_ROLES, DEFAULT_ACCOUNTS, ACCOUNT_PATTERN } from '../../shared/accounts.js';

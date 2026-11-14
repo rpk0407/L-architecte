@@ -11,6 +11,8 @@ import { dayFr as dayLong, ownerEmail } from '../../domain/mails.js';
 import { STALE_MS } from '../../core/backup.js';
 import { queueMessage } from '../../domain/messages.js';
 import { normPhone, isEmail } from '../../lib/util.js';
+import { handRefusal, handStale } from '../../messaging/hand.js';
+import { cutoverHeld } from '../../projections/bascule.js';
 
 export const WEEKLY_FROM_MIN = 8 * 60;
 const LIVE = new Set(['pending', 'booked', 'arrived', 'in_chair']);
@@ -70,9 +72,14 @@ export function eveningDigest(s, ctx) {
   const failedOf = (ch) => count(ch, (m) => m.status === 'failed' && (m.sentAt || m.at) >= since);
   // an e-mail summary cannot tell that e-mail is failing, so its SMS names both
   const fails = words(failedOf('sms'), failedOf('email'));
-  // outside the demo (which simulates them), the messages due that no provider can take
+  // outside the demo (which simulates them), the messages due that no provider can take; those a person sends from the
+  // salon's WhatsApp (mode téléphone, messaging/hand.js) wait for the Messages screen, not for a provider: counted apart,
+  // as the screen counts them (not held for the switch, not too late, a client who can get them)
   const providers = s.mode === 'demo' ? null : ctx.meta.providers || null;
-  const waitOf = (ch) => (providers && !providers[ch] ? count(ch, (m) => m.status === 'queued' && (m.dueAt || m.at) <= ctx.now) : 0);
+  const byHand = providers && typeof providers.hand === 'function' ? providers.hand : null;
+  const due = (m) => m.status === 'queued' && (m.dueAt || m.at) <= ctx.now;
+  const hand = byHand ? count('sms', (m) => due(m) && byHand(m) && !cutoverHeld(s, m) && !handStale(s, m, ctx.now) && !handRefusal(s, m)) : 0;
+  const waitOf = (ch) => (providers && !providers[ch] ? count(ch, (m) => due(m) && !(byHand && byHand(m))) : 0);
   const waiting = words(waitOf('sms'), waitOf('email'));
   const b = ctx.meta.backup;
   const backup = !b ? '' : b.off ? b.off : b.at
@@ -93,12 +100,13 @@ export function eveningDigest(s, ctx) {
     ] : ['· Salon fermé']),
     '',
     '· Envois : ' + (fails ? fails + ' en échec aujourd’hui, le détail dans Relances › Messages envoyés' : 'aucun échec aujourd’hui') + (waiting ? ' ; ' + waiting + ' en attente d’un fournisseur' : ''),
+    ...(hand ? ['· ' + hand + (hand > 1 ? ' messages aux clients à envoyer' : ' message au client à envoyer') + ' depuis l’écran Messages' + (comptoir(ctx) ? ' : ' + comptoir(ctx, '/messages') : ' du Comptoir')] : []),
     ...(backup ? ['· Sauvegarde : ' + backup] : []),
     ...(comptoir(ctx) ? ['', 'Le Comptoir : ' + comptoir(ctx)] : [])
   ];
   const subject = 'Ta journée du ' + dayLong(day) + ' : ' + fmtEur(t.net) + ' · demain ' + appts.length + ' rendez-vous';
-  const sms = "L'Architecte : aujourd'hui " + fmtEur(t.net) + (z ? ' (' + closureNo(z.number) + ')' : ', Z pas encore fait') + '. Demain ' + appts.length + ' rdv, ' + halfHours(freeN) + '.' + (fails ? ' ' + fails + ' en échec.' : '');
-  return { subject, text: lines.join('\n'), sms };
+  const sms = "L'Architecte : aujourd'hui " + fmtEur(t.net) + (z ? ' (' + closureNo(z.number) + ')' : ', Z pas encore fait') + '. Demain ' + appts.length + ' rdv, ' + halfHours(freeN) + '.' + (fails ? ' ' + fails + ' en échec.' : '') + (hand ? ' ' + hand + ' message' + (hand > 1 ? 's' : '') + ' à envoyer (écran Messages).' : '');
+  return { subject, text: lines.join('\n'), sms, hand };
 }
 
 const short = (day) => { const p = dayParts(day); return (p.d === 1 ? '1er' : p.d) + ' ' + MONTHS_SH[p.m - 1]; };
@@ -143,7 +151,7 @@ export default {
     const { to, phone } = recipients(s);
     if (digestDue(s, L)) {
       const d = eveningDigest(s, ctx);
-      if (d && to) queueMessage(s, ctx, { key: 'digest_' + L.day, channel: 'email', template: 'digest', to, vars: {}, subject: d.subject, text: d.text, links: [comptoir(ctx)] });
+      if (d && to) queueMessage(s, ctx, { key: 'digest_' + L.day, channel: 'email', template: 'digest', to, vars: {}, subject: d.subject, text: d.text, links: [comptoir(ctx), ...(d.hand ? [comptoir(ctx, '/messages')] : [])] });
       if (d && phone) queueMessage(s, ctx, { key: 'digestsms_' + L.day, template: 'digest', to: phone, text: d.sms, vars: {} });
     }
     if (N.weekly && to && L.wd === 1 && L.min >= WEEKLY_FROM_MIN && !s.messages.has('msg_weekly_' + L.day)) {

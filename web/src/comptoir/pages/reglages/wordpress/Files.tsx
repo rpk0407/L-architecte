@@ -70,6 +70,7 @@ export function Sample({ files }: { files: W.FileReport[] }) {
 export function Issues({ problems }: { problems: W.Problem[] }) {
   if (!problems.length) return null;
   const shown = problems.slice(0, 200);
+  const fix = W.fixCsv(problems);
   return (
     <div className="col wp-issues" style={{ gap: 8 }} data-guide="wp-soucis">
       <Note tone="warn" icon="alert">{plural(problems.length, 'ligne n’a pas pu être lue', 'lignes n’ont pas pu être lues')} : {problems.length > 1 ? 'elles ne seront pas reprises' : 'elle ne sera pas reprise'}, et le rapport les gardera.</Note>
@@ -79,7 +80,11 @@ export function Issues({ problems }: { problems: W.Problem[] }) {
           <li key={i} className="li"><span className="li-main"><b>{x.file}{x.line ? ' · ligne ' + x.line : ''}{x.wp ? <span className="faint"> · n° {x.wp}</span> : null}</b><small>{x.text}</small></span></li>
         ))}</ul>
       </details>
-      <div><Button size="sm" icon="download" onClick={() => saveText('lignes-illisibles.csv', W.problemsCsv(problems))}>Télécharger la liste (CSV)</Button></div>
+      <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+        {fix ? <Button size="sm" icon="download" onClick={() => saveText('lignes-a-corriger.csv', fix)}>Télécharger ces lignes pour les corriger (CSV)</Button> : null}
+        <Button size="sm" variant="ghost" icon="download" onClick={() => saveText('lignes-illisibles.csv', W.problemsCsv(problems))}>La liste avec les raisons (CSV)</Button>
+      </div>
+      {fix ? <p className="faint" style={{ fontSize: 12.5 }}>Ouvre le premier fichier, corrige la date ou l’état de chaque ligne (la dernière colonne dit pourquoi), enregistre-le en CSV et dépose-le ici avec les autres.</p> : null}
     </div>
   );
 }
