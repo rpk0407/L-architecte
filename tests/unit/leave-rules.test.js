@@ -236,7 +236,7 @@ test('through the routes, on the real salon: JKut asks from his phone, the owner
   const { owner, s, id, as, book, cut, rt } = await live();
   const day = '2026-11-26'; // a Thursday
   const a = await book('JKut', day, 600);
-  const jk = await as('JKut'), frank = await as('Frank');
+  const jk = await as('JKut'), est = await as('Esteban');
   const avail = async () => (await browser(rt).get('/api/public/availability?from=' + day + '&days=1&services=' + cut + '&staff=' + id('JKut'))).json.days[0].slots.length;
   const open = await avail();
   assert.ok(open > 5);
@@ -248,21 +248,21 @@ test('through the routes, on the real salon: JKut asks from his phone, the owner
   assert.deepEqual((await jk.get('/api/v1/timeoff/mine')).json.requests.map((q) => q.status), ['pending']);
   assert.deepEqual((await owner.get('/api/v1/staff')).json.requests.map((q) => [q.staffId, q.conflicts]), [[id('JKut'), 1]]);
   assert.ok((await owner.get('/api/v1/home')).json.cards.some((c) => c.id === 'absence-demande'));
-  assert.deepEqual((await frank.get('/api/v1/timeoff/mine')).json.requests, []);
+  assert.deepEqual((await est.get('/api/v1/timeoff/mine')).json.requests, []);
   // a barber decides nothing, for himself or a colleague, and reads nobody else's plan
-  for (const tab of [jk, frank]) {
+  for (const tab of [jk, est]) {
     assert.equal((await tab.post('/api/v1/timeoff/' + ask.json.id + '/approve')).status, 403);
     assert.equal((await tab.post('/api/v1/timeoff/' + ask.json.id + '/refuse')).status, 403);
     assert.equal((await tab.post('/api/v1/timeoff/' + ask.json.id + '/reassign', { moves: [] })).status, 403);
     assert.equal((await tab.post('/api/v1/settings/closures', { from: day, to: day, label: 'Pont' })).status, 403);
     assert.equal((await tab.get('/api/v1/settings/closures/conflicts')).status, 403);
-    assert.equal((await tab.post('/api/v1/staff/' + id('Esteban') + '/archive', {})).status, 403);
+    assert.equal((await tab.post('/api/v1/staff/' + id('Le Soldat') + '/archive', {})).status, 403);
   }
-  assert.equal((await frank.post('/api/v1/timeoff', { staffId: id('JKut'), from: day, to: day })).status, 403);
-  assert.equal((await frank.post('/api/v1/timeoff/preview', { id: ask.json.id })).status, 404);
-  assert.equal((await frank.del('/api/v1/timeoff/' + ask.json.id)).status, 403);
-  assert.equal((await frank.get('/api/v1/staff/' + id('JKut') + '/stranded')).status, 403);
-  assert.equal((await frank.get('/api/v1/staff/' + id('Frank') + '/stranded')).status, 200);
+  assert.equal((await est.post('/api/v1/timeoff', { staffId: id('JKut'), from: day, to: day })).status, 403);
+  assert.equal((await est.post('/api/v1/timeoff/preview', { id: ask.json.id })).status, 404);
+  assert.equal((await est.del('/api/v1/timeoff/' + ask.json.id)).status, 403);
+  assert.equal((await est.get('/api/v1/staff/' + id('JKut') + '/stranded')).status, 403);
+  assert.equal((await est.get('/api/v1/staff/' + id('Esteban') + '/stranded')).status, 200);
 
   // one call: accepted, the site stops offering him, and the answer says a client is to be replaced (the screen opens the plan)
   const yes = await owner.post('/api/v1/timeoff/' + ask.json.id + '/approve');
@@ -279,12 +279,12 @@ test('through the routes, on the real salon: JKut asks from his phone, the owner
 test('through the routes: a weekly day off and a closure say what they leave behind; a barber who leaves is followed by his clients’ plan', async () => {
   const { owner, s, id, book } = await live();
   const thu = '2026-11-26', sat = '2026-11-28';
-  await book('Soldat', thu, 600); await book('Soldat', sat, 600); const fr = await book('Frank', sat, 600);
-  // Soldat no longer works on Thursdays
-  const wk = { ...s().staff.get(id('Soldat')).schedule, 4: [] };
-  const p = await owner.patch('/api/v1/staff/' + id('Soldat'), { schedule: wk });
+  await book('Le Soldat', thu, 600); await book('Le Soldat', sat, 600); const fr = await book('Esteban', sat, 600);
+  // Le Soldat no longer works on Thursdays
+  const wk = { ...s().staff.get(id('Le Soldat')).schedule, 4: [] };
+  const p = await owner.patch('/api/v1/staff/' + id('Le Soldat'), { schedule: wk });
   assert.deepEqual([p.status, p.json.stranded], [200, 1]);
-  assert.deepEqual((await owner.get('/api/v1/staff/' + id('Soldat') + '/stranded')).json, { count: 1, days: [{ day: thu, count: 1 }] });
+  assert.deepEqual((await owner.get('/api/v1/staff/' + id('Le Soldat') + '/stranded')).json, { count: 1, days: [{ day: thu, count: 1 }] });
   // the salon closes that Saturday
   const c = await owner.post('/api/v1/settings/closures', { from: sat, to: sat, label: 'Travaux' });
   assert.deepEqual([c.status, c.json.conflicts], [200, 2]);
@@ -292,8 +292,8 @@ test('through the routes: a weekly day off and a closure say what they leave beh
   assert.deepEqual(cf.map((x) => [x.id, x.count, x.days.map((d) => d.count)]), [[c.json.id, 2, [1, 1]]]);
   await owner.del('/api/v1/settings/closures/' + c.json.id);
   assert.deepEqual((await owner.get('/api/v1/settings/closures/conflicts')).json.items, []);
-  // Frank leaves: his Saturday client is on the plan of his departure, nowhere lost
-  const out = await owner.post('/api/v1/staff/' + id('Frank') + '/archive', {});
+  // Esteban leaves: his Saturday client is on the plan of his departure, nowhere lost
+  const out = await owner.post('/api/v1/staff/' + id('Esteban') + '/archive', {});
   assert.deepEqual([out.status, out.json.conflicts, !!out.json.absence], [200, 1, true]);
   const team = (await owner.get('/api/v1/staff')).json;
   assert.deepEqual(team.timeoff.filter((x) => x.id === out.json.absence).map((x) => [x.reason, x.conflicts]), [['Départ', 1]]);
