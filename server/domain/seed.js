@@ -556,6 +556,9 @@ export async function buildDemoJournal(nowReal, opt = {}) {
   // AC-03a: the client « Essayer avec un client de démo » opens holds a carnet, so « Mes avantages » shows in the demo
   const persona = personaOf(eng.state, clock);
   if (persona) await eng.run(checkout, { clientId: persona.id, lines: [{ kind: 'pack', ref: slugId.ab }], payments: [{ method: 'card', amount: eng.state.services.get(slugId.ab).price }] }, base).catch(() => null);
+  // the carnet as the salon sells it today: on the site, five cuts, one a week from the first date (a missed week is
+  // lost). Set last, so the demo's history (carnets sold at the till over ten weeks) reads as it always did
+  await eng.run(updateService, { id: slugId.ab, patch: { online: true, includes: ['5 coupes, une par semaine', 'Shampooing et coiffage', 'Sans la barbe'], description: '16 € la coupe. Tu choisis tes 5 rendez-vous en réservant, un par semaine.', pack: { credits: 5, days: 35, serviceIds: [slugId.cl], weekly: true, missed: 'lost' } } }, base);
   await eng.run({ run(s, input, ctx) { ctx.emit('demo.seeded', { days: seeded }); return {}; } }, {}, SYS);
   return eng.journal;
 }

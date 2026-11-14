@@ -17,6 +17,7 @@ import { clientParts } from './clients.js';
 import { cover, coverWords, cutValue, label as memberLabel, rootOf, liveIn } from '../domain/membership.js';
 import { earnOf, receiptWords } from '../domain/loyalty.js';
 import { withReward, loyaltyAfterSale, loyaltyAfterRefund } from './loyalty.js';
+import { FORMULE_TEXT, formuleOfAppt, formulesOfFiles, personOf, running, anchorOf, weeklyDays, offerOf } from '../domain/formule.js';
 
 const lineSchema = obj({
   kind: oneOf(/** @type {const} */ (['service', 'product', 'giftcard', 'pack', 'fee', 'membership'])), ref: opt(id()), name: opt(str({ max: 60 })),
@@ -37,6 +38,13 @@ const checkoutSchema = obj({
 });
 
 const PACK_NEW = 'new';
+/** the formule (a weekly carnet bought with its dates) this ticket pays for: the appointment's, else the client's unpaid one */
+function formuleToStart(s, appt, client, serviceId, today) {
+  const of = appt ? formuleOfAppt(s, appt.id) : null;
+  if (of && of.status === 'open' && !of.packId && of.serviceId === serviceId) return of;
+  if (of || !client) return null;
+  return formulesOfFiles(s, [client.id]).find((f) => !f.packId && f.serviceId === serviceId && !personOf(f) && running(s, f, today)) || null;
+}
 /**
  * An online payment the ticket uses: as the state has it, or written earlier in this same command (a membership's
  * month, paid and rung up in one write: commands/memberships.js memberPaid).
@@ -113,6 +121,8 @@ export const checkout = {
     const lines = [];
     const issued = [];
     let newPack = null;
+    /** @type {any} */
+    let startFormule = null;
     // a pack sold on this ticket can pay for a service on the same ticket
     for (const l of x.lines) {
       if (l.kind !== 'pack') continue;
@@ -120,7 +130,12 @@ export const checkout = {
       if (!sv.pack) fail(400, 'invalid', `« ${sv.name} » n’est pas un carnet.`);
       if (!client) fail(400, 'no_client', 'Un carnet se vend à un client avec sa fiche.');
       if (newPack) fail(400, 'invalid', 'Un seul carnet par ticket.');
-      newPack = { id: ctx.id('pk'), clientId: client.id, name: sv.name, total: sv.pack.credits, serviceIds: sv.pack.serviceIds || [], expires: addDays(day, sv.pack.days), serviceId: sv.id };
+      // a weekly carnet is good for its weeks, the first day included; bought with its dates, they run from the first date
+      startFormule = sv.pack.weekly ? formuleToStart(s, appt, client, sv.id, day) : null;
+      const from = startFormule ? anchorOf(s, startFormule) || day : day;
+      const expires = startFormule ? addDays(from, startFormule.days - 1) : sv.pack.weekly ? addDays(day, weeklyDays(sv.pack.credits, sv.pack.missed) - 1) : addDays(day, sv.pack.days);
+      newPack = { id: ctx.id('pk'), clientId: client.id, name: sv.name, total: sv.pack.credits, serviceIds: sv.pack.serviceIds || [], expires, serviceId: sv.id, ...(sv.pack.weekly ? { weekly: true } : {}) };
+      if (startFormule) startFormule = { f: startFormule, from, expires };
     }
     const packUses = new Map();
     /** member id → the cuts it pays on this ticket: { periodStart, forced } each */
@@ -241,7 +256,9 @@ export const checkout = {
         const py = paymentOf(s, ctx, p.ref || '');
         if (!py || py.status !== 'paid') fail(409, 'unpaid', 'Ce paiement en ligne n’est pas encore confirmé.');
         if (py.usedBy || usedOnline.has(py.id)) fail(409, 'used', 'Ce paiement a déjà été utilisé sur un ticket.');
-        if (p.method === 'deposit' && (!appt || py.apptId !== appt.id)) fail(409, 'deposit', 'Cet acompte concerne un autre rendez-vous.');
+        // the 80 € of a formule paid online ride on its first date and pay the ticket of whichever date he first comes to
+        const sameFormule = !!appt && !!py.apptId && !!formuleOfAppt(s, appt.id) && formuleOfAppt(s, appt.id) === formuleOfAppt(s, py.apptId);
+        if (p.method === 'deposit' && (!appt || (py.apptId !== appt.id && !sameFormule))) fail(409, 'deposit', 'Cet acompte concerne un autre rendez-vous.');
         if (py.amount !== p.amount) fail(400, 'invalid', 'Le montant ne correspond pas au paiement en ligne.');
         usedOnline.add(py.id);
         Object.assign(out, { paymentId: py.id });
@@ -284,7 +301,17 @@ export const checkout = {
     }
     for (const r of redeem) ctx.emit('giftcard.redeemed', { id: r.id, amount: r.amount, saleId: sid });
     if (newPack) ctx.emit('pack.sold', { ...newPack, saleId: sid, cid: newPack.clientId });
+    if (newPack && startFormule) ctx.emit('formule.started', { id: startFormule.f.id, packId: newPack.id, startDay: startFormule.from, expires: startFormule.expires, saleId: sid, cid: newPack.clientId });
     for (const [pid, n] of packUses) for (let i = 0; i < n; i++) ctx.emit('pack.used', { id: pid, saleId: sid });
+    // the last cut of a weekly carnet: « Reprendre 5 coupes », once, by the salon's usual channel
+    for (const [pid, n] of packUses) {
+      const pk = pid === (newPack && newPack.id) ? newPack : s.packs.get(pid);
+      const used = (pid === (newPack && newPack.id) ? 0 : pk.used) + n;
+      const offer = pk && pk.weekly && used >= pk.total ? offerOf(s) : null;
+      if (offer && offer.online && offer.id === pk.serviceId && client && !client.erased && client.phone && client.sms !== false) {
+        queueMessage(s, ctx, { key: 'frenew_' + pk.id, template: 'formuleRenew', text: FORMULE_TEXT.renew, to: client.phone, cid: client.id, vars: { prenom: client.first || '', nombre: String(offer.credits), lien: (ctx.meta.siteUrl || '') + '?reserver&prestation=' + (offer.slug || '') } });
+      }
+    }
     for (const [mid, list] of memberUses) for (const u of list) ctx.emit('member.used', { id: mid, saleId: sid, periodStart: u.periodStart, day, forced: u.forced, cid: client ? client.id : undefined });
     const change = payments.reduce((t, p) => t + (p.change || 0), 0);
     // the only time the full code is known: the till prints it (voucher) or texts it (sendGiftcode), nothing keeps it

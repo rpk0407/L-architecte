@@ -14,7 +14,7 @@ import type { NoteTarget } from '../../types';
 import { useSwipe } from '../agenda/swipe';
 import { PhoneCheckout } from '../caisse/PhoneCheckout';
 
-export type PlanRow = { id: string; start: number; dur: number; name: string; services: string[]; status: string; price: number; paid: boolean; note: string; late: number };
+export type PlanRow = { id: string; start: number; dur: number; name: string; services: string[]; status: string; price: number; paid: boolean; note: string; late: number; /** « coupe 3 sur 5 » of a carnet bought with its dates */ serie?: string };
 export type PlanDay = {
   day: string; today: string; readOnly: boolean; work: [number, number][];
   breaks: { start: number; end: number; label: string }[]; rows: PlanRow[]; gaps: { start: number; end: number; dur: number }[];
@@ -108,7 +108,7 @@ export function Planning({ note, hide = false }: { note: (t: NoteTarget) => void
                     <li key={x.r.id} className={'es-tl-appt' + (x.r.status === 'done' || x.r.status === 'no_show' ? ' past' : '') + (x.r.status === 'in_chair' ? ' live' : '')}>
                       <button type="button" onClick={() => setOpen(x.r)}>
                         <span className="es-rt tnum">{time(x.r.start)}</span>
-                        <span className="es-rn"><b>{x.r.name}</b><small>{x.r.services.join(' + ')} · {x.r.dur} min</small></span>
+                        <span className="es-rn"><b>{x.r.name}</b><small>{x.r.services.join(' + ')}{x.r.serie ? ' · ' + x.r.serie : ''} · {x.r.dur} min</small></span>
                         {x.r.late > 0 ? <span className="badge badge-warn">En retard · {x.r.late} min</span> : WORD[x.r.status] ? <span className={'badge ' + (TONE[x.r.status] || '')}>{WORD[x.r.status]}</span> : null}
                       </button>
                     </li>
@@ -146,7 +146,7 @@ function ApptSheet({ row, day, masked, onClose, note, pay, onDone }: { row: Plan
     <Sheet open={!!r} onClose={onClose} title={r ? r.name : ''} kicker={r && day ? dayWord(day.day, day.today) + ' · ' + time(r.start) : undefined}>
       {r && day ? (
         <div className="es-sheet">
-          <p className="es-line"><b>{r.services.join(' + ')}</b> · {r.dur} min{r.price && !masked ? <> · <span className="money">{eur(r.price)}</span></> : null}</p>
+          <p className="es-line"><b>{r.services.join(' + ')}</b>{r.serie ? ' · ' + r.serie : ''} · {r.dur} min{r.price && !masked ? <> · <span className="money">{eur(r.price)}</span></> : null}</p>
           <p className="es-line">{WORD[r.status] || 'À venir'}{r.late > 0 ? ' · en retard de ' + r.late + ' min' : ''}{r.paid ? ' · encaissé' : ''}</p>
           {r.note ? <p className="es-tech"><b>Note</b> · {r.note}</p> : null}
           {day.readOnly ? <p className="es-plan-note">Ce jour est passé ou clôturé : rien n’y change plus.</p> : null}

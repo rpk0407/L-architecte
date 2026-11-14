@@ -7,6 +7,7 @@ import { photoOf } from '../../state';
 import { dur, hhmm, time } from '../../../lib/format';
 import { useIsPhone, useMedia } from '../../../lib/hooks';
 import type { Agenda, Appt, Lane } from '../../types';
+import { serieWords } from '../../types';
 import { layoutOverlaps, type Place } from './overlap';
 import { drawnRange, freeGaps, offZones, OFF_LABEL } from './day';
 
@@ -208,7 +209,7 @@ export const Board = memo(function Board(p: BoardProps) {
 
 /** What a card says aloud: the hour, who, what, its state, and what to know before touching it. */
 export function apptLabel(a: Appt, missed: string, clash: Appt[]): string {
-  return `${time(a.start)}, ${a.name}, ${a.services.map((s) => s.name).join(' et ')}, ${a.status === 'in_chair' ? 'au fauteuil' : a.status === 'done' ? 'terminé' : a.status === 'no_show' ? 'absent' : a.status === 'arrived' ? 'arrivé' : a.status === 'pending' ? 'acompte en attente' : 'à venir'}${missed ? ', ' + missed : ''}${clash.length ? ', chevauchement avec ' + clash.map((o) => o.name).join(' et ') : ''}`;
+  return `${time(a.start)}, ${a.name}, ${a.services.map((s) => s.name).join(' et ')}${a.formule ? ', ' + serieWords(a.formule) : ''}, ${a.status === 'in_chair' ? 'au fauteuil' : a.status === 'done' ? 'terminé' : a.status === 'no_show' ? 'absent' : a.status === 'arrived' ? 'arrivé' : a.status === 'pending' ? 'acompte en attente' : 'à venir'}${missed ? ', ' + missed : ''}${clash.length ? ', chevauchement avec ' + clash.map((o) => o.name).join(' et ') : ''}`;
 }
 /** a client who already missed: the count in words on the card, not one more icon to decode */
 export const missedOf = (a: Appt): string => ((a.client?.badges || []).includes('absences') && a.client && a.client.noShows ? a.client.noShows + (a.client.noShows > 1 ? ' absences' : ' absence') : '');
@@ -223,7 +224,7 @@ export function ApptCard({ a, px, top, inset = 0, laneColor, place, clash = [], 
   const shared = !!place && place.cols > 1;
   const cls = ['ap', 'st-' + a.status, short ? 'short' : '', selected ? 'sel' : '', dragging ? 'dragging' : '', ghost ? 'ghost' : '', bad ? 'bad' : '', fresh ? 'fresh' : '', clash.length ? 'clash' : '', shared ? 'shared' : ''].filter(Boolean).join(' ');
   const missed = missedOf(a);
-  const svc = a.services.map((s) => s.name.replace('Coupe + ', '+ ').replace(' de barbe', '')).join(' · ');
+  const svc = a.services.map((s) => s.name.replace('Coupe + ', '+ ').replace(' de barbe', '')).join(' · ') + (a.formule ? ' · ' + serieWords(a.formule) : '');
   const label = apptLabel(a, missed, clash);
   // its share of the column when it is not alone at that time
   const share = place && shared ? { left: `calc(5px + (100% - 10px) * ${place.col} / ${place.cols})`, right: 'auto', width: `calc((100% - 10px) / ${place.cols} - ${place.col < place.cols - 1 ? 3 : 0}px)` } : null;

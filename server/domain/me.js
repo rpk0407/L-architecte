@@ -10,6 +10,7 @@ import { startsAt } from './policy.js';
 import { clientStats } from './insights.js';
 import { rhythmOf, statsOfDays } from './rhythm.js';
 import { bookerOf, forFirstIn, notifyOptions, viaOf } from './notify.js';
+import { formulesOfFiles, formuleView, rankOf, rankWords } from './formule.js';
 
 /** A booked appointment can be announced late from 2 h before its start to 15 min after (AC-04's « J’ai du retard »). */
 const LATE_BEFORE = 2 * 3600000, LATE_AFTER = 15 * 60000;
@@ -57,7 +58,9 @@ function upcomingView(s, a, ctx, ids) {
     canChange: ctx.now < changeUntil, changeUntil,
     lateOk: a.status === 'booked' && ctx.now >= start - LATE_BEFORE && ctx.now <= start + LATE_AFTER,
     // FEATURE B: « préviens-moi si un créneau se libère plus tôt », and for whom when he booked it for someone else
-    earlier: !!a.earlier, forFirst: forFirstIn(s, ids, a)
+    earlier: !!a.earlier, forFirst: forFirstIn(s, ids, a),
+    // a date of his carnet bought with its dates: « coupe 3 sur 5 »
+    serie: rankWords(rankOf(s, a.id))
   };
 }
 
@@ -91,8 +94,10 @@ export function meHome(s, c, ids, account, ctx) {
   const set = new Set(ids);
   const fenced = !!(account && account.fenced);
   const stats = fenced ? statsOfDays(visitDays(s, ids, account)) : clientStats(s, ctx.today, ctx.now).get(c.id);
+  const inFormule = new Set(formulesOfFiles(s, ids).map((f) => f.packId).filter(Boolean));
   const carnets = [...s.packs.values()]
-    .filter((k) => set.has(k.clientId) && !k.voided && k.used < k.total && k.expires >= ctx.today && after(account, dayOfMs(k.soldAt)))
+    // a carnet bought with its dates has its own card (GET /api/me/formule): not listed twice
+    .filter((k) => set.has(k.clientId) && !k.voided && k.used < k.total && k.expires >= ctx.today && after(account, dayOfMs(k.soldAt)) && !inFormule.has(k.id))
     .sort((a, b) => a.expires.localeCompare(b.expires))
     .map((k) => ({ id: k.id, name: k.name, left: k.total - k.used, total: k.total, expires: k.expires }));
   const giftcards = [...s.giftcards.values()]
@@ -181,7 +186,9 @@ export function meTodo(s, ids, account, ctx, member) {
   // 1. a booking that waits for its deposit
   for (const a of upcomingOfFiles(s, ids, ctx.now, account)) {
     if (a.status !== 'pending' || !a.deposit || (a.deposit.paid || 0) >= a.deposit.amount) continue;
-    items.push({ id: 'dep_' + a.code, tone: 'warn', title: 'Acompte à régler', amount: a.deposit.amount, day: a.day, start: a.start, action: { kind: 'link', label: 'Régler l’acompte', href: '/r/' + ctx.tokenFor(a) } });
+    // the 80 € of a carnet bought with its dates ride on its first date
+    const carnet = !!rankOf(s, a.id);
+    items.push({ id: 'dep_' + a.code, tone: 'warn', title: carnet ? 'Carnet à régler' : 'Acompte à régler', amount: a.deposit.amount, day: a.day, start: a.start, action: { kind: 'link', label: carnet ? 'Régler le carnet' : 'Régler l’acompte', href: '/r/' + ctx.tokenFor(a) } });
   }
   // 2. the membership: a payment refused first, then the cuts left, the end, the next charge
   if (member && member.status !== 'ended') {
@@ -195,9 +202,24 @@ export function meTodo(s, ids, account, ctx, member) {
     if (m.cancel) items.push({ id: 'mb_cancel', tone: 'info', title: 'Abonnement résilié', until: m.cancel.last });
     else if (m.next) items.push({ id: 'mb_next', tone: 'info', title: 'Prochain prélèvement', amount: m.next.amount, day: m.next.day, card: m.card || '' });
   }
+  // 2b. a carnet bought with its dates: the 80 € still to pay, a week without a date, its end coming with cuts left
+  const inFormule = new Set();
+  for (const f of formulesOfFiles(s, ids)) {
+    if (f.packId) inFormule.add(f.packId);
+    const v = formuleView(s, f, { today, now: ctx.now });
+    if (v.status !== 'open' || (account && account.fenced && account.historyFrom && v.start < account.historyFrom)) continue;
+    const pour = v.forFirst ? ' de ' + v.forFirst : '';
+    if (v.pay === 'due') items.push({ id: 'fo_due_' + f.id, tone: 'warn', title: 'Carnet' + pour + ' à régler au salon', amount: v.price, text: 'À la première coupe.' });
+    if (v.pay !== 'pending') for (const w of v.weeks) {
+      if (w.state !== 'open' || v.left <= v.weeks.filter((x) => x.state === 'booked').length) continue;
+      items.push({ id: 'fo_wk_' + f.id + '_' + w.k, tone: 'warn', title: 'Une semaine sans rendez-vous' + pour, from: w.from, until: w.to, action: { kind: 'formule', label: 'Réserver cette semaine', formule: f.id, week: w.k } });
+    }
+    const open = v.weeks.filter((w) => w.state === 'open' || w.state === 'booked').length;
+    if (v.pay === 'paid' && v.left > 0 && daysTo(today, v.end) <= 7 && v.left > open) items.push({ id: 'fo_end_' + f.id, tone: 'warn', title: 'Carnet' + pour + ' bientôt terminé', left: v.left, until: v.end });
+  }
   // 3. carnet cuts and gift card balances that end soon
   for (const k of s.packs.values()) {
-    if (!set.has(k.clientId) || k.voided || k.used >= k.total || k.expires < today || daysTo(today, k.expires) > SOON_DAYS || !after(account, dayOfMs(k.soldAt))) continue;
+    if (inFormule.has(k.id) || !set.has(k.clientId) || k.voided || k.used >= k.total || k.expires < today || daysTo(today, k.expires) > SOON_DAYS || !after(account, dayOfMs(k.soldAt))) continue;
     items.push({ id: 'pk_' + k.id, tone: 'warn', title: 'Carnet bientôt expiré', left: k.total - k.used, until: k.expires, action: { kind: 'link', label: 'Réserver une coupe', href: '/?reserver' } });
   }
   for (const g of s.giftcards.values()) {

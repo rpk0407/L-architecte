@@ -15,6 +15,7 @@ import { LINK_IP_PER_HOUR, LINK_PER_DAY, linkIpKey, linkPhoneKey } from '../doma
 import { dispatchNow } from './scheduler.js';
 import { accountsOn } from '../settings/accounts.js';
 import { waitUntil } from '@vercel/functions';
+import { formuleLine } from './routes-public.js';
 
 export const LOOKUP_MESSAGE = 'Si un rendez-vous existe à ce numéro, tu reçois un SMS dans un instant.';
 const DAY_MS = 86400000, HOUR_MS = 3600000;
@@ -63,7 +64,7 @@ export function contactView(r, a) {
       staff: st ? { name: st.name, initials: st.initials, color: st.color } : null, anyStaff: !!x.anyStaff,
       deposit: x.deposit ? { amount: x.deposit.amount, paid: x.deposit.paid || 0, open: !!pay && pay.status === 'pending' } : null,
       canChange: clientMayChange(s, x, now), changeUntil: startsAt(x) - hours * 3600000,
-      earlier: !!x.earlier, forFirst: forFirstIn(s, ids, x)
+      earlier: !!x.earlier, forFirst: forFirstIn(s, ids, x), ...formuleLine(s, x)
     };
   });
   return {

@@ -82,7 +82,7 @@ export default async ({ browser, h, page }) => {
   await page.goto(h.base + '/comptoir/reglages/mise-en-route');
   await step(page, 'menu').waitFor();
   await until('the menu and the team ticked', async () => (await done(page, 'menu')) && (await done(page, 'team')));
-  // the old menu's eleven, less the carnet sold at the salon (PAY-04)
+  // the old menu's eleven, less the carnet: it is sold online only once the client space is open (it asks for an account)
   await h.expectText(page, '10 prestations visibles sur le site');
   await h.expectText(page, '1 fauteuil, chacun avec son code');
   await h.shot(page, 'mise-en-route');

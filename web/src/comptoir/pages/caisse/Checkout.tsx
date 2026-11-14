@@ -12,6 +12,7 @@ import { Icon } from '../../../ui/Icon';
 import { Avatar, Button, Chip, Field, Modal, Money, Note, Seg, Sheet, Skeleton, confirm, toast, toastError } from '../../../ui/kit';
 import { useApp } from '../../state';
 import type { Appt, ApptService, Boot, ClientCard, ClientFull, Cover, Service } from '../../types';
+import { serieWords } from '../../types';
 import { GiftCode, Receipt, Voucher, printNow, rate, type VoucherCard } from './Receipt';
 import { LoyaltyDone, RewardChip } from './RewardChip';
 import { TillChips } from './TillChips';
@@ -126,15 +127,27 @@ export function Checkout({ apptId, drawerOpen, onClose, phone = false, onPaid }:
     loaded.current = apptId;
     rid.current = uuid();
     setClient(d.client);
-    const ls = d.appt.services.map((s) => svcLine(s, d.appt.staffId));
+    let ls = d.appt.services.map((s) => svcLine(s, d.appt.staffId));
+    // a date of a carnet bought with its dates (appt.formule): its own carnet pays the cut; not paid yet, this ticket sells
+    // it (its price is due now) and the cut is its first
+    const fo = d.appt.formule || null;
+    const sell = fo && fo.sell && !d.appt.saleId ? serviceById.get(fo.sell.serviceId) : null;
+    const cutOf = sell ? ls.find((l) => l.kind === 'service' && (!sell.pack?.serviceIds?.length || sell.pack.serviceIds.includes(l.ref!))) : null;
+    if (sell && cutOf) {
+      cutOf.packId = 'new';
+      ls = [{ key: k(), kind: 'pack', ref: sell.id, name: sell.name, qty: 1, unit: sell.price, base: sell.price, now: sell.price, from: false, staffId: d.appt.staffId, packId: null, discount: 0, vat: sell.vat }, ...ls];
+    }
     // a carnet's cut is covered by the carnet, unless the membership pays it (the effect below: the month is already paid)
-    for (const l of ls) {
-      const pk = d.client?.packs.find((p) => p.used < p.total && (!p.serviceIds.length || p.serviceIds.includes(l.ref!)));
-      if (pk) { l.packId = pk.id; l.auto = true; }
+    else for (const l of ls) {
+      const fits = (p: { used: number; total: number; serviceIds: string[] }) => p.used < p.total && (!p.serviceIds.length || p.serviceIds.includes(l.ref!));
+      const pk = (fo?.packId ? d.client?.packs.find((p) => p.id === fo.packId && fits(p)) : null) || d.client?.packs.find(fits);
+      if (pk) { l.packId = pk.id; l.auto = !(fo && fo.packId === pk.id); }
     }
     setLines(ls);
     const dep = d.appt.deposit;
-    const depPays: Pay[] = dep && dep.paid && dep.paymentId ? [{ key: k(), method: 'deposit', amount: dep.paid, ref: dep.paymentId, label: 'Acompte payé en ligne' }] : [];
+    // the carnet's price paid online rides on its first date and pays the ticket of whichever date he first comes to
+    const depPays: Pay[] = dep && dep.paid && dep.paymentId ? [{ key: k(), method: 'deposit', amount: dep.paid, ref: dep.paymentId, label: fo ? 'Carnet payé en ligne' : 'Acompte payé en ligne' }]
+      : fo && fo.deposit && sell ? [{ key: k(), method: 'deposit', amount: fo.deposit.paid, ref: fo.deposit.paymentId, label: 'Carnet payé en ligne' }] : [];
     setPays(depPays);
     setDisc(null); setTip(null); setDone(null); setResumed(null);
     pristine.current = draftSig(ls, null, null, depPays, d.client?.id || null);
@@ -281,6 +294,7 @@ export function Checkout({ apptId, drawerOpen, onClose, phone = false, onPaid }:
           {phone ? null : <Button variant="ghost" icon="x" onClick={async () => { if (draftSig(lines, disc, tip, pays, client?.id || null) === pristine.current || await confirm({ title: 'Abandonner ce ticket ?', body: 'Ce que tu as saisi sur ce ticket (lignes, pourboire, paiements posés) est effacé. Rien n’est encaissé.', ok: 'Abandonner', danger: true })) { clearDraft(store, dKey); onClose(); } }}>Fermer</Button>}
         </div>
       </div>
+      {appt?.formule ? <Note icon="ticket"><span data-guide="tk-carnet"><b>{serieWords(appt.formule).replace(/^c/, 'C')}</b>{appt.formule.sell ? ' · le carnet s’encaisse sur ce ticket : ' + eur(appt.formule.sell.price) + (appt.formule.deposit || (appt.deposit?.paid && appt.formule.pay === 'online') ? ', déjà payés en ligne.' : '.') : ' · couverte par le carnet, rien à encaisser pour la coupe.'}</span></Note> : null}
       {resumed ? <Note tone="ok" icon="undo"><span data-guide="tk-resumed" role="status"><b>Ticket repris</b> · commencé à {time(dates.localParts(resumed.at).min)}. Tes lignes, le pourboire et les paiements déjà posés sont revenus : rien à ressaisir, rien n’est compté deux fois.{resumed.gift ? ' Seule la carte cadeau est à repasser (son code n’est jamais gardé).' : ''} {/* money already taken by QR stays on its ticket: no way to drop it by mistake */}{pays.some((p) => p.method === 'online' && p.ref !== paidOnline) ? null : <button type="button" className="link" onClick={restart}>Repartir de zéro</button>}</span></Note> : null}
       {appt && (appt.paidOld || appt.note) ? <Note icon="info"><span data-guide="tk-old">{appt.paidOld ? <b>Acompte de {eur(appt.paidOld, { decimals: appt.paidOld % 100 !== 0 })} déjà payé sur l’ancien site.</b> : null}{appt.paidOld && appt.note ? ' ' : ''}{appt.note ? <>Note : « {appt.note} »</> : null}</span></Note> : null}
       {client?.badges.length ? <div className="row wrap" style={{ gap: 6, marginTop: -6 }}>{client.badges.filter((b) => !CHIPPED.includes(b)).map((b) => <span key={b} className={'badge ' + (b === 'fidèle' ? 'badge-ok' : b === 'nouveau' ? 'badge-info' : '')}>{b}</span>)}<TillChips client={client} />{client.visits ? <span className="badge">{client.visits} visite{client.visits > 1 ? 's' : ''} · {rhythmWords(client.cadence)}</span> : null}</div> : null}

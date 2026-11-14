@@ -400,7 +400,7 @@ test('« Résilier mon abonnement » on the site’s footer and every legal page
   assert.ok(!/Abonnement 5 coupes/.test(site), 'the pack is « Carnet 5 coupes » everywhere on the site');
   // the WordPress menu the owner imports at go-live, and the demo's fixture: the carnet, never a bookable « Abonnement »
   const preset = /\{ slug: 'ab',[^\n]*\}/.exec(read('web/src/comptoir/pages/Catalogue.tsx'))?.[0] || '';
-  assert.ok(preset.includes("name: 'Carnet 5 coupes'") && preset.includes("category: 'Carnet'") && preset.includes('online: false'), preset);
+  assert.ok(preset.includes("name: 'Carnet 5 coupes'") && preset.includes("category: 'Carnet'") && preset.includes('weekly: true'), preset);
   assert.ok(!/Abonnement 5 coupes/.test(read('public/demo.html')));
   assert.ok(site.includes("q: 'Existe-t-il un abonnement ou un carnet ?'") && !site.includes('"Existe-t-il un abonnement ?"'));
   const res = read('public/resilier.html');

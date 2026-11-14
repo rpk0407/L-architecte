@@ -48,7 +48,9 @@
       depositRule: s.payments && s.payments.live === false ? '' : rule,
       // a fee is only announced once a card can really be kept for it (online payment live and card saving shipped)
       noShowFee: live && s.payments.cardOnFile === true && d.noShowFeeCents > 0 ? eur(d.noShowFeeCents) : '',
-      pack: pack ? { name: pack.name, credits: pack.pack.credits, days: pack.pack.days, price: eur(pack.price) } : null,
+      // weekly: the carnet bought with its dates (one cut a week from the first date); plain: any other carnet
+      pack: pack ? { name: pack.name, credits: pack.pack.credits, days: pack.pack.days, price: eur(pack.price), weekly: !!pack.pack.weekly, plain: !pack.pack.weekly, weeks: pack.pack.credits,
+        missedLine: pack.pack.missed === 'once' ? 'Une semaine sans coupe se rattrape une fois, dans la semaine qui suit la dernière.' : 'Une semaine sans coupe est perdue.' } : null,
       // the monthly membership's clauses show only while it is really sold online (live: on, a real or demo payment, plans)
       // terms: they stay while it is on or a contract still runs (its members' pages and mails link to them)
       membership: { live: !!(mb && mb.live && (mb.plans || []).length), terms: !!(mb && (mb.terms || mb.live)), cgv: mb && mb.cgv ? dayLong(mb.cgv) : '' }

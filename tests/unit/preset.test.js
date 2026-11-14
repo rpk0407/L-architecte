@@ -122,9 +122,10 @@ test('applied: the real week of each barber, the twelve services at their price 
     assert.equal(Number(/(\d+)\s*€/.exec(old)[1]) * 100, x.price, 'the price in the old title: ' + old);
   }
   assert.deepEqual([...new Set([...s().services.values()].map((x) => x.category))], ['Coupes', 'Barbe', 'Changer de tête', 'Carnet']);
-  // the carnet is sold at the salon and pays a coupe classique; the old site's draft is kept at the salon only
-  assert.deepEqual(bySlug(s(), 'ab').pack, { credits: 5, days: 70, serviceIds: [bySlug(s(), 'cl').id] });
-  assert.deepEqual([...s().services.values()].filter((x) => x.online === false).map((x) => x.name), ['Carnet 5 coupes', 'Coupe + coloration']);
+  // the carnet pays a coupe classique, one a week for five weeks from the first date (a missed week is lost), and is sold
+  // on the site; the old site's draft is kept at the salon only
+  assert.deepEqual(bySlug(s(), 'ab').pack, { credits: 5, days: 35, serviceIds: [bySlug(s(), 'cl').id], weekly: true, missed: 'lost' });
+  assert.deepEqual([...s().services.values()].filter((x) => x.online === false).map((x) => x.name), ['Coupe + coloration']);
   assert.deepEqual([bySlug(s(), 'de').from, bySlug(s(), 'co').from, bySlug(s(), 'cl').from], [true, true, false]);
 
   // everything went through the normal commands: their usual events and no other, each signed by the owner

@@ -11,7 +11,7 @@ export type Via = 'sms' | 'whatsapp' | 'email';
 export type ContactItem = {
   token: string; code: string; self: boolean; day: string; start: number; dur: number; status: 'pending' | 'booked';
   services: { name: string; price: number; from: boolean }[]; price: number; staff: { name: string; initials: string; color: string } | null; anyStaff: boolean;
-  deposit: { amount: number; paid: number; open: boolean } | null; canChange: boolean; changeUntil: number; earlier: boolean; forFirst: string;
+  deposit: { amount: number; paid: number; open: boolean } | null; canChange: boolean; changeUntil: number; earlier: boolean; forFirst: string; formule?: { n: number; of: number; due: number; pay: string };
 };
 export type ContactView = {
   items: ContactItem[]; cancelUntilHours: number; notify: { via: Via; options: Via[] } | null;
@@ -89,8 +89,8 @@ export function Contact({ token, b }: { token: string; b: Booking }) {
                 <a href={'/r/' + x.token}>
                   <span>
                     <b>{whenOf(x.day, x.start)}</b>
-                    <small>{[x.forFirst ? 'Pour ' + x.forFirst : '', x.services.map((s) => s.name).join(' + '), x.staff ? 'avec ' + x.staff.name : '', priceOf(x)].filter(Boolean).join(' · ')}</small>
-                    {x.status === 'pending' && x.deposit ? <small className="warn">Acompte de {eur(x.deposit.amount)} à régler</small> : !x.canChange ? <small>Moins de {v.cancelUntilHours} h avant : pour changer, appelle le salon.</small> : null}
+                    <small>{[x.forFirst ? 'Pour ' + x.forFirst : '', x.services.map((s) => s.name).join(' + '), x.staff ? 'avec ' + x.staff.name : '', x.formule ? 'coupe ' + x.formule.n + ' sur ' + x.formule.of : priceOf(x)].filter(Boolean).join(' · ')}</small>
+                    {x.status === 'pending' && x.formule ? (x.deposit ? <small className="warn">Carnet de {eur(x.deposit.amount)} à régler</small> : null) : x.status === 'pending' && x.deposit ? <small className="warn">Acompte de {eur(x.deposit.amount)} à régler</small> : !x.canChange ? <small>Moins de {v.cancelUntilHours} h avant : pour changer, appelle le salon.</small> : null}
                   </span>
                   <i aria-hidden>→</i>
                 </a>

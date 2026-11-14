@@ -8,7 +8,7 @@ import { defaultSettings } from '../../server/settings/index.js';
 import { CGV_TEXT, cgvVersionOf } from '../../server/settings/shop.js';
 import { readFile } from 'node:fs/promises';
 
-const clock = { now: at('2026-11-03', 10) };
+const clock = { now: at('2026-12-03', 10) };
 let rt;
 before(async () => { rt = await testRuntime({ clock: () => clock.now }); });
 
@@ -36,7 +36,7 @@ test('PATCH /api/v1/settings takes the legal fields, and the site reads them fro
   const legal = {
     legalName: 'Frank Mariani EI', siret: '512 923 475 00028', ape: '9602A', legalForm: 'Entrepreneur individuel',
     registration: 'RNE 512 923 475', publicationDirector: 'Frank Mariani', phone: '06 12 34 56 78',
-    mediator: { name: 'CM2C', url: 'https://www.cm2c.net' }, cgvVersion: '2026-11-03'
+    mediator: { name: 'CM2C', url: 'https://www.cm2c.net' }, cgvVersion: '2026-12-03'
   };
   const r = await b.patch('/api/v1/settings', { shop: legal }, rid());
   assert.equal(r.status, 200, JSON.stringify(r.json));
@@ -102,12 +102,12 @@ test('a SIRET pasted from a Kbis PDF (non-breaking or narrow spaces) is taken, a
 
 test('the CGV version is dated by the server when the deposit or cancellation rules change, and never goes back', async () => {
   // a week on: sign in again on each new day
-  clock.now = at('2026-11-10', 10);
+  clock.now = at('2026-12-10', 10);
   let b = await owner();
   const v = () => rt.engine.state.settings.shop.cgvVersion;
   const start = v();
   // a real day, not after today
-  for (const [cgvVersion, msg] of [['2026-02-30', 'shop.cgvVersion : date AAAA-MM-JJ attendue'], ['2026-11-11', 'shop.cgvVersion : pas après aujourd’hui']]) {
+  for (const [cgvVersion, msg] of [['2026-02-30', 'shop.cgvVersion : date AAAA-MM-JJ attendue'], ['2026-12-11', 'shop.cgvVersion : pas après aujourd’hui']]) {
     const r = await b.patch('/api/v1/settings', { shop: { cgvVersion } }, rid());
     assert.equal(r.status, 400, cgvVersion);
     assert.equal(r.json.error.message, msg);
@@ -118,22 +118,22 @@ test('the CGV version is dated by the server when the deposit or cancellation ru
   assert.equal(v(), start);
   // a new cancellation delay, without any version from the screen: dated today on the server's clock
   assert.equal((await b.patch('/api/v1/settings', { booking: { cancelUntilHours: 24 } }, rid())).status, 200);
-  assert.equal(v(), '2026-11-10');
+  assert.equal(v(), '2026-12-10');
   // a screen loaded earlier resends the whole shop with its old version: the rest is saved, the version stays
-  clock.now = at('2026-11-12', 10);
+  clock.now = at('2026-12-12', 10);
   b = await owner();
   assert.equal((await b.patch('/api/v1/settings', { shop: { email: 'contact@larchitecte.fr', cgvVersion: '2026-10-27' } }, rid())).status, 200);
   assert.equal(rt.engine.state.settings.shop.email, 'contact@larchitecte.fr');
-  assert.equal(v(), '2026-11-10');
+  assert.equal(v(), '2026-12-10');
   // a deposit change dates it again; the public answer carries it
   assert.equal((await b.patch('/api/v1/settings', { deposits: { percent: 40 } }, rid())).status, 200);
-  assert.equal(v(), '2026-11-12');
-  assert.equal((await browser(rt).get('/api/public/salon')).json.shop.cgvVersion, '2026-11-12');
+  assert.equal(v(), '2026-12-12');
+  assert.equal((await browser(rt).get('/api/public/salon')).json.shop.cgvVersion, '2026-12-12');
   // a bump by hand is still possible, forward only
-  clock.now = at('2026-11-14', 10);
+  clock.now = at('2026-12-14', 10);
   b = await owner();
-  assert.equal((await b.patch('/api/v1/settings', { shop: { cgvVersion: '2026-11-14' } }, rid())).status, 200);
-  assert.equal(v(), '2026-11-14');
+  assert.equal((await b.patch('/api/v1/settings', { shop: { cgvVersion: '2026-12-14' } }, rid())).status, 200);
+  assert.equal(v(), '2026-12-14');
 });
 
 test('the CGV page declares the text date the server knows (CGV_TEXT), and the version in force is the newer of the two', async () => {

@@ -89,7 +89,7 @@ export default function Prochain({ data, reload, note }: EspaceCardProps) {
   return (
     <EsCard guide="espace.prochain" title="Prochain client" icon="scissors" className="es-next" end={n.status === 'in_chair' ? 'au fauteuil' : n.late > 0 ? 'en retard' : undefined}>
       <div className="es-when"><span className="es-t tnum">{time(n.start)}</span><h3 className="es-who">{n.name}</h3></div>
-      <p className="es-svc">{n.services.join(' + ')} · {n.dur} min</p>
+      <p className="es-svc">{n.services.join(' + ')}{n.serie ? ' · ' + n.serie : ''} · {n.dur} min</p>
       <Chips n={n} />
       {last ? (
         <p className="es-last"><b>La dernière fois</b> ({shortDay(last.day)}, {who(last)}) : {last.text}</p>

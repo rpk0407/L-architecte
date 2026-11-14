@@ -65,6 +65,7 @@ const TRUSTED = 'confiance';
 const MSG: Record<string, string> = { confirm: 'Confirmation', confirmation: 'Confirmation', reminder: 'Rappel la veille', reminder2h: 'Rappel 2 h avant', moved: 'Déplacement', cancelled: 'Annulation', review: 'Demande d’avis', rebook: 'Relance', receipt: 'Reçu', waitlist: 'Créneau libéré', deposit: 'Lien d’acompte', lookup: 'Lien Mon rendez-vous', giftcardCode: 'Code carte cadeau' };
 // AC-01: the client space's texts
 Object.assign(MSG, { otp: 'Code de connexion', accountOpened: 'Espace client ouvert', accesInvite: 'Lien vers son espace', dataExport: 'Copie de ses données' });
+Object.assign(MSG, { formuleReleased: 'Carnet non payé : rendez-vous libérés', formuleRenew: 'Carnet terminé : reprendre 5 coupes' });
 // PAY-05: the monthly membership's texts
 Object.assign(MSG, { memberWelcome: 'Bienvenue abonné', memberFailed: 'Paiement refusé', memberAction: 'Validation bancaire', memberCancelled: 'Résiliation', memberStopped: 'Résiliation', memberWithdrawn: 'Rétractation', memberWithdrawnNone: 'Rétractation', memberPaused: 'Pause', memberEnded: 'Abonnement arrêté', memberOffer: 'Proposition d’abonnement', memberLink: 'Lien abonnement', memberCard: 'Changer la carte', memberLinkMail: 'Lien abonnement (e-mail)' });
 

@@ -77,6 +77,9 @@ export const TEMPLATE_FLAGS = {
   // AC-01: the sign-in code (its fixed words live in domain/otp.js, not here) and the salon's invite to the space
   otp: { requested: true },
   accesInvite: { requested: true },
+  // the weekly carnet's last cut, « Reprendre 5 coupes » (its fixed words live in domain/formule.js): about a right he
+  // holds, never to a client who said STOP, never at night
+  formuleRenew: { relation: true, quiet: true },
   // AC-02: a copy of his data, e-mailed to a client who asked for it from his space
   dataExport: { requested: true }
 };

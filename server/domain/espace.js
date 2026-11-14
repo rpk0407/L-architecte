@@ -14,6 +14,7 @@ import { memberCards } from '../http/views.js';
 import { fileIds } from '../commands/clients.js';
 import { teamViewOf } from '../settings/team.js';
 import * as availability from './availability.js';
+import { rankOf, rankWords } from './formule.js';
 
 /** a gap shorter than this is no room for a cut */
 export const MIN_GAP = 20;
@@ -198,7 +199,7 @@ function build(s, me, caps, day, now, local) {
     const st = c ? stats.get(c.id) : null;
     return {
       id: a.id, start: a.start, dur: a.dur, name: nameOfAppt(s, a), clientId: c && !c.erased ? c.id : null, services: a.services.map((x) => x.name), status: a.status, late: late(a),
-      firstVisit: !!c && !(st && st.visits > 0), paid: !!a.saleId, noted: noted(a),
+      firstVisit: !!c && !(st && st.visits > 0), paid: !!a.saleId, noted: noted(a), serie: rankWords(rankOf(s, a.id)),
       // done without a note from him: « + note » (a booking without a file has nowhere to keep one)
       needsNote: a.status === 'done' && !!c && !c.erased && !noted(a) && diffDays(a.day, today) <= NOTE_DAYS
     };
@@ -212,7 +213,7 @@ function build(s, me, caps, day, now, local) {
     const mine = known && noted(nextAppt) ? cutNotesOf(s, fileIds(s, c), KEEP_ALL).find((x) => x.apptId === nextAppt.id) : null;
     next = {
       id: nextAppt.id, start: nextAppt.start, dur: nextAppt.dur, name: nameOfAppt(s, nextAppt), services: nextAppt.services.map((x) => x.name), status: nextAppt.status,
-      late: late(nextAppt), paid: !!nextAppt.saleId, note: known ? c.notes || '' : '', tech: known ? c.tech || '' : '',
+      late: late(nextAppt), paid: !!nextAppt.saleId, serie: rankWords(rankOf(s, nextAppt.id)), note: known ? c.notes || '' : '', tech: known ? c.tech || '' : '',
       client: clientView(s, me, nextAppt, stats, now),
       cutNotes: known ? notesView(s, me, c, nextAppt.id) : [],
       // the note already written for this very visit, to correct it
@@ -313,7 +314,7 @@ function buildPlanning(s, me, day, now, today, nowMin) {
   const closed = s.settings.closures.some((c) => day >= c.from && day <= c.to);
   const rows = appts.map((a) => ({
     id: a.id, start: a.start, dur: a.dur, name: nameOfAppt(s, a), services: a.services.map((x) => x.name), status: a.status, price: a.price || 0,
-    paid: !!a.saleId, note: a.note || '',
+    paid: !!a.saleId, note: a.note || '', serie: rankWords(rankOf(s, a.id)),
     late: isToday && (a.status === 'booked' || a.status === 'pending') && min > a.start ? min - a.start : 0
   }));
   const counted = rows.filter((r) => r.status !== 'no_show');

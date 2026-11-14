@@ -79,7 +79,7 @@ export function presetPlan(s, P, o) {
   const services = P.services.map((x, order) => {
     const have = all.find((v) => v.slug === x.slug) || all.find((v) => fold(v.name) === fold(x.name)) || null;
     return {
-      slug: x.slug, name: x.name, category: x.category, price: x.price, dur: x.dur, from: !!x.from, online: x.online !== false, pack: x.pack ? { credits: x.pack.credits, days: x.pack.days } : null,
+      slug: x.slug, name: x.name, category: x.category, price: x.price, dur: x.dur, from: !!x.from, online: x.online !== false, pack: x.pack ? { credits: x.pack.credits, days: x.pack.days, ...(x.pack.weekly ? { weekly: true, missed: x.pack.missed || 'lost' } : {}) } : null,
       wp: x.wp, draft: x.wpStatus === 'draft', order, status: have ? 'exists' : 'create', id: have ? have.id : null, archived: !!have && have.active === false
     };
   });
@@ -173,7 +173,7 @@ export async function applyPreset(engine, P, input, base) {
           const src = P.services[x.order];
           const { wp: _wp, wpStatus: _st, alias: _al, pack, ...sv } = src;
           const covers = pack ? (pack.covers || []).map((k) => ids[k]).filter(Boolean) : [];
-          ids[x.slug] = step(addService, { ...sv, order: x.order, ...(pack ? { pack: { credits: pack.credits, days: pack.days, ...(covers.length ? { serviceIds: covers } : {}) } } : {}) }, base).id;
+          ids[x.slug] = step(addService, { ...sv, order: x.order, ...(pack ? { pack: { credits: pack.credits, days: pack.days, ...(covers.length ? { serviceIds: covers } : {}), ...(pack.weekly ? { weekly: true, missed: pack.missed || 'lost' } : {}) } } : {}) }, base).id;
           done.services++;
         }
       }

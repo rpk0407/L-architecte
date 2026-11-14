@@ -19,7 +19,7 @@ const span = (a, b) => /** @type {[number, number][]} */ ([[a, b]]);
 /** weekday (0 = Sunday) → working hours in minutes; a day without hours is his weekly day off */
 const week = (days) => Object.fromEntries([0, 1, 2, 3, 4, 5, 6].map((d) => [d, days[d] || []]));
 
-/** @typedef {{ slug: string, name: string, short?: string, category: string, price: number, dur: number, from?: boolean, online?: boolean, tag?: string, description?: string, includes?: string[], pack?: { credits: number, days: number, covers?: string[] }, alias?: string, wp: string, wpStatus: 'publish' | 'draft' }} PresetService */
+/** @typedef {{ slug: string, name: string, short?: string, category: string, price: number, dur: number, from?: boolean, online?: boolean, tag?: string, description?: string, includes?: string[], pack?: { credits: number, days: number, covers?: string[], weekly?: boolean, missed?: 'lost' | 'once' }, alias?: string, wp: string, wpStatus: 'publish' | 'draft' }} PresetService */
 /**
  * owner: the gérant, whose account exists since the setup screen (whatever first name he typed): he gets this chair, never a
  * second account. wp: his name on the old site ('' for someone who was never on it). online: false, not bookable on the
@@ -57,10 +57,11 @@ export const ARCHITECTE = {
     { slug: 'de', name: 'Décoloration', category: 'Changer de tête', price: 6000, from: true, dur: 60, includes: ['Décoloration', 'Shampooing et soin', 'Sans coupe'], description: 'Sous condition de faisabilité. À partir de 60 € sur cheveux courts.', wp: 'Formule Décoloration  60€', wpStatus: 'publish' },
     { slug: 'co', name: 'Coloration', category: 'Changer de tête', price: 3000, from: true, dur: 60, includes: ['Coloration', 'Shampooing et soin', 'Sans coupe'], description: 'À partir de 30 € sur cheveux courts.', wp: 'Formule Coloration 30€', wpStatus: 'publish' },
     { slug: 'si', name: 'Silver', category: 'Changer de tête', price: 10000, dur: 60, tag: 'Blanc ou gris', includes: ['Décoloration jusqu’au blanc', 'Coloration grise', 'Soin', 'Produit d’entretien offert'], description: 'Ne pas laver la tête pendant 4 jours minimum.', wp: 'Formule Silver 100€', wpStatus: 'publish' },
-    // the old « Abonnement 80 € » is a prepaid pack: here it is the Carnet, sold at the salon (« Abonnement » is the monthly plan).
+    // the old « Abonnement 80 € » is a prepaid pack: here it is the Carnet (« Abonnement » is the monthly plan), sold on the
+    // site and at the salon: five cuts, one a week from the first date (weekly), a week without a cut lost (missed).
     // An appointment is never a carnet (the import's wizard keeps carnets out of its list), so the old title cannot
     // map to it by name: `alias` says where its bookings go instead, the visit itself, a coupe classique.
-    { slug: 'ab', alias: 'cl', name: 'Carnet 5 coupes', short: 'Carnet', category: 'Carnet', price: 8000, dur: 30, online: false, tag: '16 € la coupe', includes: ['5 coupes sur 5 semaines', 'Sans barbe'], description: '16 € la coupe. Il se prend au salon : on fixe tes coupes avec toi.', pack: { credits: 5, days: 70, covers: ['cl'] }, wp: 'Formule Abonnement  80€ 5 rdv sur 5 semaines d’affilées', wpStatus: 'publish' },
+    { slug: 'ab', alias: 'cl', name: 'Carnet 5 coupes', short: 'Carnet', category: 'Carnet', price: 8000, dur: 30, tag: '16 € la coupe', includes: ['5 coupes, une par semaine', 'Shampooing et coiffage', 'Sans la barbe'], description: '16 € la coupe. Tu choisis tes 5 rendez-vous en réservant, un par semaine.', pack: { credits: 5, days: 35, covers: ['cl'], weekly: true, missed: 'lost' }, wp: 'Formule Abonnement  80€ 5 rdv sur 5 semaines d’affilées', wpStatus: 'publish' },
     // a draft on the old site, yet still booked from its back office: kept, at the salon only (never offered on the site)
     { slug: 'cco', name: 'Coupe + coloration', short: 'Coupe + couleur', category: 'Changer de tête', price: 3500, dur: 30, online: false, includes: ['Coupe d’entretien', 'Coloration', 'Soin de la barbe'], wp: 'Formule Coupe et coloration 35€', wpStatus: 'draft' }
   ],
@@ -93,7 +94,7 @@ export const ARCHITECTE = {
     'Le salon est ouvert de 8 h 30 à 18 h 30 sur l’ancien site, mais aucun barbier ne commence avant 9 h ni ne finit après 18 h : le site ne proposera rien en dehors de leurs horaires.',
     'Six prestations ont sur l’ancien site un « prix par barbier » qui contredit leur titre (Cover barbe et Entretien barbe : 20 € au lieu de 15 € ; Transformation, Décoloration, Coloration et Silver : 25 €). Les réservations ont toujours été au prix du titre : c’est lui qui est repris.',
     '« Coupe et coloration 35 € » est en brouillon sur l’ancien site mais a encore un rendez-vous à venir : elle est reprise « au salon seulement », jamais proposée sur le site.',
-    'L’« Abonnement 80 € » de l’ancien site devient le Carnet 5 coupes, vendu au salon. Un rendez-vous déjà pris sous ce nom est une coupe classique : à la caisse, vends le carnet et paie la coupe avec.',
+    'L’« Abonnement 80 € » de l’ancien site devient le Carnet 5 coupes, vendu sur le site (avec un compte client) et au salon : 5 coupes, une par semaine. Un rendez-vous déjà pris sous ce nom est une coupe classique : à la caisse, vends le carnet et paie la coupe avec.',
     'Les commissions ne sont pas connues de l’ancien site : chaque barbier commence à 0 %, règle la sienne dans Équipe.',
     'Aland n’est pas sur l’ancien site et ses horaires ne sont pas connus : il est créé sans horaires et n’est pas proposé en ligne. Entre sa semaine dans Équipe (sa fiche), puis active « Réservable en ligne ».',
     'Chacun reçoit son portrait, s’il n’a pas encore de photo : dans le Comptoir et sur le site. Le tien et ceux de l’équipe se masquent du site dans Équipe ; chacun peut masquer le sien dans Mon espace.'
