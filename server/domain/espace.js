@@ -213,7 +213,7 @@ function build(s, me, caps, day, now, local) {
     const mine = known && noted(nextAppt) ? cutNotesOf(s, fileIds(s, c), KEEP_ALL).find((x) => x.apptId === nextAppt.id) : null;
     next = {
       id: nextAppt.id, start: nextAppt.start, dur: nextAppt.dur, name: nameOfAppt(s, nextAppt), services: nextAppt.services.map((x) => x.name), status: nextAppt.status,
-      late: late(nextAppt), paid: !!nextAppt.saleId, note: known ? c.notes || '' : '', tech: known ? c.tech || '' : '',
+      late: late(nextAppt), paid: !!nextAppt.saleId, serie: rankWords(rankOf(s, nextAppt.id)), note: known ? c.notes || '' : '', tech: known ? c.tech || '' : '',
       client: clientView(s, me, nextAppt, stats, now),
       cutNotes: known ? notesView(s, me, c, nextAppt.id) : [],
       // the note already written for this very visit, to correct it

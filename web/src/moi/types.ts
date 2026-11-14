@@ -16,6 +16,8 @@ export type MeUpcoming = {
   canChange: boolean; changeUntil: number; lateOk: boolean;
   /** FEATURE B: « préviens-moi si un créneau se libère plus tôt » is on; forFirst: the person it is for when he booked it for someone else */
   earlier?: boolean; forFirst?: string;
+  /** a date of his carnet bought with its dates: « coupe 3 sur 5 » ('' otherwise) */
+  serie?: string;
 };
 
 /** FEATURE B: how the salon reaches him (reminders, « un créneau s'est libéré »), among the ways it can now */

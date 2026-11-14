@@ -10,6 +10,8 @@ import { Icon } from '../../../ui/Icon';
 import { Avatar, Button, Chip, Field, Money, Note, Sheet, Switch, confirm, toast, toastError, Skeleton } from '../../../ui/kit';
 import { useApp } from '../../state';
 import type { Agenda, Appt, ClientCard, ClientFull, Service } from '../../types';
+import { serieWords } from '../../types';
+import { FormuleDates, weeklyCarnet, type SerieWeek } from './Formule';
 import { overlapping } from './overlap';
 import './walkin.css';
 import { arrivalWords } from '../espace/Arrival';
@@ -112,13 +114,15 @@ export function ApptSheet({ id, onClose }: { id: string | null; onClose: () => v
     const paid = (a!.deposit && a!.deposit.paid) || 0;
     // the refund is only promised to whoever will really trigger it (`sale.refund`); the others read who must do it
     const refunds = !!paid && can('sale.refund');
-    const money = !paid ? '' : refunds ? ' L’acompte de ' + eur(paid) + ' sera remboursé sur sa carte.' : ' Attention : l’acompte de ' + eur(paid) + ' ne sera pas remboursé par cette annulation. Seul le gérant peut le rembourser (Caisse › En ligne) : préviens-le.';
+    // a carnet's price paid online stays for its other dates: nothing is promised back here (the answer says what happened)
+    const money = a!.formule ? (paid ? ' Le carnet payé en ligne reste valable pour ses autres rendez-vous.' : a!.formule.pay === 'due' ? ' Carnet non payé : si c’est sa première coupe et qu’elle est à moins de ' + boot.settings.booking.cancelUntilHours + ' h, ses autres rendez-vous seront libérés et il sera prévenu.' : '') : !paid ? '' : refunds ? ' L’acompte de ' + eur(paid) + ' sera remboursé sur sa carte.' : ' Attention : l’acompte de ' + eur(paid) + ' ne sera pas remboursé par cette annulation. Seul le gérant peut le rembourser (Caisse › En ligne) : préviens-le.';
     const yes = await confirm({ title: 'Annuler ce rendez-vous ?', body: `${a!.name} · ${dayShortWord(a!.day, boot.today)} à ${time(a!.start)}. Le créneau redevient libre${boot.settings.booking.waitlist ? ' et la liste d’attente est prévenue' : ''}.${money}`, ok: 'Oui, annuler', cancel: 'Non, le garder', danger: true });
     if (!yes) return;
     run('cancel', async () => {
-      const r = await api.post<{ refunded?: boolean; refundError?: string; depositLeft?: number }>('/api/v1/appointments/' + a!.id + '/cancel', { reason: 'Annulé par le salon', notify: true, refundDeposit: refunds });
+      const r = await api.post<{ refunded?: boolean; refundError?: string; depositLeft?: number; formule?: { released: number } }>('/api/v1/appointments/' + a!.id + '/cancel', { reason: 'Annulé par le salon', notify: true, refundDeposit: refunds });
       // the last word comes from the server's answer: what really happened to the deposit, not what was hoped
-      if (r.refunded) toast({ title: 'Rendez-vous annulé · acompte de ' + eur(paid) + ' remboursé', sub: 'Le client est prévenu.', icon: 'check' });
+      if (r.formule) toast({ kind: 'info', title: 'Rendez-vous annulé · carnet non payé', sub: 'Ses ' + r.formule.released + ' autres rendez-vous sont libérés, le client est prévenu par message.', icon: 'alert', ttl: 9000 });
+      else if (r.refunded) toast({ title: 'Rendez-vous annulé · acompte de ' + eur(paid) + ' remboursé', sub: 'Le client est prévenu.', icon: 'check' });
       else if (r.refundError) toast({ kind: 'err', title: 'Rendez-vous annulé, mais acompte non remboursé chez Stripe : ' + r.refundError, icon: 'alert', ttl: 9000 });
       else if (r.depositLeft) toast({ kind: 'info', title: 'Rendez-vous annulé · acompte de ' + eur(r.depositLeft) + ' pas encore remboursé', sub: 'Le gérant décide dans Caisse › En ligne : préviens-le.', icon: 'alert', ttl: 9000 });
       else toast({ title: 'Rendez-vous annulé · le client est prévenu', icon: 'check' });
@@ -127,8 +131,10 @@ export function ApptSheet({ id, onClose }: { id: string | null; onClose: () => v
   };
   // an absence marked by mistake is taken back from the message itself
   const absent = () => run('no_show', async () => {
-    await api.post('/api/v1/appointments/' + a!.id + '/status', { status: 'no_show' });
+    const res = await api.post<{ formule?: { released: number } }>('/api/v1/appointments/' + a!.id + '/status', { status: 'no_show' });
     const id = a!.id;
+    // the first cut of a carnet nobody paid for: its other dates went back to everyone, the client was told
+    if (res.formule) { toast({ kind: 'info', title: 'Marqué absent · carnet non payé', sub: res.formule.released ? 'Ses ' + res.formule.released + ' autres rendez-vous sont libérés, le client est prévenu par message.' : 'Il n’avait pas d’autre rendez-vous.', icon: 'alert', ttl: 9000 }); return; }
     toast({ title: 'Marqué absent · le créneau est libéré', icon: 'check', action: { label: 'Annuler', run: async () => { try { await api.post('/api/v1/appointments/' + id + '/status', { status: 'booked' }); refreshAll(); refresh(); } catch (e) { toastError(e); } } } });
   });
   const saveTech = () => { if (data?.client && tech !== data.client.tech) run('tech', () => api.patch('/api/v1/clients/' + data.client!.id, { tech }), 'Fiche technique enregistrée'); };
@@ -187,6 +193,7 @@ export function ApptSheet({ id, onClose }: { id: string | null; onClose: () => v
           ) : null}
           <div className="card card-tight">
             {a.services.map((s) => <div key={s.id} className="kv"><span>{s.name} · {dur(s.dur)}</span><b><Money cents={s.price} />{s.from ? ' +' : ''}</b></div>)}
+            {a.formule ? <Note icon="ticket"><b>{cap(serieWords(a.formule))}</b> du carnet. {a.formule.pay === 'paid' ? 'La coupe est payée par le carnet.' : a.formule.pay === 'online' ? 'Carnet payé en ligne : la caisse le met sur le ticket de cette coupe.' : a.formule.pay === 'pending' ? 'Le paiement en ligne du carnet est attendu.' : 'Carnet à encaisser à la première coupe (' + eur(a.formule.sell?.price || 0) + ') : la caisse le propose.'}</Note> : null}
             {data?.client ? <div className="kv"><span>Téléphone</span><b>{data.client.hasPhone ? data.client.phone : '—'}</b></div> : null}
           </div>
           {a.note ? <Note icon="sms"><b>Note du client :</b> {a.note}</Note> : null}
@@ -238,11 +245,16 @@ export function CreateSheet({ open, prefill, onClose, onCreated }: { open: boole
   const [note, setNote] = useState('');
   const [sms, setSms] = useState(true);
   const [busy, setBusy] = useState(false);
+  // the weekly carnet, sold here with its five dates (POST /api/v1/formules); serie: the four dates after the first
+  const carnetOf = useMemo(() => weeklyCarnet(boot.services), [boot.services]);
+  const [carnet, setCarnet] = useState(false);
+  const [serie, setSerie] = useState<SerieWeek[] | null>(null);
   const dq = useDebounced(q, 180);
   const results = useQuery<{ items: ClientCard[] }>(open && mode === 'search' && dq.trim().length >= 2 && can('client.view') ? '/api/v1/clients' + qs({ q: dq, limit: 6 }) : null);
   useEffect(() => {
     if (!open) return;
     setQ(''); setMode('search'); setNc({ first: '', last: '', phone: '' }); setName(''); setNote(''); setSms(true);
+    setCarnet(false); setSerie(null);
     setSvc(prefill?.serviceIds || []);
     const st = prefill?.staffId || (can('agenda.edit') ? 'any' : boot.me.id);
     setStaff(st);
@@ -253,14 +265,26 @@ export function CreateSheet({ open, prefill, onClose, onCreated }: { open: boole
   // the booking's switch starts from the client's own « SMS de service » choice: no text to someone who said no
   useEffect(() => { if (client) setSms(client.sms !== false); }, [client?.id]);
   const fixed = prefill?.day != null && prefill.start != null && when && when.day === prefill.day && when.start === prefill.start;
-  const total = svc.reduce((t, id) => t + (boot.services.find((s) => s.id === id)?.price || 0), 0);
+  const sold = carnet && carnetOf ? carnetOf : null;
+  const total = sold ? sold.pack.price : svc.reduce((t, id) => t + (boot.services.find((s) => s.id === id)?.price || 0), 0);
   const length = svc.reduce((t, id) => t + (boot.services.find((s) => s.id === id)?.dur || 0), 0);
   const who = client ? client.first + ' ' + client.last : mode === 'new' ? (nc.first + ' ' + nc.last).trim() : name;
-  const valid = svc.length && when && when.start >= 0 && (client || (mode === 'new' && nc.first.trim()) || (mode === 'none' && name.trim()));
+  const valid = svc.length && when && when.start >= 0 && (client || (mode === 'new' && nc.first.trim()) || (mode === 'none' && name.trim())) && (!sold || (mode !== 'none' && !!serie));
   const submit = async (force = false) => {
     if (!valid || !when) return;
     setBusy(true);
     try {
+      if (sold && serie) {
+        // the carnet: its five dates in one go, all of them or none; the till asks for its price at the first cut
+        const body: any = { serviceId: sold.pack.id, first: { staffId: when.staffId, day: when.day, start: when.start }, weeks: serie.map((w) => (w.later ? { later: true } : { staffId: w.staffId, day: w.day, start: w.start })), note: note || undefined, sms };
+        if (client) body.clientId = client.id; else body.client = { first: nc.first, last: nc.last, phone: nc.phone || undefined };
+        const r = await api.post<{ id: string; paid?: boolean; appts: { id: string; day: string }[] }>('/api/v1/formules', body);
+        toast({ title: sold.pack.name + ' : ' + r.appts.length + ' dates réservées', sub: who + ' · ' + (r.paid ? 'carnet déjà payé' : eur(sold.pack.price) + ' à encaisser à la première coupe, la caisse le propose'), icon: 'check', ttl: 9000 });
+        refreshAll();
+        onCreated?.(r.appts[0].id, when.day);
+        onClose();
+        return;
+      }
       const body: any = { serviceIds: svc, staffId: when.staffId, day: when.day, start: when.start, note: note || undefined, sms, source: 'phone', force };
       if (client) body.clientId = client.id;
       else if (mode === 'new') body.client = { first: nc.first, last: nc.last, phone: nc.phone || undefined };
@@ -293,7 +317,7 @@ export function CreateSheet({ open, prefill, onClose, onCreated }: { open: boole
   };
   return (
     <Sheet open={open} onClose={onClose} title="Nouveau rendez-vous" kicker={fixed && when ? dayShortWord(when.day, boot.today) + ' · ' + time(when.start) + ' · ' + staffById.get(when.staffId)?.name : 'Au téléphone ou au comptoir'}
-      footer={<><span className="sum"><b><Money cents={total} /></b><span>{svc.length ? dur(length) : 'Choisis une prestation'}{when && when.start >= 0 ? ' · ' + dayShortWord(when.day, boot.today) + ' ' + time(when.start) : ''}</span></span><Button variant="primary" size="lg" disabled={!valid || offline} title={offline ? 'Hors ligne : la réservation attend le retour de la connexion.' : undefined} aria-describedby={offline ? 'cr-off' : undefined} busy={busy} onClick={() => submit()}>Réserver</Button></>}>
+      footer={<><span className="sum"><b><Money cents={total} /></b><span>{sold ? (serie ? 1 + serie.filter((w) => !w.later).length : sold.pack.pack!.credits) + ' dates' : svc.length ? dur(length) : 'Choisis une prestation'}{when && when.start >= 0 ? ' · ' + dayShortWord(when.day, boot.today) + ' ' + time(when.start) : ''}</span></span><Button variant="primary" size="lg" disabled={!valid || offline} title={offline ? 'Hors ligne : la réservation attend le retour de la connexion.' : undefined} aria-describedby={offline ? 'cr-off' : undefined} busy={busy} onClick={() => submit()}>{sold && serie ? 'Réserver les ' + (1 + serie.filter((w) => !w.later).length) + ' dates' : 'Réserver'}</Button></>}>
       {offline ? <p id="cr-off" className="off-why" role="status"><Icon name="alert" size={14} />Hors ligne : la réservation attend le retour de la connexion.</p> : null}
       <div className="col" style={{ gap: 10 }}>
         <p className="section-k">Client</p>
@@ -321,13 +345,16 @@ export function CreateSheet({ open, prefill, onClose, onCreated }: { open: boole
           </div>
         )}
       </div>
-      <div className="col" style={{ gap: 10 }}><p className="section-k">Prestation</p><ServicePicker value={svc} onChange={setSvc} /></div>
+      <div className="col" style={{ gap: 10 }}><p className="section-k">Prestation</p>
+        {carnetOf && mode !== 'none' ? <div data-guide="agenda-carnet"><Switch on={carnet} onChange={(v) => { setCarnet(v); setSerie(null); if (v) setSvc([carnetOf.coverId]); }} title={carnetOf.pack.name + ' · ' + eur(carnetOf.pack.price)} hint={carnetOf.pack.pack!.credits + ' coupes, une par semaine : les ' + carnetOf.pack.pack!.credits + ' dates se réservent ici. Le carnet s’encaisse à la première coupe.'} /></div> : null}
+        {sold ? <Note icon="ticket">{boot.services.find((s) => s.id === sold.coverId)?.name} : choisis la première date, les autres suivent.</Note> : <ServicePicker value={svc} onChange={setSvc} />}</div>
       {!fixed ? (
         <>
           <div className="col" style={{ gap: 10 }}><p className="section-k">Barbier</p><StaffPicker value={staff} onChange={(v) => { setStaff(v); setWhen(null); }} /></div>
-          <div className="col" style={{ gap: 10 }}><p className="section-k">Quand</p><SlotPicker serviceIds={svc} staffId={staff} day={prefill?.day || boot.today} value={when} onPick={setWhen} /></div>
+          <div className="col" style={{ gap: 10 }}><p className="section-k">Quand</p><SlotPicker serviceIds={svc} staffId={staff} day={prefill?.day || boot.today} value={when} onPick={(v) => { setWhen(v); setSerie(null); }} /></div>
         </>
       ) : <Note icon="clock">{cap(dayWord(when!.day, boot.today))} à {time(when!.start)} avec {staffById.get(when!.staffId)?.name}. <button type="button" className="link" onClick={() => setWhen(null)}>Changer</button></Note>}
+      {sold && when && when.start >= 0 ? <FormuleDates coverId={sold.coverId} first={when} weeks={serie} onChange={setSerie} /> : null}
       <Field label="Note pour le barbier" htmlFor="nc-note"><input id="nc-note" className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Facultatif" maxLength={300} /></Field>
       {(client?.hasPhone || (mode === 'new' && nc.phone)) ? <Switch on={sms} onChange={setSms} title="Confirmer par SMS" hint="Avec un lien pour déplacer ou annuler, puis un rappel la veille." /> : null}
     </Sheet>

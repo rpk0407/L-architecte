@@ -11,7 +11,7 @@ export type SavedView = { page: string; name: string; query: string };
 // homeBlocks: the Accueil's own blocks he keeps in sight (absent: all, or this device's earlier choice)
 export type Prefs = { homeBlocks?: { prochain: boolean; fauteuils: boolean; jour: boolean }; home: 'auto' | 'accueil' | 'espace' | 'agenda' | 'pilotage'; notify: 'mine' | 'all' | 'none'; buzz: boolean; cards: string[]; hidden: string[]; blur: 'auto' | 'on' | 'off'; cal: number; calName: boolean; tour?: TourPrefs; homeCards?: string[]; homeHidden?: string[]; homeDay?: 'salon' | 'moi'; tabs?: string[]; views?: SavedView[] };
 export type Me = Staff & { caps: string[]; device: { id: string; name: string; personal?: boolean } | null; session: 'pwd' | 'pin'; prefs: Prefs };
-export type Service = { id: string; slug: string | null; name: string; short: string; category: string; price: number; from: boolean; dur: number; buffer: number; online: boolean; deposit: number | null; vat: number; order: number; description: string; includes: string[]; pack: { credits: number; days: number; serviceIds?: string[] } | null; tag?: string; active: boolean };
+export type Service = { id: string; slug: string | null; name: string; short: string; category: string; price: number; from: boolean; dur: number; buffer: number; online: boolean; deposit: number | null; vat: number; order: number; description: string; includes: string[]; pack: { credits: number; days: number; serviceIds?: string[]; weekly?: boolean; missed?: 'lost' | 'once' } | null; tag?: string; active: boolean };
 export type Product = { id: string; name: string; price: number; cost: number; stock: number; low: number; vat: number; sku: string; category: string; active: boolean };
 export type Settings = any;
 export type Boot = { me: Me; mode: 'demo' | 'production'; today: string; now: number; version: number; cfg: number; settings: Settings; staff: Staff[]; services: Service[]; products: Product[]; providers: { payments: string; paymentsLive: boolean; sms: string | null; store: string }; warnings: string[]; alerts?: string[] };
@@ -45,7 +45,12 @@ export type Cover = { ok: boolean; why: 'ended' | 'paused' | 'unpaid' | 'service
 /** settings.membership.plans (server/settings/membership.js) */
 export type Plan = { id: string; name: string; price: number; cuts: number; minDays: number; serviceIds: string[]; vat?: number; online: boolean; blurb: string; active: boolean; rhythm?: 'month' | 'week'; perWeek?: number; missed?: 'lost' | 'month' | 'free' };
 export type ApptService = { id: string; name: string; price: number; from: boolean; dur: number };
-export type Appt = { id: string; code: string; staffId: string; anyStaff: boolean; day: string; start: number; dur: number; services: ApptService[]; price: number; status: 'pending' | 'booked' | 'arrived' | 'in_chair' | 'done' | 'no_show' | 'cancelled'; source: string; note: string; name: string; client: ClientCard | null; deposit: { amount: number; paid: number; paymentId: string | null } | null; saleId: string | null; createdAt: number; statusAt: Record<string, number>; cancel: any; moves: number; demo: boolean; legacy?: boolean ; /** a deposit paid on the old site, to settle at the till once (« Payé sur l’ancien site ») */ paidOld?: number};
+export type Appt = { id: string; code: string; staffId: string; anyStaff: boolean; day: string; start: number; dur: number; services: ApptService[]; price: number; status: 'pending' | 'booked' | 'arrived' | 'in_chair' | 'done' | 'no_show' | 'cancelled'; source: string; note: string; name: string; client: ClientCard | null; deposit: { amount: number; paid: number; paymentId: string | null } | null; saleId: string | null; createdAt: number; statusAt: Record<string, number>; cancel: any; moves: number; demo: boolean; legacy?: boolean ; /** a deposit paid on the old site, to settle at the till once (« Payé sur l’ancien site ») */ paidOld?: number;
+  /** a date of a carnet bought with its dates: « coupe n sur of »; sell: the carnet is still to pay, this ticket sells it; deposit: its price paid online, for that ticket; packId: the carnet that pays the cut */
+  formule?: ApptFormule };
+export type ApptFormule = { id: string; n: number; of: number; pay: 'paid' | 'online' | 'pending' | 'due'; packId: string | null; sell: { serviceId: string; name: string; price: number } | null; deposit: { paymentId: string; paid: number } | null };
+/** « coupe 3 sur 5 » */
+export const serieWords = (f?: { n: number; of: number } | null) => (f ? 'coupe ' + f.n + ' sur ' + f.of : '');
 export type Lane = Staff & { work: [number, number][] };
 export type Block = { id: string; staffId: string; day: string; start: number; dur: number; label: string };
 export type Hold = { id: string; staffId: string; start: number; dur: number; exp: number; by: string };
@@ -103,14 +108,14 @@ export type EspaceNow =
   | { min: number; status: 'off'; kind: 'none' | 'before' | 'break' | 'after'; until: number | null };
 export type CutNoteView = { id: string; apptId: string; day: string; staff: string; by?: string; mine: boolean; text: string; edited: boolean };
 export type EspaceNext = {
-  id: string; start: number; dur: number; name: string; services: string[]; status: EspaceStatus; late: number; paid: boolean; note: string; tech: string;
+  id: string; start: number; dur: number; name: string; services: string[]; status: EspaceStatus; late: number; paid: boolean; note: string; tech: string; serie?: string;
   client: {
     id: string; name: string; visits: number; withMe: number; firstVisit: boolean; usual: boolean; lastCut: { day: string; staffName: string; services: string[] } | null; cadence: number | null;
     birthdaySoon: { inDays: number; day: string } | null; noShows: number; member: { kind: 'member' | 'carnet'; label: string; used: number; of: number; rhythm?: 'week'; perWeek?: number; missed?: 'lost' | 'month' | 'free'; week?: MemberWeek | null } | null; prefersMe: boolean;
   } | null;
   cutNotes: CutNoteView[]; myNote: string | null; canNote: boolean; lateNotice: { min: number | null; at: number | null } | null;
 };
-export type EspaceRow = { id: string; start: number; dur: number; name: string; clientId: string | null; services: string[]; status: EspaceStatus; late: number; firstVisit: boolean; paid: boolean; noted: boolean; needsNote: boolean };
+export type EspaceRow = { id: string; start: number; dur: number; name: string; clientId: string | null; services: string[]; status: EspaceStatus; late: number; firstVisit: boolean; paid: boolean; noted: boolean; needsNote: boolean; /** « coupe 3 sur 5 » of a carnet bought with its dates */ serie?: string };
 export type EspaceFigures = { from: string; to: string; performed: number; commission: number; tips: number; done: number; fill: number; avgTicket: number; rebookRate: number };
 export type EspaceData = {
   day: string; today: string; now: EspaceNow | null; next: EspaceNext | null; list: EspaceRow[];

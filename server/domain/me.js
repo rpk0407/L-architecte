@@ -94,8 +94,10 @@ export function meHome(s, c, ids, account, ctx) {
   const set = new Set(ids);
   const fenced = !!(account && account.fenced);
   const stats = fenced ? statsOfDays(visitDays(s, ids, account)) : clientStats(s, ctx.today, ctx.now).get(c.id);
+  const inFormule = new Set(formulesOfFiles(s, ids).map((f) => f.packId).filter(Boolean));
   const carnets = [...s.packs.values()]
-    .filter((k) => set.has(k.clientId) && !k.voided && k.used < k.total && k.expires >= ctx.today && after(account, dayOfMs(k.soldAt)))
+    // a carnet bought with its dates has its own card (GET /api/me/formule): not listed twice
+    .filter((k) => set.has(k.clientId) && !k.voided && k.used < k.total && k.expires >= ctx.today && after(account, dayOfMs(k.soldAt)) && !inFormule.has(k.id))
     .sort((a, b) => a.expires.localeCompare(b.expires))
     .map((k) => ({ id: k.id, name: k.name, left: k.total - k.used, total: k.total, expires: k.expires }));
   const giftcards = [...s.giftcards.values()]

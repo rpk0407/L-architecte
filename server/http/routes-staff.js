@@ -268,6 +268,8 @@ const SMS_FR = { confirmation: 'confirmation', reminder: 'rappel la veille', rem
 Object.assign(SMS_FR, { memberCard: 'abonnement : changer la carte', memberLinkMail: 'lien de l’abonnement (e-mail)' });
 // AC-01: the client space's texts
 Object.assign(SMS_FR, { otp: 'code de connexion', accountOpened: 'espace ouvert', accesInvite: 'lien vers son espace' });
+// the carnet bought with its dates (commands/formule.js, commands/sales.js)
+Object.assign(SMS_FR, { formuleReleased: 'carnet non payé, rendez-vous libérés', formuleRenew: 'carnet terminé, reprendre' });
 // AC-02: a copy of his data sent to a client, and the owner's mails about his requests
 Object.assign(SMS_FR, { dataExport: 'copie de ses données (e-mail)', owner_erase: 'alerte demande d’effacement', owner_export: 'alerte demande de données' });
 const MEMBER_FR = { pending: 'paiement attendu', active: 'en cours', grace: 'paiement en retard', unpaid: 'impayé', ending: 'résilié, en cours jusqu’à la fin du mois payé', ended: 'terminé' };

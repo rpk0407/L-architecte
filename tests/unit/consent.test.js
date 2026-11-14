@@ -337,7 +337,7 @@ test('attribution counts clients, not appointments, within 21 days, never above 
 
 test('the site records consent with when and where, and the CGV version accepted', async () => {
   const t = await salon();
-  t.engine.state.settings.shop.cgvVersion = '2026-11-03'; // the owner changed a rule after the text's own date
+  t.engine.state.settings.shop.cgvVersion = '2026-12-03'; // the owner changed a rule after the text's own date
   const base = { serviceIds: [t.ids.cut], staffId: 'any', day: addDays(DAY, 1), first: 'Lina' };
   const yes = await t.engine.run(A.bookOnline, { ...base, start: 600, phone: '0644444444', marketing: true }, t.asClient);
   const c = t.engine.state.clients.get(t.engine.state.appts.get(yes.id).clientId);
@@ -345,7 +345,7 @@ test('the site records consent with when and where, and the CGV version accepted
   assert.equal(c.marketingSrc, 'site');
   assert.equal(c.marketingAt, t.clock.now);
   const ev = t.engine.journal.find((e) => e.type === 'appt.booked' && e.data.id === yes.id);
-  assert.equal(ev.data.cgv, '2026-11-03');
+  assert.equal(ev.data.cgv, '2026-12-03');
   // unticked: nothing is assumed, and an earlier yes is not taken back
   const no = await t.engine.run(A.bookOnline, { ...base, start: 660, phone: '0655555555' }, t.asClient);
   assert.equal(t.engine.state.clients.get(t.engine.state.appts.get(no.id).clientId).marketing, false);

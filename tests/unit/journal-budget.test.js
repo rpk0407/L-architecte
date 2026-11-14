@@ -51,5 +51,5 @@ test('the seeded demo journal fits the budget: â‰¤ 8 000 events, a cold replay â
   // one a week: never two covered cuts in a calendar week
   for (const m of s.members.values()) assert.equal(new Set(m.uses.map((u) => weekStart(u.day))).size, m.uses.length);
   const carnet = [...s.services.values()].find((x) => x.pack);
-  assert.deepEqual([carnet.name, carnet.category, carnet.online], ['Carnet 5 coupes', 'Carnet', false]);
+  assert.deepEqual([carnet.name, carnet.category, carnet.online], ['Carnet 5 coupes', 'Carnet', true]);
 });

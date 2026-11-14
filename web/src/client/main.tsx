@@ -4,7 +4,7 @@ import { StrictMode, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { createRoot } from 'react-dom/client';
 import { api } from '../lib/api';
 import { cap, dates, eur, time } from '../lib/format';
-import { Move, STATUS_WORDS, icsUrl, type Booking } from './booking';
+import { Move, STATUS_WORDS, icsUrl, serieWords, type Booking } from './booking';
 import type { AccountState, Me } from '../moi/types';
 import './client.css';
 import './cadeau.css';
@@ -59,7 +59,7 @@ function Manage({ token, back, offer, moveNow }: { token: string; back: string |
   useEffect(() => { if (moveNow && b && b.canChange && mode === '') setMode('move'); }, [b && b.code]);
   // after paying, the bank's confirmation can take a few seconds to reach the salon
   useEffect(() => {
-    if (back !== 'ok' || !b || b.status !== 'pending') { if (back === 'ok' && b && b.status === 'booked') setNote({ tone: 'ok', text: 'Acompte reçu, ton rendez-vous est confirmé.' }); return; }
+    if (back !== 'ok' || !b || b.status !== 'pending') { if (back === 'ok' && b && b.status === 'booked') setNote({ tone: 'ok', text: b.formule ? 'Paiement reçu, tes rendez-vous sont confirmés.' : 'Acompte reçu, ton rendez-vous est confirmé.' }); return; }
     const t = setTimeout(load, 2000);
     return () => clearTimeout(t);
   }, [b]);
@@ -79,13 +79,14 @@ function Manage({ token, back, offer, moveNow }: { token: string; back: string |
   const cancel = async () => {
     setBusy(true);
     try {
-      const paid = b.deposit?.paid || 0;
+      const paid = b.formule ? 0 : b.deposit?.paid || 0;
       const r = await api.post<Booking>('/api/public/bookings/' + encodeURIComponent(token) + '/cancel', {});
       setB(r); setMode('');
       setNote({ tone: 'ok', text: 'C’est annulé. Le créneau est libéré tout de suite' + (paid ? ' et ton acompte de ' + eur(paid) + ' est remboursé sur ta carte (quelques jours selon ta banque).' : '.') });
     } catch (e: any) { setNote({ tone: 'warn', text: e.message }); } finally { setBusy(false); }
   };
-  const status = STATUS_WORDS[b.status];
+  const fo = b.formule || null;
+  const status: [string, string] = fo && b.status === 'pending' ? ['Carnet à régler', 'warn'] : STATUS_WORDS[b.status];
 
   return (
     <Shell shop={b.shop.name}>
@@ -95,10 +96,10 @@ function Manage({ token, back, offer, moveNow }: { token: string; back: string |
         <p className="c-k">{b.first ? 'Ton rendez-vous, ' + b.first : 'Ton rendez-vous'}</p>
         <h1 className={'c-when' + (b.status === 'cancelled' ? ' gone' : '')}>{cap(dates.dayLong(b.day))}<br />à {time(b.start)}</h1>
         <div className="c-what">
-          <span>{what}<small>{dates.fmtDur(b.dur)} · {price}</small></span>
+          <span>{what}<small>{dates.fmtDur(b.dur)} · {fo ? serieWords(fo) + ' du carnet' : price}</small></span>
           {b.staff ? <span className="c-staff"><i style={{ background: b.staff.color }}>{b.staff.initials}</i>avec {b.staff.name}</span> : null}
         </div>
-        {b.deposit ? <p className="c-dep">{b.deposit.paid ? 'Acompte de ' + eur(b.deposit.paid, { decimals: b.deposit.paid % 100 !== 0 }) + ' payé, déduit au salon.' : 'Acompte de ' + eur(b.deposit.amount, { decimals: b.deposit.amount % 100 !== 0 }) + ' à régler pour confirmer.'}</p> : null}
+        {fo ? <p className="c-dep" data-guide="r.carnet">{fo.pay === 'paid' ? 'Comprise dans ton carnet : rien à payer pour la coupe.' : fo.pay === 'online' ? 'Carnet payé en ligne (' + eur(b.deposit?.paid || 0) + ') : rien à payer pour la coupe.' : fo.pay === 'pending' ? 'Carnet de ' + eur(fo.due) + ' à régler pour confirmer tes rendez-vous.' : 'Carnet de ' + eur(fo.due) + ' à régler au salon, à ta première coupe.'}{fo.end ? ' Tes coupes se prennent jusqu’au ' + dates.dayLong(fo.end) + '.' : ''}</p> : b.deposit ? <p className="c-dep">{b.deposit.paid ? 'Acompte de ' + eur(b.deposit.paid, { decimals: b.deposit.paid % 100 !== 0 }) + ' payé, déduit au salon.' : 'Acompte de ' + eur(b.deposit.amount, { decimals: b.deposit.amount % 100 !== 0 }) + ' à régler pour confirmer.'}</p> : null}
         <p className="c-addr">{b.shop.address}</p>
       </section>
 
@@ -106,8 +107,8 @@ function Manage({ token, back, offer, moveNow }: { token: string; back: string |
 
       {b.status === 'pending' && upcoming ? (
         <section className="c-card">
-          <p className="c-muted">Ton créneau est gardé quelques minutes. Il sera confirmé dès le paiement de l’acompte, déduit du prix au salon.</p>
-          <button type="button" className="c-btn" disabled={busy} onClick={pay}>Régler l’acompte · {eur(b.deposit?.amount || 0)}</button>
+          <p className="c-muted">{fo ? 'Tes créneaux sont gardés quelques minutes. Ils seront confirmés dès le paiement du carnet.' : 'Ton créneau est gardé quelques minutes. Il sera confirmé dès le paiement de l’acompte, déduit du prix au salon.'}</p>
+          {fo && !b.deposit ? <p className="c-muted">Le paiement se fait depuis ton premier rendez-vous (dans « Tes autres rendez-vous »).</p> : <button type="button" className="c-btn" disabled={busy} onClick={pay}>{fo ? 'Régler le carnet' : 'Régler l’acompte'} · {eur(b.deposit?.amount || 0)}</button>}
         </section>
       ) : null}
 
@@ -129,7 +130,7 @@ function Manage({ token, back, offer, moveNow }: { token: string; back: string |
       {mode === 'cancel' ? (
         <section className="c-card">
           <h2 className="c-h2">Annuler ce rendez-vous ?</h2>
-          <p className="c-muted">{b.deposit?.paid ? 'Ton acompte de ' + eur(b.deposit.paid) + ' te sera remboursé.' : 'Le créneau sera proposé à quelqu’un d’autre.'}</p>
+          <p className="c-muted">{fo ? 'Seul ce rendez-vous est annulé : tes autres coupes restent réservées, et la semaine sans coupe est ' + (fo.pay === 'paid' || fo.pay === 'online' ? 'à reprendre depuis ton espace si elle n’est pas passée.' : 'libérée.') : b.deposit?.paid ? 'Ton acompte de ' + eur(b.deposit.paid) + ' te sera remboursé.' : 'Le créneau sera proposé à quelqu’un d’autre.'}</p>
           <div className="c-row"><button type="button" className="c-btn" disabled={busy} onClick={cancel}>Oui, annuler</button><button type="button" className="c-link" onClick={() => setMode('')}>Non, je garde</button></div>
         </section>
       ) : null}

@@ -37,7 +37,7 @@ export default function Journee({ data, note }: EspaceCardProps) {
             <li key={r.id} className={'es-row' + (closed(r) ? ' past' : '') + (r.status === 'in_chair' ? ' live' : '')}>
               <button type="button" className="es-row-main" onClick={() => navigate('/agenda?rdv=' + r.id + (data.day === data.today ? '' : '&day=' + data.day))}>
                 <span className="es-rt tnum">{time(r.start)}</span>
-                <span className="es-rn"><b>{r.name}</b><small>{r.services.join(' + ')}</small></span>
+                <span className="es-rn"><b>{r.name}</b><small>{r.services.join(' + ')}{r.serie ? ' · ' + r.serie : ''}</small></span>
                 {r.late > 0 ? <span className="badge badge-warn">En retard · {r.late} min</span> : WORD[r.status] ? <span className={'badge ' + (TONE[r.status] || '')}>{WORD[r.status]}</span> : null}
               </button>
               <PhoneCheckoutButton size="sm" row={r} nowMin={data.now ? data.now.min : null} isToday={data.day === data.today} />

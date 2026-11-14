@@ -109,7 +109,7 @@ export default function Next({ me, reload }: CardProps) {
         <p className="c-k">{b.forFirst ? 'Pour ' + b.forFirst : list.length > 1 && b.id !== list[0].id ? 'Plus tard' : 'Ton prochain rendez-vous'}</p>
         <h2 className="m-when" id="m-hero-w">{whenShort(b.day, b.start)}</h2>
         <div className="c-what">
-          <span>{what}{b.staff ? ' · avec ' + b.staff.name : ''}<small>{dates.fmtDur(b.dur)} · {eur(b.price)}</small></span>
+          <span>{what}{b.staff ? ' · avec ' + b.staff.name : ''}<small>{dates.fmtDur(b.dur)} · {b.serie ? b.serie + ' du carnet' : eur(b.price)}</small></span>
         </div>
         <div className="m-acts" data-guide="moi.next.actions">
           <a className="m-act" href={b.manage} onClick={agenda}><Icon name="calendar" size={22} /><span>Agenda</span></a>

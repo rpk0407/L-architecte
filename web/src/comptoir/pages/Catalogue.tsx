@@ -6,7 +6,7 @@ import { refreshAll, useQuery } from '../../lib/query';
 import { Link, navigate, useRoute } from '../../lib/router';
 import { ago, clock, dates, dur, eur, money, pct, plural } from '../../lib/format';
 import { Icon } from '../../ui/Icon';
-import { Button, Chip, Empty, Field, Kpi, Modal, Note, Sheet, Skeleton, Switch, confirm, toast, toastError } from '../../ui/kit';
+import { Button, Chip, Empty, Field, Kpi, Modal, Note, Seg, Sheet, Skeleton, Switch, confirm, toast, toastError } from '../../ui/kit';
 import { useApp } from '../state';
 import { PageTitle, Reserved } from '../App';
 import type { Product, Service } from '../types';
@@ -57,6 +57,10 @@ async function moveService(items: Service[], s: Service, dir: -1 | 1) {
 }
 
 function SiteBadge({ s }: { s: Service }) {
+  const { boot } = useApp();
+  const space = !!boot.settings.accounts?.enabled;
+  // a carnet is sold on the site only with its dates (one cut a week) and the client space open: it asks for an account
+  if (s.pack && onSite(s) && !(s.pack.weekly && space)) return <span className="badge badge-warn">au salon seulement ({s.pack.weekly ? 'espace client fermé' : 'carnet sans dates'})</span>;
   if (onSite(s)) return <span className="badge badge-ok"><Icon name="globe" size={12} />visible sur le site</span>;
   return <span className="badge badge-warn">pas sur le site ({s.active ? 'hors ligne' : 'archivée'})</span>;
 }
@@ -156,7 +160,7 @@ function Services({ items }: { items: Service[] }) {
       const ids: Record<string, string> = Object.fromEntries(items.filter((x) => x.slug).map((x) => [x.slug as string, x.id]));
       for (const [order, sv] of OLD_MENU.entries()) {
         if (ids[sv.slug]) continue;
-        const body = sv.slug === 'ab' && ids.cl ? { ...sv, order, pack: { credits: 5, days: 70, serviceIds: [ids.cl] } } : { ...sv, order };
+        const body = sv.slug === 'ab' && ids.cl ? { ...sv, order, pack: { ...(sv as any).pack, serviceIds: [ids.cl] } } : { ...sv, order };
         ids[sv.slug] = (await api.post<{ id: string }>('/api/v1/services', body)).id;
         done++;
       }
@@ -190,7 +194,7 @@ function Services({ items }: { items: Service[] }) {
                 <li key={s.id} className="ct-row">
                   <button type="button" className="li ct-main" onClick={() => setEdit(s)}>
                     <span className="li-main">
-                      <b>{s.name}{s.pack ? <span className="badge badge-ok">Carnet · {s.pack.credits} passages · {s.pack.days} j</span> : null}<SiteBadge s={s} />{s.tag ? <span className="badge badge-accent">{s.tag}</span> : null}</b>
+                      <b>{s.name}{s.pack ? <span className="badge badge-ok">Carnet · {s.pack.credits} passages · {s.pack.weekly ? Math.round(s.pack.days / 7) + ' semaines' : s.pack.days + ' j'}</span> : null}<SiteBadge s={s} />{s.tag ? <span className="badge badge-accent">{s.tag}</span> : null}</b>
                       <small>{dur(s.dur)}{s.buffer ? ' + ' + s.buffer + ' min de battement' : ''} · TVA {s.vat / 100} %{s.description ? ' · ' + s.description : ''}</small>
                     </span>
                     <span className="ct-flags">
@@ -223,14 +227,14 @@ function ServiceSheet({ sv, all, onClose }: { sv: Service | 'new' | null; all: S
   const { boot, reloadBoot } = useApp();
   const isNew = sv === 'new';
   const cats = [...new Set(all.filter((s) => s.active).map((s) => s.category))];
-  const blank = { name: '', short: '', category: cats[0] || 'Coupes', price: '', from: false, dur: 30, buffer: 0, online: true, deposit: '' as string, depositMode: 'auto' as 'auto' | 'none' | 'custom', vat: boot.settings.payments.vat ?? 2000, description: '', includes: '', tag: '', isPack: false, credits: 5, days: 70, covers: [] as string[] };
+  const blank = { name: '', short: '', category: cats[0] || 'Coupes', price: '', from: false, dur: 30, buffer: 0, online: true, deposit: '' as string, depositMode: 'auto' as 'auto' | 'none' | 'custom', vat: boot.settings.payments.vat ?? 2000, description: '', includes: '', tag: '', isPack: false, credits: 5, days: 70, covers: [] as string[], weekly: false, missed: 'lost' as 'lost' | 'once' };
   const [f, setF] = useState(blank);
   const [newCat, setNewCat] = useState('');
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     if (!sv) return;
     if (sv === 'new') { setF(blank); setNewCat(''); return; }
-    setF({ name: sv.name, short: sv.short === sv.name ? '' : sv.short, category: sv.category, price: euros(sv.price), from: sv.from, dur: sv.dur, buffer: sv.buffer, online: sv.online, deposit: sv.deposit != null ? euros(sv.deposit) : '', depositMode: sv.deposit == null ? 'auto' : sv.deposit === 0 ? 'none' : 'custom', vat: sv.vat, description: sv.description, includes: sv.includes.join(', '), tag: sv.tag || '', isPack: !!sv.pack, credits: sv.pack?.credits || 5, days: sv.pack?.days || 70, covers: sv.pack?.serviceIds || [] });
+    setF({ name: sv.name, short: sv.short === sv.name ? '' : sv.short, category: sv.category, price: euros(sv.price), from: sv.from, dur: sv.dur, buffer: sv.buffer, online: sv.online, deposit: sv.deposit != null ? euros(sv.deposit) : '', depositMode: sv.deposit == null ? 'auto' : sv.deposit === 0 ? 'none' : 'custom', vat: sv.vat, description: sv.description, includes: sv.includes.join(', '), tag: sv.tag || '', isPack: !!sv.pack, credits: sv.pack?.credits || 5, days: sv.pack?.days || 70, covers: sv.pack?.serviceIds || [], weekly: !!sv.pack?.weekly, missed: sv.pack?.missed === 'once' ? 'once' : 'lost' });
     setNewCat('');
   }, [sv]);
   const price = money.parseEur(f.price);
@@ -255,7 +259,8 @@ function ServiceSheet({ sv, all, onClose }: { sv: Service | 'new' | null; all: S
         description: f.description.trim(), includes: f.includes.split(',').map((x) => x.trim()).filter(Boolean).slice(0, 10), tag: f.tag.trim()
       };
       body.deposit = f.depositMode === 'auto' ? null : f.depositMode === 'none' ? 0 : money.parseEur(f.deposit) ?? 0;
-      if (f.isPack) body.pack = { credits: f.credits, days: f.days, serviceIds: f.covers };
+      // a weekly carnet's validity follows its rule (one week per cut, one more when a missed week is made up): the server sets it
+      if (f.isPack) body.pack = { credits: f.credits, days: f.days, serviceIds: f.covers, ...(f.weekly ? { weekly: true, missed: f.missed } : {}) };
       if (isNew) await api.post('/api/v1/services', body);
       else await api.patch('/api/v1/services/' + (sv as Service).id, body);
       // say where it shows: an offline or archived service is saved but clients don't see it
@@ -318,8 +323,15 @@ function ServiceSheet({ sv, all, onClose }: { sv: Service | 'new' | null; all: S
         <div className="card card-tight ct-pack">
           <div className="grid2">
             <Field label="Nombre de passages" htmlFor="pk-c"><input id="pk-c" className="input" inputMode="numeric" value={f.credits} onChange={(e) => setF({ ...f, credits: Math.max(2, Math.min(50, Number(e.target.value.replace(/\D/g, '')) || 2)) })} /></Field>
-            <Field label="Valable (jours)" htmlFor="pk-d"><input id="pk-d" className="input" inputMode="numeric" value={f.days} onChange={(e) => setF({ ...f, days: Math.max(7, Math.min(730, Number(e.target.value.replace(/\D/g, '')) || 7)) })} /></Field>
+            {f.weekly ? <Field label="Valable" htmlFor="pk-d"><input id="pk-d" className="input" value={f.credits + (f.missed === 'once' ? 1 : 0) + ' semaines dès la 1re coupe'} readOnly /></Field>
+              : <Field label="Valable (jours)" htmlFor="pk-d"><input id="pk-d" className="input" inputMode="numeric" value={f.days} onChange={(e) => setF({ ...f, days: Math.max(7, Math.min(730, Number(e.target.value.replace(/\D/g, '')) || 7)) })} /></Field>}
           </div>
+          <div data-guide="cat-carnet-semaine"><Switch on={f.weekly} onChange={(v) => setF({ ...f, weekly: v })} title="Une coupe par semaine, dates choisies à l’achat" hint="Le client réserve toutes ses dates d’un coup (sur le site avec son compte, ou ici). Sans ce réglage, le carnet se vend à la caisse seulement." /></div>
+          {f.weekly ? (
+            <Field label="Semaine manquée" hint={f.missed === 'once' ? 'Une semaine sans coupe se rattrape une fois : une semaine de plus.' : 'Une semaine sans coupe est perdue, comme le dit l’offre.'}>
+              <Seg value={f.missed} onChange={(v) => setF({ ...f, missed: v })} options={[{ v: 'lost', t: 'Perdue' }, { v: 'once', t: 'Reportable une fois' }]} />
+            </Field>
+          ) : null}
           <Field label="Prestations couvertes" hint={f.covers.length ? '' : 'Aucune cochée : couvre toutes les prestations.'}>
             <div className="chips">{all.filter((s) => s.active && !s.pack).map((s) => <Chip key={s.id} small on={f.covers.includes(s.id)} onClick={() => setF({ ...f, covers: f.covers.includes(s.id) ? f.covers.filter((x) => x !== s.id) : [...f.covers, s.id] })}>{s.name}</Chip>)}</div>
           </Field>

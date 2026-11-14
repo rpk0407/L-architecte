@@ -354,7 +354,9 @@ export function publicRoutes(app) {
     if (open) return { url: open.url };
     // a new checkout page would outlive the booking's hold: the client would pay for a slot already given back
     if (payDeadline(r.s, a) - r.now < 120000) throw new HttpError(409, 'late', 'Le délai pour régler l’acompte est dépassé. Réserve un autre créneau.');
-    const p = await startPayment(r, { kind: 'deposit', amount: a.deposit.amount, label: 'Acompte · ' + a.services.map((x) => x.name).join(' + '), apptId: a.id, returnPath: '/r/' + r.params.token });
+    const fo = formuleOfAppt(r.s, a.id);
+    const fsv = fo ? r.s.services.get(fo.serviceId) : null;
+    const p = await startPayment(r, { kind: 'deposit', amount: a.deposit.amount, label: fo ? (fsv ? fsv.name : 'Carnet') + ' · ' + fo.apptIds.length + ' rendez-vous' : 'Acompte · ' + a.services.map((x) => x.name).join(' + '), apptId: a.id, returnPath: '/r/' + r.params.token });
     return { url: p.url };
   });
 

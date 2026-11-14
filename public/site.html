@@ -941,6 +941,34 @@ position:relative;font:400 17px/1.5 var(--f-sans);color:var(--os);background:var
 .pty-x{flex:none;min-height:44px;padding:0 14px;border-radius:12px;font:600 14px/1 var(--f-sans);color:var(--cendre2)}
 .pty-x:hover{color:var(--encre)}
 .pty-n{margin:2px 0 10px;padding:12px 14px;border-radius:14px;background:rgba(15,14,13,.05);font:500 14px/1.4 var(--f-sans)}
+.so-w{white-space:normal}
+.svc-for{margin:0 0 16px}
+.rc-edit{display:flex;flex-wrap:wrap;align-items:center;gap:0 16px;margin-top:6px;font:500 14px/1.3 var(--f-sans);color:var(--cendre2)}
+.rc-edit .tl{font-size:14.5px}
+.pty-e{color:var(--encre);text-decoration:underline;text-underline-offset:4px}
+.ser-lead{margin:16px 2px 4px;font:500 15px/1.45 var(--f-sans)}
+.ser-r{margin-top:8px;padding:8px 8px 8px 16px;border-radius:18px;background:var(--blanc);box-shadow:inset 0 0 0 1.5px var(--iligne)}
+.ser-r.open{box-shadow:inset 0 0 0 1.5px var(--encre)}
+.ser-r.later .ser-t b{color:var(--cendre2)}
+.ser-h{display:flex;align-items:center;gap:8px}
+.ser-t{flex:1;min-width:0;min-height:44px;display:flex;flex-direction:column;justify-content:center;gap:3px}
+.ser-t small{font:600 11.5px/1 var(--f-sans);letter-spacing:.09em;text-transform:uppercase;color:var(--cendre2)}
+.ser-t b{font:600 15.5px/1.2 var(--f-sans)}
+.ser-t span{font:500 13px/1.3 var(--f-sans);color:var(--cendre2)}
+.ser-why{margin:4px 8px 6px 0;padding:10px 12px;border-radius:12px;background:rgba(245,181,68,.18);font:500 13.5px/1.4 var(--f-sans)}
+.ser-e{padding:6px 8px 8px 0}
+.ser-e .dstrip{margin:10px -16px 0 -16px;padding:2px 16px 6px}
+.ser-e .slots{margin-top:10px}
+.ser-b{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+.ser-bb{min-height:44px;padding:0 14px;border-radius:999px;background:var(--blanc);box-shadow:inset 0 0 0 1.5px var(--iligne);font:600 14px/1 var(--f-sans)}
+.ser-bb.on{background:var(--encre);color:var(--os);box-shadow:none}
+.ser-none{margin-top:10px;font:500 14px/1.4 var(--f-sans);color:var(--cendre2)}
+.ser-foot{margin:14px 2px 0;font:500 13.5px/1.45 var(--f-sans);color:var(--cendre2)}
+.acc{margin-top:18px;padding:16px 18px;border-radius:18px;background:var(--encre);color:var(--os)}
+.acc-t{font:600 16px/1.35 var(--f-sans)}
+.acc-s{margin-top:6px;font:500 14px/1.45 var(--f-sans);color:var(--cendre)}
+.ser-done a.pty-t{text-decoration:none;color:inherit}
+.ser-done .pty-r{padding-right:16px}
 .add-p{display:flex;align-items:center;gap:14px;width:100%;min-height:60px;margin-top:16px;padding:10px 16px;border-radius:18px;border:1.5px dashed var(--iligne2);text-align:left;transition:border-color .2s}
 .add-p:hover{border-color:var(--encre)}
 .add-p-i{flex:none;display:grid;place-items:center;width:34px;height:34px;border-radius:50%;background:var(--encre);color:var(--os);font:500 22px/1 var(--f-sans)}
@@ -1374,7 +1402,7 @@ html{scroll-behavior:auto}
 <div class="wrap">
 <p class="kk" data-rv><span>07</span>Abonnement &amp; carnet</p>
 <h2 class="h2" id="t-ab" data-rv="lines"><span class="ln"><span>Ta coupe,</span></span><span class="ln"><span>chaque mois.</span></span></h2>
-<p class="ab-lead" data-rv>Un prix par mois, sans engagement. Ou un carnet de cinq coupes, payé une fois au salon.</p>
+<p class="ab-lead" data-rv>Un prix par mois, sans engagement. Ou un carnet de cinq coupes, payé une fois.</p>
 <div class="ab-g">
 <article class="ab-c" data-rv aria-labelledby="t-ab-m" data-guide="site-abonnement-plans" data-guide-n="40" data-guide-title="Abonnement" data-guide-body="{{aboGuide}}">
 <p class="ab-k" id="t-ab-m">Abonnement mensuel</p>
@@ -1390,7 +1418,8 @@ html{scroll-behavior:auto}
 <div class="ab-p">
 <h3 class="ab-n">{{carnetName}}<small>{{carnetPrice}}</small></h3>
 <p class="ab-w">{{carnetLine}}</p>
-<p class="ab-s"><i aria-hidden="true"></i>À acheter au salon</p>
+<p class="ab-s"><i aria-hidden="true"></i>{{carnetWhere}}</p>
+<sc-if value="{{carnetOnline}}" hint-placeholder-val="{{ false }}"><button type="button" class="btn" onClick="{{carnetGo}}">Prendre le carnet</button></sc-if>
 </div>
 </article></sc-if>
 </div>
@@ -1464,12 +1493,17 @@ html{scroll-behavior:auto}
 <sc-if value="{{hasRebook}}" hint-placeholder-val="{{ false }}">
 <button type="button" class="rb" onClick="{{rebook}}"><span class="rb-k">Bon retour, {{meFirst}}</span><span class="rb-t">Comme la dernière fois&nbsp;?</span><span class="rb-s">{{rebookLine}}</span><span class="rb-go">Reprendre<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h15M13 6l6 6-6 6"/></svg></span></button>
 </sc-if>
+<sc-if value="{{svcFor}}" hint-placeholder-val="{{ false }}">
+<div class="for svc-for"><p class="for-k" id="for-k1">Cette personne, c’est</p><div class="for-o" role="radiogroup" aria-labelledby="for-k1"><sc-for list="{{forOpts}}" as="o" hint-placeholder-count="3"><button type="button" class="{{o.cls}}" role="radio" aria-checked="{{o.on}}" aria-disabled="{{o.off}}" onClick="{{o.go}}">{{o.t}}</button></sc-for></div>
+<sc-if value="{{svcForName}}" hint-placeholder-val="{{ false }}"><div class="fld"><label for="g-first">{{gFirstLabel}} <span class="opt-l">pour lui choisir sa coupe</span></label><input id="g-first" type="text" autocomplete="off" value="{{gFirst}}" onChange="{{setGFirst}}"></div></sc-if>
+</div>
+</sc-if>
 <sc-for list="{{svcGroups}}" as="g" hint-placeholder-count="4">
 <div class="sg">
 <p class="sg-h">{{g.t}}</p>
 <sc-for list="{{g.items}}" as="o" hint-placeholder-count="3">
 <button type="button" class="{{o.cls}}" aria-pressed="{{o.on}}" onClick="{{o.go}}">
-<span class="so-l"><span class="so-n">{{o.n}}<sc-if value="{{o.hasTag}}" hint-placeholder-val="{{ false }}"><em>{{o.tag}}</em></sc-if></span><span class="so-d">{{o.inc}}</span></span>
+<span class="so-l"><span class="so-n">{{o.n}}<sc-if value="{{o.hasTag}}" hint-placeholder-val="{{ false }}"><em>{{o.tag}}</em></sc-if></span><span class="so-d">{{o.inc}}</span><sc-if value="{{o.isPack}}" hint-placeholder-val="{{ false }}"><span class="so-d so-w">{{o.l2}}</span><span class="so-d so-w">{{o.l3}}</span></sc-if></span>
 <span class="so-r"><b>{{o.price}}</b><small>{{o.dur}}</small></span>
 </button>
 </sc-for>
@@ -1532,12 +1566,39 @@ html{scroll-behavior:auto}
 </div>
 </sc-if>
 
+<sc-if value="{{isSeries}}" hint-placeholder-val="{{ false }}">
+<div class="st ser" data-guide="site-serie">
+<sc-if value="{{hasErr}}" hint-placeholder-val="{{ false }}"><p class="bk-err" role="alert">{{bkErr}}</p></sc-if>
+<div class="recap"><div class="recap-t"><p class="recap-w">{{recapWhen}}</p><p class="recap-s">{{serFirstLine}}</p></div></div>
+<p class="ser-lead">{{serLead}}</p>
+<sc-if value="{{serLoading}}" hint-placeholder-val="{{ false }}"><p class="ld" role="status"><i aria-hidden="true"></i>On regarde les semaines suivantes…</p></sc-if>
+<sc-for list="{{serRows}}" as="w" hint-placeholder-count="4">
+<div class="{{w.cls}}">
+<div class="ser-h"><div class="ser-t"><small>{{w.k}}</small><b>{{w.when}}</b><span>{{w.who}}</span></div><button type="button" class="pty-x pty-e" aria-expanded="{{w.open}}" aria-label="{{w.editLabel}}" onClick="{{w.edit}}">{{w.editText}}</button></div>
+<sc-if value="{{w.hasWhy}}" hint-placeholder-val="{{ false }}"><p class="ser-why">{{w.why}}</p></sc-if>
+<sc-if value="{{w.open}}" hint-placeholder-val="{{ false }}">
+<div class="ser-e">
+<div class="ser-b" role="group" aria-label="Avec qui"><sc-for list="{{w.barbers}}" as="x" hint-placeholder-count="3"><button type="button" class="{{x.cls}}" aria-pressed="{{x.on}}" onClick="{{x.go}}">{{x.t}}</button></sc-for></div>
+<div class="dstrip" aria-label="Un jour de cette semaine"><sc-for list="{{w.days}}" as="d" hint-placeholder-count="5"><button type="button" class="{{d.cls}}" aria-pressed="{{d.on}}" aria-label="{{d.label}}" onClick="{{d.go}}"><small>{{d.wd}}</small><b>{{d.num}}</b><span>{{d.cnt}}</span></button></sc-for></div>
+<sc-if value="{{w.empty}}" hint-placeholder-val="{{ false }}"><p class="ser-none">{{w.emptyText}}</p></sc-if>
+<div class="slots"><sc-for list="{{w.slots}}" as="t" hint-placeholder-count="6"><button type="button" class="{{t.cls}}" aria-pressed="{{t.on}}" aria-label="{{t.label}}" onClick="{{t.go}}">{{t.t}}</button></sc-for></div>
+<button type="button" class="tl" onClick="{{w.later}}">Je choisirai plus tard</button>
+</div>
+</sc-if>
+</div>
+</sc-for>
+<p class="ser-foot">{{serFoot}}</p>
+</div>
+</sc-if>
+
 <sc-if value="{{isInfo}}" hint-placeholder-val="{{ false }}">
 <div class="st">
 <sc-if value="{{hasErr}}" hint-placeholder-val="{{ false }}"><p class="bk-err" role="alert">{{bkErr}}</p></sc-if>
 <p class="{{holdCls}}"><i aria-hidden="true"></i><span>{{holdText}}</span><b>{{holdLeft}}</b></p>
 <div class="recap"><div class="recap-t"><p class="recap-w">{{recapWhen}}</p><p class="recap-s">{{recapWhat}} · {{recapWho}}</p></div><sc-if value="{{rcHasWho}}" hint-placeholder-val="{{ false }}"><span class="rc-av" aria-hidden="true">{{rcIni}}<sc-if value="{{rcHasPhoto}}" hint-placeholder-val="{{ false }}"><img sc-camel-src="{{rcPhoto}}" alt="" width="46" height="46" decoding="async" sc-camel-on-error="{{rcPhotoErr}}"></sc-if></span></sc-if></div>
-<sc-if value="{{isParty}}" hint-placeholder-val="{{ false }}"><div class="pty"><p class="pty-k">Déjà dans cette réservation</p><sc-for list="{{partyRows}}" as="x" hint-placeholder-count="2"><div class="pty-r"><button type="button" class="pty-t" aria-label="{{x.editLabel}}" onClick="{{x.edit}}"><b>{{x.who}}</b><small>{{x.line}}</small></button><button type="button" class="pty-x" aria-label="{{x.dropLabel}}" onClick="{{x.drop}}">Retirer</button></div></sc-for></div></sc-if>
+<sc-if value="{{canEdit}}" hint-placeholder-val="{{ false }}"><p class="rc-edit"><span>Modifier</span><button type="button" class="tl" aria-label="{{editSvcLabel}}" onClick="{{editSvc}}">la prestation</button><button type="button" class="tl" aria-label="{{editWhoLabel}}" onClick="{{editWho}}">le barbier</button><button type="button" class="tl" aria-label="{{editWhenLabel}}" onClick="{{editWhen}}">le créneau</button></p></sc-if>
+<sc-if value="{{isSerInfo}}" hint-placeholder-val="{{ false }}"><div class="pty ser-list"><p class="pty-k">{{serListK}}</p><sc-for list="{{serList}}" as="x" hint-placeholder-count="5"><div class="pty-r"><div class="pty-t"><b>{{x.k}}</b><small>{{x.line}}</small></div></div></sc-for><button type="button" class="tl" onClick="{{serBack}}">Modifier mes rendez-vous</button></div></sc-if>
+<sc-if value="{{isParty}}" hint-placeholder-val="{{ false }}"><div class="pty"><p class="pty-k">Déjà dans cette réservation</p><sc-for list="{{partyRows}}" as="x" hint-placeholder-count="2"><div class="pty-r"><button type="button" class="pty-t" aria-label="{{x.editLabel}}" onClick="{{x.edit}}"><b>{{x.who}}</b><small>{{x.line}}</small></button><button type="button" class="pty-x pty-e" aria-label="{{x.modLabel}}" onClick="{{x.edit}}">Modifier</button><button type="button" class="pty-x" aria-label="{{x.dropLabel}}" onClick="{{x.drop}}">Retirer</button></div></sc-for><p class="g-hint">{{partyTotal}}</p></div></sc-if>
 <sc-if value="{{canFor}}" hint-placeholder-val="{{ true }}">
 <div class="for"><p class="for-k" id="for-k">C’est pour</p><div class="for-o" role="radiogroup" aria-labelledby="for-k"><sc-for list="{{forOpts}}" as="o" hint-placeholder-count="3"><button type="button" class="{{o.cls}}" role="radio" aria-checked="{{o.on}}" aria-disabled="{{o.off}}" onClick="{{o.go}}">{{o.t}}</button></sc-for></div></div>
 </sc-if>
@@ -1550,17 +1611,25 @@ html{scroll-behavior:auto}
 <p class="{{gHintCls}}">{{gHint}}</p>
 </sc-if>
 <sc-if value="{{canAdd}}" hint-placeholder-val="{{ false }}"><button type="button" class="add-p" onClick="{{addPerson}}"><span class="add-p-i" aria-hidden="true">+</span><span><b>Ajouter une personne</b><small>{{addHint}}</small></span></button></sc-if>
+<sc-if value="{{accGate}}" hint-placeholder-val="{{ false }}"><div class="acc" data-guide="site-compte"><p class="acc-t">Cette formule demande un compte&nbsp;: c’est ce qui garde tes 5 coupes.</p><p class="acc-s">{{accLine}}</p></div></sc-if>
+<sc-if value="{{accIn}}" hint-placeholder-val="{{ false }}"><p class="dep" data-guide="site-compte-ok">{{accInLine}}</p></sc-if>
+<sc-if value="{{showIdent}}" hint-placeholder-val="{{ true }}">
 <sc-if value="{{meHead}}" hint-placeholder-val="{{ false }}"><p class="for-me">Tes coordonnées, pour les messages</p></sc-if>
 <div class="fld2">
 <div class="fld"><label for="f-first">{{meFirstLabel}}</label><input id="f-first" type="text" autocomplete="given-name" value="{{fFirst}}" onChange="{{setFirst}}"></div>
 <div class="fld"><label for="f-last">Nom <span class="opt-l">facultatif</span></label><input id="f-last" type="text" autocomplete="family-name" value="{{fLast}}" onChange="{{setLast}}"></div>
 </div>
 <div class="fld"><label for="f-phone">Téléphone</label><input id="f-phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="06 12 34 56 78" value="{{fPhone}}" onChange="{{setPhone}}"><span class="{{phoneCls}}">{{phoneHint}}</span></div>
+</sc-if>
+<sc-if value="{{accCode}}" hint-placeholder-val="{{ false }}"><div class="fld"><label for="f-code">Code reçu par SMS</label><input id="f-code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6 chiffres" value="{{fCode}}" onChange="{{setCode}}"><span class="{{codeCls}}">{{codeHint}}</span></div><button type="button" class="tl" onClick="{{codeAgain}}">Recevoir un nouveau code</button></sc-if>
+<sc-if value="{{isSerInfo}}" hint-placeholder-val="{{ false }}"><p class="dep">{{serPayLine}}</p></sc-if>
+<sc-if value="{{showExtras}}" hint-placeholder-val="{{ true }}">
 <div class="fld"><label for="f-email">E-mail <span class="opt-l">facultatif</span></label><input id="f-email" type="email" inputmode="email" autocomplete="email" value="{{fEmail}}" onChange="{{setEmail}}"><span class="hint">Pour recevoir le rendez-vous dans ton agenda.</span></div>
 <div class="fld"><label for="f-note">Un mot pour ton barbier <span class="opt-l">facultatif</span></label><input id="f-note" type="text" placeholder="Ex. : dégradé bas, garder la longueur" value="{{fNote}}" onChange="{{setNote}}"></div>
 <button type="button" class="{{smsCls}}" role="switch" aria-checked="{{smsOn}}" onClick="{{toggleSms}}"><span class="sw-t"><b>{{smsTitle}}</b><small>Avec un lien pour déplacer ou annuler.</small></span><span class="sw-k" aria-hidden="true"><i></i></span></button>
 <button type="button" id="f-mkt" class="{{mktCls}}" role="switch" aria-checked="{{mktOn}}" onClick="{{toggleMkt}}"><span class="sw-t"><b>Les bons plans du salon par SMS</b><small>Places de dernière minute, rappel de coupe. Tu arrêtes quand tu veux : STOP, comme indiqué dans chaque SMS.</small></span><span class="sw-k" aria-hidden="true"><i></i></span></button>
 <p class="priv">Tes coordonnées servent à ce rendez-vous, et aux bons plans seulement si tu coches. <a href="{{dataHref}}" target="_blank" rel="noopener">Comment elles sont traitées</a></p>
+</sc-if>
 <sc-if value="{{bkMbr}}" hint-placeholder-val="{{ false }}"><p class="dep">Réservé avec ton abonnement&nbsp;: si la coupe tombe dans ton mois, elle est incluse, et rien n’est demandé en ligne.</p></sc-if>
 <sc-if value="{{hasDeposit}}" hint-placeholder-val="{{ false }}"><p class="dep">{{depLine}}</p></sc-if>
 <sc-if value="{{isDemo}}" hint-placeholder-val="{{ true }}"><p class="demo">Démo&nbsp;: n’entre pas tes vraies coordonnées, tout est visible. Aucun message n’est envoyé, aucun paiement n’est débité. La réservation apparaît tout de suite dans le Comptoir.</p></sc-if>
@@ -1578,8 +1647,9 @@ html{scroll-behavior:auto}
 <p class="tk-a">16, place Pélabon · 13013 Marseille</p>
 <sc-if value="{{hasMemberLine}}" hint-placeholder-val="{{ false }}"><p class="tk-m">{{memberLine}}</p></sc-if>
 </div>
+<sc-if value="{{isSerDone}}" hint-placeholder-val="{{ false }}"><div class="pty ser-done" data-guide="site-serie-ok"><p class="pty-k">{{serDoneK}}</p><sc-for list="{{serDone}}" as="x" hint-placeholder-count="5"><div class="pty-r"><a class="pty-t" href="{{x.manage}}" aria-label="{{x.label}}"><b>{{x.k}}</b><small>{{x.line}}</small></a></div></sc-for><p class="g-hint">{{serDoneHint}}</p></div></sc-if>
 <sc-if value="{{isGroupDone}}" hint-placeholder-val="{{ false }}"><div class="tks"><sc-for list="{{doneOthers}}" as="o" hint-placeholder-count="2"><div class="tk tk2"><p class="tk-k">{{o.k}}</p><p class="tk-w">{{o.when}}</p><p class="tk-f">{{o.what}}</p><p class="tk-b"><span>{{o.who}}</span></p><p class="tk-c">Code<b>{{o.code}}</b></p><sc-if value="{{o.hasPay}}" hint-placeholder-val="{{ false }}"><a class="btn small" href="{{o.payUrl}}" target="_blank" rel="noopener">{{o.payText}}</a></sc-if><a class="mg-l" href="{{o.manage}}">{{o.manageText}}</a></div></sc-for></div></sc-if>
-<sc-if value="{{needPay}}" hint-placeholder-val="{{ false }}"><div class="pay-b"><p>{{payLine}}</p><a class="btn" href="{{payUrl}}" target="{{payTarget}}" rel="noopener">Régler l’acompte</a></div></sc-if>
+<sc-if value="{{needPay}}" hint-placeholder-val="{{ false }}"><div class="pay-b"><p>{{payLine}}</p><a class="btn" href="{{payUrl}}" target="{{payTarget}}" rel="noopener">{{payBtn}}</a></div></sc-if>
 <sc-if value="{{espaceNew}}" hint-placeholder-val="{{ false }}"><div class="card espace" data-guide="site.espace"><h3>Garde tout au même endroit</h3><p>{{espaceText}}</p><a class="btn" href="{{espaceUrl}}">Ouvrir mon espace</a><small>Facultatif&nbsp;: ton rendez-vous est déjà confirmé.</small></div></sc-if>
 <sc-if value="{{showSms}}" hint-placeholder-val="{{ true }}"><p class="sms-k">{{msgK}}</p>
 <div class="sms"><p>{{smsText}}</p><small>À l’instant</small></div></sc-if>
@@ -1592,7 +1662,7 @@ html{scroll-behavior:auto}
 <sc-if value="{{notAsking}}" hint-placeholder-val="{{ true }}"><button type="button" class="tl" onClick="{{goMove}}">Déplacer</button><button type="button" class="tl" onClick="{{askCancel}}">Annuler</button></sc-if>
 <sc-if value="{{asking}}" hint-placeholder-val="{{ false }}"><p class="ask">Annuler ce rendez-vous&nbsp;?</p><button type="button" class="btn small" onClick="{{doCancel}}">Oui, annuler</button><button type="button" class="tl" onClick="{{keep}}">Non, je garde</button></sc-if>
 </div>
-<a class="mg-l" href="{{manageUrl}}">Ton rendez-vous a sa page&nbsp;: déplacer, annuler, itinéraire</a>
+<sc-if value="{{oneManage}}" hint-placeholder-val="{{ true }}"><a class="mg-l" href="{{manageUrl}}">Ton rendez-vous a sa page&nbsp;: déplacer, annuler, itinéraire</a></sc-if>
 <sc-if value="{{espaceIn}}" hint-placeholder-val="{{ false }}"><a class="mg-l" href="/moi">C’est dans ton espace.</a></sc-if>
 <sc-if value="{{isDemo}}" hint-placeholder-val="{{ true }}"><a class="to-ck" href="/comptoir" target="_blank" rel="noopener" onClick="{{toCockpit}}"><span><small>Démo</small>Le voir arriver dans le Comptoir</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h15M13 6l6 6-6 6"/></svg></a></sc-if>
 </div>
@@ -1806,7 +1876,7 @@ const LXE = (function () {
   function newRid() { try { return window.crypto.randomUUID(); } catch (e) { let s = ''; for (let i = 0; i < 32; i++) s += Math.floor(Math.random() * 16).toString(16); return s; } }
   function netCall(method, path, body) {
     const read = method === 'GET' && path.indexOf('/api/public/availability') === 0 && Date.now() < freshUntil;
-    const key = method === 'POST' && (path === '/api/public/holds' || path === '/api/public/bookings') ? path : '';
+    const key = method === 'POST' && (path === '/api/public/holds' || path === '/api/public/bookings' || path === '/api/public/formule/holds' || path === '/api/me/formule') ? path : '';
     const sig = key ? JSON.stringify(body) : '';
     if (key && (!RID[key] || RID[key].sig !== sig)) RID[key] = { sig: sig, id: newRid() };
     return {
@@ -1839,8 +1909,13 @@ const LXE = (function () {
     Object.keys(SV).forEach(function (k) { delete SV[k]; });
     catalog = (j.services || []).slice().sort(function (a, b) { return (a.order || 0) - (b.order || 0); }).map(function (x) {
       const k = x.slug || x.id;
-      return (SV[k] = { id: x.id, key: k, n: x.name, sh: x.short || x.name, p: x.price / 100, d: x.dur, from: !!x.from, deposit: x.deposit, cat: x.category || 'Prestations', tag: x.tag || '', inc: x.includes || [], note: x.description || '' });
+      /* a carnet bought with its dates (one cut a week): `pack` says how many cuts, what a missed week does, and the cut it pays (cover) */
+      const pk = x.pack && x.pack.weekly ? { credits: x.pack.credits, missed: x.pack.missed === 'once' ? 'once' : 'lost', cover: (x.pack.serviceIds || [])[0] || null, coverKey: null } : null;
+      return (SV[k] = { id: x.id, key: k, n: x.name, sh: x.short || x.name, p: x.price / 100, d: x.dur, from: !!x.from, deposit: x.deposit, cat: x.category || 'Prestations', tag: x.tag || '', inc: x.includes || [], note: x.description || '', pack: pk });
     });
+    /* its dates are those of the cut it pays for: without that cut online, it is not sold here */
+    catalog.forEach(function (f) { if (f.pack) { const c = catalog.filter(function (y) { return !y.pack && y.id === f.pack.cover; })[0]; f.pack.coverKey = c ? c.key : null; } });
+    catalog = catalog.filter(function (f) { if (f.pack && !f.pack.coverKey) { delete SV[f.key]; return false; } return true; });
     BARBERS.length = 0;
     Object.keys(BMAP).forEach(function (k) { delete BMAP[k]; });
     (j.barbers || []).forEach(function (b) {
@@ -1875,8 +1950,9 @@ const LXE = (function () {
   /* which 14-day window of the booking horizon holds this day (0: from today) */
   function win(key) { return key ? Math.max(0, Math.floor(diffDays(now().key, key) / WIN)) : 0; }
   /* the service the page uses when none is chosen yet (hero, barbers' next slots): the first one of the catalogue */
-  function first() { return catalog ? (catalog[0] ? catalog[0].key : null) : 'cl'; }
-  function norm(f) { return typeof f === 'string' && SV[f] ? f : first(); }
+  function first() { if (!catalog) return 'cl'; const c = catalog.filter(function (f) { return !f.pack; })[0]; return c ? c.key : null; }
+  /* a carnet's slots are those of the cut it pays for */
+  function norm(f) { const k = typeof f === 'string' && SV[f] ? f : first(); return k && SV[k] && SV[k].pack ? SV[k].pack.coverKey : k; }
   function barberOf(x) {
     x = String(x || '').toLowerCase();
     if (x === 'any') return x;
@@ -1954,8 +2030,8 @@ const LXE = (function () {
     return x && x.id ? Promise.resolve(x.id) : Promise.reject(e);
   }
   /* party: how many people this visitor books together (« Ajouter une personne »), so each one's slot stays kept */
-  function hold(f, who, day, start, party) {
-    return sid(f).then(function (id) { return call('POST', '/api/public/holds', { serviceIds: [id], staffId: !who || who === 'any' ? 'any' : staffOf[who], day: day, start: start, party: party > 1 ? party : undefined }); })
+  function hold(f, who, day, start, party, replace) {
+    return sid(f).then(function (id) { return call('POST', '/api/public/holds', { serviceIds: [id], staffId: !who || who === 'any' ? 'any' : staffOf[who], day: day, start: start, party: party > 1 ? party : undefined, replace: replace || undefined }); })
       .then(function (h) { invalidate(); return { id: h.holdId, barber: barberIdOf[h.staffId] || who, exp: h.exp }; });
   }
   function release(id) { if (id) call('DELETE', '/api/public/holds/' + encodeURIComponent(id)).then(invalidate, function () {}); }
@@ -1995,6 +2071,27 @@ const LXE = (function () {
   function setMoving(token) { moving = token || null; emit(); }
   function uid(p) { return p + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
 
+  /* ---------- the carnet bought with its dates: the dates proposed, every slot kept together, the account, the purchase ---------- */
+  function series(barber, day, start) {
+    return call('GET', '/api/public/formule/series?staff=' + encodeURIComponent(staffOf[barber] || '') + '&day=' + encodeURIComponent(day) + '&start=' + start).then(function (j) {
+      (j.weeks || []).forEach(function (w) { w.barber = barberIdOf[w.staffId] || null; });
+      return j;
+    });
+  }
+  function holdSeries(list, replace) {
+    return call('POST', '/api/public/formule/holds', { slots: list.map(function (x) { return { staffId: staffOf[x.barber], day: x.day, start: x.time }; }), replace: replace && replace.length ? replace : undefined })
+      .then(function (r) { invalidate(); return r; });
+  }
+  function join(o) { return call('POST', '/api/public/account/join', o); }
+  function verify(o) { return call('POST', '/api/public/account/verify', o); }
+  function buy(o) {
+    return call('POST', '/api/me/formule', o).then(function (r) {
+      invalidate(); emit();
+      (r.appts || []).forEach(function (a) { a.barber = barberIdOf[a.staffId] || null; });
+      return r;
+    });
+  }
+
   return {
     BARBERS: BARBERS, BMAP: BMAP, SV: SV, DAYS: DAYS, DAYS_SH: DAYS_SH, MONTHS: MONTHS, MONTHS_SH: MONTHS_SH,
     pad: pad, clamp: clamp, parisParts: parisParts, keyOf: keyOf, parts: parts, addDays: addDays, diffDays: diffDays,
@@ -2002,7 +2099,7 @@ const LXE = (function () {
     slots: slots, ready: ready, openDays: openDays, earliest: earliest, stillFree: stillFree, pull: pull, on: on, init: function () { return Promise.all([loadSalon(), loadMemberships()]).then(function () {}); },
     memberships: function () { return mbr; }, account: function () { return acct; }, loadAccount: loadAccount, subscribe: subscribe,
     salon: function () { return salon; }, services: function () { return catalog; }, first: first, barberOf: barberOf, serviceOf: serviceOf, clock: function () { return Date.now() + skew; }, hold: hold, release: release, book: book, person: person, booking: booking, cancel: cancel, move: move, wait: wait, offer: offer, live: live,
-    setMoving: setMoving, uid: uid
+    setMoving: setMoving, uid: uid, series: series, holdSeries: holdSeries, join: join, verify: verify, buy: buy
   };
 })();
 
@@ -2083,12 +2180,22 @@ const FAQ = [
   { q: 'Comment réserver ?', a: () => 'En ligne, en moins d’une minute et sans créer de compte : tu choisis ta prestation, ton barbier et ton créneau.' },
   { q: 'Faites-vous les décolorations et le silver ?', a: (x) => 'Oui. Décoloration dès ' + x.p('de') + ', coloration dès ' + x.p('co') + ', silver (blanc ou gris) à ' + x.p('si') + ', toujours après un avis sur la faisabilité.' },
   // the monthly membership while it is sold online (PAY-04), the carnet always
-  { q: 'Existe-t-il un abonnement ou un carnet ?', a: (x) => { const lo = aboLow(); return lo ? 'Oui, deux formules : l’abonnement mensuel (dès ' + num(lo / 100) + NB + '€/mois, sans engagement) et le carnet de 5 coupes (' + x.p('ab') + ').' : 'Oui, le carnet : 5 coupes pour ' + x.p('ab') + perCut(x.c('ab'), 5) + ', hors barbe, à prendre au salon. On fixe tes coupes avec toi.'; } },
+  { q: 'Existe-t-il un abonnement ou un carnet ?', a: (x) => { const lo = aboLow(); return lo ? 'Oui, deux formules : l’abonnement mensuel (dès ' + num(lo / 100) + NB + '€/mois, sans engagement) et le carnet de 5 coupes (' + x.p('ab') + ').' : 'Oui, le carnet : 5 coupes pour ' + x.p('ab') + perCut(x.c('ab'), 5) + (x.on('ab') ? ', hors barbe, une par semaine pendant 5 semaines. Il se prend en ligne avec un compte client, ou au salon.' : ', hors barbe, à prendre au salon. On fixe tes coupes avec toi.'); } },
   { q: 'Le salon forme-t-il des barbiers ?', a: () => 'Oui. L’Architecte est titulaire d’un agrément de formateur en coiffure et propose des stages, de l’entretien de la barbe à la coupe homme complexe.', link: '/formations', linkLabel: 'Les formations de L’Archi' },
   { q: 'Peut-on payer par carte ?', a: () => 'Oui, la carte bancaire est acceptée au salon.' }
 ];
 /* the cheapest monthly plan sold online, in cents, or 0 while the membership is not live (PAY-04) */
 function aboLow() { const m = LXE.memberships(); return m && m.live && m.plans.length ? Math.min.apply(null, m.plans.map((p) => p.price)) : 0; }
+/* a carnet bought with its dates, in the services list: « 5 coupes · 5 semaines · 16 € la coupe », what it includes and
+   excludes (the Catalogue's own lines), and its rule in one plain sentence */
+function packWords(f) {
+  const n = f.pack.credits;
+  const per = Math.round(f.p * 100) % n === 0 ? num(f.p / n) + NB + '€ la coupe' : '';
+  return {
+    sum: [n + ' coupes', n + ' semaines', per].filter(Boolean).join(' · '), inc: (f.inc || []).join(' · '),
+    rule: 'Un rendez-vous par semaine pendant ' + n + ' semaines : ' + (f.pack.missed === 'once' ? 'une semaine manquée se rattrape une fois.' : 'une semaine sans coupe est perdue.')
+  };
+}
 /* ', soit 16 € la coupe' from the carnet's price, said only when it falls on whole cents */
 function perCut(cents, n) { return cents && cents % n === 0 ? ', soit ' + num(cents / n / 100) + NB + '€ la coupe' : ''; }
 /* the FAQ as the page shows it now: the salon's whole menu (online or not: a price quoted is a price) and hours */
@@ -2105,6 +2212,8 @@ function faqNow() {
     };
     const x = {
       c: c,
+      // sold on the site right now (the carnet: only with its dates and the client space open)
+      on: function (k) { const m = menu ? menu.filter(function (y) { return y.slug === k; })[0] : null; return !!(m && m.online && LXE.SV[k] && LXE.SV[k].pack); },
       p: function (k) { const v = c(k); return miss ? '' : num(v / 100) + NB + '€'; },
       hours: function () { const t = sal ? sal.hoursText : HOURS0.hoursText; if (!t) miss = true; return t || ''; },
       closed: sal ? sal.closedText || '' : HOURS0.closedText,
@@ -3169,7 +3278,10 @@ const BookingMixin = {
     // party: the people already chosen in this booking (« Ajouter une personne »), each with his own slot and kept hold;
     // gfor: who the place being chosen is for (moi, une autre personne, mon enfant); wide: the view of every barber's day
     return { step: 'svc', f: null, barber: null, day: null, time: null, assigned: null, holdId: null, holdExp: 0, holdTok: null, moving: null, err: '', result: null, busy: false, ask: false, waited: '', waitAsk: false,
-      party: [], gfor: 'me', gFirst: '', gPhone: '', gAge: '', wide: false };
+      party: [], gfor: 'me', gFirst: '', gPhone: '', gAge: '', wide: false,
+      // the carnet bought with its dates: sub 'series' is « Tes 4 autres rendez-vous » inside step 3; series: one line per
+      // following week; serHolds: every chosen slot kept together; acc: the code being asked for the account it needs
+      sub: null, series: null, serEdit: null, serOk: false, serTok: null, serHolds: null, serLoading: false, acc: null };
   },
 
   bkInit() {
@@ -3272,6 +3384,9 @@ const BookingMixin = {
     // a fresh start drops the people already chosen: their kept slots go back to everyone at once
     if (finished && bk && bk.party) bk.party.forEach((x) => { if (x.holdId) LXE.release(x.holdId); });
     bk = finished ? this.bkEmpty() : Object.assign({}, bk, { err: '', ask: false });
+    // the sheet was closed in the middle of « Modifier »: back to the details, the slot still kept
+    if (!finished && bk.keep && !pre) { this.setState({ sheet: true, menu: false, bk: Object.assign(bk, { step: 'info', holdId: bk.keep.holdId, holdExp: bk.keep.holdExp, holdTok: null, keep: null }) }); this.bkTick(); return; }
+    if (bk.keep) { LXE.release(bk.keep.holdId); bk.keep = null; }
     if (pre) {
       if (pre.mbr) { bk.mbr = pre.mbr; bk.gfor = 'me'; }
       if (pre.formula) bk.f = pre.formula;
@@ -3279,8 +3394,15 @@ const BookingMixin = {
       if (pre.day) { bk.day = pre.day; bk.time = pre.time != null ? pre.time : null; bk.assigned = null; }
     }
     bk.step = this.bkNext(bk);
-    if (bk.step === 'info') this.bkHold(bk);
+    const PF = bk.f ? LXE.SV[bk.f] : null;
+    let loadSer = false;
+    if (PF && PF.pack && bk.step === 'info') {
+      // the carnet: its other dates come before the details; already chosen, the slots are kept again
+      if (bk.serOk && bk.series) this.serHold(bk);
+      else { bk.step = 'when'; bk.sub = 'series'; bk.serOk = false; loadSer = !bk.series; if (loadSer) bk.serLoading = true; }
+    } else if (bk.step === 'info') this.bkHold(bk);
     this.setState({ sheet: true, menu: false, bk: bk });
+    if (loadSer) this.serLoad(bk);
     LXE.pull();
   },
 
@@ -3299,10 +3421,33 @@ const BookingMixin = {
   },
 
   bkPick(patch) {
-    const bk = Object.assign({}, this.state.bk, patch, { err: '' });
-    this.bkRelease(this.state.bk);
+    const prev = this.state.bk;
+    const bk = Object.assign({}, prev, patch, { err: '' });
+    this.bkRelease(prev);
     bk.holdId = null; bk.holdTok = null;
+    // « Modifier » from the details: the slot he still keeps
+    const k = prev.keep;
+    if (k) {
+      const NF = bk.f ? LXE.SV[bk.f] : null;
+      const same = bk.day === k.day && bk.time === k.time && !!NF && !NF.pack && NF.d === k.d && !!bk.barber && (bk.barber === 'any' || bk.barber === k.barber);
+      bk.keep = null;
+      if (same) { bk.step = 'info'; bk.assigned = k.barber; this.bkHold(bk, k.holdId); this.setState({ bk: bk }); buzz(6); return; }
+      LXE.release(k.holdId);
+    }
+    // another service, barber or first slot: the following dates are proposed again
+    if (patch && ('f' in patch || 'barber' in patch || 'day' in patch || 'time' in patch)) Object.assign(bk, { series: null, serOk: false, serHolds: null, sub: null, serEdit: null });
     bk.step = this.bkNext(bk);
+    const PF = bk.f ? LXE.SV[bk.f] : null;
+    if (PF && PF.pack && bk.step === 'info' && !bk.serOk && !bk.moving) {
+      // the carnet: its other dates come right after the first one, still in step 3
+      bk.step = 'when'; bk.sub = 'series';
+      const load = !bk.series;
+      if (load) bk.serLoading = true;
+      this.setState({ bk: bk });
+      if (load) this.serLoad(bk);
+      buzz(6);
+      return;
+    }
     if (bk.step === 'info' && bk.moving) { this.setState({ bk: bk }); this.bkMoveTo(bk); return; }
     if (bk.step === 'info') this.bkHold(bk);
     this.setState({ bk: bk });
@@ -3312,19 +3457,26 @@ const BookingMixin = {
   bkBack() {
     const bk = this.state.bk;
     const i = BK_ORDER.indexOf(bk.step);
+    // « Modifier » from the details, then Retour: back to the details, his slot still kept
+    if (bk.keep) { this.setState({ bk: Object.assign({}, bk, { step: 'info', err: '', holdId: bk.keep.holdId, holdExp: bk.keep.holdExp, holdTok: null, keep: null }) }); this.bkTick(); return; }
     // the first step of one more person: back to the last person chosen, his slot still kept
     if (i === 0 && (bk.party || []).length && !bk.busy) { this.bkFocus(bk.party.length - 1, ''); return; }
+    const pack = !!(bk.f && LXE.SV[bk.f] && LXE.SV[bk.f].pack);
+    // the carnet: from the details back to its dates, from its dates back to the first slot
+    if (pack && bk.step === 'info') { this.bkRelease(bk); this.setState({ bk: Object.assign({}, bk, { step: 'when', sub: 'series', err: '', holdId: null, holdTok: null, serHolds: null, serOk: false, acc: null }) }); return; }
+    if (pack && bk.step === 'when' && bk.sub === 'series') { this.setState({ bk: Object.assign({}, bk, { sub: null, serEdit: null, err: '' }) }); return; }
     if (bk.step === 'info') this.bkRelease(bk);
     if (i > 0) this.setState({ bk: Object.assign({}, bk, { step: BK_ORDER[i - 1], err: '', holdId: bk.step === 'info' ? null : bk.holdId, holdTok: null }) });
   },
 
   /* ---------- the slot is held on the salon's side while you type ---------- */
-  bkHold(bk) {
+  /* replace: his own hold on this very slot, kept while he changed the service (« Modifier la prestation »): swapped in one go */
+  bkHold(bk, replace) {
     const tok = LXE.uid('t');
     const sal = LXE.salon();
     bk.holdTok = tok; bk.holdId = null;
     bk.holdExp = Date.now() + (sal ? sal.booking.holdMin : 5) * 60000;
-    LXE.hold(bk.f, bk.assigned || bk.barber, bk.day, bk.time, (bk.party || []).length + 1).then((h) => {
+    LXE.hold(bk.f, bk.assigned || bk.barber, bk.day, bk.time, (bk.party || []).length + 1, replace).then((h) => {
       const cur = this.state.bk;
       if (!this._mounted || cur.holdTok !== tok || cur.step !== 'info') { LXE.release(h.id); return; }
       this.setState({ bk: Object.assign({}, cur, { holdId: h.id, assigned: h.barber }) });
@@ -3342,11 +3494,149 @@ const BookingMixin = {
     }, 1000);
   },
   bkRelease(bk) {
+    if (bk && bk.serHolds && bk.step === 'info') { bk.serHolds.forEach((h) => LXE.release(h.holdId)); return; }
     if (bk && bk.holdId && bk.step === 'info' && !bk.offer) LXE.release(bk.holdId);
+  },
+  /* « Modifier la prestation, le barbier, le créneau » from the details: back to that step for this person, the others kept */
+  bkEdit(to) {
+    const b = this.state.bk;
+    if (b.busy || b.step !== 'info') return;
+    // his slot stays kept while he looks: the same slot with another service of the same length swaps the hold in one go
+    const F = b.f ? LXE.SV[b.f] : null;
+    const keep = b.holdId && !b.offer ? { day: b.day, time: b.time, barber: b.assigned || b.barber, holdId: b.holdId, holdExp: b.holdExp, d: F ? F.d : 0 } : null;
+    if (!keep) this.bkRelease(b);
+    this.setState({ bk: Object.assign({}, b, { step: to, err: '', holdId: null, holdTok: null, keep: keep }) });
+    LXE.pull();
+  },
+
+  /* ---------- the carnet bought with its dates: « Tes 4 autres rendez-vous », the account, the purchase ---------- */
+  serLoad(bk) {
+    const tok = LXE.uid('s');
+    bk.serTok = tok;
+    const bar = bk.assigned || bk.barber;
+    LXE.series(bar, bk.day, bk.time).then((j) => {
+      const cur = this.state.bk;
+      if (!this._mounted || cur.serTok !== tok) return;
+      const series = (j.weeks || []).map((w) => ({ week: w.week, day: w.day, time: w.start, barber: w.barber || bar, why: w.why || '', later: !!w.none, none: !!w.none, usual: w.day }));
+      this.setState({ bk: Object.assign({}, cur, { series: series, serLoading: false, serEnd: j.end || '', serEdit: null }) });
+    }).catch((e) => {
+      const cur = this.state.bk;
+      if (this._mounted && cur.serTok === tok) this.setState({ bk: Object.assign({}, cur, { serLoading: false, series: null, sub: null, time: null, assigned: null, err: e.message }) });
+    });
+  },
+  /* the first date and every following one that has its slot, in order */
+  serSlots(b) {
+    return [{ barber: b.assigned || b.barber, day: b.day, time: b.time }].concat((b.series || []).filter((w) => !w.later).map((w) => ({ barber: w.barber, day: w.day, time: w.time, week: w.week })));
+  },
+  serSet(week, patch) {
+    const b = this.state.bk;
+    this.setState({ bk: Object.assign({}, b, { err: '', series: (b.series || []).map((w) => (w.week === week ? Object.assign({}, w, patch) : w)) }) });
+  },
+  serContinue() {
+    const b = this.state.bk;
+    if (!b.series || b.serLoading || b.busy) return;
+    const bk = Object.assign({}, b, { step: 'info', sub: null, serOk: true, serEdit: null, err: '' });
+    this.serHold(bk);
+    this.setState({ bk: bk });
+    buzz(6);
+  },
+  /* every chosen slot is kept on the salon's side while you type (and while the code arrives): all of them or none */
+  serHold(bk) {
+    const tok = LXE.uid('t');
+    const sal = LXE.salon();
+    const old = (bk.serHolds || []).map((h) => h.holdId);
+    bk.holdTok = tok; bk.holdId = null;
+    bk.holdExp = Date.now() + (sal ? sal.booking.holdMin : 5) * 60000;
+    LXE.holdSeries(this.serSlots(bk), old).then((r) => {
+      const cur = this.state.bk;
+      if (!this._mounted || cur.holdTok !== tok || cur.step !== 'info') { (r.holds || []).forEach((h) => LXE.release(h.holdId)); return; }
+      this.setState({ bk: Object.assign({}, cur, { holdId: r.holds[0].holdId, serHolds: r.holds }) });
+    }).catch((e) => {
+      const cur = this.state.bk;
+      if (!this._mounted || cur.holdTok !== tok || cur.step !== 'info') return;
+      if (e.code === 'taken') this.serConflict(e); else this.setState({ bk: Object.assign({}, cur, { holdTok: null, err: e.message }) });
+    });
+    this.bkTick();
+  },
+  /* one of the slots was just taken: the first one sends back to the choice of time, another one to its line */
+  serConflict(e) {
+    const b = this.state.bk;
+    const i = e.extra && typeof e.extra.week === 'number' ? e.extra.week : 0;
+    const hit = this.serSlots(b)[i];
+    LXE.pull();
+    if (!i || !hit) { this.setState({ bk: Object.assign({}, b, { busy: false, step: 'when', sub: null, series: null, serOk: false, serHolds: null, time: null, assigned: null, holdId: null, holdTok: null, err: e.message || 'Ce créneau vient d’être pris. Choisis-en un autre, tes choix sont gardés.' }) }); return; }
+    this.setState({ bk: Object.assign({}, b, {
+      busy: false, step: 'when', sub: 'series', serOk: false, serHolds: null, holdId: null, holdTok: null, serEdit: hit.week, serDay: hit.day, serWho: null, err: e.message,
+      series: b.series.map((w) => (w.week === hit.week ? Object.assign({}, w, { later: true, why: 'Ce créneau vient d’être pris : choisis-en un autre, ou plus tard.' }) : w))
+    }) });
+  },
+  accSet(patch) { const b = this.state.bk; this.setState({ bk: Object.assign({}, b, { acc: Object.assign({}, b.acc || {}, patch) }) }); },
+  /* « Cette formule demande un compte »: a code goes to the number typed */
+  accSend() {
+    const s = this.state, b = s.bk;
+    if ((b.acc && b.acc.busy) || !this.identOk()) return;
+    this.accSet({ busy: true, err: '' });
+    LXE.join({ first: capFirst(String(s.fFirst).trim().split(/\s+/)[0]).slice(0, 40), last: String(s.fLast || '').trim().slice(0, 40) || undefined, phone: String(s.fPhone) }).then((j) => {
+      if (!this._mounted) return;
+      this.accSet({ busy: false, sent: true, code: j.demoCode || '', demo: j.demoCode || '', err: '', ask: false });
+    }).catch((e) => { if (this._mounted) this.accSet({ busy: false, err: e.message }); });
+  },
+  accVerify() {
+    const s = this.state, b = s.bk, a = b.acc || {};
+    if (a.busy || !/^\d{6}$/.test(String(a.code || ''))) return;
+    this.accSet({ busy: true, err: '' });
+    LXE.verify({ phone: String(s.fPhone), code: String(a.code), first: capFirst(String(s.fFirst).trim().split(/\s+/)[0]).slice(0, 40) }).then((r) => {
+      if (!this._mounted) return;
+      if (!r.ok) { this.accSet({ busy: false, ask: true, err: r.message || 'Vérifie ton prénom.' }); return; }
+      // signed in: the slots are kept again for the time it takes to confirm
+      const bk = Object.assign({}, this.state.bk, { acc: null, err: '' });
+      this.serHold(bk);
+      this.setState({ acct: Object.assign({}, this.state.acct || {}, { enabled: true, signedIn: true, first: r.first || '', own: true }), bk: bk });
+      buzz(6);
+    }).catch((e) => { if (this._mounted) this.accSet({ busy: false, err: e.message }); });
+  },
+  async bkBuy() {
+    const s0 = this.state, b = s0.bk;
+    const F = LXE.SV[b.f];
+    if (b.busy || !F || !F.pack || !this.bkGuestOk(b)) return;
+    this.setState({ bk: Object.assign({}, b, { busy: true, err: '' }) });
+    const all = this.serSlots(b);
+    const holds = b.serHolds || [];
+    const one = (x, i) => ({ staffId: LXE.BMAP[x.barber] ? LXE.BMAP[x.barber].sid : 'any', day: x.day, start: x.time, holdId: holds[i] && holds[i].day === x.day && holds[i].start === x.time ? holds[i].holdId : undefined });
+    let n = 0;
+    try {
+      const r = await LXE.buy({ serviceId: F.id, first: one(all[0], 0), weeks: (b.series || []).map((w) => (w.later ? { later: true } : one(w, ++n))), guest: b.gfor === 'child' ? this.bkGuestOf(b) : undefined, email: String(s0.fEmail || '').trim() || undefined });
+      const a0 = r.appts[0];
+      const first = (s0.acct && s0.acct.first) || capFirst(String(s0.fFirst || '').trim().split(/\s+/)[0]) || '';
+      const result = {
+        token: a0.token, code: a0.code, manage: a0.manage, day: a0.day, time: a0.start, dur: F.d, f: b.f, n: F.n, p: F.p, from: false, barber: a0.barber || b.assigned, any: false, first: first, status: a0.status,
+        deposit: r.amount, payUrl: r.payment ? r.payment.url : null, member: '', forWho: b.gfor === 'child' ? this.bkGuestOf(b).first : '',
+        serie: { pay: r.pay, amount: r.amount, of: F.pack.credits, later: (b.series || []).filter((w) => w.later).length, dates: r.appts.map((a) => ({ n: a.n, day: a.day, time: a.start, barber: a.barber, manage: a.manage, code: a.code })) }
+      };
+      this.remember(null, { token: a0.token, code: a0.code, manage: a0.manage, day: a0.day, time: a0.start, dur: F.d, f: F.pack.coverKey, n: F.n, p: 0, barber: result.barber, first: first, status: a0.status });
+      markBooked();
+      clearInterval(this._holdT);
+      this.setState({ bk: Object.assign(this.bkEmpty(), { step: 'done', result: result, f: b.f }), icsUrl: '', fNote: '' });
+      this.acctOwn(result.token);
+      buzz([16, 40, 16]);
+    } catch (e) {
+      const cur = this.state.bk;
+      if (e.status === 401) { this.setState({ acct: Object.assign({}, this.state.acct || {}, { signedIn: false }), bk: Object.assign({}, cur, { busy: false, acc: null, err: '' }) }); return; }
+      if (e.code === 'taken') { this.serConflict(e); return; }
+      this.setState({ bk: Object.assign({}, cur, { busy: false, err: e.message }) });
+    }
+  },
+  identOk() {
+    const s = this.state;
+    const ph = String(s.fPhone || '').replace(/\D/g, '');
+    return String(s.fFirst || '').trim().length >= 2 && ph.length === 10 && ph.charAt(0) === '0';
   },
 
   bkValid() {
     const s = this.state;
+    const PF = s.bk.f ? LXE.SV[s.bk.f] : null;
+    // the carnet: signed in, his file is the session's; nothing more to type than who it is for
+    if (PF && PF.pack) return !!(s.acct && s.acct.signedIn) && this.bkGuestOk(s.bk);
     const ph = String(s.fPhone || '').replace(/\D/g, '');
     const em = String(s.fEmail || '').trim();
     return String(s.fFirst || '').trim().length >= 2 && ph.length === 10 && ph.charAt(0) === '0' && (!em || /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em)) && this.bkGuestOk(s.bk);
@@ -3371,7 +3661,7 @@ const BookingMixin = {
   /* « Ajouter une personne »: this place is kept (hold included), the next person starts at the first step, on the same day */
   bkAdd() {
     const b = this.state.bk;
-    if (b.busy || (b.party || []).length + 1 >= PARTY_MAX) return;
+    if (b.busy || (b.party || []).length + 1 >= PARTY_MAX || (b.f && LXE.SV[b.f] && LXE.SV[b.f].pack)) return;
     if (!this.bkGuestOk(b)) { this.setState({ bk: Object.assign({}, b, { err: b.gfor === 'child' ? 'Indique le prénom de l’enfant avant d’ajouter une personne.' : 'Indique son prénom avant d’ajouter une personne.' }) }); return; }
     // the slot must be kept first: a place left without its hold could go to someone else meanwhile
     if (!b.holdId && b.holdTok) { this.setState({ bk: Object.assign({}, b, { err: 'Un instant : on garde encore ce créneau.' }) }); return; }
@@ -3394,6 +3684,8 @@ const BookingMixin = {
     const b = this.state.bk;
     const x = (b.party || [])[i];
     if (!x) return;
+    // the place being left must have its hold first (as before adding a person): without it, its slot could go meanwhile
+    if (!err && b.step === 'info' && !b.holdId && b.holdTok) { this.setState({ bk: Object.assign({}, b, { err: 'Un instant : on garde encore ce créneau.' }) }); return; }
     const rest = b.party.filter((y, k) => k !== i);
     // the place being chosen joins the others only once it has its slot; a half-chosen one is simply left
     const cur = b.step === 'info' && b.day && b.time != null ? [this.bkPlace(b)] : [];
@@ -3566,15 +3858,22 @@ const BookingMixin = {
     v.bkCls = s.sheet ? 'open' : '';
     v.closeSheet = () => this.setState({ sheet: false });
     v.sheetKey = (e) => this.sheetKey(e);
-    v.bkBackCls = 'bk-back' + ((si > 0 || (si === 0 && (b.party || []).length)) && !b.busy ? '' : ' off');
+    v.bkBackCls = 'bk-back' + ((si > 0 || (si === 0 && ((b.party || []).length || b.keep))) && !b.busy ? '' : ' off');
     v.bkBack = () => this.bkBack();
     const pending = !!(b.result && b.result.status === 'pending');
     const party = b.party || [];
-    v.bkStepLabel = b.moving && si >= 0 ? 'Déplacer · ' + BK_LABEL[step] : si >= 0 ? (party.length ? 'Personne ' + (party.length + 1) + ' · ' : '') + 'Étape ' + (si + 1) + ' sur 4 · ' + BK_LABEL[step] : (step === 'done' ? (pending ? 'Acompte à régler' : (b.moved ? 'Déplacé' : 'Confirmé')) : (step === 'manage' ? 'Réservation' : 'Annulation'));
-    v.bkTitle = step === 'done' && b.result ? (pending ? 'Presque réservé, ' + b.result.first + '.' : (b.moved ? 'C’est déplacé, ' : 'C’est réservé, ') + b.result.first + '.') : (b.moving && step === 'when' ? 'Pour quand ?' : BK_TITLE[step]);
+    const isPack = !!(F && F.pack);
+    const inSeries = step === 'when' && b.sub === 'series' && isPack;
+    const serie = b.result && b.result.serie ? b.result.serie : null;
+    // who the place being chosen is for, for the titles of an added person's steps: « Quelle coupe pour Léo ? »
+    const gName = b.gfor !== 'me' ? capFirst(String(b.gFirst || '').trim().split(/\s+/)[0] || '') : '';
+    const forW = b.gfor === 'me' || b.moving ? '' : gName ? 'pour ' + gName : b.gfor === 'child' ? 'pour ton enfant' : 'pour cette personne';
+    const FOR_TITLE = { svc: 'Quelle coupe ', who: 'Avec qui ', when: 'Quand ' };
+    v.bkStepLabel = b.moving && si >= 0 ? 'Déplacer · ' + BK_LABEL[step] : si >= 0 ? (party.length ? 'Personne ' + (party.length + 1) + ' · ' : '') + 'Étape ' + (si + 1) + ' sur 4 · ' + BK_LABEL[step] : (step === 'done' ? (pending ? (serie ? 'Carnet à régler' : 'Acompte à régler') : (b.moved ? 'Déplacé' : 'Confirmé')) : (step === 'manage' ? 'Réservation' : 'Annulation'));
+    v.bkTitle = step === 'done' && b.result ? (pending ? 'Presque réservé, ' + b.result.first + '.' : (b.moved ? 'C’est déplacé, ' : 'C’est réservé, ') + b.result.first + '.') : (b.moving && step === 'when' ? 'Pour quand ?' : inSeries ? 'Tes ' + (F.pack.credits - 1) + ' autres rendez-vous' : forW && FOR_TITLE[step] ? FOR_TITLE[step] + forW + ' ?' : BK_TITLE[step]);
     v.progCls = 'bk-prog' + (si < 0 ? ' off' : '');
     ['pg0', 'pg1', 'pg2', 'pg3'].forEach((k, i) => { v[k] = i < si ? 'done' : (i === si ? 'on' : ''); });
-    v.isSvc = step === 'svc'; v.isWho = step === 'who'; v.isWhen = step === 'when'; v.isInfo = step === 'info';
+    v.isSvc = step === 'svc'; v.isWho = step === 'who'; v.isWhen = step === 'when' && !inSeries; v.isSeries = inSeries; v.isInfo = step === 'info';
     v.isDone = step === 'done'; v.isManage = step === 'manage'; v.isCancelled = step === 'cancelled';
     v.mapsUrl = mapsOf();
     v.isDemo = !!(sal && sal.mode === 'demo');
@@ -3598,11 +3897,14 @@ const BookingMixin = {
     v.rebook = () => this.bkPick({ f: lastF, barber: lastB });
     v.svcGroups = menuGroups(SVC_GROUPS).map((g) => ({
       t: g.t,
-      items: g.items.filter((f) => f && f.n).map((f) => {
+      // a carnet is personal: it is not offered to a person added to a booking, nor from a member's link
+      items: g.items.filter((f) => f && f.n && !(f.pack && (party.length || b.mbr || b.moving))).map((f) => {
         const on = b.f === f.key;
+        const pk = f.pack ? packWords(f) : null;
         return {
-          cls: 'so' + (on ? ' on' : ''), on: on, n: f.n, hasTag: !!f.tag, tag: f.tag || '',
-          inc: (f.inc || []).length ? f.inc.slice(0, 3).join(' · ') : (f.note || ''), price: eur(f), dur: fmtDur(f.d),
+          cls: 'so' + (on ? ' on' : '') + (pk ? ' so-pack' : ''), on: on, n: f.n, hasTag: !pk && !!f.tag, tag: f.tag || '',
+          inc: pk ? pk.sum : (f.inc || []).length ? f.inc.slice(0, 3).join(' · ') : (f.note || ''), price: eur(f), dur: pk ? f.pack.credits + NB + '×' + NB + fmtDur(f.d) : fmtDur(f.d),
+          isPack: !!pk, l2: pk ? pk.inc : '', l3: pk ? pk.rule : '',
           go: () => this.bkPick({ f: f.key })
         };
       })
@@ -3632,12 +3934,15 @@ const BookingMixin = {
 
     /* 3 · créneau */
     v.hasErr = !!b.err; v.bkErr = b.err;
+    // an added person says who he is from the first step, so the steps can name him (asked again with the details)
+    v.svcFor = step === 'svc' && party.length > 0 && !b.moving;
+    v.svcForName = v.svcFor && b.gfor !== 'me';
     let dayCards = [], slotGroups = [], dayFull = false, early = null;
     // the view of every barber reads the day as « peu importe »: the strip counts what anyone has free
     const who = b.wide ? 'any' : (b.barber || 'any');
     const loaded = !!F && LXE.ready(b.f, who);
     let dPage = 0, dPages = 1, pageDays = days;
-    if (step === 'when' && F) {
+    if (step === 'when' && F && !inSeries) {
       early = loaded ? LXE.earliest(who, b.f, days) : null;
       /* every open day up to the salon's horizon (booking.maxDaysAhead), ten at a time */
       const all = LXE.openDays(Infinity);
@@ -3719,8 +4024,8 @@ const BookingMixin = {
     v.viewList = () => this.setState({ bk: Object.assign({}, this.state.bk, { wide: false }) });
     v.viewWide = () => this.setState({ bk: Object.assign({}, this.state.bk, { wide: true }) });
     if (!v.dPrev) { v.dPaged = false; v.dRange = ''; v.dNoPrev = true; v.dNoNext = true; v.dPrevCls = 'dnav-b off'; v.dNextCls = 'dnav-b off'; v.dPrevSafe = () => {}; v.dNextSafe = () => {}; v.dHasPrev = false; v.dHasNext = false; v.dPrev = () => {}; v.dNext = () => {}; v.dPrevLabel = ''; v.dNextLabel = ''; }
-    v.slotsLoading = step === 'when' && !!F && !(v.selDay ? LXE.ready(b.f, who, v.selDay) : loaded);
-    v.hasEarliest = !!early && step === 'when';
+    v.slotsLoading = step === 'when' && !inSeries && !!F && !(v.selDay ? LXE.ready(b.f, who, v.selDay) : loaded);
+    v.hasEarliest = !!early && step === 'when' && !inSeries;
     v.earliestLine = early ? LXE.dayWord(early.day) + ' · ' + LXE.fmtH(early.m) + (LXE.BMAP[early.barber] ? ' avec ' + LXE.BMAP[early.barber].n : '') : '';
     v.pickEarliest = () => { if (early) this.bkPick({ day: early.day, time: early.m, dpage: null }); };
 
@@ -3731,12 +4036,12 @@ const BookingMixin = {
     v.holdText = b.offer ? 'Place gardée pour toi' : !b.holdId ? 'On réserve le créneau…' : left > 0 ? 'Créneau gardé pour toi' : 'On revérifie le créneau à la confirmation';
     const bar = b.assigned || (b.barber !== 'any' ? b.barber : null);
     v.recapWhen = b.day && b.time != null ? capFirst(LXE.dayLong(b.day)) + ' · ' + LXE.fmtH(b.time) : '';
-    v.recapWhat = F ? F.n + ' · ' + fmtDur(F.d) : '';
+    v.recapWhat = F ? (isPack ? F.n + ' · ' + F.pack.credits + ' rendez-vous' : F.n + ' · ' + fmtDur(F.d) + (party.length ? ' · ' + eur(F) : '')) : '';
     v.recapWho = bar && LXE.BMAP[bar] ? 'avec ' + LXE.BMAP[bar].n : '';
     const rf = this.faceOf(bar ? LXE.BMAP[bar] : null);
     v.rcHasWho = !!(bar && LXE.BMAP[bar]); v.rcIni = rf.ini; v.rcHasPhoto = rf.hasPhoto; v.rcPhoto = rf.photo; v.rcPhotoErr = rf.err;
     // no online payment in production yet (payments.live false): the salon takes no deposit, so none is announced
-    const dep = F && sal && !(sal.payments && sal.payments.live === false) ? depositOf(F, sal.deposits) : 0;
+    const dep = F && !isPack && sal && !(sal.payments && sal.payments.live === false) ? depositOf(F, sal.deposits) : 0;
     v.hasDeposit = dep > 0 && step === 'info';
     v.bkMbr = !!b.mbr && step === 'info';
     // from the member page: the server says whether the cut is included; the deposit is only for one that is not
@@ -3750,7 +4055,8 @@ const BookingMixin = {
     // coupe » (his plan covers his own cut only: for someone else, the usual booking)
     v.canFor = step === 'info' && !b.moving && !b.offer && !b.mbr;
     v.forOpts = [['me', 'Moi'], ['other', 'Une autre personne'], ['child', 'Mon enfant']].map(([k, t]) => {
-      const off = k === 'me' && hasMe;
+      // a carnet is personal: his own, or his child's on his account
+      const off = (k === 'me' && hasMe) || (k === 'other' && isPack);
       return { cls: 'fo' + (b.gfor === k ? ' on' : '') + (off ? ' off' : ''), on: b.gfor === k, off: off, t: t, go: () => { if (!off) setBk({ gfor: k }); } };
     });
     v.forSome = v.canFor && b.gfor !== 'me'; v.forOther = b.gfor === 'other'; v.forChild = b.gfor === 'child';
@@ -3769,13 +4075,22 @@ const BookingMixin = {
     const placeLine = (x) => {
       const PF = LXE.SV[x.f];
       const bb = x.assigned || (x.barber !== 'any' ? x.barber : null);
-      return (PF ? PF.n + ' · ' : '') + LXE.dayShort(x.day) + ' · ' + LXE.fmtH(x.time) + (bb && LXE.BMAP[bb] ? ' avec ' + LXE.BMAP[bb].n : '');
+      return (PF ? PF.n + ' · ' + eur(PF) + ' · ' : '') + LXE.dayShort(x.day) + ' · ' + LXE.fmtH(x.time) + (bb && LXE.BMAP[bb] ? ' avec ' + LXE.BMAP[bb].n : '');
     };
     v.partyRows = party.map((x, i) => ({
       who: placeWho(x), line: placeLine(x), edit: () => this.bkFocus(i, ''), drop: () => this.bkDrop(i),
-      editLabel: 'Revenir à ' + placeWho(x) + ' : ' + placeLine(x), dropLabel: 'Retirer ' + placeWho(x) + ' de la réservation'
+      editLabel: 'Revenir à ' + placeWho(x) + ' : ' + placeLine(x), modLabel: 'Modifier la prestation, le barbier ou le créneau de ' + placeWho(x).replace(/ \(.*\)$/, ''), dropLabel: 'Retirer ' + placeWho(x) + ' de la réservation'
     }));
-    v.canAdd = v.canFor && !b.mbr && party.length + 1 < PARTY_MAX;
+    // each person with his own service and price, and what it comes to
+    const everyone = party.concat(F && step === 'info' ? [b] : []);
+    const sumOf = everyone.map((x) => LXE.SV[x.f]).filter(Boolean);
+    v.partyTotal = party.length && sumOf.length ? 'Total pour ' + everyone.length + ' personnes : ' + LXE.eur(sumOf.reduce((t, x) => t + x.p, 0), sumOf.some((x) => x.from)) + '.' : '';
+    // « Modifier » on the place being chosen: its service, its barber or its slot, the other people kept
+    v.canEdit = step === 'info' && !b.moving && !b.offer && !isPack && !b.busy;
+    const whoseIt = b.gfor === 'me' ? '' : ' ' + (forW || '');
+    v.editSvc = () => this.bkEdit('svc'); v.editWho = () => this.bkEdit('who'); v.editWhen = () => this.bkEdit('when');
+    v.editSvcLabel = 'Modifier la prestation' + whoseIt; v.editWhoLabel = 'Modifier le barbier' + whoseIt; v.editWhenLabel = 'Modifier le créneau' + whoseIt;
+    v.canAdd = v.canFor && !b.mbr && !isPack && party.length + 1 < PARTY_MAX;
     v.addPerson = () => this.bkAdd();
     v.addHint = 'Jusqu’à ' + PARTY_MAX + ' personnes, côte à côte ou l’une après l’autre.';
     v.meHead = step === 'info' && (b.gfor !== 'me' || party.length > 0);
@@ -3806,6 +4121,78 @@ const BookingMixin = {
     v.phoneCls = 'hint' + (phd.length > 0 && (phd.length < 10 || phd.charAt(0) !== '0') ? ' warn' : '');
     v.dataHref = '/confidentialite';
     v.hasTerms = step === 'info' && dep > 0;
+
+    /* the carnet bought with its dates: « Tes 4 autres rendez-vous » (inside step 3), then the account it needs */
+    const nCuts = isPack ? F.pack.credits : 0;
+    const signed = !!(s.acct && s.acct.signedIn);
+    const payOnline = !(sal && sal.payments && sal.payments.live === false);
+    const acc = b.acc || {};
+    const strip = (k) => LXE.dayShort(k).replace(/^\S+ /, '');
+    v.serRows = []; v.serLoading = false; v.serLead = ''; v.serFirstLine = ''; v.serFoot = '';
+    if (inSeries) {
+      const cover = F.pack.coverKey;
+      v.serLoading = !!b.serLoading;
+      v.serFirstLine = 'Coupe 1 sur ' + nCuts + (v.recapWho ? ' · ' + v.recapWho : '');
+      v.serLead = 'Le même jour, la même heure et le même barbier pour les ' + (nCuts - 1) + ' semaines suivantes. Chaque ligne se modifie.';
+      const choose = (week, patch) => { const cur = this.state.bk; this.setState({ bk: Object.assign({}, cur, { err: '', serEdit: null, serDay: null, serWho: null, series: (cur.series || []).map((w) => (w.week === week ? Object.assign({}, w, patch) : w)) }) }); buzz(6); };
+      v.serRows = (b.series || []).map((w) => {
+        const from = LXE.addDays(b.day, 7 * w.week);
+        const open = b.serEdit === w.week;
+        const bb = LXE.BMAP[w.barber];
+        const row = {
+          cls: 'ser-r' + (open ? ' open' : '') + (w.later ? ' later' : ''), open: open, k: 'Semaine ' + (w.week + 1) + ' · coupe ' + (w.week + 1) + ' sur ' + nCuts,
+          when: w.later ? 'Je choisirai plus tard' : capFirst(LXE.dayLong(w.day)) + ' · ' + LXE.fmtH(w.time), who: w.later ? 'Semaine du ' + strip(from) + ', à réserver depuis ton espace' : (bb ? 'avec ' + bb.n : ''),
+          hasWhy: !!w.why, why: w.why ? w.why + (w.none ? ' : rien de libre cette semaine.' : /pris :/.test(w.why) ? '' : w.later ? '.' : ' : voici le plus proche cette semaine.') : '',
+          editText: open ? 'Fermer' : w.later ? 'Choisir' : 'Modifier', editLabel: (open ? 'Fermer' : w.later ? 'Choisir le rendez-vous de' : 'Modifier le rendez-vous de') + ' la semaine ' + (w.week + 1),
+          edit: () => { const cur = this.state.bk; this.setState({ bk: Object.assign({}, cur, { serEdit: open ? null : w.week, serDay: null, serWho: null, err: '' }) }); },
+          later: () => choose(w.week, { later: true }),
+          barbers: [], days: [], slots: [], empty: false, emptyText: ''
+        };
+        if (!open) return row;
+        const who = b.serWho || w.barber || 'any';
+        row.barbers = LXE.BARBERS.concat([{ id: 'any', n: 'Sans préférence' }]).map((x) => ({ t: x.n, on: who === x.id, cls: 'ser-bb' + (who === x.id ? ' on' : ''), go: () => { const cur = this.state.bk; this.setState({ bk: Object.assign({}, cur, { serWho: x.id }) }); } }));
+        const days = [];
+        for (let i = 0; i < 7; i++) { const k = LXE.addDays(from, i); if (LXE.isOpenDay(k) && (!b.serEnd || k <= b.serEnd)) days.push(k); }
+        const withSlots = days.filter((k) => LXE.slots(k, who, cover).length);
+        const sel = b.serDay && days.indexOf(b.serDay) >= 0 ? b.serDay : (!w.later && days.indexOf(w.day) >= 0 ? w.day : (withSlots[0] || days[0] || from));
+        row.days = days.map((k) => {
+          const cnt = LXE.slots(k, who, cover).length, known = LXE.ready(cover, who, k), p = LXE.parts(k), on = k === sel;
+          return { cls: 'dc' + (on ? ' on' : '') + (cnt || !known ? '' : ' full'), on: on, wd: LXE.DAYS_SH[p.wd], num: p.d, cnt: !known ? '…' : cnt ? cnt + ' libre' + (cnt > 1 ? 's' : '') : 'complet', label: LXE.dayLong(k) + ', ' + (!known ? 'chargement' : cnt ? cnt + ' créneaux libres' : 'complet'), go: () => { const cur = this.state.bk; this.setState({ bk: Object.assign({}, cur, { serDay: k }) }); } };
+        });
+        const free = LXE.slots(sel, who, cover);
+        row.slots = free.map((x) => {
+          const on = !w.later && w.day === sel && w.time === x.m && w.barber === x.barber;
+          return { cls: 'sl' + (on ? ' on' : ''), on: on, t: LXE.hm(x.m), label: LXE.fmtH(x.m) + (LXE.BMAP[x.barber] ? ', avec ' + LXE.BMAP[x.barber].n : ''), go: () => choose(w.week, { day: sel, time: x.m, barber: x.barber, later: false, none: false, why: '' }) };
+        });
+        row.empty = !free.length;
+        row.emptyText = !days.length ? 'Le salon est fermé toute cette semaine.' : LXE.ready(cover, who, sel) ? 'Rien de libre ce jour-là' + (who !== 'any' && LXE.BMAP[who] ? ' avec ' + LXE.BMAP[who].n : '') + '.' : 'On regarde…';
+        return row;
+      });
+      v.serFoot = 'Ensuite, chaque rendez-vous se déplace ou s’annule séparément, jusqu’à ' + (sal ? sal.booking.cancelUntilHours : 12) + NB + 'h avant.' + (b.serEnd ? ' Tes coupes se prennent jusqu’au ' + LXE.dayLong(b.serEnd) + '.' : '');
+    }
+    v.isSerInfo = step === 'info' && isPack;
+    v.serList = []; v.serListK = ''; v.serPayLine = ''; v.serBack = () => this.bkBack();
+    if (v.isSerInfo) {
+      const kept = this.serSlots(b);
+      v.serListK = (b.gfor === 'child' && gName ? 'Les ' + kept.length + ' rendez-vous ' + deName(gName) : 'Tes ' + kept.length + ' rendez-vous');
+      v.serList = kept.map((x, i) => ({ k: 'Coupe ' + (i + 1) + ' sur ' + nCuts, line: capFirst(LXE.dayShort(x.day)) + ' · ' + LXE.fmtH(x.time) + (LXE.BMAP[x.barber] ? ' avec ' + LXE.BMAP[x.barber].n : '') }))
+        .concat((b.series || []).filter((w) => w.later).map((w) => ({ k: 'Semaine du ' + strip(LXE.addDays(b.day, 7 * w.week)), line: 'À réserver plus tard, depuis ton espace' })));
+      v.serPayLine = payOnline ? 'Les ' + eur(F) + ' se règlent en ligne juste après. Sans paiement dans les ' + (sal ? sal.booking.pendingPayMin || 15 : 15) + ' minutes, les créneaux sont libérés.' : 'Les ' + eur(F) + ' se règlent au salon, à ta première coupe. Les suivantes sont déjà payées.';
+    }
+    v.accGate = v.isSerInfo && !signed;
+    v.accIn = v.isSerInfo && signed;
+    v.accInLine = 'Connecté à ton espace' + (s.acct && s.acct.first ? ', ' + s.acct.first : '') + ' : tes ' + nCuts + ' coupes s’y ajoutent.';
+    v.accLine = acc.sent ? 'Tape le code reçu par SMS au ' + String(s.fPhone || '') + '. Tes créneaux restent gardés.' : 'Ton prénom et ton numéro : tu reçois un code par SMS, sans mot de passe. Tes créneaux restent gardés.';
+    v.accCode = v.accGate && !!acc.sent;
+    v.fCode = acc.code || '';
+    v.setCode = (e) => this.accSet({ code: String(e.target.value || '').replace(/\D/g, '').slice(0, 6), err: '' });
+    v.codeHint = acc.err || (acc.demo ? 'Démo : aucun SMS ne part. Ton code : ' + acc.demo : 'Six chiffres, valables 10 minutes.');
+    v.codeCls = 'hint' + (acc.err ? ' warn' : '');
+    v.codeAgain = () => this.accSend();
+    if (!b.err && acc.err && !acc.sent && v.accGate) { v.hasErr = true; v.bkErr = acc.err; }
+    // signed in, his file is the session's: nothing to type but who it is for; a carnet takes no note nor offers switch
+    v.showIdent = step === 'info' && !(isPack && signed);
+    v.showExtras = !isPack;
     v.termsHours = sal ? sal.booking.cancelUntilHours : 12;
 
     /* confirmé, annulé */
@@ -3819,7 +4206,7 @@ const BookingMixin = {
       // the server's word, never the page's guess: « Inclus dans ton abonnement · 2/2 ce mois »
       v.hasMemberLine = !!r.member; v.memberLine = r.member || '';
       v.tkWho = (rb ? 'Avec ' + rb.n + ' · ' : '') + fmtDur(f.d);
-      v.tkK = r.forWho ? 'Le rendez-vous ' + deName(r.forWho) : 'Ton rendez-vous';
+      v.tkK = serie ? 'Coupe 1 sur ' + serie.of + (r.forWho ? ' · ' + r.forWho : '') : r.forWho ? 'Le rendez-vous ' + deName(r.forWho) : 'Ton rendez-vous';
       const others = (r.people || []).slice(1);
       v.isGroupDone = step === 'done' && others.length > 0;
       v.doneOthers = others.map((p) => {
@@ -3835,7 +4222,7 @@ const BookingMixin = {
       });
       const tf = this.faceOf(rb);
       v.tkHasWho = !!rb; v.tkIni = tf.ini; v.tkHasPhoto = tf.hasPhoto; v.tkPhoto = tf.photo; v.tkPhotoErr = tf.err;
-      v.smsText = this.smsText(r);
+      v.smsText = serie ? "L'Architecte : c'est noté " + r.first + ' ! ' + (r.forWho ? 'Les ' + serie.dates.length + ' coupes ' + deName(r.forWho) : 'Tes ' + serie.dates.length + ' coupes') + ' : ' + serie.dates.map((d) => strip(d.day) + ' à ' + LXE.fmtH(d.time)).join(', ') + '.' + (serie.pay === 'salon' ? ' ' + LXE.eur(serie.amount / 100) + ' à régler à la 1re coupe.' : '') + ' Gérer : ' + (r.manage || '') : this.smsText(r);
       v.goMove = () => this.bkMove();
       v.askCancel = () => this.setState({ bk: Object.assign({}, this.state.bk, { ask: true }) });
       v.keep = () => this.setState({ bk: Object.assign({}, this.state.bk, { ask: false }) });
@@ -3848,7 +4235,7 @@ const BookingMixin = {
       // other people of the booking still to pay: this page stays open with their buttons, each payment opens beside it
       v.payMore = (r.people || []).slice(1).some((p) => p.status === 'pending' && !!p.payUrl);
       v.payTarget = v.payMore ? '_blank' : '_self';
-      v.payLine = pending ? 'Il reste à régler l’acompte de ' + LXE.eur((r.deposit || 0) / 100) + ' dans les ' + (sal ? sal.booking.pendingPayMin || 15 : 15) + ' minutes. Sans paiement, le créneau est libéré.' + (v.payMore ? ' Chaque acompte s’ouvre dans un nouvel onglet : garde cette page pour régler les autres.' : '') : '';
+      v.payLine = pending && serie ? 'Il reste à régler ' + LXE.eur(serie.amount / 100) + ' en ligne dans les ' + (sal ? sal.booking.pendingPayMin || 15 : 15) + ' minutes. Sans paiement, les ' + serie.dates.length + ' créneaux sont libérés.' : pending ? 'Il reste à régler l’acompte de ' + LXE.eur((r.deposit || 0) / 100) + ' dans les ' + (sal ? sal.booking.pendingPayMin || 15 : 15) + ' minutes. Sans paiement, le créneau est libéré.' + (v.payMore ? ' Chaque acompte s’ouvre dans un nouvel onglet : garde cette page pour régler les autres.' : '') : '';
     } else {
       v.hasMemberLine = false; v.memberLine = '';
       v.tkHasWho = false; v.tkIni = ''; v.tkHasPhoto = false; v.tkPhoto = ''; v.tkPhotoErr = () => {};
@@ -3857,10 +4244,16 @@ const BookingMixin = {
       v.goMove = () => {}; v.askCancel = () => {}; v.keep = () => {}; v.doCancel = () => {}; v.toCockpit = () => {};
     }
     v.notPay = !v.needPay;
+    v.payBtn = serie ? 'Régler ' + LXE.eur(serie.amount / 100) : 'Régler l’acompte';
+    v.isSerDone = step === 'done' && !!serie;
+    v.oneManage = !serie;
+    v.serDone = serie ? serie.dates.map((d) => ({ k: 'Coupe ' + d.n + ' sur ' + serie.of, line: capFirst(LXE.dayLong(d.day)) + ' · ' + LXE.fmtH(d.time) + (LXE.BMAP[d.barber] ? ' avec ' + LXE.BMAP[d.barber].n : ''), manage: d.manage || '', label: 'Coupe ' + d.n + ' sur ' + serie.of + ', ' + LXE.dayLong(d.day) + ' : déplacer ou annuler' })) : [];
+    v.serDoneK = serie ? (r && r.forWho ? 'Les ' + serie.dates.length + ' rendez-vous ' + deName(r.forWho) : 'Tes ' + serie.dates.length + ' rendez-vous') : '';
+    v.serDoneHint = serie ? (serie.later ? (serie.later > 1 ? serie.later + ' semaines restent' : 'Une semaine reste') + ' à réserver, depuis ton espace. ' : '') + (serie.pay === 'salon' ? LXE.eur(serie.amount / 100) + ' à régler au salon à ta première coupe. ' : '') + 'Chaque rendez-vous se déplace ou s’annule séparément : touche-le.' : '';
     // the message's preview only when one really leaves (sms is false in production without a provider, unless the
     // salon's texts go by WhatsApp)
     v.showSms = v.notPay && textsLeave();
-    v.asking = !!b.ask; v.notAsking = !b.ask;
+    v.asking = !!b.ask && !serie; v.notAsking = !b.ask && !serie;
     v.hasIcs = !!s.icsUrl && step === 'done' && !v.needPay;
     v.icsUrl = s.icsUrl || '';
     // the salon's WhatsApp number is set (GET /api/public/salon `whatsapp`): the client opens the chat himself, with the
@@ -3875,9 +4268,16 @@ const BookingMixin = {
     if (step === 'svc' && v.noMenu) { cta = 'Fermer'; off = false; go = () => this.setState({ sheet: false }); }
     else if (step === 'svc') { off = !b.f; go = () => this.bkPick({}); }
     else if (step === 'who') { off = !b.barber; go = () => this.bkPick({}); }
+    else if (inSeries) { off = !b.series || !!b.serLoading || b.busy; go = () => this.serContinue(); }
     else if (step === 'when') { cta = b.busy ? 'Un instant…' : (b.moving ? 'Déplacer ici' : 'Continuer'); off = b.busy || !(b.day && b.time != null); go = () => this.bkPick({}); }
+    else if (step === 'info' && isPack && !signed) {
+      // the account first: a code to the number typed, then the code typed back
+      if (!acc.sent) { cta = acc.busy ? 'Un instant…' : 'Recevoir mon code par SMS'; off = !!acc.busy || !this.identOk(); go = () => this.accSend(); }
+      else { cta = acc.busy ? 'Vérification…' : 'Valider mon code'; off = !!acc.busy || !/^\d{6}$/.test(String(acc.code || '')); go = () => this.accVerify(); }
+    }
+    else if (step === 'info' && isPack) { cta = b.busy ? 'Vérification…' : payOnline ? 'Confirmer et régler ' + eur(F) : 'Confirmer mes ' + this.serSlots(b).length + ' rendez-vous'; off = b.busy || !this.bkValid(); go = () => this.bkBuy(); }
     else if (step === 'info') { cta = b.busy ? 'Vérification…' : party.length ? 'Confirmer les ' + (party.length + 1) + ' rendez-vous' : (dep > 0 && !b.mbr ? 'Réserver et régler l’acompte' : 'Confirmer'); off = b.busy || !this.bkValid(); go = () => this.bkConfirm(); }
-    else if (step === 'done' && v.needPay) { cta = 'Régler l’acompte'; off = false; go = () => { if (v.payMore) window.open(r.payUrl, '_blank', 'noopener'); else window.location.href = r.payUrl; }; }
+    else if (step === 'done' && v.needPay) { cta = v.payBtn; off = false; go = () => { if (v.payMore) window.open(r.payUrl, '_blank', 'noopener'); else window.location.href = r.payUrl; }; }
     else if (step === 'done' || step === 'manage') { cta = 'Fermer'; off = false; go = () => this.setState({ sheet: false }); }
     else if (step === 'cancelled') { cta = 'Choisir un autre créneau'; off = false; go = () => this.openWith({ formula: b.f, fresh: true }); }
     v.ctaText = cta; v.ctaOff = off; v.ctaGo = go;
@@ -3890,7 +4290,11 @@ const BookingMixin = {
     const pricesOf = party.map((x) => LXE.SV[x.f]).filter(Boolean).concat(F ? [F] : []);
     v.bkPrice = party.length && pricesOf.length ? LXE.eur(pricesOf.reduce((t, x) => t + x.p, 0), pricesOf.some((x) => x.from)) : F ? LXE.eur(F.p, F.from) : '—';
     const F0 = LXE.SV[LXE.first()];
-    v.bkLine = parts.length ? parts.join(' · ') : F0 ? (F0.sh || F0.n) + ' dès ' + LXE.eur(F0.p) + ' · ' + fmtDur(F0.d) : 'Choisis ta prestation';
+    // several people: at the details, each one with his own price; an added person with nothing chosen yet is asked his own service
+    const nameOf = (x) => (x.gfor === 'me' ? capFirst(String(s.fFirst || '').trim().split(/\s+/)[0]) || 'Toi' : capFirst(String(x.gFirst || '').trim().split(/\s+/)[0]) || (x.gfor === 'child' ? 'Ton enfant' : 'Invité'));
+    v.bkLine = party.length && step === 'info' && F ? (party.length + 1) + ' personnes · ' + party.concat([b]).map((x) => nameOf(x)).join(', ')
+      : party.length && !F ? 'déjà choisi · ' + (b.gfor === 'me' ? 'choisis ta prestation' : 'choisis la prestation ' + forW)
+      : parts.length ? parts.join(' · ') : F0 ? (F0.sh || F0.n) + ' dès ' + LXE.eur(F0.p) + ' · ' + fmtDur(F0.d) : 'Choisis ta prestation';
     v.showSum = step !== 'done' && step !== 'manage' && step !== 'cancelled' && !v.noMenu;
     return v;
   }
@@ -3983,6 +4387,10 @@ const SubscribeMixin = {
     v.carnetName = c ? c.name : '';
     v.carnetPrice = c ? num(c.price / 100) + NB + '€' : '';
     const weeks = c && c.days && c.days % 7 === 0 ? c.days / 7 + NB + 'semaines' : c && c.days ? c.days + NB + 'jours' : '';
+    const ck = Object.keys(LXE.SV).filter((k) => LXE.SV[k].pack)[0] || null;
+    v.carnetOnline = !!c && !!ck;
+    v.carnetWhere = v.carnetOnline ? 'En ligne avec un compte client, ou au salon' : 'À acheter au salon';
+    v.carnetGo = () => this.openWith({ formula: ck, fresh: true });
     v.carnetLine = c ? [c.price % c.credits === 0 ? num(c.price / c.credits / 100) + NB + '€ la coupe' : '', weeks ? 'valable ' + weeks : ''].filter(Boolean).join(' · ') : '';
     /* the sheet */
     const a = s.ab;

@@ -10,7 +10,12 @@ export type Booking = {
   staff: { id: string; name: string; initials: string; color: string } | null; anyStaff: boolean; first: string;
   deposit: { amount: number; paid: number; url: string | null } | null; canChange: boolean; cancelUntilHours: number;
   shop: { name: string; address: string; phone: string; mapsUrl: string }; cancelled: { by: string; at: number } | null;
+  /** a date of a carnet bought with its dates: « coupe 3 sur 5 », and what is still to pay (cents, 0 once paid) */
+  formule?: Formule;
 };
+export type Formule = { n: number; of: number; name: string; pay: 'paid' | 'online' | 'pending' | 'due'; due: number; end: string };
+/** « coupe 3 sur 5 » */
+export const serieWords = (f: { n: number; of: number }) => 'coupe ' + f.n + ' sur ' + f.of;
 
 /** The pill of each status: its words and its tone (ok, warn, or none). */
 export const STATUS_WORDS: Record<Booking['status'], [string, string]> = {
