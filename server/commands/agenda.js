@@ -17,12 +17,14 @@ import { fold } from '../domain/client-search.js';
 import { diffDays, fmtTime } from '../../shared/dates.js';
 import { fmtEur } from '../../shared/money.js';
 import { cgvVersionOf } from '../settings/shop.js';
+import { formuleOfAppt, paidOnline } from '../domain/formule.js';
+import { releaseIfFirstMissed, lateCancel, moveRefusal, formuleUnpaid } from './formule.js';
 
 const serviceIds = () => arr(id(), { min: 1, max: 4 });
 const minute = () => int({ min: 0, max: 1439 });
 const ACTIVE = new Set(['pending', 'booked', 'arrived', 'in_chair']);
 
-function uniqueCode(s, ctx) {
+export function uniqueCode(s, ctx) {
   for (let i = 0; i < 20; i++) { const c = ctx.code('LA'); if (!s.apptByCode.has(c)) return c; }
   return ctx.code('LA') + ctx.id('').slice(-2).toUpperCase();
 }
@@ -33,7 +35,7 @@ function notSealed(s, day) {
 }
 
 /** Is that exact start offered online right now? Returns the chair that gets it. */
-function onlineSlot(s, ctx, q) {
+export function onlineSlot(s, ctx, q) {
   const list = freeSlots(s, { ...q, now: ctx.now, local: ctx.local, online: true });
   return list.find((x) => x.m === q.start) || null;
 }
@@ -44,7 +46,7 @@ function onlineSlot(s, ctx, q) {
  * @param {{ to: string, first: string }} [typed] the address typed with an online booking: it gets this booking's mail only
  * @param {Record<string, string>|null} [extra] words of the text that say more (a child's name, everyone of a booking)
  */
-function confirmText(s, ctx, a, clientPhone, first, typed, extra) {
+export function confirmText(s, ctx, a, clientPhone, first, typed, extra) {
   // its own channel: a client who wants no SMS still gets the file for their agenda;
   // a booking waiting for its deposit gets it once paid (commands/payments.js), never before
   if (a.status !== 'pending') {
@@ -70,6 +72,8 @@ export const holdSlot = {
     const q = parse(holdSchema, input);
     const services = snapshotServices(s, q.serviceIds);
     if (services.some((x) => !s.services.get(x.id)?.online) && ctx.actor.t === 'client') fail(409, 'not_online', 'Cette prestation se réserve au salon.');
+    // a carnet is not a visit: its dates are those of the cut it pays for (commands/formule.js)
+    if (services.some((x) => s.services.get(x.id)?.pack) && ctx.actor.t === 'client') fail(409, 'not_online', 'Cette formule se réserve avec ses rendez-vous.');
     const dur = totalDur(services);
     const slot = onlineSlot(s, ctx, { day: q.day, start: q.start, dur, serviceIds: q.serviceIds, staffId: q.staffId, ignoreHold: q.replace || null, ignoreAppt: q.ignoreAppt || null });
     if (!slot) fail(409, 'taken', 'Ce créneau vient d’être pris.');
@@ -122,7 +126,7 @@ const overlaps = (x, y) => x.staffId === y.staffId && x.day === y.day && x.start
  * The chair a person of the booking gets: his hold when it still stands, else the slot as offered online now. Never one
  * an earlier person of the same booking just took (`taken`: this command's own bookings, not yet in the state).
  */
-function chairFor(s, ctx, p, dur, taken) {
+export function chairFor(s, ctx, p, dur, taken) {
   const hold = p.holdId ? s.holds.get(p.holdId) : null;
   const clash = (staffId) => taken.some((t) => overlaps(t, { staffId, day: p.day, start: p.start, dur }));
   if (hold && hold.day === p.day && hold.start === p.start && hold.dur === dur && hold.exp > ctx.now - 60000 && !clash(hold.staffId)
@@ -140,7 +144,7 @@ function chairFor(s, ctx, p, dur, taken) {
 }
 
 /** The child's file under this parent with that first name (a child booked again keeps his file), or null. */
-function childFile(s, parentId, first) {
+export function childFile(s, parentId, first) {
   const root = rootOf(s, parentId), f = fold(first).trim();
   for (const c of s.clients.values()) if (!c.erased && !c.mergedInto && c.ext && c.ext.parent && rootOf(s, c.ext.parent) === root && fold(c.first).trim() === f) return c;
   return null;
@@ -159,6 +163,7 @@ export const bookOnline = {
     const plan = people.map((p, i) => {
       const services = snapshotServices(s, p.serviceIds);
       if (services.some((x) => !s.services.get(x.id)?.online)) fail(409, 'not_online', 'Cette prestation se réserve au salon.');
+      if (services.some((x) => s.services.get(x.id)?.pack)) fail(409, 'not_online', 'Cette formule se réserve avec ses rendez-vous, depuis ton espace.');
       // a hold taken before an early Z must not slip through
       if (s.closures.has(p.day)) fail(409, 'taken', 'Le salon a fermé ses réservations pour ce jour-là. Choisis un autre jour, tes choix sont gardés.');
       const dur = totalDur(services);
@@ -362,6 +367,9 @@ export const moveByClient = {
     if (!clientMayChange(s, a, ctx.now)) fail(409, 'too_late', 'Il est trop tard pour déplacer en ligne. Appelle le salon.', { phone: s.settings.shop.phone });
     // moves carried over from the old site (WordPress re-import) are not the client's: only those made since count
     if (a.moves - ((a.ext && a.ext.moves) || 0) >= 3) fail(409, 'too_many', 'Ce rendez-vous a déjà été déplacé plusieurs fois. Appelle le salon.');
+    // a date of a formule stays one cut a week, inside its weeks
+    const why = moveRefusal(s, a, x.day);
+    if (why) fail(409, 'weeks', why);
     const hold = x.holdId ? s.holds.get(x.holdId) : null;
     const staff = a.anyStaff ? 'any' : a.staffId;
     const slot = onlineSlot(s, ctx, { day: x.day, start: x.start, dur: a.dur, serviceIds: a.services.map((v) => v.id), staffId: staff, ignoreAppt: a.id, ignoreHold: hold ? hold.id : null });
@@ -416,7 +424,9 @@ export const setStatus = {
     // not before it starts, today or any day to come: an absence counts against the client (domain/risk.js) and frees the slot
     if (to === 'no_show' && (a.day > ctx.local.day || (a.day === ctx.local.day && a.start > ctx.local.min + 5))) fail(409, 'early', 'Le rendez-vous n’a pas encore commencé.');
     ctx.emit('appt.status', { id: a.id, status: to, prev: a.status, cid: a.clientId || undefined });
-    return { ok: true };
+    // the first cut of a formule nobody paid for, missed: its other dates are freed and the client told (commands/formule.js)
+    const freed = to === 'no_show' ? releaseIfFirstMissed(s, ctx, a) : null;
+    return { ok: true, ...(freed ? { formule: freed } : {}) };
   }
 };
 
@@ -428,6 +438,16 @@ export const cancelAppointment = {
     needChair(ctx, a.staffId);
     if (!ACTIVE.has(a.status) && a.status !== 'no_show') fail(409, 'closed', 'Ce rendez-vous est déjà clos.');
     ctx.emit('appt.cancelled', { id: a.id, by: 'salon', reason: x.reason || '', cid: a.clientId || undefined });
+    // a formule: its 80 € paid online stay for its other dates; cancelled too late with nothing paid, they are freed
+    const fo = formuleOfAppt(s, a.id);
+    const rest = fo ? fo.apptIds.map((i) => s.appts.get(i)).filter((y) => y && y.id !== a.id && ACTIVE.has(y.status)) : [];
+    const freed = fo && ACTIVE.has(a.status) && lateCancel(s, a, ctx.now) ? releaseIfFirstMissed(s, ctx, a) : null;
+    const fpaid = fo && !fo.packId ? paidOnline(s, fo) : null;
+    if (fo) {
+      if (x.notify && a.clientId && a.day >= ctx.local.day) { const c = getClient(s, a.clientId); if (c.phone && c.sms) queueMessage(s, ctx, { key: 'cx_' + a.id, template: 'cancelled', to: c.phone, cid: c.id, apptId: a.id, vars: { ...apptVars(s, a), lien: ctx.meta.siteUrl || '' } }); }
+      const dep = fpaid && (!rest.length || freed) ? { paymentId: fpaid.paymentId, paid: fpaid.amount, amount: fpaid.amount } : null;
+      return { ok: true, deposit: dep, ...(freed ? { formule: freed } : {}) };
+    }
     if (x.notify && a.clientId && a.day >= ctx.local.day) {
       const c = getClient(s, a.clientId);
       if (c.phone && c.sms) queueMessage(s, ctx, { key: 'cx_' + a.id, template: 'cancelled', to: c.phone, cid: c.id, apptId: a.id, vars: { ...apptVars(s, a), lien: ctx.meta.siteUrl || '' } });
@@ -452,6 +472,14 @@ export const cancelByClient = {
       if (c && !c.erased) mailCancellation(s, ctx, a, { to: c.email, first: c.first, by: 'client' });
       mailOwner(s, ctx, a, 'cancelled', { reason });
     }
+    // a formule's 80 € paid online stay for its other dates: they go back only with the last one cancelled in time
+    const fo = formuleOfAppt(s, a.id);
+    if (fo) {
+      const rest = fo.apptIds.map((i) => s.appts.get(i)).filter((y) => y && y.id !== a.id && ACTIVE.has(y.status));
+      if (a.status === 'pending') formuleUnpaid(s, ctx, fo, a, 'Formule annulée avant le paiement');
+      const fpaid = !fo.packId ? paidOnline(s, fo) : null;
+      return { ok: true, deposit: fpaid && !rest.length && !fo.apptIds.some((i) => (s.appts.get(i) || {}).status === 'done') ? { paymentId: fpaid.paymentId, paid: fpaid.amount, amount: fpaid.amount } : null };
+    }
     return { ok: true, deposit: a.deposit && a.deposit.paid ? a.deposit : null };
   }
 };
@@ -464,6 +492,8 @@ export const expirePending = {
     const undo = input.group === true && ctx.actor.t === 'system' && a.status === 'booked' && a.source === 'site' && !!(a.ext && a.ext.group);
     if (a.status !== 'pending' && !undo) return { ok: true };
     ctx.emit('appt.cancelled', { id: a.id, by: 'system', reason: input.reason ? String(input.reason).slice(0, 120) : 'Acompte non réglé', cid: a.clientId || undefined });
+    const fo = formuleOfAppt(s, a.id);
+    if (fo && a.status === 'pending') formuleUnpaid(s, ctx, fo, a, input.reason ? String(input.reason).slice(0, 120) : 'Formule non réglée');
     return { ok: true };
   }
 };

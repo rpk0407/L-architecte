@@ -13,6 +13,8 @@ import { payDeadline } from '../domain/policy.js';
 import { busyIntervals } from '../domain/availability.js';
 import { providerKnown } from '../projections/payments.js';
 import { advanceRate } from '../domain/ledger.js';
+import { formuleOfAppt } from '../domain/formule.js';
+import { formulePaid, formuleUnpaid } from './formule.js';
 
 const KINDS = new Set(['deposit', 'qr', 'guarantee', 'giftcard']);
 
@@ -111,10 +113,15 @@ export const paymentSucceeded = {
       // paid after its deadline (the tick has not run yet): the slot may already belong to someone else
       if (a.status === 'pending' && payDeadline(s, a) < ctx.now && busyIntervals(s, a.staffId, a.day, { now: ctx.now, ignoreAppt: a.id }).some(([x, y]) => x < a.start + a.dur && a.start < y)) {
         ctx.emit('appt.cancelled', { id: a.id, by: 'system', reason: 'Acompte réglé trop tard', cid: a.clientId || undefined });
+        const late = formuleOfAppt(s, a.id);
+        if (late) formuleUnpaid(s, ctx, late, a, 'Formule réglée trop tard');
         return { ok: true, late: true };
       }
       if (a.status === 'pending') {
         ctx.emit('appt.confirmed', { id: a.id, cid: a.clientId || undefined });
+        // the 80 € of a formule: its other dates are confirmed with the first, one text lists them (commands/formule.js)
+        const fo = formuleOfAppt(s, a.id);
+        if (fo) { formulePaid(s, ctx, fo, a); return { ok: true }; }
         const c = a.clientId ? getClient(s, a.clientId) : null;
         if (c && c.phone && a.sms && s.settings.messages.confirmation) {
           // a child's or a friend's place on this contact's file: « avec JKut pour Léo », as the booking's own text said

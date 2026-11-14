@@ -34,6 +34,7 @@ import { loyaltyExtension } from '../projections/loyalty.js';
 import { accountsExtension } from '../projections/accounts.js';
 import { basculeExtension } from '../projections/bascule.js';
 import { cutnotesExtension } from '../projections/cutnotes.js';
+import { formulesExtension } from '../projections/formules.js';
 
 // one entry per line, so extensions added by different branches merge cleanly
 /** @type {Extension[]} */
@@ -50,5 +51,6 @@ export const EXTENSIONS = [
   loyaltyExtension,
   accountsExtension,
   basculeExtension,
-  cutnotesExtension
+  cutnotesExtension,
+  formulesExtension
 ];

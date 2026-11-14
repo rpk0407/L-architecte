@@ -7,6 +7,8 @@ import { getService, getProduct, serviceShape, productShape } from './common.js'
 const partial = (shape) => obj(Object.fromEntries(Object.entries(shape).map(([k, v]) => [k, /** @type {any} */ (v.optional ? v : opt(v))])));
 const svcAdd = obj(serviceShape), svcPatch = partial(serviceShape);
 const prdAdd = obj(productShape), prdPatch = partial(productShape);
+/** A weekly carnet lasts its weeks (one per cut), one more when a missed week may be made up: `days` follows the rule. */
+const weeklyPack = (pack) => (pack && pack.weekly ? { ...pack, missed: pack.missed === 'once' ? 'once' : 'lost', days: pack.credits * 7 + (pack.missed === 'once' ? 7 : 0) } : pack);
 
 /** At most n characters, cut at a dash rather than mid-word when one is not too far back (clients see it in links). */
 const wordCut = (x, n) => {
@@ -31,6 +33,7 @@ export const addService = {
   run(s, input, ctx) {
     ctx.need('catalog');
     const sv = parse(svcAdd, input);
+    if (sv.pack) sv.pack = weeklyPack(sv.pack);
     const sid = ctx.id('sv');
     ctx.emit('service.added', { id: sid, service: { online: true, buffer: 0, vat: s.settings.payments.vat, order: s.services.size, from: false, includes: [], ...sv, slug: slugFor(s, sv.name, sv.slug) } });
     return { id: sid };
@@ -41,6 +44,7 @@ export const updateService = {
     ctx.need('catalog');
     const sv = getService(s, input.id);
     const patch = parse(svcPatch, input.patch || {});
+    if (patch.pack) patch.pack = weeklyPack(patch.pack);
     // the slug is the service's address on the site: a rename keeps it, so links already shared still work
     if (patch.slug !== undefined) { if (patch.slug === sv.slug) delete patch.slug; else patch.slug = slugFor(s, sv.name, patch.slug, sv.id); }
     if (!Object.keys(patch).length) return { ok: true };
