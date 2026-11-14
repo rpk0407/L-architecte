@@ -64,7 +64,7 @@ test('« Le client est là ? »: at the start, again at +10, « Pas encore » +1
   assert.equal((await aland.post('/api/v1/appointments/' + id + '/arrival', { answer: 'here' })).status, 403, 'nor may he answer');
   // the desk sees the question on the agenda
   let row = (await desk.get('/api/v1/agenda?day=' + DAY)).json.appts.find((x) => x.id === id);
-  assert.deepEqual(row.arrival, { ask: 21 * 60, due: true, later: null });
+  assert.deepEqual(row.arrival, { ask: 21 * 60, due: true, later: null, again: true });
   // nothing answered: asked again at +10
   await walk(21, 10);
   q = (await asks(jkut)).find((x) => x.id === id);
@@ -79,7 +79,7 @@ test('« Le client est là ? »: at the start, again at +10, « Pas encore » +1
   assert.equal(rt.engine.journal.length, len + 1, 'one event for the retried answer');
   assert.ok(!(await asks(jkut)).some((x) => x.id === id), 'not asked while « Pas encore » waits');
   row = (await desk.get('/api/v1/agenda?day=' + DAY)).json.appts.find((x) => x.id === id);
-  assert.deepEqual(row.arrival, { ask: 21 * 60 + 22, due: false, later: 21 * 60 + 12 });
+  assert.deepEqual(row.arrival, { ask: 21 * 60 + 22, due: false, later: 21 * 60 + 12, again: true });
   await walk(21, 22);
   assert.equal((await asks(jkut)).find((x) => x.id === id).ask, 21 * 60 + 22, 'asked again 10 minutes after « Pas encore »');
   // « Il est là »: arrived; a second tap (or the desk answering too) is not an error and writes nothing
@@ -139,4 +139,64 @@ test('« Mon planning »: his own column, 14 days ahead, gaps, breaks, total; pa
   // the desk has no chair
   assert.equal((await desk.get('/api/v1/espace/planning')).status, 409);
   assert.equal((await browser(rt).get('/api/v1/espace/planning')).status, 401);
+});
+
+test('two phones, two answers: the first stands, a late « Absent » never turns a client who came into a no-show', async () => {
+  setTime(9, 0);
+  const inès = await asStaff('Inès');
+  const jk = [...S().staff.values()].find((x) => x.name === 'JKut').id;
+  const id = await book(inès, jk, 'Gaspard', 20 * 60 + 30);
+  const id2 = await book(inès, jk, 'Hector', 20 * 60 + 45);
+  const tomorrow = await (async () => {
+    const cut = [...S().services.values()].find((x) => x.slug === 'cl').id;
+    const r = await inès.post('/api/v1/appointments', { client: { first: 'Ivan', phone: '06 55 01 99 21' }, serviceIds: [cut], staffId: jk, day: addDays(DAY, 1), start: 10 * 60, force: true });
+    assert.equal(r.status, 200, r.text);
+    return r.json.id;
+  })();
+  setTime(20, 47);
+  const phone = await asStaff('JKut'), tablet = await asStaff('JKut');
+  // the phone says « Il est là », the tablet still shows the question and says « Absent »
+  assert.equal((await phone.post('/api/v1/appointments/' + id + '/arrival', { answer: 'here' })).status, 200);
+  const late = await tablet.post('/api/v1/appointments/' + id + '/arrival', { answer: 'absent' });
+  assert.equal(late.status, 409);
+  assert.match(late.json.error.message || late.text, /déjà arrivé/);
+  assert.equal(S().appts.get(id).status, 'arrived', 'still arrived');
+  // the other way round: « Absent » first, then a late « Il est là » is refused in plain words (no raw status)
+  assert.equal((await tablet.post('/api/v1/appointments/' + id2 + '/arrival', { answer: 'absent' })).status, 200);
+  const here = await phone.post('/api/v1/appointments/' + id2 + '/arrival', { answer: 'here' });
+  assert.equal(here.status, 409);
+  assert.doesNotMatch(here.text, /no_show/);
+  assert.equal(S().appts.get(id2).status, 'no_show');
+  // « Il est là » for tomorrow's client: not from the question
+  assert.equal((await phone.post('/api/v1/appointments/' + tomorrow + '/arrival', { answer: 'here' })).status, 409);
+  assert.equal(S().appts.get(tomorrow).status, 'booked');
+});
+
+test('« Pas encore » writes nothing while the question is off in Réglages', async () => {
+  setTime(9, 0);
+  const id = await book(await asStaff('Inès'), [...S().staff.values()].find((x) => x.name === 'JKut').id, 'Jules', 19 * 60 + 40);
+  setTime(19, 45);
+  const jkut = await asStaff('JKut'), o = await owner();
+  assert.equal((await o.patch('/api/v1/settings', { team: { arrivalAsk: false } })).status, 200);
+  const len = rt.engine.journal.length;
+  assert.equal((await jkut.post('/api/v1/appointments/' + id + '/arrival', { answer: 'later' })).status, 200);
+  assert.equal(rt.engine.journal.length, len);
+  assert.equal((await o.patch('/api/v1/settings', { team: { arrivalAsk: true } })).status, 200);
+});
+
+test('« Mon planning »: a part-day absence reads as the absence, not as a pause', async () => {
+  setTime(9, 0);
+  const o = await owner(), jkut = await asStaff('JKut');
+  const d = addDays(DAY, 7); // a Tuesday, a working day of his
+  const before = (await jkut.get('/api/v1/espace/planning?day=' + d)).json;
+  assert.ok(before.work.length > 0, 'he works that day');
+  const [ws, we] = [before.work[0][0], before.work[before.work.length - 1][1]];
+  const mid = Math.round((ws + we) / 120) * 60;
+  const r = await o.post('/api/v1/timeoff', { staffId: jkut.id, from: d, to: d, startMin: mid, endMin: mid + 60, reason: 'Rendez-vous médical' });
+  assert.equal(r.status, 200, r.text);
+  const v = (await jkut.get('/api/v1/espace/planning?day=' + d)).json;
+  assert.deepEqual(v.absence.part, { start: mid, end: mid + 60 });
+  const hole = v.breaks.find((b) => b.start === mid && b.end === mid + 60);
+  assert.ok(hole, 'the hole is there: ' + JSON.stringify(v.breaks));
+  assert.equal(hole.label, 'Rendez-vous médical');
 });

@@ -103,11 +103,12 @@ export default async ({ h, page }) => {
   await page.goto(h.base + '/comptoir/espace');
   await page.getByRole('heading', { name: 'Prochain client' }).waitFor();
 
-  // Encaisser opens the till on his appointment
-  await page.getByRole('button', { name: 'Encaisser' }).click();
-  await page.waitForURL(/\/comptoir\/caisse\?rdv=/, { timeout: 8000 });
-  await page.goto(h.base + '/comptoir/espace');
-  await page.getByRole('heading', { name: 'Prochain client' }).waitFor();
+  // Encaisser opens the ticket on his own phone, in a sheet over Mon espace (FEATURE D: caisse/PhoneCheckout.tsx)
+  await page.getByRole('button', { name: 'Encaisser' }).first().click();
+  const paySheet = page.getByRole('dialog').filter({ hasText: 'Sur ton téléphone' });
+  await paySheet.getByText('Comment paie-t-il ?').waitFor({ timeout: 8000 });
+  await paySheet.getByRole('button', { name: 'Fermer' }).click();
+  await paySheet.waitFor({ state: 'detached' });
 
   // Personnaliser: « Mes chiffres » to the top, saved, still there after a reload
   const titles = () => page.locator('.es-card .card-h h2').allTextContents();

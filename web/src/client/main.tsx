@@ -102,7 +102,7 @@ function Manage({ token, back, offer, moveNow }: { token: string; back: string |
         <p className="c-addr">{b.shop.address}</p>
       </section>
 
-      {slot && upcoming && mode === '' ? <EarlierOffer b={b} token={token} slot={slot} onDone={(nb) => { setB(nb); setSlot(null); setNote({ tone: 'ok', text: 'C’est avancé. Un SMS de confirmation part tout de suite.' }); }} onClose={() => setSlot(null)} /> : null}
+      {slot && upcoming && mode === '' ? <EarlierOffer b={b} token={token} slot={slot} onDone={(nb) => { setB(nb); setSlot(null); setNote({ tone: 'ok', text: 'C’est avancé. Le message de confirmation part tout de suite.' }); }} onClose={() => setSlot(null)} /> : null}
 
       {b.status === 'pending' && upcoming ? (
         <section className="c-card">

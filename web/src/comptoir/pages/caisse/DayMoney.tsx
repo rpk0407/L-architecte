@@ -1,7 +1,7 @@
 // The money of the day, under « À encaisser » on the Caisse home (owner, manager, desk): what came in by method and by
 // barber (tips apart), the deposits, the memberships of the day and the failures to follow up, the gift cards, and the
 // cash barbers took on their phone and still hold. One read (GET /api/v1/caisse/jour), the same figures as the Z.
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { api, uuid } from '../../../lib/api';
 import { refreshAll, useQuery } from '../../../lib/query';
 import { navigate } from '../../../lib/router';
@@ -104,12 +104,17 @@ export function DayMoney() {
 export function HeldCash({ held, drawerOpen }: { held: TillDay['held']; drawerOpen: boolean }) {
   const { can } = useApp();
   const [busy, setBusy] = useState('');
+  // one request id per handover (barber and amount): a retry after a lost answer, or a double tap, is the same write
+  const rids = useRef(new Map<string, string>());
   if (!held.length) return null;
   const hand = async (h: TillDay['held'][number]) => {
     if (!(await confirm({ title: h.name + ' remet ' + c(h.amount) + ' ?', body: 'Les espèces entrent dans le tiroir : le comptage du soir les attend.', ok: 'Remis à la caisse' }))) return;
+    if (busy) return;
+    const key = h.id + ':' + h.amount;
+    if (!rids.current.has(key)) rids.current.set(key, uuid());
     setBusy(h.id);
     try {
-      await api.post('/api/v1/drawer/move', { amount: h.amount, reason: 'Espèces remises par ' + h.name, staffId: h.id }, uuid());
+      await api.post('/api/v1/drawer/move', { amount: h.amount, reason: 'Espèces remises par ' + h.name, staffId: h.id }, rids.current.get(key));
       toast({ title: c(h.amount) + ' de ' + h.name + ' dans la caisse', icon: 'cash' });
       refreshAll();
     } catch (e) { toastError(e); } finally { setBusy(''); }

@@ -31,6 +31,7 @@ export const COMPTOIR_PLACES: readonly Place[] = [
   { path: '/comptoir/caisse?rdv=:rdv', label: 'Caisse · Le ticket', targets: ['tk-head', 'till-chips', 'caisse.reward', 'tk-lines', 'till-member-line', 'tk-add', 'till-offer', 'tk-methods', 'tk-validate'] },
   { path: '/comptoir/caisse/ventes', label: 'Caisse · Ventes du jour' },
   { path: '/comptoir/caisse/cloture', label: 'Caisse · Clôture' },
+  { path: '/comptoir/caisse/mois', label: 'Caisse · Le mois' },
   { path: '/comptoir/clients', label: 'Clients' },
   { path: '/comptoir/clients?segment=abonnes', label: 'Clients · Abonnés', targets: ['members-kpis', 'members-presence', 'members-missed', 'members-list', 'members-notyet', 'members-weeks', 'members-thisweek', 'members-write', 'members-carnets'] },
   // one client's file: a regular with the most to show (ComptoirTour resolves it)

@@ -3,7 +3,7 @@
 // The answer never says whether the number is known: same words, same status, about the same time.
 import { HttpError, guard, limited, failureGuard } from './kit.js';
 import { signLink, checkLink } from '../auth/session.js';
-import { contactAppts, contactCidOf, notifyOptions, viaOf, guestFirst } from '../domain/notify.js';
+import { contactAppts, contactCidOf, notifyOptions, viaOf, forFirstIn } from '../domain/notify.js';
 import { clientMayChange, startsAt } from '../domain/policy.js';
 import { salonWhatsapp } from '../settings/messages.js';
 import { rootFile } from '../commands/accounts.js';
@@ -63,7 +63,7 @@ export function contactView(r, a) {
       staff: st ? { name: st.name, initials: st.initials, color: st.color } : null, anyStaff: !!x.anyStaff,
       deposit: x.deposit ? { amount: x.deposit.amount, paid: x.deposit.paid || 0, open: !!pay && pay.status === 'pending' } : null,
       canChange: clientMayChange(s, x, now), changeUntil: startsAt(x) - hours * 3600000,
-      earlier: !!x.earlier, forFirst: guestFirst(s, x)
+      earlier: !!x.earlier, forFirst: forFirstIn(s, ids, x)
     };
   });
   return {
@@ -129,10 +129,11 @@ export function clientRoutes(app, o = {}) {
     const answer = wait(minMs + Math.random() * jitterMs);
     const id = r.s.apptByCode.get(code);
     const a = id ? r.s.appts.get(id) : null;
-    // the number of whoever booked it, or of the person it is for: either phone may open it
-    const phones = a ? [contactFile(r.s, a), a.clientId ? rootFile(r.s, a.clientId) : null].filter((x) => x && !x.erased).map((x) => x.phone) : [];
+    // only the number the booking's texts go to (contactCidOf): the friend booked with his own number opens his own, never
+    // the list of the one who booked him; a child's booking opens with the parent's number
+    const c = a ? contactFile(r.s, a) : null;
     await answer;
-    if (!a || a.legacy || !phones.includes(phone)) { g.fail(); throw new HttpError(404, 'not_found', FIND_FAIL); }
+    if (!a || a.legacy || !c || c.erased || !c.phone || c.phone !== phone) { g.fail(); throw new HttpError(404, 'not_found', FIND_FAIL); }
     g.done();
     return { token: signLink(r.rt.secret, 'appt', a.code) };
   });

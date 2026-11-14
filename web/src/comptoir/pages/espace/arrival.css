@@ -6,7 +6,10 @@
 .es-ask-q { display: flex; align-items: flex-start; gap: 8px; margin: 0; }
 .es-ask-q svg { flex: none; margin-top: 3px; color: var(--accent); }
 .es-ask-q span { display: grid; gap: 2px; min-width: 0; }
-.es-ask-q b { font: 700 16px/1.25 var(--sans); }
-.es-ask-q small { color: var(--tx2); font-size: 13px; }
-.es-ask-acts { display: grid; grid-template-columns: 1.3fr 1fr 1fr; gap: 8px; }
-.es-ask-acts .btn { min-height: 44px; justify-content: center; }
+.es-ask-q b { font: 700 16px/1.25 var(--sans); overflow-wrap: anywhere; }
+.es-ask-q small { color: var(--tx2); font-size: 13px; overflow-wrap: anywhere; }
+.es-ask-acts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.es-ask-acts .btn { min-height: 44px; justify-content: center; min-width: 0; padding: 0 10px; }
+/* a phone (320 px included): « Il est là » the whole width, the two others under it; three in a row from 520 px */
+.es-ask-acts .btn:first-child { grid-column: 1 / -1; }
+@media (min-width: 520px) { .es-ask-acts { grid-template-columns: 1.3fr 1fr 1fr; } .es-ask-acts .btn:first-child { grid-column: auto; } }

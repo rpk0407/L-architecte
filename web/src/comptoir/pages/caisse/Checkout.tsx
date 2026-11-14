@@ -39,7 +39,7 @@ export const qrOff = (boot: Pick<Boot, 'mode' | 'providers'>) => boot.mode !== '
 
 /** phone: rung up on the barber's own phone (PhoneCheckout). The same ticket and the same command; the server checks it is
  *  his client and the owner's switch, and the cash a barber takes stays with him (no drawer needed) until he hands it over. */
-export function Checkout({ apptId, drawerOpen, onClose, phone = false }: { apptId: string | null; drawerOpen: boolean; onClose: () => void; phone?: boolean }) {
+export function Checkout({ apptId, drawerOpen, onClose, phone = false, onPaid }: { apptId: string | null; drawerOpen: boolean; onClose: () => void; phone?: boolean; onPaid?: (done: any) => void }) {
   const { boot, staffById, serviceById, can, now, pulse, offline } = useApp();
   const today = pulse?.today || boot.today;
   const S = boot.settings.payments;
@@ -252,7 +252,10 @@ export function Checkout({ apptId, drawerOpen, onClose, phone = false }: { apptI
       clearDraft(store, dKey);
       buzz([20, 60, 20]);
       // the barber picked in « Qui a fait la prestation ? » is on the lines sent, not yet in `performer`
-      setDone({ ...r, client, lines: ls, pays, apptId, staffId: ls.find((l) => l.kind === 'service' && l.staffId)?.staffId ?? performer, habit: detail.data?.appt.start ?? dates.localParts(now()).min });
+      const paid = { ...r, client, lines: ls, pays, apptId, staffId: ls.find((l) => l.kind === 'service' && l.staffId)?.staffId ?? performer, habit: detail.data?.appt.start ?? dates.localParts(now()).min };
+      setDone(paid);
+      // the phone keeps the receipt outside this ticket, so a refresh of Mon espace never takes it off the screen
+      onPaid?.(paid);
       // on the phone the page behind the sheet is read again when he closes it (PhoneCheckout): the receipt stays on screen
       if (!phone) refreshAll();
     } catch (e: any) {
@@ -600,7 +603,7 @@ const rhythmWeeks = (days: number) => (days < 10 ? 1 : days <= 17 ? 2 : days <= 
 const rhythmFree = (s: Service | undefined) => !!s && NO_RHYTHM.test(s.category + ' ' + s.name);
 type Slots = { days: { day: string; slots: { m: number; s: string }[] }[] };
 
-function Done({ done, onNext, phone = false }: { done: any; onNext: () => void; phone?: boolean }) {
+export function Done({ done, onNext, phone = false }: { done: any; onNext: () => void; phone?: boolean }) {
   const { boot, staffById, serviceById, can } = useApp();
   const [sent, setSent] = useState(false);
   const [booked, setBooked] = useState('');

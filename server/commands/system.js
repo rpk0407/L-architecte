@@ -10,6 +10,14 @@ import { mailReminder, mailConfirmation } from '../domain/mails.js';
 import { payDeadline, startsAt } from '../domain/policy.js';
 import { isEmail } from '../lib/util.js';
 import { runSteps } from './tick-steps.js';
+import { contactCidOf, forFirstIn } from '../domain/notify.js';
+
+/** A reminder's words; to the parent of a child's booking: « Bonjour Sonia », « avec JKut pour Léo » (FEATURE B). */
+function remVars(s, a, c, linkFor) {
+  const v = apptVars(s, a, linkFor);
+  const pour = forFirstIn(s, [c.id], a);
+  return pour ? { ...v, prenom: c.first || v.prenom, barbier: v.barbier + ' pour ' + pour } : v;
+}
 import { queueReviews } from './reviews.js';
 
 const OFFER_MIN = 30;
@@ -36,7 +44,9 @@ export const tick = {
         ctx.emit('appt.cancelled', { id: a.id, by: 'system', reason: 'Acompte non réglé', cid: a.clientId || undefined }); n++; continue;
       }
       if (a.demo && !input.demoMessages) continue;
-      const c = a.clientId ? s.clients.get(a.clientId) : null;
+      // FEATURE B: a child's booking reminds the parent who booked it (the child's file has no phone), domain/notify.js
+      const own = a.clientId ? s.clients.get(a.clientId) : null;
+      const c = own && !own.phone && contactCidOf(a, s) !== a.clientId ? fileOf(s, contactCidOf(a, s)) : own;
       if (!c || c.erased || a.status !== 'booked') continue;
       // by text: the file takes them and so does this booking; by e-mail: the owner switched it on and the client gave an address
       // FEATURE B: a client who chose the e-mail (domain/notify.js) gets his reminders by e-mail instead of a text
@@ -48,7 +58,7 @@ export const tick = {
       // 2. the evening before
       if (M.reminder && a.day === tomorrow && L.min >= M.reminderHour * 60) {
         const createdToday = a.createdAt > instantOf(L.day, M.reminderHour * 60);
-        if (!createdToday && text && queueMessage(s, ctx, { key: 'rem_' + a.id + '_' + a.day, template: 'reminder', to: c.phone, cid: c.id, apptId: a.id, vars: apptVars(s, a, ctx.meta.linkFor) })) n++;
+        if (!createdToday && text && queueMessage(s, ctx, { key: 'rem_' + a.id + '_' + a.day, template: 'reminder', to: c.phone, cid: c.id, apptId: a.id, vars: remVars(s, a, c, ctx.meta.linkFor) })) n++;
         if (!createdToday && mail && toMail(false)) n++;
       }
       // 3. two hours before: for everyone when the owner switched it on, and always for a booking that got no reminder the
@@ -58,7 +68,7 @@ export const tick = {
       const all = !!M.reminder2h && lead <= 120 && lead > 60;
       const missed = !!M.reminder && lead <= 120 && lead >= LATE_MIN_LEAD && !quiet && startsAt(a) - a.createdAt >= LATE_MIN_AGE
         && !s.messages.has(messageId('rem_' + a.id + '_' + a.day)) && !s.messages.has(messageId('mrem_' + a.id + '_' + a.day));
-      if ((all || missed) && text && queueMessage(s, ctx, { key: 'rem2_' + a.id + '_' + a.day, template: 'reminder2h', to: c.phone, cid: c.id, apptId: a.id, vars: apptVars(s, a, ctx.meta.linkFor) })) n++;
+      if ((all || missed) && text && queueMessage(s, ctx, { key: 'rem2_' + a.id + '_' + a.day, template: 'reminder2h', to: c.phone, cid: c.id, apptId: a.id, vars: remVars(s, a, c, ctx.meta.linkFor) })) n++;
       if (missed && mail && toMail(true)) n++;
     }
     // 3b. a confirmation or a reminder whose SMS failed for good (the provider refused it: nothing is tried again) goes

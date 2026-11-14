@@ -12,7 +12,7 @@ import { Button, Empty, Sheet, Skeleton, toast, toastError } from '../../../ui/k
 import { useApp } from '../../state';
 import type { NoteTarget } from '../../types';
 import { useSwipe } from '../agenda/swipe';
-// FEATURE D adds the barber's own checkout here: import { PhoneCheckout } from '../caisse/PhoneCheckout';
+import { PhoneCheckout } from '../caisse/PhoneCheckout';
 
 export type PlanRow = { id: string; start: number; dur: number; name: string; services: string[]; status: string; price: number; paid: boolean; note: string; late: number };
 export type PlanDay = {
@@ -34,12 +34,15 @@ type Item = { k: 'appt'; at: number; r: PlanRow } | { k: 'gap'; at: number; end:
 /** « 3 h 30 », « 45 min » */
 const span = (m: number) => dur(m);
 
-export function Planning({ note }: { note: (t: NoteTarget) => void }) {
+/** hide: the amounts are blurred on Mon espace (shared screen, not revealed); the sheet opens outside its blur */
+export function Planning({ note, hide = false }: { note: (t: NoteTarget) => void; hide?: boolean }) {
   const { boot, pulse } = useApp();
   const today = pulse?.today || boot.today;
   const [day, setDay] = useState(today);
   const { data, error, loading, refresh } = useQuery<PlanDay>(keyOf(day));
   const [open, setOpen] = useState<PlanRow | null>(null);
+  // FEATURE D: « Encaisser » on his own phone, opened from a booking's sheet (the sheet closes first)
+  const [paying, setPaying] = useState<string | null>(null);
   const zone = useRef<HTMLDivElement>(null);
   const moved = useRef<HTMLDivElement>(null);
   const strip = useRef<HTMLDivElement>(null);
@@ -47,6 +50,8 @@ export function Planning({ note }: { note: (t: NoteTarget) => void }) {
   const can = (dir: -1 | 1) => (dir === -1 ? day < last : day > today);
   const go = (dir: -1 | 1) => { if (can(dir)) setDay(dates.addDays(day, -dir)); };
   useSwipe(zone, { on: true, go, can }, moved);
+  // past midnight with the page open: the strip starts again from the new today, and so does the chosen day
+  useEffect(() => { setDay((d) => (d < today ? today : d)); }, [today]);
   // the day before and after are read ahead: a swipe shows them at once
   useEffect(() => {
     for (const d of [dates.addDays(day, 1), dates.addDays(day, -1)]) if (d >= today && d <= last && !peek(keyOf(d))) void load(keyOf(d));
@@ -118,13 +123,14 @@ export function Planning({ note }: { note: (t: NoteTarget) => void }) {
           ) : null}
         </div>
       </div>
-      <ApptSheet row={open} day={shown} onClose={() => setOpen(null)} note={note} onDone={() => { refreshAll(); void refresh(); }} />
+      <ApptSheet row={open} day={shown} masked={hide} onClose={() => setOpen(null)} note={note} pay={(id) => { setOpen(null); setPaying(id); }} onDone={() => { refreshAll(); void refresh(); }} />
+      {paying ? <PhoneCheckout apptId={paying} onDone={() => { setPaying(null); refreshAll(); void refresh(); }} /> : null}
     </section>
   );
 }
 
 /** One booking of the planning, with the gestures of the moment (today only) and the way to the agenda for the rest. */
-function ApptSheet({ row, day, onClose, note, onDone }: { row: PlanRow | null; day: PlanDay | undefined; onClose: () => void; note: (t: NoteTarget) => void; onDone: () => void }) {
+function ApptSheet({ row, day, masked, onClose, note, pay, onDone }: { row: PlanRow | null; masked: boolean; day: PlanDay | undefined; onClose: () => void; note: (t: NoteTarget) => void; pay: (id: string) => void; onDone: () => void }) {
   const { offline, can } = useApp();
   const [busy, setBusy] = useState('');
   const r = row;
@@ -140,7 +146,7 @@ function ApptSheet({ row, day, onClose, note, onDone }: { row: PlanRow | null; d
     <Sheet open={!!r} onClose={onClose} title={r ? r.name : ''} kicker={r && day ? dayWord(day.day, day.today) + ' · ' + time(r.start) : undefined}>
       {r && day ? (
         <div className="es-sheet">
-          <p className="es-line"><b>{r.services.join(' + ')}</b> · {r.dur} min{r.price ? <> · <span className="money">{eur(r.price)}</span></> : null}</p>
+          <p className="es-line"><b>{r.services.join(' + ')}</b> · {r.dur} min{r.price && !masked ? <> · <span className="money">{eur(r.price)}</span></> : null}</p>
           <p className="es-line">{WORD[r.status] || 'À venir'}{r.late > 0 ? ' · en retard de ' + r.late + ' min' : ''}{r.paid ? ' · encaissé' : ''}</p>
           {r.note ? <p className="es-tech"><b>Note</b> · {r.note}</p> : null}
           {day.readOnly ? <p className="es-plan-note">Ce jour est passé ou clôturé : rien n’y change plus.</p> : null}
@@ -149,9 +155,9 @@ function ApptSheet({ row, day, onClose, note, onDone }: { row: PlanRow | null; d
             {live && (waiting || r.status === 'arrived') ? <Button variant="primary" icon="chair" busy={busy === 'chair'} disabled={offline} onClick={() => post('chair', '/api/v1/appointments/' + r.id + '/status', { status: 'in_chair' }, 'Au fauteuil · ' + r.name)}>Au fauteuil</Button> : null}
             {live && waiting && r.late > 0 ? <Button variant="ghost" icon="x" busy={busy === 'absent'} disabled={offline} onClick={() => post('absent', '/api/v1/appointments/' + r.id + '/arrival', { answer: 'absent' }, r.name + ' marqué absent')}>Absent</Button> : null}
             {(r.status === 'in_chair' || r.status === 'done') && !day.readOnly ? <Button variant="ghost" icon="edit" disabled={offline} onClick={() => { onClose(); note({ id: r.id, name: r.name }); }}>Note de coupe</Button> : null}
-            {/* FEATURE D: « Encaisser » on his phone, when the cut is done and nothing is paid yet:
-                {live && !r.paid && (r.status === 'in_chair' || r.status === 'done') && can('sale.create') ? <PhoneCheckout apptId={r.id} onDone={() => { onDone(); onClose(); }} /> : null} */}
-            {live && !r.paid && r.status === 'in_chair' && can('sale.create') ? <Button variant="primary" icon="caisse" disabled={offline} onClick={() => navigate('/caisse?rdv=' + r.id)}>Encaisser</Button> : null}
+            {/* FEATURE D: « Encaisser » on his phone once the client is in the chair or the cut is done, unpaid; else the till */}
+            {live && !r.paid && (r.status === 'in_chair' || r.status === 'done') && can('sale.phone') ? <Button variant="primary" icon="caisse" disabled={offline} onClick={() => pay(r.id)}>Encaisser</Button>
+              : live && !r.paid && r.status === 'in_chair' && can('sale.create') ? <Button variant="primary" icon="caisse" disabled={offline} onClick={() => navigate('/caisse?rdv=' + r.id)}>Encaisser</Button> : null}
             <Button variant="ghost" icon="calendar" onClick={() => navigate('/agenda?rdv=' + r.id + (isToday ? '' : '&day=' + day.day))}>Ouvrir dans l’agenda</Button>
           </div>
         </div>

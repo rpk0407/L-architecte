@@ -314,6 +314,9 @@ export const eraseClient = {
     if (open.memberships.length) fail(409, 'member', 'Cette fiche a un abonnement en cours : résilie-le d’abord.', { open });
     if ((open.appts.length || open.packs.length || open.giftcards.length) && !x.cancelUpcoming) fail(409, 'open', 'Cette fiche a encore ' + openWords(open) + '.', { open });
     const ids = fileIds(s, c);
+    // a child's file booked by this parent on the site (ext.parent): no phone, only his first name and age, reachable only
+    // through the parent; it leaves with the parent's file
+    for (const k of s.clients.values()) if (!k.erased && k.ext && k.ext.parent && ids.includes(k.ext.parent) && !ids.includes(k.id)) ids.push(k.id);
     const texts = [];
     for (const o of open.appts) {
       const a = s.appts.get(o.id);

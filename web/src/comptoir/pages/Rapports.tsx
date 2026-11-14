@@ -6,7 +6,7 @@ import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { qs } from '../../lib/api';
 import { useQuery } from '../../lib/query';
-import { setQuery, useRoute } from '../../lib/router';
+import { Link, setQuery, useRoute } from '../../lib/router';
 import { cap, dates, eur, METHOD, pct, plural, SOURCE } from '../../lib/format';
 import { gapParts, rulesWords } from '../../lib/figures';
 import { Icon } from '../../ui/Icon';
@@ -163,7 +163,7 @@ function Body({ r, shop, who }: { r: Report; shop: boolean; who: string }) {
               </section>
               {Object.keys(r.methods).length ? (
                 <section className="card">
-                  <div className="card-h"><h2><Icon name="card" size={16} />Encaissements</h2></div>
+                  <div className="card-h"><h2><Icon name="card" size={16} />Encaissements</h2>{can('report.shop') ? <Link to="/caisse/mois" className="link">Le mois en caisse</Link> : null}</div>
                   <Split parts={Object.entries(r.methods).filter(([k]) => !k.startsWith('refund_')).map(([k, v]) => ({ k, label: METHOD[k] || k, v }))} money />
                 </section>
               ) : null}

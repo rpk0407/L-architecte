@@ -32,12 +32,15 @@ async function run(h, page, step) {
     return {
       n: cols.length, names: cols.map((c) => c.querySelector('.wc-h b').textContent),
       minW: Math.min(...cols.map((c) => c.getBoundingClientRect().width)), snap: getComputedStyle(box).scrollSnapType,
+      // beyond four columns, the fifth shows a little so the visitor knows there are more barbers to the side
+      peek: cols[4] ? cols[4].getBoundingClientRect().left < window.innerWidth - 8 : true,
       page: document.scrollingElement.scrollWidth, minH: Math.min(...[...document.querySelectorAll('.wide .sl')].map((b) => b.getBoundingClientRect().height))
     };
   });
   if (geo.n < 4) throw new Error('only ' + geo.n + ' barbers shown: ' + geo.names.join(', '));
   if (geo.minW < 70) throw new Error('a column is too narrow: ' + geo.minW + ' px');
   if (geo.n > 4 && !/x/.test(geo.snap)) throw new Error('more than 4 columns and no sideways snap: ' + geo.snap);
+  if (!geo.peek) throw new Error('more than 4 barbers and nothing shows that the list goes on to the side');
   if (geo.page > 390) throw new Error('the page scrolls sideways: ' + geo.page);
   if (geo.minH < 44) throw new Error('a time button is ' + geo.minH + ' px tall');
   // times on the slot buttons read « 14:30 » (docs/refonte-conventions.md)

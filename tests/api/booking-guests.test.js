@@ -151,3 +151,28 @@ test('a visitor booking for several people keeps one hold per person', async () 
   }
   assert.ok(ids.every((id) => s().holds.has(id)), 'the four kept');
 });
+
+test('the agenda elides before a vowel: « Inès (enfant d’Ahmed B.) »', async () => {
+  const { rt, s, site, sv, day, av } = await setup();
+  const r = await site.post('/api/public/bookings', { serviceIds: [sv.id], staffId: av[0].s, day, start: av[0].m, first: 'Ahmed', last: 'Benali', phone: '0612000077', guest: { kind: 'child', first: 'Inès' } });
+  assert.equal(r.status, 201, JSON.stringify(r.json));
+  const a = [...s().appts.values()].find((x) => x.code === r.json.code);
+  const row = (await (await owner(rt)).get('/api/v1/agenda?day=' + day)).json.appts.find((x) => x.id === a.id);
+  assert.equal(row.name, 'Inès (enfant d’Ahmed B.)');
+});
+
+test('erasing the parent’s file takes the child’s first name off the booking and erases the child’s file', async () => {
+  const { rt, s, site, sv, day, av } = await setup();
+  const r = await site.post('/api/public/bookings', { serviceIds: [sv.id], staffId: av[0].s, day, start: av[0].m, first: 'Karim', last: 'Belkacem', phone: '0612000088', guest: { kind: 'child', first: 'Léo', age: 8 } });
+  assert.equal(r.status, 201, JSON.stringify(r.json));
+  const a = [...s().appts.values()].find((x) => x.code === r.json.code);
+  const childId = a.ext.guest.cid;
+  const b = await owner(rt);
+  const e = await b.post('/api/v1/clients/' + a.clientId + '/erase', { cancelUpcoming: true });
+  assert.equal(e.status, 200, JSON.stringify(e.json));
+  if (e.json.erased === false) assert.equal((await b.post('/api/v1/clients/' + a.clientId + '/erase', { cancelUpcoming: true })).status, 200);
+  assert.ok(s().clients.get(a.clientId).erased, 'the parent is erased');
+  assert.equal(s().appts.get(a.id).name, '', 'no first name left on the booking');
+  const child = s().clients.get(childId);
+  assert.ok(child.erased && child.first === 'Client' && child.notes === '', 'the child’s file leaves with the parent’s');
+});

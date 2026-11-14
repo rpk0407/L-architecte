@@ -8,7 +8,7 @@ import { Button, toast, toastError } from '../../../../ui/kit';
 import { useApp } from '../../../state';
 import type { EspaceCardMeta, EspaceCardProps, EspaceNext } from '../../../types';
 import { EsCard, ordinal, shortDay } from '../shared';
-import { PhoneCheckoutButton } from '../../caisse/PhoneCheckout';
+import { PhoneCheckoutButton, PhoneCheckoutHost } from '../../caisse/PhoneCheckout';
 
 export const meta: EspaceCardMeta = { id: 'prochain', title: 'Prochain client', chairOnly: true };
 
@@ -56,6 +56,7 @@ export default function Prochain({ data, reload, note }: EspaceCardProps) {
     return (
       <EsCard guide="espace.prochain" title="Prochain client" icon="scissors" className="es-next">
         <p className="es-empty"><b>{title}</b><span>{sub}</span></p>
+        <PhoneCheckoutHost />
       </EsCard>
     );
   }
@@ -107,7 +108,7 @@ export default function Prochain({ data, reload, note }: EspaceCardProps) {
       <div className="es-acts">
         {soon && (n.status === 'booked' || n.status === 'pending') ? <Button variant="subtle" icon="check" busy={busy === 'arrived'} disabled={offline} onClick={() => status('arrived')}>Il est là</Button> : null}
         {soon && n.status !== 'in_chair' ? <Button variant="primary" icon="chair" busy={busy === 'in_chair'} disabled={offline} onClick={() => status('in_chair')}>Au fauteuil</Button> : null}
-        {n.status === 'in_chair' && can('sale.create') ? (can('sale.phone') ? <PhoneCheckoutButton row={n} nowMin={null} /> : <Button variant="primary" icon="caisse" disabled={offline} onClick={() => navigate('/caisse?rdv=' + n.id)}>Encaisser</Button>) : null}
+        {n.status === 'in_chair' && can('sale.create') ? (can('sale.phone') ? <PhoneCheckoutButton row={n} nowMin={null} /> : <Button variant="primary" icon="caisse" disabled={offline} onClick={() => navigate('/caisse?rdv=' + n.id)}>Encaisser</Button>) : <PhoneCheckoutHost />}
         {n.late >= LATE_ABSENT && (n.status === 'booked' || n.status === 'pending') ? <Button variant="ghost" icon="x" busy={busy === 'no_show'} disabled={offline} onClick={absent}>Absent</Button> : null}
         {n.canNote ? <Button variant="ghost" icon="edit" disabled={offline} onClick={() => note({ id: n.id, name: n.name, text: n.myNote })}>{n.myNote ? 'Corriger la note' : 'Note de coupe'}</Button> : null}
       </div>

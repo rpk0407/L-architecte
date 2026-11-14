@@ -122,9 +122,8 @@
 .es-site { margin-top: 14px; padding-block: 6px; }
 
 /* FEATURE C · « Mon planning »: the strip of 14 days, the day as a timeline, the swipe zone */
-.es-view { align-self: stretch; }
-.es-view .seg { width: 100%; }
-.es-view .seg button { flex: 1; }
+.es-vue { flex: none; }
+.es-vue[aria-pressed='true'] { background: var(--tx); color: var(--bg); box-shadow: none; }
 .es-strip { display: flex; gap: 6px; overflow-x: auto; margin: 0 -4px 10px; padding: 2px 4px 6px; scroll-snap-type: x proximity; scrollbar-width: none; }
 .es-strip::-webkit-scrollbar { display: none; }
 .es-sd { flex: none; scroll-snap-align: center; display: flex; flex-direction: column; align-items: center; gap: 2px; width: 54px; min-height: 64px; padding: 6px 0; border-radius: 14px; background: var(--panel2); box-shadow: inset 0 0 0 1px var(--line); }

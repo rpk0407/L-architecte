@@ -275,7 +275,8 @@ export function publicRoutes(app) {
       // a retry finds the booking as it now stands: its deposit page is the one already opened, never a second one
       const now = r.s.appts.get(x.id);
       const open = again ? [...r.s.payments.values()].find((p) => p.apptId === x.id && p.kind === 'deposit' && p.status === 'pending') : null;
-      if (again && x.status === 'pending' && (!now || now.status === 'cancelled')) throw new HttpError(409, 'gone', 'Cette réservation n’a pas abouti : rien n’est enregistré. Choisis ton créneau à nouveau.');
+      // in a booking of several people, any place taken back means the whole booking was (its deposit page failed)
+      if (again && (x.status === 'pending' || res.people) && (!now || now.status === 'cancelled')) throw new HttpError(409, 'gone', 'Cette réservation n’a pas abouti : rien n’est enregistré. Choisis ton créneau à nouveau.');
       const status = again && now ? now.status : x.status;
       if (open) payment = { id: open.id, url: open.url };
       else if (status === 'pending' && x.deposit > 0) {
@@ -287,9 +288,11 @@ export function publicRoutes(app) {
           // unpaid, with no link and no text, against its own client's retry. Taken back at once (every place still
           // waiting for its deposit), and said plainly
           console.error('[lx] deposit checkout failed, booking taken back', x.id, e && (/** @type {any} */ (e).detail || /** @type {any} */ (e).message));
+          // a booking of several people goes whole: a place confirmed without a deposit is taken back too, so the words
+          // below (« ton rendez-vous n'est pas enregistré ») stay true and a new try does not book anyone twice
           for (const y of places) {
-            if (y.status !== 'pending') continue;
-            try { await r.rt.engine.run(A.expirePending, { id: y.id, reason: 'Paiement en ligne indisponible' }, { actor: { t: 'system', id: 'payments' }, caps: new Set(), meta: r.meta }); }
+            if (y.status !== 'pending' && !res.people) continue;
+            try { await r.rt.engine.run(A.expirePending, { id: y.id, reason: 'Paiement en ligne indisponible', ...(res.people ? { group: true } : {}) }, { actor: { t: 'system', id: 'payments' }, caps: new Set(), meta: r.meta }); }
             catch (e2) { console.error('[lx] booking not taken back', y.id, e2 && /** @type {any} */ (e2).message); }
           }
           // the provider's answer already put in French for a client (payments/stripe.js: 502 « réessaie dans un instant »)

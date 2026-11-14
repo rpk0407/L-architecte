@@ -19,9 +19,10 @@ export const arrivalOn = (s) => !(s.settings && s.settings.team && s.settings.te
  * Where the question stands for one booking at `now`, or null when it does not apply (off, not today, not started, the
  * client already came or was marked absent, the booking is over).
  * ask: the minute of the question on screen (a new one each time it is asked again); later: the minute of the last
- * « Pas encore »; due: the question is on screen now (false while a « Pas encore » waits its 10 minutes).
+ * « Pas encore »; due: the question is on screen now (false while a « Pas encore » waits its 10 minutes); again: it will
+ * still be asked (false when a « Pas encore » came less than 10 minutes before the booking's end).
  * @param {any} s @param {any} a @param {number} now
- * @returns {{ ask: number, due: boolean, later: number | null } | null}
+ * @returns {{ ask: number, due: boolean, later: number | null, again: boolean } | null}
  */
 export function arrivalOf(s, a, now) {
   if (!a || !arrivalOn(s) || !WAITING.has(a.status)) return null;
@@ -31,7 +32,7 @@ export function arrivalOf(s, a, now) {
   if (L.min >= end) return null;
   const later = a.arrivalLater && a.arrivalLater.day === a.day ? a.arrivalLater.min : null;
   const ask = later != null ? later + ASK_AGAIN : L.min >= a.start + ASK_AGAIN ? a.start + ASK_AGAIN : a.start;
-  return { ask, due: L.min >= ask && ask < end, later };
+  return { ask, due: L.min >= ask && ask < end, later, again: ask < end };
 }
 
 /** « Karim B. » */

@@ -140,4 +140,95 @@ test('a booking for a child: the parent\'s code and number open it, the list say
   // the parent is the contact: his channel, his « préviens-moi » on the child's booking
   const on = await site.post('/api/public/contact/' + encodeURIComponent(own.token) + '/earlier', { code: r.json.code, on: true });
   assert.equal(on.status, 200, JSON.stringify(on.json));
+  // review: a slot freed earlier with the child's barber: the text goes to the parent and says « de Léo »
+  const s = rt.engine.state;
+  const ka = s.appts.get(s.apptByCode.get(r.json.code));
+  const av2 = (await site.get(`/api/public/availability?services=${cut.id}&staff=${ka.staffId}&from=${DAY}&days=6`)).json;
+  const slots = av2.days.flatMap((d) => d.slots.map((x) => ({ day: d.day, m: x.m }))).filter((x) => x.day < ka.day || (x.day === ka.day && x.m < ka.start));
+  const first = slots[slots.length - 1];
+  assert.ok(first, 'a free slot before the child\'s booking with the same barber');
+  const e = await site.post('/api/public/bookings', { serviceIds: [cut.id], staffId: ka.staffId, day: first.day, start: first.m, first: 'Zoé', phone: '06 31 00 00 42', sms: true });
+  assert.equal(e.status, 201, JSON.stringify(e.json));
+  assert.equal((await site.post('/api/public/bookings/' + encodeURIComponent(e.json.token) + '/cancel', {})).status, 200);
+  await rt.engine.run({ run: (st, i, ctx) => earlier.run(st, ctx) }, {}, { actor: { t: 'system', id: 'tick' }, caps: new Set(), meta: { linkFor: (a) => ORIGIN + '/r/' + signLink(rt.secret, 'appt', a.code) } });
+  const txt = [...s.messages.values()].find((m) => m.template === 'earlier' && m.apptId === ka.id);
+  assert.ok(txt, 'an « earlier » text for the child\'s booking');
+  assert.match(s.messages.get(txt.id).body || '', /rendez-vous de Léo/);
+  assert.ok(!(s.clients.get(txt.cid).ext && s.clients.get(txt.cid).ext.parent), 'to the parent, not the child');
+});
+
+// Review: a friend booked with his own number gets his own confirmation and link. That link (and his number) opens his
+// bookings only, never those of the friend who booked him; the booker still follows the place he booked.
+test('a friend booked with his own number: his link and his number open his bookings only, never the booker\'s', async () => {
+  const site = browser(rt);
+  const salon = (await site.get('/api/public/salon')).json;
+  const cut = salon.services.find((s) => s.slug === 'cl');
+  const av = await site.get(`/api/public/availability?services=${cut.id}&staff=any&from=${DAY}&days=5`);
+  const day = av.json.days.filter((d) => d.slots.length)[3];
+  const mine = await book(site, '06 31 00 00 51', 'Malik', { pick: 0 });
+  const r = await site.post('/api/public/bookings', { serviceIds: [cut.id], staffId: 'any', day: day.day, start: day.slots[2].m, first: 'Malik', phone: '06 31 00 00 51', sms: true, guest: { kind: 'other', first: 'Adam', phone: '06 31 00 00 52' } });
+  if (r.status !== 201) { console.log('guest booking not available yet:', r.status, r.json && r.json.error && r.json.error.message); return; }
+  const gid = rt.engine.state.apptByCode.get(r.json.code);
+  const gtoken = signLink(rt.secret, 'appt', r.json.code);
+  // the friend's view: his booking, for himself, and nothing of Malik's
+  const gv = (await site.get('/api/public/contact/' + encodeURIComponent(gtoken))).json;
+  assert.deepEqual(gv.items.map((x) => x.code), [r.json.code], JSON.stringify(gv.items.map((x) => x.code)));
+  assert.equal(gv.items[0].forFirst, '');
+  // and he cannot reach Malik's booking from his link
+  assert.equal((await site.post('/api/public/contact/' + encodeURIComponent(gtoken) + '/earlier', { code: mine.code, on: true })).status, 404);
+  // « Retrouver »: the friend's number opens it, Malik's number on the friend's code says the usual words
+  assert.equal((await browser(rt).post('/api/public/find', { code: r.json.code, phone: '06 31 00 00 52' })).status, 200);
+  assert.equal((await browser(rt).post('/api/public/find', { code: r.json.code, phone: '06 31 00 00 51' })).status, 404);
+  // Malik's own link still lists the place he booked for Adam, « pour Adam »
+  const mv = (await site.get('/api/public/contact/' + encodeURIComponent(mine.token))).json;
+  const forAdam = mv.items.find((x) => x.code === r.json.code);
+  assert.ok(forAdam && forAdam.forFirst === 'Adam', JSON.stringify(mv.items));
+  void gid;
+});
+
+test('a child\'s booking: the evening reminder goes to the parent\'s number, « pour Léo »', async () => {
+  const site = browser(rt);
+  const salon = (await site.get('/api/public/salon')).json;
+  const cut = salon.services.find((s) => s.slug === 'cl');
+  const av = await site.get(`/api/public/availability?services=${cut.id}&staff=any&from=${DAY}&days=6`);
+  const day = av.json.days.filter((d) => d.slots.length)[1];
+  const r = await site.post('/api/public/bookings', { serviceIds: [cut.id], staffId: 'any', day: day.day, start: day.slots[3].m, first: 'Rania', phone: '06 31 00 00 61', sms: true, guest: { kind: 'child', first: 'Léo', age: 7 } });
+  if (r.status !== 201) { console.log('child booking not available yet:', r.status); return; }
+  const s = rt.engine.state;
+  const a = s.appts.get(s.apptByCode.get(r.json.code));
+  const { tick } = await import('../../server/commands/system.js');
+  const { addDays } = await import('../../shared/dates.js');
+  const saved = clock.now;
+  s.settings.messages.reminder = true;
+  clock.now = at(addDays(a.day, -1), 21);
+  // the demo's own purge (visitors' files forgotten after two hours) would erase the files before we read them
+  const mode = s.mode;
+  s.mode = 'production';
+  try {
+    await rt.engine.run(tick, {}, { actor: { t: 'system', id: 'tick' }, caps: new Set(), meta: { linkFor: () => ORIGIN + '/r/x' } });
+  } finally { clock.now = saved; s.mode = mode; }
+  const rem = [...s.messages.values()].filter((m) => m.apptId === a.id && m.template === 'reminder');
+  assert.equal(rem.length, 1, JSON.stringify([...s.messages.values()].filter((m) => m.apptId === a.id).map((m) => m.template)));
+  // to the parent's file, the one with a phone (never the child's, which has none)
+  const to = s.clients.get(rem[0].cid);
+  assert.ok(to && to.phone && !(to.ext && to.ext.parent), JSON.stringify({ to, rem }));
+  assert.match(s.messages.get(rem[0].id).body || '', /pour Léo/);
+});
+
+test('when the salon sends by WhatsApp, the phone way offered is WhatsApp only (no « SMS » chip that changes nothing)', async () => {
+  const { waMode } = await import('../../server/settings/messages.js');
+  const { notifyOptions } = await import('../../server/domain/notify.js');
+  const s = rt.engine.state;
+  const M = { ...s.settings.messages };
+  const c = { phone: '+33631000071', email: 'x@example.com' };
+  const sv = s.settings.messages;
+  try {
+    s.settings.messages = { ...M, whatsapp: { mode: 'phone' } };
+    assert.equal(waMode(s.settings.messages), 'phone');
+    assert.deepEqual(notifyOptions(s, c).filter((x) => x !== 'email'), ['whatsapp']);
+    s.settings.messages = { ...M, whatsapp: { mode: 'sms', number: '06 11 22 33 44' } };
+    assert.deepEqual(notifyOptions(s, c).filter((x) => x !== 'email'), ['sms', 'whatsapp']);
+    s.settings.messages = { ...M, whatsapp: { mode: 'sms' } };
+    assert.deepEqual(notifyOptions(s, c).filter((x) => x !== 'email'), ['sms']);
+  } finally { s.settings.messages = sv; }
 });

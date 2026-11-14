@@ -19,14 +19,15 @@ export const NOTIFY_VIA = /** @type {const} */ (['sms', 'whatsapp', 'email']);
 export function notifyOptions(s, c) {
   const M = s.settings.messages || {};
   const out = [];
-  if (c && c.phone) out.push('sms');
-  // WhatsApp: the salon sends by WhatsApp (automatic or by hand), or has a WhatsApp number a person can send from
-  if (c && c.phone && (waMode(M) !== 'sms' || !!salonWhatsapp(M))) out.push('whatsapp');
+  // to a phone: when the salon sends by WhatsApp (automatic or by hand) that is its one way, so only « WhatsApp » is
+  // offered (an « SMS » chip would change nothing); when it sends SMS, WhatsApp too if it has a number a person sends from
+  if (c && c.phone && waMode(M) !== 'sms') out.push('whatsapp');
+  else if (c && c.phone) { out.push('sms'); if (salonWhatsapp(M)) out.push('whatsapp'); }
   if (c && isEmail(c.email) && M.email !== false) out.push('email');
   return out;
 }
 
-/** The channel this file asked for, if the salon can still use it; else 'sms' (or 'email' for a file without a phone). */
+/** The channel this file asked for, if the salon can still use it; else the salon's way to his phone (or 'email' without a phone). */
 export function viaOf(s, c) {
   const opts = notifyOptions(s, c);
   if (c && opts.includes(c.notify)) return c.notify;
@@ -78,5 +79,23 @@ export function contactOwns(ids, a, s) {
   return !!a && (set.has(a.clientId) || set.has(bookerOf(a, s) || ''));
 }
 
-/** The file that holds this booking's contact: the booker when made for someone else, else the person's own. */
-export const contactCidOf = (a, s) => bookerOf(a, s) || a.clientId || null;
+/**
+ * The file this booking's texts go to, and so whose link it is: the person's own file when it has a phone (he booked for
+ * himself, or a friend booked him with his own number: he got his own confirmation), else the one who booked (a child,
+ * who has no phone). A friend's link never opens the bookings of the one who booked him.
+ */
+export const contactCidOf = (a, s) => {
+  const own = a && a.clientId && s ? s.clients.get(a.clientId) : null;
+  if (own && own.phone) return a.clientId;
+  return bookerOf(a, s) || (a && a.clientId) || null;
+};
+
+/**
+ * « pour Léo » in a list of this contact's bookings (ids: his files): '' for his own, the person's first name for a place
+ * he booked for someone else (a child or a friend without a number sit on his own file; a friend with a number on his).
+ */
+export const forFirstIn = (s, ids, a) => {
+  const g = a && a.ext && a.ext.guest;
+  if (new Set(ids).has(a.clientId)) return g && !g.by ? guestFirst(s, a) : '';
+  return guestFirst(s, a);
+};

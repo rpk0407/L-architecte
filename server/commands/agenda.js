@@ -197,7 +197,7 @@ export const bookOnline = {
     const madeByPhone = new Map(), madeChild = new Map();
     const booked = plan.map((x, i) => {
       const g = x.p.guest;
-      let clientId = client.id, phone = bookerPhone, first = bookerFirst, sms = b.sms !== false && !(existing && existing.sms === false), name = '';
+      let clientId = client.id, phone = bookerPhone, first = bookerFirst, sms = b.sms !== false && !(existing && existing.sms === false), name = '', placeRisk = risk;
       /** @type {any} */
       let guest = null;
       if (g) {
@@ -211,6 +211,8 @@ export const bookOnline = {
           if (gc) gid = gc.id;
           if (!gid) { gid = upsertClient(s, ctx, { first: name, phone: gp, sms: true, marketing: false }, 'site').id; madeByPhone.set(gp, gid); }
           clientId = gid; phone = gp; first = name; sms = !(gc && gc.sms === false);
+          // his own file brings its own history: a client who missed does not get past the deposit by being booked by a friend
+          placeRisk = risk || (payLive && !!gc && riskDeposit(s, gc.id, ctx.local.day));
           guest = { kind: 'other', by: client.id };
         } else if (g.kind === 'child') {
           // the child's own file, linked to the parent, without a phone: the same child booked again keeps it
@@ -228,7 +230,7 @@ export const bookOnline = {
       }
       const price = totalPrice(x.services);
       const covered = member && !g ? memberCovers(s, member, x.services, x.p.day, upcoming) : null;
-      const deposit = depositFor(s, x.services, { payLive, risk, ...(covered && covered.ok ? { member, day: x.p.day, upcoming } : {}) });
+      const deposit = depositFor(s, x.services, { payLive, risk: placeRisk, ...(covered && covered.ok ? { member, day: x.p.day, upcoming } : {}) });
       const aid = ctx.id('ap');
       const code = uniqueCode(s, ctx);
       const a = {
@@ -457,7 +459,10 @@ export const cancelByClient = {
 export const expirePending = {
   run(s, input, ctx) {
     const a = getAppt(s, input.id);
-    if (a.status !== 'pending') return { ok: true };
+    // group: a booking of several people whose deposit page could not open (http/routes-public.js) is taken back whole,
+    // the places confirmed without a deposit too: all the people are booked, or none (only by the system, only from the site)
+    const undo = input.group === true && ctx.actor.t === 'system' && a.status === 'booked' && a.source === 'site' && !!(a.ext && a.ext.group);
+    if (a.status !== 'pending' && !undo) return { ok: true };
     ctx.emit('appt.cancelled', { id: a.id, by: 'system', reason: input.reason ? String(input.reason).slice(0, 120) : 'Acompte non réglé', cid: a.clientId || undefined });
     return { ok: true };
   }

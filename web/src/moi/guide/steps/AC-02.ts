@@ -15,7 +15,7 @@ const steps: GuideStep[] = [
   {
     id: 'moi.profile-messages', page: '/moi/profil', target: 'profile-messages', roles: ['client'], order: 30,
     title: 'Messages',
-    body: 'Choisis si tu veux les SMS de confirmation et de rappel, et les bons plans du salon. Les bons plans ne sont jamais imposés : tu peux les couper à tout moment.'
+    body: 'Choisis comment le salon te prévient, si tu veux les confirmations et rappels, et les bons plans. Les bons plans ne sont jamais imposés : tu peux les couper à tout moment.'
   },
   {
     id: 'moi.profile-data', page: '/moi/profil', target: 'profile-data', roles: ['client'], order: 40,

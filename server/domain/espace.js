@@ -300,10 +300,15 @@ function buildPlanning(s, me, day, now, today, nowMin) {
   const min = isToday ? nowMin : day > today ? 0 : 1440;
   // breaks: the holes between his working hours, and the blocks of his column
   const breaks = [];
-  for (let i = 1; i < work.length; i++) breaks.push({ start: work[i - 1][1], end: work[i][0], label: 'Pause' });
+  const off = absenceOn(s, me, day);
+  // a part-day absence cuts a hole in his hours: it reads as the absence, not as a pause
+  const part = off && off.startMin != null && off.from === off.to ? [off.startMin, off.endMin] : null;
+  for (let i = 1; i < work.length; i++) {
+    const [start, end] = [work[i - 1][1], work[i][0]];
+    breaks.push({ start, end, label: part && start < part[1] && end > part[0] ? off.reason || 'Absence' : 'Pause' });
+  }
   for (const id of s.blocksByDay.get(day) || []) { const b = s.blocks.get(id); if (b && b.staffId === me.id) breaks.push({ start: b.start, end: b.start + b.dur, label: b.label || 'Bloqué' }); }
   breaks.sort((a, b) => a.start - b.start);
-  const off = absenceOn(s, me, day);
   const asked = askedOn(s, me, day);
   const closed = s.settings.closures.some((c) => day >= c.from && day <= c.to);
   const rows = appts.map((a) => ({

@@ -71,7 +71,13 @@ export const checkout = {
     const pocket = phone && ctx.staff && ctx.staff.role === 'barber';
     if (phone) {
       ctx.need('sale.phone');
-      if (pocket && (!appt || appt.staffId !== ctx.staff.id)) fail(403, 'own', 'Sur ton téléphone, tu encaisses tes propres clients.');
+      if (!appt) fail(400, 'invalid', 'Sur le téléphone, on encaisse un rendez-vous.');
+      if (pocket && appt.staffId !== ctx.staff.id) fail(403, 'own', 'Sur ton téléphone, tu encaisses tes propres clients.');
+      // today's client, once he is there: never a booking of another day, one not started, or one marked absent
+      if (appt.status !== 'done' && !appt.saleId && appt.status !== 'cancelled') {
+        const started = appt.status === 'in_chair' || ((appt.status === 'booked' || appt.status === 'arrived') && appt.start <= ctx.local.min);
+        if (appt.day !== day || !started) fail(409, 'not_yet', 'Ce rendez-vous ne s’encaisse pas maintenant : le client doit être là aujourd’hui.');
+      }
     }
     if (appt && (appt.status === 'done' || appt.saleId)) fail(409, 'paid', 'Ce rendez-vous est déjà encaissé.');
     if (appt && appt.status === 'cancelled') fail(409, 'cancelled', 'Ce rendez-vous est annulé.');

@@ -181,7 +181,8 @@ export function evolve(s, e) {
         Object.assign(c, { first: 'Client', last: 'effacé', phone: '', email: '', notes: '', tech: '', birthday: '', erased: true, sms: false, marketing: false });
         delete c.wpPhone; delete c.wpEmail;
       }
-      for (const a of s.appts.values()) if (ids.has(a.clientId)) { a.note = ''; delete a.wpFirst; if (a.cancel && a.cancel.by === 'client') a.cancel.reason = ''; }
+      // a.name: the first name typed at booking (a child's or a friend's on the booker's file), from the event's pii
+      for (const a of s.appts.values()) if (ids.has(a.clientId)) { a.note = ''; a.name = ''; delete a.wpFirst; if (a.cancel && a.cancel.by === 'client') a.cancel.reason = ''; }
       for (const m of s.messages.values()) if (ids.has(m.cid)) { m.to = ''; m.body = ''; if (m.mail) m.mail = null; delete m.wa; }
       for (const x of s.sales.values()) if (ids.has(x.clientId)) x.discountNote = '';
       for (const w of s.waitlist.values()) if (ids.has(w.clientId)) { w.first = ''; w.phone = ''; }

@@ -130,9 +130,9 @@ test('the owner’s tour follows a day at the salon: Mise en route, Agenda, Cais
   const seen = pages.filter((p) => p !== 'reglages');
   assert.deepEqual(seen, order.filter((p) => seen.includes(p)), 'the pages in the spec’s order: ' + pages.join(' › '));
   assert.ok(all.at(-1).place.startsWith('/comptoir/reglages/'), 'Réglages last');
-  // inside a place, `order` first; the Caisse: Encaisser, the ticket, Ventes du jour, Caisse & clôture
+  // inside a place, `order` first; the Caisse: Encaisser, the ticket, Ventes du jour, Caisse & clôture, then Le mois (the owner's)
   const caisse = [...new Set(all.filter((s) => s.place.startsWith('/comptoir/caisse')).map((s) => s.place))];
-  assert.deepEqual(caisse, ['/comptoir/caisse', '/comptoir/caisse?rdv=:rdv', '/comptoir/caisse/ventes', '/comptoir/caisse/cloture']);
+  assert.deepEqual(caisse, ['/comptoir/caisse', '/comptoir/caisse?rdv=:rdv', '/comptoir/caisse/ventes', '/comptoir/caisse/cloture', '/comptoir/caisse/mois']);
   const agenda = all.filter((s) => s.place === '/comptoir/agenda').map((s) => s.order ?? 100);
   assert.deepEqual(agenda, [...agenda].sort((a, b) => a - b));
   // a part that only lives in a view of its page is shown there: the file, the ticket, the Abonnés segment, the week

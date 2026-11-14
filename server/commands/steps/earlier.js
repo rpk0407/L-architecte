@@ -9,7 +9,8 @@
 import { freeSlots } from '../../domain/availability.js';
 import { queueMessage, whenWords, afterQuiet } from '../../domain/messages.js';
 import { clientMayChange, startsAt } from '../../domain/policy.js';
-import { viaOf, contactCidOf, guestFirst } from '../../domain/notify.js';
+import { viaOf, contactCidOf, forFirstIn } from '../../domain/notify.js';
+import { fileIds } from '../clients.js';
 import { rootFile } from '../accounts.js';
 import { localParts } from '../../../shared/dates.js';
 
@@ -53,7 +54,7 @@ export default {
       if (!pick) continue;
       const st = s.staff.get(w.staffId);
       const link = ctx.meta && ctx.meta.linkFor ? ctx.meta.linkFor(w) + '?plus-tot=' + pick.day + '.' + pick.m : '';
-      const vars = { barbier: st ? st.name : 'ton barbier', ...whenWords(pick.day, pick.m), pour: guestFirst(s, w), lien: link };
+      const vars = { barbier: st ? st.name : 'ton barbier', ...whenWords(pick.day, pick.m), pour: forFirstIn(s, fileIds(s, c), w), lien: link };
       const key = 'early_' + w.id + '_' + pick.day + '_' + pick.m;
       const via = viaOf(s, c);
       if (via === 'email') {

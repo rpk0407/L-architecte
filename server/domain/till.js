@@ -11,6 +11,7 @@ import { report } from './insights.js';
 import { monthWords, PROVISIONAL } from './statement.js';
 
 const dayOf = (ms) => localParts(ms).day;
+const OPEN_APPT = new Set(['pending', 'booked', 'arrived', 'in_chair']);
 /** methods as the owner reads them on the home: the online ones (QR, deposits) together, the prepaid apart */
 export const HOME_METHODS = ['cash', 'card', 'online', 'deposit', 'giftcard', 'ancien'];
 
@@ -22,6 +23,8 @@ function who(s, a) {
 
 /** Appointments of `day` finished or in the chair and not paid: every chair, the one waiting longest first. */
 export function toPayOf(s, day, min) {
+  // a sealed day takes no more payments (sales.js toPayAppts): nothing left to ring up there
+  if (s.closures.has(day)) return [];
   return [...(s.apptsByDay.get(day) || [])].map((id) => s.appts.get(id))
     .filter((a) => a && !a.saleId && !a.legacy && (a.status === 'in_chair' || a.status === 'done' || ((a.status === 'booked' || a.status === 'arrived') && a.start + a.dur <= min)))
     .sort((a, b) => a.start + a.dur - (b.start + b.dur))
@@ -64,7 +67,9 @@ export function tillDay(s, day, min) {
     if (sale && sale.day === day) { deposits.used.n++; deposits.used.amount += py.amount; }
     const back = refundsOf(py).filter((rf) => dayOf(rf.at) === day).reduce((v, rf) => v + rf.amount, 0);
     if (back) { deposits.refunded.n++; deposits.refunded.amount += back; }
-    if (!sale && py.status === 'paid' && !(py.refunded > 0)) { deposits.waiting.n++; deposits.waiting.amount += py.amount; }
+    // waiting: its visit is still to come (a deposit kept after a no-show or a late cancellation waits for nothing)
+    const ap = py.apptId ? s.appts.get(py.apptId) : null;
+    if (!sale && py.status === 'paid' && !(py.refunded > 0) && ap && !ap.saleId && OPEN_APPT.has(ap.status)) { deposits.waiting.n++; deposits.waiting.amount += py.amount; }
   }
   // memberships: the months paid today, and the refusals still being retried (to follow up)
   const renewed = [], failed = [];

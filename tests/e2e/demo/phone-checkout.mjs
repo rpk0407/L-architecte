@@ -59,6 +59,10 @@ export default async ({ h, page, browser }) => {
   await sheet.getByText('Comment paie-t-il ?').waitFor({ timeout: 8000 });
   await noSideScroll(page, 'the phone checkout');
   await h.shot(page, 'phone-checkout');
+  // the smallest phones: the ticket still fits, then back to 390
+  await page.setViewportSize({ width: 320, height: 640 });
+  await noSideScroll(page, 'the phone checkout at 320 px');
+  await page.setViewportSize(viewport);
   await sheet.getByRole('button', { name: /Espèces/ }).click();
   const cash = page.getByRole('dialog', { name: 'Paiement en espèces' });
   await cash.waitFor();
@@ -70,7 +74,20 @@ export default async ({ h, page, browser }) => {
   const wa = await sheet.locator('[data-share="whatsapp"]').getAttribute('href');
   if (!/wa\.me\/\?text=.*recu/.test(wa || '')) throw new Error('the WhatsApp link carries no receipt link: ' + wa);
   await h.shot(page, 'phone-checkout-done');
+  // Mon espace reads itself again every minute (the paid row loses its button, « Prochain client » moves on): the receipt stays
+  const before = await page.locator('[data-guide="phone-pay"]').count();
+  if (page.context().clock) await page.clock.fastForward(65000).catch(() => {});
+  await page.waitForFunction((n) => document.querySelectorAll('[data-guide="phone-pay"]').length < n, before, { timeout: 5000 }).catch(() => { throw new Error('Mon espace did not read itself again (' + before + ' buttons)'); });
+  await sheet.locator('[data-share="whatsapp"]').waitFor({ timeout: 4000 }).catch(() => { throw new Error('the receipt left the screen when Mon espace refreshed'); });
   await sheet.getByRole('button', { name: 'Terminé' }).click();
+  await sheet.waitFor({ state: 'detached', timeout: 4000 });
+  // and a booking still to come today is not rung up on the phone (the client must be there)
+  const later = ag.json.appts.filter((a) => a.staffId === jkut.id && a.status === 'booked' && !a.saleId && a.start > 15 * 60 + 30).sort((a, b) => a.start - b.start)[0];
+  if (later) {
+    if (page.expect) page.expect.push(/409/);
+    const r = await api(page, '/api/v1/sales', { apptId: later.id, lines: later.services.map((s) => ({ kind: 'service', ref: s.id })), payments: [{ method: 'card', amount: later.price }], phone: true });
+    if (r.status !== 409 || r.json?.error?.code !== 'not_yet') throw new Error('a client still to come was rung up on the phone: ' + r.status + ' ' + JSON.stringify(r.json));
+  }
 
   // the owner: the day by method and by barber, JKut's cash apart, handed to the drawer, then the month
   const owner = h.newPage ? await h.newPage({ viewport }) : await (await browser.newContext({ viewport, locale: 'fr-FR', timezoneId: 'Europe/Paris' })).newPage();

@@ -7,6 +7,7 @@ import { fmtEur } from '../../shared/money.js';
 import { apptIcs } from '../lib/ics.js';
 import { isEmail } from '../lib/util.js';
 import { queueMessage } from './messages.js';
+import { forFirstIn } from './notify.js';
 
 /** Where the owner's mail goes: settings.notify.to, else the owner account's own e-mail (both kept in pii). */
 export function ownerEmail(s) {
@@ -37,10 +38,12 @@ export function mailConfirmation(s, ctx, a, o) {
   const shop = s.settings.shop, barber = barberOf(s, a);
   const when = dayFr(a.day) + ' à ' + fmtTime(a.start);
   const moved = (a.moves || 0) > 0;
+  // a place booked for a child or a friend on this contact's file: « avec JKut pour Léo »
+  const g = forFirstIn(s, [a.clientId], a), pour = g ? ' pour ' + g : '';
   const paid = a.deposit && a.deposit.paid ? ' · acompte de ' + fmtEur(a.deposit.paid, { decimals: true }) + ' réglé' : '';
   const text = [
     hello(o.first), '',
-    (moved ? 'Ton rendez-vous est déplacé : ' : 'C’est noté : ') + when + ' avec ' + barber + '.',
+    (moved ? 'Ton rendez-vous est déplacé : ' : 'C’est noté : ') + when + ' avec ' + barber + pour + '.',
     what(a) + ' · ' + price(a) + paid, '',
     shop.name, where(shop),
     ...(o.link ? ['', 'Gérer mon rendez-vous (déplacer ou annuler) : ' + o.link] : []),
@@ -48,7 +51,7 @@ export function mailConfirmation(s, ctx, a, o) {
   ].join('\n');
   return queueMessage(s, ctx, {
     key: 'mconf_' + a.id + '_' + (a.moves || 0), channel: 'email', template: 'confirmation', to: o.to, cid: a.clientId, apptId: a.id, vars: {},
-    subject: (moved ? 'Rendez-vous déplacé : ' : 'Rendez-vous confirmé : ') + when + ' · ' + shop.name, text,
+    subject: (moved ? 'Rendez-vous déplacé : ' : 'Rendez-vous confirmé : ') + when + pour + ' · ' + shop.name, text,
     cta: o.link ? { label: 'Gérer mon rendez-vous', url: o.link } : undefined, links: [o.link || ''],
     attachments: [{ name: 'rendez-vous.ics', type: 'text/calendar; charset=utf-8; method=PUBLISH', content: apptIcs(shop, a, { barber, link: o.link, now: ctx.now }) }]
   });
@@ -65,9 +68,10 @@ export function mailReminder(s, ctx, a, o) {
   const shop = s.settings.shop, barber = barberOf(s, a);
   const time = fmtTime(a.start);
   const day = a.day === o.today ? 'aujourd’hui' : a.day === addDays(o.today, 1) ? 'demain' : dayFr(a.day);
+  const g = forFirstIn(s, [a.clientId], a), pour = g ? ' pour ' + g : '';
   const text = [
     hello(o.first), '',
-    'Un petit rappel : on t’attend ' + day + ' à ' + time + ' avec ' + barber + '.',
+    'Un petit rappel : on t’attend ' + day + ' à ' + time + ' avec ' + barber + pour + '.',
     what(a) + ' · ' + price(a), '',
     shop.name, where(shop),
     ...(o.link ? ['', 'Un imprévu ? Déplace ou annule ici : ' + o.link] : []),
@@ -75,7 +79,7 @@ export function mailReminder(s, ctx, a, o) {
   ].join('\n');
   return queueMessage(s, ctx, {
     key: (o.soon ? 'mrem2_' : 'mrem_') + a.id + '_' + a.day, channel: 'email', template: o.soon ? 'reminder2h' : 'reminder', to: o.to, cid: a.clientId, apptId: a.id, vars: {},
-    subject: 'Rappel : ' + day + ' à ' + time + ' avec ' + barber + ' · ' + shop.name, text,
+    subject: 'Rappel : ' + day + ' à ' + time + ' avec ' + barber + pour + ' · ' + shop.name, text,
     cta: o.link ? { label: 'Gérer mon rendez-vous', url: o.link } : undefined, links: [o.link || '']
   });
 }

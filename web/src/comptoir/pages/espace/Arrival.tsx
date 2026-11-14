@@ -73,9 +73,10 @@ export function ArrivalBand({ page }: { page: string }) {
 }
 
 /** What the desk reads on the agenda (GET /api/v1/agenda adds `arrival` to today's started bookings), or ''. */
-export function arrivalWords(x: { arrival?: { ask: number; due: boolean; later: number | null } | null } | null | undefined): string {
+export function arrivalWords(x: { arrival?: { ask: number; due: boolean; later: number | null; again?: boolean } | null } | null | undefined): string {
   const q = x && x.arrival;
   if (!q) return '';
-  if (q.later != null) return 'Barbier : « Pas encore » à ' + time(q.later) + (q.due ? ', redemandé' : ', redemandé à ' + time(q.ask));
+  // a « Pas encore » less than 10 minutes before the end: the question does not come back
+  if (q.later != null) return 'Barbier : « Pas encore » à ' + time(q.later) + (q.due ? ', redemandé' : q.again === false ? '' : ', redemandé à ' + time(q.ask));
   return 'Demandé au barbier à ' + time(q.ask) + ' : pas de réponse';
 }

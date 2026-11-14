@@ -31,7 +31,8 @@ export default async ({ h, page }) => {
   await page.getByRole('button', { name: /Valider l’encaissement/ }).click();
   const who = page.getByRole('dialog', { name: /Qui a fait/ });
   await who.getByRole('button', { name: /JKut/ }).first().click();
-  await page.getByText('Encaissé').first().waitFor({ timeout: 8000 });
+  // the done screen (« Encaissé · 25 € »), not the Caisse home's « Encaissé aujourd’hui » card behind it
+  await page.getByRole('heading', { name: /^Encaissé ·/ }).first().waitFor({ timeout: 8000 });
   const ticket = await page.locator('.receipt [data-gestion]').first().textContent();
   if (!/Document de gestion/.test(ticket || '') || !/caisse certifiée/.test(ticket || '')) throw new Error('the printed ticket does not say it is a management document: ' + ticket);
 

@@ -6,7 +6,7 @@ import { useInterval, useMedia } from '../../lib/hooks';
 import { Link, setQuery, useRoute } from '../../lib/router';
 import { cap, dates, time } from '../../lib/format';
 import { Icon } from '../../ui/Icon';
-import { Avatar, Button, Empty, Seg, Skeleton } from '../../ui/kit';
+import { Avatar, Button, Empty, Skeleton } from '../../ui/kit';
 import { photoOf, useApp, useMaskedAmounts } from '../state';
 import { PageTitle } from '../App';
 import type { EspaceData, EspaceNow, NoteTarget } from '../types';
@@ -46,7 +46,7 @@ export default function Espace() {
   const [custom, setCustom] = useState(false);
   const masked = useMaskedAmounts();
   const [shown, setShown] = useState(false);
-  // FEATURE C: « Mon planning » (today and the next days) beside the cards, one tap away; the link keeps the choice
+  // FEATURE C: which view of Mon espace (?vue=planning)
   const route = useRoute();
   const view: 'cards' | 'planning' = route.query.get('vue') === 'planning' ? 'planning' : 'cards';
   useEffect(() => { if (!shown) return; const t = window.setTimeout(() => setShown(false), REVEAL_MS); return () => clearTimeout(t); }, [shown]);
@@ -68,6 +68,12 @@ export default function Espace() {
           <h2>Salut {me.name}</h2>
           <p className="muted">{cap(dates.dayLong(today))}</p>
         </div>
+        {/* FEATURE C: « Mon planning » (today and the next days) instead of the cards, one tap away; the link keeps the choice */}
+        {boot.me.chair ? (
+          <button type="button" className="es-eye es-vue" data-guide="espace.vue" aria-pressed={view === 'planning'} onClick={() => setQuery({ vue: view === 'planning' ? null : 'planning' })}>
+            <Icon name={view === 'planning' ? 'house' : 'calendar'} size={16} />{view === 'planning' ? 'Aujourd’hui' : 'Mon planning'}
+          </button>
+        ) : null}
       </header>
       <div className="es-state">
         {status ? <span className={'es-status' + (status.tone ? ' ' + status.tone : '')} data-guide="espace.statut" role="status"><i aria-hidden />{status.text}</span> : null}
@@ -79,12 +85,7 @@ export default function Espace() {
       </div>
 
       {boot.me.chair ? <ArrivalCards /> : null}
-      {boot.me.chair ? (
-        <div className="es-view" data-guide="espace.vue">
-          <Seg value={view} onChange={(v) => setQuery({ vue: v === 'planning' ? 'planning' : null })} label="Affichage de Mon espace" options={[{ v: 'cards', t: 'Aujourd’hui' }, { v: 'planning', t: 'Mon planning' }]} />
-        </div>
-      ) : null}
-      {boot.me.chair && view === 'planning' ? <Planning note={setNoting} /> : !boot.me.chair ? (
+      {boot.me.chair && view === 'planning' ? <Planning note={setNoting} hide={masked && !shown} /> : !boot.me.chair ? (
         <section className="card"><Empty icon="chair" title="Pas de fauteuil, pas de Mon espace" action={<Link to="/agenda" className="btn btn-subtle">Ouvrir l’agenda</Link>}>Mon espace est pour ceux qui ont un fauteuil.</Empty></section>
       ) : loading ? <div className="col" style={{ gap: 14 }}><Skeleton h={230} r={22} /><Skeleton h={260} r={22} /></div> : !data && error ? (
         <section className="card"><Empty icon="alert" title="Mon espace est indisponible" action={<Button variant="primary" onClick={() => { void refresh(); }}>Réessayer</Button>}>{error.message}</Empty></section>

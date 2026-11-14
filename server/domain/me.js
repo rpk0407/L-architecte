@@ -9,7 +9,7 @@ import { occupies } from './availability.js';
 import { startsAt } from './policy.js';
 import { clientStats } from './insights.js';
 import { rhythmOf, statsOfDays } from './rhythm.js';
-import { bookerOf, guestFirst, notifyOptions, viaOf } from './notify.js';
+import { bookerOf, forFirstIn, notifyOptions, viaOf } from './notify.js';
 
 /** A booked appointment can be announced late from 2 h before its start to 15 min after (AC-04's « J’ai du retard »). */
 const LATE_BEFORE = 2 * 3600000, LATE_AFTER = 15 * 60000;
@@ -44,10 +44,7 @@ export function upcomingOfFiles(s, ids, now, account = null) {
     .sort((a, b) => startsAt(a) - startsAt(b));
 }
 
-/** The first name of the person a booking is for, when someone else booked it for him; '' otherwise. */
-const forWhom = (s, a) => guestFirst(s, a);
-
-function upcomingView(s, a, ctx) {
+function upcomingView(s, a, ctx, ids) {
   const pay = a.deposit && a.deposit.paymentId ? s.payments.get(a.deposit.paymentId) : [...s.payments.values()].find((p) => p.apptId === a.id && p.kind === 'deposit' && p.status === 'pending');
   const token = ctx.tokenFor(a);
   const start = startsAt(a);
@@ -60,7 +57,7 @@ function upcomingView(s, a, ctx) {
     canChange: ctx.now < changeUntil, changeUntil,
     lateOk: a.status === 'booked' && ctx.now >= start - LATE_BEFORE && ctx.now <= start + LATE_AFTER,
     // FEATURE B: « préviens-moi si un créneau se libère plus tôt », and for whom when he booked it for someone else
-    earlier: !!a.earlier, forFirst: forWhom(s, a)
+    earlier: !!a.earlier, forFirst: forFirstIn(s, ids, a)
   };
 }
 
@@ -114,7 +111,7 @@ export function meHome(s, c, ids, account, ctx) {
     prefs: { staffId: prefStaff && s.staff.get(prefStaff) && s.staff.get(prefStaff).active ? prefStaff : null },
     rhythm: rhythmOf(stats),
     usual: usualOf(s, ids, account),
-    upcoming: upcomingOfFiles(s, ids, ctx.now, account).map((a) => upcomingView(s, a, ctx)),
+    upcoming: upcomingOfFiles(s, ids, ctx.now, account).map((a) => upcomingView(s, a, ctx, ids)),
     wallet: { carnets, giftcards },
     team,
     shop: { name: sh.name, address: [sh.address, [sh.zip, sh.city].filter(Boolean).join(' ')].filter(Boolean).join(', '), phone: sh.phone, mapsUrl: sh.mapsUrl },
