@@ -55,11 +55,15 @@ export default async ({ browser, h }) => {
     if (slugs !== 'ab,cb,cc,cl,co,ct,de,eb,si,tb,tr') throw new Error('old menu taken over with slugs ' + slugs);
     const ab = cat.json.services.find((x) => x.slug === 'ab');
     const cl = cat.json.services.find((x) => x.slug === 'cl');
-    if (!ab.pack || ab.pack.credits !== 5 || ab.pack.days !== 70 || String(ab.pack.serviceIds) !== cl.id) throw new Error('the subscription is not 5 cuts / 70 days on the classic cut');
-    // the carnet is sold at the salon, never booked online (PAY-04: « Abonnement » is the monthly plan only)
-    if (ab.name !== 'Carnet 5 coupes' || ab.category !== 'Carnet' || ab.online !== false) throw new Error('the pack is not the « Carnet », off the site: ' + JSON.stringify([ab.name, ab.category, ab.online]));
+    // five cuts on the classic cut, one a week for five weeks from the first date, a missed week lost (the old site's offer)
+    if (!ab.pack || ab.pack.credits !== 5 || ab.pack.days !== 35 || ab.pack.weekly !== true || ab.pack.missed !== 'lost' || String(ab.pack.serviceIds) !== cl.id) throw new Error('the carnet is not 5 cuts over 5 weeks on the classic cut: ' + JSON.stringify(ab.pack));
+    // « Carnet », never « Abonnement » (the monthly plan). Sold online with an account: while the client space is closed (a new
+    // production salon), it stays at the salon and the Catalogue says why
+    if (ab.name !== 'Carnet 5 coupes' || ab.category !== 'Carnet' || ab.online !== true) throw new Error('the pack is not the « Carnet », sold online: ' + JSON.stringify([ab.name, ab.category, ab.online]));
     if ((await page.locator('.badge', { hasText: 'visible sur le site' }).count()) !== 10) throw new Error('every taken-over service but the carnet should say it is visible on the site');
-    if ((await page.locator('.badge', { hasText: 'pas sur le site (hors ligne)' }).count()) !== 1) throw new Error('the carnet should say it is off the site');
+    if ((await page.locator('.badge', { hasText: 'au salon seulement (espace client fermé)' }).count()) !== 1) throw new Error('the carnet should say it stays at the salon while the client space is closed');
+    const pub = (await call(page, '/api/public/salon')).json;
+    if (pub.services.some((x) => x.slug === 'ab') || pub.menu.find((x) => x.slug === 'ab').online !== false) throw new Error('the carnet is on the site without the client space');
   }
   // a second run on the same journal (a retry, a shared server) adds its own junior cut, deduplicated by name
   const before = (await call(page, '/api/v1/catalog')).json.services;

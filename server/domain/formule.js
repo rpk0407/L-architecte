@@ -38,6 +38,17 @@ export function offerOf(s) {
   };
 }
 
+/**
+ * Is this service really offered on the site? Online and active; a carnet only when it can be bought there: the weekly
+ * one, with its dates, while the client space is open (it asks for an account) and the cut it pays for is still sold.
+ * @param {any} s @param {any} x @param {boolean} spaceOpen settings/accounts.js accountsOn(s)
+ */
+export function onSite(s, x, spaceOpen) {
+  if (!x || !x.active || x.online === false) return false;
+  if (!x.pack) return true;
+  return !!x.pack.weekly && spaceOpen && (x.pack.serviceIds || []).some((id) => { const c = s.services.get(id); return !!c && c.active; });
+}
+
 /** The purchase an appointment belongs to, or null. */
 export const formuleOfAppt = (s, apptId) => { const id = s.formuleByAppt ? s.formuleByAppt.get(apptId) : null; return id ? s.formules.get(id) || null : null; };
 const apptsOf = (s, f) => f.apptIds.map((id) => s.appts.get(id)).filter(Boolean);

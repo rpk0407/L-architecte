@@ -30,7 +30,7 @@ import { receiptLoyalty } from '../domain/loyalty.js';
 import { readMemberToken, MEMBER_BOOK } from '../auth/member-token.js';
 import { salonWhatsapp } from '../settings/messages.js';
 import { effectiveMode } from '../messaging/hand.js';
-import { formuleOfAppt, rankOf, payState, endOf } from '../domain/formule.js';
+import { formuleOfAppt, rankOf, payState, endOf, onSite } from '../domain/formule.js';
 import { accountsOn } from '../settings/accounts.js';
 
 /** The demo, for real: both the configuration and the journal say so (a demo journal opened in production is not one). */
@@ -188,7 +188,8 @@ export function publicRoutes(app) {
     const active = [...s.services.values()].filter((x) => x.active).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
     // a carnet is on the site only when it can be bought there: the weekly one, with its dates, and the client space open
     // (it asks for an account); any other stays on the price list, « au salon »
-    const sellable = (x) => !x.pack || (!!x.pack.weekly && accountsOn(s) && (x.pack.serviceIds || []).some((id) => s.services.get(id)?.active));
+    const space = accountsOn(s);
+    const sellable = (x) => onSite(s, x, space);
     const services = active.filter((x) => x.online !== false && sellable(x)).map((x) => (live ? serviceView(x) : { ...serviceView(x), deposit: 0 }));
     // the whole price list (the CGV show it, the site's FAQ quotes it): booked at the salon only when online is false
     const menu = active.map((x) => ({ slug: x.slug || null, name: x.name, category: x.category, price: x.price, from: !!x.from, dur: x.dur, online: x.online !== false && sellable(x) }));
