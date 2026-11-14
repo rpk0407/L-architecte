@@ -69,7 +69,9 @@ test('the membership step quotes the salon\'s plan, in two sentences, or says th
 });
 
 test('the booking sheet helps on the first booking only, one line per step', () => {
-  for (const t of ['Choisis ta prestation', 'Un barbier, ou “Sans préférence”', 'Choisis ton créneau', 'Pour ta confirmation par SMS']) assert.ok(site.includes(t), t);
+  // the last step names the salon's channel (SMS, or WhatsApp once its number is set and its texts leave that way)
+  for (const t of ['Choisis ta prestation', 'Un barbier, ou “Sans préférence”', 'Choisis ton créneau', 'Pour ta confirmation par ']) assert.ok(site.includes(t), t);
+  assert.ok(/BK_HELP\.info \+ chanWord\(\)/.test(site), 'followed by the channel');
   assert.ok(/n: 'Sans préférence'/.test(site), 'the helper quotes the option\'s real label');
   assert.ok(/!b\.moving && !me && !v\.noMenu && !bookedBefore\(\)/.test(site), 'and only when there is something to choose');
   assert.ok(/<p class="bk-h">\{\{bkHelp\}\}<\/p>/.test(site), 'the helper sits under the title');

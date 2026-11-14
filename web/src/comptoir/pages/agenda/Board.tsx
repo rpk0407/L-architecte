@@ -3,6 +3,7 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from '../../../ui/Icon';
 import { Avatar, Chip, Money } from '../../../ui/kit';
+import { photoOf } from '../../state';
 import { dur, hhmm, time } from '../../../lib/format';
 import { useIsPhone, useMedia } from '../../../lib/hooks';
 import type { Agenda, Appt, Lane } from '../../types';
@@ -142,13 +143,13 @@ export const Board = memo(function Board(p: BoardProps) {
           return (
             p.onLane && !off ? (
               <button key={l.id} type="button" className={'lh lh-btn' + (live ? ' busy' : '')} aria-label={l.name + ' : absent aujourd’hui ou pause'} onClick={(e) => p.onLane!(l.id, { x: e.clientX, y: e.clientY })}>
-              <Avatar name={l.name} initials={l.initials} color={l.color} />
+              <Avatar name={l.name} initials={l.initials} color={l.color} photo={photoOf(l)} />
               <span className="lh-t"><b>{l.name}</b>{clashes.length ? <small className="lh-clash" role="status"><Icon name="alert" size={12} />{clashOf(clashes[0]).length + 1} clients à {time(Math.min(...clashOf(clashes[0]).map((x) => x.start)))}{clashes.length > clashOf(clashes[0]).length + 1 ? ' · et plus tard' : ''}</small> : <small>{line}</small>}</span>
               {p.canSeeMoney && !phone ? <span className="lh-rev"><Money cents={rev} /></span> : null}
             </button>
             ) : (
             <div key={l.id} className={'lh' + (live ? ' busy' : '')}>
-              <Avatar name={l.name} initials={l.initials} color={l.color} />
+              <Avatar name={l.name} initials={l.initials} color={l.color} photo={photoOf(l)} />
               <span className="lh-t"><b>{l.name}</b>{clashes.length ? <small className="lh-clash" role="status"><Icon name="alert" size={12} />{clashOf(clashes[0]).length + 1} clients à {time(Math.min(...clashOf(clashes[0]).map((x) => x.start)))}{clashes.length > clashOf(clashes[0]).length + 1 ? ' · et plus tard' : ''}</small> : <small>{line}</small>}</span>
               {p.canSeeMoney && !phone ? <span className="lh-rev"><Money cents={rev} /></span> : null}
             </div>

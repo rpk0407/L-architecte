@@ -36,6 +36,7 @@ import { cutoverHeld } from '../projections/bascule.js';
 import { maybeTick, dispatchNow } from './scheduler.js';
 import { waitUntil } from '@vercel/functions';
 import { handBadge } from './routes-channels.js';
+import { byHand } from '../messaging/hand.js';
 
 const dayParam = (r, name = 'day') => { const d = r.query.get(name); return d && isDay(d) ? d : r.local.day; };
 
@@ -818,7 +819,9 @@ export function staffRoutes(app) {
 
   app.get('/api/v1/messages', (r) => {
     const items = [...r.s.messages.values()].sort((a, b) => b.at - a.at).slice(0, Math.min(300, Number(r.query.get('limit')) || 100))
-      .map((m) => ({ id: m.id, channel: m.channel || 'sms', template: m.template, status: m.status, at: m.at, dueAt: m.dueAt || m.at, sentAt: m.sentAt || null, to: m.toMasked || maskPhone(m.to), body: r.caps.has('settings') ? m.body : '', subject: r.caps.has('settings') && m.mail ? m.mail.subject || '' : '', error: m.error || '', via: m.via || null, fallback: m.fallback || '', held: m.status === 'queued' && cutoverHeld(r.s, m) }));
+      .map((m) => ({ id: m.id, channel: m.channel || 'sms', template: m.template, status: m.status, at: m.at, dueAt: m.dueAt || m.at, sentAt: m.sentAt || null, to: m.toMasked || maskPhone(m.to), body: r.caps.has('settings') ? m.body : '', subject: r.caps.has('settings') && m.mail ? m.mail.subject || '' : '', error: m.error || '', via: m.via || null, fallback: m.fallback || '', held: m.status === 'queued' && cutoverHeld(r.s, m),
+        // « mode téléphone »: waits for a person on the Messages screen, not for a provider (messaging/hand.js)
+        hand: m.status === 'queued' && byHand(r.s, r.rt, m) }));
     return { items, provider: r.rt.sms ? r.rt.sms.name : null, emailProvider: r.rt.email ? r.rt.email.name : null, mode: r.s.mode };
   }, { cap: 'marketing' });
   /** The address that brings STOP replies back (sent with every text; also for the provider's own settings). */

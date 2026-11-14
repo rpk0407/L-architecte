@@ -10,7 +10,7 @@ Ce que tu peux ouvrir **demain matin** au salon, dans l’ordre, avec qui fait q
 
 | Marche dès demain | Ne marche pas encore, et ce que tu vois à la place |
 |---|---|
-| Le Comptoir : agenda, passages, fiches clients, équipe et codes, catalogue, chiffres. | **SMS et e-mails** : rien ne part. Ils attendent dans Relances › Messages envoyés (« attend un fournisseur ») ; ceux de plus de 6 h ne partiront jamais. Le SMS test répond « Aucun fournisseur SMS n’est branché ». |
+| Le Comptoir : agenda, passages, fiches clients, équipe et codes, catalogue, chiffres. | **Messages aux clients** : en mode téléphone, ils arrivent sur l’écran Messages, un geste chacun depuis le WhatsApp du salon (Relances › Messages envoyés : « à envoyer depuis l’écran Messages »). **E-mails** : tant que la boîte IONOS n’est pas branchée, ils attendent (« attend un fournisseur ») ; ceux de plus de 6 h ne partiront jamais. |
 | La caisse : espèces (tiroir, monnaie rendue), carte sur **ton** terminal, paiement mixte, pourboire, remise, carte cadeau vendue puis utilisée, carnet, avoir (par ligne, par montant, réparti), comptage, clôture Z. | **Acompte en ligne et QR** : aucun acompte n’est demandé, le bouton QR de la caisse est grisé (« Branche Stripe pour le QR »), Réglages › Paiements dit « simulé ». Carte cadeau et abonnement en ligne : éteints. |
 | Le site de réservation sur l’adresse provisoire de Vercel, sans acompte : le rendez-vous est confirmé tout de suite. | **Ton vrai domaine** : il montre encore WordPress. Google n’indexe pas la nouvelle adresse (`LX_INDEX` éteint). |
 | Les clôtures mensuelles, la TVA du mois, les exports CSV et le fichier d’écritures du comptable. | **Rappels à l’heure** sans personne devant le Comptoir : ils ne partent qu’à la première visite tant que la tâche cron n’existe pas (Mise en route ⑪ « à faire »). |
@@ -37,7 +37,7 @@ Un réglage à moitié fait est dit en toutes lettres, jamais par une erreur : R
 | 13 | **Demain soir** : compter la caisse, clôturer la journée. | gérant | Caisse & clôture | 5 min | Écart 0,00 € ; « Z0001 » scellé ; son CA TTC net est celui du Z de la caisse certifiée. |
 | 14 | Surveillance : `https://<adresse>/api/public/live` toutes les 5 min, alertes sur vos deux téléphones. | prestataire | UptimeRobot | 5 min | Une alerte d’essai arrive. |
 
-**Pas demain, et pourquoi.** Stripe attend l’activation du compte (pièce d’identité, IBAN : un à trois jours). Les SMS attendent le nom d’expéditeur validé par Brevo. Le domaine attend un TTL baissé 48 h avant et un lundi. Les rendez-vous déjà pris sur WordPress n’arrivent dans l’agenda qu’avec Réglages › Reprendre WordPress (premier passage : 15 min, aucun SMS ne part). Tant que WordPress prend les réservations, **coupe la réservation en ligne du nouveau site** (Réglages › Réservation › « Réservation en ligne ouverte ») : deux sites qui réservent le même fauteuil, c’est un doublon assuré.
+**Pas demain, et pourquoi.** Stripe attend l’activation du compte (pièce d’identité, IBAN : un à trois jours). Les SMS attendent le nom d’expéditeur validé par Brevo. Le domaine attend un TTL baissé 48 h avant et un lundi (Réglages › Connexion IONOS › Nom de domaine). Les rendez-vous déjà pris sur WordPress n’arrivent dans l’agenda qu’avec Réglages › Reprendre WordPress (premier passage : 15 min, aucun SMS ne part). Tant que WordPress prend les réservations, **coupe la réservation en ligne du nouveau site** (Réglages › Réservation › « Réservation en ligne ouverte ») : deux sites qui réservent le même fauteuil, c’est un doublon assuré.
 
 ## Les variables, et ce qui casse sans elles
 
@@ -54,10 +54,17 @@ Une variable changée ne compte qu’après un redéploiement.
 | `CRON_SECRET` (64) | `/api/cron/tick` répond 401 : pas de tâche cron, les SMS retenus la nuit ne partent qu’à la première visite, le résumé du soir peut sauter. |
 | `STRIPE_SECRET_KEY` et `STRIPE_WEBHOOK_SECRET` | Aucun acompte en ligne, QR éteint, cartes cadeaux et abonnements en ligne éteints. La clé sans le secret : Stripe reste coupé, et c’est écrit. La caisse marche sans. |
 | `SMS_PROVIDER` (`brevo`, `gateway` ou `twilio`) et ses identifiants (`BREVO_API_KEY`, `SMS_SENDER` ; `SMSGATE_USERNAME`, `SMSGATE_PASSWORD` ; `TWILIO_*`) | Aucun SMS ne part : confirmation, rappel, code de connexion client. À poser **le jour de la bascule seulement**. |
-| `EMAIL_FROM` avec `BREVO_API_KEY`, ou avec `SMTP_HOST`, `SMTP_USER`, `SMTP_PASS` (`SMTP_PORT`, `EMAIL_REPLY_TO`) | Aucun e-mail : confirmations, alertes de panne, résumé du soir, pack du comptable restent dans la boîte d’envoi. |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `EMAIL_FROM` (`EMAIL_REPLY_TO`) : la boîte IONOS, valeurs ci-dessous | Aucun e-mail : confirmations, alertes de panne, résumé du soir, pack du comptable restent dans la boîte d’envoi. |
 | `WHATSAPP_TOKEN` et `WHATSAPP_PHONE_ID` (`WHATSAPP_SENDER`) | Pas de WhatsApp automatique : tout part par SMS. |
 | `PUBLIC_URL=https://barberlarchitecte.com` | Les liens des SMS et le retour du paiement pointent sur l’adresse provisoire de Vercel. Sans `https://` ou avec un chemin : avertissement, liens faux. À poser à la bascule. |
 | `LX_INDEX=1` | Google n’indexe pas le site. À poser à la bascule. |
+
+## IONOS : la boîte mail et le domaine
+
+Tout est dans **Réglages › Connexion IONOS**, avec un bouton « Copier » par valeur. Vérifié sur les pages d’IONOS et de Vercel le 14 novembre 2026 (liens dans [messages-whatsapp](messages-whatsapp.md#sources-lues-le-13-novembre-2026--ionos-et-vercel-relues-le-14-novembre-2026)).
+
+- **E-mail, dès maintenant** (le gérant, 10 min) : `SMTP_HOST=smtp.ionos.fr`, `SMTP_PORT=465` (587 si le test dit que le serveur ne répond pas), `SMTP_USER` = l’adresse complète de la boîte, `SMTP_PASS` = son mot de passe (Sensitive ; IONOS ne le montre pas, il se change dans le compte IONOS › E-mail), `EMAIL_FROM=Barber L'Architecte <rdv@barberlarchitecte.com>` (même domaine que la boîte). Redéploie, puis « Envoyer un e-mail test ». Avant la bascule, les e-mails aux clients attendent ; le test et tes alertes partent. SPF et DKIM : IONOS les met lui-même tant que les DNS restent chez lui ; « Vérifier SPF et DKIM » le confirme.
+- **Domaine, le lundi de la bascule seulement** (le prestataire) : 48 h avant, TTL de `@` et `www` à 300 s et les valeurs actuelles notées. Le jour J, chez IONOS : `A @` = l’adresse que Vercel affiche pour le projet (Settings › Domains ; souvent `76.76.21.21`, `216.198.79.1` pour un projet récent), `CNAME www` = la cible que Vercel affiche pour www (du type `xxxx.vercel-dns-017.com`), les autres A et AAAA de `@` supprimés. **Les MX ne bougent jamais** (la boîte mail), ni les serveurs de noms : Vercel n’en a pas besoin. « Vérifier » dit si le domaine pointe vers le nouveau site, encore vers l’ancien, ou à moitié.
 
 ## Stripe : la liste exacte
 

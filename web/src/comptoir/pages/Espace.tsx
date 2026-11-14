@@ -12,6 +12,7 @@ import { PageTitle } from '../App';
 import type { EspaceData, EspaceNow, NoteTarget } from '../types';
 import { orderedCards } from './espace/registry';
 import { Customize } from './espace/Customize';
+import { SitePhotoSwitch } from './Equipe';
 import { CutNoteSheet } from './espace/CutNoteSheet';
 import './espace.css';
 
@@ -85,6 +86,8 @@ export default function Espace() {
               <div key={i} className="es-col">{col.map(({ meta, C }) => <C key={meta.id} data={data} reload={reload} note={setNoting} />)}</div>
             )) : cards.map(({ meta, C }) => <C key={meta.id} data={data} reload={reload} note={setNoting} />)}
           </div>
+          {/* his own photo on the site: his to hide (the owner can too, in Équipe) */}
+          {me.photo ? <section className="card es-site" data-guide="espace.photo-site"><SitePhotoSwitch st={me} self /></section> : null}
           <div className="es-foot"><Button variant="ghost" icon="edit" onClick={() => setCustom(true)} data-guide="espace.personnaliser">Personnaliser</Button></div>
         </>
       ) : null}

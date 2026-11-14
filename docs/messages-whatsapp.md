@@ -75,26 +75,30 @@ Les autres messages (rappel du jour, place libérée, reçu) n'ont pas de modèl
 
 ## 3. Les e-mails par la boîte IONOS du salon
 
-Pas de nouveau fournisseur : le Comptoir envoie par la boîte e-mail que le salon paie déjà.
+Pas de nouveau fournisseur : le Comptoir envoie par la boîte e-mail que le salon paie déjà. Tout est dans **Réglages › Connexion IONOS › E-mail du salon** : ce qui est déjà posé dans Vercel (jamais le mot de passe), les valeurs à taper avec un bouton « Copier », l’e-mail test et la vérification SPF et DKIM.
 
-Dans Vercel :
+Dans Vercel (Settings › Environment Variables, Production), puis Redeploy :
 
 | Variable | Valeur |
 |---|---|
-| `SMTP_HOST` | `smtp.ionos.fr` (à vérifier dans ton espace client IONOS ; la page d'aide en anglais donne `smtp.ionos.com`) |
-| `SMTP_PORT` | `465` (connexion chiffrée dès le départ) ; `587` si le 465 ne passe pas (STARTTLS) |
-| `SMTP_USER` | l'adresse complète de la boîte, par exemple `rdv@barberlarchitecte.com` |
-| `SMTP_PASS` | le mot de passe de cette boîte (type Sensitive) |
+| `SMTP_HOST` | `smtp.ionos.fr` (le nom que donne l’assistance IONOS France ; `smtp.ionos.com` est le même service sur le site anglais) |
+| `SMTP_PORT` | `465` (chiffré dès le départ) ; `587` (STARTTLS) si le 465 est bloqué |
+| `SMTP_USER` | l’adresse complète de la boîte, par exemple `rdv@barberlarchitecte.com` |
+| `SMTP_PASS` | le mot de passe de cette boîte (type Sensitive). IONOS ne le montre jamais : compte IONOS › E-mail › les trois points de l’adresse › Modifier le mot de passe. Le changer oblige à le changer aussi sur les téléphones qui lisent cette boîte : une adresse rien que pour le Comptoir évite ça. |
 | `EMAIL_FROM` | `Barber L'Architecte <rdv@barberlarchitecte.com>` : une adresse du même domaine que la boîte, IONOS refuse les autres depuis le 29 janvier 2024 |
 
-Redéploie, puis Réglages › Messages › Messages aux clients › **« Envoyer un e-mail test »**.
-
-- **Sécurité.** La connexion est toujours chiffrée et le certificat du serveur est vérifié. Le mot de passe n'est jamais envoyé en clair, ni écrit dans un journal, ni montré dans le Comptoir.
+- **Quand.** Tu peux la brancher avant la bascule : les e-mails aux clients attendent le jour J ; le test et tes propres alertes partent tout de suite.
+- **L’e-mail test** dit ce qui ne va pas en clair : mot de passe refusé, serveur qui ne répond pas sur ce port (essaie 587), expéditeur hors du domaine, limite d’envoi atteinte.
+- **Sécurité.** La connexion est toujours chiffrée et le certificat du serveur est vérifié. Le mot de passe n’est jamais envoyé en clair, ni écrit dans un journal, ni montré dans le Comptoir.
 - **Vercel.** Seul le port 25 est fermé aux fonctions Vercel ; les ports 465 et 587 passent.
-- **Arriver en boîte de réception.** IONOS active le SPF par défaut pour un domaine hébergé chez lui. Si les DNS sont ailleurs, l'enregistrement TXT est `v=spf1 include:_spf-eu.ionos.com ~all` (un seul SPF par domaine). Pour le DKIM, suis la page d'aide IONOS « Email Authentication with DKIM » et active-le pour le domaine.
-- **Limites d'envoi.** IONOS ne publie pas de plafond dans les pages lues. Le salon envoie quelques dizaines d'e-mails par jour : c'est l'usage d'une boîte normale. Si IONOS répond « trop de messages », l'e-mail reste en échec dans Relances › Messages envoyés, avec les mots du serveur.
+- **Arriver en boîte de réception.** Les DNS du domaine restent chez IONOS : IONOS y met lui-même le SPF et le DKIM, il n’y a rien à faire. « Vérifier SPF et DKIM » le contrôle sans rien bloquer. Si un jour les DNS partent ailleurs : TXT `v=spf1 include:_spf-eu.ionos.com ~all` (un seul SPF par domaine) et les CNAME `s1-ionos._domainkey` → `s1.dkim.ionos.com`, `s2-ionos._domainkey` → `s2.dkim.ionos.com`.
+- **Limites d’envoi.** Une boîte IONOS envoie 50 e-mails par heure la première semaine, 100 jusqu’à 14 jours, 400 jusqu’à 30 jours, puis 500. Au-delà, le serveur répond « 450 Mail send limit exceeded » et l’e-mail reste en échec dans Relances › Messages envoyés. Le salon en envoie quelques dizaines par jour.
 
-## Sources (lues le 13 novembre 2026)
+### En mode téléphone, le soir
+
+L’Accueil affiche « N messages à envoyer » tant qu’il en reste ; le résumé du soir les compte (« à envoyer depuis l’écran Messages », avec le lien). Si à 21 h des messages attendent encore, les rappels de demain compris, tu reçois une seule alerte par e-mail et une ligne en haut du Comptoir, qui part dès qu’ils sont envoyés (Réglages › Messages › Me prévenir › Les pannes). Avec un rappel réglé après 19 h, l’alerte vient deux heures après lui.
+
+## Sources (lues le 13 novembre 2026 ; IONOS et Vercel relues le 14 novembre 2026)
 
 - Meta, démarrer avec la Cloud API : https://developers.facebook.com/documentation/business-messaging/whatsapp/get-started
 - Meta, numéros de téléphone : https://developers.facebook.com/documentation/business-messaging/whatsapp/business-phone-numbers/phone-numbers
@@ -107,9 +111,12 @@ Redéploie, puis Réglages › Messages › Messages aux clients › **« Envoye
 - WhatsApp, applications non officielles : https://faq.whatsapp.com/1217634902127718
 - WhatsApp, lien « cliquer pour discuter » (wa.me) : https://faq.whatsapp.com/5913398998672934
 - WhatsApp Business, outils de l'application (réponses rapides, message d'accueil, étiquettes) : https://whatsappbusiness.com/resources/resource-library/staying-organized-smb-using-lists-quick-replies/
-- IONOS, serveurs e-mail (SMTP, ports, adresse d'expéditeur) : https://www.ionos.com/help/email/general-topics/ionos-mail-server-details-for-imap-pop3-and-smtp/
-- IONOS, SPF : https://www.ionos.com/help/domains/configuring-mail-servers-and-other-related-records/using-ionos-spf-to-improve-email-delivery/
-- IONOS, DKIM : https://www.ionos.com/help/domains/configuring-mail-servers-and-other-related-records/email-authentication-with-dkim
+- IONOS France, serveurs de messagerie (smtp.ionos.fr) : https://www.ionos.fr/assistance/email/depannage-mail-basicmail-business-basicmail/tester-laccessibilite-des-serveurs-de-messagerie-avec-ping/
+- IONOS, serveurs e-mail (SMTP, ports 465 et 587, identifiant, adresse d'expéditeur) : https://www.ionos.com/help/email/general-topics/ionos-mail-server-details-for-imap-pop3-and-smtp/
+- IONOS, limites d'envoi d'une boîte : https://www.ionos.com/help/email/general-topics/what-restrictions-apply-to-sending-bulk-emails/
+- IONOS, changer le mot de passe d'une boîte : https://www.ionos.com/help/email/troubleshooting-mail-basic-mail-business/changing-an-ionos-email-account-password/
+- IONOS, SPF (valeur européenne `_spf-eu`) : https://www.ionos.co.uk/help/domains/configuring-mail-servers-and-other-related-records/using-ionos-spf-to-improve-email-delivery/
+- IONOS, DKIM : https://www.ionos.co.uk/help/domains/configuring-mail-servers-and-other-related-records/email-authentication-with-dkim/
 - Vercel, SMTP depuis une fonction (mise à jour le 29 septembre 2026) : https://vercel.com/kb/guide/serverless-functions-and-smtp
 
-Non confirmé sur une page officielle : le tarif en euros d'un message utilitaire en France, le délai de validation d'un modèle et de vérification de l'entreprise, le nom exact du serveur SMTP pour un contrat IONOS France, le plafond d'envoi d'une boîte IONOS.
+Non confirmé sur une page officielle : le tarif en euros d'un message utilitaire en France, le délai de validation d'un modèle et de vérification de l'entreprise, les ports de smtp.ionos.fr sur une page en français (la page française nomme le serveur ; les ports viennent de la page anglaise du même service), le troisième CNAME DKIM (l'exemple d'IONOS en montre un numéroté, sans dire s'il est propre à chaque compte), la valeur SPF d'un contrat français (la page européenne donne `_spf-eu`, l'américaine `_spf-us` ; la vérification accepte les deux).

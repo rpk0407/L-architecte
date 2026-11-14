@@ -15,8 +15,10 @@
 //   encaisser », as the Caisse badge · relances() (domain/rebook.js): the pulse's badge · timeoffConflicts
 //   (commands/team.js) · inactiveClients (commands/clients.js) · missedZ (domain/cash.js) · availability.js for the
 //   chairs: staffIntervals, busyIntervals and isFree, the rules of the agenda and of the site (breaks, time off,
-//   closures, holds, blocks, buffers). Nothing is stored: a read of the projection in memory, memoised per (journal
-//   version, minute, person). The journal version, not a data version: a hold changes `chairs`, a preference the cards.
+//   closures, holds, blocks, buffers) · handQueue (messaging/hand.js): « N messages à envoyer », the menu's Messages badge,
+//   when the runtime is given (the route gives it: which providers can send decides what waits for a person). Nothing is
+//   stored: a read of the projection in memory, memoised per (journal version, minute, person). The journal version, not a
+//   data version: a hold changes `chairs`, a preference the cards.
 import { addDays, dayParts, dayRange, fmtDur, fmtTime, localParts, monthEnd, monthStart, weekStart, DAYS_FR, MONTHS_FR } from '../../shared/dates.js';
 import { fmtEur } from '../../shared/money.js';
 import { capsOf } from './permissions.js';
@@ -30,6 +32,7 @@ import { rangeWords, timeoffConflicts } from '../commands/team.js';
 import { gone, KIND_FR } from '../projections/inquiries.js';
 import { prefsOf } from '../projections/staffprefs.js';
 import { apptView } from '../http/views.js';
+import { handQueue } from '../messaging/hand.js';
 
 /** the follow-up card shows from this many regulars past their rhythm */
 export const RELANCES_MIN = 5;
@@ -49,7 +52,7 @@ export const LATE_MIN = 5;
 /** the groups in the order they are shown: what blocks, what someone waits for, what brings money, upkeep */
 export const GROUPS = /** @type {const} */ (['bloque', 'attend', 'rapporte', 'entretien']);
 /** every card, in its default order */
-export const CARD_IDS = /** @type {const} */ (['z', 'encaisser', 'retard', 'prochain', 'absence-demande', 'orphelins', 'demandes', 'relances', 'semaine', 'echecs', 'stock', 'purge', 'comptable', 'objectif']);
+export const CARD_IDS = /** @type {const} */ (['z', 'encaisser', 'retard', 'prochain', 'messages', 'absence-demande', 'orphelins', 'demandes', 'relances', 'semaine', 'echecs', 'stock', 'purge', 'comptable', 'objectif']);
 /** the cards that engage the salon: a person's « masquer » does not remove them */
 const NO_HIDE = new Set(['z', 'absence-demande']);
 
@@ -64,15 +67,16 @@ const cache = new WeakMap();
 
 /**
  * @param {any} s the state @param {any} me the staff member reading @param {number} now
+ * @param {{ sms?: any, whatsapp?: any } | null} [rt] the runtime (its providers): with it, the texts waiting for a person
  */
-export function home(s, me, now) {
+export function home(s, me, now, rt = null) {
   let c = cache.get(s);
   if (!c || c.version !== s.version) { c = { version: s.version, m: new Map() }; cache.set(s, c); }
   const minute = Math.floor(now / 60000);
   const hit = c.m.get(me.id);
-  if (hit && hit.minute === minute) return hit.value;
-  const value = build(s, me, now);
-  c.m.set(me.id, { minute, value });
+  if (hit && hit.minute === minute && hit.rt === rt) return hit.value;
+  const value = build(s, me, now, rt);
+  c.m.set(me.id, { minute, rt, value });
   return value;
 }
 
@@ -131,7 +135,7 @@ function comingOf(s, day, nowMin, now) {
 
 /* ---------------- the read ---------------- */
 
-function build(s, me, now) {
+function build(s, me, now, rt) {
   const caps = capsOf(me, s.settings);
   const can = (c) => caps.has(c);
   const L = localParts(now), today = L.day, nowMin = L.min;
@@ -277,6 +281,18 @@ function build(s, me, now) {
       action: { kind: 'go', label: 'Ma journée', to: '/espace' }
     });
   }
+  // « mode téléphone »: the texts to clients this person sends from the salon's WhatsApp, as the Messages screen lists them
+  // (a barber his own clients' only); the menu's badge counts the same (http/routes-channels.js handBadge)
+  if (rt && can('agenda.own')) {
+    const q = handQueue(s, rt, now, L, { caps, staffId: me.id });
+    const short = (n) => { const [f, ...rest] = String(n).split(' '); const l = rest.join(' '); return (f + (l ? ' ' + l.charAt(0) + '.' : '')).trim(); };
+    if (q.items.length) add('messages', 'attend', q.items.length, {
+      title: plural(q.items.length, 'message') + ' à envoyer',
+      why: 'Des confirmations ou des rappels attendent d’être envoyés depuis le WhatsApp du salon : un geste chacun, sur l’écran Messages.',
+      preview: q.items.map((x) => ({ id: x.id, text: x.kind + ' · ' + short(x.client.name) })),
+      action: { kind: 'go', label: 'Envoyer', to: '/messages' }
+    });
+  }
   if (can('team')) {
     const reqs = [...s.timeoffRequests.values()].filter((q) => q.status === 'pending' && q.to >= today).sort((a, b) => a.from.localeCompare(b.from));
     if (reqs.length) {
@@ -384,7 +400,7 @@ function build(s, me, now) {
   const quiet = [];
   if ((can('closure') || can('sale.create')) && !has('z', 'encaisser')) quiet.push('caisse');
   if (can('team') && !has('absence-demande', 'orphelins')) quiet.push('équipe');
-  if (can('marketing') && !has('demandes', 'echecs')) quiet.push('messages');
+  if (can('marketing') && !has('demandes', 'echecs', 'messages')) quiet.push('messages');
   if (can('catalog') && !has('stock')) quiet.push('stock');
 
   /* his choices: what he masked, the order he pinned inside a group; else the bigger count first */

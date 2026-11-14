@@ -43,11 +43,13 @@
   /* ---------- the simulation (only when the salon's server cannot be reached) ---------- */
   const SIM = (function () {
     const W = (a, b) => ({ 2: a, 3: a, 4: a, 5: a, 6: b || a });
+    // the real team and their portraits (../img/equipe, the illustrations made for the salon); the weeks are simulated
     const staff = [
-      { id: 'sim_jk', name: 'JKut', initials: 'JK', bio: 'Dégradés à la précision chirurgicale.', week: W([[540, 750], [780, 1110]]) },
-      { id: 'sim_f', name: 'Frank', initials: 'F', bio: 'Coupes classiques et barbes taillées à l’ancienne.', week: W([[540, 780], [810, 1110]]) },
-      { id: 'sim_ls', name: 'Le Soldat', initials: 'LS', bio: 'Skin fade, contours nets, couleur et silver.', week: W([[570, 720], [750, 1110]], [[540, 1050]]) },
-      { id: 'sim_e', name: 'Esteban', initials: 'E', bio: 'Textures, boucles et transformations.', week: { 2: [[540, 810], [840, 1110]], 4: [[540, 810], [840, 1110]], 5: [[540, 810], [840, 1110]], 6: [[540, 810], [840, 1110]] } }
+      { id: 'sim_f', name: 'Frank', initials: 'FR', photo: '../img/equipe/frank.webp', bio: 'Coupes classiques et barbes taillées à l’ancienne.', week: W([[540, 780], [810, 1110]]) },
+      { id: 'sim_jk', name: 'JKut', initials: 'JK', photo: '../img/equipe/jkut.webp', bio: 'Dégradés à la précision chirurgicale.', week: W([[540, 750], [780, 1110]]) },
+      { id: 'sim_al', name: 'Aland', initials: 'AL', photo: '../img/equipe/aland.webp', bio: 'Nouveau au salon.', week: W([[600, 780], [840, 1110]]) },
+      { id: 'sim_e', name: 'Esteban', initials: 'ES', photo: '../img/equipe/esteban.webp', bio: 'Textures, boucles et transformations.', week: { 2: [[540, 810], [840, 1110]], 4: [[540, 810], [840, 1110]], 5: [[540, 810], [840, 1110]], 6: [[540, 810], [840, 1110]] } },
+      { id: 'sim_ls', name: 'Le Soldat', initials: 'LS', photo: '../img/equipe/le-soldat.webp', bio: 'Skin fade, contours nets, couleur et silver.', week: W([[570, 720], [750, 1110]], [[540, 1050]]) }
     ];
     // the salon's card and the barbers' own lines (server/domain/seed.js SERVICES, BARBERS)
     const SV = [
@@ -91,7 +93,7 @@
         return { shop: { name: 'Barber L’Architecte', address: '16, place Pélabon', zip: '13013', city: 'Marseille', mapsUrl: '' }, hours: { 0: [], 1: [], 2: [[540, 1110]], 3: [[540, 1110]], 4: [[540, 1110]], 5: [[540, 1110]], 6: [[540, 1110]] }, hoursText: 'Du mardi au samedi, 9 h – 18 h 30', closures: [],
           booking: { enabled: true, maxDaysAhead: 60, holdMin: 5, cancelUntilHours: 12, pendingPayMin: 15 }, deposits: { mode: 'none' }, services: SV,
           menu: SV.map((x) => ({ slug: x.slug, name: x.name, category: x.category, price: x.price, from: x.from, dur: x.dur, online: true })).concat([{ slug: 'ab', name: 'Carnet 5 coupes', category: 'Carnet', price: 8000, from: false, dur: 30, online: false }]),
-          barbers: staff.map((x) => ({ id: x.id, name: x.name, initials: x.initials, bio: x.bio, away: null })), sms: false, today: now().day, now: Date.now() };
+          barbers: staff.map((x) => ({ id: x.id, name: x.name, initials: x.initials, bio: x.bio, photo: x.photo, away: null })), sms: false, channel: 'sms', today: now().day, now: Date.now() };
       }
       if (p === '/availability') {
         const sv = SV.find((x) => x.id === u.searchParams.get('services')), from = u.searchParams.get('from') || now().day, n = +u.searchParams.get('days') || 10, days = [];
@@ -165,6 +167,12 @@
   const whoName = (w) => (w === 'any' ? 'Le premier de libre' : S.byStaff[w] ? S.byStaff[w].name : '');
   const whoPick = (w) => (w === 'any' ? 'Peu importe' : whoName(w));
   const whoIni = (w) => (w === 'any' ? '<span>1<sup>er</sup></span>' : esc(S.byStaff[w] ? S.byStaff[w].initials || S.byStaff[w].name.charAt(0) : ''));
+  /* a barber's portrait: the address the salon gives when he shows it on the site (GET /api/public/salon `photo`), or the
+     simulation's own file; '' otherwise, and his initials stand in */
+  const photoOf = (w) => { const b = S.byStaff[w], u = b && typeof b.photo === 'string' ? b.photo : ''; return /^(\/api\/public\/barbers\/[A-Za-z0-9_-]+\/photo\?v=\d+|\.\.\/img\/equipe\/[a-z-]+\.webp)$/.test(u) ? u : ''; };
+  const faceImg = (w) => { const u = photoOf(w); return u ? '<img src="' + esc(u) + '" alt="" decoding="async" data-face>' : ''; };
+  /* the barber's face in the round: the portrait over his initials (a portrait that does not load leaves the initials) */
+  const face = (w, cls) => '<span class="' + cls + (photoOf(w) ? ' pic' : '') + '" aria-hidden="true">' + whoIni(w) + faceImg(w) + '</span>';
   /* one line per barber: the first sentence of the bio the salon wrote in the Comptoir, nothing invented */
   const lineOf = (b) => { const t = String(b.bio || '').trim().split(/(?<=[.!?])\s+/)[0] || ''; return t ? t.replace(/\.$/, '') : 'Barbier au salon'; };
   function depositOf(sv) {
@@ -208,9 +216,9 @@
   const ARROW = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h15M13 6l6 6-6 6"/></svg>';
   const CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
   function card(w, name, line, i) {
-    const st = statusOf(w), b = S.byStaff[w], ini = w === 'any' ? '<b>1</b><sup>er</sup>' : whoIni(w), two = b && (b.initials || '').length > 1;
+    const st = statusOf(w), b = S.byStaff[w], ini = w === 'any' ? '<b>1</b><sup>er</sup>' : whoIni(w), two = b && (b.initials || '').length > 1, pic = w !== 'any' && photoOf(w);
     return '<button type="button" class="bc' + (w === 'any' ? ' any' : '') + (b && b.away ? ' away' : '') + '" data-act="who" data-who="' + esc(w) + '" data-rv style="--d:' + i + '">' +
-      '<span class="bc-i' + (two ? ' two' : '') + '" aria-hidden="true"><span>' + ini + '</span></span>' +
+      '<span class="bc-i' + (two ? ' two' : '') + (pic ? ' pic' : '') + '" aria-hidden="true"><span>' + ini + '</span>' + (pic ? faceImg(w) : '') + '</span>' +
       '<span class="bc-t"><span class="bc-n">' + esc(name) + '</span><span class="bc-s">' + esc(line) + '</span></span>' +
       '<span class="bc-st ' + st.cls + '"><span class="bc-sk"><i aria-hidden="true"></i>' + esc(st.k) + '</span><span class="bc-sv">' + esc(st.v) + '</span></span>' +
       '<span class="bc-go" aria-hidden="true">' + ARROW + '</span></button>';
@@ -218,7 +226,7 @@
   function renderCards() {
     const el = $('#cards');
     const seen = el.children.length > 0;
-    el.innerHTML = card('any', 'Le premier de libre', 'Peu importe qui : le créneau le plus tôt, chez l’un des ' + (S.barbers.length === 4 ? 'quatre' : S.barbers.length) + '.', 0) +
+    el.innerHTML = card('any', 'Le premier de libre', 'Peu importe qui : le créneau le plus tôt, chez l’un des ' + (['', '', 'deux', 'trois', 'quatre', 'cinq', 'six'][S.barbers.length] || S.barbers.length) + '.', 0) +
       S.barbers.map((b, i) => card(b.id, b.name, lineOf(b), i + 1)).join('');
     el.setAttribute('aria-busy', S.first.any === undefined ? 'true' : 'false');
     if (seen) $$('[data-rv]', el).forEach((x) => x.setAttribute('data-in', '')); else watchReveals(el);
@@ -364,7 +372,7 @@
     return { off: false, t: 'Prochain créneau : ' + dayBrief(f.day) + ' à ' + th(f.m) };
   }
   function stepWho() {
-    const row = (w, name) => { const h = hintOf(w); return '<button type="button" class="wh' + (w === 'any' ? ' any' : '') + (S.who === w ? ' on' : '') + '" data-act="pick-who" data-who="' + esc(w) + '" aria-pressed="' + (S.who === w) + '"><span class="wh-av" aria-hidden="true">' + whoIni(w) + '</span><span class="wh-t"><b>' + esc(name) + '</b><small class="' + (h.off ? 'off' : '') + '"><i aria-hidden="true"></i>' + esc(h.t) + '</small></span><span class="wh-ck" aria-hidden="true">' + CHECK + '</span></button>'; };
+    const row = (w, name) => { const h = hintOf(w); return '<button type="button" class="wh' + (w === 'any' ? ' any' : '') + (S.who === w ? ' on' : '') + '" data-act="pick-who" data-who="' + esc(w) + '" aria-pressed="' + (S.who === w) + '">' + (w === 'any' ? '<span class="wh-av" aria-hidden="true">' + whoIni(w) + '</span>' : face(w, 'wh-av')) + '<span class="wh-t"><b>' + esc(name) + '</b><small class="' + (h.off ? 'off' : '') + '"><i aria-hidden="true"></i>' + esc(h.t) + '</small></span><span class="wh-ck" aria-hidden="true">' + CHECK + '</span></button>'; };
     return '<div class="st"><div class="whs">' + row('any', 'Peu importe') + S.barbers.map((b) => row(b.id, b.name)).join('') + '</div></div>';
   }
   function stepSlot() {
@@ -402,7 +410,7 @@
       '<p class="hold' + (left ? '' : ' gone') + '" id="hold" role="status"><i aria-hidden="true"></i><span>' + (left ? 'Créneau gardé pour toi' : 'Le créneau n’est plus gardé : confirme vite.') + '</span><b id="holdLeft">' + (left ? Math.floor(left / 60) + ':' + pad(left % 60) : '') + '</b></p>' +
       '<div class="fld"><label for="f-first">Prénom</label><input id="f-first" name="first" type="text" autocomplete="given-name" autocapitalize="words" required maxlength="40" value="' + esc(S.form.first) + '" aria-describedby="h-first"><span class="hint warn" id="h-first" hidden></span></div>' +
       '<div class="fld"><label for="f-phone">Téléphone portable</label><input id="f-phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" required placeholder="06 12 34 56 78" value="' + esc(S.form.phone) + '" aria-describedby="h-phone"><span class="hint" id="h-phone">' + PHONE_HINT + '</span></div>' +
-      (smsOn() ? '<p class="sms-i"><span>' + esc(reminderDue(S.day) ? 'On t’envoie la confirmation par SMS, et un rappel la veille à ' + reminderOf().hour + NB + 'h.' : 'On t’envoie la confirmation par SMS.') + '</span><label class="sms-no" for="f-nosms"><input id="f-nosms" name="noSms" type="checkbox"' + (S.noSms ? ' checked' : '') + '><span>Je ne veux pas de SMS</span></label></p>' : '') +
+      (smsOn() ? '<p class="sms-i"><span>' + esc(reminderDue(S.day) ? 'On t’envoie la confirmation par ' + chan() + ', et un rappel la veille à ' + reminderOf().hour + NB + 'h.' : 'On t’envoie la confirmation par ' + chan() + '.') + '</span><label class="sms-no" for="f-nosms"><input id="f-nosms" name="noSms" type="checkbox"' + (S.noSms ? ' checked' : '') + '><span>' + (chan() === 'SMS' ? 'Je ne veux pas de SMS' : 'Je ne veux pas de message ' + chan()) + '</span></label></p>' : '') +
       '<div class="fld"><label for="f-email">E-mail <span class="opt-l">(facultatif)</span></label><input id="f-email" name="email" type="email" inputmode="email" autocomplete="email" maxlength="120" value="' + esc(S.form.email) + '" aria-describedby="h-email"><span class="hint" id="h-email">Pour recevoir aussi la confirmation par e-mail.</span></div>' +
       (dep ? '<p class="dep">Un acompte de ' + esc(eur(dep)) + ' est demandé pour cette prestation, déduit au salon.' + (hrs ? ' Annulé plus de ' + hrs + NB + 'h avant, il est remboursé.' : '') + '</p>' : '') +
       '<p class="priv">Tes coordonnées servent à ce rendez-vous. <a href="/confidentialite" target="_blank" rel="noopener">Comment elles sont traitées</a></p>' +
@@ -410,7 +418,10 @@
   }
   /* the confirmation and the reminder are service messages of the appointment: sent unless the client says no (never a promotion) */
   const PHONE_HINT = 'Pour ce rendez-vous, rien d’autre.';
-  function smsOn() { return !demo && S.salon.sms !== false; }
+  /* the way they reach the client (GET /api/public/salon `channel`): WhatsApp once the salon's number is set and its texts
+     leave that way, SMS otherwise; a text really leaves (`sms` false without an SMS provider, unless it goes by WhatsApp) */
+  function chan() { return S.salon && S.salon.channel === 'whatsapp' ? 'WhatsApp' : 'SMS'; }
+  function smsOn() { return !demo && (S.salon.channel === 'whatsapp' || S.salon.sms !== false); }
   /* the reminder of the eve, from GET /api/public/salon (`reminder`): its hour, and nothing promised when it is off */
   function reminderOf() { const r = S.salon && S.salon.reminder; return r && typeof r.hour === 'number' ? r : { on: true, hour: 18 }; }
   function reminderDue(day) { const R = reminderOf(), n = now(), dd = diffDays(n.day, day); return R.on && (dd > 1 || (dd === 1 && n.min < R.hour * 60)); }
@@ -418,12 +429,12 @@
   function stepDone() {
     const r = S.result, sv = S.bySvc[r.svcId], staff = S.byStaff[r.staffId], pend = r.status === 'pending' && r.deposit > 0, sms = smsOn() && r.sms !== false;
     const li = [];
-    if (demo) li.push('<b>Mode démo</b> : rien n’a été envoyé au salon, aucun SMS ne part.');
+    if (demo) li.push('<b>Mode démo</b> : rien n’a été envoyé au salon, aucun message ne part.');
     else {
       const pre = pend ? 'Une fois l’acompte réglé : ' : '';
-      if (sms) li.push(pre + '<b>' + (pend ? 'confirmation' : 'Confirmation') + ' par SMS</b>' + (r.email ? ' et <b>par e-mail</b> à ' + esc(r.email) : '') + '.');
+      if (sms) li.push(pre + '<b>' + (pend ? 'confirmation' : 'Confirmation') + ' par ' + chan() + '</b>' + (r.email ? ' et <b>par e-mail</b> à ' + esc(r.email) : '') + '.');
       else if (r.email) li.push(pre + '<b>' + (pend ? 'confirmation' : 'Confirmation') + ' par e-mail</b> à ' + esc(r.email) + '.');
-      if (sms && reminderDue(r.day)) li.push('<b>Rappel par SMS la veille à ' + reminderOf().hour + NB + 'h</b>, avec le lien pour déplacer ou annuler.');
+      if (sms && reminderDue(r.day)) li.push('<b>Rappel par ' + chan() + ' la veille à ' + reminderOf().hour + NB + 'h</b>, avec le lien pour déplacer ou annuler.');
       li.push('Un empêchement ? Ta page de rendez-vous te laisse <b>déplacer ou annuler</b>' + (cancelH() ? ' jusqu’à ' + cancelH() + NB + 'h avant' : '') + '.');
     }
     const maps = (S.salon.shop && S.salon.shop.mapsUrl) || $('[data-maps]').href;
@@ -433,7 +444,7 @@
     const wa = !demo && !pend && /^\d{8,15}$/.test(waNum) ? 'https://wa.me/' + waNum + '?text=' + encodeURIComponent('Bonjour, je viens de réserver chez L’Architecte : ' + dayLong(r.day) + ' à ' + th(r.start).replace(/[\u00a0\u202f]/g, ' ') + '. Référence ' + r.code + '. Merci de me confirmer ici.') : '';
     const row = (k, v, big) => '<div class="tk-r"><dt>' + k + '</dt><dd' + (big ? ' class="tk-w"' : '') + '>' + v + '</dd></div>';
     return '<div class="st done"><div class="ok"><span class="ok-c" aria-hidden="true"><svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="M13 25l7.5 7.5L35 17"/></svg></span><p class="ok-code">' + (pend ? 'Rendez-vous en attente de l’acompte' : 'Rendez-vous confirmé') + '<br>Code <b>' + esc(r.code) + '</b></p></div>' +
-      '<dl class="tk">' + row('Quoi', esc(sv.name + ' · ' + sv.dur + ' min · ' + eur(sv.price, sv.from))) + row('Avec qui', esc(staff ? staff.name : 'Un barbier du salon')) +
+      '<dl class="tk">' + row('Quoi', esc(sv.name + ' · ' + sv.dur + ' min · ' + eur(sv.price, sv.from))) + row('Avec qui', staff ? '<span class="who-f">' + face(r.staffId, 'tk-av') + esc(staff.name) + '</span>' : 'Un barbier du salon') +
       row('Quand', esc(cap(dayLong(r.day)) + ' à ' + th(r.start)), true) + row('Où', 'Barber L’Architecte<br>' + esc(placeLine())) + '</dl>' +
       (pend && r.payment && r.payment.url ? '<div class="pay-b"><p>Un acompte de ' + esc(eur(r.deposit)) + ' confirme ce créneau. Il est déduit au salon.' + (S.salon.booking && S.salon.booking.pendingPayMin ? ' Tu as ' + S.salon.booking.pendingPayMin + ' minutes pour le régler.' : '') + '</p><a class="btn" href="' + esc(r.payment.url) + '">Régler l’acompte · ' + esc(eur(r.deposit)) + '</a></div>' : '') +
       '<div class="done-act">' + (r.ics ? '<a class="btn' + (pend ? ' ghost' : '') + '" href="' + r.ics + '" download="rdv-larchitecte.ics">Ajouter à mon agenda</a>' : '') + '<a class="btn ghost" href="' + esc(maps) + '" target="_blank" rel="noopener">Itinéraire</a>' + (wa ? '<a class="btn ghost" data-wa href="' + esc(wa) + '" target="_blank" rel="noopener">Recevoir la confirmation sur WhatsApp</a>' : '') + '</div>' +
@@ -459,14 +470,16 @@
     const whoT = held ? held.name : S.who ? whoPick(S.who) : '';
     const when = S.day && S.start != null && S.step === 'info';
     const ed = (step, what) => (S.step !== step ? '<button type="button" class="ed" data-act="go" data-step="' + step + '" aria-label="Modifier ' + what + '">Modifier</button>' : '');
-    const row = (k, v, e) => '<div class="rc-r"><dt>' + k + '</dt><dd' + (v ? '' : ' class="todo"') + '>' + (v ? esc(v) : 'À choisir') + '</dd>' + (v ? e : '') + '</div>';
+    const row = (k, v, e, pre) => '<div class="rc-r"><dt>' + k + '</dt><dd' + (v ? '' : ' class="todo"') + '>' + (v ? (pre || '') + esc(v) : 'À choisir') + '</dd>' + (v ? e : '') + '</div>';
+    // the barber in the recap: his face beside his name once he is known (the one chosen, or the one the slot gave)
+    const whoId = held ? S.hold.staffId : S.who && S.who !== 'any' ? S.who : '';
     const tot = sv ? esc(eur(sv.price, sv.from)) : '–';
     const note = sv ? (dep ? 'dont ' + eur(dep) + ' d’acompte' : 'à régler au salon') : '';
     rc.innerHTML = '<div class="rc-mini"><p class="rc-m1">' + esc(sv ? sv.name + ' · ' + sv.dur + ' min' : 'Prestation à choisir') + '</p>' +
       '<p class="rc-m2">' + esc((whoT || 'Barbier à choisir') + ' · ' + (when ? dayMid(S.day) + ' · ' + th(S.start) : 'jour et heure à choisir')) + '</p>' +
       '<p class="rc-mt"><span class="vh">Total : </span><b>' + tot + '</b>' + (note ? '<small>' + esc(note) + '</small>' : '') + '</p></div>' +
       '<div class="rc-full"><h3 class="rc-h">Ton rendez-vous</h3><dl class="rc-l">' +
-      row('Prestation', sv ? sv.name : '', ed('svc', 'la prestation')) + row('Barbier', whoT, ed('who', 'le barbier')) +
+      row('Prestation', sv ? sv.name : '', ed('svc', 'la prestation')) + row('Barbier', whoT, ed('who', 'le barbier'), whoId ? face(whoId, 'rc-av') : '') +
       row('Date et heure', when ? cap(dayLong(S.day)) + ' · ' + th(S.start) : '', ed('slot', 'la date et l’heure')) + row('Durée', sv ? sv.dur + ' min' : '', '') + '</dl>' +
       '<p class="rc-tot"><span>Total</span><b>' + tot + '</b></p>' + (note ? '<p class="rc-note">' + esc(note) + '</p>' : '') + '</div>';
   }
@@ -597,6 +610,11 @@
   body.addEventListener('change', (ev) => { if (ev.target.name === 'noSms') S.noSms = ev.target.checked; });
   body.addEventListener('input', (ev) => { const n = ev.target.name; if (n && n in S.form) { S.form[n] = ev.target.value; if (ev.target.getAttribute('aria-invalid') === 'true') ev.target.setAttribute('aria-invalid', 'false'); } });
   body.addEventListener('submit', (ev) => { ev.preventDefault(); submit(); });
+  // a portrait that does not load (hidden or archived since the salon answered): the initials under it stay
+  document.addEventListener('error', (ev) => {
+    const t = ev.target;
+    if (t && t.tagName === 'IMG' && t.hasAttribute('data-face')) { if (t.parentNode) t.parentNode.classList.remove('pic'); t.remove(); }
+  }, true);
   document.addEventListener('keydown', (ev) => {
     if (ev.key === 'Escape') { if (S.open) closeSheet(); else if (!$('#menu').hidden) { closeMenu(); $('#chBtn').focus(); } return; }
     if (ev.key !== 'Tab' || !S.open) return;

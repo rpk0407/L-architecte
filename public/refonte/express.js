@@ -90,7 +90,7 @@
     shop: { name: 'Barber L’Architecte', address: '16, place Pélabon', zip: '13013', city: 'Marseille', mapsUrl: 'https://www.google.com/maps/search/?api=1&query=L%27Architecte%20coiffeur&query_place_id=ChIJJSWkBLy_yRIRbgAQcMwb-JY' },
     hoursText: 'Du mardi au samedi, 9 h – 18 h 30', closedText: 'le dimanche et le lundi',
     booking: { enabled: true, stepMin: 30, maxDaysAhead: 90, holdMin: 5, pendingPayMin: 15, cancelUntilHours: 12 },
-    deposits: { mode: 'none' }, sms: false, payments: { live: false }, mode: 'sim',
+    deposits: { mode: 'none' }, sms: false, channel: 'sms', payments: { live: false }, mode: 'sim',
     services: [
       ['cl', 'Coupe classique', 'Coupe', 'Coupes', 2000, 30, ['Coupe', 'Shampooing', 'Coiffage'], '', false],
       ['cc', 'Coupe + contour de barbe', 'Coupe + contour', 'Coupes', 2500, 30, ['Coupe', 'Contour de la barbe'], '', false],
@@ -104,8 +104,9 @@
       ['tb', 'Taille de barbe', 'Taille de barbe', 'Barbe', 1800, 30, ['Taille', 'Mise en forme', 'Huile'], '', false],
       ['cb', 'Cover barbe', 'Cover barbe', 'Barbe', 1500, 30, ['Couleur de la barbe', 'Soin'], '', false]
     ].map((x, i) => ({ id: 'sim_' + x[0], slug: x[0], name: x[1], short: x[2], category: x[3], price: x[4], dur: x[5], includes: x[6], tag: x[7], from: x[8], order: i, description: '', deposit: null, online: true })),
-    barbers: [['JKut', 'JK', 'Dégradés à la précision chirurgicale. Le fondateur de la méthode « construction au millimètre ».'], ['Frank', 'F', 'Coupes classiques et barbes taillées à l’ancienne.'], ['Le Soldat', 'LS', 'Skin fade, contours nets, couleur et silver.'], ['Esteban', 'E', 'Textures, boucles et transformations.']]
-      .map((x, i) => ({ id: 'sim_b' + i, name: x[0], initials: x[1], bio: x[2], instagram: '', away: null }))
+    // the real team and their portraits (../img/equipe, the illustrations made for the salon); their slots are simulated
+    barbers: [['Frank', 'FR', 'frank', 'Coupes classiques et barbes taillées à l’ancienne.'], ['JKut', 'JK', 'jkut', 'Dégradés à la précision chirurgicale. Le fondateur de la méthode « construction au millimètre ».'], ['Aland', 'AL', 'aland', 'Nouveau au salon.'], ['Esteban', 'ES', 'esteban', 'Textures, boucles et transformations.'], ['Le Soldat', 'LS', 'le-soldat', 'Skin fade, contours nets, couleur et silver.']]
+      .map((x, i) => ({ id: 'sim_b' + i, name: x[0], initials: x[1], photo: '../img/equipe/' + x[2] + '.webp', bio: x[3], instagram: '', away: null }))
   };
   FALLBACK.menu = FALLBACK.services.map((x) => ({ slug: x.slug, name: x.name, category: x.category, price: x.price, from: x.from, dur: x.dur, online: true }))
     .concat([{ slug: 'ab', name: 'Carnet 5 coupes', category: 'Carnet', price: 8000, from: false, dur: 30, online: false }]);
@@ -311,7 +312,19 @@
   }
 
   /* ---------- the home: hero card, next slot of each barber, team, carte ---------- */
-  const mono = (b) => h('span', { class: 'mono', 'aria-hidden': 'true', text: b.initials || b.name.charAt(0) });
+  /* a barber's face in the round: his portrait when the salon shows it on the site (GET /api/public/salon `photo`, or the
+     stand-in's own file), over his initials, which stay when there is none or it does not load */
+  const photoOf = (b) => { const u = b && typeof b.photo === 'string' ? b.photo : ''; return /^(\/api\/public\/barbers\/[A-Za-z0-9_-]+\/photo\?v=\d+|\.\.\/img\/equipe\/[a-z-]+\.webp)$/.test(u) ? u : ''; };
+  const mono = (b) => {
+    const u = photoOf(b), el = h('span', { class: 'mono' + (u ? ' pic' : ''), 'aria-hidden': 'true', text: b.initials || b.name.charAt(0) });
+    if (u) el.append(h('img', { src: u, alt: '', decoding: 'async', on: { error: (e) => { el.classList.remove('pic'); e.currentTarget.remove(); } } }));
+    return el;
+  };
+  /* the way the confirmation and the reminder reach the client (GET /api/public/salon `channel`): WhatsApp once the
+     salon's number is set and its texts leave that way, SMS otherwise; one really leaves (`sms` false without an SMS
+     provider, unless it goes by WhatsApp) */
+  const chan = () => (S.sal && S.sal.channel === 'whatsapp' ? 'WhatsApp' : 'SMS');
+  const msgsLeave = () => !!S.sal && (S.sal.channel === 'whatsapp' || S.sal.sms !== false);
   const svcShort = (sv) => sv.short || sv.name;
 
   function renderHeroChips() {
@@ -692,13 +705,15 @@
     const barbier = !S.staffSet ? '' : picked ? picked.name : got && S.day != null ? 'Peu importe · ce sera ' + got.name : 'Peu importe';
     const quand = S.day != null ? cap(dayFull(S.day)) + ' · ' + hm(S.start) : '';
     const total = sv ? (sv.from ? 'dès ' : '') + eur(sv.price) : '';
-    const row = (label, value, key) => h('div', { class: 'tk-r' + (value ? '' : ' no') }, [
+    const row = (label, value, key, face) => h('div', { class: 'tk-r' + (value ? '' : ' no') }, [
       h('dt', { text: label }),
-      h('dd', {}, [h('span', { text: value || 'À choisir' }), value && key && S.step !== key ? h('button', { type: 'button', class: 'tk-ed', text: 'Modifier', 'aria-label': 'Modifier ' + NAMES[key], on: { click: () => goStep(key) } }) : null])
+      h('dd', {}, [h('span', { class: face && value ? 'who-f' : null }, [face && value ? face : null, value || 'À choisir']), value && key && S.step !== key ? h('button', { type: 'button', class: 'tk-ed', text: 'Modifier', 'aria-label': 'Modifier ' + NAMES[key], on: { click: () => goStep(key) } }) : null])
     ]);
+    // the barber's face beside his name once he is known (the one chosen, or the one the slot gave)
+    const whoB = S.staffSet ? picked || (got && S.day != null ? got : null) : null;
     tk.append(
       h('h3', { class: 'tk-h', text: 'Ta réservation' }),
-      h('dl', {}, [row('Formule', sv ? sv.name : '', 'prestation'), row('Barbier', barbier, 'barbier'), row('Date et heure', quand, 'creneau'), row('Durée', sv ? durText(sv.dur) : '', null)]),
+      h('dl', {}, [row('Formule', sv ? sv.name : '', 'prestation'), row('Barbier', barbier, 'barbier', whoB ? mono(whoB) : null), row('Date et heure', quand, 'creneau'), row('Durée', sv ? durText(sv.dur) : '', null)]),
       h('p', { class: 'tk-tot' }, [h('span', { text: 'Total' }), h('b', { text: total || '—' })]),
       dep > 0 ? h('p', { class: 'tk-dep', text: 'Dont acompte en ligne : ' + eur(dep) }) : ''
     );
@@ -720,7 +735,7 @@
       h('dl', {}, [
         q('Quand', cap(dayFull(r.day)) + ' · ' + hm(r.start), 'Jusqu’à ' + hm(r.start + r.svc.dur) + ' · ' + durText(r.svc.dur), 'big'),
         q('Quoi', r.svc.name, (r.svc.from ? 'dès ' : '') + eur(r.svc.price) + ', à régler au salon' + (r.deposit > 0 ? ' (acompte de ' + eur(r.deposit) + ' déduit)' : '')),
-        q('Avec qui', r.barber ? r.barber.name : 'Un barbier du salon'),
+        q('Avec qui', r.barber ? h('span', { class: 'who-f' }, [mono(r.barber), r.barber.name]) : 'Un barbier du salon'),
         q('Où', shop.name || 'Barber L’Architecte', (shop.address || '16, place Pélabon') + ' · ' + (shop.zip || '13013') + ' ' + (shop.city || 'Marseille'), 'where')
       ])
     ]);
@@ -824,15 +839,15 @@
       fld('f-phone', 'Téléphone', false, { type: 'tel', inputmode: 'tel', autocomplete: 'tel', required: true, maxlength: '24' }, 'Exemple : 06 12 34 56 78.', 'phone'),
       fld('f-email', 'E-mail', true, { type: 'email', inputmode: 'email', autocomplete: 'email', maxlength: '120' }, 'Pour recevoir aussi la confirmation par e-mail.', 'email'),
       // service messages of this rendez-vous, not marketing: sent by default (sms: true), with a discreet way out
-      h('p', { class: 'sms-i', id: 'sms-i' }, [icon('sms'), h('span', { text: 'On t’envoie la confirmation par SMS' + (reminderOf().on ? ', et un rappel la veille à ' + reminderOf().hour + ' h' : '') + ', avec un lien pour déplacer ou annuler.' })]),
+      h('p', { class: 'sms-i', id: 'sms-i' }, [icon('sms'), h('span', { text: 'On t’envoie la confirmation par ' + chan() + (reminderOf().on ? ', et un rappel la veille à ' + reminderOf().hour + ' h' : '') + ', avec un lien pour déplacer ou annuler.' })]),
       h('label', { class: 'ck', for: 'f-nosms' }, [
         h('input', Object.assign({ id: 'f-nosms', type: 'checkbox', 'aria-describedby': 'sms-i', on: { change: (e) => { S.f.sms = !e.target.checked; } } }, S.f.sms ? {} : { checked: true })),
-        h('span', { text: 'Je ne veux pas de SMS' })
+        h('span', { text: chan() === 'SMS' ? 'Je ne veux pas de SMS' : 'Je ne veux pas de message ' + chan() })
       ])
     ]);
     st.append(form);
     if (dep > 0) st.append(h('p', { class: 'note dep', text: 'Un acompte de ' + eur(dep) + ' est demandé pour cette prestation, déduit au salon. Tu le règles en ligne juste après, dans les ' + (bk.pendingPayMin || 15) + ' minutes.' + (cancelH() ? ' Annulé plus de ' + cancelH() + NB + 'h avant, il est remboursé.' : '') }));
-    if (S.sal.mode === 'demo') st.append(h('p', { class: 'note demo', text: 'Salon de démonstration : n’entre pas tes vraies coordonnées. Aucun SMS n’est envoyé, aucun paiement n’est débité.' }));
+    if (S.sal.mode === 'demo') st.append(h('p', { class: 'note demo', text: 'Salon de démonstration : n’entre pas tes vraies coordonnées. Aucun message n’est envoyé, aucun paiement n’est débité.' }));
     st.append(h('p', { class: 'note' }, ['Sans compte. Tes coordonnées servent à ce rendez-vous. Ta formule, ton barbier, ton prénom et ton numéro restent aussi sur ce téléphone, pour reprendre plus vite la prochaine fois. ', h('a', { href: '/confidentialite', target: '_blank', rel: 'noopener', text: 'Comment elles sont traitées' })]));
   }
 
@@ -843,7 +858,7 @@
   }
 
   function stepDone(st) {
-    const r = S.result, pending = r.status === 'pending', bk = S.sal.booking, sms = r.sms && S.sal.sms !== false;
+    const r = S.result, pending = r.status === 'pending', bk = S.sal.booking, sms = r.sms && msgsLeave(), C = chan();
     st.append(ticketDone());
     if (pending) {
       st.append(h('div', { class: 'pay-b' }, [
@@ -865,17 +880,17 @@
     const li = (ic, t, s) => h('li', {}, [icon(ic), h('span', {}, [t, s ? h('small', { text: s }) : null])]);
     const list = h('ul', { class: 'nxt', 'aria-labelledby': 'nxt-h' });
     const when = pending ? 'Dès l’acompte réglé : ' : '';
-    if (S.demo) list.append(li('sms', 'Mode démo : rien n’est réservé', 'Aucun SMS, aucun e-mail. Réserve sur le site du salon quand il répond.'));
+    if (S.demo) list.append(li('sms', 'Mode démo : rien n’est réservé', 'Aucun message, aucun e-mail. Réserve sur le site du salon quand il répond.'));
     else {
-      if (sms) list.append(li('sms', when + (pending ? 'confirmation par SMS' : 'Confirmation par SMS'), 'Au ' + r.phone + '.'));
+      if (sms) list.append(li('sms', when + (pending ? 'confirmation par ' : 'Confirmation par ') + C, 'Au ' + r.phone + '.'));
       if (r.email) list.append(li('mail', when + (pending ? 'confirmation par e-mail' : 'Confirmation par e-mail'), 'À ' + r.email + ', avec le rendez-vous pour ton agenda.'));
       else list.append(li('mail', 'Pas d’e-mail', 'Tu n’as pas donné d’adresse : la confirmation ne part pas par e-mail.'));
       // the reminder as the salon set it (its hour; nothing said when it is switched off)
       if (sms && !reminderOf().on) { /* no reminder to promise */ }
       else if (sms && r.day === S.today) list.append(li('bell', 'C’est aujourd’hui', 'Pas de rappel la veille, donc : garde le lien de ton rendez-vous.'));
-      else if (sms) list.append(li('bell', 'Rappel par SMS la veille à ' + reminderOf().hour + ' h', 'Avec un lien pour déplacer ou annuler.'));
-      else list.append(li('bell', 'Pas de SMS', r.sms ? 'Les SMS ne sont pas branchés pour l’instant : garde le lien de ton rendez-vous.' : 'Tu as choisi de ne pas en recevoir : garde le lien de ton rendez-vous.'));
-      if (S.sal.mode === 'demo') list.append(li('check', 'Salon de démonstration', 'Ici, aucun SMS ni e-mail ne part vraiment.'));
+      else if (sms) list.append(li('bell', 'Rappel par ' + C + ' la veille à ' + reminderOf().hour + ' h', 'Avec un lien pour déplacer ou annuler.'));
+      else list.append(li('bell', C === 'SMS' ? 'Pas de SMS' : 'Pas de message ' + C, r.sms ? 'Les SMS ne sont pas branchés pour l’instant : garde le lien de ton rendez-vous.' : 'Tu as choisi de ne pas en recevoir : garde le lien de ton rendez-vous.'));
+      if (S.sal.mode === 'demo') list.append(li('check', 'Salon de démonstration', 'Ici, aucun message ni e-mail ne part vraiment.'));
     }
     st.append(h('h3', { class: 'nxt-h', id: 'nxt-h', text: 'Et maintenant ?' }), list);
     st.append(h('p', { class: 'note' }, [h('button', { type: 'button', class: 'tl', text: 'Revenir au site', on: { click: closeSheet } })]));

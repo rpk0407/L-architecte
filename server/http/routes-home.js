@@ -4,5 +4,6 @@
 import { home } from '../domain/home.js';
 
 export function homeRoutes(app) {
-  app.get('/api/v1/home', (r) => home(r.s, r.me, r.now));
+  // the runtime: which providers can send decides the texts that wait for a person (« N messages à envoyer »)
+  app.get('/api/v1/home', (r) => home(r.s, r.me, r.now, r.rt));
 }

@@ -6,6 +6,9 @@
 // The tests change nothing in the journal, like the test SMS of Mise en route.
 // Also the Messages screen of the Comptoir (« mode téléphone », messaging/hand.js): the queue of texts a person sends
 // from WhatsApp, one tap each, and the record that it was done.
+// And Réglages › Connexion IONOS (messaging/ionos.js): the salon's mailbox (which variable is set, what to type in Vercel, the
+// SPF and DKIM of the domain) and its domain on the switch day (the Jour J card's own DNS report, http/routes-bascule.js).
+// Never a password nor the mailbox's user name in an answer; the network checks are owner only, paced, and none in the demo.
 import { HttpError, guard } from './kit.js';
 import { TEMPLATES, classOf } from '../core/templates.js';
 import { waVarNames, waMode, salonWhatsapp } from '../settings/messages.js';
@@ -16,6 +19,9 @@ import { WA_TEMPLATES, waDefaults } from '../messaging/whatsapp.js';
 import { byHand, effectiveMode, handCount, handQueue } from '../messaging/hand.js';
 import { handSent } from '../commands/messages.js';
 import { cutoverHold } from '../projections/bascule.js';
+import { parseFrom } from '../messaging/email.js';
+import { IONOS_DKIM, IONOS_LIMIT, IONOS_SMTP, IONOS_SPF, mailDns, mailExpected, mailTrouble, mailVars, resolverOf } from '../messaging/ionos.js';
+import { domainOf, domainReport, domainCached } from './routes-bascule.js';
 
 const HOUR = 3600000;
 export const TEST_PER_HOUR = 3;
@@ -106,8 +112,62 @@ export function channelRoutes(app) {
     const text = ['Bonjour,', '', 'Ceci est un test du Comptoir : les e-mails de ' + s.settings.shop.name + ' partent bien' + (rt.email.name === 'smtp' ? ' par la boîte du salon.' : ' par ' + rt.email.name + '.'), 'Les confirmations et les rappels de tes clients suivront le même chemin.', '', s.settings.shop.name].join('\n');
     try {
       const res = await rt.email.send({ to, subject: 'Test du Comptoir : les e-mails partent bien', text, fromName: s.settings.shop.name, tag: 'test' });
-      return { ...out, simulated: false, ref: res.ref };
-    } catch (err) { throw new HttpError(502, 'send_failed', 'Refusé : ' + String(err && err.message || err)); }
+      return { ...out, simulated: false, ref: res.ref, at: r.now };
+    } catch (err) {
+      // the server's words, and what they mean for the owner (Connexion IONOS shows both; Messages aux clients the words)
+      throw new HttpError(502, 'send_failed', 'Refusé : ' + String(err && err.message || err), { trouble: mailTrouble(err, { port: (rt.cfg.mailEnv || {}).port }), provider: rt.email.name });
+    }
+  }, { cap: 'settings' });
+
+  /** Réglages › Connexion IONOS: the salon's mailbox and its domain, without the network (the checks are the two routes below). */
+  app.get('/api/v1/ionos', (r) => {
+    const s = r.s, cfg = r.rt.cfg, B = s.bascule || {};
+    const env = cfg.mailEnv || {};
+    const domain = salonDomain(s, cfg, cleanDomain(r.query.get('domain')), cleanDomain(r.query.get('remembered')));
+    const vars = mailVars(env, domain);
+    const provider = r.rt.email ? r.rt.email.name : null;
+    const smtpSet = !!(env.host || env.user || env.pass);
+    // the last e-mail that failed this week, with what it means
+    let last = null;
+    for (const m of s.messages.values()) if (m.channel === 'email' && m.status === 'failed' && r.now - (m.sentAt || m.at) < 7 * 86400000 && (!last || (m.sentAt || m.at) > last.at)) last = { at: m.sentAt || m.at, error: m.error || '' };
+    return {
+      demo: s.mode === 'demo', domain,
+      // where the switch from WordPress stands: nothing changes at IONOS before its Monday
+      stage: B.switchedAt ? 'after' : B.frozenAt ? 'day' : 'before', switchedAt: B.switchedAt || 0, frozenAt: B.frozenAt || 0,
+      mail: {
+        provider, state: provider === 'smtp' ? 'ok' : provider ? 'other' : smtpSet || env.from ? 'partial' : 'none',
+        vars, expected: mailExpected(env, domain, s.settings.shop.name), smtp: IONOS_SMTP, limit: IONOS_LIMIT,
+        to: maskEmail(ownerEmail(s) || (r.me && r.me.email) || '', { domain: false }),
+        lastFailure: last ? { ...last, trouble: mailTrouble(last.error, { port: env.port }) } : null, hold: cutoverHold(s)
+      },
+      spf: IONOS_SPF, dkim: IONOS_DKIM,
+      // a check of the last minute, if any (asking again costs the network nothing then)
+      checked: domain && domainCached(r.rt, domain)
+    };
+  }, { cap: 'settings' });
+
+  /** SPF and DKIM of the salon's domain (public TXT and CNAME records): said, never blocking anything. */
+  app.post('/api/v1/ionos/mail-dns', async (r) => {
+    const s = r.s, cfg = r.rt.cfg;
+    const b = r.body && typeof r.body === 'object' ? r.body : {};
+    const domain = salonDomain(s, cfg, cleanDomain(b.domain), '');
+    if (!domain) throw new HttpError(400, 'no_domain', 'Indique ton domaine, par exemple barberlarchitecte.com.');
+    if (s.mode === 'demo') return { domain, demo: true, spf: { state: 'info', line: 'Démo : rien n’est vérifié sur le réseau.' }, dkim: { state: 'info', line: 'Démo : rien n’est vérifié sur le réseau.' } };
+    guard('ionos-dns|' + r.me.id, 12, 60000, 'Trop de vérifications. Réessaie dans une minute.');
+    return { domain, demo: false, ...(await mailDns(resolverOf(r.rt), domain)), at: r.now };
+  }, { cap: 'settings' });
+
+  /** Where the domain points now: the new site, still the old host, or half of it (the Jour J card's own report, cached a minute). */
+  app.post('/api/v1/ionos/domain', async (r) => {
+    const s = r.s, cfg = r.rt.cfg;
+    const b = r.body && typeof r.body === 'object' ? r.body : {};
+    const domain = salonDomain(s, cfg, cleanDomain(b.domain), '');
+    if (!domain) throw new HttpError(400, 'no_domain', 'Indique ton domaine, par exemple barberlarchitecte.com.');
+    if (s.mode === 'demo') return { domain, demo: true, where: 'unknown', step: { id: 'dns', state: 'info', line: 'Démo : rien n’est vérifié sur le réseau.' } };
+    if (b.refresh || !domainCached(r.rt, domain)) guard('ionos-dns|' + r.me.id, 12, 60000, 'Trop de vérifications. Réessaie dans une minute.');
+    const rep = await domainReport(r.rt, domain, !!b.refresh);
+    const names = (x) => ({ a: x.a, aaaa: x.aaaa, cname: x.cname, vercel: x.vercel, old: x.old });
+    return { domain, demo: false, where: rep.where, step: rep.step, apex: names(rep.apex), www: names(rep.www), at: r.now };
   }, { cap: 'settings' });
 
   /** « Mode téléphone »: the texts this person sends from WhatsApp now, and who is left out and why. */
@@ -163,6 +223,26 @@ export function channelRoutes(app) {
       return { ...out, simulated: false, ref: res.ref };
     } catch (err) { throw new HttpError(502, 'send_failed', 'Refusé : ' + String(err && err.message || err)); }
   }, { cap: 'settings' });
+}
+
+/** a hostname with at least one dot and a letters-only ending (the Jour J card's rule): typed by the owner, checked */
+const HOSTNAME = /^(?=.{4,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,24}$/;
+function cleanDomain(v) {
+  const d = String(v || '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '').replace(/^(www|ancien)\./, '');
+  if (d && !HOSTNAME.test(d)) throw new HttpError(400, 'invalid', 'Indique un nom de domaine, par exemple barberlarchitecte.com.');
+  return d;
+}
+/** Free mail services: an EMAIL_FROM there (with Brevo) says nothing of the salon's own domain. */
+const FREE_MAIL = /^(gmail|googlemail|hotmail|outlook|live|yahoo|icloud|me|orange|free|sfr|laposte|wanadoo|proton|protonmail)\./;
+/**
+ * The salon's domain: typed, else the public address or the old site's (the Jour J card's own rule), else the domain of the
+ * mailbox (EMAIL_FROM, SMTP_USER), else the one the browser remembers.
+ */
+export function salonDomain(s, cfg, typed = '', remembered = '') {
+  const env = cfg.mailEnv || {};
+  const from = parseFrom(env.from);
+  const mail = [from ? from.email.slice(from.email.indexOf('@') + 1) : '', env.userDomain || ''].find((d) => d && !FREE_MAIL.test(d)) || '';
+  return domainOf(s, cfg, typed) || mail || domainOf(s, cfg, '', remembered);
 }
 
 /** Believable values for a test template: the owner's first name, today 10 h, the first barber, the site's links. */

@@ -171,7 +171,8 @@ export default function Canal({ s }: { s: any }) {
               : demo ? 'Démo : rien ne part.'
                 : d.email.fromInvalid ? 'EMAIL_FROM n’est pas une adresse valide.'
                   : d.email.incomplete ? 'SMTP_HOST est là, il manque SMTP_USER ou SMTP_PASS.'
-                    : 'À brancher sur la boîte du salon : SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS et EMAIL_FROM dans Vercel.'}</small></span>
+                    : 'À brancher sur la boîte du salon : SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS et EMAIL_FROM dans Vercel.'}
+            {demo ? null : <> <Link to="/reglages/ionos" className="link">{d.email.provider === 'smtp' ? 'Connexion IONOS' : 'Les valeurs à taper : Connexion IONOS'}</Link></>}</small></span>
           <span className={'badge ' + (d.email.provider ? 'badge-ok' : '')}>{d.email.provider ? 'En service' : 'Non branché'}</span>
           {testBtn('email', !!d.email.provider, 'Envoyer un e-mail test')}
         </li>

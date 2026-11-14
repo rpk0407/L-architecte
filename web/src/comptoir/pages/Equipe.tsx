@@ -606,6 +606,7 @@ function Profile({ st }: { st: Staff }) {
       </Field>}
       <Switch on={f.chair} onChange={(v) => setF({ ...f, chair: v, bookable: v ? f.bookable : false })} title="A un fauteuil" hint="Apparaît comme colonne dans l’agenda." />
       <Switch on={f.bookable} disabled={!f.chair} onChange={(v) => setF({ ...f, bookable: v })} title="Réservable en ligne" hint="Les clients peuvent le choisir sur le site." />
+      {st.photo ? <SitePhotoSwitch st={st} /> : null}
       <Field label="Présentation sur le site" hint={f.bio.length + ' / 280'} htmlFor="pf-b"><textarea id="pf-b" className="input textarea" rows={3} maxLength={280} value={f.bio} onChange={(e) => setF({ ...f, bio: e.target.value })} placeholder="Spécialiste des dégradés, 8 ans de métier…" /></Field>
       <div className="grid2">
         <Field label="Instagram" htmlFor="pf-ig"><input id="pf-ig" className="input" value={f.instagram} onChange={(e) => setF({ ...f, instagram: e.target.value })} placeholder="@pseudo" /></Field>
@@ -616,6 +617,28 @@ function Profile({ st }: { st: Staff }) {
   );
 }
 const ROLE_LABEL: Record<string, string> = { barber: 'Barbier', desk: 'Accueil', manager: 'Responsable', owner: 'Gérant' };
+
+/**
+ * « Photo visible sur le site »: the person's photo in « Choisis ton barbier » and in the booking, saved at once (apart
+ * from the card's form). The owner sets anyone's in Équipe, a barber his own in Mon espace. Only with a photo.
+ */
+export function SitePhotoSwitch({ st, self = false }: { st: Staff; self?: boolean }) {
+  const { reloadBoot, offline } = useApp();
+  const [on, setOn] = useState(!!st.photoSite);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { setOn(!!st.photoSite); }, [st.photoSite, st.photo]);
+  const flip = async (v: boolean) => {
+    setBusy(true); setOn(v);
+    try {
+      await api.post('/api/v1/staff/' + st.id + '/photo/site', { on: v });
+      toast({ title: v ? 'Photo visible sur le site' : 'Photo retirée du site', sub: v ? undefined : 'Elle reste dans le Comptoir.', icon: 'check' });
+      refreshAll(); reloadBoot().catch(() => {});
+    } catch (e) { setOn(!v); toastError(e); } finally { setBusy(false); }
+  };
+  const where = self ? 'Ta photo dans « Choisis ton barbier » et quand un client réserve avec toi.' : 'Dans « Choisis ton barbier » et quand un client réserve avec lui.';
+  const hint = st.chair && st.bookable ? where + ' Dans le Comptoir, elle reste.' : (self ? 'Tu n’es pas réservable en ligne : elle apparaîtra quand tu le seras.' : 'Pas réservable en ligne : elle apparaîtra quand il le sera.');
+  return <Switch on={on} disabled={busy || offline} onChange={(v) => void flip(v)} title="Photo visible sur le site" hint={hint} />;
+}
 
 export type Week = Record<number, [number, number][]>;
 export const weekOf = (src?: Record<string, [number, number][]>): Week => Object.fromEntries([0, 1, 2, 3, 4, 5, 6].map((d) => [d, (src?.[d] || []).map((x) => [...x] as [number, number])]));

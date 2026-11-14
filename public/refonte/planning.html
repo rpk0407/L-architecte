@@ -8,6 +8,8 @@
 <meta name="description" content="Barbier place Pélabon, Marseille 13e. Réserve en quatre étapes, ou vois en direct quel fauteuil est libre.">
 <meta name="theme-color" content="#D3D0C8">
 <link rel="icon" href="../icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="../apple-touch-icon.png">
+<meta property="og:image" content="https://barberlarchitecte.com/img/og-larchitecte.jpg">
 <link rel="preload" href="../fonts/instrument-serif-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="../fonts/instrument-sans-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="planning.css">
@@ -18,7 +20,7 @@
 <a class="skip" href="#reserver">Aller à la réservation</a>
 
 <header class="tb light" id="tb">
-<a class="wm" href="#frais" aria-label="L’Architecte, retour en haut"><span class="wm-a">L’Architecte</span><span class="wm-b">Barber · Marseille</span></a>
+<a class="wm" href="#frais" aria-label="L’Architecte, retour en haut"><span class="wm-logo" aria-hidden="true"></span><span class="wm-t"><span class="wm-a">L’Architecte</span><span class="wm-b">Barber · Marseille</span></span></a>
 <button type="button" class="tb-ch" id="menu-btn" aria-label="Ouvrir le sommaire" aria-expanded="false" aria-controls="menu">
 <span class="tb-ct" aria-hidden="true">Sommaire</span>
 <span class="tb-ic" aria-hidden="true"><i></i><i></i></span>
@@ -73,7 +75,7 @@
 <p class="kk"><span>01</span>Réserver</p>
 <h2 class="h2" id="t-rs">Le salon,<br>en <em>direct.</em></h2>
 </div>
-<p class="rs-lead">Ta prestation, ton barbier, ton heure, tes coordonnées. Quatre étapes, sans compte. Et le planning des quatre fauteuils, si tu veux voir tout le salon d’un coup.</p>
+<p class="rs-lead">Ta prestation, ton barbier, ton heure, tes coordonnées. Quatre étapes, sans compte. Et le planning des fauteuils, si tu veux voir tout le salon d’un coup.</p>
 </div>
 
 <div class="bw" id="bw">
@@ -129,7 +131,7 @@
 <div class="fld"><label for="f-phone">Téléphone</label><input id="f-phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="06 12 34 56 78" required maxlength="24" aria-describedby="e-phone"><span class="err" id="e-phone" hidden></span></div>
 <div class="fld"><label for="f-email">E-mail <span class="opt-l">facultatif</span></label><input id="f-email" name="email" type="email" inputmode="email" autocomplete="email" maxlength="120" aria-describedby="h-email e-email"><span class="hint" id="h-email">Pour recevoir la confirmation et le rendez-vous dans ton agenda.</span><span class="err" id="e-email" hidden></span></div>
 <div class="fld"><label for="f-note">Un mot pour ton barbier <span class="opt-l">facultatif</span></label><input id="f-note" name="note" type="text" maxlength="200" placeholder="Ex. : dégradé bas, garder la longueur"></div>
-<div class="sms"><p class="sms-i" id="sms-i">On t’envoie la confirmation par SMS, et un rappel la veille à 18 h.</p><label class="sms-no"><input type="checkbox" id="f-nosms" name="nosms"><span>Je ne veux pas de SMS</span></label></div>
+<div class="sms"><p class="sms-i" id="sms-i">On t’envoie la confirmation, avec un lien pour déplacer ou annuler.</p><label class="sms-no"><input type="checkbox" id="f-nosms" name="nosms"><span id="nosms-t">Je ne veux pas de message</span></label></div>
 <label class="sw"><input type="checkbox" id="f-mkt" name="marketing"><span class="sw-t"><b>Les bons plans du salon par SMS</b><small>Places de dernière minute, rappel de coupe. Tu arrêtes quand tu veux : STOP, comme indiqué dans chaque SMS.</small></span></label>
 <p class="priv">Tes coordonnées servent à ce rendez-vous, et aux bons plans seulement si tu coches. <a href="/confidentialite" target="_blank" rel="noopener">Comment elles sont traitées</a></p>
 <p class="dep" id="dep" hidden></p>
@@ -182,7 +184,7 @@
 <section class="team sheet" id="equipe" data-tone="dark" aria-labelledby="t-team">
 <div class="wrap">
 <p class="kk"><span>02</span>L’équipe</p>
-<h2 class="h2" id="t-team">Quatre fauteuils,<br>quatre mains sûres.</h2>
+<h2 class="h2" id="t-team">Cinq fauteuils,<br>cinq mains sûres.</h2>
 <ul class="bb" id="team">
 <li class="bb-i"><span class="bb-mono" aria-hidden="true">JK</span><h3 class="bb-n">JKut</h3></li>
 <li class="bb-i"><span class="bb-mono" aria-hidden="true">F</span><h3 class="bb-n">Frank</h3></li>
@@ -254,6 +256,7 @@
 <li><a href="/confidentialite">Confidentialité</a></li>
 <li><a href="/cgv">CGV</a></li>
 </ul>
+<span class="ft-mark" role="img" aria-label="Le logo de L’Architecte : haircuts and beards, barbershop, established in 2009"></span>
 <p class="ft-legal">© Barber L’Architecte · Marseille</p>
 </div>
 </div>

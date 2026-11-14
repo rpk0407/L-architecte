@@ -3,7 +3,10 @@
 // 20 h. Three breakdowns, each read from facts every instance shares or the scheduler hands over (ctx.meta.health):
 // - sms:    the last texts of the day all failed (SMS_FAILS in a row, by SMS or WhatsApp);
 // - cron:   a message due today waited more than SILENT_MS with no dispatch at all (nothing called the scheduler);
-// - backup: the last backup is more than 36 h old (core/backup.js STALE_MS, the red of Réglages › Données).
+// - backup: the last backup is more than 36 h old (core/backup.js STALE_MS, the red of Réglages › Données);
+// - hand:   « mode téléphone », late in the evening (HAND_LATE_MIN, or two hours after the reminders' hour) texts to clients
+//           still wait for a person on the Messages screen, tomorrow's reminders among them (messaging/hand.js): nobody opened
+//           it. Its line stays in the Comptoir only while one of those texts still waits.
 // One e-mail per breakdown and per day (the key is the cause and the day, so two ticks or two servers queue one), and
 // one line in the Comptoir while that day lasts (alertWarnings). Production only, and only from the scheduler
 // (ctx.meta.health): a tick run by hand, the demo and the tests say nothing.
@@ -11,23 +14,48 @@ import { instantOf, fmtTime, localParts } from '../../../shared/dates.js';
 import { ownerAlert } from '../../domain/notices.js';
 import { dayFr } from '../../domain/mails.js';
 import { cutoverHeld } from '../../projections/bascule.js';
+import { handEligible, handRefusal, handStale } from '../../messaging/hand.js';
 import { STALE_MS } from '../../core/backup.js';
 
 export const SMS_FAILS = 3;
 export const SILENT_MS = 30 * 60000;
 export const ALERT_TEMPLATE = 'owner_alert';
-export const CAUSES = /** @type {const} */ (['sms', 'cron', 'backup']);
+export const CAUSES = /** @type {const} */ (['sms', 'cron', 'backup', 'hand']);
+/** From this time of the evening, texts still waiting for a person are told once (two hours after a later reminder hour, 23 h 30 at most). */
+export const HAND_LATE_MIN = 21 * 60;
+export const handLateMin = (s) => Math.min(23 * 60 + 30, Math.max(HAND_LATE_MIN, (Number(s.settings.messages.reminderHour) || 18) * 60 + 120));
 /** The line the Comptoir shows while an alert of today stands. */
 const WORDS = {
   sms: 'Les SMS ne partent plus : les derniers envois ont échoué. Regarde Relances › Messages envoyés et le crédit du fournisseur.',
   cron: 'Le planificateur est resté muet : des messages sont partis en retard. Vérifie le cron (Réglages › Santé).',
-  backup: 'La dernière sauvegarde a plus de 36 h. Regarde Réglages › Données.'
+  backup: 'La dernière sauvegarde a plus de 36 h. Regarde Réglages › Données.',
+  hand: 'Des messages aux clients attendent encore sur l’écran Messages, avec les rappels de demain : ouvre-le pour les envoyer depuis le WhatsApp du salon.'
 };
 export const alertKey = (cause, day) => 'alert_' + cause + '_' + day;
 
 /** Today's alerts, as lines for the Comptoir (the owner's): one per breakdown already told by e-mail today. */
 export function alertWarnings(s, day) {
-  return CAUSES.filter((c) => s.messages.has('msg_' + alertKey(c, day))).map((c) => WORDS[c]);
+  return CAUSES.filter((c) => s.messages.has('msg_' + alertKey(c, day)) && (c !== 'hand' || handLeft(s, s.messages.get('msg_' + alertKey(c, day)).at))).map((c) => WORDS[c]);
+}
+/** One of the texts that waited for a person when the evening alert was told still waits (then its line stays in the Comptoir). */
+function handLeft(s, since) {
+  for (const m of s.messages.values()) if (m.status === 'queued' && handEligible(m) && m.dueAt <= since && !cutoverHeld(s, m)) return true;
+  return false;
+}
+
+/**
+ * The texts that wait for a person now (the Messages screen's own rules: due, not held for the switch, not too late, to a
+ * client who can get them), and how many of them are reminders for tomorrow.
+ * @param {(m: any) => boolean} byHand @returns {{ n: number, reminders: number }}
+ */
+export function handWaiting(s, now, byHand) {
+  let n = 0, reminders = 0;
+  for (const m of s.messages.values()) {
+    if (m.status !== 'queued' || m.dueAt > now || !byHand(m) || cutoverHeld(s, m) || handStale(s, m, now) || handRefusal(s, m)) continue;
+    n++;
+    if (m.template === 'reminder') reminders++;
+  }
+  return { n, reminders };
 }
 
 /** The last SMS_FAILS texts that ended today (sent or failed) all failed: the count and the provider's last words, or null. */
@@ -90,6 +118,16 @@ export default {
       if (w) tell('cron', 'Alerte : le planificateur est resté muet ' + mins(w), [
         'Un message prêt à partir a attendu ' + mins(w) + ' : rien n’a appelé le planificateur pendant ce temps.',
         'Vérifie le cron externe (cron-job.org) dans Réglages › Santé : sans lui, rappels et résumés attendent une visite du Comptoir ou du site.'
+      ]);
+    }
+    // « mode téléphone »: late in the evening, texts nobody sent from the Messages screen (tomorrow's reminders first of all)
+    const P = H.providers || {};
+    if (!told('hand') && typeof P.byHand === 'function' && ctx.local.min >= handLateMin(s)) {
+      const w = handWaiting(s, ctx.now, P.byHand);
+      if (w.n) tell('hand', (w.reminders ? 'Les rappels de demain ne sont pas partis' : 'Des messages aux clients attendent'), [
+        'Il est ' + fmtTime(ctx.local.min) + ' et ' + w.n + (w.n > 1 ? ' messages aux clients attendent' : ' message au client attend') + ' encore sur l’écran Messages'
+          + (w.reminders ? ', dont ' + w.reminders + (w.reminders > 1 ? ' rappels' : ' rappel') + ' pour demain' : '') + '.',
+        'Ouvre le Comptoir › Messages : un geste par message, depuis le WhatsApp du salon. Un rappel non envoyé avant le rendez-vous ne part plus.'
       ]);
     }
     const b = H.backup;

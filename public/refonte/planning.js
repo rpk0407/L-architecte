@@ -11,6 +11,19 @@
   const NBSP = '\u00a0';
   const $ = (id) => document.getElementById(id);
   const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
+  /* a barber's face in the round: his portrait when the salon shows it on the site (GET /api/public/salon `photo`, or the
+     simulation's own file), over his initials, which stay when there is none or it does not load */
+  const photoOf = (b) => { const u = b && typeof b.photo === 'string' ? b.photo : ''; return /^(\/api\/public\/barbers\/[A-Za-z0-9_-]+\/photo\?v=\d+|\.\.\/img\/equipe\/[a-z-]+\.webp)$/.test(u) ? u : ''; };
+  const faceEl = (b, cls) => {
+    const u = photoOf(b), n = el('span', cls + (u ? ' pic' : ''), b.initials || b.name.charAt(0));
+    n.setAttribute('aria-hidden', 'true');
+    if (u) { const i = el('img'); i.src = u; i.alt = ''; i.decoding = 'async'; i.addEventListener('error', () => { n.classList.remove('pic'); i.remove(); }); n.appendChild(i); }
+    return n;
+  };
+  const COUNT = ['zéro', 'un', 'deux', 'trois', 'quatre', 'cinq', 'six', 'sept', 'huit'];
+  /* the way the confirmation and the reminder reach the client (GET /api/public/salon `channel`): WhatsApp once the
+     salon's number is set and its texts leave that way, SMS otherwise */
+  const chan = () => (S.salon && S.salon.channel === 'whatsapp' ? 'WhatsApp' : 'SMS');
   const pad = (n) => String(n).padStart(2, '0');
   const WD = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
   const WDS = ['dim.', 'lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.'];
@@ -105,7 +118,8 @@
       ['tb', 'Taille de barbe', 'Barbe', 1800, 30, 0, ['Taille', 'Mise en forme', 'Huile']],
       ['cb', 'Cover barbe', 'Barbe', 1500, 30, 0, ['Couleur de la barbe', 'Soin']]
     ].map((x) => ({ id: 'sim_' + x[0], slug: x[0], name: x[1], category: x[2], price: x[3], dur: x[4], from: !!x[5], includes: x[6], online: true, deposit: 0, description: '' }));
-    const BB = [['JKut', 'JK'], ['Frank', 'F'], ['Le Soldat', 'LS'], ['Esteban', 'E']].map((x, i) => ({ id: 'sim_b' + i, name: x[0], initials: x[1], bio: '', away: null }));
+    // the real team and their portraits (../img/equipe, the illustrations made for the salon); their slots are simulated
+    const BB = [['Frank', 'FR', 'frank'], ['JKut', 'JK', 'jkut'], ['Aland', 'AL', 'aland'], ['Esteban', 'ES', 'esteban'], ['Le Soldat', 'LS', 'le-soldat']].map((x, i) => ({ id: 'sim_b' + i, name: x[0], initials: x[1], photo: '../img/equipe/' + x[2] + '.webp', bio: '', away: null }));
     const mine = new Set();
     const hash = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0) / 4294967296; };
     const open = (day) => { const d = dow(day); return d >= 2 && d <= 6; };
@@ -124,7 +138,7 @@
         booking: { enabled: true, stepMin: 30, maxDaysAhead: 90, holdMin: 5, pendingPayMin: 15, cancelUntilHours: 12 }, deposits: { mode: 'none' },
         services: SV, menu: SV.map((x) => ({ slug: x.slug, name: x.name, category: x.category, price: x.price, from: x.from, dur: x.dur, online: true }))
           .concat([{ slug: 'ab', name: 'Carnet 5 coupes', category: 'Carnet', price: 8000, from: false, dur: 30, online: false }]),
-        barbers: BB, sms: false, mode: 'sim', today, now: Date.now()
+        barbers: BB, sms: false, channel: 'sms', mode: 'sim', today, now: Date.now()
       }),
       live: () => { const m = nowMin(); return wait({ open: open(today) && m >= 540 && m < 1110, min: m, today }); },
       availability: (from, days, serviceId, staffId) => {
@@ -440,7 +454,7 @@
     box.appendChild(any);
     S.barbers.forEach((b) => {
       const o = optBtn('op-b', S.staff === b.id); o.dataset.staff = b.id;
-      const mono = el('span', 'pl-mono', b.initials || b.name.charAt(0)); mono.setAttribute('aria-hidden', 'true');
+      const mono = faceEl(b, 'pl-mono');
       const n = S.days.length ? nextOf(b.id) : null;
       const name = el('span', 'op-n', b.name);
       name.appendChild(el('small', n ? 'has' : '', n ? 'Prochain créneau : ' + shortDay(n.day).toLowerCase() + ' à ' + th(n.m) : (b.away && b.away.note) || (S.days.length ? 'Complet sur ces deux semaines' : '')));
@@ -536,7 +550,7 @@
     renderDays();
     const title = $('pl-day'), who = S.staff && S.staff !== 'any' && S.view === 'list' ? barber(S.staff) : null;
     title.textContent = cap(dayLong(S.day));
-    title.appendChild(el('small', '', S.view === 'plan' ? 'Les quatre fauteuils' : who ? 'Avec ' + who.name : 'Tous les barbiers'));
+    title.appendChild(el('small', '', S.view === 'plan' ? 'Les ' + (COUNT[S.barbers.length] || S.barbers.length) + ' fauteuils' : who ? 'Avec ' + who.name : 'Tous les barbiers'));
     const times = timesOf(d), none = $('sl-none');
     none.textContent = '';
     none.hidden = times.length > 0 || !S.days.length;
@@ -620,8 +634,7 @@
       const hd = el('div', 'pl-hd'), hn = el('div', 'pl-hn');
       const sm = el('small', n ? 'has' : '', b.away && b.away.note && !n ? b.away.note : countText(n));
       hn.append(el('b', '', b.name), sm);
-      hd.append(el('span', 'pl-mono', b.initials || b.name.charAt(0)), hn);
-      hd.firstChild.setAttribute('aria-hidden', 'true');
+      hd.append(faceEl(b, 'pl-mono'), hn);
       const cells = el('div', 'pl-cells'); cells.style.setProperty('--half', String(half));
       rows.forEach((m) => {
         const mine = h && h.staffId === b.id && h.start === m;
@@ -662,9 +675,12 @@
     if (ul.dataset.k === key) return;
     ul.dataset.k = key;
     ul.textContent = '';
+    // as many chairs as the salon offers online
+    const n0 = S.barbers.length, tt = $('t-team');
+    if (tt && COUNT[n0] && n0 > 1) tt.innerHTML = COUNT[n0].charAt(0).toUpperCase() + COUNT[n0].slice(1) + ' fauteuils,<br>' + COUNT[n0] + ' mains sûres.';
     S.barbers.forEach((b) => {
       const li = el('li', 'bb-i');
-      const mono = el('span', 'bb-mono', b.initials || b.name.charAt(0)); mono.setAttribute('aria-hidden', 'true');
+      const mono = faceEl(b, 'bb-mono');
       li.append(mono, el('h3', 'bb-n', b.name));
       if (b.bio) li.appendChild(el('p', 'bb-bio', b.bio));
       const n = nextOf(b.id);
@@ -713,6 +729,9 @@
     const set = (id, v, dash) => { const n = $(id); n.textContent = v || dash || 'À choisir'; n.classList.toggle('todo', !v); };
     set('rc-svc', sv && sv.name);
     set('rc-staff', who);
+    // his face beside his name once he is known (the one chosen, or the one the slot gave)
+    const wb = S.booked ? barber(S.booked.staffId) : S.staff && S.staff !== 'any' ? barber(S.staff) : S.hold ? barber(S.hold.staffId) : null;
+    if (wb && who) $('rc-staff').prepend(faceEl(wb, 'rc-av'));
     set('rc-when', h && whenText(h));
     set('rc-dur', sv && durText(sv.dur), '–');
     set('rc-total', sv && priceText(sv), '–');
@@ -779,9 +798,10 @@
     if (dep > 0 && !terms.firstChild) { terms.append(hours ? 'En réservant, tu acceptes les conditions d’annulation : gratuite jusqu’à ' + hours + NBSP + 'h avant, ensuite l’acompte reste au salon. ' : 'En réservant, tu acceptes les conditions d’annulation du salon. '); const a = el('a', '', 'Voir les CGV'); a.href = '/cgv'; a.target = '_blank'; a.rel = 'noopener'; terms.appendChild(a); }
     const demo = $('bk-demo');
     demo.hidden = !(S.sim || S.salon.mode === 'demo');
-    demo.textContent = S.sim ? 'Mode démo : le salon n’est pas joignable d’ici. Rien n’est réservé ni envoyé.' : 'Démo : n’entre pas tes vraies coordonnées, tout est visible. Aucun SMS n’est envoyé, aucun paiement n’est débité.';
+    demo.textContent = S.sim ? 'Mode démo : le salon n’est pas joignable d’ici. Rien n’est réservé ni envoyé.' : 'Démo : n’entre pas tes vraies coordonnées, tout est visible. Aucun message n’est envoyé, aucun paiement n’est débité.';
     // confirmation and reminder are service messages, on by default; no reminder is promised for a cut today
-    $('sms-i').textContent = 'On t’envoie la confirmation par SMS' + (h && reminderPossible(h.day) ? ', et un rappel la veille à ' + reminderOf().hour + ' h.' : '.');
+    $('sms-i').textContent = 'On t’envoie la confirmation par ' + chan() + (h && reminderPossible(h.day) ? ', et un rappel la veille à ' + reminderOf().hour + ' h.' : '.');
+    $('nosms-t').textContent = chan() === 'SMS' ? 'Je ne veux pas de SMS' : 'Je ne veux pas de message ' + chan();
     showErr('');
     tickHold();
   }
@@ -859,7 +879,9 @@
     const k = S.booked, r = k.r, b = barber(k.staffId), pending = r.status === 'pending' && r.deposit > 0;
     $('done-k').textContent = S.sim ? 'Démo terminée.' : pending ? 'Il reste l’acompte.' : 'C’est réservé.';
     $('done-what').textContent = k.sv.name + ' · ' + durText(k.sv.dur) + ' · ' + priceText(k.sv);
-    $('done-who').textContent = b ? b.name : 'Le salon';
+    const dw = $('done-who');
+    dw.textContent = b ? b.name : 'Le salon';
+    if (b) { dw.prepend(faceEl(b, 'rc-av')); dw.classList.add('who-f'); }
     $('done-when').textContent = cap(dayLong(k.day)) + ' à ' + th(k.start);
     const pay = $('done-pay'), payBtn = $('done-paybtn');
     pay.hidden = payBtn.hidden = !pending;
@@ -868,13 +890,14 @@
       if (r.payment && r.payment.url) payBtn.href = r.payment.url; else payBtn.hidden = true;
     }
     const lines = [];
-    if (S.sim) lines.push('Mode démo : rien n’a été réservé ni envoyé. Sur le vrai site, tu reçois ta confirmation par SMS.');
+    const C = chan(), none = C === 'SMS' ? 'Pas de SMS' : 'Pas de message ' + C;
+    if (S.sim) lines.push('Mode démo : rien n’a été réservé ni envoyé. Sur le vrai site, tu reçois ta confirmation par ' + C + '.');
     else {
       if (pending) lines.push('Ton rendez-vous est confirmé dès que l’acompte est réglé.');
-      else if (k.sms) lines.push('Confirmation par SMS' + (k.email ? ' et par e-mail (' + k.email + ').' : '. Pas d’e-mail : tu n’as pas donné d’adresse.'));
-      else lines.push(k.email ? 'Confirmation par e-mail (' + k.email + '). Pas de SMS, comme tu l’as demandé.' : 'Pas de SMS ni d’e-mail, comme tu l’as demandé : garde ton code et le lien pour déplacer ou annuler.');
-      if (k.reminder) lines.push('Rappel par SMS la veille à ' + reminderOf().hour + ' h, avec le lien pour déplacer ou annuler.');
-      if (S.salon.mode === 'demo') lines.push('Démo : aucun SMS ni e-mail ne part vraiment.');
+      else if (k.sms) lines.push('Confirmation par ' + C + (k.email ? ' et par e-mail (' + k.email + ').' : '. Pas d’e-mail : tu n’as pas donné d’adresse.'));
+      else lines.push(k.email ? 'Confirmation par e-mail (' + k.email + '). ' + none + ', comme tu l’as demandé.' : none + ' ni d’e-mail, comme tu l’as demandé : garde ton code et le lien pour déplacer ou annuler.');
+      if (k.reminder) lines.push('Rappel par ' + C + ' la veille à ' + reminderOf().hour + ' h, avec le lien pour déplacer ou annuler.');
+      if (S.salon.mode === 'demo') lines.push('Démo : aucun message ni e-mail ne part vraiment.');
     }
     const ul = $('done-l'); ul.textContent = '';
     lines.forEach((t) => ul.appendChild(el('li', '', t)));

@@ -32,7 +32,7 @@ export function fold<T>(cards: readonly T[], max = MAX_CARDS): { shown: T[]; fol
 export const GROUP_LABEL: Record<HomeCardGroup, string> = { bloque: 'Ce qui bloque', attend: 'Quelqu’un attend', rapporte: 'Ce qui rapporte', entretien: 'Entretien' };
 /** A card's name where its sentence is not on screen (Personnaliser: a hidden card has no title from the server). */
 export const CARD_NAME: Record<HomeCardId | 'retard', string> = {
-  z: 'Z de caisse', encaisser: 'À encaisser', retard: 'Clients en retard', prochain: 'Mon prochain client', 'absence-demande': 'Demandes d’absence', orphelins: 'Clients à replacer',
+  z: 'Z de caisse', encaisser: 'À encaisser', retard: 'Clients en retard', prochain: 'Mon prochain client', messages: 'Messages à envoyer', 'absence-demande': 'Demandes d’absence', orphelins: 'Clients à replacer',
   demandes: 'Demandes et réponses', relances: 'Habitués à relancer', semaine: 'La semaine', echecs: 'Messages en échec', stock: 'Stock bas',
   purge: 'Fiches à purger', comptable: 'Fichiers du comptable', objectif: 'Objectif du mois'
 };

@@ -26,7 +26,7 @@ test('the commands of 3.7 are all there', () => {
 
 test('every Réglages section is there once, with the capability of caps.ts', () => {
   const sections = ENTRIES.filter((e) => e.group === 'Réglages');
-  assert.equal(sections.length, 16);
+  assert.equal(sections.length, 17);
   assert.deepEqual([...SECTION_IDS].sort(), [...Object.keys(SECTION_CAP), ...OPEN_SECTIONS].sort());
   assert.equal(ENTRIES.filter((e) => e.group === 'Pages' && e.page === 'reglages').length, 1);
   for (const id of SECTION_IDS) {

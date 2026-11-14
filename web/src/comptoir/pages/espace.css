@@ -118,3 +118,5 @@
   .es-head .av { --s: 44px; }
   .es-row-main { min-height: 48px; padding-top: 4px; padding-bottom: 4px; }
 }
+/* « Photo visible sur le site »: one switch, under the cards */
+.es-site { margin-top: 14px; padding-block: 6px; }

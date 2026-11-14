@@ -3,6 +3,9 @@
 // the twelve services, the salon's hours and its booking rules. Read from the site's export (sln_attendant, sln_service)
 // and the plugin's settings screen; nothing here names a client. Applied by commands/setup.js (applyPreset), through
 // the normal commands, after the owner has read what it will do (Réglages › Mise en route).
+// Since 14 November 2026, from the owner himself: Frank is the gérant (his chair goes to the owner's own account), Aland
+// joined (not on the old site, hours unknown), and each one has his portrait, an illustration made for the salon that
+// the owner allowed on the site and in the Comptoir (./equipe, 320 px WebP: setPhoto takes 24 KB at most).
 //
 // What was left out on purpose:
 // - the barbers' e-mails and phone: personal, and not needed (a barber signs in with his code);
@@ -17,7 +20,12 @@ const span = (a, b) => /** @type {[number, number][]} */ ([[a, b]]);
 const week = (days) => Object.fromEntries([0, 1, 2, 3, 4, 5, 6].map((d) => [d, days[d] || []]));
 
 /** @typedef {{ slug: string, name: string, short?: string, category: string, price: number, dur: number, from?: boolean, online?: boolean, tag?: string, description?: string, includes?: string[], pack?: { credits: number, days: number, covers?: string[] }, alias?: string, wp: string, wpStatus: 'publish' | 'draft' }} PresetService */
-/** @typedef {{ name: string, color: string, initials: string, schedule: Record<string, [number, number][]>, wp: string }} PresetStaff */
+/**
+ * owner: the gérant, whose account exists since the setup screen (whatever first name he typed): he gets this chair, never a
+ * second account. wp: his name on the old site ('' for someone who was never on it). online: false, not bookable on the
+ * site yet. photo: his portrait (a file beside this one), set only on a person who has no photo yet.
+ * @typedef {{ name: string, color: string, initials: string, schedule: Record<string, [number, number][]>, wp: string, owner?: boolean, online?: boolean, photo?: URL }} PresetStaff
+ */
 
 export const ARCHITECTE = {
   id: 'architecte',
@@ -58,15 +66,19 @@ export const ARCHITECTE = {
   ],
 
   /**
-   * The four barbers, in the old site's order, each with his usual week (the rules marked « toujours » there).
-   * Monday and Sunday off for everyone; Frank also stops at 13 h on Wednesday.
+   * The four barbers of the old site, in its order, each with his usual week (the rules marked « toujours » there), then
+   * Aland. Monday and Sunday off for everyone; Frank also stops at 13 h on Wednesday. Frank is the gérant: his chair, week,
+   * colour and initials go to the owner's account. Aland is new: no week is known, so he is created without one and kept
+   * off the site until the owner enters his hours (see notes). The portraits' paths are literal so the deployment's file
+   * tracing finds them (vercel.json includes the folder too).
    * @type {PresetStaff[]}
    */
   staff: [
-    { name: 'JKut', color: '#EB4639', initials: 'JK', schedule: week({ 2: lunch, 3: lunch, 4: lunch, 5: lunch, 6: lunch }), wp: 'JKut' },
-    { name: 'Soldat', color: '#60A5FA', initials: 'SO', schedule: week({ 2: span(570, 930), 3: span(570, 1080), 4: span(570, 930), 5: span(570, 930), 6: span(540, 1080) }), wp: 'Soldat' },
-    { name: 'Frank', color: '#F5B544', initials: 'FR', schedule: week({ 2: span(540, 990), 3: span(540, 780), 4: span(540, 990), 5: span(540, 990), 6: span(540, 990) }), wp: 'Frank' },
-    { name: 'Esteban', color: '#4ADE80', initials: 'ES', schedule: week({ 2: lunch, 3: lunch, 4: lunch, 5: lunch, 6: lunch }), wp: 'Esteban' }
+    { name: 'JKut', color: '#EB4639', initials: 'JK', schedule: week({ 2: lunch, 3: lunch, 4: lunch, 5: lunch, 6: lunch }), wp: 'JKut', photo: new URL('./equipe/jkut.webp', import.meta.url) },
+    { name: 'Le Soldat', color: '#60A5FA', initials: 'LS', schedule: week({ 2: span(570, 930), 3: span(570, 1080), 4: span(570, 930), 5: span(570, 930), 6: span(540, 1080) }), wp: 'Soldat', photo: new URL('./equipe/le-soldat.webp', import.meta.url) },
+    { name: 'Frank', owner: true, color: '#F5B544', initials: 'FR', schedule: week({ 2: span(540, 990), 3: span(540, 780), 4: span(540, 990), 5: span(540, 990), 6: span(540, 990) }), wp: 'Frank', photo: new URL('./equipe/frank.webp', import.meta.url) },
+    { name: 'Esteban', color: '#4ADE80', initials: 'ES', schedule: week({ 2: lunch, 3: lunch, 4: lunch, 5: lunch, 6: lunch }), wp: 'Esteban', photo: new URL('./equipe/esteban.webp', import.meta.url) },
+    { name: 'Aland', color: '#C084FC', initials: 'AL', schedule: week({}), wp: '', online: false, photo: new URL('./equipe/aland.webp', import.meta.url) }
   ],
 
   /** The whole days off already posted on the old site for the weeks to come (those past on the day it is applied are skipped). */
@@ -82,7 +94,9 @@ export const ARCHITECTE = {
     'Six prestations ont sur l’ancien site un « prix par barbier » qui contredit leur titre (Cover barbe et Entretien barbe : 20 € au lieu de 15 € ; Transformation, Décoloration, Coloration et Silver : 25 €). Les réservations ont toujours été au prix du titre : c’est lui qui est repris.',
     '« Coupe et coloration 35 € » est en brouillon sur l’ancien site mais a encore un rendez-vous à venir : elle est reprise « au salon seulement », jamais proposée sur le site.',
     'L’« Abonnement 80 € » de l’ancien site devient le Carnet 5 coupes, vendu au salon. Un rendez-vous déjà pris sous ce nom est une coupe classique : à la caisse, vends le carnet et paie la coupe avec.',
-    'Les commissions ne sont pas connues de l’ancien site : chaque barbier commence à 0 %, règle la sienne dans Équipe.'
+    'Les commissions ne sont pas connues de l’ancien site : chaque barbier commence à 0 %, règle la sienne dans Équipe.',
+    'Aland n’est pas sur l’ancien site et ses horaires ne sont pas connus : il est créé sans horaires et n’est pas proposé en ligne. Entre sa semaine dans Équipe (sa fiche), puis active « Réservable en ligne ».',
+    'Chacun reçoit son portrait, s’il n’a pas encore de photo : dans le Comptoir et sur le site. Le tien et ceux de l’équipe se masquent du site dans Équipe ; chacun peut masquer le sien dans Mon espace.'
   ]
 };
 

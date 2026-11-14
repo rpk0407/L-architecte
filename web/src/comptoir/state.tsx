@@ -55,6 +55,8 @@ function samePulse(a: Pulse | null, b: Pulse) {
   if (a.version !== b.version || a.cfg !== b.cfg || a.today !== b.today || a.min !== b.min) return false;
   const x = a.badges, y = b.badges;
   if (x.toPay !== y.toPay || x.queue !== y.queue || x.relances !== y.relances || x.waitlist !== y.waitlist || x.retention !== y.retention) return false;
+  // the menu's Messages entry and Équipe's requests move without the journal (a reminder becomes due at its hour)
+  if (x.hand !== y.hand || x.handOn !== y.handOn || x.requests !== y.requests) return false;
   const p = a.alerts || [], q = b.alerts || [];
   return p.length === q.length && p.every((w, i) => w === q[i]);
 }

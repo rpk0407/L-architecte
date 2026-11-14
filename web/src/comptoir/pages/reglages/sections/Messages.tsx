@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { cap, plural, time } from '../../../../lib/format';
 import { useQuery } from '../../../../lib/query';
+import { Link } from '../../../../lib/router';
 import { Icon } from '../../../../ui/Icon';
 import { Field, Note, Switch } from '../../../../ui/kit';
 import { useApp } from '../../../state';
@@ -79,7 +80,7 @@ export default function Messages({ s, data }: SectionProps) {
         <Switch on={M.email !== false} onChange={(v) => m.setV({ ...M, email: v })} title="Confirmation et annulation par e-mail" hint="Aux clients qui ont donné leur e-mail, avec ou sans SMS : le rendez-vous à ajouter à l’agenda (fichier .ics) et le bouton « Gérer mon rendez-vous », puis le déplacement ou l’annulation." />
         <Switch on={!!M.reminderEmail} onChange={(v) => m.setV({ ...M, reminderEmail: v })} title="Rappel par e-mail" hint="À l’heure du rappel de la veille, aux clients qui ont donné leur e-mail, avec ou sans SMS, et le bouton « Gérer mon rendez-vous ». Éteint tant que tu ne l’allumes pas." />
         <Note icon="info">Un SMS de confirmation ou de rappel que le fournisseur refuse part une fois par e-mail quand le client a donné son adresse{M.email !== false ? '' : ' (éteint avec les e-mails de confirmation)'}. Rien n’est jamais envoyé deux fois.</Note>
-        {!mailer && boot.mode !== 'demo' ? <Note tone="warn" icon="alert">Pour que les e-mails partent par la boîte du salon, ajoute dans Vercel <code>SMTP_HOST</code>, <code>SMTP_PORT</code>, <code>SMTP_USER</code>, <code>SMTP_PASS</code> et <code>EMAIL_FROM</code> (par exemple <code>rdv@barberlarchitecte.com</code>, une adresse de cette boîte). En attendant, ils restent dans la boîte d’envoi. Le test est dans « Messages aux clients ».</Note> : null}
+        {!mailer && boot.mode !== 'demo' ? <Note tone="warn" icon="alert">Pour que les e-mails partent par la boîte IONOS du salon, ajoute dans Vercel <code>SMTP_HOST</code>, <code>SMTP_PORT</code>, <code>SMTP_USER</code>, <code>SMTP_PASS</code> et <code>EMAIL_FROM</code> : <Link to="/reglages/ionos" className="link">Connexion IONOS</Link> donne les valeurs à taper et l’e-mail test. En attendant, ils restent dans la boîte d’envoi.</Note> : null}
       </Card>
       <Card title="Me prévenir" icon="bell">
         <Field label="Mon e-mail" htmlFor="nt-to" error={badEmail ? 'Adresse e-mail invalide' : null} hint={N.to ? undefined : 'Vide : l’e-mail de ton compte' + (boot.me.email ? ' (' + boot.me.email + ')' : '') + '.'}>
@@ -94,7 +95,7 @@ export default function Messages({ s, data }: SectionProps) {
             <Field label="Aussi par SMS, au" htmlFor="nt-phone" error={badPhone ? 'Numéro invalide' : null} hint={badPhone ? undefined : 'Facultatif. Vide : par e-mail seulement.'}><input id="nt-phone" className="input" type="tel" inputMode="tel" autoComplete="tel" maxLength={24} placeholder="06 12 34 56 78" value={N.phone} onChange={(e) => n.setV({ ...N, phone: e.target.value.replace(/[^\d +().-]/g, '') })} /></Field>
           </div>
         ) : null}
-        <Switch on={N.alerts !== false} onChange={(v) => n.setV({ ...N, alerts: v })} title="Les pannes, dans la journée" hint="Un e-mail dès que plusieurs SMS de suite échouent, que le planificateur reste muet plus de 30 minutes ou que la sauvegarde a plus de 36 h. Une seule alerte par panne et par jour." />
+        <Switch on={N.alerts !== false} onChange={(v) => n.setV({ ...N, alerts: v })} title="Les pannes, dans la journée" hint="Un e-mail dès que plusieurs SMS de suite échouent, que le planificateur reste muet plus de 30 minutes ou que la sauvegarde a plus de 36 h. En mode téléphone, aussi les messages aux clients encore à envoyer à 21 h (les rappels de demain). Une seule alerte par panne et par jour." />
         <Switch on={N.weekly} onChange={(v) => n.setV({ ...N, weekly: v })} title="Le bilan de la semaine" hint="Le lundi à 8 h : chiffre d’affaires, visites, absences, meilleur barbier, prestations les plus demandées." />
       </Card>
       <Card title="Bons plans et STOP" guide="messages-stop" icon="shield">

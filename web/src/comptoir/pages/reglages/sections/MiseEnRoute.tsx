@@ -131,10 +131,10 @@ export function stepsOf(h: Health, robots: boolean | null, countries: string[], 
     extra: <TestSms disabled={!demo && !sms.provider} /> });
 
   const em = h.email;
-  out.push({ id: 'email', title: 'E-mail', to: '/reglages/messages', go: 'Messages',
+  out.push({ id: 'email', title: 'E-mail', to: '/reglages/ionos', go: 'Connexion IONOS',
     tone: demo ? 'info' : !em.provider ? 'todo' : em.failed24h ? 'warn' : 'ok',
     line: demo ? 'Démo : les e-mails sont simulés.'
-      : !em.provider ? 'Pas encore branché' + (em.queuedNoProvider ? ' : ' + s(em.queuedNoProvider, 'e-mail attend', 'e-mails attendent') + '.' : ' : aucun e-mail ne part (confirmation, résumé du soir).')
+      : !em.provider ? 'Pas encore branché' + (em.queuedNoProvider ? ' : ' + s(em.queuedNoProvider, 'e-mail attend', 'e-mails attendent') + '.' : ' : aucun e-mail ne part (confirmation, résumé du soir).') + ' Connexion IONOS donne les valeurs de ta boîte à taper dans Vercel.'
         : 'Branché' + (em.failed24h ? ', mais ' + s(em.failed24h, 'e-mail a échoué', 'e-mails ont échoué') + ' en 24 h.' : '.') + (st.import.hold.on ? ' Les e-mails aux clients attendent la bascule (Jour J).' : '') });
 
   // REV-02: the link the review request leads to must open the Google review form, not the profile or the map
@@ -171,7 +171,8 @@ export function stepsOf(h: Health, robots: boolean | null, countries: string[], 
   if (!h.indexable) dom.push('indexation coupée (LX_INDEX)');
   if (robots === false && h.indexable) dom.push('robots.txt ferme encore le site : redéploie');
   out.push({ id: 'domain', title: 'Domaine et indexation', tone: !dom.length && robots !== false ? 'ok' : 'todo', to: '/', go: 'Voir le site', external: true,
-    line: dom.length ? cap1(dom.join(' ; ')) + '.' : h.publicUrl.replace(/^https:\/\//, '') + ' répond et Google peut indexer le site.' });
+    line: dom.length ? cap1(dom.join(' ; ')) + '.' : h.publicUrl.replace(/^https:\/\//, '') + ' répond et Google peut indexer le site.',
+    more: <>Le jour J seulement : les deux lignes à changer chez IONOS, et « Vérifier », sont dans <Link to="/reglages/ionos" className="link">Connexion IONOS</Link>.</> });
 
   out.push({ id: 'booking', title: 'Réservation test de bout en bout', tone: st.siteBooking ? 'ok' : 'todo', to: '/?reserver', go: 'Réserver sur le site', external: true,
     line: st.siteBooking ? 'Dernière réservation faite sur le site ' + since(st.siteBooking) + '.'

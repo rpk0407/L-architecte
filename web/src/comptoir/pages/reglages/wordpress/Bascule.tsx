@@ -44,21 +44,23 @@ const BEFORE = [
 
 type Row = { id: string; title: string; sub?: ReactNode; go?: ReactNode; extra?: ReactNode };
 
-/** The records to put at IONOS, each with its copy button (what the old card called « tableau du jour J »). */
-const RECORDS: { type: string; name: string; value: string }[] = [{ type: 'A', name: '@', value: '76.76.21.21' }, { type: 'CNAME', name: 'www', value: 'cname.vercel-dns.com' }];
-async function copy(text: string) {
-  try { await navigator.clipboard.writeText(text); toast({ title: 'Copié', sub: text, icon: 'check' }); } catch { toast({ kind: 'err', title: 'Copie impossible : sélectionne la valeur et copie-la.', icon: 'alert' }); }
-}
+/** The records to put at IONOS. Their values are the project's own (Vercel gives each project its address and its www
+ *  target: vercel.com/docs/domains/troubleshooting), so the card says where to read them rather than copying an old guide's;
+ *  Réglages › Connexion IONOS has the whole list for whoever does the DNS. */
+const RECORDS: { type: string; name: string; value: string; hint: string }[] = [
+  { type: 'A', name: '@', value: 'l’adresse que Vercel affiche', hint: 'souvent 76.76.21.21, ou 216.198.79.1' },
+  { type: 'CNAME', name: 'www', value: 'la cible que Vercel affiche pour www', hint: 'du type xxxx.vercel-dns-017.com' }
+];
 function Records() {
   return (
     <div className="jj-values" data-guide="jj-values">
       <b id="jj-values-t">À mettre chez IONOS (DNS)</b>
       <ul aria-labelledby="jj-values-t">
         {RECORDS.map((r) => (
-          <li key={r.type}><span className="jj-rec"><b>{r.type}</b><small>{r.name}</small><code>{r.value}</code></span><Button size="sm" variant="subtle" icon="copy" aria-label={'Copier ' + r.value} onClick={() => void copy(r.value)}>Copier</Button></li>
+          <li key={r.type}><span className="jj-rec"><b>{r.type}</b><small>{r.name}</small><span>{r.value}</span><small>{r.hint}</small></span></li>
         ))}
       </ul>
-      <p className="jj-sub">Supprime les anciennes lignes A, AAAA et CNAME de ce domaine : une seule ligne d’IONOS qui reste envoie une partie des visiteurs sur WordPress.</p>
+      <p className="jj-sub">Les deux valeurs sont dans Vercel › Settings › Domains, propres à ton projet. Supprime les anciennes lignes A, AAAA et CNAME de ce domaine : une seule ligne d’IONOS qui reste envoie une partie des visiteurs sur WordPress. Ne touche pas aux MX (la boîte mail). Tout le détail : <Link to="/reglages/ionos" className="link">Connexion IONOS</Link>.</p>
     </div>
   );
 }

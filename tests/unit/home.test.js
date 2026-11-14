@@ -613,3 +613,40 @@ test('contract: shape, groups in order, a « why » on every card, one object pe
   assert.deepEqual(q.quiet, ['caisse', 'équipe', 'messages', 'stock']);
   assert.deepEqual(view(quiet, 'Ali').quiet, ['caisse'], 'a barber is told only of what he may act on');
 });
+
+test('card messages: « mode téléphone », the texts this person sends from the salon’s WhatsApp, as the Messages screen lists them', async () => {
+  const { handSent } = await import('../../server/commands/messages.js');
+  const { handCount } = await import('../../server/messaging/hand.js');
+  const t = await salon();
+  go(t, TUE, 9);
+  await t.engine.run(updateSettings, { messages: { whatsapp: { mode: 'phone', enabled: false } } }, t.asOwner());
+  const rt = { sms: null, whatsapp: null };
+  const me = (name) => (name ? t.engine.state.staff.get(t.ids[name]) : t.engine.state.staff.get(t.ownerId));
+  const read = (name, x = rt) => home(t.engine.state, me(name), t.clock.now, x);
+  // nothing waits yet
+  assert.equal(card(read(), 'messages'), undefined);
+  // a booking for Yanis with Ali: its confirmation waits for a person
+  await book(t, 'Ali', 15 * 60, { day: '2026-11-04' });
+  const c = card(read(), 'messages');
+  assert.ok(c, 'the card');
+  assert.deepEqual([c.group, c.count, c.title, c.action.kind, c.action.to, c.canHide], ['attend', 1, '1 message à envoyer', 'go', '/messages', true]);
+  assert.deepEqual(c.preview.map((x) => x.text), ['Confirmation · Yanis M.']);
+  assert.ok(c.why.length > 20);
+  assert.ok(CARD_IDS.includes('messages'));
+  // the same count as the menu's badge
+  assert.equal(c.count, handCount(t.engine.state, rt, t.clock.now, localParts(t.clock.now), { caps: capsOf(me(), t.engine.state.settings), staffId: t.ownerId }));
+  // the barber of the appointment sees it, another barber does not
+  assert.equal(card(read('Ali'), 'messages').count, 1);
+  assert.equal(card(read('Ben'), 'messages'), undefined);
+  // read without the runtime (which providers can send is unknown): no card, never a guess
+  assert.equal(card(home(t.engine.state, me('Ali'), t.clock.now), 'messages'), undefined);
+  // an SMS provider in SMS mode carries it: nothing waits for a person
+  await t.engine.run(updateSettings, { messages: { whatsapp: { mode: 'sms', enabled: false } } }, t.asOwner());
+  assert.equal(card(read(null, { sms: { name: 'brevo' }, whatsapp: null }), 'messages'), undefined);
+  await t.engine.run(updateSettings, { messages: { whatsapp: { mode: 'phone', enabled: false } } }, t.asOwner());
+  // « messages » is not « tout va bien » while one waits
+  assert.ok(!read().quiet.includes('messages'));
+  // sent from WhatsApp, « Envoyé »: the card goes
+  await t.engine.run(handSent, { id: c.preview[0].id }, t.asOwner());
+  assert.equal(card(read(), 'messages'), undefined);
+});

@@ -644,7 +644,12 @@ function photoKind(b) {
   if (b.length > 12 && b.toString('latin1', 0, 4) === 'RIFF' && b.toString('latin1', 8, 12) === 'WEBP') return 'webp';
   return '';
 }
-/** His own photo, or a colleague's by `team`. Empty data removes it. The bytes go in pii, never in the chain. */
+/**
+ * His own photo, or a colleague's by `team`. Empty data removes it. The bytes go in pii, never in the chain.
+ * « Photo visible sur le site » (photoSite on the staff record) belongs to the photo: a new one set by the owner, or by
+ * someone who manages the team for a colleague (the preset included), is shown on the site; one a barber sets himself is
+ * not until he says so (setPhotoSite). `site: true` in the chain only when it is shown, so an old journal reads « no ».
+ */
 export const setPhoto = {
   run(s, input, ctx) {
     const st = getStaff(s, input.staffId);
@@ -664,7 +669,24 @@ export const setPhoto = {
     // a retried upload of the same picture changes nothing
     if (cur && cur.data === data) return { photo: cur.v };
     const v = Math.max(ctx.now, (cur ? cur.v : 0) + 1);
-    ctx.emit('staff.photo', { id: st.id, v }, { photo: data });
-    return { photo: v };
+    const site = !(ctx.staff && ctx.staff.id === st.id && ctx.staff.role !== 'owner');
+    ctx.emit('staff.photo', { id: st.id, v, ...(site ? { site: true } : {}) }, { photo: data });
+    return { photo: v, photoSite: site };
+  }
+};
+
+/**
+ * « Photo visible sur le site »: his own, or a colleague's by `team` (Équipe). Only with a photo: a newer photo carries
+ * its own answer (setPhoto). The site reads it from /api/public/salon, and the photo's public route refuses it when off.
+ */
+export const setPhotoSite = {
+  run(s, input, ctx) {
+    const st = getStaff(s, input.staffId);
+    if (!(ctx.staff && ctx.staff.id === st.id) && !ctx.can('team')) fail(403, 'forbidden', 'Seul le gérant règle la photo d’un collègue sur le site.');
+    if (!st.active) fail(404, 'not_found', 'Membre introuvable.');
+    if (!s.staffPhotos.has(st.id)) fail(409, 'no_photo', 'Pas de photo à montrer : ajoute-la d’abord.');
+    const on = input.on === true;
+    if (!!st.photoSite !== on) ctx.emit('staff.updated', { id: st.id, patch: { photoSite: on } });
+    return { photoSite: on };
   }
 };

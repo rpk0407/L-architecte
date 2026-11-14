@@ -17,6 +17,10 @@
 <meta property="og:title" content="Barber L’Architecte · Barbier à Marseille 13e, place Pélabon">
 <meta property="og:description" id="lx-ogdesc" content="Barbier place Pélabon, Marseille 13e. Coupe dès 20 €, barbe dès 15 €, dégradés, décoloration et silver. Du mardi au samedi, 9 h – 18 h 30. Réservation en ligne.">
 <meta property="og:url" content="https://barberlarchitecte.com/">
+<meta property="og:image" content="https://barberlarchitecte.com/img/og-larchitecte.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Le logo de L’Architecte, barbershop à Marseille depuis 2009">
 <meta name="twitter:card" content="summary_large_image">
 <script type="application/ld+json" id="lx-ld">
 {
@@ -415,7 +419,10 @@ position:relative;font:400 17px/1.5 var(--f-sans);color:var(--os);background:var
 .tb.mo::before{opacity:0}
 .tb.light{color:var(--encre)}
 .tb.dark{color:var(--os)}
-.wm{display:flex;flex-direction:column;justify-content:center;min-height:44px;line-height:1}
+.wm{display:flex;align-items:center;gap:10px;min-height:44px;line-height:1}
+/* the salon's roundel beside the wordmark, in the bar's own colour (a mask of the light logo): the name stays the text */
+.wm-logo{flex:none;width:36px;aspect-ratio:858/912;background:currentColor;-webkit-mask:url(/img/logo-clair.png) center/contain no-repeat;mask:url(/img/logo-clair.png) center/contain no-repeat}
+.wm-t{display:flex;flex-direction:column;justify-content:center}
 .wm-a{font:italic 400 26px/1 var(--f-serif);letter-spacing:-.005em}
 .wm-b{margin-top:4px;font:500 11px/1 var(--f-sans);letter-spacing:.06em;opacity:.7}
 
@@ -766,6 +773,15 @@ position:relative;font:400 17px/1.5 var(--f-sans);color:var(--os);background:var
 .ft-legal button{display:inline-block;padding:12px 0;font:inherit;color:inherit;text-decoration:underline;text-underline-offset:3px}
 .ft-legal button:hover{color:var(--encre)}
 .ft-legal{margin-top:26px;font-size:13px;color:var(--cendre2)}
+/* the whole roundel, in ink on bone, large enough for its ring to read */
+.ft-mark{display:block;width:clamp(120px,14vw,156px);aspect-ratio:858/912;margin-top:clamp(40px,7vw,64px);background:var(--encre);-webkit-mask:url(/img/logo-clair.png) center/contain no-repeat;mask:url(/img/logo-clair.png) center/contain no-repeat}
+/* a barber's portrait in the round when the salon shows it; his initials otherwise, or when the image does not load */
+.bb-av img,.wh-av img,.rc-av img,.tk-av img{position:absolute;inset:0;z-index:1;width:100%;height:100%;object-fit:cover;border-radius:50%}
+.bb-av.pic,.wh-av.pic{background:var(--blanc)}
+.bb-av.pic::after,.wh-av.pic::after{display:none}
+.rc-av,.tk-av{position:relative;flex:none;display:grid;place-items:center;border-radius:50%;overflow:hidden;background:var(--pierre);color:var(--encre);font:400 18px/1 var(--f-serif)}
+.rc-av{width:46px;height:46px}
+.tk-av{width:34px;height:34px;font-size:15px}
 
 /* booking sheet */
 .bk-veil{position:fixed;inset:0;z-index:90;background:rgba(15,14,13,.52);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);opacity:0;pointer-events:none;transition:opacity .45s}
@@ -875,7 +891,8 @@ position:relative;font:400 17px/1.5 var(--f-sans);color:var(--os);background:var
 .hold.gone{background:rgba(15,14,13,.06);color:var(--cendre2)}
 .hold.gone i{background:var(--cendre2);animation:none}
 .hold.gone b{display:none}
-.recap{margin-top:12px;padding:16px 18px;border-radius:18px;background:var(--encre);color:var(--os)}
+.recap{display:flex;align-items:center;gap:14px;margin-top:12px;padding:16px 18px;border-radius:18px;background:var(--encre);color:var(--os)}
+.recap-t{flex:1;min-width:0}
 .recap-w{font:400 24px/1.1 var(--f-serif)}
 .recap-s{margin-top:6px;font:500 14px/1.35 var(--f-sans);color:var(--cendre)}
 .fld2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
@@ -924,6 +941,8 @@ position:relative;font:400 17px/1.5 var(--f-sans);color:var(--os);background:var
 .tk-w{margin-top:10px;font:400 30px/1.05 var(--f-serif)}
 .tk-f{margin-top:22px;padding-top:16px;border-top:1px dashed var(--ligne2);font:600 16px/1.3 var(--f-sans)}
 .tk-b,.tk-a{margin-top:4px;font-size:15px;color:var(--cendre)}
+.tk-b{display:flex;align-items:center;gap:10px}
+.tk-b .tk-av{margin:2px 0}
 .sms-k{margin:22px 2px 8px;font:600 11.5px/1 var(--f-sans);letter-spacing:.09em;text-transform:uppercase;color:var(--cendre2)}
 .sms{max-width:330px;padding:14px 16px 10px;border-radius:20px 20px 20px 6px;background:var(--blanc);box-shadow:inset 0 0 0 1px var(--iligne);animation:rise .6s .4s var(--ease) both}
 .sms p{font:400 15px/1.45 var(--f-sans)}
@@ -970,6 +989,7 @@ position:relative;font:400 17px/1.5 var(--f-sans);color:var(--os);background:var
 @media (min-width:1000px){
 .tb{height:76px}
 .wm-a{font-size:30px}
+.wm-logo{width:42px}
 .hero{max-height:none}
 .hr-ph{left:46vw;right:-4vw;top:0;bottom:0}
 .hr-ph img{object-position:42% 30%;-webkit-mask-image:linear-gradient(90deg,transparent 0,#000 26%);mask-image:linear-gradient(90deg,transparent 0,#000 26%)}
@@ -1084,7 +1104,7 @@ html{scroll-behavior:auto}
 <div class="lp" id="top" style="--rouge: {{accent}}">
 <a class="skip" href="#main">Aller au contenu</a>
 <header class="{{tbCls}}">
-<a class="wm" href="#frais" aria-label="L’Architecte, retour en haut"><span class="wm-a">L’Architecte</span><span class="wm-b">Barber · Marseille</span></a>
+<a class="wm" href="#frais" aria-label="L’Architecte, retour en haut"><span class="wm-logo" aria-hidden="true"></span><span class="wm-t"><span class="wm-a">L’Architecte</span><span class="wm-b">Barber · Marseille</span></span></a>
 <div class="tb-r">
 <sc-if value="{{espaceOn}}" hint-placeholder-val="{{ false }}"><a class="tb-me" href="/moi" aria-label="{{meAria}}" title="{{meName}}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM5 20c.9-3.5 3.6-5 7-5s6.1 1.5 7 5"/></svg></a></sc-if>
 <button type="button" class="tb-ch" ref="{{r.chBtn}}" aria-label="{{chAria}}" aria-expanded="{{menu}}" aria-controls="menu" onClick="{{toggleMenu}}">
@@ -1223,7 +1243,7 @@ html{scroll-behavior:auto}
 <sc-for list="{{barbers}}" as="b" hint-placeholder-count="4">
 <li class="{{b.cls}}">
 <button type="button" class="bb-row" aria-expanded="{{b.open}}" onClick="{{b.toggle}}">
-<span class="bb-av" aria-hidden="true">{{b.ini}}</span>
+<span class="{{b.avCls}}" aria-hidden="true">{{b.ini}}<sc-if value="{{b.hasPhoto}}" hint-placeholder-val="{{ false }}"><img sc-camel-src="{{b.photo}}" alt="" width="58" height="58" loading="lazy" decoding="async" sc-camel-on-error="{{b.photoErr}}"></sc-if></span>
 <span class="bb-id"><span class="bb-n">{{b.n}}</span><span class="bb-next"><i aria-hidden="true"></i>{{b.next}}</span></span>
 <svg class="bb-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
 </button>
@@ -1374,6 +1394,7 @@ html{scroll-behavior:auto}
 <li><a href="/cgv">CGV</a></li>
 <li><a class="ft-pro" href="/comptoir">Espace barbier</a></li>
 </ul>
+<span class="ft-mark" role="img" aria-label="Le logo de L’Architecte : haircuts and beards, barbershop, established in 2009"></span>
 <p class="ft-legal">© Barber L’Architecte · Marseille<sc-if value="{{meKnown}}" hint-placeholder-val="{{ false }}"> · <button type="button" onClick="{{forgetMe}}">Oublier mes infos sur ce téléphone</button></sc-if><sc-if value="{{meForgot}}" hint-placeholder-val="{{ false }}"> · <span role="status">C’est oublié sur ce téléphone.</span></sc-if></p>
 </div>
 </div>
@@ -1413,7 +1434,7 @@ html{scroll-behavior:auto}
 <div class="st whs">
 <sc-for list="{{whoCards}}" as="o" hint-placeholder-count="5">
 <button type="button" class="{{o.cls}}" aria-pressed="{{o.on}}" onClick="{{o.go}}">
-<span class="wh-av" aria-hidden="true">{{o.ini}}</span>
+<span class="{{o.avCls}}" aria-hidden="true">{{o.ini}}<sc-if value="{{o.hasPhoto}}" hint-placeholder-val="{{ false }}"><img sc-camel-src="{{o.photo}}" alt="" width="52" height="52" decoding="async" sc-camel-on-error="{{o.photoErr}}"></sc-if></span>
 <span class="wh-t"><b>{{o.n}}</b><small><i aria-hidden="true"></i>{{o.next}}</small></span>
 <span class="wh-ck" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>
 </button>
@@ -1439,7 +1460,7 @@ html{scroll-behavior:auto}
 <p class="full-t">{{fullLine}}</p>
 <sc-if value="{{waitAsk}}" hint-placeholder-val="{{ false }}"><div class="fld2 wait-f"><div class="fld"><label for="w-first">Prénom</label><input id="w-first" type="text" autocomplete="given-name" value="{{fFirst}}" onChange="{{setFirst}}"></div><div class="fld"><label for="w-phone">Téléphone</label><input id="w-phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="06 12 34 56 78" value="{{fPhone}}" onChange="{{setPhone}}"></div></div></sc-if>
 <sc-if value="{{notWaited}}" hint-placeholder-val="{{ true }}"><button type="button" class="btn ghost" onClick="{{waitBtn}}">Me prévenir si une place se libère</button></sc-if>
-<sc-if value="{{waited}}" hint-placeholder-val="{{ false }}"><p class="full-ok">C’est noté. Si un créneau se libère ce jour-là, il t’est proposé par SMS : tu auras 30 minutes pour le prendre.</p></sc-if>
+<sc-if value="{{waited}}" hint-placeholder-val="{{ false }}"><p class="full-ok">C’est noté. Si un créneau se libère ce jour-là, il t’est proposé par {{chan}} : tu auras 30 minutes pour le prendre.</p></sc-if>
 </div>
 </sc-if>
 <sc-for list="{{slotGroups}}" as="g" hint-placeholder-count="3">
@@ -1455,7 +1476,7 @@ html{scroll-behavior:auto}
 <div class="st">
 <sc-if value="{{hasErr}}" hint-placeholder-val="{{ false }}"><p class="bk-err" role="alert">{{bkErr}}</p></sc-if>
 <p class="{{holdCls}}"><i aria-hidden="true"></i><span>{{holdText}}</span><b>{{holdLeft}}</b></p>
-<div class="recap"><p class="recap-w">{{recapWhen}}</p><p class="recap-s">{{recapWhat}} · {{recapWho}}</p></div>
+<div class="recap"><div class="recap-t"><p class="recap-w">{{recapWhen}}</p><p class="recap-s">{{recapWhat}} · {{recapWho}}</p></div><sc-if value="{{rcHasWho}}" hint-placeholder-val="{{ false }}"><span class="rc-av" aria-hidden="true">{{rcIni}}<sc-if value="{{rcHasPhoto}}" hint-placeholder-val="{{ false }}"><img sc-camel-src="{{rcPhoto}}" alt="" width="46" height="46" decoding="async" sc-camel-on-error="{{rcPhotoErr}}"></sc-if></span></sc-if></div>
 <div class="fld2">
 <div class="fld"><label for="f-first">Prénom</label><input id="f-first" type="text" autocomplete="given-name" value="{{fFirst}}" onChange="{{setFirst}}"></div>
 <div class="fld"><label for="f-last">Nom <span class="opt-l">facultatif</span></label><input id="f-last" type="text" autocomplete="family-name" value="{{fLast}}" onChange="{{setLast}}"></div>
@@ -1468,7 +1489,7 @@ html{scroll-behavior:auto}
 <p class="priv">Tes coordonnées servent à ce rendez-vous, et aux bons plans seulement si tu coches. <a href="{{dataHref}}" target="_blank" rel="noopener">Comment elles sont traitées</a></p>
 <sc-if value="{{bkMbr}}" hint-placeholder-val="{{ false }}"><p class="dep">Réservé avec ton abonnement&nbsp;: si la coupe tombe dans ton mois, elle est incluse, et rien n’est demandé en ligne.</p></sc-if>
 <sc-if value="{{hasDeposit}}" hint-placeholder-val="{{ false }}"><p class="dep">{{depLine}}</p></sc-if>
-<sc-if value="{{isDemo}}" hint-placeholder-val="{{ true }}"><p class="demo">Démo&nbsp;: n’entre pas tes vraies coordonnées, tout est visible. Aucun SMS n’est envoyé, aucun paiement n’est débité. La réservation apparaît tout de suite dans le Comptoir.</p></sc-if>
+<sc-if value="{{isDemo}}" hint-placeholder-val="{{ true }}"><p class="demo">Démo&nbsp;: n’entre pas tes vraies coordonnées, tout est visible. Aucun message n’est envoyé, aucun paiement n’est débité. La réservation apparaît tout de suite dans le Comptoir.</p></sc-if>
 </div>
 </sc-if>
 
@@ -1479,13 +1500,13 @@ html{scroll-behavior:auto}
 <p class="tk-k">Ton rendez-vous</p>
 <p class="tk-w">{{tkWhen}}</p>
 <p class="tk-f">{{tkWhat}}</p>
-<p class="tk-b">{{tkWho}}</p>
+<p class="tk-b"><sc-if value="{{tkHasWho}}" hint-placeholder-val="{{ false }}"><span class="tk-av" aria-hidden="true">{{tkIni}}<sc-if value="{{tkHasPhoto}}" hint-placeholder-val="{{ false }}"><img sc-camel-src="{{tkPhoto}}" alt="" width="34" height="34" decoding="async" sc-camel-on-error="{{tkPhotoErr}}"></sc-if></span></sc-if><span>{{tkWho}}</span></p>
 <p class="tk-a">16, place Pélabon · 13013 Marseille</p>
 <sc-if value="{{hasMemberLine}}" hint-placeholder-val="{{ false }}"><p class="tk-m">{{memberLine}}</p></sc-if>
 </div>
 <sc-if value="{{needPay}}" hint-placeholder-val="{{ false }}"><div class="pay-b"><p>{{payLine}}</p><a class="btn" href="{{payUrl}}">Régler l’acompte</a></div></sc-if>
 <sc-if value="{{espaceNew}}" hint-placeholder-val="{{ false }}"><div class="card espace" data-guide="site.espace"><h3>Garde tout au même endroit</h3><p>{{espaceText}}</p><a class="btn" href="{{espaceUrl}}">Ouvrir mon espace</a><small>Facultatif&nbsp;: ton rendez-vous est déjà confirmé.</small></div></sc-if>
-<sc-if value="{{showSms}}" hint-placeholder-val="{{ true }}"><p class="sms-k">Le SMS que tu reçois</p>
+<sc-if value="{{showSms}}" hint-placeholder-val="{{ true }}"><p class="sms-k">{{msgK}}</p>
 <div class="sms"><p>{{smsText}}</p><small>À l’instant</small></div></sc-if>
 <div class="done-act">
 <sc-if value="{{hasIcs}}" hint-placeholder-val="{{ false }}"><a class="btn ghost" href="{{icsUrl}}" download="rdv-larchitecte.ics">Ajouter à mon agenda</a></sc-if>
@@ -1508,7 +1529,7 @@ html{scroll-behavior:auto}
 <p class="tk-k">Code {{doneCode}}</p>
 <p class="tk-w">{{tkWhen}}</p>
 <p class="tk-f">{{tkWhat}}</p>
-<p class="tk-b">{{tkWho}}</p>
+<p class="tk-b"><sc-if value="{{tkHasWho}}" hint-placeholder-val="{{ false }}"><span class="tk-av" aria-hidden="true">{{tkIni}}<sc-if value="{{tkHasPhoto}}" hint-placeholder-val="{{ false }}"><img sc-camel-src="{{tkPhoto}}" alt="" width="34" height="34" decoding="async" sc-camel-on-error="{{tkPhotoErr}}"></sc-if></span></sc-if><span>{{tkWho}}</span></p>
 <p class="tk-a">16, place Pélabon · 13013 Marseille</p>
 </div>
 <div class="mng">
@@ -1749,7 +1770,8 @@ const LXE = (function () {
     Object.keys(BMAP).forEach(function (k) { delete BMAP[k]; });
     (j.barbers || []).forEach(function (b) {
       const id = slugName(b.name);
-      const o = { id: id, n: b.name, ini: b.initials, color: b.color, sid: b.id, bio: b.bio || '', ig: b.instagram || '', away: b.away && b.away.note ? b.away : null };
+      // photo: the address of his portrait when he shows it on the site (absent: his initials)
+      const o = { id: id, n: b.name, ini: b.initials, color: b.color, sid: b.id, bio: b.bio || '', ig: b.instagram || '', photo: typeof b.photo === 'string' && b.photo.indexOf('/api/public/barbers/') === 0 ? b.photo : '', away: b.away && b.away.note ? b.away : null };
       staffOf[id] = b.id; barberIdOf[b.id] = id;
       BARBERS.push(o); BMAP[id] = o;
     });
@@ -2792,8 +2814,10 @@ class Component extends DCLogic {
       const dd = f ? LXE.diffDays(LXE.now().key, f.day) : 0;
       // away today, with a note for the site (the owner's choice): 'JKut revient le 12 novembre'
       const aw = x.away && x.away.until >= LXE.now().key ? x.away : null;
+      const fc = this.faceOf(x);
       return {
         n: x.n, ini: x.ini, open: op, cls: 'bb-i' + (op ? ' open' : '') + (aw ? ' away' : ''),
+        avCls: 'bb-av' + (fc.hasPhoto ? ' pic' : ''), hasPhoto: fc.hasPhoto, photo: fc.photo, photoErr: fc.err,
         hasBio: !!x.bio, bio: x.bio || '', hasIg: !!igUrl(x.ig), ig: igUrl(x.ig),
         // the name is right above: 'JKut revient le 12 novembre' reads 'Revient le 12 novembre' under it
         next: aw ? (aw.note.indexOf(x.n + ' ') === 0 ? aw.note.charAt(x.n.length + 1).toUpperCase() + aw.note.slice(x.n.length + 2) : aw.note) : f ? 'Libre ' + (dd === 0 ? 'aujourd’hui' : (dd === 1 ? 'demain' : LXE.dayLong(f.day).replace(/ \S+$/, ''))) + ' · ' + LXE.fmtH(f.slots[0].m) : 'Complet ces jours-ci',
@@ -2950,8 +2974,13 @@ const BK_ORDER = ['svc', 'who', 'when', 'info'];
 const DAY_PAGE = 10;
 const BK_LABEL = { svc: 'Prestation', who: 'Barbier', when: 'Créneau', info: 'Coordonnées' };
 /* the first booking only: one line under the title says what the step wants (public/guide.js explains the rest of the page) */
-const BK_HELP = { svc: 'Choisis ta prestation', who: 'Un barbier, ou “Sans préférence”', when: 'Choisis ton créneau', info: 'Pour ta confirmation par SMS' };
+const BK_HELP = { svc: 'Choisis ta prestation', who: 'Un barbier, ou “Sans préférence”', when: 'Choisis ton créneau', info: 'Pour ta confirmation par ' };
 const BK_HELP_NOSMS = 'Pour confirmer ton rendez-vous';
+/* the way the confirmation and the reminder reach the client (GET /api/public/salon `channel`): WhatsApp once the salon's
+   number is set and its texts leave that way, SMS otherwise. textsLeave: a confirmation really leaves (`sms` false in
+   production without an SMS provider, unless it goes by WhatsApp) */
+function chanWord() { const s = LXE.salon(); return s && s.channel === 'whatsapp' ? 'WhatsApp' : 'SMS'; }
+function textsLeave() { const s = LXE.salon(); return !s || s.channel === 'whatsapp' || s.sms !== false; }
 const BOOKED_KEY = 'lx-booked';
 function bookedBefore() { try { return !!window.localStorage.getItem(BOOKED_KEY); } catch (e) { return false; } }
 function markBooked() { try { window.localStorage.setItem(BOOKED_KEY, '1'); } catch (e) { /* storage off: the helper stays */ } }
@@ -3038,6 +3067,12 @@ function clearMe() { try { window.localStorage.removeItem(ME_KEY); } catch (e) {
 function pause(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
 
 const BookingMixin = {
+  /* a barber's face: his portrait in the round when the salon shows it on the site (GET /api/public/salon `photo`), his
+     initials otherwise; an image that does not load (archived since, hidden since) falls back to the initials */
+  faceOf(x) {
+    const url = x && x.photo && !(this.state.noFace || {})[x.photo] ? x.photo : '';
+    return { ini: x ? x.ini || '' : '', photo: url, hasPhoto: !!url, err: () => { if (url) this.setState({ noFace: Object.assign({}, this.state.noFace || {}, { [url]: 1 }) }); } };
+  },
   bkEmpty() {
     return { step: 'svc', f: null, barber: null, day: null, time: null, assigned: null, holdId: null, holdExp: 0, holdTok: null, moving: null, err: '', result: null, busy: false, ask: false, waited: '', waitAsk: false };
   },
@@ -3373,7 +3408,7 @@ const BookingMixin = {
     const live = LXE.services();
     v.noMenu = !!(live && !live.length);
     // the first booking's helper line, only when there is something to choose (no catalogue: the sheet says the salon opens soon)
-    const help = si >= 0 && !b.moving && !me && !v.noMenu && !bookedBefore() ? (step === 'info' && sal && sal.sms === false ? BK_HELP_NOSMS : BK_HELP[step]) : '';
+    const help = si >= 0 && !b.moving && !me && !v.noMenu && !bookedBefore() ? (step === 'info' ? (textsLeave() ? BK_HELP.info + chanWord() : BK_HELP_NOSMS) : BK_HELP[step]) : '';
     v.hasBkHelp = !!help; v.bkHelp = help;
     const tel = sal && sal.shop && sal.shop.phone ? String(sal.shop.phone) : '';
     const mail = sal && sal.shop && sal.shop.email ? String(sal.shop.email) : 'larchitectebarber@gmail.com';
@@ -3410,8 +3445,10 @@ const BookingMixin = {
     if (step === 'who') {
       v.whoCards = [{ id: 'any', n: 'Sans préférence', ini: '✱' }].concat(LXE.BARBERS).map((x) => {
         const on = b.barber === x.id;
+        const fc = this.faceOf(x);
         return {
           cls: 'wh' + (on ? ' on' : '') + (x.id === 'any' ? ' any' : ''), on: on, ini: x.ini, n: x.n,
+          avCls: 'wh-av' + (fc.hasPhoto ? ' pic' : ''), hasPhoto: fc.hasPhoto, photo: fc.photo, photoErr: fc.err,
           next: (x.id === 'any' ? 'Le plus tôt : ' : 'Libre ') + nextOf(x.id).replace(/^Aujourd’hui/, 'aujourd’hui').replace(/^Demain/, 'demain'),
           go: () => this.bkPick({ barber: x.id, assigned: null })
         };
@@ -3495,6 +3532,8 @@ const BookingMixin = {
     v.recapWhen = b.day && b.time != null ? capFirst(LXE.dayLong(b.day)) + ' · ' + LXE.fmtH(b.time) : '';
     v.recapWhat = F ? F.n + ' · ' + fmtDur(F.d) : '';
     v.recapWho = bar && LXE.BMAP[bar] ? 'avec ' + LXE.BMAP[bar].n : '';
+    const rf = this.faceOf(bar ? LXE.BMAP[bar] : null);
+    v.rcHasWho = !!(bar && LXE.BMAP[bar]); v.rcIni = rf.ini; v.rcHasPhoto = rf.hasPhoto; v.rcPhoto = rf.photo; v.rcPhotoErr = rf.err;
     // no online payment in production yet (payments.live false): the salon takes no deposit, so none is announced
     const dep = F && sal && !(sal.payments && sal.payments.live === false) ? depositOf(F, sal.deposits) : 0;
     v.hasDeposit = dep > 0 && step === 'info';
@@ -3509,7 +3548,10 @@ const BookingMixin = {
     v.setNote = (e) => this.setState({ fNote: e.target.value });
     // the reminder of the eve as the salon set it (GET /api/public/salon `reminder`): its hour, or no promise when it is off
     const rem = sal && sal.reminder && typeof sal.reminder.hour === 'number' ? sal.reminder : { on: true, hour: 18 };
-    v.smsTitle = rem.on ? 'Rappel par SMS la veille à ' + rem.hour + ' h' : 'Confirmation par SMS';
+    const chan = chanWord();
+    v.chan = chan;
+    v.smsTitle = rem.on ? 'Rappel par ' + chan + ' la veille à ' + rem.hour + ' h' : 'Confirmation par ' + chan;
+    v.msgK = chan === 'WhatsApp' ? 'Le message WhatsApp que tu reçois' : 'Le SMS que tu reçois';
     v.smsOn = !!s.fSms;
     v.smsCls = 'sw' + (s.fSms ? ' on' : '');
     // the offers come by SMS: no SMS, no offers (a yes that could never be used is no consent at all)
@@ -3535,6 +3577,8 @@ const BookingMixin = {
       // the server's word, never the page's guess: « Inclus dans ton abonnement · 2/2 ce mois »
       v.hasMemberLine = !!r.member; v.memberLine = r.member || '';
       v.tkWho = (rb ? 'Avec ' + rb.n + ' · ' : '') + fmtDur(f.d);
+      const tf = this.faceOf(rb);
+      v.tkHasWho = !!rb; v.tkIni = tf.ini; v.tkHasPhoto = tf.hasPhoto; v.tkPhoto = tf.photo; v.tkPhotoErr = tf.err;
       v.smsText = this.smsText(r);
       v.goMove = () => this.bkMove();
       v.askCancel = () => this.setState({ bk: Object.assign({}, this.state.bk, { ask: true }) });
@@ -3548,12 +3592,14 @@ const BookingMixin = {
       v.payLine = pending ? 'Il reste à régler l’acompte de ' + LXE.eur((r.deposit || 0) / 100) + ' dans les ' + (sal ? sal.booking.pendingPayMin || 15 : 15) + ' minutes. Sans paiement, le créneau est libéré.' : '';
     } else {
       v.hasMemberLine = false; v.memberLine = '';
+      v.tkHasWho = false; v.tkIni = ''; v.tkHasPhoto = false; v.tkPhoto = ''; v.tkPhotoErr = () => {};
       v.doneCode = ''; v.tkWhen = ''; v.tkWhat = ''; v.tkWho = ''; v.smsText = ''; v.cancelLine = ''; v.manageUrl = ''; v.needPay = false; v.payUrl = ''; v.payLine = '';
       v.goMove = () => {}; v.askCancel = () => {}; v.keep = () => {}; v.doCancel = () => {}; v.toCockpit = () => {};
     }
     v.notPay = !v.needPay;
-    // the SMS preview only when the salon really sends SMS (sms is false in production without a provider)
-    v.showSms = v.notPay && !(sal && sal.sms === false);
+    // the message's preview only when one really leaves (sms is false in production without a provider, unless the
+    // salon's texts go by WhatsApp)
+    v.showSms = v.notPay && textsLeave();
     v.asking = !!b.ask; v.notAsking = !b.ask;
     v.hasIcs = !!s.icsUrl && step === 'done' && !v.needPay;
     v.icsUrl = s.icsUrl || '';

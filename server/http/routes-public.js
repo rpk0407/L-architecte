@@ -29,6 +29,7 @@ import { claimFromLink } from './routes-loyalty.js';
 import { receiptLoyalty } from '../domain/loyalty.js';
 import { readMemberToken, MEMBER_BOOK } from '../auth/member-token.js';
 import { salonWhatsapp } from '../settings/messages.js';
+import { effectiveMode } from '../messaging/hand.js';
 
 /** The demo, for real: both the configuration and the journal say so (a demo journal opened in production is not one). */
 export const isDemo = (r) => r.rt.cfg.mode === 'demo' && r.s.mode === 'demo';
@@ -149,6 +150,14 @@ export async function refundOnline(r, payment, reason, amount) {
   return { ok: true };
 }
 
+/**
+ * The photo the site may show of a barber: an active chair, bookable online, with a photo he (or the owner) keeps
+ * « visible sur le site ». Anyone else, an archived barber at once included, has none there.
+ */
+const sitePhoto = (s, st) => (st && st.active && st.chair && st.bookable && st.photoSite && st.photoV ? s.staffPhotos.get(st.id) || null : null);
+/** Its address on the site: the version in it, so a new photo is a new address. */
+const sitePhotoUrl = (s, st) => { const ph = sitePhoto(s, st); return ph ? '/api/public/barbers/' + encodeURIComponent(st.id) + '/photo?v=' + ph.v : undefined; };
+
 /** Client traffic carries the reminders too, so they leave even when no one has the Comptoir open (at most once a minute). */
 function background(r) { const t = maybeTick(r.rt, r.meta); if (t) waitUntil(t); }
 
@@ -163,8 +172,9 @@ export function publicRoutes(app) {
     // the whole price list (the CGV show it, the site's FAQ quotes it): booked at the salon only when online is false
     const menu = active.map((x) => ({ slug: x.slug || null, name: x.name, category: x.category, price: x.price, from: !!x.from, dur: x.dur, online: x.online !== false }));
     const chairs = [...s.staff.values()].filter((x) => x.active && x.chair && x.bookable).sort((a, b) => (a.order ?? 99) - (b.order ?? 99));
-    // the team's photo (TEAM-02) is the Comptoir's, not the site's
-    const barbers = chairs.map((x) => ({ ...staffView(x), photo: undefined, away: awayOf(s, x, L.day) }));
+    // photo: the address of his photo when he shows it on the site (« Photo visible sur le site »), absent otherwise;
+    // the Comptoir's version number and the switch itself are the Comptoir's
+    const barbers = chairs.map((x) => ({ ...staffView(x), photoSite: undefined, photo: sitePhotoUrl(s, x), away: awayOf(s, x, L.day) }));
     // the days it opens when it usually doesn't, or with other hours; one a closure covers is closed (it wins, as in
     // availability.js), and one for named barbers nobody can be booked on (archived, all away) is not announced
     const closures = s.settings.closures.filter((c) => c.to >= L.day);
@@ -180,8 +190,22 @@ export function publicRoutes(app) {
       // the salon's own WhatsApp number (digits, country code) once set in Réglages: the booking's last step then offers
       // « Recevoir la confirmation sur WhatsApp », a chat the client opens himself. null: no button
       whatsapp: salonWhatsapp(s.settings.messages) || null,
+      // the way the confirmation and the reminder really reach the client: 'whatsapp' when the salon's number is set and
+      // its texts leave by WhatsApp (by hand from the salon's phone, or automatic), 'sms' otherwise. The site says so
+      channel: salonWhatsapp(s.settings.messages) && effectiveMode(s, r.rt) !== 'sms' ? 'whatsapp' : 'sms',
       reminder: { on: s.settings.messages.reminder !== false, hour: s.settings.messages.reminderHour ?? 18 }, payments: { provider: r.rt.pay.name, live }, mode: s.mode, today: L.day, now: r.now
     }, 200, { 'cache-control': 'public, max-age=0, s-maxage=20, stale-while-revalidate=60' });
+  });
+
+  // a barber's photo for the site: only the image, only for one the site lists who shows it (sitePhoto), 404 otherwise.
+  // Cached by the visitor's browser under its version; never kept by the CDN, so a photo hidden or a barber archived
+  // leaves the site with the salon's next answer
+  app.get('/api/public/barbers/:id/photo', (r) => {
+    const ph = sitePhoto(r.s, r.s.staff.get(r.params.id));
+    const v = r.query.get('v');
+    const m = ph && (!v || v === String(ph.v)) ? /^data:(image\/(?:jpeg|webp));base64,(.+)$/.exec(ph.data) : null;
+    if (!m) throw new HttpError(404, 'not_found', 'Pas de photo.');
+    return new Response(Buffer.from(m[2], 'base64'), { status: 200, headers: { 'content-type': m[1], 'cache-control': v ? 'private, max-age=86400' : 'no-cache', 'x-content-type-options': 'nosniff', 'cross-origin-resource-policy': 'same-origin' } });
   });
 
   app.get('/api/public/live', (r) => {

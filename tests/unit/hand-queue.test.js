@@ -370,3 +370,57 @@ test('nothing leaves before the switch from WordPress: held in every mode, by ha
   assert.equal(q.held, 0);
   assert.ok(q.items.some((x) => x.id === rem.id) || msg(t, rem.id).status !== 'queued', 'listed after the switch, unless the bascule closed it as already reminded there');
 });
+
+test('the evening: the summary says « à envoyer depuis l’écran Messages » with its link; at 21 h one notice if nobody sent them', async () => {
+  const { alertWarnings, handLateMin, HAND_LATE_MIN } = await import('../../server/commands/steps/alerts.js');
+  const t = await salon({ hour: 10 });
+  const rt = rtOf(t);
+  await setMode(t, 'phone');
+  await t.engine.run(updateSettings, { notify: { evening: '20:00', alerts: true } }, t.asOwner());
+  const tomorrow = addDays(DAY, 1);
+  await t.engine.run(A.createAppointment, { clientId: t.ids.yanis, staffId: t.ids.Ali, day: tomorrow, start: 600, serviceIds: [t.ids.cut] }, t.asOwner());
+  const hand = (m) => byHand(t.engine.state, rt, m);
+  const meta = (x = {}) => ({ linkFor: (a) => ORIGIN + '/r/' + a.code, siteUrl: ORIGIN + '/', providers: { sms: false, email: true, hand }, health: { providers: { sms: false, email: true, byHand: hand }, backup: null }, ...x });
+  const tickAt = (h, m = 0) => { t.clock.now = at(DAY, h, m); return t.engine.run(tick, {}, { ...t.sys, meta: meta() }); };
+  // 18 h: tomorrow's reminder joins the confirmation nobody sent
+  await tickAt(18, 5);
+  assert.deepEqual(queueOf(t, rt).items.map((x) => x.kind), ['Confirmation', 'Rappel']);
+  // 20 h: the summary counts them apart from what waits for a provider, with the screen's address
+  await tickAt(20, 0);
+  const d = t.engine.state.messages.get('msg_digest_' + DAY);
+  assert.ok(d, 'the summary');
+  assert.match(d.body, /· 2 messages aux clients à envoyer depuis l’écran Messages : https:\/\/salon\.test\/comptoir\/messages/);
+  assert.doesNotMatch(d.body, /en attente d’un fournisseur/, 'they wait for a person, not for a provider');
+  assert.ok(d.mail.links.includes(ORIGIN + '/comptoir/messages'), 'a link in the HTML version');
+  // before 21 h: no notice yet
+  assert.equal(HAND_LATE_MIN, 21 * 60);
+  assert.equal(handLateMin(t.engine.state), 21 * 60, '18 h reminders: 21 h');
+  await tickAt(20, 59);
+  assert.equal(t.engine.state.messages.get('msg_alert_hand_' + DAY), undefined);
+  // 21 h, still nobody: one notice, by e-mail and in the Comptoir, whatever the ticks after
+  await tickAt(21, 0);
+  await tickAt(21, 30);
+  // (this test never dispatches, so the scheduler's own silence alert may stand beside it: only the notice is read here)
+  const n = [...t.engine.state.messages.values()].filter((m) => m.id.startsWith('msg_alert_hand_'));
+  assert.equal(n.length, 1);
+  assert.equal(n[0].template, 'owner_alert');
+  assert.equal(n[0].to, 'patron@test.fr');
+  assert.match(n[0].mail.subject, /rappels de demain/);
+  assert.match(n[0].body, /2 messages aux clients attendent encore sur l’écran Messages, dont 1 rappel pour demain/);
+  const line = () => alertWarnings(t.engine.state, DAY).filter((w) => /écran Messages/.test(w));
+  assert.equal(line().length, 1);
+  // sent from WhatsApp: the line leaves the Comptoir
+  for (const x of queueOf(t, rt).items) await t.engine.run(handSent, { id: x.id }, t.asOwner());
+  assert.deepEqual(line(), []);
+  // a reminder hour of 21 h: the notice waits until 23 h
+  await t.engine.run(updateSettings, { messages: { reminderHour: 21 } }, t.asOwner());
+  assert.equal(handLateMin(t.engine.state), 23 * 60);
+  // an SMS provider in SMS mode: nothing waits for a person, no notice
+  const u = await salon({ hour: 10 });
+  await u.engine.run(updateSettings, { notify: { alerts: true } }, u.asOwner());
+  await u.engine.run(A.createAppointment, { clientId: u.ids.yanis, staffId: u.ids.Ali, day: tomorrow, start: 600, serviceIds: [u.ids.cut] }, u.asOwner());
+  const urt = rtOf(u, { sms: fakeSms() });
+  u.clock.now = at(DAY, 21, 5);
+  await u.engine.run(tick, {}, { ...u.sys, meta: { siteUrl: ORIGIN + '/', health: { providers: { sms: true, email: true, byHand: (m) => byHand(u.engine.state, urt, m) }, backup: null } } });
+  assert.equal(u.engine.state.messages.get('msg_alert_hand_' + DAY), undefined);
+});

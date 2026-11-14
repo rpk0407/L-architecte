@@ -4,7 +4,7 @@
 //   The `prefs.` prefix is not one of state.js's CFG prefixes: one person's choice never reloads everyone's boot.
 //   GUIDE-01a: tour { v, at, done } is his guided tour of the Comptoir, so it follows him from the tablet to his phone:
 //   v the tour's version he was offered (0: never, the welcome card shows), at the step he stopped on, done finished or skipped.
-// - staff.photo { id, v } with pii { photo } (a data URL, at most 24 KB): v 0 removes it. The `staff.` prefix bumps
+// - staff.photo { id, v, site? } with pii { photo } (a data URL, at most 24 KB): v 0 removes it. site: shown on the site. The `staff.` prefix bumps
 //   cfgVersion, so the faces refresh on every screen. Replacing or removing a photo redacts the earlier copies from the
 //   store (core/engine.js staffRedact), so a team member's face is erasable like a client's file.
 // - phone.linkIssued { id: nonce, staffId, exp }: a 10-minute, single-use link that enrolls his own phone; used once
@@ -69,8 +69,9 @@ export const staffprefsExtension = {
       const st = s.staff.get(d.id);
       // how many photo events he has: his first one leaves nothing earlier to redact (core/engine.js)
       s.photoEvents.set(d.id, (s.photoEvents.get(d.id) || 0) + 1);
-      if (d.v && p.photo) { s.staffPhotos.set(d.id, { v: d.v, data: p.photo }); if (st) st.photoV = d.v; }
-      else { s.staffPhotos.delete(d.id); if (st) st.photoV = 0; }
+      // photoSite: « Photo visible sur le site », the new photo's own answer (commands/team.js setPhoto, setPhotoSite)
+      if (d.v && p.photo) { s.staffPhotos.set(d.id, { v: d.v, data: p.photo }); if (st) { st.photoV = d.v; st.photoSite = !!d.site; } }
+      else { s.staffPhotos.delete(d.id); if (st) { st.photoV = 0; st.photoSite = false; } }
     },
     'phone.linkIssued': (s, e, d) => {
       for (const [k, l] of s.phoneLinks) if (l.exp < e.at - LINK_KEEP) s.phoneLinks.delete(k);

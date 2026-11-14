@@ -510,3 +510,19 @@ position:relative;font:400 17px/1.5 var(--f-sans);color:var(--os);background:var
 html{scroll-behavior:auto}
 .lp *,.lp *::before,.lp *::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
 }
+
+/* the salon's roundel beside the wordmark, in the bar's own colour; the whole roundel in « Venir » */
+.wm{flex-direction:row;align-items:center;justify-content:flex-start;gap:10px}
+.wm-logo{flex:none;width:36px;aspect-ratio:858/912;background:currentColor;-webkit-mask:url(../img/logo-clair.png) center/contain no-repeat;mask:url(../img/logo-clair.png) center/contain no-repeat}
+.wm-t{display:flex;flex-direction:column;justify-content:center}
+.ft-mark{display:block;width:clamp(120px,14vw,156px);aspect-ratio:858/912;margin-top:clamp(40px,7vw,64px);background:var(--encre);-webkit-mask:url(../img/logo-clair.png) center/contain no-repeat;mask:url(../img/logo-clair.png) center/contain no-repeat}
+@media (min-width:1000px){.wm-logo{width:42px}}
+
+/* a barber's portrait in the round, over his initials (they show when there is none, or when it does not load) */
+.pl-mono img,.bb-mono img,.rc-av img{position:absolute;inset:0;z-index:1;width:100%;height:100%;object-fit:cover;border-radius:50%}
+.pl-mono.pic{background:var(--blanc)}
+.pl-mono.pic::after{display:none}
+.bb-mono.pic{position:relative;width:clamp(104px,26vw,150px);aspect-ratio:1;padding:0;border-radius:50%;overflow:hidden;background:var(--os);-webkit-background-clip:border-box;background-clip:border-box;opacity:1}
+.rc-av{position:relative;flex:none;display:inline-grid;place-items:center;width:28px;height:28px;margin-right:8px;border-radius:50%;overflow:hidden;background:var(--pierre);color:var(--encre);font:400 13px/1 var(--f-serif);vertical-align:middle}
+.who-f{display:flex;align-items:center;justify-content:flex-end}
+#done-who.who-f{justify-content:flex-start}

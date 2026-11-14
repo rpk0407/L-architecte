@@ -1,5 +1,5 @@
 // Shapes returned by the API (see server/http/views.js).
-export type Staff = { id: string; name: string; initials: string; color: string; role: 'owner' | 'manager' | 'desk' | 'barber'; roleLabel: string; chair: boolean; bookable: boolean; active: boolean; order: number; bio: string; instagram: string; photo?: number | null; email?: string; services?: 'all' | string[]; schedule?: Record<string, [number, number][]>; commission?: { service: number; product: number }; hasPwd?: boolean; hasPin?: boolean };
+export type Staff = { id: string; name: string; initials: string; color: string; role: 'owner' | 'manager' | 'desk' | 'barber'; roleLabel: string; chair: boolean; bookable: boolean; active: boolean; order: number; bio: string; instagram: string; photo?: number | null; photoSite?: boolean; email?: string; services?: 'all' | string[]; schedule?: Record<string, [number, number][]>; commission?: { service: number; product: number }; hasPwd?: boolean; hasPin?: boolean };
 // TEAM-02: one's own Comptoir (server/projections/staffprefs.js); cards/hidden order Mon espace's cards (TEAM-04); cal: the
 // calendar feed's generation (0: off); device.personal: one's own linked phone; Staff.photo: the photo's version
 // GUIDE-01a: tour, his guided tour (v: the version offered, 0 never; at: the step id he stopped on; done: finished or skipped)
@@ -58,7 +58,7 @@ export type Agenda = { day: string; lanes: Lane[]; appts: Appt[]; blocks: Block[
 // staffId: the chair a line is about (a barber's own toasts); null on a line only for the cap it names, which may name
 // its subject in aboutStaffId (an absence told to the team holders)
 export type FeedItem = { v: number; at: number; by: string; kind: string; title: string; sub: string; apptId?: string; saleId?: string; day?: string; money?: boolean; staffId?: string | null; aboutStaffId?: string };
-export type Pulse = { version: number; cfg: number; now: number; today: string; min: number; feed: FeedItem[]; badges: { toPay: number; queue: number; relances: number; waitlist: number; retention?: number }; alerts?: string[] };
+export type Pulse = { version: number; cfg: number; now: number; today: string; min: number; feed: FeedItem[]; badges: { toPay: number; queue: number; relances: number; waitlist: number; retention?: number; requests?: number; hand?: number; handOn?: boolean }; alerts?: string[] };
 export type SaleLine = { kind: 'service' | 'product' | 'giftcard' | 'pack' | 'fee' | 'membership'; ref: string | null; name: string; qty: number; unit: number; discount: number; net: number; staffId: string | null; vat: number; packId: string | null; memberId?: string | null };
 export type Sale = { id: string; number: number; ref: string; day: string; at: number; apptId: string | null; clientId: string | null; client: string | null; cashier: string; lines: SaleLine[]; discount: { amount: number; reason: string } | null; tip: { amount: number; staffId: string } | null; totals: { gross: number; discount: number; total: number; tip: number; due: number; revenue: number; revenueHT: number; liability: number; vat: { rate: number; base: number; tax: number }[] }; payments: { method: string; amount: number; given?: number; change?: number; last4?: string }[]; refunded: number; refunds: { id: string; ref: string; amount: number; method: string; reason: string; at: number }[]; note: string };
 // GET /api/v1/reports in own scope (TEAM-01): the salon's progress (goalPct a whole %, null without a goal; fill 0..1),
@@ -186,7 +186,7 @@ export type HomeChairState = 'libre' | 'occupe' | 'absent' | 'ferme';
  *  minutes from now (0 unless 'libre'); canTake: the services that fit now, in the catalogue's order, 3 at most */
 export type HomeChair = { staffId: string; name: string; state: HomeChairState; until: number | null; freeMin: number; canTake: { serviceId: string; short: string }[] };
 export type HomeDay = { scope: 'salon' | 'moi'; canSwitch: boolean; appts: HomeAppt[]; more: number; next: HomeAppt | null; chairs: HomeChair[] };
-export type HomeCardId = 'z' | 'encaisser' | 'prochain' | 'absence-demande' | 'orphelins' | 'demandes' | 'relances' | 'semaine' | 'echecs' | 'stock' | 'purge' | 'comptable' | 'objectif';
+export type HomeCardId = 'z' | 'encaisser' | 'prochain' | 'messages' | 'absence-demande' | 'orphelins' | 'demandes' | 'relances' | 'semaine' | 'echecs' | 'stock' | 'purge' | 'comptable' | 'objectif';
 export type HomeCardGroup = 'bloque' | 'attend' | 'rapporte' | 'entretien';
 /** to: a path under /comptoir (kind 'go' and 'bulk'); ref: the object a sheet opens on (a time-off id, 'objectif') */
 export type HomeAction = { kind: 'go' | 'sheet' | 'bulk'; label: string; to?: string; ref?: string };

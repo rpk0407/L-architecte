@@ -51,9 +51,10 @@ function within(p, ms) {
  */
 async function tickMeta(rt, meta) {
   const e = rt.engine;
-  const out = { ...meta, providers: { sms: !!rt.sms, email: !!rt.email } };
-  // a text that waits for a person (the Messages screen, messaging/hand.js) is not a scheduler that stopped
+  // a text that waits for a person (the Messages screen, messaging/hand.js) is not a scheduler that stopped, nor a text
+  // waiting for a provider: the evening summary counts it apart (commands/steps/digest.js)
   const hand = (m) => byHand(e.state, rt, m);
+  const out = { ...meta, providers: { sms: !!rt.sms, email: !!rt.email, hand } };
   // CPT-01a: the closures' signing key and the version the technical log records (commands/steps/fiscal.js)
   Object.assign(out, { signer: rt.signer, software: SOFTWARE });
   // the owner's alerts of the day (commands/steps/alerts.js): which channels can send, and the last backup this instance

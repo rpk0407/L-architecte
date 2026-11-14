@@ -8,6 +8,7 @@ import { simulatedProvider } from '../payments/simulated.js';
 import { brevoSms, twilioSms, gatewaySms, GATEWAY_URL } from '../messaging/sms.js';
 import * as WA from '../messaging/whatsapp.js';
 import * as MAIL from '../messaging/email.js';
+import { mailEnvOf } from '../messaging/ionos.js';
 import { buildDemoJournal } from '../domain/seed.js';
 import { makeSigner } from '../core/signer.js';
 
@@ -49,6 +50,8 @@ export function readConfig(env = process.env) {
     emailFromInvalid: !!env.EMAIL_FROM && !parseFrom(env.EMAIL_FROM),
     // an SMTP host without its user or password: said in the warnings rather than silently falling back
     smtpIncomplete: !!MAIL.smtpEmail && !!env.SMTP_HOST && !(env.SMTP_USER && env.SMTP_PASS),
+    // Réglages › Connexion IONOS: which mail variables are set; the password only as « set », the user name only by its domain
+    mailEnv: mailEnvOf(env),
     // plain-http cookies are for local tests only: a production deployment on Vercel ignores the switch
     secureCookies: env.LX_INSECURE_COOKIES !== '1' || (!!env.VERCEL && mode === 'production'),
     isVercel: !!env.VERCEL,

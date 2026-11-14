@@ -562,3 +562,25 @@ sup{font-size:.62em;line-height:0;vertical-align:.45em}
 *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
 html{scroll-behavior:auto}
 }
+
+/* the salon's roundel beside the wordmark, in the bar's own colour; the whole roundel in « Venir » */
+.wm{flex-direction:row;align-items:center;justify-content:flex-start;gap:10px}
+.wm-logo{flex:none;width:36px;aspect-ratio:858/912;background:currentColor;-webkit-mask:url(../img/logo-clair.png) center/contain no-repeat;mask:url(../img/logo-clair.png) center/contain no-repeat}
+.wm-t{display:flex;flex-direction:column;justify-content:center}
+.ft-mark{display:block;width:clamp(120px,14vw,156px);aspect-ratio:858/912;margin-top:clamp(40px,7vw,64px);background:var(--encre);-webkit-mask:url(../img/logo-clair.png) center/contain no-repeat;mask:url(../img/logo-clair.png) center/contain no-repeat}
+@media (min-width:1000px){.wm-logo{width:42px}}
+
+/* a barber's portrait in the round, over his initials (they show when there is none, or when it does not load) */
+.bc-i.pic{position:relative;width:112px;height:112px;margin:0;border-radius:50%;overflow:hidden;background:var(--blanc)}
+.bc-i.pic>span{visibility:hidden}
+.bc-i img,.wh-av img,.rc-av img,.tk-av img{position:absolute;inset:0;z-index:1;width:100%;height:100%;object-fit:cover;border-radius:50%}
+.bc:hover .bc-i.pic img{transform:scale(1.04)}
+.bc-i.pic img{transition:transform .5s var(--ease)}
+.wh-av.pic{background:var(--blanc)}
+.wh-av.pic::after{display:none}
+.rc-av,.tk-av{position:relative;flex:none;display:inline-grid;place-items:center;border-radius:50%;overflow:hidden;background:var(--pierre);color:var(--encre);font:italic 400 15px/1 var(--f-serif);vertical-align:middle}
+.rc-av{width:30px;height:30px;margin-right:10px}
+.tk-av{width:34px;height:34px;margin-right:10px}
+.who-f{display:inline-flex;align-items:center}
+@media (min-width:700px){.bc-i.pic{width:136px;height:136px}}
+@media (min-width:1100px){.bc-i.pic{width:150px;height:150px}}

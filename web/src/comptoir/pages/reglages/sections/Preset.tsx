@@ -1,7 +1,9 @@
 // Mise en route › « Le salon, en un geste »: the real salon as the old site had it (server/presets/architecte.js),
 // shown line by line before anything is written, then put in place on one confirmation (POST /api/v1/preset/apply).
-// What already exists is never touched, so a second tap changes nothing. Then the first code of each barber: without
-// one he is not on the tablet and cannot link his phone (POST /api/v1/preset/codes, shown once).
+// What already exists is never touched, so a second tap changes nothing. Frank's chair goes to the owner's own account
+// (the line says whose), Aland comes without hours and off the site until they are entered, each one gets his portrait
+// unless he has a photo. Then the first code of each barber: without one he is not on the tablet and cannot link his
+// phone (POST /api/v1/preset/codes, shown once).
 import { useState } from 'react';
 import { api } from '../../../../lib/api';
 import { refreshAll, useQuery } from '../../../../lib/query';
@@ -16,11 +18,12 @@ type Week = Record<string, Iv>;
 type Status = 'set' | 'same' | 'kept';
 export type PresetPlan = {
   id: string; name: string; source: string; todo: number; notes: string[];
-  count: { hours: number; rules: number; services: number; team: number; absences: number };
+  count: { hours: number; rules: number; services: number; team: number; absences: number; photos: number };
   hours: { to: Week; now: Week; status: Status };
   rules: { key: string; label: string; text: string; nowText: string; status: Status }[];
   services: { slug: string; name: string; category: string; price: number; dur: number; from: boolean; online: boolean; pack: { credits: number; days: number } | null; draft: boolean; status: 'create' | 'exists'; archived: boolean }[];
-  team: { name: string; color: string; schedule: Week; status: 'create' | 'chair' | 'exists'; archived: boolean; hasPin: boolean }[];
+  // owner: the line is the owner's own account (account: its name when it is another); online: false, kept off the site
+  team: { name: string; color: string; schedule: Week; status: 'create' | 'chair' | 'exists'; archived: boolean; hasPin: boolean; owner?: boolean; account?: string; online?: boolean; photo?: 'create' | 'exists' | null }[];
   absences: { staff: string; from: string; to: string; reason: string; status: 'create' | 'exists' | 'past' }[];
   noCode: { id: string; name: string }[];
 };
@@ -48,8 +51,8 @@ export function weekWords(w: Week): string[] {
 const restDays = (w: Week) => ORDER.filter((d) => !(w[d] || []).length).map((d) => dates.DAYS_FR[d]).join(' et ');
 const span = (a: { from: string; to: string }) => (a.from === a.to ? 'le ' + dates.dayShort(a.from) : 'du ' + dates.dayShort(a.from) + ' au ' + dates.dayShort(a.to));
 
-const TAG: Record<string, string> = { create: 'à créer', chair: 'fauteuil à ajouter', exists: 'déjà là', set: 'à régler', same: 'déjà réglé', kept: 'ton réglage, gardé', past: 'passée' };
-const Tag = ({ s }: { s: string }) => <span className={'badge' + (s === 'create' || s === 'chair' || s === 'set' ? ' badge-accent' : '')}>{TAG[s] || s}</span>;
+const TAG: Record<string, string> = { create: 'à créer', chair: 'fauteuil à ajouter', mine: 'sur ton compte', photo: 'portrait à poser', exists: 'déjà là', set: 'à régler', same: 'déjà réglé', kept: 'ton réglage, gardé', past: 'passée' };
+const Tag = ({ s }: { s: string }) => <span className={'badge' + (s === 'create' || s === 'chair' || s === 'mine' || s === 'photo' || s === 'set' ? ' badge-accent' : '')}>{TAG[s] || s}</span>;
 
 export default function Preset() {
   const { reloadBoot } = useApp();
@@ -61,7 +64,7 @@ export default function Preset() {
   if (!data) return null;
   const p = data;
   const c = p.count;
-  const what = [c.team ? plural(c.team, 'barbier') : '', c.services ? plural(c.services, 'prestation') : '', c.hours ? 'les horaires du salon' : '', c.rules ? plural(c.rules, 'règle') + ' de réservation' : '', c.absences ? plural(c.absences, 'absence') : ''].filter(Boolean);
+  const what = [c.team ? plural(c.team, 'barbier') : '', c.services ? plural(c.services, 'prestation') : '', c.hours ? 'les horaires du salon' : '', c.rules ? plural(c.rules, 'règle') + ' de réservation' : '', c.absences ? plural(c.absences, 'absence') : '', c.photos ? plural(c.photos, 'portrait') : ''].filter(Boolean);
   const after = async () => { refreshAll(); await Promise.all([refresh(), reloadBoot().catch(() => {})]); };
   const apply = async () => {
     if (!await confirm({ title: 'Mettre le salon en place ?', body: 'Seront créés : ' + what.join(', ') + '. Ce qui existe déjà n’est pas modifié, et tu peux tout ajuster ensuite.', ok: 'Mettre en place' })) return;
@@ -69,7 +72,7 @@ export default function Preset() {
     try {
       const r = await api.post<{ done: PresetPlan['count'] }>('/api/v1/preset/apply', {});
       const d = r.done;
-      toast({ title: 'Le salon est en place', sub: [d.team ? plural(d.team, 'barbier') : '', d.services ? plural(d.services, 'prestation') : '', d.hours ? 'horaires' : '', d.rules ? plural(d.rules, 'règle') : '', d.absences ? plural(d.absences, 'absence') : ''].filter(Boolean).join(' · ') || 'Tout y était déjà.', icon: 'check', ttl: 8000 });
+      toast({ title: 'Le salon est en place', sub: [d.team ? plural(d.team, 'barbier') : '', d.services ? plural(d.services, 'prestation') : '', d.hours ? 'horaires' : '', d.rules ? plural(d.rules, 'règle') : '', d.absences ? plural(d.absences, 'absence') : '', d.photos ? plural(d.photos, 'portrait') : ''].filter(Boolean).join(' · ') || 'Tout y était déjà.', icon: 'check', ttl: 8000 });
       await after();
     } catch (e) { toastError(e); } finally { setBusy(false); }
   };
@@ -92,13 +95,24 @@ export default function Preset() {
         <div className="mr-pre">
           <div className="mr-pre-b" data-part="team">
             <p className="section-k">Équipe</p>
-            <ul className="list">{p.team.map((t) => (
-              <li key={t.name} className="li">
-                <span className="mr-dot" style={{ background: t.color }} aria-hidden />
-                <span className="li-main"><b>{t.name}{t.archived ? ' (désactivé)' : ''}</b>{weekWords(t.schedule).map((l) => <small key={l}>{l}</small>)}<small className="faint">Repos : {restDays(t.schedule)}</small></span>
-                <Tag s={t.status} />
-              </li>
-            ))}</ul>
+            <ul className="list">{p.team.map((t) => {
+              const hours = weekWords(t.schedule);
+              return (
+                <li key={t.name} className="li">
+                  <span className="mr-dot" style={{ background: t.color }} aria-hidden />
+                  <span className="li-main">
+                    <b>{t.name}{t.archived ? ' (désactivé)' : ''}</b>
+                    {/* Frank is the gérant: his chair is the owner's own account, never a second one */}
+                    {t.owner ? <small>{t.status === 'chair' ? 'Ton compte' + (t.account ? ' « ' + t.account + ' »' : '') + ' reçoit son fauteuil, sa semaine, sa couleur et ses initiales' : 'Sur ton compte' + (t.account ? ' « ' + t.account + ' »' : '')}</small> : null}
+                    {hours.length ? hours.map((l) => <small key={l}>{l}</small>) : <small>Horaires à entrer dans Équipe</small>}
+                    {hours.length ? <small className="faint">Repos : {restDays(t.schedule)}</small> : null}
+                    {t.online === false ? <small className="faint">Pas proposé en ligne tant que ses horaires ne sont pas entrés</small> : null}
+                    {t.photo === 'create' ? <small className="faint">Son portrait est posé, dans le Comptoir et sur le site</small> : t.photo === 'exists' ? <small className="faint">A déjà sa photo : elle est gardée</small> : null}
+                  </span>
+                  <Tag s={t.owner && t.status === 'chair' ? 'mine' : t.status === 'exists' && t.photo === 'create' ? 'photo' : t.status} />
+                </li>
+              );
+            })}</ul>
           </div>
           <div className="mr-pre-b" data-part="services">
             <p className="section-k">Carte</p>

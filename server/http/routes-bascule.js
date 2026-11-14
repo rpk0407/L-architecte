@@ -18,10 +18,15 @@ import { fmtPhone } from '../lib/util.js';
 import { csv } from '../lib/csv.js';
 
 const DAY = 86400000;
-/** The addresses Vercel gives an apex domain (the long-standing one and the newer range), and the CNAME of a subdomain, the
- *  generic one or a project's own (xxxx.vercel-dns-017.com): docs/operations.md, « DNS chez IONOS ». */
-const VERCEL_A = ['76.76.21.21', '216.198.79.1'];
+/** Vercel's addresses: it gives each project its own anycast address for the apex (« Many projects show 76.76.21.21, and newer
+ *  projects can show an address such as 216.198.79.1 », vercel.com/docs/domains/troubleshooting, read 14 Nov 2026), and a www
+ *  CNAME to the project's own target (xxxx.vercel-dns-017.com) resolves to others again (cname.vercel-dns.com answers
+ *  66.33.60.x). So an address counts as Vercel's when it is in one of the ranges registered to Vercel, Inc (ARIN:
+ *  76.76.21.0/24 VERCEL-01, 216.198.79.0/24 VERCEL-05, 64.29.17.0/24 VERCEL-12), and a CNAME when it ends in vercel-dns(-N).com. */
+const VERCEL_NETS = ['76.76.21.', '216.198.79.', '64.29.17.'];
+export const isVercelIp = (ip) => VERCEL_NETS.some((n) => String(ip).startsWith(n));
 const VERCEL_CNAME = /\.vercel-dns(-\d+)?\.com\.?$/i;
+export const isVercelCname = (n) => VERCEL_CNAME.test(String(n));
 /** a hostname with at least one dot and a letters-only ending: not an IP, not « localhost », no port, no path */
 const HOSTNAME = /^(?=.{4,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,24}$/;
 const CACHE_MS = 60000;
@@ -91,43 +96,84 @@ function finalLine(run, frozenAt) {
 /** What a DNS error says: no such record (a step to do) or a doubt (a timeout, a refusing resolver). */
 const noRecord = (e) => !!e && (e.code === 'ENODATA' || e.code === 'ENOTFOUND');
 /**
- * The DNS of the domain, and of www: everything that answers must be Vercel's. An A record or an AAAA that still points to the old host
- * sends part of the visitors to WordPress, so one such record is enough for « à faire », whatever else is right (the old IONOS record
- * left beside Vercel's, an IPv6 address nobody removed, www still at IONOS).
- * @returns {Promise<Step>}
+ * The DNS of the domain, and of www, read once: the facts (what each name answers), where the domain stands (`where`: 'vercel' all of
+ * it leads to the new site; 'ionos' none of it does, it still leads to the old host; 'half' part of it does, the apex or www, or an
+ * old record left beside Vercel's; 'none' the name has no address; 'unknown' the resolver failed) and the Jour J step. Everything that
+ * answers must be Vercel's: an A record or an AAAA that still points to the old host sends part of the visitors to WordPress, so one
+ * such record is enough for « à faire », whatever else is right (the old IONOS record left beside Vercel's, an IPv6 address nobody
+ * removed, www still at IONOS). Vercel serves no IPv6 (vercel.com/docs/domains/troubleshooting#ipv6-support). Réglages › Connexion
+ * IONOS › Nom de domaine reads the same report (http/routes-channels.js), so the two screens never disagree.
+ * @returns {Promise<{ step: Step, where: 'vercel'|'ionos'|'half'|'none'|'unknown', apex: Names, www: Names }>}
  */
-async function dnsStep(rt, domain) {
+export async function dnsReport(rt, domain) {
   const resolve = rt.dnsResolve || ((h, t) => dns.promises.resolve(h, t));
   const hosts = [domain, 'www.' + domain];
   const jobs = hosts.flatMap((h) => ['A', 'AAAA', 'CNAME'].map((t) => within(Promise.resolve().then(() => resolve(h, t)), CHECK_MS).then((v) => ({ h, t, v: [].concat(v).map(String) }), (e) => ({ h, t, v: /** @type {string[]} */ ([]), e }))));
   /** @type {{ h: string, t: string, v: string[], e?: any }[]} */
   const got = await Promise.all(jobs);
   const of = (h, t) => got.find((x) => x.h === h && x.t === t) || { v: [] };
-  const at = (h) => ({ a: of(h, 'A').v, aaaa: of(h, 'AAAA').v.filter((x) => x.includes(':')), cname: of(h, 'CNAME').v });
+  /** @typedef {{ a: string[], aaaa: string[], cname: string[], vercel: boolean, old: string[] }} Names vercel: it leads to Vercel; old: what still leads elsewhere */
+  const at = (h) => {
+    const cname = of(h, 'CNAME').v;
+    // a name with a CNAME to Vercel answers A with the target's own addresses (cname.vercel-dns.com: 66.33.60.x): they are Vercel's
+    const viaVercel = cname.some(isVercelCname);
+    const a = of(h, 'A').v, aaaa = of(h, 'AAAA').v.filter((x) => x.includes(':'));
+    const old = viaVercel ? cname.filter((n) => !isVercelCname(n)) : [...a.filter((ip) => !isVercelIp(ip)), ...cname.filter((n) => !isVercelCname(n)), ...aaaa];
+    return { a, aaaa: viaVercel ? [] : aaaa, cname, vercel: viaVercel || a.some(isVercelIp), old };
+  };
   const apex = at(domain), www = at('www.' + domain);
-  const mine = (ip) => VERCEL_A.includes(ip);
-  const line = (state, text) => ({ id: 'dns', state, line: text });
+  /** @param {Step} step @returns {'vercel'|'ionos'|'half'|'none'|'unknown'} */
+  const where = (step) => {
+    if (step.state === 'ok') return 'vercel';
+    if (step.state === 'warn') return 'unknown';
+    if (!apex.a.length && !apex.cname.length && !apex.aaaa.length) return 'none';
+    return apex.vercel || www.vercel ? 'half' : 'ionos';
+  };
+  /** @param {Step['state']} state @param {string} text */
+  const line = (state, text) => { /** @type {Step} */ const step = { id: 'dns', state, line: text }; return { step, where: where(step), apex, www }; };
   // nothing at all for the domain: an unknown name is a step to do, anything else (a timeout, a refusing resolver) is a doubt
   if (!apex.a.length && !apex.cname.length && !apex.aaaa.length) {
     const errs = got.filter((x) => x.h === domain && x.e).map((x) => x.e);
     if (errs.every(noRecord)) return line('todo', domain + ' n’a pas d’adresse pour l’instant : change les DNS chez IONOS (les valeurs sont plus bas).');
     return line('warn', 'Vérification impossible : ' + reason(errs.find((e) => !noRecord(e))));
   }
-  const strayA = apex.a.filter((ip) => !mine(ip)), strayC = apex.cname.filter((n) => !VERCEL_CNAME.test(n));
-  if ((strayA.length || strayC.length) && !apex.a.some(mine) && !apex.cname.some((n) => VERCEL_CNAME.test(n))) return line('todo', domain + ' pointe vers ' + [...apex.a, ...apex.cname].join(', ') + ', pas vers le nouveau site : change les DNS chez IONOS (les valeurs sont plus bas).');
+  const strayA = apex.vercel && apex.cname.some(isVercelCname) ? [] : apex.a.filter((ip) => !isVercelIp(ip)), strayC = apex.cname.filter((n) => !isVercelCname(n));
+  if ((strayA.length || strayC.length) && !apex.vercel) return line('todo', domain + ' pointe vers ' + [...apex.a, ...apex.cname].join(', ') + ', pas vers le nouveau site : change les DNS chez IONOS (les valeurs sont plus bas).');
   if (strayA.length) return line('todo', strayA.join(', ') + (strayA.length > 1 ? ' sont encore dans les A de ' : ' est encore dans les A de ') + domain + ' : supprime-' + (strayA.length > 1 ? 'les' : 'le') + ' chez IONOS, sinon une partie des visiteurs arrive encore sur WordPress.');
   if (strayC.length) return line('todo', domain + ' a encore un CNAME vers ' + strayC.join(', ') + ' : supprime-le chez IONOS.');
   if (apex.aaaa.length) return line('todo', domain + ' a encore une adresse IPv6 (AAAA) ' + apex.aaaa.join(', ') + ' : supprime-la chez IONOS, sinon une partie des visiteurs arrive encore sur WordPress.');
   // www must lead to Vercel too (a CNAME, or the same addresses)
-  const wStray = [...www.a.filter((ip) => !mine(ip)), ...www.cname.filter((n) => !VERCEL_CNAME.test(n))];
-  if (wStray.length) return line('todo', 'www.' + domain + ' pointe encore chez IONOS (' + wStray.join(', ') + ') : remplace-le par le CNAME www → cname.vercel-dns.com.');
+  const wStray = www.old.filter((x) => !x.includes(':'));
+  if (wStray.length) return line('todo', 'www.' + domain + ' pointe encore chez IONOS (' + wStray.join(', ') + ') : remplace-le par le CNAME www vers la cible que Vercel affiche pour www (Vercel › Settings › Domains).');
   if (www.aaaa.length) return line('todo', 'www.' + domain + ' a encore une adresse IPv6 (AAAA) ' + www.aaaa.join(', ') + ' : supprime-la chez IONOS.');
   if (!www.a.length && !www.cname.length) {
     const errs = got.filter((x) => x.h === 'www.' + domain && x.e).map((x) => x.e);
     if (errs.some((e) => !noRecord(e))) return line('warn', 'Vérification impossible : ' + reason(errs.find((e) => !noRecord(e))));
-    return line('todo', 'www.' + domain + ' n’a pas d’adresse : ajoute chez IONOS le CNAME www → cname.vercel-dns.com.');
+    return line('todo', 'www.' + domain + ' n’a pas d’adresse : ajoute chez IONOS le CNAME www vers la cible que Vercel affiche pour www (Vercel › Settings › Domains).');
   }
   return line('ok', domain + ' pointe vers le nouveau site.');
+}
+
+/** The report of a domain, kept a minute per instance (the Jour J card and Connexion IONOS share it); never throws. */
+const reports = new WeakMap();
+export async function domainReport(rt, domain, refresh = false) {
+  let m = reports.get(rt);
+  if (!m) reports.set(rt, m = new Map());
+  const hit = m.get(domain);
+  if (hit && !refresh && Date.now() - hit.t < CACHE_MS) return hit.v;
+  let v;
+  try { v = await dnsReport(rt, domain); } catch (err) {
+    const step = { id: 'dns', state: /** @type {const} */ ('warn'), line: 'Vérification impossible : ' + reason(err) };
+    const empty = { a: [], aaaa: [], cname: [], vercel: false, old: [] };
+    v = { step, where: /** @type {const} */ ('unknown'), apex: empty, www: empty };
+  }
+  m.set(domain, { t: Date.now(), v });
+  return v;
+}
+/** Was this domain checked in the last minute on this instance? (then asking again costs the network nothing) */
+export function domainCached(rt, domain) {
+  const m = reports.get(rt), hit = m && m.get(domain);
+  return !!hit && Date.now() - hit.t < CACHE_MS;
 }
 
 /** Every old address on the live domain answers with its redirect (the cases of the end-to-end test). @returns {Promise<Step>} */
@@ -333,7 +379,7 @@ export async function basculeOf(rt, o = {}) {
     const refresh = !!o.refresh;
     // side by side: the function has 30 s in all
     const [dnsS, redirS, parked] = await Promise.all([
-      domain ? cached(rt, 'dns|' + domain, refresh, () => dnsStep(rt, domain), 'dns') : { id: 'dns', state: /** @type {const} */ ('todo'), line: 'Indique ton domaine pour vérifier ses DNS.', field: 'domain' },
+      domain ? domainReport(rt, domain, refresh).then((x) => x.step) : { id: 'dns', state: /** @type {const} */ ('todo'), line: 'Indique ton domaine pour vérifier ses DNS.', field: 'domain' },
       rt.cfg.publicUrl ? cached(rt, 'redirects|' + rt.cfg.publicUrl, refresh, () => redirectsStep(rt, rt.cfg.publicUrl), 'redirects')
         : { id: 'redirects', state: /** @type {const} */ ('todo'), line: 'L’adresse du site (PUBLIC_URL) n’est pas réglée : rien à vérifier.' },
       domain ? cached(rt, 'ancien|' + domain, refresh, () => ancienStep(rt, domain), 'ancien') : { id: 'ancien', state: /** @type {const} */ ('todo'), line: 'Indique ton domaine pour vérifier l’ancien site.', field: 'domain' }
@@ -407,12 +453,6 @@ export function sinceCsv(s) {
   return csv(rows);
 }
 
-/** Was this domain checked in the last minute on this instance? (then asking again costs the network nothing) */
-function isCached(rt, domain) {
-  const m = memo.get(rt), hit = m && m.get('dns|' + domain);
-  return !!hit && Date.now() - hit.t < CACHE_MS;
-}
-
 export function basculeRoutes(app) {
   // `domain`: typed by the owner for a one-off check; `remembered`: what his browser kept, used only when nothing else names the domain
   app.get('/api/v1/bascule', (r) => {
@@ -421,7 +461,7 @@ export function basculeRoutes(app) {
     const refresh = r.query.get('refresh') === '1';
     // each new domain starts DNS lookups and an outgoing request: the one the config names is free, any other is paced
     const eff = domainOf(r.s, r.rt.cfg, domain, remembered);
-    if (refresh || (r.s.mode === 'production' && eff && eff !== domainOf(r.s, r.rt.cfg) && !isCached(r.rt, eff))) guard('bascule|' + r.me.id, 12, 60000, 'Trop de vérifications. Réessaie dans une minute.');
+    if (refresh || (r.s.mode === 'production' && eff && eff !== domainOf(r.s, r.rt.cfg) && !domainCached(r.rt, eff))) guard('bascule|' + r.me.id, 12, 60000, 'Trop de vérifications. Réessaie dans une minute.');
     return basculeOf(r.rt, { domain, remembered, refresh });
   }, { cap: 'settings' });
 

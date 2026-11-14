@@ -19,7 +19,7 @@ type Overdue = ClientCard & { lastText: number | null; lastDue?: number | null }
 type WaitItem = { id: string; first: string; phone: string; day: string; staffId: string; serviceId: string; from: number; to: number; status: string; offer: { start: number; staffId: string; exp: number } | null; at: number };
 // via, fallback (MSG-02): the way a text really left ('whatsapp' or 'sms'; 'fallback': by Brevo after the salon's phone
 // refused it, FID-01), and why the first way handed it on
-type Msg = { id: string; channel?: 'sms' | 'email'; template: string; status: string; at: number; dueAt: number; sentAt: number | null; to: string; body: string; subject?: string; error: string; via?: 'sms' | 'whatsapp' | 'fallback' | null; fallback?: string; held?: boolean };
+type Msg = { id: string; channel?: 'sms' | 'email'; template: string; status: string; at: number; dueAt: number; sentAt: number | null; to: string; body: string; subject?: string; error: string; via?: 'sms' | 'whatsapp' | 'fallback' | null; fallback?: string; held?: boolean; hand?: boolean };
 type Back = { sent: number; clientsBack: number; revenueBack: number; rate: number };
 type Quiet = { from: number; to: number; sunday: boolean; holidays?: boolean } | undefined;
 type RebookData = { items: Overdue[]; excludedNoConsent: number; stats: Back; template: string; stop: string; quiet?: Quiet };
@@ -54,6 +54,8 @@ function msgStatus(m: Msg, demo: boolean, provider: string | null, now: number):
   const status = m.status;
   // kept back for the Jour J switch (Réglages › Reprendre WordPress), whatever the provider
   if (status === 'queued' && m.held) return ['attend la bascule', 'badge-info'];
+  // « mode téléphone »: a person sends it from the salon's WhatsApp, the row says where (« depuis l’écran Messages », a link)
+  if (status === 'queued' && m.hand) return ['à envoyer', 'badge-accent'];
   // short enough for a phone row: the icon beside it says which channel, the tooltip says it in words
   if (!demo && status === 'queued' && !provider) return ['attend un fournisseur', 'badge-warn'];
   // held back by the quiet hours: it says when it leaves
@@ -454,7 +456,7 @@ function Sent() {
                   <td className="tnum hide-phone" style={{ whiteSpace: 'nowrap' }}>{m.to}</td>
                   {can('settings') ? <td className="hide-phone rl-body" title={m.body}>{mail && m.subject ? m.subject : m.body}</td> : null}
                   {/* why it did not leave, in words: a tooltip never shows on a phone */}
-                  <td><span className={'badge ' + tone} title={label === 'attend un fournisseur' ? 'En attente d’un fournisseur ' + (mail ? 'e-mail' : 'SMS') : undefined}>{label}</span>{m.error && ['expired', 'failed', 'skipped'].includes(m.status) ? <small className="rl-why">{m.status === 'expired' ? cap(m.error.replace(/^Trop tard : /, '')) : m.error}</small> : null}{m.fallback ? <small className="rl-why">{m.via === 'fallback' ? 'Téléphone du salon : ' + m.fallback.replace(/^Téléphone du salon : /, '') : 'Par SMS : ' + m.fallback}</small> : null}</td>
+                  <td><span className={'badge ' + tone} title={label === 'attend un fournisseur' ? 'En attente d’un fournisseur ' + (mail ? 'e-mail' : 'SMS') : undefined}>{label}</span>{m.status === 'queued' && m.hand && !m.held ? <Link to="/messages" className="rl-why link">depuis l’écran Messages</Link> : null}{m.error && ['expired', 'failed', 'skipped'].includes(m.status) ? <small className="rl-why">{m.status === 'expired' ? cap(m.error.replace(/^Trop tard : /, '')) : m.error}</small> : null}{m.fallback ? <small className="rl-why">{m.via === 'fallback' ? 'Téléphone du salon : ' + m.fallback.replace(/^Téléphone du salon : /, '') : 'Par SMS : ' + m.fallback}</small> : null}</td>
                 </tr>
               );
             })}</tbody>

@@ -8,7 +8,7 @@
   "trailingSlash": false,
   "regions": ["cdg1"],
   "functions": {
-    "api/main.js": { "maxDuration": 30 }
+    "api/main.js": { "maxDuration": 30, "includeFiles": "server/presets/equipe/**" }
   },
   "redirects": [
     { "source": "/Main.dc", "destination": "/", "permanent": false },

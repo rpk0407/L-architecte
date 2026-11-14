@@ -20,8 +20,11 @@ const ADDR = /^[^\s<>@"\\,;:()[\]\x00-\x1f\x7f]{1,64}@[A-Za-z0-9](?:[A-Za-z0-9.-
 export const isSmtpAddress = (v) => typeof v === 'string' && ADDR.test(v) && v.includes('.', v.indexOf('@'));
 
 export class SmtpError extends Error {
-  /** @param {string} message @param {{ code?: number, stage?: string }} [o] */
-  constructor(message, o = {}) { super(message); this.name = 'SmtpError'; this.code = o.code || 0; this.stage = o.stage || ''; }
+  /** why (connection troubles): 'timeout' the server never answered in time, 'refused' the port is shut, 'notfound' no such
+   *  host, 'cert' its certificate does not match or is not trusted, 'closed' it hung up: Connexion IONOS reads it
+   *  (messaging/ionos.js mailTrouble)
+   *  @param {string} message @param {{ code?: number, stage?: string, why?: string }} [o] */
+  constructor(message, o = {}) { super(message); this.name = 'SmtpError'; this.code = o.code || 0; this.stage = o.stage || ''; this.why = o.why || ''; }
 }
 
 /** A header value on one line: line breaks and control characters out (they would start another header). */
@@ -160,7 +163,7 @@ export function smtpSend(cfg, msg) {
       try { sock && sock.destroy(); } catch { /* already closed */ }
       if (err) reject(err); else resolve(val);
     };
-    const timer = setTimeout(() => finish(new SmtpError('Le serveur d’e-mail ne répond pas à temps (' + host + ':' + port + ')', { stage })), timeoutMs);
+    const timer = setTimeout(() => finish(new SmtpError('Le serveur d’e-mail ne répond pas à temps (' + host + ':' + port + ')', { stage, why: 'timeout' })), timeoutMs);
     const onError = (e) => {
       const code = e && e.code;
       // a certificate that does not match, or is not trusted: never sent, and said plainly
@@ -168,7 +171,8 @@ export function smtpSend(cfg, msg) {
       finish(new SmtpError(cert ? 'Certificat du serveur d’e-mail refusé (' + host + ') : rien n’est envoyé'
         : code === 'ENOTFOUND' || code === 'EAI_AGAIN' ? 'Serveur d’e-mail introuvable : vérifie SMTP_HOST'
           : code === 'ECONNREFUSED' ? 'Connexion refusée par le serveur d’e-mail : vérifie SMTP_HOST et SMTP_PORT'
-            : 'Connexion au serveur d’e-mail interrompue' + (code ? ' (' + code + ')' : ''), { stage }));
+            : 'Connexion au serveur d’e-mail interrompue' + (code ? ' (' + code + ')' : ''),
+      { stage, why: cert ? 'cert' : code === 'ENOTFOUND' || code === 'EAI_AGAIN' ? 'notfound' : code === 'ECONNREFUSED' ? 'refused' : 'closed' }));
     };
     const onData = (chunk) => {
       buf += chunk.toString('utf8');
@@ -183,7 +187,7 @@ export function smtpSend(cfg, msg) {
         if (waiting) { const w = waiting; waiting = null; w.ok(r); } else ready.push(r);
       }
     };
-    const bind = (s) => { sock = s; s.on('data', onData); s.on('error', onError); s.on('close', () => finish(new SmtpError('Le serveur d’e-mail a fermé la connexion', { stage }))); };
+    const bind = (s) => { sock = s; s.on('data', onData); s.on('error', onError); s.on('close', () => finish(new SmtpError('Le serveur d’e-mail a fermé la connexion', { stage, why: 'closed' }))); };
     /** @returns {Promise<{ code: number, text: string }>} */
     const reply = () => new Promise((ok, no) => { const r = ready.shift(); if (r) ok(r); else waiting = { ok, no }; });
     /** Write a line (or nothing) and wait for the reply; `want`: the first digit expected. */

@@ -11,9 +11,9 @@ import { rhythmOf, perWeekOf, missedOf } from '../../shared/membership-words.js'
 import { localParts, addDays } from '../../shared/dates.js';
 import { cardLine, saleLoyalty } from '../domain/loyalty.js';
 
-/** photo: the version of the person's photo (TEAM-02, /api/v1/staff/:id/photo?v=), null without one */
+/** photo: the version of the person's photo (TEAM-02, /api/v1/staff/:id/photo?v=), null without one; photoSite: shown on the site */
 export function staffView(st, full = false) {
-  const v = { id: st.id, name: st.name, initials: st.initials, color: st.color, role: st.role, roleLabel: ROLES[st.role], chair: !!st.chair, bookable: !!st.bookable, active: st.active, order: st.order ?? 99, bio: st.bio || '', instagram: st.instagram || '', photo: st.photoV || null };
+  const v = { id: st.id, name: st.name, initials: st.initials, color: st.color, role: st.role, roleLabel: ROLES[st.role], chair: !!st.chair, bookable: !!st.bookable, active: st.active, order: st.order ?? 99, bio: st.bio || '', instagram: st.instagram || '', photo: st.photoV || null, photoSite: !!st.photoV && !!st.photoSite };
   if (!full) return v;
   return { ...v, email: st.email || '', services: st.services, schedule: st.schedule || {}, commission: st.commission || { service: 0, product: 0 }, hasPwd: !!st.hasPwd, hasPin: !!st.hasPin };
 }
