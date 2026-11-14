@@ -50,7 +50,7 @@ export const COMPTOIR_PLACES: readonly Place[] = [
   ...([
     ['compte', 'Mon compte'], ['salon', 'Le salon'], ['horaires', 'Horaires et fermetures'], ['reservation', 'Réservation en ligne'],
     ['paiements', 'Paiements'], ['abonnements', 'Abonnements'], ['messages', 'Messages'], ['equipe', 'Équipe et accès'], ['objectifs', 'Objectifs'],
-    ['fidelite', 'Fidélité'], ['appareils', 'Appareils'], ['donnees', 'Données et intégrité'], ['wordpress', 'Reprendre WordPress'], ['journal', 'Journal d’activité']
+    ['fidelite', 'Fidélité'], ['appareils', 'Appareils'], ['donnees', 'Données et intégrité'], ['wordpress', 'Reprendre WordPress'], ['ionos', 'Connexion IONOS'], ['journal', 'Journal d’activité']
   ] as const).map(([id, label]) => ({ path: '/comptoir/reglages/' + id, label: 'Réglages · ' + label }))
 ];
 
