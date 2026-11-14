@@ -11,7 +11,7 @@ import { payWindowMin, clientMayChange, payDeadline } from '../domain/policy.js'
 import { busyIntervals } from '../domain/availability.js';
 import { queueMessage, apptVars } from '../domain/messages.js';
 import { mailConfirmation, mailOwner } from '../domain/mails.js';
-import { offerOf, formuleOfAppt, formulesOfFiles, running, personOf, weeksRefusal, weeksOf, paidOnline, payState, anchorOf, endOf } from '../domain/formule.js';
+import { FORMULE_TEXT, offerOf, formuleOfAppt, formulesOfFiles, running, personOf, weeksRefusal, weeksOf, paidOnline, payState, anchorOf, endOf } from '../domain/formule.js';
 import { accountOf } from '../projections/accounts.js';
 import { accountsOn } from '../settings/accounts.js';
 import { cgvVersionOf } from '../settings/shop.js';
@@ -322,7 +322,7 @@ export function releaseIfFirstMissed(s, ctx, a) {
   ctx.emit('formule.released', { id: f.id, reason: RELEASE_REASON, cid: f.clientId });
   const c = s.clients.get(f.clientId);
   if (standing.length && c && !c.erased && c.phone && c.sms !== false) {
-    queueMessage(s, ctx, { key: 'frel_' + f.id, template: 'formuleReleased', to: c.phone, cid: c.id, vars: { prenom: c.first || '', nombre: String(standing.length), lien: ctx.meta.siteUrl || '' } });
+    queueMessage(s, ctx, { key: 'frel_' + f.id, template: 'formuleReleased', text: FORMULE_TEXT.released, to: c.phone, cid: c.id, vars: { prenom: c.first || '', nombre: String(standing.length), lien: ctx.meta.siteUrl || '' } });
   }
   return { released: standing.length };
 }

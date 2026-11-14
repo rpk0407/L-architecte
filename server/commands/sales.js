@@ -17,7 +17,7 @@ import { clientParts } from './clients.js';
 import { cover, coverWords, cutValue, label as memberLabel, rootOf, liveIn } from '../domain/membership.js';
 import { earnOf, receiptWords } from '../domain/loyalty.js';
 import { withReward, loyaltyAfterSale, loyaltyAfterRefund } from './loyalty.js';
-import { formuleOfAppt, formulesOfFiles, personOf, running, anchorOf, weeklyDays, offerOf } from '../domain/formule.js';
+import { FORMULE_TEXT, formuleOfAppt, formulesOfFiles, personOf, running, anchorOf, weeklyDays, offerOf } from '../domain/formule.js';
 
 const lineSchema = obj({
   kind: oneOf(/** @type {const} */ (['service', 'product', 'giftcard', 'pack', 'fee', 'membership'])), ref: opt(id()), name: opt(str({ max: 60 })),
@@ -309,7 +309,7 @@ export const checkout = {
       const used = (pid === (newPack && newPack.id) ? 0 : pk.used) + n;
       const offer = pk && pk.weekly && used >= pk.total ? offerOf(s) : null;
       if (offer && offer.online && offer.id === pk.serviceId && client && !client.erased && client.phone && client.sms !== false) {
-        queueMessage(s, ctx, { key: 'frenew_' + pk.id, template: 'formuleRenew', to: client.phone, cid: client.id, vars: { prenom: client.first || '', nombre: String(offer.credits), lien: (ctx.meta.siteUrl || '') + '?reserver&prestation=' + (offer.slug || '') } });
+        queueMessage(s, ctx, { key: 'frenew_' + pk.id, template: 'formuleRenew', text: FORMULE_TEXT.renew, to: client.phone, cid: client.id, vars: { prenom: client.first || '', nombre: String(offer.credits), lien: (ctx.meta.siteUrl || '') + '?reserver&prestation=' + (offer.slug || '') } });
       }
     }
     for (const [mid, list] of memberUses) for (const u of list) ctx.emit('member.used', { id: mid, saleId: sid, periodStart: u.periodStart, day, forced: u.forced, cid: client ? client.id : undefined });

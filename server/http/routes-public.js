@@ -30,6 +30,8 @@ import { receiptLoyalty } from '../domain/loyalty.js';
 import { readMemberToken, MEMBER_BOOK } from '../auth/member-token.js';
 import { salonWhatsapp } from '../settings/messages.js';
 import { effectiveMode } from '../messaging/hand.js';
+import { formuleOfAppt, rankOf, payState, endOf } from '../domain/formule.js';
+import { accountsOn } from '../settings/accounts.js';
 
 /** The demo, for real: both the configuration and the journal say so (a demo journal opened in production is not one). */
 export const isDemo = (r) => r.rt.cfg.mode === 'demo' && r.s.mode === 'demo';
@@ -71,6 +73,19 @@ export function awayOf(s, st, today) {
   return note ? { until, back, note } : null;
 }
 
+/**
+ * A date of a weekly carnet bought with its dates, for the booking's own page: « coupe 3 sur 5 », and what is left to pay
+ * (nothing once the carnet is paid; 80 € at the salon at the first cut otherwise). Nothing for any other booking.
+ */
+export function formuleLine(s, a) {
+  const f = formuleOfAppt(s, a.id);
+  const r = f ? rankOf(s, a.id) : null;
+  if (!f || !r) return {};
+  const sv = s.services.get(f.serviceId);
+  const pay = payState(s, f);
+  return { formule: { n: r.n, of: r.of, name: sv ? sv.name : 'Carnet', pay, due: pay === 'due' || pay === 'pending' ? (sv ? sv.price : 0) : 0, end: endOf(s, f) } };
+}
+
 function bookingView(r, a) {
   const s = r.s;
   const st = s.staff.get(a.staffId);
@@ -84,7 +99,8 @@ function bookingView(r, a) {
     deposit: a.deposit ? { amount: a.deposit.amount, paid: a.deposit.paid || 0, url: pay && pay.status === 'pending' ? pay.url : null } : null,
     canChange: ['booked', 'pending'].includes(a.status) && clientMayChange(s, a, r.rt.engine.clock()), cancelUntilHours: s.settings.booking.cancelUntilHours,
     shop: { name: s.settings.shop.name, address: s.settings.shop.address + ', ' + s.settings.shop.zip + ' ' + s.settings.shop.city, phone: s.settings.shop.phone, mapsUrl: s.settings.shop.mapsUrl },
-    cancelled: a.cancel ? { by: a.cancel.by, at: a.cancel.at } : null
+    cancelled: a.cancel ? { by: a.cancel.by, at: a.cancel.at } : null,
+    ...formuleLine(s, a)
   };
 }
 
@@ -170,9 +186,12 @@ export function publicRoutes(app) {
     const live = payLive(r);
     // no online payment: no deposit is asked, so the site must not announce one either
     const active = [...s.services.values()].filter((x) => x.active).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-    const services = active.filter((x) => x.online !== false).map((x) => (live ? serviceView(x) : { ...serviceView(x), deposit: 0 }));
+    // a carnet is on the site only when it can be bought there: the weekly one, with its dates, and the client space open
+    // (it asks for an account); any other stays on the price list, « au salon »
+    const sellable = (x) => !x.pack || (!!x.pack.weekly && accountsOn(s) && (x.pack.serviceIds || []).some((id) => s.services.get(id)?.active));
+    const services = active.filter((x) => x.online !== false && sellable(x)).map((x) => (live ? serviceView(x) : { ...serviceView(x), deposit: 0 }));
     // the whole price list (the CGV show it, the site's FAQ quotes it): booked at the salon only when online is false
-    const menu = active.map((x) => ({ slug: x.slug || null, name: x.name, category: x.category, price: x.price, from: !!x.from, dur: x.dur, online: x.online !== false }));
+    const menu = active.map((x) => ({ slug: x.slug || null, name: x.name, category: x.category, price: x.price, from: !!x.from, dur: x.dur, online: x.online !== false && sellable(x) }));
     const chairs = [...s.staff.values()].filter((x) => x.active && x.chair && x.bookable).sort((a, b) => (a.order ?? 99) - (b.order ?? 99));
     // photo: the address of his photo when he shows it on the site (« Photo visible sur le site »), absent otherwise;
     // the Comptoir's version number and the switch itself are the Comptoir's
@@ -227,7 +246,7 @@ export function publicRoutes(app) {
     const ids = String(q.get('services') || '').split(',').filter(Boolean).slice(0, 4);
     const staffId = q.get('staff') || 'any';
     if (!ids.length) throw new HttpError(400, 'invalid', 'Choisis une prestation.');
-    const services = ids.map((id) => s.services.get(id)).filter((x) => x && x.active && x.online !== false);
+    const services = ids.map((id) => s.services.get(id)).filter((x) => x && x.active && x.online !== false && !x.pack);
     if (services.length !== ids.length) throw new HttpError(404, 'not_found', 'Prestation introuvable.');
     const dur = services.reduce((t, x) => t + x.dur, 0) + Math.max(0, ...services.map((x) => x.buffer || 0));
     let ignoreAppt = null;

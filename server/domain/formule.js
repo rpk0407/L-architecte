@@ -7,6 +7,14 @@ import { freeSlots, shopIntervals, staffIntervals, eligibleStaff } from './avail
 import { rootOf } from './membership.js';
 
 const LIVE = new Set(['pending', 'booked', 'arrived', 'in_chair']);
+/**
+ * The two texts of a carnet bought with its dates, fixed words (one plain SMS each): the first cut missed with nothing
+ * paid, {nombre} other dates freed; the last cut taken, « Reprendre 5 coupes » ({nombre}: the cuts of a new one).
+ */
+export const FORMULE_TEXT = {
+  released: "L'Architecte : {prenom}, 1re coupe manquée et carnet non payé : tes {nombre} autres rendez-vous sont libérés. Reprendre : {lien}",
+  renew: "L'Architecte : {prenom}, ton carnet est fini. Reprendre {nombre} coupes : {lien}"
+};
 /** a missed week is lost, or made up once in one more week */
 export const MISSED = /** @type {const} */ (['lost', 'once']);
 

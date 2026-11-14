@@ -35,6 +35,7 @@ import { cockpitRoutes } from './routes-cockpit.js';
 import { homeRoutes } from './routes-home.js';
 import { bulkRoutes } from './routes-bulk.js';
 import { presetRoutes } from './routes-preset.js';
+import { formuleRoutes } from './routes-formule.js';
 
 // A REGISTRY: one line per route file
 const app = router();
@@ -66,6 +67,7 @@ cockpitRoutes(app);
 homeRoutes(app);
 bulkRoutes(app);
 presetRoutes(app);
+formuleRoutes(app);
 
 const MUTATING = new Set(['POST', 'PATCH', 'PUT', 'DELETE']);
 const READ_DOWN = 'La base de données ne répond pas. Réessaie dans un instant.';

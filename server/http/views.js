@@ -10,6 +10,7 @@ import { membersOf, statusOf, periodAt, graceOf, abandoned, weekUse } from '../d
 import { rhythmOf, perWeekOf, missedOf } from '../../shared/membership-words.js';
 import { localParts, addDays } from '../../shared/dates.js';
 import { cardLine, saleLoyalty } from '../domain/loyalty.js';
+import { formuleOfAppt, rankOf, payState, paidOnline } from '../domain/formule.js';
 
 /** photo: the version of the person's photo (TEAM-02, /api/v1/staff/:id/photo?v=), null without one; photoSite: shown on the site */
 export function staffView(st, full = false) {
