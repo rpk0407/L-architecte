@@ -37,12 +37,18 @@ const draftSig = (ls: Line[], d: { amount: number; reason: string } | null, t: {
 /** The test checkout takes no real money: outside the demo, a QR needs Stripe (the server refuses it too). */
 export const qrOff = (boot: Pick<Boot, 'mode' | 'providers'>) => boot.mode !== 'demo' && boot.providers.payments === 'simulated';
 
-export function Checkout({ apptId, drawerOpen, onClose }: { apptId: string | null; drawerOpen: boolean; onClose: () => void }) {
+/** phone: rung up on the barber's own phone (PhoneCheckout). The same ticket and the same command; the server checks it is
+ *  his client and the owner's switch, and the cash a barber takes stays with him (no drawer needed) until he hands it over. */
+export function Checkout({ apptId, drawerOpen, onClose, phone = false }: { apptId: string | null; drawerOpen: boolean; onClose: () => void; phone?: boolean }) {
   const { boot, staffById, serviceById, can, now, pulse, offline } = useApp();
   const today = pulse?.today || boot.today;
   const S = boot.settings.payments;
   const noQr = qrOff(boot);
   const isBoss = ['owner', 'manager'].includes(boot.me.role);
+  // a barber's own pocket: cash needs no open drawer, unless the owner keeps cash off phones
+  const pocket = phone && boot.me.role === 'barber';
+  const cashOk = S.cash && (!pocket || boot.settings.team.barberPhoneCash !== false);
+  const drawerHere = pocket || drawerOpen;
   const detail = useQuery<{ appt: Appt; client: ClientFull | null; payments: { id: string; kind: string; amount: number; status: string }[] }>(apptId ? '/api/v1/appointments/' + apptId : null);
   const [client, setClient] = useState<ClientCard | null>(null);
   const [lines, setLines] = useState<Line[]>([]);
@@ -239,14 +245,16 @@ export function Checkout({ apptId, drawerOpen, onClose }: { apptId: string | nul
         apptId: apptId || undefined, clientId: client?.id || undefined,
         lines: ls.map((l) => ({ kind: l.kind, ref: l.ref || undefined, name: l.kind === 'fee' ? l.name : undefined, qty: l.qty, unit: l.kind === 'giftcard' || l.kind === 'fee' || (l.kind === 'service' && !l.packId && !l.memberId) ? l.unit : undefined, discount: l.rewardId ? undefined : l.discount || undefined, rewardId: l.rewardId, staffId: l.staffId || undefined, packId: l.packId || undefined, memberId: l.memberId || undefined, force: l.force || undefined, recipient: l.recipient || undefined })),
         discount: disc && disc.amount ? disc : undefined, tip: tip && tip.amount ? tip : undefined,
-        payments: pays.length ? pays.map((p) => ({ method: p.method, amount: p.amount, given: p.given, ref: p.ref })) : [{ method: 'card', amount: 0 }]
+        payments: pays.length ? pays.map((p) => ({ method: p.method, amount: p.amount, given: p.given, ref: p.ref })) : [{ method: 'card', amount: 0 }],
+        ...(phone ? { phone: true } : {})
       };
       const r = await api.post('/api/v1/sales', body, rid.current);
       clearDraft(store, dKey);
       buzz([20, 60, 20]);
       // the barber picked in « Qui a fait la prestation ? » is on the lines sent, not yet in `performer`
       setDone({ ...r, client, lines: ls, pays, apptId, staffId: ls.find((l) => l.kind === 'service' && l.staffId)?.staffId ?? performer, habit: detail.data?.appt.start ?? dates.localParts(now()).min });
-      refreshAll();
+      // on the phone the page behind the sheet is read again when he closes it (PhoneCheckout): the receipt stays on screen
+      if (!phone) refreshAll();
     } catch (e: any) {
       if (e.code === 'drawer_closed') toast({ kind: 'err', title: 'La caisse n’est pas ouverte', sub: can('drawer') ? 'Ouvre-la dans l’onglet « Caisse & clôture » avec le fond de caisse.' : 'Demande au gérant de l’ouvrir, ou encaisse par carte.', icon: 'alert' });
       else toastError(e);
@@ -254,7 +262,7 @@ export function Checkout({ apptId, drawerOpen, onClose }: { apptId: string | nul
   };
 
   if (apptId && !detail.data) return <div className="card"><div className="col"><Skeleton h={40} w={220} /><Skeleton h={160} /><Skeleton h={90} /></div></div>;
-  if (done) return <Done done={done} onNext={onClose} />;
+  if (done) return <Done done={done} onNext={onClose} phone={phone} />;
   const appt = detail.data?.appt;
 
   return (
@@ -267,7 +275,7 @@ export function Checkout({ apptId, drawerOpen, onClose }: { apptId: string | nul
         <div className="row">
           {/* also on an appointment without a file (a regular who walked in): his carnet, plan and loyalty then apply */}
           {can('client.view') && (!apptId || (appt && !appt.client)) ? <Button variant="ghost" icon="user" data-guide="tk-client" onClick={() => setModal('client')}>{client ? 'Changer de client' : 'Associer un client'}</Button> : null}
-          <Button variant="ghost" icon="x" onClick={async () => { if (draftSig(lines, disc, tip, pays, client?.id || null) === pristine.current || await confirm({ title: 'Abandonner ce ticket ?', body: 'Ce que tu as saisi sur ce ticket (lignes, pourboire, paiements posés) est effacé. Rien n’est encaissé.', ok: 'Abandonner', danger: true })) { clearDraft(store, dKey); onClose(); } }}>Fermer</Button>
+          {phone ? null : <Button variant="ghost" icon="x" onClick={async () => { if (draftSig(lines, disc, tip, pays, client?.id || null) === pristine.current || await confirm({ title: 'Abandonner ce ticket ?', body: 'Ce que tu as saisi sur ce ticket (lignes, pourboire, paiements posés) est effacé. Rien n’est encaissé.', ok: 'Abandonner', danger: true })) { clearDraft(store, dKey); onClose(); } }}>Fermer</Button>}
         </div>
       </div>
       {resumed ? <Note tone="ok" icon="undo"><span data-guide="tk-resumed" role="status"><b>Ticket repris</b> · commencé à {time(dates.localParts(resumed.at).min)}. Tes lignes, le pourboire et les paiements déjà posés sont revenus : rien à ressaisir, rien n’est compté deux fois.{resumed.gift ? ' Seule la carte cadeau est à repasser (son code n’est jamais gardé).' : ''} {/* money already taken by QR stays on its ticket: no way to drop it by mistake */}{pays.some((p) => p.method === 'online' && p.ref !== paidOnline) ? null : <button type="button" className="link" onClick={restart}>Repartir de zéro</button>}</span></Note> : null}
@@ -328,7 +336,7 @@ export function Checkout({ apptId, drawerOpen, onClose }: { apptId: string | nul
           <div className="remaining"><span>{pays.length ? 'Reste à payer' : 'Comment paie-t-il ?'}</span><b className="money tnum">{eur(left, { decimals: left % 100 !== 0 })}</b></div>
           <div className="methods" data-guide="tk-methods">
             <button type="button" className="method" disabled={!S.card} onClick={() => addPay({ method: 'card', amount: left, label: 'Carte · terminal' })}><Icon name="card" /><span><b>Carte</b><small>Terminal de paiement</small></span></button>
-            <button type="button" className="method" disabled={!S.cash} onClick={() => setModal('cash')}><Icon name="cash" /><span><b>Espèces</b><small>{drawerOpen ? 'Calcule la monnaie' : 'Caisse fermée'}</small></span></button>
+            <button type="button" className="method" disabled={!cashOk} onClick={() => setModal('cash')}><Icon name="cash" /><span><b>Espèces</b><small>{pocket ? (cashOk ? 'Tu les gardes, à remettre' : 'Pas sur ton téléphone') : drawerOpen ? 'Calcule la monnaie' : 'Caisse fermée'}</small></span></button>
             <button type="button" className="method" disabled={!S.qr || noQr} onClick={() => setModal('qr')}><Icon name="qr" /><span><b>QR code</b><small>{noQr ? 'Branche Stripe pour le QR' : 'Apple Pay, carte'}</small></span></button>
             <button type="button" className="method" disabled={!S.giftcard || lines.some((l) => l.kind === 'giftcard')} onClick={() => setModal('gift')}><Icon name="gift" /><span><b>Carte cadeau</b><small>Saisir le code</small></span></button>
             {/* an imported booking with a deposit paid on the old site: once, never more than was paid there */}
@@ -344,7 +352,7 @@ export function Checkout({ apptId, drawerOpen, onClose }: { apptId: string | nul
       <DiscountModal open={modal === 'discount'} onClose={() => setModal('')} gross={lines.filter((l) => l.kind !== 'giftcard' && !paidBy(l)).reduce((t, l) => t + l.unit * l.qty - l.discount, 0)} maxPct={maxPct} value={disc} onSet={(d) => { setDisc(d); setModal(''); }} />
       <TipModal open={modal === 'tip'} onClose={() => setModal('')} presets={S.tipPresets} staffId={tip?.staffId || performer || ''} value={tip} onSet={(t) => { setTip(t); setModal(''); }} />
       <WhoModal open={modal === 'who'} onClose={() => setModal('')} onPick={(id) => { const next = lines.map((l) => (l.staffId ? l : { ...l, staffId: id })); setLines(next); setModal(''); submit(next); }} />
-      <CashModal open={modal === 'cash'} onClose={() => setModal('')} due={left} drawerOpen={drawerOpen} onPay={(amount, given) => { addPay({ method: 'cash', amount, given, label: 'Espèces' }); setModal(''); }} />
+      <CashModal open={modal === 'cash'} onClose={() => setModal('')} due={left} drawerOpen={drawerHere} onPay={(amount, given) => { addPay({ method: 'cash', amount, given, label: 'Espèces' }); setModal(''); }} />
       {/* the label lands in the chained journal: the salon's name, never the client's */}
       <QrModal open={modal === 'qr'} onClose={() => setModal('')} amount={left} label={boot.settings.shop.name} onPaid={(id, amount) => { addPay({ method: 'online', amount, ref: id, label: 'Payé par QR code' }); setModal(''); }} />
       <GiftModal open={modal === 'gift'} onClose={() => setModal('')} due={left} onPay={(amount, code, last4) => { addPay({ method: 'giftcard', amount, ref: code, label: 'Carte cadeau •••• ' + last4 }); setModal(''); }} />
@@ -592,7 +600,7 @@ const rhythmWeeks = (days: number) => (days < 10 ? 1 : days <= 17 ? 2 : days <= 
 const rhythmFree = (s: Service | undefined) => !!s && NO_RHYTHM.test(s.category + ' ' + s.name);
 type Slots = { days: { day: string; slots: { m: number; s: string }[] }[] };
 
-function Done({ done, onNext }: { done: any; onNext: () => void }) {
+function Done({ done, onNext, phone = false }: { done: any; onNext: () => void; phone?: boolean }) {
   const { boot, staffById, serviceById, can } = useApp();
   const [sent, setSent] = useState(false);
   const [booked, setBooked] = useState('');
@@ -634,7 +642,8 @@ function Done({ done, onNext }: { done: any; onNext: () => void }) {
       <div className="row wrap" style={{ justifyContent: 'center' }}>
         {c?.hasPhone ? <Button variant="ghost" icon="sms" disabled={sent} onClick={async () => { try { await api.post('/api/v1/sales/' + done.id + '/receipt', {}); setSent(true); toast('Reçu envoyé par SMS'); } catch (e) { toastError(e); } }}>{sent ? 'Reçu envoyé' : 'Reçu par SMS'}</Button> : null}
         <Button variant="ghost" icon="print" disabled={!sale.data} onClick={() => { setVoucher(null); printNow(); }}>Imprimer le ticket</Button>
-        <Button variant="solid" icon="arrowR" onClick={onNext}>Ticket suivant</Button>
+        {phone ? <ShareReceipt saleId={done.id} /> : null}
+        <Button variant="solid" icon={phone ? 'check' : 'arrowR'} onClick={onNext}>{phone ? 'Terminé' : 'Ticket suivant'}</Button>
       </div>
       {c && ask ? (
         <div className="rebook">
@@ -646,6 +655,20 @@ function Done({ done, onNext }: { done: any; onNext: () => void }) {
       {c ? <OfferMember c={c} lines={done.lines as Line[]} /> : null}
       {voucher ? <Voucher card={voucher} /> : sale.data ? <Receipt sale={sale.data} /> : null}
     </div>
+  );
+}
+
+/** The receipt's link, sent from the barber's own phone: WhatsApp or e-mail open with the message written (no message
+ *  leaves the salon's accounts; the SMS button above goes through the salon's texts). */
+function ShareReceipt({ saleId }: { saleId: string }) {
+  const { data } = useQuery<{ url: string; ticket: string; amount: number; first: string; email: string }>('/api/v1/sales/' + saleId + '/link');
+  if (!data?.url) return null;
+  const text = (data.first ? 'Merci ' + data.first + ' ! ' : 'Merci ! ') + 'Ton reçu ' + data.ticket + ' (' + eur(data.amount, { decimals: data.amount % 100 !== 0 }) + ') : ' + data.url;
+  return (
+    <>
+      <a className="btn btn-ghost" data-share="whatsapp" href={'https://wa.me/?text=' + encodeURIComponent(text)} target="_blank" rel="noopener noreferrer"><Icon name="sms" size={16} />WhatsApp</a>
+      <a className="btn btn-ghost" data-share="email" href={'mailto:' + encodeURIComponent(data.email) + '?subject=' + encodeURIComponent('Ton reçu ' + data.ticket) + '&body=' + encodeURIComponent(text)}><Icon name="mail" size={16} />E-mail</a>
+    </>
   );
 }
 

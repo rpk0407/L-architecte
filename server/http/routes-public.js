@@ -78,7 +78,9 @@ function bookingView(r, a) {
   const pay = a.deposit && a.deposit.paymentId ? s.payments.get(a.deposit.paymentId) : [...s.payments.values()].find((p) => p.apptId === a.id && p.kind === 'deposit' && p.status === 'pending');
   return {
     code: a.code, status: a.status, day: a.day, start: a.start, dur: a.dur, services: a.services.map((x) => ({ id: x.id, name: x.name, price: x.price, from: x.from })), price: a.price,
-    staff: st ? { id: st.id, name: st.name, initials: st.initials, color: st.color } : null, anyStaff: a.anyStaff, first: c ? c.first : '',
+    staff: st ? { id: st.id, name: st.name, initials: st.initials, color: st.color } : null, anyStaff: a.anyStaff,
+    // a place booked for someone else shows the name typed for it, never what the salon's file says (privacy)
+    first: a.ext && a.ext.guest ? a.name || '' : c ? c.first : '', ...(a.ext && a.ext.guest ? { guest: a.ext.guest.kind } : {}),
     deposit: a.deposit ? { amount: a.deposit.amount, paid: a.deposit.paid || 0, url: pay && pay.status === 'pending' ? pay.url : null } : null,
     canChange: ['booked', 'pending'].includes(a.status) && clientMayChange(s, a, r.rt.engine.clock()), cancelUntilHours: s.settings.booking.cancelUntilHours,
     shop: { name: s.settings.shop.name, address: s.settings.shop.address + ', ' + s.settings.shop.zip + ' ' + s.settings.shop.city, phone: s.settings.shop.phone, mapsUrl: s.settings.shop.mapsUrl },
@@ -264,32 +266,45 @@ export function publicRoutes(app) {
     const ctx = { ...CLIENT(r), ...retryKey(r, 'book') };
     const again = !!ctx.requestId && r.rt.engine.knows(ctx.actor, ctx.requestId) === 'answered';
     const res = await r.rt.engine.run(A.bookOnline, { ...r.body, demo: undefined }, mt && 'id' in mt ? { ...ctx, meta: { ...ctx.meta, memberId: mt.id } } : ctx);
-    const token = signLink(r.rt.secret, 'appt', res.code);
-    let payment = null;
-    // a retry finds the booking as it now stands: its deposit page is the one already opened, never a second one
-    const now = r.s.appts.get(res.id);
-    const open = again ? [...r.s.payments.values()].find((p) => p.apptId === res.id && p.kind === 'deposit' && p.status === 'pending') : null;
-    if (again && res.status === 'pending' && (!now || now.status === 'cancelled')) throw new HttpError(409, 'gone', 'Cette réservation n’a pas abouti : rien n’est enregistré. Choisis ton créneau à nouveau.');
-    const status = again && now ? now.status : res.status;
-    if (open) payment = { id: open.id, url: open.url };
-    else if (status === 'pending' && res.deposit > 0) {
-      const sv = r.s.appts.get(res.id);
-      try {
-        payment = await startPayment(r, { kind: 'deposit', amount: res.deposit, label: 'Acompte · ' + sv.services.map((x) => x.name).join(' + '), apptId: res.id, returnPath: '/r/' + token, email: r.body.email });
-      } catch (e) {
-        // no page to pay on (the provider is down, or its page could not be recorded): the booking would hold the slot
-        // unpaid, with no link and no text, against its own client's retry. Taken back at once, and said plainly
-        console.error('[lx] deposit checkout failed, booking taken back', res.id, e && (/** @type {any} */ (e).detail || /** @type {any} */ (e).message));
-        try { await r.rt.engine.run(A.expirePending, { id: res.id, reason: 'Paiement en ligne indisponible' }, { actor: { t: 'system', id: 'payments' }, caps: new Set(), meta: r.meta }); }
-        catch (e2) { console.error('[lx] booking not taken back', res.id, e2 && /** @type {any} */ (e2).message); }
-        // the provider's answer already put in French for a client (payments/stripe.js: 502 « réessaie dans un instant »)
-        if (e && /** @type {any} */ (e).expose) throw e;
-        throw new HttpError(503, 'pay_unavailable', 'Le paiement en ligne est momentanément indisponible : ton rendez-vous n’est pas enregistré et rien n’est débité. Réessaie dans un instant, ou appelle le salon.', { retry: true, phone: r.s.settings.shop.phone });
+    // one booking can hold up to four people (« Ajouter une personne »): each place has its own link to move, cancel or pay
+    const places = res.people || [res];
+    const outs = [];
+    for (const x of places) {
+      const token = signLink(r.rt.secret, 'appt', x.code);
+      let payment = null;
+      // a retry finds the booking as it now stands: its deposit page is the one already opened, never a second one
+      const now = r.s.appts.get(x.id);
+      const open = again ? [...r.s.payments.values()].find((p) => p.apptId === x.id && p.kind === 'deposit' && p.status === 'pending') : null;
+      if (again && x.status === 'pending' && (!now || now.status === 'cancelled')) throw new HttpError(409, 'gone', 'Cette réservation n’a pas abouti : rien n’est enregistré. Choisis ton créneau à nouveau.');
+      const status = again && now ? now.status : x.status;
+      if (open) payment = { id: open.id, url: open.url };
+      else if (status === 'pending' && x.deposit > 0) {
+        const sv = r.s.appts.get(x.id);
+        try {
+          payment = await startPayment(r, { kind: 'deposit', amount: x.deposit, label: 'Acompte · ' + sv.services.map((y) => y.name).join(' + ') + (sv.ext && sv.ext.guest && sv.name ? ' · ' + sv.name : ''), apptId: x.id, returnPath: '/r/' + token, email: r.body.email });
+        } catch (e) {
+          // no page to pay on (the provider is down, or its page could not be recorded): the booking would hold the slot
+          // unpaid, with no link and no text, against its own client's retry. Taken back at once (every place still
+          // waiting for its deposit), and said plainly
+          console.error('[lx] deposit checkout failed, booking taken back', x.id, e && (/** @type {any} */ (e).detail || /** @type {any} */ (e).message));
+          for (const y of places) {
+            if (y.status !== 'pending') continue;
+            try { await r.rt.engine.run(A.expirePending, { id: y.id, reason: 'Paiement en ligne indisponible' }, { actor: { t: 'system', id: 'payments' }, caps: new Set(), meta: r.meta }); }
+            catch (e2) { console.error('[lx] booking not taken back', y.id, e2 && /** @type {any} */ (e2).message); }
+          }
+          // the provider's answer already put in French for a client (payments/stripe.js: 502 « réessaie dans un instant »)
+          if (e && /** @type {any} */ (e).expose) throw e;
+          throw new HttpError(503, 'pay_unavailable', 'Le paiement en ligne est momentanément indisponible : ton rendez-vous n’est pas enregistré et rien n’est débité. Réessaie dans un instant, ou appelle le salon.', { retry: true, phone: r.s.settings.shop.phone });
+        }
       }
+      outs.push({ code: x.code, token, manage: r.origin + '/r/' + token, status, deposit: x.deposit, staffId: x.staffId, payment, ...(x.member ? { member: x.member } : {}),
+        ...(res.people ? { first: x.first, day: x.day, start: x.start, guest: x.guest, price: x.price } : {}) });
     }
+    const head = outs[0];
     // FID-02: a booking that came through a referrer's link (?parrain=); a refusal never touches the booking
     const ref = r.body && r.body.parrain && !again ? await claimFromLink(r, res.id, r.body.parrain) : null;
-    return json({ code: res.code, token, manage: r.origin + '/r/' + token, status, deposit: res.deposit, staffId: res.staffId, payment, ...(res.member ? { member: res.member } : {}), ...(ref ? { referral: { ok: !!ref.ok, why: ref.ok ? null : ref.why } } : {}) }, 201);
+    const { first: _f, day: _d, start: _s, guest: _g, price: _p, ...one } = head;
+    return json({ ...one, ...(res.people ? { people: outs } : {}), ...(ref ? { referral: { ok: !!ref.ok, why: ref.ok ? null : ref.why } } : {}) }, 201);
   });
 
   app.get('/api/public/bookings/:token', (r) => bookingView(r, apptFromToken(r)));

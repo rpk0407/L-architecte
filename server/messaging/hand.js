@@ -5,7 +5,7 @@
 // One rule decides who carries a text, read by the scheduler (it leaves these alone) and by the screen (it shows them):
 // byHand below. The hold before the switch from WordPress applies here as everywhere (projections/bascule.js).
 import { TEMPLATE_FLAGS, classOf } from '../core/templates.js';
-import { waMode } from '../settings/messages.js';
+import { waMode, salonWhatsapp } from '../settings/messages.js';
 import { waMapping, fileOf } from '../domain/messages.js';
 import { startsAt } from '../domain/policy.js';
 import { cutoverHeld } from '../projections/bascule.js';
@@ -44,6 +44,8 @@ export function byHand(s, rt, m) {
   const mode = waMode(s.settings.messages);
   if (mode === 'phone') return true;
   if (s.mode === 'demo') return false;
+  // FEATURE B: a client who chose WhatsApp (domain/notify.js) while the salon sends SMS: a person sends it from the salon's WhatsApp
+  if (mode === 'sms' && salonWhatsapp(s.settings.messages)) { const c = fileOf(s, m.cid); if (c && c.notify === 'whatsapp') return true; }
   if (mode === 'auto') {
     // chosen but not plugged in yet (no token): the phone mode stands in, rather than a paid SMS nobody asked for
     if (!rt.whatsapp) return true;

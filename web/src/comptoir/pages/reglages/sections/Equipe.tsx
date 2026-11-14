@@ -40,11 +40,14 @@ export default function Equipe({ s, data }: SectionProps) {
     <div className="col" style={{ gap: 16 }}>
       <Card title="Ce que les barbiers peuvent faire" guide="equipe-droits" icon="shield">
         <Switch on={T.barberCheckout} onChange={(v) => t.setV({ ...T, barberCheckout: v })} title="Encaisser" hint="Sinon, seuls l’accueil et le gérant encaissent." />
+        {T.barberCheckout ? <Switch on={T.barberPhone !== false} onChange={(v) => t.setV({ ...T, barberPhone: v })} title="Les barbiers encaissent sur leur téléphone" hint="Leurs propres clients seulement, depuis Mon espace : carte sur le terminal du salon, QR, carnet, carte cadeau." /> : null}
+        {T.barberCheckout && T.barberPhone !== false ? <Switch on={T.barberPhoneCash !== false} onChange={(v) => t.setV({ ...T, barberPhoneCash: v })} title="Espèces sur leur téléphone" hint="Le barbier garde les espèces et les remet à la caisse : la clôture dit combien chacun doit remettre." /> : null}
         <Switch on={T.barberAllAgenda} onChange={(v) => t.setV({ ...T, barberAllAgenda: v })} title="Voir l’agenda de tout le salon" hint="Utile pour prendre un client au vol quand un collègue est plein. Il y voit aussi les prestations et leurs prix." />
         <Switch on={T.timeoffApproval !== false} onChange={(v) => t.setV({ ...T, timeoffApproval: v })} title="Valider leurs absences" hint="Une absence posée par un barbier t’attend : ses créneaux restent ouverts jusqu’à ce que tu la valides, et tu replaces ses clients en un geste." />
         <Switch on={T.barberRebook === true} onChange={(v) => t.setV({ ...T, barberRebook: v })} title="Relancer leurs habitués" hint="Un barbier peut envoyer le SMS de relance du salon à ses propres clients qui ont accepté les offres." />
         <Switch on={T.personalPhones !== false} onChange={(v) => t.setV({ ...T, personalPhones: v })} title="Leur téléphone personnel" hint="Chacun peut lier son téléphone au Comptoir avec un QR code, et y entrer avec son code une fois par jour." />
         <Switch on={T.staffCalendar !== false} onChange={(v) => t.setV({ ...T, staffCalendar: v })} title="Leur agenda dans leur téléphone" hint="Prénom du client et prestation, jamais le numéro." />
+        <Switch on={T.arrivalAsk !== false} onChange={(v) => t.setV({ ...T, arrivalAsk: v })} title="« Le client est là ? »" hint="À l’heure de chaque rendez-vous, le barbier reçoit la question sur son téléphone : Il est là, Pas encore (redemandé 10 min après) ou Absent. L’accueil voit la réponse sur l’agenda." />
         <Field label="Remise maximale qu’un barbier peut accorder"><div className="chips">{[0, 5, 10, 15, 20].map((n) => <Chip key={n} small on={T.barberMaxDiscountPct === n} onClick={() => t.setV({ ...T, barberMaxDiscountPct: n })}>{n ? n + ' %' : 'aucune'}</Chip>)}</div></Field>
       </Card>
       <Card title="Ce que chacun voit des autres" guide="equipe-vue" icon="eye">

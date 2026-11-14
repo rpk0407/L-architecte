@@ -39,8 +39,10 @@ export const tick = {
       const c = a.clientId ? s.clients.get(a.clientId) : null;
       if (!c || c.erased || a.status !== 'booked') continue;
       // by text: the file takes them and so does this booking; by e-mail: the owner switched it on and the client gave an address
-      const text = !!c.phone && !!c.sms && !!a.sms;
-      const mail = !!M.reminder && !!M.reminderEmail && isEmail(c.email);
+      // FEATURE B: a client who chose the e-mail (domain/notify.js) gets his reminders by e-mail instead of a text
+      const wantsMail = c.notify === 'email' && isEmail(c.email) && M.email !== false;
+      const text = !!c.phone && !!c.sms && !!a.sms && !wantsMail;
+      const mail = ((!!M.reminder && !!M.reminderEmail) || wantsMail) && isEmail(c.email);
       if (!text && !mail) continue;
       const toMail = (soon) => mailReminder(s, ctx, a, { to: c.email, first: c.first, link: ctx.meta.linkFor ? ctx.meta.linkFor(a) : '', soon, today: L.day });
       // 2. the evening before

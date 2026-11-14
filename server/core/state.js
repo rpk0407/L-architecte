@@ -328,7 +328,7 @@ export function evolve(s, e) {
       s.drawer = { id: d.id, openedAt: d.at || e.at, openedBy: e.actor.id, float: d.float, moves: [], day: d.day };
       s.drawers.set(d.id, s.drawer);
       break;
-    case 'drawer.moved': if (s.drawer && s.drawer.id === d.drawerId) s.drawer.moves.push({ id: d.id, amount: d.amount, reason: d.reason, at: e.at, by: e.actor.id }); break;
+    case 'drawer.moved': if (s.drawer && s.drawer.id === d.drawerId) s.drawer.moves.push({ id: d.id, amount: d.amount, reason: d.reason, at: e.at, by: e.actor.id, ...(d.staffId ? { staffId: d.staffId } : {}) }); break;
     case 'drawer.closed': {
       const x = s.drawers.get(d.drawerId);
       if (x) Object.assign(x, { closedAt: d.at || e.at, closedBy: e.actor.id, counted: d.counted, counts: d.counts, expected: d.expected, diff: d.diff, note: d.note || '' });

@@ -13,6 +13,8 @@ import { draftsOf, tabStore } from './caisse/draft';
 import { Sales } from './caisse/Sales';
 import { Closing } from './caisse/Closing';
 import { Online } from './caisse/Online';
+import { DayMoney } from './caisse/DayMoney';
+import { Month } from './caisse/Month';
 import type { Agenda, Appt } from '../types';
 import './caisse.css';
 
@@ -24,11 +26,13 @@ export default function Caisse() {
   const { boot, can } = useApp();
   const route = useRoute();
   const [why, setWhy] = useState(false);
-  const tab = route.id === 'ventes' ? 'ventes' : route.id === 'cloture' && (can('drawer') || can('closure')) ? 'cloture' : 'encaisser';
+  // in the order of the day: ring up, the day's tickets, the count and the Z, then the month (the salon's money)
+  const tab = route.id === 'ventes' ? 'ventes' : route.id === 'cloture' && (can('drawer') || can('closure')) ? 'cloture' : route.id === 'mois' && can('report.shop') ? 'mois' : 'encaisser';
   const tabs = [
     { to: '/caisse', id: 'encaisser', label: 'Encaisser', icon: 'caisse' },
     { to: '/caisse/ventes', id: 'ventes', label: 'Ventes du jour', icon: 'ticket' },
-    ...(can('drawer') || can('closure') ? [{ to: '/caisse/cloture', id: 'cloture', label: 'Caisse & clôture', icon: 'lock' }] : [])
+    ...(can('drawer') || can('closure') ? [{ to: '/caisse/cloture', id: 'cloture', label: 'Caisse & clôture', icon: 'lock' }] : []),
+    ...(can('report.shop') ? [{ to: '/caisse/mois', id: 'mois', label: 'Le mois', icon: 'rapports' }] : [])
   ];
   return (
     <>
@@ -38,7 +42,7 @@ export default function Caisse() {
       </nav>
       {boot.mode !== 'demo' ? <div style={{ marginBottom: 16 }}><Note icon="info"><b>Caisse de gestion : le ticket légal sort de ta caisse certifiée.</b> <button type="button" className="link" onClick={() => setWhy(true)}>En savoir plus</button></Note></div> : null}
       <Online />
-      {tab === 'encaisser' ? <Till /> : tab === 'ventes' ? <Sales /> : <Closing />}
+      {tab === 'encaisser' ? <Till /> : tab === 'ventes' ? <Sales /> : tab === 'mois' ? <Month /> : <Closing />}
       <FiscalSheet open={why} onClose={() => setWhy(false)} />
     </>
   );
@@ -76,7 +80,8 @@ function Till() {
 
   const { toPay, later, paid } = useMemo(() => {
     const appts = (data?.appts || []).filter((a) => !['cancelled', 'no_show'].includes(a.status) && (!mine || a.staffId === boot.me.id));
-    const toPay = appts.filter((a) => !a.saleId && !a.legacy && (a.status === 'in_chair' || a.status === 'done' || (['booked', 'arrived'].includes(a.status) && a.start + a.dur <= nowMin)));
+    // every chair's (or his own), the one waiting longest first
+    const toPay = appts.filter((a) => !a.saleId && !a.legacy && (a.status === 'in_chair' || a.status === 'done' || (['booked', 'arrived'].includes(a.status) && a.start + a.dur <= nowMin))).sort((a, b) => a.start + a.dur - (b.start + b.dur));
     const later = appts.filter((a) => !a.saleId && !a.legacy && !toPay.includes(a) && a.status !== 'pending').slice(0, 8);
     const paid = appts.filter((a) => a.saleId).length;
     return { toPay, later, paid };
@@ -92,11 +97,14 @@ function Till() {
   if (loading && !data) return <div className="cs-grid"><Skeleton h={320} r={22} /><Skeleton h={420} r={22} /></div>;
   if (data?.closed) {
     return (
-      <section className="card" data-tour-empty data-guide="cs-closed">
-        <Empty icon="lock" title="La journée est clôturée" action={<Button variant="ghost" icon="ticket" onClick={() => navigate('/caisse/ventes')}>Voir les tickets</Button>}>
-          Le Z de {dates.dayLong(today)} est scellé. Les ventes reprendront demain ; une erreur se corrige par un avoir.
-        </Empty>
-      </section>
+      <div className="col" style={{ gap: 14 }}>
+        <section className="card" data-tour-empty data-guide="cs-closed">
+          <Empty icon="lock" title="La journée est clôturée" action={<Button variant="ghost" icon="ticket" onClick={() => navigate('/caisse/ventes')}>Voir les tickets</Button>}>
+            Le Z de {dates.dayLong(today)} est scellé. Les ventes reprendront demain ; une erreur se corrige par un avoir.
+          </Empty>
+        </section>
+        {can('sale.all') ? <DayMoney /> : null}
+      </div>
     );
   }
 
@@ -111,7 +119,7 @@ function Till() {
           <span className="li-main"><b>{a.client ? a.client.first + ' ' + a.client.last : a.name}</b><small>{time(a.start)} · {a.services.map((s) => s.name).join(' + ')}{a.deposit?.paid ? ' · acompte ' + eur(a.deposit.paid) : ''}</small>{drafts.has(a.id) && rdv !== a.id ? <small><span className="badge badge-warn">ticket en cours</span></small> : null}</span>
           <span className="li-end">
             <b className="money tnum">{eur(a.price)}</b>
-            <small className={hot ? '' : 'faint'} style={hot ? { color: 'var(--accent)' } : undefined}>{a.status === 'in_chair' ? 'au fauteuil' : hot ? 'terminé' : st?.name}</small>
+            <small className={hot ? '' : 'faint'} style={hot ? { color: 'var(--accent)' } : undefined}>{a.status === 'in_chair' ? 'au fauteuil' : hot ? waitedWords(nowMin - a.start - a.dur) : st?.name}{hot && !mine && st ? ' · ' + st.name : ''}</small>
           </span>
         </button>
       </li>
@@ -132,6 +140,7 @@ function Till() {
             <ul className="list">{later.map((a) => item(a, false))}</ul>
           </section>
         ) : null}
+        {can('sale.all') ? <DayMoney /> : null}
         {!data?.drawer.open ? <p className="faint" style={{ fontSize: 12.5, padding: '0 4px' }}><Icon name="cash" size={13} /> Tiroir fermé{ways.length || P.cash ? ' : ' : '.'}{ways.length ? ways.join(' et ') + (ways.length > 1 ? ' fonctionnent' : ' fonctionne') + (P.cash ? ', ' : '.') : ''}{P.cash ? 'les espèces demandent d’ouvrir la caisse.' : ''}</p> : null}
       </aside>
       <div className="cs-main">
@@ -150,4 +159,11 @@ function Till() {
       </div>
     </div>
   );
+}
+
+/** « fini à l’instant », « il y a 12 min », « il y a 1 h 05 » */
+function waitedWords(min: number) {
+  if (min < 2) return 'fini à l’instant';
+  if (min < 60) return 'fini il y a ' + min + ' min';
+  return 'fini il y a ' + Math.floor(min / 60) + ' h' + (min % 60 ? ' ' + String(min % 60).padStart(2, '0') : '');
 }

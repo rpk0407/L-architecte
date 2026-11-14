@@ -4,7 +4,7 @@
 // appointments, his own figures, the salon in percent, never a colleague's money, a client's number or a colleague's
 // client. Cards that depend on a module another package adds (walk-in turn, the late notice, a favourite barber) read it
 // behind a guard, so nothing here needs them. Memoised per (journal version, person, day), for the current minute.
-import { dayParts, diffDays, keyOf, localParts, monthStart, weekStart } from '../../shared/dates.js';
+import { addDays, dayParts, diffDays, keyOf, localParts, monthStart, weekStart } from '../../shared/dates.js';
 import { busyIntervals, intersect, occupies, staffIntervals, subtract } from './availability.js';
 import { clientStats, goalOf, report } from './insights.js';
 import { cutNotesOf } from '../projections/cutnotes.js';
@@ -273,3 +273,58 @@ function build(s, me, caps, day, now, local) {
     salon
   };
 }
+
+/** how far ahead the barber's planning reaches: today and the 13 days after */
+export const PLAN_DAYS = 14;
+
+/**
+ * FEATURE C · « Mon planning »: one day of his chair, today or one of the next ones (a past day too, read-only): his
+ * bookings in order, his free gaps, his breaks (between his working hours, and the blocks he or the desk put), his
+ * absence, the day's total; and the strip of the 14 days from today with what each holds. His own column only.
+ * readOnly: a day gone by or already sealed (Z): nothing on it moves any more.
+ * @param {any} s @param {any} me @param {{ day: string, now: number }} q
+ */
+export function planningView(s, me, q) {
+  const local = localParts(q.now);
+  return memo(s, ['plan', me.id, q.day].join('|'), Math.floor(q.now / 60000), () => buildPlanning(s, me, q.day, q.now, local.day, local.min));
+}
+
+const openOf = (s, me, day) => [...(s.apptsByDay.get(day) || [])].map((id) => s.appts.get(id)).filter((a) => a && a.staffId === me.id && a.status !== 'cancelled');
+const absenceOn = (s, me, day) => [...s.timeoff.values()].find((t) => t.staffId === me.id && day >= t.from && day <= t.to && !(t.status === 'pending' || t.status === 'refused')) || null;
+const askedOn = (s, me, day) => [...s.timeoffRequests.values()].find((t) => t.staffId === me.id && t.status === 'pending' && day >= t.from && day <= t.to) || null;
+
+function buildPlanning(s, me, day, now, today, nowMin) {
+  const isToday = day === today;
+  const appts = openOf(s, me, day).sort((a, b) => a.start - b.start);
+  const work = staffIntervals(s, me.id, day);
+  const min = isToday ? nowMin : day > today ? 0 : 1440;
+  // breaks: the holes between his working hours, and the blocks of his column
+  const breaks = [];
+  for (let i = 1; i < work.length; i++) breaks.push({ start: work[i - 1][1], end: work[i][0], label: 'Pause' });
+  for (const id of s.blocksByDay.get(day) || []) { const b = s.blocks.get(id); if (b && b.staffId === me.id) breaks.push({ start: b.start, end: b.start + b.dur, label: b.label || 'Bloqué' }); }
+  breaks.sort((a, b) => a.start - b.start);
+  const off = absenceOn(s, me, day);
+  const asked = askedOn(s, me, day);
+  const closed = s.settings.closures.some((c) => day >= c.from && day <= c.to);
+  const rows = appts.map((a) => ({
+    id: a.id, start: a.start, dur: a.dur, name: nameOfAppt(s, a), services: a.services.map((x) => x.name), status: a.status, price: a.price || 0,
+    paid: !!a.saleId, note: a.note || '',
+    late: isToday && (a.status === 'booked' || a.status === 'pending') && min > a.start ? min - a.start : 0
+  }));
+  const counted = rows.filter((r) => r.status !== 'no_show');
+  const total = { count: counted.length, minutes: counted.reduce((t, r) => t + r.dur, 0), cents: counted.reduce((t, r) => t + r.price, 0), work: work.reduce((t, [a, b]) => t + b - a, 0) };
+  const strip = [];
+  for (let i = 0; i < PLAN_DAYS; i++) {
+    const d = addDays(today, i);
+    const w = staffIntervals(s, me.id, d);
+    strip.push({ day: d, count: openOf(s, me, d).filter((a) => a.status !== 'no_show').length, works: w.length > 0, off: !!absenceOn(s, me, d) });
+  }
+  return {
+    day, today, readOnly: day < today || s.closures.has(day), work, breaks, rows, total,
+    gaps: work.length ? gapsOf(s, me, day, Math.ceil(min / 5) * 5, now, appts) : [],
+    absence: off ? { id: off.id, from: off.from, to: off.to, reason: off.reason || 'Absence', part: off.startMin != null && off.from === off.to ? { start: off.startMin, end: off.endMin } : null } : null,
+    asked: asked ? { id: asked.id, from: asked.from, to: asked.to } : null,
+    closed, strip
+  };
+}
+

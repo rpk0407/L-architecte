@@ -20,6 +20,7 @@ import { ApptCard, apptLabel, missedOf } from './Board';
 import { layoutOverlaps, type Place } from './overlap';
 import { byHour, drawnRange, freeGaps, loadOf, loadWords, offZones, OFF_LABEL, slotAt, type Iv } from './day';
 import { useSwipe } from './swipe';
+import { arrivalWords } from '../espace/Arrival';
 
 export type PhoneView = 'salon' | 'barbier' | 'liste';
 export const VIEW_KEY = 'lx-agenda-tel';
@@ -237,7 +238,7 @@ export const PhoneAgenda = memo(function PhoneAgenda(p: PhoneProps) {
                     <span className="agp-row-h tnum">{hhmm(a.start)}</span>
                     <span className="agp-row-t">
                       <b className="ellipsis">{a.name}</b>
-                      <small className="ellipsis">{a.services.map((s) => s.name).join(' + ')}{missed ? ' · ' + missed : ''}</small>
+                      <small className="ellipsis">{a.services.map((s) => s.name).join(' + ')}{missed ? ' · ' + missed : ''}{arrivalWords(a as any) ? ' · ' + arrivalWords(a as any) : ''}</small>
                     </span>
                     <span className="agp-row-e">
                       <span className={'agp-st ' + (late ? 'late' : a.status)}>{late ? 'En retard' : STATUS[a.status] || a.status}</span>

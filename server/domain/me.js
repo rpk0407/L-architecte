@@ -9,6 +9,7 @@ import { occupies } from './availability.js';
 import { startsAt } from './policy.js';
 import { clientStats } from './insights.js';
 import { rhythmOf, statsOfDays } from './rhythm.js';
+import { bookerOf, guestFirst, notifyOptions, viaOf } from './notify.js';
 
 /** A booked appointment can be announced late from 2 h before its start to 15 min after (AC-04's « J’ai du retard »). */
 const LATE_BEFORE = 2 * 3600000, LATE_AFTER = 15 * 60000;
@@ -38,9 +39,13 @@ const after = (account, day) => !account || !account.fenced || !account.historyF
 export function upcomingOfFiles(s, ids, now, account = null) {
   const set = new Set(ids);
   return [...s.appts.values()]
-    .filter((a) => set.has(a.clientId) && !a.legacy && (a.status === 'booked' || a.status === 'pending') && occupies(a, now, s) && startsAt(a) > now && after(account, dayOfMs(a.createdAt)))
+    // FEATURE B: the bookings he made for someone else (a child, a friend) are his to follow too
+    .filter((a) => (set.has(a.clientId) || set.has(bookerOf(a, s) || '')) && !a.legacy && (a.status === 'booked' || a.status === 'pending') && occupies(a, now, s) && startsAt(a) > now && after(account, dayOfMs(a.createdAt)))
     .sort((a, b) => startsAt(a) - startsAt(b));
 }
+
+/** The first name of the person a booking is for, when someone else booked it for him; '' otherwise. */
+const forWhom = (s, a) => guestFirst(s, a);
 
 function upcomingView(s, a, ctx) {
   const pay = a.deposit && a.deposit.paymentId ? s.payments.get(a.deposit.paymentId) : [...s.payments.values()].find((p) => p.apptId === a.id && p.kind === 'deposit' && p.status === 'pending');
@@ -53,7 +58,9 @@ function upcomingView(s, a, ctx) {
     staff: staffOf(s, a.staffId), anyStaff: !!a.anyStaff,
     deposit: a.deposit ? { amount: a.deposit.amount, paid: a.deposit.paid || 0, url: pay && pay.status === 'pending' ? pay.url || null : null } : null,
     canChange: ctx.now < changeUntil, changeUntil,
-    lateOk: a.status === 'booked' && ctx.now >= start - LATE_BEFORE && ctx.now <= start + LATE_AFTER
+    lateOk: a.status === 'booked' && ctx.now >= start - LATE_BEFORE && ctx.now <= start + LATE_AFTER,
+    // FEATURE B: « préviens-moi si un créneau se libère plus tôt », and for whom when he booked it for someone else
+    earlier: !!a.earlier, forFirst: forWhom(s, a)
   };
 }
 
@@ -102,6 +109,8 @@ export function meHome(s, c, ids, account, ctx) {
     ...who, since: account ? account.since : 0, fenced, historyFrom: fenced ? account.historyFrom : null,
     // the switches stay usable; when the previous holder said yes to offers is his, not shown to an unnamed space
     consent: { sms: c.sms !== false, marketing: !!c.marketing, marketingAt: account && account.named === false ? null : c.marketingAt || null },
+    // FEATURE B: how the salon reaches him (reminders, « un créneau s'est libéré »), among the ways it can
+    notify: { via: viaOf(s, c), options: notifyOptions(s, c) },
     prefs: { staffId: prefStaff && s.staff.get(prefStaff) && s.staff.get(prefStaff).active ? prefStaff : null },
     rhythm: rhythmOf(stats),
     usual: usualOf(s, ids, account),
@@ -152,4 +161,68 @@ export function meHistory(s, ids, o = {}) {
   let end = Math.min(limit, items.length);
   while (end < items.length && items[end].day === items[end - 1].day) end++;
   return { items: items.slice(0, end), more: end < items.length };
+}
+
+/* ---------------- FEATURE B · « Ce qui manque » and the payments ---------------- */
+
+const DAY_MS = 86400000;
+/** A carnet or a gift card that ends within this many days is said in « Ce qui manque ». */
+export const SOON_DAYS = 30;
+const daysTo = (today, day) => Math.round((Date.parse(day + 'T12:00:00Z') - Date.parse(today + 'T12:00:00Z')) / DAY_MS);
+
+/**
+ * GET /api/me/todo: what needs the client's attention, most urgent first, and his payments (memberships charged,
+ * deposits paid or given back), newest first. `member` is the membership as the member page reads it (memberView), or null.
+ * Each item: { id, tone: 'warn' | 'info', title, text, action?: { kind: 'link' | 'card' | 'membership', label, href? } }.
+ * @param {any} s @param {string[]} ids @param {any} account @param {MeCtx} ctx @param {any} member
+ */
+export function meTodo(s, ids, account, ctx, member) {
+  const set = new Set(ids);
+  const today = ctx.today;
+  /** @type {any[]} */
+  const items = [];
+  // 1. a booking that waits for its deposit
+  for (const a of upcomingOfFiles(s, ids, ctx.now, account)) {
+    if (a.status !== 'pending' || !a.deposit || (a.deposit.paid || 0) >= a.deposit.amount) continue;
+    items.push({ id: 'dep_' + a.code, tone: 'warn', title: 'Acompte à régler', amount: a.deposit.amount, day: a.day, start: a.start, action: { kind: 'link', label: 'Régler l’acompte', href: '/r/' + ctx.tokenFor(a) } });
+  }
+  // 2. the membership: a payment refused first, then the cuts left, the end, the next charge
+  if (member && member.status !== 'ended') {
+    const m = member;
+    if (m.pastDue) items.push({ id: 'mb_pastdue', tone: 'warn', title: 'Paiement de l’abonnement refusé', amount: m.plan.price, bank: !!m.pastDue.action, action: m.actions && m.actions.card ? { kind: 'card', label: m.pastDue.action ? 'Valider le paiement' : 'Mettre ma carte à jour' } : { kind: 'membership', label: 'Voir mon abonnement' } });
+    const left = Math.max(0, (m.of || 0) - (m.used || 0));
+    if (m.period && m.period.paid && left > 0 && !m.week) {
+      const d = daysTo(today, m.period.last);
+      items.push({ id: 'mb_left', tone: d <= 7 ? 'warn' : 'info', title: left > 1 ? left + ' coupes incluses à utiliser' : '1 coupe incluse à utiliser', until: m.period.last, action: { kind: 'link', label: 'Réserver ma coupe', href: '/?reserver' } });
+    }
+    if (m.cancel) items.push({ id: 'mb_cancel', tone: 'info', title: 'Abonnement résilié', until: m.cancel.last });
+    else if (m.next) items.push({ id: 'mb_next', tone: 'info', title: 'Prochain prélèvement', amount: m.next.amount, day: m.next.day, card: m.card || '' });
+  }
+  // 3. carnet cuts and gift card balances that end soon
+  for (const k of s.packs.values()) {
+    if (!set.has(k.clientId) || k.voided || k.used >= k.total || k.expires < today || daysTo(today, k.expires) > SOON_DAYS || !after(account, dayOfMs(k.soldAt))) continue;
+    items.push({ id: 'pk_' + k.id, tone: 'warn', title: 'Carnet bientôt expiré', left: k.total - k.used, until: k.expires, action: { kind: 'link', label: 'Réserver une coupe', href: '/?reserver' } });
+  }
+  for (const g of s.giftcards.values()) {
+    if (!set.has(g.cid) || g.status !== 'active' || g.balance <= 0 || g.expires < today || daysTo(today, g.expires) > SOON_DAYS || !after(account, dayOfMs(g.issuedAt))) continue;
+    items.push({ id: 'gc_' + g.id, tone: 'info', title: 'Carte cadeau bientôt expirée', amount: g.balance, until: g.expires, last4: g.last4 });
+  }
+  const rank = (x) => (x.tone === 'warn' ? 0 : 1);
+  items.sort((a, b) => rank(a) - rank(b));
+
+  // the payments: each membership month charged, each deposit paid (and what came back)
+  /** @type {{ at: number, kind: 'membership' | 'deposit' | 'refund', label: string, amount: number }[]} */
+  const payments = [];
+  for (const m of s.members ? s.members.values() : []) {
+    if (!set.has(m.cid)) continue;
+    for (const p of m.periods || []) if (p.amount > 0 && after(account, dayOfMs(p.at))) payments.push({ at: p.at, kind: 'membership', label: 'Abonnement ' + m.name, amount: p.amount });
+  }
+  const mineAppts = new Set([...s.appts.values()].filter((a) => set.has(a.clientId) || set.has(bookerOf(a, s) || '')).map((a) => a.id));
+  for (const py of s.payments.values()) {
+    if (py.kind !== 'deposit' || !mineAppts.has(py.apptId) || !py.paidAt || !after(account, dayOfMs(py.paidAt))) continue;
+    payments.push({ at: py.paidAt, kind: 'deposit', label: 'Acompte en ligne', amount: py.amount });
+    for (const rf of py.refunds || []) payments.push({ at: rf.at, kind: 'refund', label: 'Acompte remboursé', amount: rf.amount });
+  }
+  payments.sort((a, b) => b.at - a.at);
+  return { items, payments: payments.slice(0, 24) };
 }

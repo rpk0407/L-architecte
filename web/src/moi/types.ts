@@ -14,7 +14,13 @@ export type MeUpcoming = {
   deposit: { amount: number; paid: number; url: string | null } | null;
   /** changeUntil: until when it can be moved or cancelled online (ms); lateOk: « J’ai du retard » makes sense now (AC-04) */
   canChange: boolean; changeUntil: number; lateOk: boolean;
+  /** FEATURE B: « préviens-moi si un créneau se libère plus tôt » is on; forFirst: the person it is for when he booked it for someone else */
+  earlier?: boolean; forFirst?: string;
 };
+
+/** FEATURE B: how the salon reaches him (reminders, « un créneau s'est libéré »), among the ways it can now */
+export type NotifyVia = 'sms' | 'whatsapp' | 'email';
+export type MeNotify = { via: NotifyVia; options: NotifyVia[] };
 
 export type MeCarnet = { id: string; name: string; left: number; total: number; expires: string };
 export type MeGiftcard = { id: string; last4: string; balance: number; expires: string };
@@ -26,6 +32,7 @@ export type MeGiftcard = { id: string; last4: string; balance: number; expires: 
 export type Me = {
   first: string; last: string; birthday: string; since: number; fenced: boolean; historyFrom: string | null;
   consent: { sms: boolean; marketing: boolean; marketingAt: number | null };
+  notify?: MeNotify;
   prefs: { staffId: string | null };
   /** dueDay: null below 2 done visits (server/domain/rhythm.js rhythmOf, the salon's rule too) */
   rhythm: { visits: number; cadence: number | null; lastDay: string | null; dueDay: string | null };

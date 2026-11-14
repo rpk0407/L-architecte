@@ -11,7 +11,8 @@ import { fulfilGiftcard } from './routes-giftshop.js';
 import { paymentRefundedOutside } from '../commands/payments.js';
 import * as S from '../commands/sales.js';
 import { ticketNo, refundNo, METHOD_LABEL } from '../domain/cash.js';
-import { localParts, dayLong, hhmm } from '../../shared/dates.js';
+import { localParts, dayLong, hhmm, isDay } from '../../shared/dates.js';
+import { tillDay, tillMonth } from '../domain/till.js';
 import { fmtEur } from '../../shared/money.js';
 
 const DAY = 86400000;
@@ -295,4 +296,25 @@ export function paymentRoutes(app) {
     if (!p || !p.paidAt) throw new HttpError(404, 'not_found', 'Paiement introuvable.');
     return { id: p.id, text: dossier(r, p) };
   }, { cap: 'sale.refund' });
+
+  /* ---------------- the Caisse home (phone first) and the month ---------------- */
+
+  // who waits to pay at every chair, what came in today by method and by barber, deposits, memberships, gift cards, cash held by barbers
+  app.get('/api/v1/caisse/jour', (r) => {
+    const day = r.query.get('day');
+    return tillDay(r.s, day && isDay(day) && day <= r.local.day ? day : r.local.day, day && day < r.local.day ? 1440 : r.local.min);
+  }, { cap: 'sale.all' });
+  // the month: by method, by barber with commission and the tips owed to him (the salon's money: report.shop)
+  app.get('/api/v1/caisse/mois', (r) => {
+    const m = r.query.get('month');
+    const month = m && /^\d{4}-(0[1-9]|1[0-2])$/.test(m) && m <= r.local.day.slice(0, 7) ? m : r.local.day.slice(0, 7);
+    return tillMonth(r.s, month, r.local.day, r.now);
+  }, { cap: 'report.shop' });
+  // the receipt's public link, for the barber to send by WhatsApp or e-mail from his own phone (the SMS goes through sendReceipt)
+  app.get('/api/v1/sales/:id/link', (r) => {
+    const x = r.s.sales.get(r.params.id);
+    if (!x || (!r.caps.has('sale.all') && x.cashierId !== r.me.id && !x.lines.some((l) => l.staffId === r.me.id))) throw new HttpError(404, 'not_found', 'Ticket introuvable.');
+    const c = x.clientId ? r.s.clients.get(x.clientId) : null;
+    return { url: r.meta.receiptLink ? r.meta.receiptLink(x) : '', ticket: ticketNo(x.number), amount: x.totals.due, first: c && !c.erased ? c.first : '', email: c && !c.erased && r.caps.has('client.contact') ? c.email || '' : '' };
+  }, { cap: 'sale.create' });
 }

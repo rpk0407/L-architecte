@@ -37,6 +37,7 @@ import { maybeTick, dispatchNow } from './scheduler.js';
 import { waitUntil } from '@vercel/functions';
 import { handBadge } from './routes-channels.js';
 import { byHand } from '../messaging/hand.js';
+import { arrivalsFor, arrivalOf } from '../domain/arrival.js';
 
 const dayParam = (r, name = 'day') => { const d = r.query.get(name); return d && isDay(d) ? d : r.local.day; };
 
@@ -406,8 +407,9 @@ export function staffRoutes(app) {
     const items = since ? [...r.s.feed.filter((f) => f.v > since), ...autoZ(r, since)].sort(byV).slice(-40).map((f) => feedItem(r, f)).filter(Boolean) : [];
     const t = maybeTick(r.rt, r.meta);
     if (t) waitUntil(t);
+    // arrivals (FEATURE C): « Le client est là ? » for his own bookings that started, computed from the journal and the clock
     // alerts: today's breakdowns, the owner's banner, so it shows (and goes at midnight) without a reload
-    return { version: r.s.version, cfg: r.s.cfgVersion, now: r.now, today: r.local.day, min: r.local.min, feed: items, badges: badges(r), ...(r.me.role === 'owner' ? { alerts: alertWarnings(r.s, r.local.day) } : {}) };
+    return { version: r.s.version, cfg: r.s.cfgVersion, now: r.now, today: r.local.day, min: r.local.min, feed: items, badges: badges(r), arrivals: arrivalsFor(r.s, r.me, r.now), ...(r.me.role === 'owner' ? { alerts: alertWarnings(r.s, r.local.day) } : {}) };
   });
 
   app.get('/api/v1/feed', (r) => {
@@ -421,6 +423,8 @@ export function staffRoutes(app) {
   app.get('/api/v1/agenda', (r) => {
     const day = dayParam(r);
     const v = agendaView(r.s, day, r.caps, r.me, r.now);
+    // FEATURE C: where « Le client est là ? » stands, so the desk sees what the barber was asked and answered
+    if (day === r.local.day) for (const a of v.appts) { const q = arrivalOf(r.s, r.s.appts.get(a.id), r.now); if (q) /** @type {any} */ (a).arrival = q; }
     // a sealed day's Z is the salon's money: its number for everyone, its figures for whoever closes or reads the salon's
     if (v.closure && !r.caps.has('closure') && !r.caps.has('report.shop')) v.closure = { number: v.closure.number, auto: !!v.closure.auto };
     const L = r.local;

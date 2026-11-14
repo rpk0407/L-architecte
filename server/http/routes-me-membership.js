@@ -21,6 +21,8 @@ import { memberOf, membersOf, statusIn, abandoned } from '../domain/membership.j
 import { addDays, dayParts, localParts, fmtTime, MONTHS_FR } from '../../shared/dates.js';
 import { fmtEur } from '../../shared/money.js';
 import { planWords, missedWords } from '../../shared/membership-words.js';
+import { signLink } from '../auth/session.js';
+import { meTodo } from '../domain/me.js';
 
 /** the reasons the cancel recap offers (optional, never a step before the final button) */
 export const CANCEL_REASONS = ['Je viens moins souvent', 'Trop cher pour moi', 'Je déménage', 'Autre raison'];
@@ -122,6 +124,13 @@ const SYSTEM = (r) => ({ actor: /** @type {const} */ ({ t: 'system', id: 'member
 const pageOf = (r, m) => ({ member: memberView(r, m), reasons: CANCEL_REASONS });
 
 export function meMembershipRoutes(app) {
+  /** FEATURE B · « Ce qui manque »: the deposit to pay, the membership's refused payment, cuts left, next charge, what ends soon, and the payments. */
+  app.get('/api/me/todo', (r) => {
+    const me = requireMe(r);
+    const m = mine(r, me);
+    return meTodo(r.s, me.ids, me.account, { now: r.now, today: r.local.day, origin: r.origin, tokenFor: (a) => signLink(r.rt.secret, 'appt', a.code) }, m ? memberView(r, m) : null);
+  });
+
   app.get('/api/me/membership', (r) => {
     const me = requireMe(r);
     const m = mine(r, me);

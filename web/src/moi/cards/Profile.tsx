@@ -4,7 +4,7 @@
 // Same paper, ink and red as the site's pages (client.css): c-card, c-btn, c-note; only what they lack is in profile.css.
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../../lib/api';
-import type { CardProps, MoiCardMeta } from '../types';
+import type { CardProps, MoiCardMeta, NotifyVia } from '../types';
 import { Section, short } from '../profile/kit';
 import './profile.css';
 
@@ -146,9 +146,28 @@ function Messages({ me, write }: { me: CardProps['me']; write: Write }) {
   useEffect(() => { setSms(me.consent.sms); setMarketing(me.consent.marketing); }, [me.consent.sms, me.consent.marketing]);
   return (
     <Section k="Messages" guide="profile-messages">
+      {me.notify && me.notify.options.length > 1 ? <Via notify={me.notify} write={write} /> : null}
       <Switch on={sms} title="Confirmations et rappels par SMS" hint="Un SMS pour confirmer, un autre la veille pour te rappeler. Coupés, tu ne reçois pas non plus ceux du salon quand il déplace ou annule ton rendez-vous." onChange={(v) => { setSms(v); write(() => api.patch('/api/me/consent', { sms: v })); }} />
       <Switch on={marketing} title="Bons plans par SMS (15 ans et plus)" hint={'Jamais imposé. STOP à tout moment.' + (marketing && me.consent.marketingAt ? ' Accord donné le ' + short(me.consent.marketingAt) : '')} onChange={(v) => { setMarketing(v); write(() => api.patch('/api/me/consent', { marketing: v })); }} />
     </Section>
+  );
+}
+
+const VIA_WORDS: Record<NotifyVia, string> = { whatsapp: 'WhatsApp', sms: 'SMS', email: 'E-mail' };
+/** FEATURE B · « Comment le salon te prévient »: the channel of his reminders and of « un créneau s'est libéré plus tôt ». */
+function Via({ notify, write }: { notify: NonNullable<CardProps['me']['notify']>; write: Write }) {
+  const [via, setVia] = useState<NotifyVia>(notify.via);
+  useEffect(() => { setVia(notify.via); }, [notify.via]);
+  const order: NotifyVia[] = ['whatsapp', 'sms', 'email'];
+  return (
+    <div className="mp-via" role="group" aria-labelledby="mp-via-t">
+      <p id="mp-via-t" className="mp-via-t"><b>Comment le salon te prévient</b><small>Pour les rappels et quand un créneau se libère plus tôt. Les bons plans restent à part.</small></p>
+      <div className="mp-chips">
+        {order.filter((x) => notify.options.includes(x)).map((x) => (
+          <button key={x} type="button" className="mp-chip" aria-pressed={via === x} onClick={() => { if (x === via) return; setVia(x); write(() => api.patch('/api/me/notify', { via: x })); }}>{VIA_WORDS[x]}</button>
+        ))}
+      </div>
+    </div>
   );
 }
 

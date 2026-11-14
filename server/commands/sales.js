@@ -5,7 +5,7 @@ import { fail } from '../core/engine.js';
 import { str, int, bool, opt, obj, arr, id, oneOf, money, record, day as dayField, parse } from '../lib/validate.js';
 import { ticketTotals } from '../../shared/money.js';
 import { maxDiscountPct } from '../domain/permissions.js';
-import { drawerExpected, dayTotals, zRecord, missedZ, hadTill, dayWords, refundNo, ticketNo } from '../domain/cash.js';
+import { drawerExpected, heldCash, dayTotals, zRecord, missedZ, hadTill, dayWords, refundNo, ticketNo } from '../domain/cash.js';
 import { getService, getProduct, getClient, getAppt, getStaff } from './common.js';
 import { giftCode, normGiftCode, normPhone, sha256 } from '../lib/util.js';
 import { addDays, isDay, fmtTime, MONTHS_FR } from '../../shared/dates.js';
@@ -66,6 +66,13 @@ export const checkout = {
     if (s.closures.has(day)) fail(409, 'day_closed', 'La journée est clôturée : plus aucun encaissement possible aujourd’hui.');
     const P = s.settings.payments;
     const appt = x.apptId ? getAppt(s, x.apptId) : null;
+    // on the barber's phone (PhoneCheckout): the owner's switch, and a barber rings up his own appointment only
+    const phone = input.phone === true && ctx.actor.t === 'staff';
+    const pocket = phone && ctx.staff && ctx.staff.role === 'barber';
+    if (phone) {
+      ctx.need('sale.phone');
+      if (pocket && (!appt || appt.staffId !== ctx.staff.id)) fail(403, 'own', 'Sur ton téléphone, tu encaisses tes propres clients.');
+    }
     if (appt && (appt.status === 'done' || appt.saleId)) fail(409, 'paid', 'Ce rendez-vous est déjà encaissé.');
     if (appt && appt.status === 'cancelled') fail(409, 'cancelled', 'Ce rendez-vous est annulé.');
     // online: the buyer's file sellGiftcardOnline adds in this same command (not in the state yet)
@@ -216,10 +223,12 @@ export const checkout = {
       const out = { method: p.method, amount: p.amount };
       if (p.method === 'cash') {
         if (!P.cash) fail(409, 'off', 'Les espèces sont désactivées.');
-        if (!s.drawer) fail(409, 'drawer_closed', 'La caisse n’est pas ouverte. Ouvre-la avec le fond de caisse.');
+        // cash a barber takes on his phone stays with him until he hands it to the drawer (moveDrawer staffId)
+        if (pocket && s.settings.team.barberPhoneCash === false) fail(403, 'cash', 'Le gérant n’autorise pas les espèces sur ton téléphone : carte ou QR, ou passe à l’accueil.');
+        if (!pocket && !s.drawer) fail(409, 'drawer_closed', 'La caisse n’est pas ouverte. Ouvre-la avec le fond de caisse.');
         const given = p.given ?? p.amount;
         if (given < p.amount) fail(400, 'invalid', 'Le montant reçu est inférieur à la somme due.');
-        Object.assign(out, { given, change: given - p.amount, drawerId: s.drawer.id });
+        Object.assign(out, { given, change: given - p.amount, ...(pocket ? { heldBy: ctx.staff.id } : { drawerId: s.drawer.id }) });
       } else if (p.method === 'card') {
         if (!P.card) fail(409, 'off', 'Le paiement par carte est désactivé.');
       } else if (p.method === 'online' || p.method === 'deposit') {
@@ -673,11 +682,17 @@ export const openDrawer = {
 export const moveDrawer = {
   run(s, input, ctx) {
     ctx.need('drawer');
-    const x = parse(obj({ amount: int({ min: -1000000, max: 1000000 }), reason: str({ min: 2, max: 80 }) }), input);
+    const x = parse(obj({ amount: int({ min: -1000000, max: 1000000 }), reason: str({ min: 2, max: 80 }), staffId: opt(id()) }), input);
     if (!s.drawer) fail(409, 'closed', 'La caisse n’est pas ouverte.');
     if (!x.amount) fail(400, 'invalid', 'Indique un montant.');
     if (x.amount < 0 && drawerExpected(s, s.drawer) + x.amount < 0) fail(409, 'invalid', 'Il n’y a pas autant d’espèces dans la caisse.');
-    ctx.emit('drawer.moved', { id: ctx.id('dm'), drawerId: s.drawer.id, amount: x.amount, reason: x.reason });
+    // a barber's cash put in the drawer: never more than he holds
+    if (x.staffId) {
+      const st = getStaff(s, x.staffId);
+      const held = heldCash(s).get(st.id) || 0;
+      if (x.amount < 0 || x.amount > held) fail(409, 'invalid', st.name + ' a ' + fmtEur(held) + ' en espèces à remettre.', { held });
+    }
+    ctx.emit('drawer.moved', { id: ctx.id('dm'), drawerId: s.drawer.id, amount: x.amount, reason: x.reason, ...(x.staffId ? { staffId: x.staffId } : {}) });
     return { ok: true };
   }
 };

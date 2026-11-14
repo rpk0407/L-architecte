@@ -136,3 +136,24 @@ button:disabled { opacity: .5; cursor: default; }
 .c-espace .c-btn { align-self: flex-start; min-height: 50px; padding: 0 22px; font-size: 15.5px; }
 .c-espace-in { text-align: center; }
 .c-espace-in a { padding: 12px 2px; font-weight: 600; text-underline-offset: 4px; }
+
+/* FEATURE B · the /r/ page for a client without an account: « préviens-moi », the other bookings, the channel, WhatsApp, the freed slot */
+.c-switch { display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 14px; width: 100%; min-height: 64px; text-align: left; color: var(--ink); }
+.c-switch span { display: flex; flex-direction: column; gap: 4px; }
+.c-switch b { font: 600 16px/1.3 var(--sans); }
+.c-switch small { font-size: 14px; line-height: 1.4; color: var(--ink2); }
+.c-switch i { flex: none; display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; font-style: normal; font-weight: 700; box-shadow: inset 0 0 0 1.5px var(--ink); }
+.c-switch[aria-pressed='true'] i { background: var(--ok); color: var(--paper); box-shadow: none; }
+.c-others ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.c-others a { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 56px; padding: 12px 14px; border-radius: 16px; background: var(--tint); color: var(--ink); text-decoration: none; }
+.c-others a:hover { background: var(--tint-h); }
+.c-others span { display: flex; flex-direction: column; gap: 3px; min-width: 0; overflow-wrap: anywhere; }
+.c-others b { font: 600 15.5px/1.3 var(--sans); }
+.c-others small { font-size: 13.5px; line-height: 1.4; color: var(--ink2); }
+.c-others small.warn { color: var(--warn); font-weight: 600; }
+.c-others i { flex: none; font-style: normal; font-size: 20px; color: var(--ink2); }
+.c-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.c-chip { min-height: 44px; padding: 0 18px; border-radius: 999px; box-shadow: inset 0 0 0 1.5px var(--line2, var(--edge)); font: 600 15px/1 var(--sans); color: var(--ink); }
+.c-chip[aria-pressed='true'] { background: var(--ink); color: var(--paper); box-shadow: none; }
+.c-wa { width: 100%; min-height: 52px; }
+.c-earlier { box-shadow: inset 0 0 0 2px var(--ok); }

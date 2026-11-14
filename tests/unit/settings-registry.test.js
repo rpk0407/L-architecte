@@ -88,7 +88,7 @@ const BEFORE = () => {
     },
     // DO-05: a barber's own absence waits for the owner
     // TEAM-01: what barbers see of colleagues, the nudge of their own regulars, their phones and calendars
-    team: { barberCheckout: true, barberAllAgenda: true, barberMaxDiscountPct: 10, barberSeeRevenue: false, timeoffApproval: true, teamView: 'salon', barberRebook: false, personalPhones: true, staffCalendar: true,
+    team: { barberCheckout: true, barberAllAgenda: true, barberMaxDiscountPct: 10, barberSeeRevenue: false, timeoffApproval: true, teamView: 'salon', barberRebook: false, personalPhones: true, staffCalendar: true, arrivalAsk: true, barberPhone: true, barberPhoneCash: true,
       // TEAM-03: the commission rules (Équipe › Rémunération)
       commissionBase: 'ttc', cutCredit: 'performer', memberCredit: 'split', rewardCredit: 'list' },
     // TEAM-03: each barber's goal (null = automatic) and whether barbers see theirs

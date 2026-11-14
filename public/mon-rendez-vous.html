@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="referrer" content="no-referrer">
 <title>Mon rendez-vous · Barber L’Architecte</title>
-<meta name="description" content="Retrouve ton rendez-vous chez Barber L’Architecte sans mot de passe : donne ton numéro, on t’envoie le lien par SMS pour le déplacer ou l’annuler.">
+<meta name="description" content="Retrouve ton rendez-vous chez Barber L’Architecte sans compte : avec ton code et ton numéro, ou reçois le lien par SMS, pour le voir, le déplacer ou l’annuler.">
 <meta name="theme-color" content="#ECE8E0" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0F0E0D" media="(prefers-color-scheme: dark)">
 <link rel="icon" href="/icon.svg" type="image/svg+xml">
@@ -38,6 +38,9 @@
 .saved a::after{content:"→";flex:none;font-size:20px;color:var(--tx2);transition:transform .2s var(--ease)}
 .saved a:hover::after{transform:translateX(3px);color:var(--tx)}
 @media (max-width:520px){.acts .btn{flex:1 1 100%}}
+.cd h2{margin:0 0 6px;font:400 clamp(26px,3.4vw,32px)/1.1 var(--f-serif)}
+.cd label{margin-top:18px}
+.cd .hint{margin:0 0 4px}
 .espace{display:flex;flex-direction:column;align-items:flex-start;gap:10px;margin-top:18px;padding:clamp(18px,3vw,24px);border-radius:20px;background:var(--sf);box-shadow:inset 0 0 0 1px var(--ln)}
 .espace h2{margin:0;font:400 26px/1.1 var(--f-serif)}
 .espace p{margin:0;color:var(--tx2);font-size:15.5px}
@@ -61,6 +64,16 @@
 <p class="hint warn" data-unless="sms" hidden>En ce moment, les SMS du salon ne partent pas&nbsp;: appelle-nous<span data-opt hidden> au <a data-f="phone" data-link="tel"></a></span> pour retrouver ton rendez-vous.</p>
 <div class="acts"><button id="lk-b" class="btn" type="submit">Recevoir le lien</button><a class="btn ghost" href="/?reserver">Réserver</a></div>
 <noscript><p class="hint">Sans JavaScript, le formulaire ne peut pas partir&nbsp;: appelle le salon, on te redonne ton rendez-vous.</p></noscript>
+</form>
+<form id="cd" class="lk cd" novalidate aria-labelledby="cd-t">
+<h2 id="cd-t">Tu as le code de ton rendez-vous&nbsp;?</h2>
+<p class="hint">Il est dans le SMS de confirmation, comme <b>LA-7KQ2</b>. Avec ton numéro, tu ouvres tout de suite tes rendez-vous à venir, aussi ceux pris pour un proche&nbsp;: les voir, les déplacer, les annuler.</p>
+<label for="cd-c">Code du rendez-vous</label>
+<input id="cd-c" class="inp" name="code" type="text" inputmode="text" autocapitalize="characters" autocomplete="off" spellcheck="false" placeholder="LA-7KQ2" maxlength="12" aria-describedby="cd-e" required>
+<label for="cd-p">Ton numéro</label>
+<input id="cd-p" class="inp" name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="06 12 34 56 78" maxlength="24" aria-describedby="cd-e" required>
+<p id="cd-e" class="err" role="alert" hidden></p>
+<div class="acts"><button id="cd-b" class="btn" type="submit">Ouvrir mon rendez-vous</button></div>
 </form>
 <div id="lk-espace" class="espace" role="group" aria-labelledby="lk-et" hidden>
 <h2 id="lk-et">Tu reviens souvent&nbsp;?</h2>
@@ -122,6 +135,7 @@
           msg.textContent = x.d.message;
           used.textContent = pretty(input.value);
           form.hidden = true;
+          if (cform) cform.hidden = true;
           done.hidden = false;
           done.focus();
         } else {
@@ -135,6 +149,7 @@
   document.getElementById('lk-r').addEventListener('click', function () {
     done.hidden = true;
     form.hidden = false;
+    if (cform) cform.hidden = false;
     input.focus();
     input.select();
   });
@@ -180,6 +195,33 @@
     });
     document.getElementById('lk-saved').hidden = false;
   }
+  /* FEATURE B: the code of the confirmation and the number open the booking's own page (POST /api/public/find,
+     server/http/routes-client.js), which lists every booking to come of that contact. A wrong code or number says the same. */
+  var cform = document.getElementById('cd'), cin = document.getElementById('cd-c'), cph = document.getElementById('cd-p'), cerr = document.getElementById('cd-e'), cbtn = document.getElementById('cd-b');
+  if (mine.phone && !cph.value) cph.value = pretty(mine.phone);
+  function csay(t, field) { cerr.textContent = t || ''; cerr.hidden = !t; cin.setAttribute('aria-invalid', field === 'code' ? 'true' : 'false'); cph.setAttribute('aria-invalid', field === 'phone' ? 'true' : 'false'); }
+  function codeOk(v) { var x = String(v || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); if (x.indexOf('LA') === 0 && x.length > 4) x = x.slice(2); return x.length >= 4 && x.length <= 10; }
+  cin.addEventListener('input', function () { if (!cerr.hidden) csay(''); });
+  cph.addEventListener('input', function () { if (!cerr.hidden) csay(''); });
+  cph.addEventListener('blur', function () { if (valid(cph.value)) cph.value = pretty(cph.value); });
+  cform.addEventListener('submit', function (e) {
+    e.preventDefault();
+    if (cbtn.disabled) return;
+    if (!codeOk(cin.value)) { csay('Donne le code de ton rendez-vous, comme LA-7KQ2.', 'code'); cin.focus(); return; }
+    if (!valid(cph.value)) { csay(cph.value.trim() ? 'Vérifie ton numéro : 10 chiffres, comme 06 12 34 56 78.' : 'Donne ton numéro de téléphone.', 'phone'); cph.focus(); return; }
+    csay('');
+    cbtn.disabled = true; cbtn.textContent = 'Un instant…';
+    fetch('/api/public/find', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code: cin.value, phone: cph.value }), cache: 'no-store' })
+      .then(function (r) { return r.json().catch(function () { return null; }).then(function (d) { return { ok: r.ok, d: d }; }); })
+      .then(function (x) {
+        if (x.ok && x.d && typeof x.d.token === 'string' && /^[A-Za-z0-9-]{1,32}\.[A-Za-z0-9_-]{8,128}$/.test(x.d.token)) { location.href = '/r/' + x.d.token; return; }
+        var er = x.d && x.d.error;
+        csay((er && er.message) || 'Ça n’a pas marché. Réessaie dans un instant.', er && er.code === 'invalid' ? 'phone' : er && er.code === 'invalid_code' ? 'code' : '');
+        cbtn.disabled = false; cbtn.textContent = 'Ouvrir mon rendez-vous';
+      })
+      .catch(function () { csay('Pas de connexion. Réessaie dans un instant.'); cbtn.disabled = false; cbtn.textContent = 'Ouvrir mon rendez-vous'; });
+  });
+
   // the client space, once the salon has opened it (AC-03a)
   fetch('/api/public/account', { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (a) { if (a && a.enabled) document.getElementById('lk-espace').hidden = false; }).catch(function () { /* the line stays hidden */ });
 })();

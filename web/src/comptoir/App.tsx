@@ -15,6 +15,7 @@ import { FeedSheet } from './Feed';
 import type { Boot, FeedItem } from './types';
 import { GUARD_OPEN, SECTION_CAP } from './pages/reglages/caps';
 import { canOpenPath, navShows, phoneTabs, sectionNeed } from './access';
+import { ArrivalBand } from './pages/espace/Arrival';
 
 // The guided tour (steps, engine, welcome card) is its own chunk: the shell only asks for it once it is on screen.
 const tourChunk = () => import('./guide/ComptoirTour');
@@ -242,6 +243,8 @@ function Shell() {
         {(app.pulse?.alerts ?? boot.alerts ?? []).map((w) => <div key={w} className="alert-band" role="alert"><Icon name="alert" size={15} /><span>{w}</span></div>)}
         {/* no connection: said calmly within seconds, with the hour of what is on screen; gone as soon as it is back */}
         {app.offline ? <div className="offline-band" role="status" data-offline><Icon name="alert" size={15} /><span><b>Hors ligne</b> : ce que tu vois date de {time(dates.localParts(app.pulseAt + (app.now() - Date.now())).min)}. Les encaissements ne sont pas enregistrés tant que la connexion n’est pas revenue.</span></div> : null}
+        {/* FEATURE C: « Le client est là ? » for the barber's own booking that just started, wherever he is */}
+        <ArrivalBand page={page} />
         <header className={'top' + (scrolled ? ' scrolled' : '')}>
           <div className="top-title" id="page-title" />
           <div className="top-acts">

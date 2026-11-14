@@ -13,7 +13,9 @@ import { queueMessage, apptVars } from '../domain/messages.js';
 import { mailConfirmation, mailCancellation, mailOwner } from '../domain/mails.js';
 import { getStaff, getAppt, getClient, snapshotServices, totalDur, totalPrice, needChair } from './common.js';
 import { upsertClient } from './clients.js';
-import { diffDays } from '../../shared/dates.js';
+import { fold } from '../domain/client-search.js';
+import { diffDays, fmtTime } from '../../shared/dates.js';
+import { fmtEur } from '../../shared/money.js';
 import { cgvVersionOf } from '../settings/shop.js';
 
 const serviceIds = () => arr(id(), { min: 1, max: 4 });
@@ -40,8 +42,9 @@ function onlineSlot(s, ctx, q) {
  * The confirmation: by SMS, and by e-mail with the calendar file when the client gave an address.
  * @param {string} [first] for a client created in this same batch, not yet in the state
  * @param {{ to: string, first: string }} [typed] the address typed with an online booking: it gets this booking's mail only
+ * @param {Record<string, string>|null} [extra] words of the text that say more (a child's name, everyone of a booking)
  */
-function confirmText(s, ctx, a, clientPhone, first, typed) {
+function confirmText(s, ctx, a, clientPhone, first, typed, extra) {
   // its own channel: a client who wants no SMS still gets the file for their agenda;
   // a booking waiting for its deposit gets it once paid (commands/payments.js), never before
   if (a.status !== 'pending') {
@@ -52,6 +55,7 @@ function confirmText(s, ctx, a, clientPhone, first, typed) {
   if (!s.settings.messages.confirmation || !a.sms || !clientPhone) return;
   const vars = apptVars(s, a, ctx.meta.linkFor);
   if (first && !vars.prenom) vars.prenom = first;
+  if (extra) Object.assign(vars, extra);
   queueMessage(s, ctx, { key: 'conf_' + a.id + '_' + (a.moves || 0), template: 'confirmation', to: clientPhone, cid: a.clientId, apptId: a.id, vars });
 }
 
@@ -59,7 +63,8 @@ function confirmText(s, ctx, a, clientPhone, first, typed) {
 
 /** Slots one visitor of the site may keep at once: the one he is on, and two left behind by a tab or a change of mind. */
 export const HOLDS_PER_VISITOR = 3;
-const holdSchema = obj({ serviceIds: serviceIds(), staffId: str({ min: 1, max: 64 }), day: day(), start: minute(), replace: opt(id()), ignoreAppt: opt(id()) });
+// party: how many people the visitor is booking together (« Ajouter une personne »): each one's slot stays kept
+const holdSchema = obj({ serviceIds: serviceIds(), staffId: str({ min: 1, max: 64 }), day: day(), start: minute(), replace: opt(id()), ignoreAppt: opt(id()), party: opt(int({ min: 1, max: 4 })) });
 export const holdSlot = {
   run(s, input, ctx) {
     const q = parse(holdSchema, input);
@@ -74,7 +79,8 @@ export const holdSlot = {
     const vk = ctx.actor.t === 'client' && ctx.meta.visitor ? String(ctx.meta.visitor).slice(0, 24) : '';
     if (vk) {
       const mine = [...s.holds.values()].filter((h) => h.vk === vk && h.exp > ctx.now && h.id !== q.replace).sort((a, b) => a.at - b.at || a.exp - b.exp);
-      for (const h of mine.slice(0, Math.max(0, mine.length - (HOLDS_PER_VISITOR - 1)))) ctx.emit('hold.released', { id: h.id });
+      const cap = HOLDS_PER_VISITOR + (q.party || 1) - 1;
+      for (const h of mine.slice(0, Math.max(0, mine.length - (cap - 1)))) ctx.emit('hold.released', { id: h.id });
     }
     const hid = ctx.id('ho');
     const exp = ctx.now + s.settings.booking.holdMin * 60000;
@@ -91,76 +97,186 @@ export const releaseHold = {
 
 /* ---------------- online booking ---------------- */
 
+// no ':' or '/' in a name: it is written into mails, where a web address would read as the salon's own link
+const nameStr = (min) => str({ min, max: 40, pattern: /^[^:/]*$/ });
+/**
+ * Who a place is for when it is not the booker: another adult (his first name, his phone if given: then he gets the
+ * texts) or a child (first name, age if given: the parent stays the contact for everything, the child has no phone).
+ */
+const guestSchema = obj({ kind: oneOf(/** @type {const} */ (['other', 'child'])), first: nameStr(2), phone: opt(str({ max: 24 })), age: opt(int({ min: 0, max: 17 })) });
+/** One more person in the same booking (« Ajouter une personne »): his own service, barber and slot. */
+const personSchema = obj({ holdId: opt(id()), serviceIds: serviceIds(), staffId: str({ min: 1, max: 64 }), day: day(), start: minute(), guest: guestSchema });
+/** People in one booking at most: a father and his sons, a mother and her children. */
+export const PARTY_MAX = 4;
+/** Bookings still to come one file may hold when most are for its children or guests (its own stay at 3). */
+const FILE_UPCOMING_MAX = 8;
 const bookSchema = obj({
   holdId: opt(id()), serviceIds: serviceIds(), staffId: str({ min: 1, max: 64 }), day: day(), start: minute(),
-  // no ':' or '/' in a name: it is written into mails, where a web address would read as the salon's own link
-  first: str({ min: 2, max: 40, pattern: /^[^:/]*$/ }), last: opt(str({ max: 40, pattern: /^[^:/]*$/ })), phone: str({ min: 6, max: 24 }), email: opt(str({ max: 120, lower: true })),
-  note: opt(str({ max: 200 })), sms: opt(bool()), marketing: opt(bool()), demo: opt(bool())
+  first: nameStr(2), last: opt(str({ max: 40, pattern: /^[^:/]*$/ })), phone: str({ min: 6, max: 24 }), email: opt(str({ max: 120, lower: true })),
+  note: opt(str({ max: 200 })), sms: opt(bool()), marketing: opt(bool()), demo: opt(bool()),
+  guest: opt(guestSchema), others: opt(arr(personSchema, { max: PARTY_MAX - 1 }))
 });
+const overlaps = (x, y) => x.staffId === y.staffId && x.day === y.day && x.start < y.start + y.dur && y.start < x.start + x.dur;
+
+/**
+ * The chair a person of the booking gets: his hold when it still stands, else the slot as offered online now. Never one
+ * an earlier person of the same booking just took (`taken`: this command's own bookings, not yet in the state).
+ */
+function chairFor(s, ctx, p, dur, taken) {
+  const hold = p.holdId ? s.holds.get(p.holdId) : null;
+  const clash = (staffId) => taken.some((t) => overlaps(t, { staffId, day: p.day, start: p.start, dur }));
+  if (hold && hold.day === p.day && hold.start === p.start && hold.dur === dur && hold.exp > ctx.now - 60000 && !clash(hold.staffId)
+    && isFree(s, hold.staffId, p.day, p.start, dur, { now: ctx.now, ignoreHold: hold.id })) return { staffId: hold.staffId, hold };
+  const q = { day: p.day, start: p.start, dur, serviceIds: p.serviceIds, ignoreHold: hold ? hold.id : null };
+  const first = onlineSlot(s, ctx, { ...q, staffId: p.staffId });
+  if (first && !clash(first.staffId)) return { staffId: first.staffId, hold };
+  // « peu importe »: the best chair is the one a person of this booking took, another free one will do
+  if (first && p.staffId === 'any') for (const st of s.staff.values()) {
+    if (clash(st.id)) continue;
+    const alt = onlineSlot(s, ctx, { ...q, staffId: st.id });
+    if (alt) return { staffId: alt.staffId, hold };
+  }
+  return null;
+}
+
+/** The child's file under this parent with that first name (a child booked again keeps his file), or null. */
+function childFile(s, parentId, first) {
+  const root = rootOf(s, parentId), f = fold(first).trim();
+  for (const c of s.clients.values()) if (!c.erased && !c.mergedInto && c.ext && c.ext.parent && rootOf(s, c.ext.parent) === root && fold(c.first).trim() === f) return c;
+  return null;
+}
+
 export const bookOnline = {
   run(s, input, ctx) {
     const b = parse(bookSchema, input);
     if (!s.settings.booking.enabled) fail(409, 'closed', 'La réservation en ligne est momentanément fermée. Appelle le salon.');
-    const services = snapshotServices(s, b.serviceIds);
-    if (services.some((x) => !s.services.get(x.id)?.online)) fail(409, 'not_online', 'Cette prestation se réserve au salon.');
-    // a hold taken before an early Z must not slip through
-    if (s.closures.has(b.day)) fail(409, 'taken', 'Le salon a fermé ses réservations pour ce jour-là. Choisis un autre jour, tes choix sont gardés.');
-    const dur = totalDur(services);
-    let staffId = null;
-    const hold = b.holdId ? s.holds.get(b.holdId) : null;
-    if (hold && hold.day === b.day && hold.start === b.start && hold.dur === dur && hold.exp > ctx.now - 60000) {
-      if (isFree(s, hold.staffId, b.day, b.start, dur, { now: ctx.now, ignoreHold: hold.id })) staffId = hold.staffId;
-    }
-    if (!staffId) {
-      const slot = onlineSlot(s, ctx, { day: b.day, start: b.start, dur, serviceIds: b.serviceIds, staffId: b.staffId, ignoreHold: hold ? hold.id : null });
-      if (!slot) fail(409, 'taken', 'Ce créneau vient d’être pris. Choisis-en un autre, tes choix sont gardés.');
-      staffId = slot.staffId;
-    }
+    const people = [{ holdId: b.holdId, serviceIds: b.serviceIds, staffId: b.staffId, day: b.day, start: b.start, guest: b.guest }, ...(b.others || [])];
+    if (people.filter((p) => !p.guest).length > 1) fail(400, 'invalid', 'Une seule des personnes peut être toi : pour les autres, indique leur prénom.');
+    const group = people.length > 1;
+    const who = (p) => (group && p.guest ? ' pour ' + capFirst(p.guest.first) : '');
+    // every place is checked before anything is written: all the people are booked, or none
+    const taken = [];
+    const plan = people.map((p, i) => {
+      const services = snapshotServices(s, p.serviceIds);
+      if (services.some((x) => !s.services.get(x.id)?.online)) fail(409, 'not_online', 'Cette prestation se réserve au salon.');
+      // a hold taken before an early Z must not slip through
+      if (s.closures.has(p.day)) fail(409, 'taken', 'Le salon a fermé ses réservations pour ce jour-là. Choisis un autre jour, tes choix sont gardés.');
+      const dur = totalDur(services);
+      const got = chairFor(s, ctx, p, dur, taken);
+      // person: which one of the booking (in the order sent), so the site sends him back to his choice of time
+      if (!got) fail(409, 'taken', 'Ce créneau' + who(p) + ' vient d’être pris. Choisis-en un autre, tes choix sont gardés.', group ? { person: i } : undefined);
+      taken.push({ staffId: got.staffId, day: p.day, start: p.start, dur });
+      return { p, services, dur, staffId: got.staffId, hold: got.hold };
+    });
     const consent = b.marketing === true;
     const client = upsertClient(s, ctx, { first: b.first, last: b.last || '', phone: b.phone, email: b.email || '', sms: b.sms !== false, marketing: consent }, 'site');
     const existing = client.created ? null : getClient(s, client.id);
     // the proof of consent: when and where the client said yes (an unticked box takes nothing back)
     if (consent && (client.created || !existing.marketing)) ctx.emit('client.updated', { id: client.id, cid: client.id, patch: { marketing: true, marketingAt: ctx.now, marketingSrc: 'site' }, fields: [] });
     const upcoming = existing ? [...s.appts.values()].filter((a) => a.clientId === existing.id && ACTIVE.has(a.status) && diffDays(ctx.local.day, a.day) >= 0) : [];
+    const own = upcoming.filter((a) => !(a.ext && a.ext.guest));
     if (existing) {
-      if (upcoming.length >= 3) fail(409, 'too_many', 'Tu as déjà 3 rendez-vous à venir. Appelle le salon pour en ajouter.');
+      if (plan.some((x) => !x.p.guest) && own.length >= 3) fail(409, 'too_many', 'Tu as déjà 3 rendez-vous à venir. Appelle le salon pour en ajouter.');
+      if (upcoming.length + plan.length > FILE_UPCOMING_MAX) fail(409, 'too_many', 'Tu as déjà beaucoup de rendez-vous à venir. Appelle le salon pour en ajouter.');
       // an address typed on the site never lands on an existing file: the phone alone does not prove who typed it, and
       // the file's address receives every later mail with its links to move or cancel (only the salon sets it there)
     }
-    const price = totalPrice(services);
+    const bookerPhone = existing ? existing.phone : normPhone(b.phone);
+    const bookerFirst = existing ? existing.first : capFirst(b.first);
     // ctx.meta.payLive: the API says whether a deposit can really be paid online (false: production without Stripe);
     // the file found by the phone above brings its history: a client who already missed may owe one below the threshold
     const payLive = ctx.meta.payLive !== false;
+    const risk = payLive && !!existing && riskDeposit(s, existing.id, ctx.local.day);
     // PAY-04: a membership only from a path that proved it (ctx.meta.memberId: the member page's signed link), and only
-    // on the file the phone found: a guest typing a member's number gets the usual deposit and no member words
+    // on the file the phone found, and only for the member's own place: a guest or a child pays as usual
     const mb = existing && ctx.meta.memberId ? s.members.get(String(ctx.meta.memberId)) : null;
     const member = mb && rootOf(s, mb.cid) === rootOf(s, existing.id) ? mb : null;
-    const covered = member ? memberCovers(s, member, services, b.day, upcoming) : null;
-    const deposit = depositFor(s, services, { payLive, risk: payLive && !!existing && riskDeposit(s, existing.id, ctx.local.day), ...(covered && covered.ok ? { member, day: b.day, upcoming } : {}) });
-    const aid = ctx.id('ap');
-    const code = uniqueCode(s, ctx);
     const cgv = cgvVersionOf(s.settings.shop);
-    const a = {
-      id: aid, code, clientId: client.id, staffId, anyStaff: b.staffId === 'any', day: b.day, start: b.start, dur,
-      services, price, source: 'site', status: deposit > 0 ? 'pending' : 'booked', sms: b.sms !== false && !(existing && existing.sms === false),
-      deposit: deposit > 0 ? { amount: deposit, paid: 0, paymentId: null, until: ctx.now + payWindowMin(s, { stripe: ctx.meta.payProvider === 'stripe' }) * 60000 } : null, holdId: hold ? hold.id : null, cid: client.id,
-      // the CGV version in force when the client booked: the later of the owner's last rule change and the text's own date
-      cgv,
-      ...(b.demo && ctx.meta.demoSim === true ? { demo: true } : {})
-    };
-    ctx.emit('appt.booked', a, b.note ? { note: b.note } : undefined);
-    // a place offered from the waiting list, taken: the person leaves the list
-    if (hold) for (const w of s.waitlist.values()) if (w.status === 'offered' && w.offer && w.offer.holdId === hold.id) ctx.emit('waitlist.updated', { id: w.id, patch: { status: 'booked', apptId: aid } });
-    const phone = existing ? existing.phone : normPhone(b.phone);
-    if (a.status === 'booked') {
-      // the typed address gets this booking's mail, greeted by the name typed with it (never the file's)
-      confirmText(s, ctx, { ...a, moves: 0 }, phone, capFirst(b.first), b.email ? { to: b.email, first: capFirst(b.first) } : undefined);
-      // a booking waiting for its deposit is told to the owner once paid (commands/payments.js)
-      mailOwner(s, ctx, a, 'booked', { first: existing ? existing.first : capFirst(b.first) });
+    const groupId = group ? ctx.id('gr') : '';
+    // files made in this same command are not in the state yet: a phone or a child named twice gets one file
+    const madeByPhone = new Map(), madeChild = new Map();
+    const booked = plan.map((x, i) => {
+      const g = x.p.guest;
+      let clientId = client.id, phone = bookerPhone, first = bookerFirst, sms = b.sms !== false && !(existing && existing.sms === false), name = '';
+      /** @type {any} */
+      let guest = null;
+      if (g) {
+        name = capFirst(g.first);
+        const gp = g.kind === 'other' && g.phone ? normPhone(g.phone) : '';
+        if (g.kind === 'other' && g.phone && !gp) fail(400, 'invalid', 'Le numéro de ' + name + ' n’est pas valide.');
+        if (gp && gp !== bookerPhone) {
+          // his own number: he gets his own texts, on his own file (found by the number, nothing of it shown back)
+          let gid = madeByPhone.get(gp) || s.clientByPhone.get(gp) || null;
+          const gc = gid ? s.clients.get(rootOf(s, gid)) : null;
+          if (gc) gid = gc.id;
+          if (!gid) { gid = upsertClient(s, ctx, { first: name, phone: gp, sms: true, marketing: false }, 'site').id; madeByPhone.set(gp, gid); }
+          clientId = gid; phone = gp; first = name; sms = !(gc && gc.sms === false);
+          guest = { kind: 'other', by: client.id };
+        } else if (g.kind === 'child') {
+          // the child's own file, linked to the parent, without a phone: the same child booked again keeps it
+          const key = fold(name).trim();
+          let cid = madeChild.get(key) || (existing ? childFile(s, client.id, name)?.id : null) || null;
+          if (!cid) {
+            cid = ctx.id('cl');
+            const last = existing ? existing.last : capFirst(b.last || '');
+            const notes = g.age != null ? g.age + ' ans (dit à la réservation du ' + ctx.local.day.split('-').reverse().join('/') + ')' : '';
+            ctx.emit('client.added', { id: cid, cid, source: 'site', sms: false, marketing: false, tags: [], ext: { parent: client.id } }, { first: name, last, ...(notes ? { notes } : {}) });
+            madeChild.set(key, cid);
+          }
+          guest = { kind: 'child', cid };
+        } else guest = { kind: 'other' };
+      }
+      const price = totalPrice(x.services);
+      const covered = member && !g ? memberCovers(s, member, x.services, x.p.day, upcoming) : null;
+      const deposit = depositFor(s, x.services, { payLive, risk, ...(covered && covered.ok ? { member, day: x.p.day, upcoming } : {}) });
+      const aid = ctx.id('ap');
+      const code = uniqueCode(s, ctx);
+      const a = {
+        id: aid, code, clientId, staffId: x.staffId, anyStaff: x.p.staffId === 'any', day: x.p.day, start: x.p.start, dur: x.dur,
+        services: x.services, price, source: 'site', status: deposit > 0 ? 'pending' : 'booked', sms,
+        deposit: deposit > 0 ? { amount: deposit, paid: 0, paymentId: null, until: ctx.now + payWindowMin(s, { stripe: ctx.meta.payProvider === 'stripe' }) * 60000 } : null, holdId: x.hold ? x.hold.id : null, cid: clientId,
+        // the CGV version in force when the client booked: the later of the owner's last rule change and the text's own date
+        cgv,
+        // who the place is for when not the booker, and the booking it came with (ids only: the names travel in pii)
+        ...(guest || groupId ? { ext: { ...(guest ? { guest } : {}), ...(groupId ? { group: groupId } : {}) } } : {}),
+        ...(b.demo && ctx.meta.demoSim === true ? { demo: true } : {})
+      };
+      const note = i === 0 && b.note ? b.note : '';
+      ctx.emit('appt.booked', a, note || name ? { ...(note ? { note } : {}), ...(name ? { name } : {}) } : undefined);
+      // a place offered from the waiting list, taken: the person leaves the list
+      if (x.hold) for (const w of s.waitlist.values()) if (w.status === 'offered' && w.offer && w.offer.holdId === x.hold.id) ctx.emit('waitlist.updated', { id: w.id, patch: { status: 'booked', apptId: aid } });
+      return { a, phone, first, name, guest, deposit, covered, toBooker: clientId === client.id };
+    });
+    const typed = b.email ? { to: b.email, first: capFirst(b.first) } : undefined;
+    const forWord = (x) => (x.guest ? ' pour ' + x.name : '');
+    // the texts: one confirmation to the booker listing every place he is the contact for; a guest who gave his own
+    // number gets his own. A place waiting for its deposit is confirmed once paid (commands/payments.js), never before
+    const mine = booked.filter((x) => x.toBooker && x.a.status === 'booked');
+    if (mine.length) {
+      const head = mine[0];
+      // the text names who each place is for, in the words every template has ({barbier}, {prestation}):
+      // « jeu. 5 nov. à 9 h avec JKut pour toi, avec Aland pour Adam, à 9 h 30 avec JKut pour Yanis »
+      const barberOf = (x) => s.staff.get(x.a.staffId)?.name || 'ton barbier';
+      const tail = (x) => (x.a.day !== head.a.day ? ' le ' + x.a.day.split('-').reverse().slice(0, 2).join('/') : '') + (x.a.day !== head.a.day || x.a.start !== head.a.start ? ' à ' + fmtTime(x.a.start) : '') + ' avec ' + barberOf(x) + (x.guest ? ' pour ' + x.name : ' pour toi');
+      const what = (x) => x.a.services.map((y) => y.name).join(' + ') + forWord(x);
+      const extra = mine.length > 1
+        ? { barbier: barberOf(head) + (head.guest ? ' pour ' + head.name : ' pour toi') + mine.slice(1).map((x) => ',' + tail(x)).join(''), prestation: mine.map(what).join(', '), prix: fmtEur(mine.reduce((t, x) => t + x.a.price, 0)) }
+        : head.guest ? { barbier: barberOf(head) + ' pour ' + head.name, prestation: what(head) } : null;
+      confirmText(s, ctx, { ...head.a, moves: 0 }, head.phone, capFirst(b.first), typed, extra);
+      const to = typed || { to: (existing && !existing.erased && existing.email) || '', first: bookerFirst };
+      for (const x of mine.slice(1)) mailConfirmation(s, ctx, x.a, { ...to, link: ctx.meta.linkFor ? ctx.meta.linkFor(x.a) : '' });
     }
-    // the till applies the membership when he comes (the booking consumes nothing): the site says it is included
-    const memberLine = covered && covered.ok ? { covered: true, label: 'Inclus dans ton abonnement · ' + bookedWords(member, covered) } : null;
-    return { id: aid, code, status: a.status, staffId, deposit, price, ...(memberLine ? { member: memberLine } : {}) };
+    for (const x of booked) if (!x.toBooker && x.a.status === 'booked') confirmText(s, ctx, { ...x.a, moves: 0 }, x.phone, x.first, typed);
+    // a booking waiting for its deposit is told to the owner once paid (commands/payments.js)
+    for (const x of booked) if (x.a.status === 'booked') mailOwner(s, ctx, x.a, 'booked', { first: x.name || bookerFirst });
+    const view = (x) => {
+      // the till applies the membership when he comes (the booking consumes nothing): the site says it is included
+      const memberLine = x.covered && x.covered.ok ? { covered: true, label: 'Inclus dans ton abonnement · ' + bookedWords(member, x.covered) } : null;
+      return { id: x.a.id, code: x.a.code, status: x.a.status, staffId: x.a.staffId, deposit: x.deposit, price: x.a.price, ...(memberLine ? { member: memberLine } : {}) };
+    };
+    const head = view(booked[0]);
+    if (!group) return head;
+    return { ...head, people: booked.map((x) => ({ ...view(x), first: x.guest ? x.name : capFirst(b.first), day: x.a.day, start: x.a.start, guest: x.guest ? x.guest.kind : null })) };
   }
 };
 

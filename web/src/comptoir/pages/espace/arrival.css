@@ -1,0 +1,12 @@
+/* FEATURE C · « Le client est là ? »: the band of the shell and the cards of Mon espace */
+.es-askband { position: sticky; top: 0; z-index: 30; display: grid; gap: 8px; padding: 10px 12px; background: var(--accent-bg); border-bottom: 1px solid var(--line); }
+.es-asks { display: grid; gap: 10px; margin-bottom: 14px; }
+.es-ask { display: grid; gap: 10px; }
+.es-ask.inline { padding: 14px; border-radius: 18px; background: var(--panel); border: 2px solid var(--accent); box-shadow: var(--shadow); }
+.es-ask-q { display: flex; align-items: flex-start; gap: 8px; margin: 0; }
+.es-ask-q svg { flex: none; margin-top: 3px; color: var(--accent); }
+.es-ask-q span { display: grid; gap: 2px; min-width: 0; }
+.es-ask-q b { font: 700 16px/1.25 var(--sans); }
+.es-ask-q small { color: var(--tx2); font-size: 13px; }
+.es-ask-acts { display: grid; grid-template-columns: 1.3fr 1fr 1fr; gap: 8px; }
+.es-ask-acts .btn { min-height: 44px; justify-content: center; }

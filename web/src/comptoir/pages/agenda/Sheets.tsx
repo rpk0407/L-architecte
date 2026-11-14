@@ -12,6 +12,7 @@ import { useApp } from '../../state';
 import type { Agenda, Appt, ClientCard, ClientFull, Service } from '../../types';
 import { overlapping } from './overlap';
 import './walkin.css';
+import { arrivalWords } from '../espace/Arrival';
 
 /* ---------------- shared pickers ---------------- */
 
@@ -167,6 +168,7 @@ export function ApptSheet({ id, onClose }: { id: string | null; onClose: () => v
           <div className="ap-hero">
             <span className={'status ' + a.status}><i />{STATUS[a.status]}{a.statusAt[a.status] ? ' · ' + ago(a.statusAt[a.status]) : ''}</span>
             <p>{cap(dayWord(a.day, boot.today))} · {time(a.start)} – {time(a.start + a.dur)} · avec {st?.name}{a.anyStaff ? ' (sans préférence)' : ''}</p>
+            {arrivalWords(a as any) ? <p className="faint" data-arrival-state>{arrivalWords(a as any)}</p> : null}
             <div className="row wrap" style={{ gap: 6 }}>
               <span className="badge">{SOURCE[a.source] || a.source}</span>
               {(a.client?.badges || []).map((b) => <span key={b} className={'badge ' + (b === 'nouveau' ? 'badge-info' : b === 'fidèle' ? 'badge-ok' : b === 'absences' ? 'badge-warn' : b === 'VIP' ? 'badge-accent' : '')}>{b}</span>)}

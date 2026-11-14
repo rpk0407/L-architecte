@@ -38,3 +38,7 @@
 /* solid like the other: the warning must not show the page scrolling under it (.c-note.warn is see-through) */
 .mp .mp-say.warn { background: linear-gradient(var(--warn-bg), var(--warn-bg)), var(--card); }
 .mp-say:empty { display: block; height: 0; padding: 0; overflow: hidden; box-shadow: none; }
+.mp-via { display: flex; flex-direction: column; gap: 10px; padding-bottom: 12px; border-bottom: 1px dashed var(--line2); }
+.mp-via-t { display: flex; flex-direction: column; gap: 3px; margin: 0; }
+.mp-via-t b { font: 600 16px/1.3 var(--sans); }
+.mp-via-t small { font-size: 13.5px; color: var(--ink2); }

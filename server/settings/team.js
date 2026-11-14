@@ -3,7 +3,8 @@
 // timeoffApproval (DO-05): an absence a barber posts for himself waits for the owner (timeoff.requested) instead of
 // closing his slots at once.
 // TEAM-01: teamView is what a barber sees of colleagues ('off' nothing, 'salon' the salon's progress in %, 'named' each
-// barber's figures without commissions or tips: report.team); barberRebook gives barbers client.rebook (off in production,
+// barber's figures without commissions or tips: report.team); arrivalAsk (FEATURE C): « Le client est là ? » asked to the
+// barber at the start of each of his bookings (domain/arrival.js); barberRebook gives barbers client.rebook (off in production,
 // on in the demo); personalPhones and staffCalendar are read by TEAM-02. barberSeeRevenue is the old switch: it stays in
 // the schema so old patches validate, and a journal that has it without a teamView reads as 'named' (teamViewOf).
 // TEAM-03: every commission rule lives here (Équipe › Rémunération), read through payRulesOf: commissionBase 'ttc'|'ht'
@@ -19,13 +20,15 @@ const MEMBER = /** @type {const} */ (['split', 'zero', 'list']);
 const REWARD = /** @type {const} */ (['list', 'net']);
 const shape = obj({
   barberCheckout: opt(bool()), barberAllAgenda: opt(bool()), barberMaxDiscountPct: opt(int({ min: 0, max: 50 })), barberSeeRevenue: opt(bool()), timeoffApproval: opt(bool()),
-  teamView: opt(oneOf(VIEWS)), barberRebook: opt(bool()), personalPhones: opt(bool()), staffCalendar: opt(bool()),
+  teamView: opt(oneOf(VIEWS)), barberRebook: opt(bool()), barberPhone: opt(bool()), barberPhoneCash: opt(bool()), personalPhones: opt(bool()), staffCalendar: opt(bool()), arrivalAsk: opt(bool()),
   commissionBase: opt(oneOf(BASES)), cutCredit: opt(oneOf(CUTS)), memberCredit: opt(oneOf(MEMBER)), rewardCredit: opt(oneOf(REWARD))
 });
 
 export default /** @type {const} */ ({
   key: 'team',
-  defaults: () => ({ barberCheckout: true, barberAllAgenda: true, barberMaxDiscountPct: 10, barberSeeRevenue: false, timeoffApproval: true, teamView: /** @type {'off'|'salon'|'named'} */ ('salon'), barberRebook: false, personalPhones: true, staffCalendar: true,
+  defaults: () => ({ barberCheckout: true, barberAllAgenda: true, barberMaxDiscountPct: 10, barberSeeRevenue: false, timeoffApproval: true, teamView: /** @type {'off'|'salon'|'named'} */ ('salon'), barberRebook: false, personalPhones: true, staffCalendar: true, arrivalAsk: true,
+    // « Les barbiers encaissent sur leur téléphone » (their own clients, FEATURE D), cash included unless the owner says no
+    barberPhone: true, barberPhoneCash: true,
     commissionBase: /** @type {'ttc'|'ht'} */ ('ttc'), cutCredit: /** @type {'performer'|'seller'} */ ('performer'), memberCredit: /** @type {'split'|'zero'|'list'} */ ('split'), rewardCredit: /** @type {'list'|'net'} */ ('list') }),
   // a chosen teamView retires the old switch in the same patch, so the legacy rule never overrides an explicit choice
   schema: /** @type {typeof shape} */ ({ parse(x, p) { const v = shape.parse(x, p); if (v.teamView !== undefined) v.barberSeeRevenue = false; return v; } })
