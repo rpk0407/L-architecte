@@ -16,6 +16,8 @@ import { updateSettings } from '../../server/commands/shop.js';
 import { setStatus } from '../../server/commands/agenda.js';
 import * as S from '../../server/commands/sales.js';
 import { dayTotals } from '../../server/domain/cash.js';
+import { meTodo } from '../../server/domain/me.js';
+import { lookupAppointments } from '../../server/commands/lookup.js';
 import { browser } from './client.js';
 import { at } from '../helpers.js';
 
@@ -111,6 +113,12 @@ test('« À régler » shows once the client is at the salon, never before, neve
   assert.equal(p.pay.amount, 3000);
   assert.deepEqual(p.pay.lines, [{ name: 'Coupe', qty: 1, amount: 3000 }]);
   assert.deepEqual(p.pay.tips, [200, 500]);
+  // his space says it too (« Ce qui manque »), and « Retrouver mon rendez-vous » texts this appointment's link first
+  const todo = meTodo(x.s(), [appt().clientId], null, { now: x.clock.now, today: DAY, origin: 'https://salon.test', payLive: true, tokenFor: () => 'tok' }, null);
+  assert.deepEqual(todo.items.filter((i) => i.id.startsWith('pay_')).map((i) => [i.amount, i.action.href]), [[3000, '/r/tok?payer']]);
+  assert.equal(meTodo(x.s(), [appt().clientId], null, { now: x.clock.now, today: DAY, origin: 'https://salon.test', payLive: false, tokenFor: () => 'tok' }, null).items.filter((i) => i.id.startsWith('pay_')).length, 0);
+  const lk = await x.rt.engine.run(lookupAppointments, { phone: '0611223344' }, { actor: { t: 'client', id: 'web' }, caps: new Set(), meta: { linkFor: (a) => 'https://salon.test/r/' + a.code } });
+  assert.equal(lk.sent, true, 'a client in the chair with his cut to pay gets his link');
   // the owner's switch
   await x.rt.engine.run(updateSettings, { payments: { selfPay: false } }, x.asOwner());
   assert.equal((await x.page(token)).pay, undefined);

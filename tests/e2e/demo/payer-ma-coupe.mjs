@@ -90,7 +90,7 @@ export default async ({ h, page }) => {
   await client.waitForURL(/\/r\//, { timeout: 10000 });
   const done = client.locator('[data-guide="r.paye"]');
   await done.getByText('Payé · merci').waitFor({ timeout: 15000 });
-  await done.getByText(new RegExp((price + 2) + ' € réglés en ligne · ticket T\\d{6}')).waitFor();
+  await done.getByText(new RegExp((price + 2) + '\\s€ réglés en ligne · ticket T\\d{6}')).waitFor();
   const receipt = await done.getByRole('link', { name: 'Voir mon reçu' }).getAttribute('href');
   if (!/\/recu\//.test(receipt || '')) throw new Error('no receipt link after paying: ' + receipt);
   await noSideScroll(client, '« Payé · merci »');
@@ -99,7 +99,7 @@ export default async ({ h, page }) => {
   // the barber's phone, ticket still open: « Payé en ligne », by itself
   const paid = sheet.locator('[data-guide="tk-paid-online"]');
   await paid.getByText('Payé en ligne ✓').waitFor({ timeout: 15000 });
-  await paid.getByText(/dont 2 € de pourboire/).waitFor();
+  await paid.getByText(/dont 2\s€ de pourboire/).waitFor();
   await noSideScroll(page, 'the barber’s « Payé en ligne »');
   await snap(page, '5-barbier-paye-en-ligne');
   await paid.getByRole('button', { name: 'Terminé' }).click();
