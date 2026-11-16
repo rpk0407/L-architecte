@@ -142,7 +142,7 @@ export function selfPayRoutes(app) {
       await r.rt.engine.run(paymentEnded, { id: cur.id, status: 'expired', reason: 'Remplacé par un autre paiement' }, SYSTEM(r));
       await closePage(r, cur);
     }
-    const label = ('Ta coupe · ' + a.services.map((x) => x.name).join(' + ') + (q.group.length ? ' · groupe de ' + (q.group.length + 1) : '')).slice(0, 80);
+    const label = ('Prestation · ' + a.services.map((x) => x.name).join(' + ') + (q.group.length ? ' · groupe de ' + (q.group.length + 1) : '')).slice(0, 80);
     const p = await startPayment(r, { kind: 'qr', amount: q.amount, label, apptId: a.id, returnPath: '/r/' + r.params.token, self: { tip: q.tip, ...(!q.sent && ids.length ? { group: ids } : {}) } });
     return { url: p.url };
   });
