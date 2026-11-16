@@ -1,4 +1,5 @@
 // « Prochain client »: who sits down next, what is known of the cut, and the one gesture the moment asks for.
+import { OnlineBadge } from '../../caisse/OnlineBadge';
 import { useState } from 'react';
 import { api } from '../../../../lib/api';
 import { navigate } from '../../../../lib/router';
@@ -112,6 +113,7 @@ export default function Prochain({ data, reload, note }: EspaceCardProps) {
         {n.late >= LATE_ABSENT && (n.status === 'booked' || n.status === 'pending') ? <Button variant="ghost" icon="x" busy={busy === 'no_show'} disabled={offline} onClick={absent}>Absent</Button> : null}
         {n.canNote ? <Button variant="ghost" icon="edit" disabled={offline} onClick={() => note({ id: n.id, name: n.name, text: n.myNote })}>{n.myNote ? 'Corriger la note' : 'Note de coupe'}</Button> : null}
       </div>
+      {n.onlinePay || n.paidOnline ? <p className="es-tech"><OnlineBadge a={n} /></p> : null}
       {n.status === 'in_chair' && !can('sale.create') ? <p className="es-tech faint">À encaisser à l’accueil.</p> : null}
     </EsCard>
   );

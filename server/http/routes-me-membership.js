@@ -9,6 +9,7 @@
 //   GET  /api/public/memberships/:token/ack/:kind   the same under the member page's signed link
 // The member is always the session's file's (never a typed phone, never an id from the body): requireMe + runAs, and
 // the route vouches for that member in meta (memberId), as PAY-03's link does.
+import { payLive } from './routes-public.js';
 import { HttpError, guard } from './kit.js';
 import { requireMe, runAs, isPersona } from './me-kit.js';
 import { memberView, refundMonth, acksOf } from './routes-membership.js';
@@ -128,7 +129,7 @@ export function meMembershipRoutes(app) {
   app.get('/api/me/todo', (r) => {
     const me = requireMe(r);
     const m = mine(r, me);
-    return meTodo(r.s, me.ids, me.account, { now: r.now, today: r.local.day, origin: r.origin, tokenFor: (a) => signLink(r.rt.secret, 'appt', a.code) }, m ? memberView(r, m) : null);
+    return meTodo(r.s, me.ids, me.account, { now: r.now, today: r.local.day, origin: r.origin, payLive: payLive(r), tokenFor: (a) => signLink(r.rt.secret, 'appt', a.code) }, m ? memberView(r, m) : null);
   });
 
   app.get('/api/me/membership', (r) => {

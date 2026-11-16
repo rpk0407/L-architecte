@@ -296,7 +296,13 @@ export function evolve(s, e) {
       break;
     }
 
-    case 'payment.created': s.payments.set(d.id, { ...d, status: 'pending', createdAt: e.at }); if (d.providerRef) s.paymentByRef.set(d.providerRef, d.id); break;
+    case 'payment.created': {
+      s.payments.set(d.id, { ...d, status: 'pending', createdAt: e.at });
+      if (d.providerRef) s.paymentByRef.set(d.providerRef, d.id);
+      // the client pays his cut himself (commands/selfpay.js): the appointment knows its latest payment page
+      if (d.self && d.apptId) { const a = s.appts.get(d.apptId); if (a) a.payId = d.id; }
+      break;
+    }
     case 'payment.succeeded': {
       const py = s.payments.get(d.id);
       if (!py) break;

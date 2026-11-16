@@ -3,7 +3,7 @@
 // happens outside the decision (it is a network side effect); these handlers only record what the provider said.
 import { fail } from '../core/engine.js';
 import { getAppt, getClient } from './common.js';
-import { str, int, opt, obj, oneOf, either, parse } from '../lib/validate.js';
+import { str, int, opt, obj, arr, oneOf, either, parse } from '../lib/validate.js';
 import { normPhone, isEmail, capFirst } from '../lib/util.js';
 import { instantOf, isDay } from '../../shared/dates.js';
 import { queueMessage, apptVars } from '../domain/messages.js';
@@ -57,6 +57,9 @@ export function giftOrder(input, now) {
   return { amount: x.amount, buyer, recipient, message: x.message || '', delivery: x.delivery, sendAt };
 }
 
+const selfSchema = obj({ tip: int({ min: 0, max: 5000 }), group: opt(arr(str({ min: 1, max: 64 }), { max: 3 })) });
+const selfOf = (x) => { const v = parse(selfSchema, x || {}); return { tip: v.tip, ...(v.group && v.group.length ? { group: v.group } : {}) }; };
+
 export const createPayment = {
   run(s, input, ctx) {
     if (!KINDS.has(input.kind)) fail(400, 'invalid', 'Type de paiement inconnu.');
@@ -83,7 +86,9 @@ export const createPayment = {
       id: input.id, kind: input.kind, amount: input.amount, provider: input.provider, providerRef: input.providerRef || null,
       url: input.url || null, apptId: input.apptId || null, exp: input.exp || ctx.now + 30 * 60000, label: String(input.label || '').slice(0, 80),
       // names and numbers travel in pii (read back from the journal at fulfilment, routes-giftshop.js orderOf)
-      ...(cid ? { cid } : {}), ...(gift ? { gift: gift.data } : {})
+      ...(cid ? { cid } : {}), ...(gift ? { gift: gift.data } : {}),
+      // the client pays his own cut from his page (commands/selfpay.js): the tip he chose, the group places he pays for
+      ...(input.kind === 'qr' && input.self && input.apptId ? { self: selfOf(input.self) } : {})
     }, gift ? gift.pii : undefined);
     return { id: input.id, ...(gift ? { cid: gift.cid } : {}) };
   }

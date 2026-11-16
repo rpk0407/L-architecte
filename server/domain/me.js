@@ -4,6 +4,7 @@
 // fenced account (a number that may have changed hands, commands/accounts.js) shows nothing from before historyFrom.
 // The shapes are the contract of web/src/moi/types.ts (Me, MeHistory). Other areas never extend /api/me/home: they add
 // their own /api/me/<area> route file.
+import { selfPayOpen, selfQuote, SELF_MIN } from '../commands/selfpay.js';
 import { localParts } from '../../shared/dates.js';
 import { occupies } from './availability.js';
 import { startsAt } from './policy.js';
@@ -17,7 +18,7 @@ const LATE_BEFORE = 2 * 3600000, LATE_AFTER = 15 * 60000;
 const dayOfMs = (ms) => localParts(ms).day;
 
 /**
- * @typedef {{ now: number, today: string, tokenFor: (a: any) => string, origin: string, receiptFor?: (sale: any) => string, demo?: boolean }} MeCtx
+ * @typedef {{ now: number, today: string, tokenFor: (a: any) => string, origin: string, receiptFor?: (sale: any) => string, demo?: boolean, payLive?: boolean }} MeCtx
  */
 
 /**
@@ -185,6 +186,14 @@ export function meTodo(s, ids, account, ctx, member) {
   const today = ctx.today;
   /** @type {any[]} */
   const items = [];
+  // 0. today's cut, to pay from his phone once he is at the salon (commands/selfpay.js): the amount is the till's
+  if (ctx.payLive) for (const id of s.apptsByDay.get(today) || []) {
+    const a = s.appts.get(id);
+    if (!a || !set.has(a.clientId) || !selfPayOpen(s, a, { day: today })) continue;
+    let q = null;
+    try { q = selfQuote(s, a, { now: ctx.now, local: localParts(ctx.now) }); } catch { continue; }
+    if (q.base >= SELF_MIN) items.push({ id: 'pay_' + a.code, tone: 'warn', title: 'Ta coupe à régler', amount: q.base, action: { kind: 'link', label: 'Payer maintenant', href: '/r/' + ctx.tokenFor(a) + '?payer' } });
+  }
   // 1. a booking that waits for its deposit
   for (const a of upcomingOfFiles(s, ids, ctx.now, account)) {
     if (a.status !== 'pending' || !a.deposit || (a.deposit.paid || 0) >= a.deposit.amount) continue;

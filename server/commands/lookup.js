@@ -1,6 +1,7 @@
 // @ts-check
 // "Mon rendez-vous" without an account: a client gives a phone number, the salon texts the links of their next
 // appointments to that number, and only to it. Whoever typed the number learns nothing: the answer is the same either way.
+import { selfPayOpen } from './selfpay.js';
 import { normPhone } from '../lib/util.js';
 import { queueMessage, apptVars, whenWords } from '../domain/messages.js';
 import { occupies } from '../domain/availability.js';
@@ -29,7 +30,9 @@ export const lookupAppointments = {
     // an erased client has no number left; a merged file's old number is not the client's number any more: only the
     // number on file ever receives the links
     if (!c || c.erased || c.phone !== phone) return { sent: false };
-    const list = upcomingOf(s, c.id, ctx.now).slice(0, LOOKUP_LINKS);
+    // at the salon today with his cut to pay (« Payer ma coupe »): that appointment's link comes first
+    const here = [...(s.apptsByDay.get(ctx.local.day) || [])].map((i) => s.appts.get(i)).filter((a) => a && a.clientId === c.id && selfPayOpen(s, a, ctx.local));
+    const list = [...here, ...upcomingOf(s, c.id, ctx.now)].slice(0, LOOKUP_LINKS);
     if (!list.length) return { sent: false };
     // the n-th text of the day has its own id: two servers answering at once never send the same one twice, and a 4th
     // never leaves, counting the file's sign-in codes and other links of the day too

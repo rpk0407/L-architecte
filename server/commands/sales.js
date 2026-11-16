@@ -65,6 +65,17 @@ function paymentOf(s, ctx, ref) {
 // out of the chain (the client can be erased) and off his receipt, which shows "Autre"
 export const DISCOUNT_REASONS = ['Fidélité', 'Ami de la maison', 'Geste commercial', 'Retard du salon', 'Étudiant'];
 
+const QUOTE = Symbol('quote');
+/**
+ * What this ticket would come to, as the till would ring it up (prices, carnet, membership, discount within the
+ * caller's cap, tip), without writing anything: every rule of checkout up to the payments. A symbol asks for it, so no
+ * request body ever can.
+ * @returns {{ totals: ReturnType<typeof ticketTotals>, lines: any[], clientId: string|null }}
+ */
+export function quoteCheckout(s, input, ctx) {
+  return /** @type {any} */ (checkout.run(s, { ...input, payments: [{ method: 'card', amount: 0 }], [QUOTE]: true }, ctx));
+}
+
 export const checkout = {
   run(s, input, ctx) {
     ctx.need('sale.create');
@@ -91,7 +102,13 @@ export const checkout = {
         if (appt.day !== day || !started) fail(409, 'not_yet', 'Ce rendez-vous ne s’encaisse pas maintenant : le client doit être là aujourd’hui.');
       }
     }
-    if (appt && (appt.status === 'done' || appt.saleId)) fail(409, 'paid', 'Ce rendez-vous est déjà encaissé.');
+    if (appt && (appt.status === 'done' || appt.saleId)) {
+      // the client paid his cut himself, on his own page, while the till was ringing him up: one ticket, said plainly
+      const was = appt.saleId ? s.sales.get(appt.saleId) : null;
+      const self = was && appt.payId && (s.payments.get(appt.payId) || {}).usedBy === was.id;
+      if (self) fail(409, 'paid_online', 'Le client vient de payer en ligne (ticket ' + ticketNo(was.number) + ') : rien à encaisser. Si tu as pris des espèces ou passé sa carte, rends-les-lui. Un produit en plus se vend sur un ticket à part.', { saleId: was.id });
+      fail(409, 'paid', 'Ce rendez-vous est déjà encaissé.');
+    }
     if (appt && appt.status === 'cancelled') fail(409, 'cancelled', 'Ce rendez-vous est annulé.');
     // a group on one ticket: the other places of the same booking, here today and not rung up yet. Each one is closed
     // by this ticket (appt.status and appt.updated below); the ticket itself stays the organiser's, like any other
@@ -262,6 +279,9 @@ export const checkout = {
     const why = x.discount ? x.discount.reason || '' : '';
     const typed = why && !DISCOUNT_REASONS.includes(why) ? why : '';
     if (x.tip && x.tip.amount > 0) getStaff(s, x.tip.staffId);
+
+    // what the ticket comes to, nothing written: the client's own page and the payment link read the till's own rules
+    if (input[QUOTE] === true) return /** @type {any} */ ({ quote: true, totals, lines: lines.map((l, i) => ({ ...l, net: totals.nets[i] })), clientId: client ? client.id : null });
 
     /* payments must cover the ticket exactly */
     const paid = x.payments.reduce((t, p) => t + p.amount, 0);

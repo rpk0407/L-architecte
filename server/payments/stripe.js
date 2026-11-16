@@ -127,6 +127,11 @@ export function stripeProvider({ secretKey, webhookSecret, fetchImpl = fetch }) 
       const s = await call('POST', '/checkout/sessions', params, 'lx-co-' + o.id);
       return { ref: s.id, url: s.url, exp: expires * 1000 };
     },
+    /** Close a checkout page nobody paid on (the barber took the payment another way): it can no longer be paid. */
+    async expireCheckout(ref) {
+      await call('POST', '/checkout/sessions/' + encodeURIComponent(ref) + '/expire', {}, 'lx-exp-' + ref);
+      return { ok: true };
+    },
     /** metadata.lx marks it ours, so its charge.refunded notice is never taken for a refund made in the dashboard */
     async refund(chargeRef, amount, idem) {
       // a membership's invoice paid without a PaymentIntent names its charge (ch_…): Stripe refunds that one by charge

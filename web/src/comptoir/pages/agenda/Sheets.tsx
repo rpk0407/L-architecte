@@ -1,4 +1,5 @@
 // Everything that opens from the agenda: an appointment, a new booking, a move, a walk-in, a block.
+import { OnlineBadge } from '../caisse/OnlineBadge';
 import { useEffect, useMemo, useState } from 'react';
 import { api, ApiError, qs } from '../../../lib/api';
 import { refreshAll, useQuery } from '../../../lib/query';
@@ -191,6 +192,7 @@ export function ApptSheet({ id, onClose }: { id: string | null; onClose: () => v
               <Button variant="danger" icon="x" className="acts-cancel" busy={busy === 'cancel'} onClick={cancel}>Annuler</Button>
             </div>
           ) : null}
+          {a.onlinePay || a.paidOnline ? <p style={{ margin: 0 }}><OnlineBadge a={a} /></p> : null}
           <div className="card card-tight">
             {a.services.map((s) => <div key={s.id} className="kv"><span>{s.name} · {dur(s.dur)}</span><b><Money cents={s.price} />{s.from ? ' +' : ''}</b></div>)}
             {a.formule ? <Note icon="ticket"><b>{cap(serieWords(a.formule))}</b> de la formule. {a.formule.pay === 'paid' ? 'La visite est payée par la formule.' : a.formule.pay === 'online' ? 'Formule payée en ligne : la caisse la met sur le ticket de cette visite.' : a.formule.pay === 'pending' ? 'Le paiement en ligne de la formule est attendu.' : 'Formule à encaisser à la première visite (' + eur(a.formule.sell?.price || 0) + ') : la caisse la propose.'}</Note> : null}

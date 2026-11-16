@@ -80,6 +80,9 @@ export const TEMPLATE_FLAGS = {
   // the weekly carnet's last cut, « Reprendre 5 coupes » (its fixed words live in domain/formule.js): about a right he
   // holds, never to a client who said STOP, never at night
   formuleRenew: { relation: true, quiet: true },
+  // the link to pay his cut, sent by the barber with the client in front of him (its fixed words live in
+  // commands/selfpay.js): leaves at once, whatever his reminders' switch
+  payLink: { requested: true },
   // AC-02: a copy of his data, e-mailed to a client who asked for it from his space
   dataExport: { requested: true }
 };

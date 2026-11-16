@@ -56,6 +56,7 @@ export default function Paiements({ s }: SectionProps) {
         <Switch on={P.card} onChange={(v) => p.setV({ ...P, card: v })} title="Carte bancaire (terminal)" hint="Le montant est saisi sur ton terminal ; la caisse l’enregistre." />
         <Switch on={P.cash} onChange={(v) => p.setV({ ...P, cash: v })} title="Espèces" hint="Rendu de monnaie calculé, tiroir compté le soir." />
         <Switch on={P.qr} onChange={(v) => p.setV({ ...P, qr: v })} title="QR code" hint={off ? 'Nécessite Stripe : désactivé tant qu’il n’est pas branché.' : 'Le client scanne et paie sur son téléphone (Apple Pay, carte). Sans terminal.'} />
+        <Switch on={!off && !!P.selfPay} disabled={off} onChange={(v) => p.setV({ ...P, selfPay: v })} title="Le client peut payer sa coupe en ligne" hint={off ? 'Nécessite Stripe : éteint tant qu’il n’est pas branché.' : 'Au salon, une fois arrivé ou sa coupe finie : il règle sur sa page de rendez-vous (carte, Apple Pay, Google Pay), pourboire compris s’il le veut. Ton écran passe à « Payé en ligne » tout seul.'} />
         <Switch on={P.giftcard} onChange={(v) => p.setV({ ...P, giftcard: v })} title="Cartes cadeaux" />
       </Card>
       <Card title="Pourboires et TVA" guide="paiements-pourboires" icon="heart">

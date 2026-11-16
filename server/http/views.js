@@ -1,6 +1,7 @@
 // @ts-check
 // What leaves the server, per audience. Nothing is sent "just in case": a barber without the
 // right sees masked phone numbers, the public site never sees a client, a booking link shows one booking.
+import { payBrief } from '../commands/selfpay.js';
 import { maskPhone, fmtPhone, maskEmail } from '../lib/util.js';
 import { staffIntervals } from '../domain/availability.js';
 import { clientStats } from '../domain/insights.js';
@@ -132,6 +133,8 @@ export function apptView(s, a, caps, stats, now = Date.now()) {
     client: c ? clientCard(s, c, caps, stats, now) : null, deposit: a.deposit, guarantee: a.guarantee || null, saleId: a.saleId, createdAt: a.createdAt,
     statusAt: a.statusAt || {}, cancel: a.cancel, moves: a.moves || 0, demo: !!a.demo, legacy: !!a.legacy, paidOld: a.ext && a.ext.paid && !a.saleId ? a.ext.paid : 0,
     ...(formuleBrief(s, a) ? { formule: formuleBrief(s, a) } : {}),
+    // « Payer ma coupe »: the link is out, the client is paying on his phone, or he paid online (commands/selfpay.js)
+    ...payBrief(s, a, now),
     // « Groupe de Karim · 3 personnes »: a place booked with others on the site
     ...(a.ext && a.ext.group && groupBrief(s, a) ? { group: groupBrief(s, a) } : {})
   };

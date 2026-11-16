@@ -281,6 +281,36 @@ export function Checkout({ apptId, drawerOpen, onClose, phone = false, onPaid }:
     return out;
   };
 
+  // a ticket's lines as the server reads them: the validation and the payment link send the same ones
+  const wire = (ls: Line[]) => ls.map((l) => ({ kind: l.kind, ref: l.ref || undefined, name: l.kind === 'fee' ? l.name : undefined, qty: l.qty, unit: l.kind === 'giftcard' || l.kind === 'fee' || (l.kind === 'service' && !l.packId && !l.memberId) ? l.unit : undefined, discount: l.rewardId ? undefined : l.discount || undefined, rewardId: l.rewardId, staffId: l.staffId || undefined, packId: l.packId || undefined, memberId: l.memberId || undefined, force: l.force || undefined, recipient: l.recipient || undefined }));
+  const groupIds = (ls: Line[]) => (apptId && ls.some((l) => l.gid) ? [...new Set(ls.map((l) => l.gid).filter(Boolean))] : undefined);
+
+  // « Envoyer le lien de paiement »: the client pays this very ticket on his own phone (his page asks the amount the
+  // server works out from these lines); the till waits, then says « Payé en ligne » by itself (the pulse reads the
+  // appointment again). Only for a ticket nothing else is paid on yet, besides the deposit.
+  const [link, setLink] = useState<{ due: number; sent: string | null; url: string } | null>(null);
+  const [linking, setLinking] = useState(false);
+  const linkOff = noQr || !S.selfPay;
+  const linkable = !!apptId && !linkOff && pays.every((p) => p.method === 'deposit') && !lines.some((l) => l.kind === 'giftcard');
+  const sendLink = async (ls: Line[] = lines) => {
+    if (!apptId || linking || checking) return;
+    if (ls.some((l) => !l.staffId)) { toast({ kind: 'err', title: 'Indique d’abord qui a fait la prestation', icon: 'alert' }); return; }
+    setLinking(true);
+    try {
+      const r = await api.post<{ due: number; sent: string | null; url: string }>('/api/v1/appointments/' + apptId + '/pay-link', { ticket: { lines: wire(ls), groupApptIds: groupIds(ls), discount: disc && disc.amount ? disc : undefined }, ...(phone ? { phone: true } : {}) }, uuid());
+      setLink(r);
+      buzz(10);
+      toast({ title: r.sent === 'sms' ? 'Lien de paiement envoyé par message' : r.sent === 'email' ? 'Lien de paiement envoyé par e-mail' : 'Lien prêt : le client le scanne', icon: 'sms' });
+      detail.refresh();
+    } catch (e) { toastError(e); } finally { setLinking(false); }
+  };
+  const cancelLink = async () => {
+    if (!apptId) return;
+    setLinking(true);
+    try { await api.del('/api/v1/appointments/' + apptId + '/pay-link'); setLink(null); await detail.refresh(); }
+    catch (e) { toastError(e); } finally { setLinking(false); }
+  };
+
   const submit = async (ls: Line[] = lines) => {
     if (left !== 0 || !ls.length || checking || ls.some((l) => l.cover?.retry)) return;
     if (ls.some((l) => !l.staffId)) { setModal('who'); return; }
@@ -288,8 +318,8 @@ export function Checkout({ apptId, drawerOpen, onClose, phone = false, onPaid }:
     try {
       const body = {
         apptId: apptId || undefined, clientId: client?.id || undefined,
-        groupApptIds: apptId && ls.some((l) => l.gid) ? [...new Set(ls.map((l) => l.gid).filter(Boolean))] : undefined,
-        lines: ls.map((l) => ({ kind: l.kind, ref: l.ref || undefined, name: l.kind === 'fee' ? l.name : undefined, qty: l.qty, unit: l.kind === 'giftcard' || l.kind === 'fee' || (l.kind === 'service' && !l.packId && !l.memberId) ? l.unit : undefined, discount: l.rewardId ? undefined : l.discount || undefined, rewardId: l.rewardId, staffId: l.staffId || undefined, packId: l.packId || undefined, memberId: l.memberId || undefined, force: l.force || undefined, recipient: l.recipient || undefined })),
+        groupApptIds: groupIds(ls),
+        lines: wire(ls),
         discount: disc && disc.amount ? disc : undefined, tip: tip && tip.amount ? tip : undefined,
         payments: pays.length ? pays.map((p) => ({ method: p.method, amount: p.amount, given: p.given, ref: p.ref })) : [{ method: 'card', amount: 0 }],
         ...(phone ? { phone: true } : {})
@@ -305,7 +335,9 @@ export function Checkout({ apptId, drawerOpen, onClose, phone = false, onPaid }:
       // on the phone the page behind the sheet is read again when he closes it (PhoneCheckout): the receipt stays on screen
       if (!phone) refreshAll();
     } catch (e: any) {
-      if (e.code === 'drawer_closed') toast({ kind: 'err', title: 'La caisse n’est pas ouverte', sub: can('drawer') ? 'Ouvre-la dans l’onglet « Caisse & clôture » avec le fond de caisse.' : 'Demande au gérant de l’ouvrir, ou encaisse par carte.', icon: 'alert' });
+      // the client paid on his phone while this ticket was being rung up: one ticket, the screen says so
+      if (e.code === 'paid_online' || e.code === 'paid') { clearDraft(store, dKey); toast({ kind: 'err', title: e.code === 'paid_online' ? 'Déjà payé en ligne par le client' : 'Déjà encaissé', sub: e.message, icon: 'alert', ttl: 12000 }); detail.refresh(); }
+      else if (e.code === 'drawer_closed') toast({ kind: 'err', title: 'La caisse n’est pas ouverte', sub: can('drawer') ? 'Ouvre-la dans l’onglet « Caisse & clôture » avec le fond de caisse.' : 'Demande au gérant de l’ouvrir, ou encaisse par carte.', icon: 'alert' });
       else toastError(e);
     } finally { setBusy(false); }
   };
@@ -313,6 +345,10 @@ export function Checkout({ apptId, drawerOpen, onClose, phone = false, onPaid }:
   if (apptId && !detail.data) return <div className="card"><div className="col"><Skeleton h={40} w={220} /><Skeleton h={160} /><Skeleton h={90} /></div></div>;
   if (done) return <Done done={done} onNext={onClose} phone={phone} />;
   const appt = detail.data?.appt;
+  // rung up meanwhile, here or by the client himself on his phone: nothing left to take, and nobody charges twice
+  if (appt?.saleId) return <PaidAlready saleId={appt.saleId} online={!!appt.paidOnline} onNext={() => { clearDraft(store, dKey); onClose(); }} />;
+  // the link is out, or the client is on the payment page: the till waits instead of offering another way to pay
+  const waiting = appt?.onlinePay || (link ? { state: 'sent' as const, due: link.due, at: 0 } : null);
 
   return (
     <div className="card ticket">
@@ -386,13 +422,22 @@ export function Checkout({ apptId, drawerOpen, onClose, phone = false, onPaid }:
         <div key={p.key} className="pay"><Icon name={METHOD_ICON[p.method]} /><span className="grow">{p.label}{p.given ? <small>Reçu {eur(p.given, { decimals: true })} · rendu {eur(p.given - p.amount, { decimals: true })}</small> : null}</span><Money cents={p.amount} decimals={p.amount % 100 !== 0} />{p.method !== 'online' && p.method !== 'deposit' ? <Button size="sm" icon="x" aria-label="Retirer ce paiement" onClick={() => setPays(pays.filter((x) => x.key !== p.key))} /> : null}</div>
       ))}</div> : null}
 
-      {left > 0 ? (
+      {waiting ? (
+        <div className="tk-wait" data-guide="tk-wait" role="status">
+          <p className="tk-wait-h"><span className="spin" /><b>En attente du paiement du client…</b></p>
+          <p className="muted">{waiting.state === 'paying' ? 'Il est sur la page de paiement' : link?.sent === 'sms' ? 'Lien envoyé par message' : link?.sent === 'email' ? 'Lien envoyé par e-mail' : 'Le lien est sur sa page de rendez-vous'} · {eur(waiting.due, { decimals: waiting.due % 100 !== 0 })}{waiting.state === 'paying' ? '' : ', plus son pourboire s’il en laisse un'}. L’écran passe à « Payé en ligne » tout seul.</p>
+          {link?.url && waiting.state !== 'paying' ? <details className="tk-wait-qr"><summary>Il n’a rien reçu ? Montrer le QR code</summary><div style={{ display: 'grid', placeItems: 'center', padding: 8 }}><QR text={link.url} size={200} label="QR code de la page de paiement" /></div></details> : null}
+          <Button variant="ghost" block busy={linking} disabled={offline} onClick={cancelLink}>Annuler et encaisser autrement</Button>
+        </div>
+      ) : left > 0 ? (
         <>
           <div className="remaining"><span>{pays.length ? 'Reste à payer' : 'Comment paie-t-il ?'}</span><b className="money tnum">{eur(left, { decimals: left % 100 !== 0 })}</b></div>
           <div className="methods" data-guide="tk-methods">
             <button type="button" className="method" disabled={!S.card} onClick={() => addPay({ method: 'card', amount: left, label: 'Carte · terminal' })}><Icon name="card" /><span><b>Carte</b><small>Terminal de paiement</small></span></button>
             <button type="button" className="method" disabled={!cashOk} onClick={() => setModal('cash')}><Icon name="cash" /><span><b>Espèces</b><small>{pocket ? (cashOk ? 'Tu les gardes, à remettre' : 'Pas sur ton téléphone') : drawerOpen ? 'Calcule la monnaie' : 'Caisse fermée'}</small></span></button>
             <button type="button" className="method" disabled={!S.qr || noQr} onClick={() => setModal('qr')}><Icon name="qr" /><span><b>QR code</b><small>{noQr ? 'Branche Stripe pour le QR' : 'Apple Pay, carte'}</small></span></button>
+            {/* next to the QR code: the client pays the whole ticket himself, on his phone */}
+            {apptId && (S.selfPay || linkOff) ? <button type="button" className="method" data-guide="tk-paylink" disabled={!linkable || linking || offline || left < 50} onClick={() => sendLink()}><Icon name="sms" /><span><b>Envoyer le lien de paiement</b><small>{noQr ? 'Branche Stripe pour le lien' : !S.selfPay ? 'Éteint dans Réglages › Paiements' : !linkable ? 'Ticket déjà payé en partie' : 'Il paie sur son téléphone'}</small></span></button> : null}
             <button type="button" className="method" disabled={!S.giftcard || lines.some((l) => l.kind === 'giftcard')} onClick={() => setModal('gift')}><Icon name="gift" /><span><b>Carte cadeau</b><small>Saisir le code</small></span></button>
             {/* an imported booking with a deposit paid on the old site: once, never more than was paid there */}
             {appt?.paidOld && !pays.some((p) => p.method === 'ancien') ? <button type="button" className="method" data-method="ancien" onClick={() => addPay({ method: 'ancien', amount: Math.min(appt.paidOld!, left), label: 'Payé sur l’ancien site' })}><Icon name="globe" /><span><b>Payé sur l’ancien site</b><small>{eur(appt.paidOld, { decimals: appt.paidOld % 100 !== 0 })} déjà payés</small></span></button> : null}
@@ -400,7 +445,7 @@ export function Checkout({ apptId, drawerOpen, onClose, phone = false, onPaid }:
         </>
       ) : left < 0 ? <Note tone="warn" icon="alert">Les paiements dépassent le total de {eur(-left)}. Retire un paiement.</Note> : null}
 
-      <Button variant="primary" size="xl" block data-guide="tk-validate" busy={busy || checking} disabled={offline || left !== 0 || !lines.length || lines.some((l) => l.cover?.retry)} title={offline ? OFFLINE_WHY : undefined} aria-describedby={offline ? 'tk-off' : undefined} onClick={() => submit()} icon="check">{left === 0 && lines.length ? 'Valider l’encaissement · ' + eur(totals.due) : 'Encaisser'}</Button>
+      <Button variant="primary" size="xl" block data-guide="tk-validate" busy={busy || checking} disabled={offline || !!waiting || left !== 0 || !lines.length || lines.some((l) => l.cover?.retry)} title={offline ? OFFLINE_WHY : undefined} aria-describedby={offline ? 'tk-off' : undefined} onClick={() => submit()} icon="check">{left === 0 && lines.length ? 'Valider l’encaissement · ' + eur(totals.due) : 'Encaisser'}</Button>
       {offline ? <p id="tk-off" className="off-why" role="status"><Icon name="alert" size={14} />{OFFLINE_WHY}</p> : null}
 
       <AddSheet open={modal === 'add'} onClose={() => setModal('')} onAdd={(ls) => { setLines((x) => { const next = [...x, ...ls]; if (ls.some((l) => l.kind === 'pack')) { const svc = serviceById.get(ls.find((l) => l.kind === 'pack')!.ref!); const cut = next.find((l) => l.kind === 'service' && !l.packId && !l.memberId && (!svc?.pack?.serviceIds?.length || svc.pack.serviceIds.includes(l.ref!))); if (cut) cut.packId = 'new'; } return next; }); setModal(''); }} performer={performer} />
@@ -412,6 +457,21 @@ export function Checkout({ apptId, drawerOpen, onClose, phone = false, onPaid }:
       <QrModal open={modal === 'qr'} onClose={() => setModal('')} amount={left} label={boot.settings.shop.name} onPaid={(id, amount) => { addPay({ method: 'online', amount, ref: id, label: 'Payé par QR code' }); setModal(''); }} />
       <GiftModal open={modal === 'gift'} onClose={() => setModal('')} due={left} onPay={(amount, code, last4) => { addPay({ method: 'giftcard', amount, ref: code, label: 'Carte cadeau •••• ' + last4 }); setModal(''); }} />
       <ClientSheet open={modal === 'client'} onClose={() => setModal('')} onPick={(c) => { attach(c); setModal(''); }} />
+    </div>
+  );
+}
+
+/** The appointment was rung up while this ticket was open: by the client himself on his phone (« Payé en ligne »), or at another till. */
+function PaidAlready({ saleId, online, onNext }: { saleId: string; online: boolean; onNext: () => void }) {
+  const sale = useQuery<{ ref: string; totals: { due: number; tip: number }; client: string | null }>('/api/v1/sales/' + saleId);
+  const d = sale.data;
+  return (
+    <div className="card done" data-guide="tk-paid-online" role="status">
+      <span className="ok"><Icon name="check" /></span>
+      <h2>{online ? 'Payé en ligne ✓' : 'Déjà encaissé ✓'}{d ? <> · <span className="money">{eur(d.totals.due, { decimals: d.totals.due % 100 !== 0 })}</span></> : null}</h2>
+      <p className="muted">{d ? 'Ticket ' + d.ref + (d.client ? ' · ' + d.client : '') : 'Ticket enregistré'}{d?.totals.tip ? ' · dont ' + eur(d.totals.tip, { decimals: d.totals.tip % 100 !== 0 }) + ' de pourboire' : ''}</p>
+      <p className="muted">{online ? 'Le client a réglé sur son téléphone : rien à encaisser.' : 'Ce rendez-vous a déjà son ticket : rien à encaisser.'}</p>
+      <Button variant="primary" size="lg" icon="check" onClick={onNext}>Terminé</Button>
     </div>
   );
 }

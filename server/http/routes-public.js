@@ -34,6 +34,7 @@ import { salonWhatsapp } from '../settings/messages.js';
 import { effectiveMode } from '../messaging/hand.js';
 import { formuleOfAppt, rankOf, payState, endOf, onSite } from '../domain/formule.js';
 import { accountsOn } from '../settings/accounts.js';
+import { payView, settleSelfPay } from './routes-selfpay.js';
 
 /** The demo, for real: both the configuration and the journal say so (a demo journal opened in production is not one). */
 export const isDemo = (r) => r.rt.cfg.mode === 'demo' && r.s.mode === 'demo';
@@ -106,7 +107,9 @@ function bookingView(r, a) {
     ...(a.status === 'done' && safeRedirect(s.settings.shop.reviewUrl) ? { reviewUrl: safeRedirect(s.settings.shop.reviewUrl) } : {}),
     ...formuleLine(s, a),
     ...(r.guestLink ? { guestLink: true } : {}),
-    ...groupLine(r, a)
+    ...groupLine(r, a),
+    // « Payer ma coupe »: what he owes today, or « payé » with his receipt (routes-selfpay.js)
+    ...(payView(r, a) || {})
   };
 }
 
@@ -121,7 +124,7 @@ function groupLine(r, a) {
   return g ? { group: g } : {};
 }
 
-function apptFromToken(r) {
+export function apptFromToken(r) {
   // two kinds of link open a booking: the contact's own ('appt', which also opens his other bookings, routes-client.js)
   // and a friend's ('guest', sent by the organiser of a group: that one place and nothing else)
   let code = checkLink(r.rt.secret, 'appt', r.params.token);
@@ -143,15 +146,15 @@ export const lapse = (r, co) => r.now + Math.max(0, co.exp - Date.now());
 /**
  * Ask the provider for a checkout page and record it.
  * @param {any} r
- * @param {{ kind: string, amount: number, label: string, apptId: string|null, returnPath: string, email?: string }} o
+ * @param {{ kind: string, amount: number, label: string, apptId: string|null, returnPath: string, email?: string, self?: { tip: number, group?: string[] } }} o
  */
-export async function startPayment(r, { kind, amount, label, apptId, returnPath, email }) {
+export async function startPayment(r, { kind, amount, label, apptId, returnPath, email, self }) {
   if (!payLive(r)) throw new HttpError(409, 'no_provider', 'Le paiement en ligne n’est pas branché (Stripe).');
   const id = newId('py');
   const origin = r.origin;
   const payMin = kind === 'deposit' ? payWindowMin(r.s, { stripe: r.rt.pay.name === 'stripe' }) : undefined;
   const co = await r.rt.pay.createCheckout({ id, amount, label, email, payMin, successUrl: origin + returnPath + (returnPath.includes('?') ? '&' : '?') + 'paiement=ok', cancelUrl: origin + returnPath + (returnPath.includes('?') ? '&' : '?') + 'paiement=annule' });
-  await r.rt.engine.run(createPayment, { id, kind, amount, provider: r.rt.pay.name, providerRef: co.ref, url: co.url, apptId, exp: lapse(r, co), label }, { actor: { t: 'system', id: 'payments' }, caps: new Set(['sale.create']), meta: r.meta });
+  await r.rt.engine.run(createPayment, { id, kind, amount, provider: r.rt.pay.name, providerRef: co.ref, url: co.url, apptId, exp: lapse(r, co), label, ...(self ? { self } : {}) }, { actor: { t: 'system', id: 'payments' }, caps: new Set(['sale.create']), meta: r.meta });
   return { id, url: co.url };
 }
 
@@ -432,7 +435,9 @@ export function publicRoutes(app) {
     if (m) return memberCheckout(r, m);
     if (!p) throw new HttpError(404, 'not_found', 'Paiement introuvable.');
     const a = p.apptId ? r.s.appts.get(p.apptId) : null;
-    return { id: p.id, status: p.status, amount: p.amount, label: p.label, kind: p.kind, provider: p.provider, exp: p.exp, shop: r.s.settings.shop.name, back: a ? '/r/' + signLink(r.rt.secret, 'appt', a.code) : null };
+    // a friend's place paid from the organiser's link goes back to that place alone, never to the friend's other bookings
+    const friend = !!(a && p.self && a.ext && a.ext.guest && a.ext.guest.by);
+    return { id: p.id, status: p.status, amount: p.amount, label: p.label, kind: p.kind, provider: p.provider, exp: p.exp, shop: r.s.settings.shop.name, back: a ? '/r/' + signLink(r.rt.secret, friend ? 'guest' : 'appt', a.code) : null };
   });
 
   app.post('/api/public/payments/:id/simulate', async (r) => {
@@ -538,5 +543,7 @@ export async function afterProviderPaid(r, ev, provider) {
   if (res && res.late) await refundOnline(r, p, 'Réservation expirée avant le paiement');
   // a gift card bought online (IN-01): the sale and the code's SMS, on every paid notice (fulfilGiftcard is idempotent)
   if (p && p.kind === 'giftcard' && p.status === 'paid') await fulfilGiftcard(r, p);
+  // the client paid his own cut from his page: the till's ticket, on every paid notice (settleSelfPay is idempotent)
+  if (p && p.self) await settleSelfPay(r, r.s.payments.get(p.id));
   return res;
 }

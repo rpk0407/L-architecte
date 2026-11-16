@@ -1,4 +1,5 @@
 // La caisse: who is waiting to pay, the ticket, the day's tickets, and the end-of-day ritual.
+import { OnlineBadge } from './caisse/OnlineBadge';
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '../../lib/query';
 import { Link, navigate, setQuery, useRoute } from '../../lib/router';
@@ -116,7 +117,7 @@ function Till() {
       <li key={a.id}>
         <button type="button" className="li" aria-pressed={rdv === a.id} onClick={() => setQuery({ rdv: a.id, vente: null, paiement: null })}>
           {st ? <Avatar name={st.name} initials={st.initials} color={st.color} size="sm" /> : null}
-          <span className="li-main"><b>{a.client ? a.client.first + ' ' + a.client.last : a.name}</b><small>{time(a.start)} · {a.services.map((s) => s.name).join(' + ')}{a.deposit?.paid ? ' · acompte ' + eur(a.deposit.paid) : ''}</small>{drafts.has(a.id) && rdv !== a.id ? <small><span className="badge badge-warn">ticket en cours</span></small> : null}</span>
+          <span className="li-main"><b>{a.client ? a.client.first + ' ' + a.client.last : a.name}</b><small>{time(a.start)} · {a.services.map((s) => s.name).join(' + ')}{a.deposit?.paid ? ' · acompte ' + eur(a.deposit.paid) : ''}</small>{drafts.has(a.id) && rdv !== a.id ? <small><span className="badge badge-warn">ticket en cours</span></small> : null}{a.onlinePay ? <small><OnlineBadge a={a} /></small> : null}</span>
           <span className="li-end">
             <b className="money tnum">{eur(a.price)}</b>
             <small className={hot ? '' : 'faint'} style={hot ? { color: 'var(--accent)' } : undefined}>{a.status === 'in_chair' ? 'au fauteuil' : hot ? waitedWords(nowMin - a.start - a.dur) : st?.name}{hot && !mine && st ? ' · ' + st.name : ''}</small>

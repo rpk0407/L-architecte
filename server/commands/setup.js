@@ -3,12 +3,14 @@
 import { fail } from '../core/engine.js';
 import { str, obj, parse } from '../lib/validate.js';
 import { isEmail } from '../lib/util.js';
-import { localParts } from '../../shared/dates.js';
+import { localParts, addDays, weekday } from '../../shared/dates.js';
 import hoursSetting from '../settings/hours.js';
 import bookingSetting from '../settings/booking.js';
-import { updateSettings } from './shop.js';
+import { updateSettings, addClosure } from './shop.js';
 import { addService, updateService } from './catalog.js';
-import { addStaff, updateStaff, addTimeOff, setPhoto } from './team.js';
+import { addStaff, updateStaff, addTimeOff, setPhoto, strandedAppts, timeoffConflicts } from './team.js';
+import { UNDECIDED } from '../domain/availability.js';
+import { schoolYearOf, schoolDay } from '../presets/vacances-zone-b.js';
 import { readFile } from 'node:fs/promises';
 
 const ownerSchema = obj({ name: str({ min: 2, max: 40 }), email: str({ min: 5, max: 120, lower: true }) });
@@ -36,14 +38,18 @@ export const initialize = {
 //
 // A preset (server/presets) lists what a salon is made of: its hours, its booking rules, its services, its barbers
 // and the days off already known. presetPlan says, against the state of now, what applying it would do; applyPreset
-// does exactly that, through the normal commands (updateSettings, addService, addStaff, updateStaff, addTimeOff) in
-// one atomic batch, with the rights of whoever asks. Four rules make a second run change nothing:
+// does exactly that, through the normal commands (updateSettings, addClosure, addService, addStaff, updateStaff,
+// addTimeOff) in one atomic batch, with the rights of whoever asks. These rules make a second run change nothing:
 // - a service or a person that already exists (same slug, or same name whatever the case and accents) is left as it
 //   is, archived or renamed fields included: the preset creates, it never overwrites. The gérant of the preset (owner)
 //   is the owner's own account whatever first name he typed at setup: it gets his chair, never a second account;
-// - the salon's hours and each booking rule are set only while they still hold their factory value: a value the
-//   owner chose himself is his;
-// - a day off is posted once (same barber, same dates) and never for days already past;
+// - the salon's hours and each booking rule are set only while they still hold their factory value, or (the hours)
+//   the value an earlier version of the preset gave them: a value the owner chose himself is his;
+// - a barber's week is the same: someone who still has the week an earlier preset gave him (`was`) is offered today's
+//   (« horaires à mettre à jour », before and after), a week changed by hand since is kept;
+// - a day off is posted once (same barber, same dates) and never for days already past; a CFA day of the apprentice
+//   (`school`) is posted only on a day he has no absence yet;
+// - a day the salon closes, or opens exceptionally, is posted once and never for a day already past;
 // - a portrait is set (setPhoto) only on someone who has no photo yet: a photo he chose himself is his.
 
 const fold = (x) => String(x || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
@@ -52,7 +58,7 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 const weekOf = (w) => Object.fromEntries([0, 1, 2, 3, 4, 5, 6].map((d) => [d, ((w && (w[d] || w[String(d)])) || []).map(([a, b]) => [a, b])]));
 
 /** @type {string[]} */
-export const PRESET_PARTS = ['hours', 'rules', 'services', 'team', 'absences', 'photos'];
+export const PRESET_PARTS = ['hours', 'rules', 'closures', 'openings', 'services', 'team', 'absences', 'photos'];
 const RULE_LABEL = { stepMin: 'Un créneau toutes les', minNoticeMin: 'Réservation au plus tard', maxDaysAhead: 'Réservation jusqu’à', cancelUntilHours: 'Annulation en ligne jusqu’à' };
 const ruleWords = (k, v) => (k === 'stepMin' ? v + ' min' : k === 'minNoticeMin' ? v + ' min avant' : k === 'maxDaysAhead' ? v + ' jours à l’avance' : v + ' h avant');
 
@@ -63,12 +69,18 @@ const ruleWords = (k, v) => (k === 'stepMin' ? v + ' min' : k === 'minNoticeMin'
  * colour and initials) | 'exists', with photo 'create' | 'exists' | null (no portrait, or someone archived);
  * absences: 'create' | 'exists' | 'past'. staffAliases: the old site's name of the gérant → the owner's account, for
  * the WordPress import (his account may be called « Frank R. » or anything else).
- * @param {any} s @param {any} P a preset @param {{ today: string }} o
+ * team[].hours: 'update' (he still has the week of an earlier preset: today's is offered, `now` is the one he has),
+ * 'kept' (his week was changed by hand: left), or null. closures, openings: 'create' | 'exists' | 'past'. school: the
+ * apprentice's CFA days of the school year, each 'create' | 'exists'. stranded: the appointments already taken that
+ * fall outside the hours as they will be (counted, never moved).
+ * @param {any} s @param {any} P a preset @param {{ today: string, now?: number, min?: number }} o
  */
 export function presetPlan(s, P, o) {
   const st = s.settings;
   const hoursNow = weekOf(st.hours), hoursTo = weekOf(P.hours);
-  const hours = { to: hoursTo, now: hoursNow, status: same(hoursNow, hoursTo) ? 'same' : same(hoursNow, weekOf(hoursSetting.defaults())) ? 'set' : 'kept' };
+  // the hours an earlier version of the preset set are not the owner's own choice: today's replace them
+  const hoursOld = (P.hoursWas || []).some((w) => same(hoursNow, weekOf(w)));
+  const hours = { to: hoursTo, now: hoursNow, was: hoursOld, status: same(hoursNow, hoursTo) ? 'same' : hoursOld || same(hoursNow, weekOf(hoursSetting.defaults())) ? 'set' : 'kept' };
   const factory = bookingSetting.defaults();
   const rules = Object.entries(P.booking).map(([key, to]) => {
     const now = st.booking[key];
@@ -101,8 +113,15 @@ export function presetPlan(s, P, o) {
     // the owner (or a manager) who also cuts: his account exists since the setup screen, without a chair or a week
     const chair = !!have && have.active && !have.chair && !Object.values(have.schedule || {}).some((iv) => iv && iv.length);
     const photo = !x.photo || (have && !have.active) ? null : have && s.staffPhotos && s.staffPhotos.has(have.id) ? 'exists' : 'create';
+    // his week against the preset's: the one an earlier preset gave him is updated, one changed by hand is his
+    const to = weekOf(x.schedule), now = have ? weekOf(have.schedule) : to;
+    const prev = have && have.active && !chair && !same(now, to) ? (x.was || []).find((w) => same(weekOf(w.schedule), now)) || null : null;
+    const hoursSt = !have || !have.active || chair || same(now, to) ? null : prev ? 'update' : 'kept';
     return {
-      name: x.name, color: x.color, initials: x.initials, schedule: weekOf(x.schedule), order, wp: x.wp || '', online: x.online !== false,
+      name: x.name, color: x.color, initials: x.initials, schedule: to, order, wp: x.wp || '', online: x.online !== false,
+      hours: hoursSt, ...(hoursSt ? { now } : {}),
+      // kept off the site by the earlier preset only for want of a week: he goes online with it
+      goOnline: !!prev && prev.online === false && x.online !== false && !have.bookable,
       status: !have ? 'create' : chair ? 'chair' : 'exists', id: have ? have.id : null, archived: !!have && !have.active, hasPin: !!have && !!have.hasPin,
       // the owner's account holds this chair: the plan says whose account it is when its name is another
       owner: !!have && have.role === 'owner' && !!x.owner, account: have && have.name !== x.name ? have.name : '', photo
@@ -117,15 +136,66 @@ export function presetPlan(s, P, o) {
     return { staff: a.staff, from, to: a.to, reason: a.reason || 'Absence', status: a.to < o.today || !who || who.archived ? 'past' : posted || [...s.timeoff.values()].some((t) => who.id && t.staffId === who.id && t.from === from && t.to === a.to) ? 'exists' : 'create' };
   });
 
+  // the days the salon closes and the ones it opens exceptionally: posted once, never for a day already past
+  const closures = (P.closures || []).map((c) => ({ from: c.from, to: c.to, label: c.label, status: c.to < o.today ? 'past' : st.closures.some((x) => x.from <= c.from && x.to >= c.to) ? 'exists' : 'create' }));
+  const openings = (P.openings || []).map((x) => ({ day: x.day, intervals: x.intervals.map(([a, b]) => [a, b]), label: x.label, staff: x.staff || 'all', status: x.day < o.today ? 'past' : (st.openings || []).some((y) => y.day === x.day) ? 'exists' : 'create' }));
+  const closed = (d) => st.closures.some((c) => d >= c.from && d <= c.to) || closures.some((c) => c.status === 'create' && d >= c.from && d <= c.to);
+
+  // the apprentice's school weeks: his CFA days from today to the end of the school year (the summer belongs to the next
+  // one), outside the holidays and the days the salon is closed; a day he already has an absence on is left as it is
+  let school = null;
+  if (P.school) {
+    const sc = P.school, cal = sc.calendar;
+    const who = team.find((t) => fold(t.name) === fold(sc.staff)) || null;
+    const year = schoolYearOf(o.today, cal);
+    const mine = who && who.id ? [...s.timeoff.values()].filter((t) => t.staffId === who.id && !UNDECIDED.has(t.status)) : [];
+    const days = [];
+    if (year && who && !who.archived) {
+      for (let d = o.today < year.start ? year.start : o.today, i = 0; d <= year.end && i < 400; d = addDays(d, 1), i++) {
+        const rule = sc.days[weekday(d)];
+        if (!rule || schoolDay(d, cal) !== 'school' || closed(d)) continue;
+        days.push({ day: d, ...(rule === 'day' ? {} : { startMin: rule.startMin, endMin: rule.endMin }), status: mine.some((t) => d >= t.from && d <= t.to) ? 'exists' : 'create' });
+      }
+    }
+    school = {
+      staff: sc.staff, reason: sc.reason, zone: cal.zone, academie: cal.academie, source: cal.source, read: cal.read, year: year ? year.id : null, unconfirmed: !year,
+      days, todo: days.filter((d) => d.status === 'create').length, from: days.length ? days[0].day : null, until: days.length ? days[days.length - 1].day : null,
+      // the holidays still to come this year, first to last day without class: he works his full week then
+      holidays: year ? year.holidays.filter((h) => h.back > o.today).map((h) => ({ name: h.name, from: addDays(h.after, 1), to: addDays(h.back, -1) })) : []
+    };
+  }
+
+  // the appointments already taken that the hours to come leave outside (an old site's booking at 8 h 30, one on a day
+  // now closed, one on a CFA day): counted with the logic of Équipe (strandedAppts, timeoffConflicts), never moved
+  const at = { now: o.now || 0, local: { day: o.today, min: o.min || 0 } };
+  const staff2 = new Map(s.staff);
+  for (const t of team) if (t.id && (t.status === 'chair' || t.hours === 'update')) staff2.set(t.id, { ...s.staff.get(t.id), chair: true, schedule: t.schedule });
+  const after = { ...s, staff: staff2, settings: { ...st, hours: hours.status === 'set' ? hoursTo : st.hours, closures: [...st.closures, ...closures.filter((c) => c.status === 'create')], openings: [...(st.openings || []), ...openings.filter((x) => x.status === 'create')] } };
+  const cfaId = school && (team.find((t) => fold(t.name) === fold(school.staff)) || {}).id;
+  const strandedBy = team.filter((t) => t.id && !t.archived).map((t) => {
+    const cfa = t.id === cfaId && school ? school.days.filter((d) => d.status === 'create').reduce((n, d) => n + timeoffConflicts(s, { staffId: t.id, from: d.day, to: d.day, startMin: d.startMin, endMin: d.endMin }, at).length, 0) : 0;
+    return { name: t.name, id: t.id, count: strandedAppts(after, t.id, at).length + cfa };
+  }).filter((x) => x.count);
+  const stranded = { count: strandedBy.reduce((n, x) => n + x.count, 0), by: strandedBy };
+
   // an old title the import cannot match by name (its service is a carnet): where its bookings go instead
   const aliases = Object.fromEntries(P.services.filter((x) => x.alias).map((x) => [x.wp.replace(/\s+/g, ' '), (all.find((v) => v.slug === x.alias) || {}).id || '']).filter(([, id]) => id));
   // the gérant's old bookings go to the owner's account, whatever its name (the import matches the others by name)
   const staffAliases = Object.fromEntries(team.filter((t) => t.owner && t.wp && t.id).map((t) => [t.wp, t.id]));
-  const count = { hours: hours.status === 'set' ? 1 : 0, rules: rules.filter((r) => r.status === 'set').length, services: services.filter((x) => x.status === 'create').length, updates: services.filter((x) => x.status === 'update').length, team: team.filter((x) => x.status !== 'exists').length, absences: absences.filter((x) => x.status === 'create').length, photos: team.filter((x) => x.photo === 'create').length };
+  const count = {
+    hours: hours.status === 'set' ? 1 : 0, rules: rules.filter((r) => r.status === 'set').length, closures: closures.filter((x) => x.status === 'create').length, openings: openings.filter((x) => x.status === 'create').length,
+    services: services.filter((x) => x.status === 'create').length, updates: services.filter((x) => x.status === 'update').length, team: team.filter((x) => x.status !== 'exists').length, schedules: team.filter((x) => x.hours === 'update').length,
+    absences: absences.filter((x) => x.status === 'create').length, cfa: school ? school.todo : 0, photos: team.filter((x) => x.photo === 'create').length
+  };
   // said first, in his words: his own account takes the gérant's chair, there is no second « Frank »
   const mine = team.find((t) => t.owner && t.status === 'chair');
-  const notes = [...(mine ? [mine.name + ' est le gérant : ' + (mine.account ? 'ton compte « ' + mine.account + ' »' : 'ton compte') + ' reçoit son fauteuil, sa semaine, sa couleur et ses initiales. Aucun second compte « ' + mine.name + ' » n’est créé.'] : []), ...(P.notes || [])];
-  return { id: P.id, name: P.name, source: P.source, hours, rules, services, team, absences, aliases, staffAliases, notes, count, todo: Object.values(count).reduce((a, b) => a + b, 0) };
+  const notes = [
+    ...(mine ? [mine.name + ' est le gérant : ' + (mine.account ? 'ton compte « ' + mine.account + ' »' : 'ton compte') + ' reçoit son fauteuil, sa semaine, sa couleur et ses initiales. Aucun second compte « ' + mine.name + ' » n’est créé.'] : []),
+    ...(stranded.count ? [(stranded.count > 1 ? stranded.count + ' rendez-vous déjà pris tombent' : '1 rendez-vous déjà pris tombe') + ' en dehors de ces horaires (' + stranded.by.map((x) => x.name + ' : ' + x.count).join(', ') + '). Aucun n’est déplacé : dans Équipe, sur la fiche du barbier, « Reporter ses rendez-vous ».'] : []),
+    ...(school && school.unconfirmed ? ['Vacances scolaires non confirmées pour l’année qui vient : à vérifier. Les absences « ' + school.reason + ' » de ' + school.staff + ' ne sont pas posées.'] : []),
+    ...(P.notes || [])
+  ];
+  return { id: P.id, name: P.name, source: P.source, hours, rules, closures, openings, services, team, absences, school, stranded, aliases, staffAliases, notes, count, todo: Object.values(count).reduce((a, b) => a + b, 0) };
 }
 
 /**
@@ -143,10 +213,12 @@ export async function presetPhoto(file) {
  * Put the preset in place: everything the plan marks to do, for the parts asked, in one atomic batch (any step
  * refused, a right missing included, and nothing is written). Each step is a normal command run as the person who
  * asks, so the rights are the commands' own: `settings` for the hours and rules, `catalog` for the services, `team`
- * for the barbers, their days off and their portraits. A second call finds nothing left to do and writes nothing.
+ * for the barbers, their days off and their portraits; `settings` again for the closed days and the exceptional
+ * openings. A second call finds nothing left to do and writes nothing. Nobody's appointment is moved: those the new
+ * hours leave outside are counted by the plan (stranded) and stay where they are.
  * @param {any} engine @param {any} P a preset @param {{ parts?: string[] }} input
  * @param {{ actor: any, staff?: any, caps?: Set<string>, meta?: any }} base
- * @returns {Promise<{ hours: number, rules: number, services: number, team: number, absences: number, photos: number, written: number }>}
+ * @returns {Promise<{ hours: number, rules: number, closures: number, openings: number, services: number, updates: number, team: number, schedules: number, absences: number, cfa: number, photos: number, written: number }>}
  */
 export async function applyPreset(engine, P, input, base) {
   const asked = Array.isArray(input && input.parts) && input.parts.length ? input.parts : [...PRESET_PARTS];
@@ -157,18 +229,22 @@ export async function applyPreset(engine, P, input, base) {
   const pics = new Map();
   if (parts.has('photos')) for (const x of P.staff) if (x.photo) { const d = await presetPhoto(x.photo); if (d) pics.set(fold(x.name), d); }
   for (let attempt = 0; attempt < 4; attempt++) {
-    const done = { hours: 0, rules: 0, services: 0, updates: 0, team: 0, absences: 0, photos: 0, written: 0 };
+    const done = { hours: 0, rules: 0, closures: 0, openings: 0, services: 0, updates: 0, team: 0, schedules: 0, absences: 0, cfa: 0, photos: 0, written: 0 };
     const n = await engine.batch((step) => {
       const s = engine.state;
       if (s.version === 0) fail(409, 'not_initialized', 'Crée d’abord le compte du gérant.');
       const today = localParts(engine.clock()).day;
-      const plan = presetPlan(s, P, { today });
+      const plan = presetPlan(s, P, { today, now: engine.clock(), min: localParts(engine.clock()).min });
 
       const patch = {};
       if (parts.has('hours') && plan.hours.status === 'set') { patch.hours = plan.hours.to; done.hours = 1; }
       const rules = parts.has('rules') ? plan.rules.filter((r) => r.status === 'set') : [];
       if (rules.length) { patch.booking = Object.fromEntries(rules.map((r) => [r.key, r.to])); done.rules = rules.length; }
+      // an exceptional opening: the whole list goes in one patch (settings/hours.js), the owner's own kept as they are
+      const opens = parts.has('openings') ? plan.openings.filter((x) => x.status === 'create') : [];
+      if (opens.length) { patch.openings = [...(s.settings.openings || []), ...opens.map((x) => ({ day: x.day, intervals: x.intervals, label: x.label, staff: x.staff }))]; done.openings = opens.length; }
       if (Object.keys(patch).length) step(updateSettings, patch, base);
+      if (parts.has('closures')) for (const c of plan.closures) if (c.status === 'create') { step(addClosure, { from: c.from, to: c.to, label: c.label }, base); done.closures++; }
 
       if (parts.has('services')) {
         const ids = Object.fromEntries(plan.services.filter((x) => x.id).map((x) => [x.slug, x.id]));
@@ -208,6 +284,9 @@ export async function applyPreset(engine, P, input, base) {
           } else if (t.status === 'chair') {
             // his account of the setup screen: the chair, the week, the colour and the initials of the preset's line
             step(updateStaff, { id: t.id, patch: { chair: true, bookable: t.online, schedule: t.schedule, color: t.color, initials: t.initials } }, base); done.team++;
+          } else if (t.hours === 'update') {
+            // the week of an earlier preset becomes today's; the appointments it leaves outside stay (the plan counts them)
+            step(updateStaff, { id: t.id, patch: { schedule: t.schedule, ...(t.goOnline ? { bookable: true } : {}) } }, base); done.schedules++;
           }
         }
       }
@@ -216,6 +295,12 @@ export async function applyPreset(engine, P, input, base) {
           const sid = who.get(fold(a.staff));
           if (a.status !== 'create' || !sid) continue;
           step(addTimeOff, { staffId: sid, from: a.from, to: a.to, reason: a.reason }, base); done.absences++;
+        }
+        // the apprentice's CFA days, one absence each: the owner sees them, and removes one the day the school is shut
+        const sid = plan.school ? who.get(fold(plan.school.staff)) : null;
+        if (plan.school && sid) for (const d of plan.school.days) {
+          if (d.status !== 'create') continue;
+          step(addTimeOff, { staffId: sid, from: d.day, to: d.day, ...(d.startMin != null ? { startMin: d.startMin, endMin: d.endMin } : {}), reason: plan.school.reason }, base); done.cfa++;
         }
       }
       if (parts.has('photos')) {

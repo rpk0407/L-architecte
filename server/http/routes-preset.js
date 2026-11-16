@@ -17,10 +17,10 @@ import { hashSecret, pinProblem } from '../auth/password.js';
 
 /** Whoever has a chair and no code yet: he cannot sign in on the tablet, nor link his phone. */
 const noCode = (s) => [...s.staff.values()].filter((x) => x.active && !x.legacy && x.chair && !x.hasPin).sort((a, b) => (a.order ?? 99) - (b.order ?? 99));
-const planOf = (r) => ({ ...presetPlan(r.s, ARCHITECTE, { today: r.local.day }), noCode: noCode(r.s).map((x) => ({ id: x.id, name: x.name })) });
+const planOf = (r) => ({ ...presetPlan(r.s, ARCHITECTE, { today: r.local.day, now: r.now, min: r.local.min }), noCode: noCode(r.s).map((x) => ({ id: x.id, name: x.name })) });
 
 /** The right each part of the preset needs: the one of the command that writes it. */
-const NEED = { hours: 'settings', rules: 'settings', services: 'catalog', team: 'team', absences: 'team' };
+const NEED = { hours: 'settings', rules: 'settings', closures: 'settings', openings: 'settings', services: 'catalog', team: 'team', absences: 'team' };
 
 /** Four digits nobody would guess first (no 0000, no 1234), different from the others of the same batch. */
 function freshPin(taken) {
