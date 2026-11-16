@@ -33,9 +33,17 @@ export function isDay(s) {
   return !Number.isNaN(t) && new Date(t).toISOString().slice(0, 10) === s;
 }
 
+// asked thousands of times for the same few hundred days (availability, reports, the demo's seed): kept, and frozen so
+// a caller cannot change what the next one reads
+const PARTS = new Map();
 export function dayParts(key) {
+  let p = PARTS.get(key);
+  if (p) return p;
   const [y, m, d] = key.split('-').map(Number);
-  return { y, m, d, wd: new Date(Date.UTC(y, m - 1, d, 12)).getUTCDay() };
+  p = Object.freeze({ y, m, d, wd: new Date(Date.UTC(y, m - 1, d, 12)).getUTCDay() });
+  if (PARTS.size > 5000) PARTS.clear();
+  PARTS.set(key, p);
+  return p;
 }
 export function weekday(key) { return dayParts(key).wd; }
 export function addDays(key, n) {

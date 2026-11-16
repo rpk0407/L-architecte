@@ -16,11 +16,15 @@ export function hashSecret(plain) {
   });
 }
 
-/** Synchronous variant, only for seeding the demo. */
-export function hashSecretSync(plain) {
-  const salt = randomBytes(16);
-  const key = scryptSync(String(plain).normalize('NFKC'), salt, LEN, { N, r: R, p: P, maxmem: MAXMEM });
-  return `scrypt$${N}$${R}$${P}$${salt.toString('base64')}$${key.toString('base64')}`;
+/**
+ * Synchronous variant, only for seeding the demo. `light`: the demo's codes are printed on its own sign-in screen, so
+ * hashing them at full cost protects nothing and only slows every cold start of the demo (seven hashes, about a second
+ * on a small server). The cost is written in the hash, so verifySecret reads it back. Never used for a real account.
+ */
+export function hashSecretSync(plain, { light = false } = {}) {
+  const salt = randomBytes(16), n = light ? 1024 : N;
+  const key = scryptSync(String(plain).normalize('NFKC'), salt, LEN, { N: n, r: R, p: P, maxmem: MAXMEM });
+  return `scrypt$${n}$${R}$${P}$${salt.toString('base64')}$${key.toString('base64')}`;
 }
 
 /** @returns {Promise<boolean>} */

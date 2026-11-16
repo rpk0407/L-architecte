@@ -240,16 +240,16 @@ export async function buildDemoJournal(nowReal, opt = {}) {
   const at = (day, min) => { clock = Math.min(nowReal, instantOf(day, min)); };
 
   at(start, 7 * 60);
-  const init = await eng.run(initialize, { mode: 'demo', owner: { name: 'Le gérant', email: DEMO.email }, pwdHash: hashSecretSync(DEMO.password), pinHash: hashSecretSync(DEMO.ownerPin) }, SYS);
+  const init = await eng.run(initialize, { mode: 'demo', owner: { name: 'Le gérant', email: DEMO.email }, pwdHash: hashSecretSync(DEMO.password, { light: true }), pinHash: hashSecretSync(DEMO.ownerPin, { light: true }) }, SYS);
   const base = { ...SYS, staff: eng.state.staff.get(init.ownerId), meta: { siteUrl: opt.siteUrl || 'https://larchitecte.fr/site' } };
   await eng.run(updateSettings, { shop: { phone: '04 91 00 00 00', legalName: 'L’Architecte SAS', legalForm: 'SAS', siret: '000 000 000 00000' } }, base);
   for (const [i, b] of BARBERS.entries()) {
     const res = await eng.run(addStaff, { name: b.name, role: 'barber', color: b.color, initials: b.initials, bookable: true, chair: true, schedule: b.week, commission: { service: 4000, product: 1000 }, bio: b.bio, instagram: b.instagram, order: i + 1 }, base);
-    await eng.run(setCredentials, { id: res.id, pinHash: hashSecretSync(DEMO.pins[b.name]) }, base);
+    await eng.run(setCredentials, { id: res.id, pinHash: hashSecretSync(DEMO.pins[b.name], { light: true }) }, base);
   }
   // the desk persona (TEAM-01): Inès on the tablet sees the salon's counts and fill, never its money
   const desk = await eng.run(addStaff, { name: 'Inès', role: 'desk', order: BARBERS.length + 1 }, base);
-  await eng.run(setCredentials, { id: desk.id, pinHash: hashSecretSync(DEMO.pins['Inès']) }, base);
+  await eng.run(setCredentials, { id: desk.id, pinHash: hashSecretSync(DEMO.pins['Inès'], { light: true }) }, base);
   // barbers may text their own regulars in the demo (off in production)
   await eng.run(updateSettings, { team: { barberRebook: true } }, base);
   // the client space is open in the demo (off in production until the SMS route is tested, AC-01)
