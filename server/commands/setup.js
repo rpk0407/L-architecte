@@ -7,7 +7,7 @@ import { localParts } from '../../shared/dates.js';
 import hoursSetting from '../settings/hours.js';
 import bookingSetting from '../settings/booking.js';
 import { updateSettings } from './shop.js';
-import { addService } from './catalog.js';
+import { addService, updateService } from './catalog.js';
 import { addStaff, updateStaff, addTimeOff, setPhoto } from './team.js';
 import { readFile } from 'node:fs/promises';
 
@@ -78,9 +78,13 @@ export function presetPlan(s, P, o) {
   const all = [...s.services.values()];
   const services = P.services.map((x, order) => {
     const have = all.find((v) => v.slug === x.slug) || all.find((v) => fold(v.name) === fold(x.name)) || null;
+    // a line the preset itself renamed since (`was`): a salon that still has the old name is offered the new one, with
+    // what the offer holds now; a name the owner typed himself is never touched, and once renamed nothing is left to do
+    const renamed = !!have && have.active !== false && !!x.pack && !!have.pack && (x.was || []).some((n) => fold(n) === fold(have.name));
     return {
+      ...(renamed ? { was: have.name } : {}),
       slug: x.slug, name: x.name, category: x.category, price: x.price, dur: x.dur, from: !!x.from, online: x.online !== false, pack: x.pack ? { credits: x.pack.credits, days: x.pack.days, ...(x.pack.weekly ? { weekly: true, missed: x.pack.missed || 'lost' } : {}) } : null,
-      wp: x.wp, draft: x.wpStatus === 'draft', order, status: have ? 'exists' : 'create', id: have ? have.id : null, archived: !!have && have.active === false
+      wp: x.wp, draft: x.wpStatus === 'draft', order, status: renamed ? 'update' : have ? 'exists' : 'create', id: have ? have.id : null, archived: !!have && have.active === false
     };
   });
 
@@ -117,7 +121,7 @@ export function presetPlan(s, P, o) {
   const aliases = Object.fromEntries(P.services.filter((x) => x.alias).map((x) => [x.wp.replace(/\s+/g, ' '), (all.find((v) => v.slug === x.alias) || {}).id || '']).filter(([, id]) => id));
   // the gérant's old bookings go to the owner's account, whatever its name (the import matches the others by name)
   const staffAliases = Object.fromEntries(team.filter((t) => t.owner && t.wp && t.id).map((t) => [t.wp, t.id]));
-  const count = { hours: hours.status === 'set' ? 1 : 0, rules: rules.filter((r) => r.status === 'set').length, services: services.filter((x) => x.status === 'create').length, team: team.filter((x) => x.status !== 'exists').length, absences: absences.filter((x) => x.status === 'create').length, photos: team.filter((x) => x.photo === 'create').length };
+  const count = { hours: hours.status === 'set' ? 1 : 0, rules: rules.filter((r) => r.status === 'set').length, services: services.filter((x) => x.status === 'create').length, updates: services.filter((x) => x.status === 'update').length, team: team.filter((x) => x.status !== 'exists').length, absences: absences.filter((x) => x.status === 'create').length, photos: team.filter((x) => x.photo === 'create').length };
   // said first, in his words: his own account takes the gérant's chair, there is no second « Frank »
   const mine = team.find((t) => t.owner && t.status === 'chair');
   const notes = [...(mine ? [mine.name + ' est le gérant : ' + (mine.account ? 'ton compte « ' + mine.account + ' »' : 'ton compte') + ' reçoit son fauteuil, sa semaine, sa couleur et ses initiales. Aucun second compte « ' + mine.name + ' » n’est créé.'] : []), ...(P.notes || [])];
@@ -153,7 +157,7 @@ export async function applyPreset(engine, P, input, base) {
   const pics = new Map();
   if (parts.has('photos')) for (const x of P.staff) if (x.photo) { const d = await presetPhoto(x.photo); if (d) pics.set(fold(x.name), d); }
   for (let attempt = 0; attempt < 4; attempt++) {
-    const done = { hours: 0, rules: 0, services: 0, team: 0, absences: 0, photos: 0, written: 0 };
+    const done = { hours: 0, rules: 0, services: 0, updates: 0, team: 0, absences: 0, photos: 0, written: 0 };
     const n = await engine.batch((step) => {
       const s = engine.state;
       if (s.version === 0) fail(409, 'not_initialized', 'Crée d’abord le compte du gérant.');
@@ -172,9 +176,23 @@ export async function applyPreset(engine, P, input, base) {
           if (x.status !== 'create') continue;
           const src = P.services[x.order];
           const { wp: _wp, wpStatus: _st, alias: _al, pack, ...sv } = src;
+          const { was: _was, ...fields } = sv;
           const covers = pack ? (pack.covers || []).map((k) => ids[k]).filter(Boolean) : [];
-          ids[x.slug] = step(addService, { ...sv, order: x.order, ...(pack ? { pack: { credits: pack.credits, days: pack.days, ...(covers.length ? { serviceIds: covers } : {}), ...(pack.weekly ? { weekly: true, missed: pack.missed || 'lost' } : {}) } } : {}) }, base).id;
+          const withIds = pack ? (pack.with || []).map((k) => ids[k]).filter(Boolean) : [];
+          ids[x.slug] = step(addService, { ...fields, order: x.order, ...(pack ? { pack: { credits: pack.credits, days: pack.days, ...(covers.length ? { serviceIds: covers } : {}), ...(withIds.length ? { withIds } : {}), ...(pack.weekly ? { weekly: true, missed: pack.missed || 'lost' } : {}) } } : {}) }, base).id;
           done.services++;
+        }
+        // the lines the preset renamed (the « Carnet 5 coupes » of the first days is the « Formule Entretien »): its name,
+        // what it holds and what a visit covers; the price, the link, the place on the site and the owner's « semaine
+        // manquée » setting stay his
+        for (const x of plan.services) {
+          if (x.status !== 'update' || !x.id) continue;
+          const src = P.services[x.order], have = s.services.get(x.id);
+          const covers = (src.pack.covers || []).map((k) => ids[k]).filter(Boolean);
+          const withIds = (src.pack.with || []).map((k) => ids[k]).filter(Boolean);
+          const pack = { ...have.pack, serviceIds: [...new Set([...(have.pack.serviceIds || []), ...covers])], ...(withIds.length ? { withIds: [...new Set([...(have.pack.withIds || []), ...withIds])] } : {}) };
+          step(updateService, { id: x.id, patch: { name: src.name, short: src.short || src.name, category: src.category, tag: src.tag || '', includes: src.includes || [], description: src.description || '', pack } }, base);
+          done.updates++;
         }
       }
 

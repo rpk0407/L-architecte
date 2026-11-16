@@ -143,10 +143,12 @@ export function meHistory(s, ids, o = {}) {
   const items = [];
   for (const a of s.appts.values()) {
     if (!set.has(a.clientId) || !PAST.has(a.status) || !keep(a.day)) continue;
-    const sale = a.saleId ? s.sales.get(a.saleId) : null;
+    // a place of a group rung up on the organiser's ticket: its own price, and no receipt (the ticket is the payer's)
+    const paidBy = a.saleId ? s.sales.get(a.saleId) : null;
+    const sale = paidBy && paidBy.apptId === a.id ? paidBy : null;
     items.push({
       day: a.day, start: a.start, services: a.services.map((x) => ({ id: x.id, name: x.name, price: x.price })), staff: staffOf(s, a.staffId),
-      price: sale ? sale.totals.due : a.price, paid: sale ? sale.totals.due - (sale.refunded || 0) - (sale.refundedLiability || 0) : 0,
+      price: sale ? sale.totals.due : a.price, paid: sale ? sale.totals.due - (sale.refunded || 0) - (sale.refundedLiability || 0) : paidBy ? a.price : 0,
       status: a.status, receipt: a.status === 'done' ? receipt(sale) : null
     });
   }
@@ -209,13 +211,13 @@ export function meTodo(s, ids, account, ctx, member) {
     const v = formuleView(s, f, { today, now: ctx.now });
     if (v.status !== 'open' || (account && account.fenced && account.historyFrom && v.start < account.historyFrom)) continue;
     const pour = v.forFirst ? ' de ' + v.forFirst : '';
-    if (v.pay === 'due') items.push({ id: 'fo_due_' + f.id, tone: 'warn', title: 'Carnet' + pour + ' à régler au salon', amount: v.price, text: 'À la première coupe.' });
+    if (v.pay === 'due') items.push({ id: 'fo_due_' + f.id, tone: 'warn', title: 'Formule' + pour + ' à régler au salon', amount: v.price, text: 'À la première visite.' });
     if (v.pay !== 'pending') for (const w of v.weeks) {
       if (w.state !== 'open' || v.left <= v.weeks.filter((x) => x.state === 'booked').length) continue;
       items.push({ id: 'fo_wk_' + f.id + '_' + w.k, tone: 'warn', title: 'Une semaine sans rendez-vous' + pour, from: w.from, until: w.to, action: { kind: 'formule', label: 'Réserver cette semaine', formule: f.id, week: w.k } });
     }
     const open = v.weeks.filter((w) => w.state === 'open' || w.state === 'booked').length;
-    if (v.pay === 'paid' && v.left > 0 && daysTo(today, v.end) <= 7 && v.left > open) items.push({ id: 'fo_end_' + f.id, tone: 'warn', title: 'Carnet' + pour + ' bientôt terminé', left: v.left, until: v.end });
+    if (v.pay === 'paid' && v.left > 0 && daysTo(today, v.end) <= 7 && v.left > open) items.push({ id: 'fo_end_' + f.id, tone: 'warn', title: 'Formule' + pour + ' bientôt terminée', left: v.left, until: v.end });
   }
   // 3. carnet cuts and gift card balances that end soon
   for (const k of s.packs.values()) {

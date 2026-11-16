@@ -155,7 +155,7 @@ test('an account is required: 401 without one; the code proves the number; five 
   // one confirmation listing the five dates, with what is left to pay
   const texts = [...t.s().messages.values()].filter((m) => m.cid === cid && m.template === 'confirmation' && m.channel === 'sms');
   assert.equal(texts.length, 1);
-  assert.match(texts[0].body, /Tes 5 coupes avec Ali : .*12\/11, 19\/11, 26\/11, 3\/12\. 80 € à régler à la 1re coupe\./);
+  assert.match(texts[0].body, /Tes 5 visites avec Ali : .*12\/11, 19\/11, 26\/11, 3\/12\. 80 € à régler à la 1re visite\./);
   // a double tap, or a lost answer tried again: the same answer, nothing booked twice
   const again = await site.post('/api/me/formule', body, { 'x-request-id': rid(1) });
   assert.deepEqual(again.json, r.json);
@@ -278,7 +278,7 @@ test('paid at the salon: the first visit sells the carnet with its cut, each lat
   assert.equal(pk().used, 5);
   const renew = [...t.s().messages.values()].filter((m) => m.template === 'formuleRenew');
   assert.equal(renew.length, 1);
-  assert.match(renew[0].body, /Malik, ton carnet est fini\. Reprendre 5 coupes : .*\?reserver&prestation=ab/);
+  assert.match(renew[0].body, /Malik, ta formule est finie\. Reprendre 5 semaines : .*\?reserver&prestation=ab/);
   // no sixth cut on it, and /moi offers the next one
   go(t, addDays(FIRST, 30), 10, 0);
   const extra = await t.run(A.createAppointment, { clientId: cid, serviceIds: [t.ids.cut], staffId: t.ids.Ali, day: addDays(FIRST, 30), start: 660, force: true });
@@ -314,7 +314,7 @@ test('the first cut missed with nothing paid: the four other dates are freed and
   assert.equal(t.s().formules.get(r.json.id).status, 'released');
   const notice = [...t.s().messages.values()].filter((m) => m.template === 'formuleReleased');
   assert.equal(notice.length, 1);
-  assert.match(notice[0].body, /Idriss, 1re coupe manquée et carnet non payé : tes 4 autres rendez-vous sont libérés/);
+  assert.match(notice[0].body, /Idriss, 1re visite manquée et formule non payée : tes 4 autres rendez-vous sont libérés/);
   assert.equal(notice[0].cid, cid);
   assert.equal(t.s().packs.size, 0, 'no credit was ever given');
   // the slots are back on the site
@@ -408,7 +408,7 @@ test('each date moves and cancels on its own, one cut a week inside the five wee
   // into a week that has its cut, or after the five weeks: refused in plain words
   const same = await site.post('/api/public/bookings/' + tok[2] + '/move', { day: '2026-11-27', start: 660 });
   assert.equal(same.json.error.code, 'weeks');
-  assert.match(same.json.error.message, /Une coupe par semaine/);
+  assert.match(same.json.error.message, /Une visite par semaine/);
   const far = await site.post('/api/public/bookings/' + tok[4] + '/move', { day: '2026-12-10', start: 600 });
   assert.equal(far.json.error.code, 'weeks');
   assert.match(far.json.error.message, /5 semaines d’affilée/);

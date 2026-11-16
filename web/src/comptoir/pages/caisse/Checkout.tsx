@@ -12,7 +12,7 @@ import { Icon } from '../../../ui/Icon';
 import { Avatar, Button, Chip, Field, Modal, Money, Note, Seg, Sheet, Skeleton, confirm, toast, toastError } from '../../../ui/kit';
 import { useApp } from '../../state';
 import type { Appt, ApptService, Boot, ClientCard, ClientFull, Cover, Service } from '../../types';
-import { serieWords } from '../../types';
+import { serieWords, groupWords } from '../../types';
 import { GiftCode, Receipt, Voucher, printNow, rate, type VoucherCard } from './Receipt';
 import { LoyaltyDone, RewardChip } from './RewardChip';
 import { TillChips } from './TillChips';
@@ -24,8 +24,10 @@ type Kind = 'service' | 'product' | 'giftcard' | 'pack' | 'fee';
 const OFFLINE_WHY = 'Hors ligne : l’encaissement attend le retour de la connexion.';
 type Line = { key: string; kind: Kind; ref: string | null; name: string; qty: number; unit: number; base: number; now: number; booked?: boolean; from: boolean; staffId: string | null; packId: string | null; discount: number; vat: number; recipient?: string; rewardId?: string;
   // PAY-05: the membership that pays the cut (0 €, the month is already paid), what the till said of it, and the cuts the person decided himself
-  memberId?: string | null; force?: boolean; memberOff?: boolean; auto?: boolean; cover?: { label: string; note: string; canForce: boolean; retry?: boolean } };
-type Pay = { key: string; method: 'card' | 'cash' | 'online' | 'giftcard' | 'deposit' | 'ancien'; amount: number; given?: number; ref?: string; label: string };
+  memberId?: string | null; force?: boolean; memberOff?: boolean; auto?: boolean; cover?: { label: string; note: string; canForce: boolean; retry?: boolean };
+  // a group on one ticket: the other place of the group this line pays (its appointment), and whose it is
+  gid?: string; who?: string };
+type Pay = { gid?: string; key: string; method: 'card' | 'cash' | 'online' | 'giftcard' | 'deposit' | 'ancien'; amount: number; given?: number; ref?: string; label: string };
 const k = () => Math.random().toString(36).slice(2, 9);
 /** the badges TillChips shows itself (membership, carnet, loyalty reward: its own plain badge when no reward chip is passed) */
 const CHIPPED = ['abonné', 'carnet', 'récompense'];
@@ -146,8 +148,8 @@ export function Checkout({ apptId, drawerOpen, onClose, phone = false, onPaid }:
     setLines(ls);
     const dep = d.appt.deposit;
     // the carnet's price paid online rides on its first date and pays the ticket of whichever date he first comes to
-    const depPays: Pay[] = dep && dep.paid && dep.paymentId ? [{ key: k(), method: 'deposit', amount: dep.paid, ref: dep.paymentId, label: fo ? 'Carnet payé en ligne' : 'Acompte payé en ligne' }]
-      : fo && fo.deposit && sell ? [{ key: k(), method: 'deposit', amount: fo.deposit.paid, ref: fo.deposit.paymentId, label: 'Carnet payé en ligne' }] : [];
+    const depPays: Pay[] = dep && dep.paid && dep.paymentId ? [{ key: k(), method: 'deposit', amount: dep.paid, ref: dep.paymentId, label: fo ? 'Formule payée en ligne' : 'Acompte payé en ligne' }]
+      : fo && fo.deposit && sell ? [{ key: k(), method: 'deposit', amount: fo.deposit.paid, ref: fo.deposit.paymentId, label: 'Formule payée en ligne' }] : [];
     setPays(depPays);
     setDisc(null); setTip(null); setDone(null); setResumed(null);
     pristine.current = draftSig(ls, null, null, depPays, d.client?.id || null);
@@ -180,7 +182,7 @@ export function Checkout({ apptId, drawerOpen, onClose, phone = false, onPaid }:
       const base: Line = l.packId && l.packId !== 'new' ? { ...l, packId: null, auto: false } : l;
       const free: Line = base.memberId || base.cover || base.memberOff ? { ...base, memberId: null, force: false, memberOff: false, cover: undefined } : base;
       const clean: Line = free.rewardId ? { ...free, rewardId: undefined, discount: 0 } : free;
-      if (!cl || clean.kind !== 'service' || clean.packId) return clean;
+      if (!cl || clean.kind !== 'service' || clean.packId || clean.gid) return clean;
       const pk = cl.packs.find((x) => x.used < x.total && (!x.serviceIds.length || x.serviceIds.includes(clean.ref!)));
       return pk ? { ...clean, packId: pk.id, auto: true } : clean;
     });
@@ -194,7 +196,7 @@ export function Checkout({ apptId, drawerOpen, onClose, phone = false, onPaid }:
   const [checking, setChecking] = useState(false);
   const [recheck, setRecheck] = useState(0);
   const member = liveMembers(client?.memberships)[0] || null;
-  const sig = lines.map((l) => l.key + ':' + l.ref + ':' + (l.kind === 'service' && !l.memberOff && (!l.packId || l.auto) ? '1' : '0')).join(',') + '|' + (member?.id || '') + '|' + recheck;
+  const sig = lines.map((l) => l.key + ':' + l.ref + ':' + (l.kind === 'service' && !l.gid && !l.memberOff && (!l.packId || l.auto) ? '1' : '0')).join(',') + '|' + (member?.id || '') + '|' + recheck;
   useEffect(() => {
     if (!member) { setLines((ls) => (ls.some((l) => l.memberId || l.cover) ? ls.map((l) => (l.memberId || l.cover ? { ...l, memberId: null, force: false, cover: undefined } : l)) : ls)); return; }
     let alive = true;
@@ -227,8 +229,38 @@ export function Checkout({ apptId, drawerOpen, onClose, phone = false, onPaid }:
     return () => { alive = false; setChecking(false); };
   }, [sig]);
 
-  const paidBy = (l: Line) => !!(l.packId || l.memberId);
-  const totals = useMemo(() => money.ticketTotals(lines.map((l) => ({ kind: l.kind, qty: l.qty, unit: paidBy(l) ? 0 : l.unit, discount: l.discount, vat: l.vat })), disc?.amount || 0, tip?.amount || 0), [lines, disc, tip]);
+  // what a formule includes at 0 € in the same visit as the cut it pays (the beard upkeep): one line per credit used on
+  // this ticket, as the server counts them (commands/sales.js)
+  const included = useMemo(() => {
+    const room = new Map<string, number>();
+    const sold = lines.find((x) => x.kind === 'pack');
+    const soldPack = sold ? serviceById.get(sold.ref!)?.pack : null;
+    for (const l of lines) {
+      if (l.kind !== 'service' || !l.packId) continue;
+      const w = l.packId === 'new' ? (soldPack?.withIds || []).filter((x) => !(soldPack?.serviceIds || []).includes(x)) : client?.packs.find((p) => p.id === l.packId)?.withIds || [];
+      for (const x of w) room.set(x, (room.get(x) || 0) + l.qty);
+    }
+    const out = new Set<string>();
+    for (const l of lines) {
+      if (l.kind !== 'service' || l.packId || l.memberId || l.rewardId || l.qty !== 1 || !(room.get(l.ref!) || 0)) continue;
+      room.set(l.ref!, (room.get(l.ref!) || 0) - 1); out.add(l.key);
+    }
+    return out;
+  }, [lines, client, serviceById]);
+  const paidBy = (l: Line) => !!(l.packId || l.memberId || included.has(l.key));
+  // a booking of several people (« Groupe de Karim »): the other places still to ring up today can join this ticket, each
+  // line credited to its own barber; « chacun séparément » takes them off again
+  const apptNow = detail.data?.appt;
+  const groupOthers = (apptNow?.group?.members || []).filter((m) => m.id !== apptNow!.id && !m.paid && m.day === apptNow!.day && !['cancelled', 'no_show', 'done'].includes(m.status));
+  const groupOn = lines.some((l) => l.gid);
+  const addGroup = () => {
+    setLines((ls) => [...ls.filter((l) => !l.gid), ...groupOthers.flatMap((m) => m.services.map((sv) => ({ ...svcLine({ id: sv.id, name: sv.name, price: sv.price, from: false, dur: 0 }, m.staffId), gid: m.id, who: m.first })))]);
+    setPays((ps) => [...ps.filter((p) => !p.gid), ...groupOthers.filter((m) => m.deposit).map((m) => ({ key: k(), gid: m.id, method: 'deposit' as const, amount: m.deposit!.paid, ref: m.deposit!.paymentId, label: 'Acompte de ' + m.first + ' payé en ligne' }))]);
+  };
+  const dropGroup = () => { setLines((ls) => ls.filter((l) => !l.gid)); setPays((ps) => ps.filter((p) => !p.gid)); };
+  const formulePack = apptNow?.formule?.packId ? client?.packs.find((p) => p.id === apptNow.formule!.packId) : null;
+  const withNames = (formulePack?.withIds || []).map((x) => serviceById.get(x)?.name || '').filter(Boolean);
+  const totals = useMemo(() => money.ticketTotals(lines.map((l) => ({ kind: l.kind, qty: l.qty, unit: paidBy(l) ? 0 : l.unit, discount: included.has(l.key) ? 0 : l.discount, vat: l.vat })), disc?.amount || 0, tip?.amount || 0), [lines, disc, tip, included]);
   const paid = pays.reduce((t, p) => t + p.amount, 0);
   const left = totals.due - paid;
   // someone without a chair (the desk) is never credited by default: the appointment's barber, or she says who
@@ -256,6 +288,7 @@ export function Checkout({ apptId, drawerOpen, onClose, phone = false, onPaid }:
     try {
       const body = {
         apptId: apptId || undefined, clientId: client?.id || undefined,
+        groupApptIds: apptId && ls.some((l) => l.gid) ? [...new Set(ls.map((l) => l.gid).filter(Boolean))] : undefined,
         lines: ls.map((l) => ({ kind: l.kind, ref: l.ref || undefined, name: l.kind === 'fee' ? l.name : undefined, qty: l.qty, unit: l.kind === 'giftcard' || l.kind === 'fee' || (l.kind === 'service' && !l.packId && !l.memberId) ? l.unit : undefined, discount: l.rewardId ? undefined : l.discount || undefined, rewardId: l.rewardId, staffId: l.staffId || undefined, packId: l.packId || undefined, memberId: l.memberId || undefined, force: l.force || undefined, recipient: l.recipient || undefined })),
         discount: disc && disc.amount ? disc : undefined, tip: tip && tip.amount ? tip : undefined,
         payments: pays.length ? pays.map((p) => ({ method: p.method, amount: p.amount, given: p.given, ref: p.ref })) : [{ method: 'card', amount: 0 }],
@@ -294,7 +327,12 @@ export function Checkout({ apptId, drawerOpen, onClose, phone = false, onPaid }:
           {phone ? null : <Button variant="ghost" icon="x" onClick={async () => { if (draftSig(lines, disc, tip, pays, client?.id || null) === pristine.current || await confirm({ title: 'Abandonner ce ticket ?', body: 'Ce que tu as saisi sur ce ticket (lignes, pourboire, paiements posés) est effacé. Rien n’est encaissé.', ok: 'Abandonner', danger: true })) { clearDraft(store, dKey); onClose(); } }}>Fermer</Button>}
         </div>
       </div>
-      {appt?.formule ? <Note icon="ticket"><span data-guide="tk-carnet"><b>{serieWords(appt.formule).replace(/^c/, 'C')}</b>{appt.formule.sell ? ' · le carnet s’encaisse sur ce ticket : ' + eur(appt.formule.sell.price) + (appt.formule.deposit || (appt.deposit?.paid && appt.formule.pay === 'online') ? ', déjà payés en ligne.' : '.') : ' · couverte par le carnet, rien à encaisser pour la coupe.'}</span></Note> : null}
+      {appt?.formule ? <Note icon="ticket"><span data-guide="tk-carnet"><b>{serieWords(appt.formule).replace(/^v/, 'V')}</b>{appt.formule.sell ? ' · la formule s’encaisse sur ce ticket : ' + eur(appt.formule.sell.price) + (appt.formule.deposit || (appt.deposit?.paid && appt.formule.pay === 'online') ? ', déjà payés en ligne.' : '.') : ' · couverte par la formule, rien à encaisser.' + (withNames.length ? ' Compris le même jour, à 0 € : ' + withNames.join(', ') + '.' : '')}</span></Note> : null}
+      {appt?.group ? (
+        <Note icon="clients"><span data-guide="tk-groupe"><b>{groupWords(appt.group)}</b>{groupOn ? ' · tout le groupe est sur ce ticket.' : groupOthers.length ? ' · encaisse ' + (appt.name.split(' ')[0] || 'cette personne') + ' seul, ou tout le groupe sur ce ticket.' : ' · les autres places sont déjà encaissées ou annulées.'}{' '}
+          {groupOn ? <button type="button" className="link tk-force" onClick={dropGroup}>Encaisser chacun séparément</button> : groupOthers.length ? <button type="button" className="link tk-force" onClick={addGroup}>Encaisser tout le groupe · {eur(groupOthers.reduce((t, m) => t + m.price, appt.price))}</button> : null}
+        </span></Note>
+      ) : null}
       {resumed ? <Note tone="ok" icon="undo"><span data-guide="tk-resumed" role="status"><b>Ticket repris</b> · commencé à {time(dates.localParts(resumed.at).min)}. Tes lignes, le pourboire et les paiements déjà posés sont revenus : rien à ressaisir, rien n’est compté deux fois.{resumed.gift ? ' Seule la carte cadeau est à repasser (son code n’est jamais gardé).' : ''} {/* money already taken by QR stays on its ticket: no way to drop it by mistake */}{pays.some((p) => p.method === 'online' && p.ref !== paidOnline) ? null : <button type="button" className="link" onClick={restart}>Repartir de zéro</button>}</span></Note> : null}
       {appt && (appt.paidOld || appt.note) ? <Note icon="info"><span data-guide="tk-old">{appt.paidOld ? <b>Acompte de {eur(appt.paidOld, { decimals: appt.paidOld % 100 !== 0 })} déjà payé sur l’ancien site.</b> : null}{appt.paidOld && appt.note ? ' ' : ''}{appt.note ? <>Note : « {appt.note} »</> : null}</span></Note> : null}
       {client?.badges.length ? <div className="row wrap" style={{ gap: 6, marginTop: -6 }}>{client.badges.filter((b) => !CHIPPED.includes(b)).map((b) => <span key={b} className={'badge ' + (b === 'fidèle' ? 'badge-ok' : b === 'nouveau' ? 'badge-info' : '')}>{b}</span>)}<TillChips client={client} />{client.visits ? <span className="badge">{client.visits} visite{client.visits > 1 ? 's' : ''} · {rhythmWords(client.cadence)}</span> : null}</div> : null}
@@ -310,7 +348,7 @@ export function Checkout({ apptId, drawerOpen, onClose, phone = false, onPaid }:
             <div key={l.key} className="tk-line" data-guide={l.memberId ? 'till-member-line' : undefined}>
               <button type="button" className="tk-main" onClick={() => setOpen(open === l.key ? null : l.key)} aria-expanded={open === l.key}>
                 {st ? <Avatar name={st.name} initials={st.initials} color={st.color} size="sm" /> : <span className="av av-sm" style={{ ['--c' as any]: 'var(--panel3)' }}><Icon name={l.kind === 'giftcard' ? 'gift' : 'box'} size={14} /></span>}
-                <span className="nm"><b>{l.qty > 1 ? l.qty + ' × ' : ''}{l.name}{l.rewardId ? ' · fidélité' : ''}</b><small>{l.memberId ? (l.cover?.label || 'Abonnement') + (st ? ' · par ' + st.name : ' · Qui l’a fait ? À choisir') : l.packId ? 'Couvert par le carnet' : l.kind === 'giftcard' ? (l.recipient || 'Carte cadeau') + ' · valable 1 an' : st ? 'par ' + st.name : 'Qui l’a fait ? À choisir'}{l.discount ? (l.rewardId ? ' · fidélité −' : ' · remise ') + eur(l.discount) : ''}</small>{l.booked && !paidBy(l) && l.base !== l.now ? <small style={{ color: 'var(--warn-tx)' }}>Réservé à {eur(l.base, { decimals: l.base % 100 !== 0 })} (prix actuel {eur(l.now, { decimals: l.now % 100 !== 0 })})</small> : null}{l.cover?.note ? <small className="tk-refused" role="status">{l.cover.note}</small> : null}</span>
+                <span className="nm"><b>{l.qty > 1 ? l.qty + ' × ' : ''}{l.name}{l.rewardId ? ' · fidélité' : ''}</b><small>{l.memberId ? (l.cover?.label || 'Abonnement') + (st ? ' · par ' + st.name : ' · Qui l’a fait ? À choisir') : l.packId ? 'Couvert par le carnet' : included.has(l.key) ? 'Compris dans la formule' : l.who ? 'pour ' + l.who + (st ? ' · par ' + st.name : '') : l.kind === 'giftcard' ? (l.recipient || 'Carte cadeau') + ' · valable 1 an' : st ? 'par ' + st.name : 'Qui l’a fait ? À choisir'}{l.discount && !included.has(l.key) ? (l.rewardId ? ' · fidélité −' : ' · remise ') + eur(l.discount) : ''}</small>{l.booked && !paidBy(l) && l.base !== l.now ? <small style={{ color: 'var(--warn-tx)' }}>Réservé à {eur(l.base, { decimals: l.base % 100 !== 0 })} (prix actuel {eur(l.now, { decimals: l.now % 100 !== 0 })})</small> : null}{l.cover?.note ? <small className="tk-refused" role="status">{l.cover.note}</small> : null}</span>
               </button>
               <span className="pr"><Money cents={net} />{paidBy(l) || l.discount ? <s><Money cents={l.unit * l.qty} /></s> : null}</span>
               {l.cover?.retry ? <button type="button" className="link tk-force" onClick={() => setRecheck((n) => n + 1)}>Réessayer</button> : null}

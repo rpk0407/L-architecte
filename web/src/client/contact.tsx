@@ -89,7 +89,7 @@ export function Contact({ token, b }: { token: string; b: Booking }) {
                 <a href={'/r/' + x.token}>
                   <span>
                     <b>{whenOf(x.day, x.start)}</b>
-                    <small>{[x.forFirst ? 'Pour ' + x.forFirst : '', x.services.map((s) => s.name).join(' + '), x.staff ? 'avec ' + x.staff.name : '', x.formule ? 'coupe ' + x.formule.n + ' sur ' + x.formule.of : priceOf(x)].filter(Boolean).join(' · ')}</small>
+                    <small>{[x.forFirst ? 'Pour ' + x.forFirst : '', x.services.map((s) => s.name).join(' + '), x.staff ? 'avec ' + x.staff.name : '', x.formule ? 'visite ' + x.formule.n + ' sur ' + x.formule.of : priceOf(x)].filter(Boolean).join(' · ')}</small>
                     {x.status === 'pending' && x.formule ? (x.deposit ? <small className="warn">Carnet de {eur(x.deposit.amount)} à régler</small> : null) : x.status === 'pending' && x.deposit ? <small className="warn">Acompte de {eur(x.deposit.amount)} à régler</small> : !x.canChange ? <small>Moins de {v.cancelUntilHours} h avant : pour changer, appelle le salon.</small> : null}
                   </span>
                   <i aria-hidden>→</i>

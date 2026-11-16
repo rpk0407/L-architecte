@@ -137,7 +137,7 @@
         hoursText: 'Du mardi au samedi, 9 h – 18 h 30', closedText: 'le dimanche et le lundi', openings: [], closures: [],
         booking: { enabled: true, stepMin: 30, maxDaysAhead: 90, holdMin: 5, pendingPayMin: 15, cancelUntilHours: 12 }, deposits: { mode: 'none' },
         services: SV, menu: SV.map((x) => ({ slug: x.slug, name: x.name, category: x.category, price: x.price, from: x.from, dur: x.dur, online: true }))
-          .concat([{ slug: 'ab', name: 'Carnet 5 coupes', category: 'Carnet', price: 8000, from: false, dur: 30, online: false }]),
+          .concat([{ slug: 'ab', name: 'Formule Entretien 5 semaines', category: 'Formule', price: 8000, from: false, dur: 30, online: false }]),
         barbers: BB, sms: false, channel: 'sms', mode: 'sim', today, now: Date.now()
       }),
       live: () => { const m = nowMin(); return wait({ open: open(today) && m >= 540 && m < 1110, min: m, today }); },

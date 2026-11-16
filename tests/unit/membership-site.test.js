@@ -388,7 +388,7 @@ test('the CGV generator shows #abonnement while the membership is live, or on, o
   const sec = html.slice(html.indexOf('id="abonnement"'), html.indexOf('</section>', html.indexOf('id="abonnement"')));
   assert.match(sec, /data-if="membership.terms" hidden/);
   for (const w of ['durée indéterminée', 'date anniversaire', 'ne se reportent pas', 'Résilier mon abonnement', 'fin du mois déjà payé', 'Le prix de ta formule est garanti', '14&nbsp;jours', 'Renoncer au contrat ici', 'Formulaire de rétractation', 'moins les coupes déjà faites']) assert.ok(sec.includes(w), w);
-  assert.match(html, /<h2 id="t-sub">Carnet<\/h2>/, 'the pack is the « Carnet »');
+  assert.match(html, /<h2 id="t-sub">Formule Entretien et carnets<\/h2>/, 'the pack is the formule or a « Carnet », never an abonnement');
 });
 
 test('« Résilier mon abonnement » on the site’s footer and every legal page’s; the FAQ and the carnet words', () => {
@@ -396,13 +396,13 @@ test('« Résilier mon abonnement » on the site’s footer and every legal page
   assert.ok(site.includes('<a href="/resilier">Résilier mon abonnement</a>'));
   assert.ok(pages.includes("['/resilier', 'Résilier mon abonnement']"));
   for (const f of ['cgv', 'mentions-legales', 'confidentialite', 'resilier', 'mon-rendez-vous']) assert.ok(read('public/' + f + '.html').includes('<footer data-footer></footer>'), f);
-  assert.ok(site.includes('l’abonnement mensuel (dès ') && site.includes('et le carnet de 5 coupes ('));
+  assert.ok(site.includes('l’abonnement mensuel (dès ') && site.includes('et la Formule Entretien, 5 visites sur 5 semaines ('));
   assert.ok(!/Abonnement 5 coupes/.test(site), 'the pack is « Carnet 5 coupes » everywhere on the site');
   // the WordPress menu the owner imports at go-live, and the demo's fixture: the carnet, never a bookable « Abonnement »
   const preset = /\{ slug: 'ab',[^\n]*\}/.exec(read('web/src/comptoir/pages/Catalogue.tsx'))?.[0] || '';
-  assert.ok(preset.includes("name: 'Carnet 5 coupes'") && preset.includes("category: 'Carnet'") && preset.includes('weekly: true'), preset);
+  assert.ok(preset.includes("name: 'Formule Entretien 5 semaines'") && preset.includes("category: 'Formule'") && preset.includes('weekly: true'), preset);
   assert.ok(!/Abonnement 5 coupes/.test(read('public/demo.html')));
-  assert.ok(site.includes("q: 'Existe-t-il un abonnement ou un carnet ?'") && !site.includes('"Existe-t-il un abonnement ?"'));
+  assert.ok(site.includes("q: 'Existe-t-il un abonnement ou une formule ?'") && !site.includes('"Existe-t-il un abonnement ?"'));
   const res = read('public/resilier.html');
   for (const w of ['Résilier ou gérer mon', 'Ton numéro ou ton e-mail', 'Recevoir mon lien', 'Je n’ai plus accès à ce numéro ni à cet e-mail', 'Ouvrir mon espace', 'Démo&nbsp;: n’entre pas tes vraies coordonnées, tout est visible.']) assert.ok(res.includes(w), w);
 });

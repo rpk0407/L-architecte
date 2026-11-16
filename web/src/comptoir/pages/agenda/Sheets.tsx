@@ -10,7 +10,7 @@ import { Icon } from '../../../ui/Icon';
 import { Avatar, Button, Chip, Field, Money, Note, Sheet, Switch, confirm, toast, toastError, Skeleton } from '../../../ui/kit';
 import { useApp } from '../../state';
 import type { Agenda, Appt, ClientCard, ClientFull, Service } from '../../types';
-import { serieWords } from '../../types';
+import { serieWords, groupWords } from '../../types';
 import { FormuleDates, weeklyCarnet, type SerieWeek } from './Formule';
 import { overlapping } from './overlap';
 import './walkin.css';
@@ -193,7 +193,8 @@ export function ApptSheet({ id, onClose }: { id: string | null; onClose: () => v
           ) : null}
           <div className="card card-tight">
             {a.services.map((s) => <div key={s.id} className="kv"><span>{s.name} · {dur(s.dur)}</span><b><Money cents={s.price} />{s.from ? ' +' : ''}</b></div>)}
-            {a.formule ? <Note icon="ticket"><b>{cap(serieWords(a.formule))}</b> du carnet. {a.formule.pay === 'paid' ? 'La coupe est payée par le carnet.' : a.formule.pay === 'online' ? 'Carnet payé en ligne : la caisse le met sur le ticket de cette coupe.' : a.formule.pay === 'pending' ? 'Le paiement en ligne du carnet est attendu.' : 'Carnet à encaisser à la première coupe (' + eur(a.formule.sell?.price || 0) + ') : la caisse le propose.'}</Note> : null}
+            {a.formule ? <Note icon="ticket"><b>{cap(serieWords(a.formule))}</b> de la formule. {a.formule.pay === 'paid' ? 'La visite est payée par la formule.' : a.formule.pay === 'online' ? 'Formule payée en ligne : la caisse la met sur le ticket de cette visite.' : a.formule.pay === 'pending' ? 'Le paiement en ligne de la formule est attendu.' : 'Formule à encaisser à la première visite (' + eur(a.formule.sell?.price || 0) + ') : la caisse la propose.'}</Note> : null}
+            {a.group ? <Note icon="clients"><span data-guide="agenda-groupe"><b>{groupWords(a.group)}</b>{a.group.members ? ' · ' + a.group.members.map((m) => m.first + (m.paid ? ' (encaissé)' : '')).join(', ') + '. Total ' + eur(a.group.total || 0) + ' : la caisse encaisse tout le groupe sur un ticket, ou chacun séparément.' : ''}</span></Note> : null}
             {data?.client ? <div className="kv"><span>Téléphone</span><b>{data.client.hasPhone ? data.client.phone : '—'}</b></div> : null}
           </div>
           {a.note ? <Note icon="sms"><b>Note du client :</b> {a.note}</Note> : null}

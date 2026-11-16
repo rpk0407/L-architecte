@@ -56,10 +56,10 @@ export default async ({ browser, h }) => {
     const ab = cat.json.services.find((x) => x.slug === 'ab');
     const cl = cat.json.services.find((x) => x.slug === 'cl');
     // five cuts on the classic cut, one a week for five weeks from the first date, a missed week lost (the old site's offer)
-    if (!ab.pack || ab.pack.credits !== 5 || ab.pack.days !== 35 || ab.pack.weekly !== true || ab.pack.missed !== 'lost' || String(ab.pack.serviceIds) !== cl.id) throw new Error('the carnet is not 5 cuts over 5 weeks on the classic cut: ' + JSON.stringify(ab.pack));
+    if (!ab.pack || ab.pack.credits !== 5 || ab.pack.days !== 35 || ab.pack.weekly !== true || ab.pack.missed !== 'lost' || String(ab.pack.serviceIds) !== [cl.id, cat.json.services.find((x) => x.slug === 'cc').id].join() || String(ab.pack.withIds) !== cat.json.services.find((x) => x.slug === 'eb').id) throw new Error('the carnet is not 5 cuts over 5 weeks on the classic cut: ' + JSON.stringify(ab.pack));
     // « Carnet », never « Abonnement » (the monthly plan). Sold online with an account: while the client space is closed (a new
     // production salon), it stays at the salon and the Catalogue says why
-    if (ab.name !== 'Carnet 5 coupes' || ab.category !== 'Carnet' || ab.online !== true) throw new Error('the pack is not the « Carnet », sold online: ' + JSON.stringify([ab.name, ab.category, ab.online]));
+    if (ab.name !== 'Formule Entretien 5 semaines' || ab.category !== 'Formule' || ab.online !== true) throw new Error('the pack is not the « Carnet », sold online: ' + JSON.stringify([ab.name, ab.category, ab.online]));
     if ((await page.locator('.badge', { hasText: 'visible sur le site' }).count()) !== 10) throw new Error('every taken-over service but the carnet should say it is visible on the site');
     if ((await page.locator('.badge', { hasText: 'au salon seulement (espace client fermé)' }).count()) !== 1) throw new Error('the carnet should say it stays at the salon while the client space is closed');
     const pub = (await call(page, '/api/public/salon')).json;

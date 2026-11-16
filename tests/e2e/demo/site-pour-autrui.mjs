@@ -119,6 +119,13 @@ async function run(h, page, step) {
   await h.expectText(page, 'Le rendez-vous de Léo (ton enfant)');
   await page.waitForTimeout(900);
   if (WF) await page.screenshot({ path: WF + '/site-pour-autrui-done-390.png' });
+  // the booker is the organiser: one recap with the total, and the message for the others
+  const grp = page.locator('[data-guide="site-groupe"]');
+  await grp.getByText('Tu es l’organisateur · 2 personnes').waitFor({ timeout: T });
+  await grp.getByText('Total, à régler au salon').waitFor({ timeout: T });
+  await grp.getByRole('button', { name: 'Envoyer à mes amis' }).waitFor({ timeout: T });
+  await grp.getByRole('button', { name: 'Copier le message' }).waitFor({ timeout: T });
+  if (process.env.RETOURS_SHOTS) { await grp.scrollIntoViewIfNeeded(); await page.waitForTimeout(400); await page.screenshot({ path: process.env.RETOURS_SHOTS + '/4-site-confirmation-organisateur.png' }); }
   const link = await page.getByRole('link', { name: /Sa page : déplacer ou annuler pour Léo/ }).getAttribute('href');
   const token = decodeURIComponent(String(link).split('/r/')[1] || '');
   if (!token) throw new Error('no page for Léo: ' + link);

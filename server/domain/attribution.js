@@ -22,6 +22,8 @@ function rootOf(s, cid) {
  */
 function valueOf(s, a) {
   const sale = a.saleId ? s.sales.get(a.saleId) : null;
+  // a place of a group paid on another place's ticket is counted there, once
+  if (sale && sale.apptId !== a.id) return 0;
   return sale ? sale.totals.revenue - (sale.refunded || 0) : a.price || 0;
 }
 

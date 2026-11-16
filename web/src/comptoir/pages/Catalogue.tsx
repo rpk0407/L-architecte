@@ -41,7 +41,7 @@ const OLD_MENU: (Record<string, unknown> & { slug: string; name: string })[] = [
   { slug: 'co', name: 'Coloration', category: 'Changer de tête', price: 3000, from: true, dur: 60, includes: ['Coloration', 'Sans coupe'] },
   { slug: 'si', name: 'Silver', category: 'Changer de tête', price: 10000, dur: 60, tag: 'Blanc ou gris', includes: ['Décoloration jusqu’au blanc', 'Coloration grise', 'Soin', 'Produit d’entretien offert'], description: 'Ne pas laver la tête pendant 4 jours minimum.' },
   // the WordPress pack, as the « Carnet » (PAY-04: « Abonnement » is the monthly plan): sold at the salon, never booked online
-  { slug: 'ab', name: 'Carnet 5 coupes', short: 'Carnet', category: 'Carnet', price: 8000, dur: 30, online: true, tag: '16 € la coupe', includes: ['5 coupes, une par semaine', 'Shampooing et coiffage', 'Sans la barbe'], description: '16 € la coupe. Tu choisis tes 5 rendez-vous en réservant, un par semaine.', pack: { credits: 5, days: 35, weekly: true, missed: 'lost' } }
+  { slug: 'ab', name: 'Formule Entretien 5 semaines', short: 'Entretien 5 sem.', category: 'Formule', price: 8000, dur: 30, online: true, tag: '16 € la visite', includes: ['Shampooing', 'Coupe', 'Coiffage', 'Entretien de barbe'], description: '5 visites · 1 par semaine · 16 € la visite. Une visite par semaine, cinq semaines de suite. Une semaine sautée est perdue.', pack: { credits: 5, days: 35, weekly: true, missed: 'lost' } }
 ];
 
 /** Swap a service with its neighbour in its category: the order is the site's order. */
@@ -160,7 +160,7 @@ function Services({ items }: { items: Service[] }) {
       const ids: Record<string, string> = Object.fromEntries(items.filter((x) => x.slug).map((x) => [x.slug as string, x.id]));
       for (const [order, sv] of OLD_MENU.entries()) {
         if (ids[sv.slug]) continue;
-        const body = sv.slug === 'ab' && ids.cl ? { ...sv, order, pack: { ...(sv as any).pack, serviceIds: [ids.cl] } } : { ...sv, order };
+        const body = sv.slug === 'ab' && ids.cl ? { ...sv, order, pack: { ...(sv as any).pack, serviceIds: [ids.cl, ids.cc].filter(Boolean), withIds: [ids.eb].filter(Boolean) } } : { ...sv, order };
         ids[sv.slug] = (await api.post<{ id: string }>('/api/v1/services', body)).id;
         done++;
       }
@@ -227,14 +227,14 @@ function ServiceSheet({ sv, all, onClose }: { sv: Service | 'new' | null; all: S
   const { boot, reloadBoot } = useApp();
   const isNew = sv === 'new';
   const cats = [...new Set(all.filter((s) => s.active).map((s) => s.category))];
-  const blank = { name: '', short: '', category: cats[0] || 'Coupes', price: '', from: false, dur: 30, buffer: 0, online: true, deposit: '' as string, depositMode: 'auto' as 'auto' | 'none' | 'custom', vat: boot.settings.payments.vat ?? 2000, description: '', includes: '', tag: '', isPack: false, credits: 5, days: 70, covers: [] as string[], weekly: false, missed: 'lost' as 'lost' | 'once' };
+  const blank = { name: '', short: '', category: cats[0] || 'Coupes', price: '', from: false, dur: 30, buffer: 0, online: true, deposit: '' as string, depositMode: 'auto' as 'auto' | 'none' | 'custom', vat: boot.settings.payments.vat ?? 2000, description: '', includes: '', tag: '', isPack: false, credits: 5, days: 70, covers: [] as string[], withs: [] as string[], weekly: false, missed: 'lost' as 'lost' | 'once' };
   const [f, setF] = useState(blank);
   const [newCat, setNewCat] = useState('');
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     if (!sv) return;
     if (sv === 'new') { setF(blank); setNewCat(''); return; }
-    setF({ name: sv.name, short: sv.short === sv.name ? '' : sv.short, category: sv.category, price: euros(sv.price), from: sv.from, dur: sv.dur, buffer: sv.buffer, online: sv.online, deposit: sv.deposit != null ? euros(sv.deposit) : '', depositMode: sv.deposit == null ? 'auto' : sv.deposit === 0 ? 'none' : 'custom', vat: sv.vat, description: sv.description, includes: sv.includes.join(', '), tag: sv.tag || '', isPack: !!sv.pack, credits: sv.pack?.credits || 5, days: sv.pack?.days || 70, covers: sv.pack?.serviceIds || [], weekly: !!sv.pack?.weekly, missed: sv.pack?.missed === 'once' ? 'once' : 'lost' });
+    setF({ name: sv.name, short: sv.short === sv.name ? '' : sv.short, category: sv.category, price: euros(sv.price), from: sv.from, dur: sv.dur, buffer: sv.buffer, online: sv.online, deposit: sv.deposit != null ? euros(sv.deposit) : '', depositMode: sv.deposit == null ? 'auto' : sv.deposit === 0 ? 'none' : 'custom', vat: sv.vat, description: sv.description, includes: sv.includes.join(', '), tag: sv.tag || '', isPack: !!sv.pack, credits: sv.pack?.credits || 5, days: sv.pack?.days || 70, covers: sv.pack?.serviceIds || [], withs: sv.pack?.withIds || [], weekly: !!sv.pack?.weekly, missed: sv.pack?.missed === 'once' ? 'once' : 'lost' });
     setNewCat('');
   }, [sv]);
   const price = money.parseEur(f.price);
@@ -260,7 +260,7 @@ function ServiceSheet({ sv, all, onClose }: { sv: Service | 'new' | null; all: S
       };
       body.deposit = f.depositMode === 'auto' ? null : f.depositMode === 'none' ? 0 : money.parseEur(f.deposit) ?? 0;
       // a weekly carnet's validity follows its rule (one week per cut, one more when a missed week is made up): the server sets it
-      if (f.isPack) body.pack = { credits: f.credits, days: f.days, serviceIds: f.covers, ...(f.weekly ? { weekly: true, missed: f.missed } : {}) };
+      if (f.isPack) body.pack = { credits: f.credits, days: f.days, serviceIds: f.covers, withIds: f.withs.filter((x) => !f.covers.includes(x)), ...(f.weekly ? { weekly: true, missed: f.missed } : {}) };
       if (isNew) await api.post('/api/v1/services', body);
       else await api.patch('/api/v1/services/' + (sv as Service).id, body);
       // say where it shows: an offline or archived service is saved but clients don't see it
@@ -323,17 +323,20 @@ function ServiceSheet({ sv, all, onClose }: { sv: Service | 'new' | null; all: S
         <div className="card card-tight ct-pack">
           <div className="grid2">
             <Field label="Nombre de passages" htmlFor="pk-c"><input id="pk-c" className="input" inputMode="numeric" value={f.credits} onChange={(e) => setF({ ...f, credits: Math.max(2, Math.min(50, Number(e.target.value.replace(/\D/g, '')) || 2)) })} /></Field>
-            {f.weekly ? <Field label="Valable" htmlFor="pk-d"><input id="pk-d" className="input" value={f.credits + (f.missed === 'once' ? 1 : 0) + ' semaines dès la 1re coupe'} readOnly /></Field>
+            {f.weekly ? <Field label="Valable" htmlFor="pk-d"><input id="pk-d" className="input" value={f.credits + (f.missed === 'once' ? 1 : 0) + ' semaines dès la 1re visite'} readOnly /></Field>
               : <Field label="Valable (jours)" htmlFor="pk-d"><input id="pk-d" className="input" inputMode="numeric" value={f.days} onChange={(e) => setF({ ...f, days: Math.max(7, Math.min(730, Number(e.target.value.replace(/\D/g, '')) || 7)) })} /></Field>}
           </div>
-          <div data-guide="cat-carnet-semaine"><Switch on={f.weekly} onChange={(v) => setF({ ...f, weekly: v })} title="Une coupe par semaine, dates choisies à l’achat" hint="Le client réserve toutes ses dates d’un coup (sur le site avec son compte, ou ici). Sans ce réglage, le carnet se vend à la caisse seulement." /></div>
+          <div data-guide="cat-carnet-semaine"><Switch on={f.weekly} onChange={(v) => setF({ ...f, weekly: v })} title="Une visite par semaine, dates choisies à l’achat" hint="Le client réserve toutes ses dates d’un coup (sur le site avec son compte, ou ici). Sans ce réglage, le carnet se vend à la caisse seulement." /></div>
           {f.weekly ? (
-            <Field label="Semaine manquée" hint={f.missed === 'once' ? 'Une semaine sans coupe se rattrape une fois : une semaine de plus.' : 'Une semaine sans coupe est perdue, comme le dit l’offre.'}>
+            <Field label="Semaine sautée" hint={f.missed === 'once' ? 'Une semaine sautée se rattrape une fois : une semaine de plus.' : 'Une semaine sautée est perdue, comme le dit l’offre.'}>
               <Seg value={f.missed} onChange={(v) => setF({ ...f, missed: v })} options={[{ v: 'lost', t: 'Perdue' }, { v: 'once', t: 'Reportable une fois' }]} />
             </Field>
           ) : null}
           <Field label="Prestations couvertes" hint={f.covers.length ? '' : 'Aucune cochée : couvre toutes les prestations.'}>
             <div className="chips">{all.filter((s) => s.active && !s.pack).map((s) => <Chip key={s.id} small on={f.covers.includes(s.id)} onClick={() => setF({ ...f, covers: f.covers.includes(s.id) ? f.covers.filter((x) => x !== s.id) : [...f.covers, s.id] })}>{s.name}</Chip>)}</div>
+          </Field>
+          <Field label="Compris en plus dans la même visite" hint={f.withs.length ? 'À la caisse, ces prestations passent à 0 € quand elles sont faites le même jour que le passage décompté.' : 'Rien de coché : seule la prestation couverte est payée par le carnet.'}>
+            <div className="chips" data-guide="cat-carnet-compris">{all.filter((s) => s.active && !s.pack && !f.covers.includes(s.id)).map((s) => <Chip key={s.id} small on={f.withs.includes(s.id)} onClick={() => setF({ ...f, withs: f.withs.includes(s.id) ? f.withs.filter((x) => x !== s.id) : [...f.withs, s.id] })}>{s.name}</Chip>)}</div>
           </Field>
           {price ? <p className="faint" style={{ fontSize: 13 }}>Soit {eur(Math.round(price / f.credits))} le passage.</p> : null}
         </div>

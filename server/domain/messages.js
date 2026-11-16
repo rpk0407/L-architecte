@@ -75,7 +75,7 @@ export function fileOf(s, cid) {
  * marketing: the client's yes. Neither to a file imported from WordPress and never told about the new site.
  * @param {'relation'|'marketing'} cls @param {'sms'|'email'} channel
  */
-function refusal(s, c, cls, channel) {
+export function refusal(s, c, cls, channel) {
   if (cls === 'marketing') return !c || c.erased || !c.marketing ? 'Désinscrit des bons plans' : neverInformed(s, c) ? 'Jamais informé' : '';
   if (!c || c.erased || c.marketingSrc === 'stop') return 'A répondu STOP';
   if (channel !== 'email' && c.sms === false) return 'SMS coupés par le client';
@@ -181,7 +181,7 @@ const originOf = (ctx) => String((ctx && ctx.meta && ctx.meta.siteUrl) || '').re
  * @param {any} s
  * @param {import('../core/engine.js').Ctx} ctx
  * @param {{ key: string, template: string, text?: string, to: string, cid?: string|null, apptId?: string|null, vars: Record<string, any>, dueAt?: number, channel?: 'sms'|'email',
- *   subject?: string, html?: string, cta?: { label: string, url: string }, links?: string[], attachments?: import('../messaging/email.js').MailAttachment[], owner?: boolean }} m
+ *   subject?: string, html?: string, cta?: { label: string, url: string }, links?: string[], attachments?: import('../messaging/email.js').MailAttachment[], owner?: boolean, review?: boolean }} m
  */
 export function queueMessage(s, ctx, m) {
   const id = messageId(m.key);
@@ -201,7 +201,8 @@ export function queueMessage(s, ctx, m) {
   // not a text filled as it leaves (a sign-in code): its filler's words replace the queued ones, the line with them
   const informs = cls === 'service' && own && !!origin && !Object.hasOwn(FILLERS, m.template) && neverInformed(s, c) && !informing(s, ctx, c.id);
   const told = informs ? renderTemplate(INFORM_LINE, { origin }) : '';
-  const extra = { ...(informs ? { informs: true } : {}), ...(m.owner ? { owner: true } : {}) };
+  // review: this message carries the tracked review link (a receipt sent after the visit): it is the quarter's request
+  const extra = { ...(informs ? { informs: true } : {}), ...(m.owner ? { owner: true } : {}), ...(m.review ? { review: true } : {}) };
   if (m.channel === 'email') return queueMail(ctx, m, id, flags, told, extra);
   const tpl = m.text || M.templates[m.template] || '';
   let body = renderTemplate(tpl, m.vars);

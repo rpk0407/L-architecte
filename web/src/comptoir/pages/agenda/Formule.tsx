@@ -70,7 +70,7 @@ export function FormuleDates({ coverId, first, weeks, onChange }: { coverId: str
           {edit === w.week ? <WeekPicker from={dates.addDays(first.day, 7 * w.week)} coverId={coverId} staffId={first.staffId} value={w} onPick={(v) => { set(w.week, { ...v, later: false, none: false, why: '', exact: v.day === dates.addDays(first.day, 7 * w.week) && v.start === first.start && v.staffId === first.staffId }); setEdit(null); }} /> : null}
         </div>
       ))}
-      <p className="muted" style={{ fontSize: 13.5 }}>Une coupe par semaine, jusqu’au {dates.dayLong(data.end)}. Chaque date se déplace ou s’annule séparément ensuite.</p>
+      <p className="muted" style={{ fontSize: 13.5 }}>Une visite par semaine, jusqu’au {dates.dayLong(data.end)}. Chaque date se déplace ou s’annule séparément ensuite.</p>
     </div>
   );
 }

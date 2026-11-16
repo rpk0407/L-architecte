@@ -229,8 +229,8 @@
      "@type": "Offer",
      "itemOffered": {
       "@type": "Service",
-      "name": "Carnet 5 coupes",
-      "description": "5 coupes sur 5 semaines, soit 16 € la coupe, hors barbe, à prendre au salon."
+      "name": "Formule Entretien 5 semaines",
+      "description": "5 visites, 1 par semaine, soit 16 € la visite : shampooing, coupe, coiffage et entretien de barbe."
      },
      "priceCurrency": "EUR",
      "price": "80"
@@ -293,10 +293,10 @@
     },
     {
      "@type": "Question",
-     "name": "Existe-t-il un abonnement ou un carnet ?",
+     "name": "Existe-t-il un abonnement ou une formule ?",
      "acceptedAnswer": {
       "@type": "Answer",
-      "text": "Oui, le carnet : 5 coupes pour 80 €, soit 16 € la coupe, hors barbe, à prendre au salon. On fixe tes coupes avec toi."
+      "text": "Oui, la Formule Entretien : 5 visites pour 80 €, soit 16 € la visite, barbe comprise, à prendre au salon. On fixe tes visites avec toi."
      }
     },
     {
@@ -996,6 +996,15 @@ position:relative;font:400 17px/1.5 var(--f-sans);color:var(--os);background:var
 .tk2 .tk-w{font-size:24px}
 .tk2 .mg-l{color:var(--os)}
 .tk2 .btn{margin-top:14px}
+/* a booking of several people: the organiser's total and « Envoyer à mes amis » */
+.grp{margin-top:18px;padding:18px;border-radius:20px;background:var(--pierre);color:var(--encre)}
+.grp-k{font:600 13px/1.3 var(--f-sans);color:var(--cendre2)}
+.grp-t{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-top:10px;font:500 15px/1.2 var(--f-sans)}
+.grp-t b{font:400 30px/1 var(--f-serif);font-variant-numeric:tabular-nums}
+.grp-s{display:grid;gap:8px;margin-top:16px}
+.grp-c{min-height:44px;font:600 15px/1 var(--f-sans);color:var(--encre);text-decoration:underline;text-underline-offset:4px;background:none;border:0}
+.grp-n:empty{display:none}
+.grp-n,.grp-h{font:500 13.5px/1.45 var(--f-sans);color:var(--cendre2)}
 .tk-c{margin-top:8px;font-size:14px;color:var(--cendre)}
 .tk-c b{margin-left:4px;letter-spacing:.06em;color:var(--os)}
 
@@ -1400,9 +1409,9 @@ html{scroll-behavior:auto}
 <sc-if value="{{aboOn}}" hint-placeholder-val="{{ false }}">
 <section class="ab sheet" id="abonnement" data-ch="7" data-tone="dark" aria-labelledby="t-ab" data-guide="site-abonnement">
 <div class="wrap">
-<p class="kk" data-rv><span>07</span>Abonnement &amp; carnet</p>
+<p class="kk" data-rv><span>07</span>Abonnement &amp; formule</p>
 <h2 class="h2" id="t-ab" data-rv="lines"><span class="ln"><span>Ta coupe,</span></span><span class="ln"><span>chaque mois.</span></span></h2>
-<p class="ab-lead" data-rv>Un prix par mois, sans engagement. Ou un carnet de cinq coupes, payé une fois.</p>
+<p class="ab-lead" data-rv>Un prix par mois, sans engagement. Ou cinq semaines d’entretien, payées une fois.</p>
 <div class="ab-g">
 <article class="ab-c" data-rv aria-labelledby="t-ab-m" data-guide="site-abonnement-plans" data-guide-n="40" data-guide-title="Abonnement" data-guide-body="{{aboGuide}}">
 <p class="ab-k" id="t-ab-m">Abonnement mensuel</p>
@@ -1414,16 +1423,16 @@ html{scroll-behavior:auto}
 </div></sc-for>
 </article>
 <sc-if value="{{hasCarnet}}" hint-placeholder-val="{{ true }}"><article class="ab-c carnet" data-rv aria-labelledby="t-ab-c" data-guide="site-abonnement-carnet">
-<p class="ab-k" id="t-ab-c">Carnet</p>
+<p class="ab-k" id="t-ab-c">Formule</p>
 <div class="ab-p">
 <h3 class="ab-n">{{carnetName}}<small>{{carnetPrice}}</small></h3>
 <p class="ab-w">{{carnetLine}}</p>
 <p class="ab-s"><i aria-hidden="true"></i>{{carnetWhere}}</p>
-<sc-if value="{{carnetOnline}}" hint-placeholder-val="{{ false }}"><button type="button" class="btn" onClick="{{carnetGo}}">Prendre le carnet</button></sc-if>
+<sc-if value="{{carnetOnline}}" hint-placeholder-val="{{ false }}"><button type="button" class="btn" onClick="{{carnetGo}}">Prendre la formule</button></sc-if>
 </div>
 </article></sc-if>
 </div>
-<sc-if value="{{espaceOn}}" hint-placeholder-val="{{ false }}"><p class="ab-esp">Ton abonnement, ton carnet et tes coupes restantes se suivent dans <a href="/moi">Mon espace</a>.</p></sc-if>
+<sc-if value="{{espaceOn}}" hint-placeholder-val="{{ false }}"><p class="ab-esp">Ton abonnement, ta formule et tes visites restantes se suivent dans <a href="/moi">Mon espace</a>.</p></sc-if>
 <p class="ab-foot"><a href="/cgv#abonnement">Conditions de l’abonnement</a><a href="/resilier">Résilier mon abonnement</a></p>
 </div>
 </section>
@@ -1611,7 +1620,7 @@ html{scroll-behavior:auto}
 <p class="{{gHintCls}}">{{gHint}}</p>
 </sc-if>
 <sc-if value="{{canAdd}}" hint-placeholder-val="{{ false }}"><button type="button" class="add-p" onClick="{{addPerson}}"><span class="add-p-i" aria-hidden="true">+</span><span><b>Ajouter une personne</b><small>{{addHint}}</small></span></button></sc-if>
-<sc-if value="{{accGate}}" hint-placeholder-val="{{ false }}"><div class="acc" data-guide="site-compte"><p class="acc-t">Cette formule demande un compte&nbsp;: c’est ce qui garde tes 5 coupes.</p><p class="acc-s">{{accLine}}</p></div></sc-if>
+<sc-if value="{{accGate}}" hint-placeholder-val="{{ false }}"><div class="acc" data-guide="site-compte"><p class="acc-t">Cette formule demande un compte&nbsp;: c’est ce qui garde tes 5 visites.</p><p class="acc-s">{{accLine}}</p></div></sc-if>
 <sc-if value="{{accIn}}" hint-placeholder-val="{{ false }}"><p class="dep" data-guide="site-compte-ok">{{accInLine}}</p></sc-if>
 <sc-if value="{{showIdent}}" hint-placeholder-val="{{ true }}">
 <sc-if value="{{meHead}}" hint-placeholder-val="{{ false }}"><p class="for-me">Tes coordonnées, pour les messages</p></sc-if>
@@ -1649,6 +1658,7 @@ html{scroll-behavior:auto}
 </div>
 <sc-if value="{{isSerDone}}" hint-placeholder-val="{{ false }}"><div class="pty ser-done" data-guide="site-serie-ok"><p class="pty-k">{{serDoneK}}</p><sc-for list="{{serDone}}" as="x" hint-placeholder-count="5"><div class="pty-r"><a class="pty-t" href="{{x.manage}}" aria-label="{{x.label}}"><b>{{x.k}}</b><small>{{x.line}}</small></a></div></sc-for><p class="g-hint">{{serDoneHint}}</p></div></sc-if>
 <sc-if value="{{isGroupDone}}" hint-placeholder-val="{{ false }}"><div class="tks"><sc-for list="{{doneOthers}}" as="o" hint-placeholder-count="2"><div class="tk tk2"><p class="tk-k">{{o.k}}</p><p class="tk-w">{{o.when}}</p><p class="tk-f">{{o.what}}</p><p class="tk-b"><span>{{o.who}}</span></p><p class="tk-c">Code<b>{{o.code}}</b></p><sc-if value="{{o.hasPay}}" hint-placeholder-val="{{ false }}"><a class="btn small" href="{{o.payUrl}}" target="_blank" rel="noopener">{{o.payText}}</a></sc-if><a class="mg-l" href="{{o.manage}}">{{o.manageText}}</a></div></sc-for></div></sc-if>
+<sc-if value="{{isGroupDone}}" hint-placeholder-val="{{ false }}"><div class="grp" data-guide="site-groupe"><p class="grp-k">{{grpK}}</p><p class="grp-t"><span>Total, à régler au salon</span><b>{{grpTotal}}</b></p><sc-if value="{{grpShare}}" hint-placeholder-val="{{ false }}"><div class="grp-s"><button type="button" class="btn" onClick="{{grpSend}}">Envoyer à mes amis</button><button type="button" class="grp-c" onClick="{{grpCopy}}">Copier le message</button><p class="grp-n" role="status">{{grpNote}}</p><p class="grp-h">{{grpHint}}</p></div></sc-if></div></sc-if>
 <sc-if value="{{needPay}}" hint-placeholder-val="{{ false }}"><div class="pay-b"><p>{{payLine}}</p><a class="btn" href="{{payUrl}}" target="{{payTarget}}" rel="noopener">{{payBtn}}</a></div></sc-if>
 <sc-if value="{{espaceNew}}" hint-placeholder-val="{{ false }}"><div class="card espace" data-guide="site.espace"><h3>Garde tout au même endroit</h3><p>{{espaceText}}</p><a class="btn" href="{{espaceUrl}}">Ouvrir mon espace</a><small>Facultatif&nbsp;: ton rendez-vous est déjà confirmé.</small></div></sc-if>
 <sc-if value="{{showSms}}" hint-placeholder-val="{{ true }}"><p class="sms-k">{{msgK}}</p>
@@ -1761,7 +1771,7 @@ const LXE = (function () {
     co: { n: 'Coloration', sh: 'Coloration', p: 30, d: 60, from: true },
     si: { n: 'Silver', sh: 'Silver', p: 100, d: 60 },
     cd: { n: 'Coupe + décoloration', sh: 'Coupe + déco', p: 80, d: 90, from: true },
-    ab: { n: 'Carnet 5 coupes', sh: 'Carnet', p: 80, d: 30 }
+    ab: { n: 'Formule Entretien 5 semaines', sh: 'Entretien 5 sem.', p: 80, d: 30 }
   };
   const BARBERS = [
     { id: 'jkut', n: 'JKut', ini: 'JK' },
@@ -2125,7 +2135,7 @@ const FORMULAS = [
   { id: 'eb', n: 'Entretien barbe', s: 'L’entretenir', p: 15, d: 30, k: 'seule', inc: ['Contour de la barbe', 'Huile'] },
   { id: 'tb', n: 'Taille de barbe', s: 'La tailler', p: 18, d: 30, k: 'seule', inc: ['Taille', 'Mise en forme', 'Huile'] },
   { id: 'cb', n: 'Cover barbe', s: 'La colorer', p: 15, d: 30, k: 'seule', inc: ['Couleur de la barbe', 'Soin'] },
-  { id: 'ab', n: 'Carnet 5 coupes', s: 'Carnet', p: 80, d: 30, k: 'carnet', tag: '16 € la coupe', inc: ['5 coupes sur 5 semaines', 'Il se prend au salon', 'On fixe tes coupes avec toi', 'Sans barbe'] }
+  { id: 'ab', n: 'Formule Entretien 5 semaines', s: 'Entretien 5 sem.', p: 80, d: 30, k: 'carnet', tag: '16 € la visite', inc: ['Shampooing', 'Coupe', 'Coiffage', 'Entretien de barbe'] }
 ];
 const FMAP = {};
 FORMULAS.forEach(function (f) { FMAP[f.id] = f; });
@@ -2148,7 +2158,7 @@ const CH = [
   { id: 'carte', t: 'La carte', d: 'Les prix' },
   { id: 'temps', t: 'Le rendez-vous', d: 'On recoupe' + NBS + '?' },
   /* shown only while the monthly membership is sold online (PAY-04): the chapters after it move by one */
-  { id: 'abonnement', t: 'Abonnement', d: 'Au mois, ou le carnet', opt: true },
+  { id: 'abonnement', t: 'Abonnement', d: 'Au mois, ou la formule', opt: true },
   { id: 'questions', t: 'Questions', d: 'Prix, horaires, réservation' },
   { id: 'venir', t: 'Venir', d: '16, place Pélabon' }
 ];
@@ -2156,7 +2166,7 @@ const TABS = [
   { t: 'Coupes', ids: ['cl', 'cc', 'ct'] },
   { t: 'Barbe', ids: ['eb', 'tb', 'cb'] },
   { t: 'Changer de tête', ids: ['tr', 'de', 'co', 'si'] },
-  { t: 'Carnet', ids: ['ab'] }
+  { t: 'Formule', ids: ['ab'] }
 ];
 /* ---------- the site's own words: fixed, the owner does not edit the site ----------
    Prices and hours come from the salon (/api/public/salon `menu` and `hoursText`), the old menu until it answers. */
@@ -2180,7 +2190,7 @@ const FAQ = [
   { q: 'Comment réserver ?', a: () => 'En ligne, en moins d’une minute et sans créer de compte : tu choisis ta prestation, ton barbier et ton créneau.' },
   { q: 'Faites-vous les décolorations et le silver ?', a: (x) => 'Oui. Décoloration dès ' + x.p('de') + ', coloration dès ' + x.p('co') + ', silver (blanc ou gris) à ' + x.p('si') + ', toujours après un avis sur la faisabilité.' },
   // the monthly membership while it is sold online (PAY-04), the carnet always
-  { q: 'Existe-t-il un abonnement ou un carnet ?', a: (x) => { const lo = aboLow(); return lo ? 'Oui, deux formules : l’abonnement mensuel (dès ' + num(lo / 100) + NB + '€/mois, sans engagement) et le carnet de 5 coupes (' + x.p('ab') + ').' : 'Oui, le carnet : 5 coupes pour ' + x.p('ab') + perCut(x.c('ab'), 5) + (x.on('ab') ? ', hors barbe, une par semaine pendant 5 semaines. Il se prend en ligne avec un compte client, ou au salon.' : ', hors barbe, à prendre au salon. On fixe tes coupes avec toi.'); } },
+  { q: 'Existe-t-il un abonnement ou une formule ?', a: (x) => { const lo = aboLow(); return lo ? 'Oui, deux formules : l’abonnement mensuel (dès ' + num(lo / 100) + NB + '€/mois, sans engagement) et la Formule Entretien, 5 visites sur 5 semaines (' + x.p('ab') + ').' : 'Oui, la Formule Entretien : 5 visites pour ' + x.p('ab') + perCut(x.c('ab'), 5) + (x.on('ab') ? ', barbe comprise, une par semaine pendant 5 semaines. Elle se prend en ligne avec un compte client, ou au salon.' : ', barbe comprise, à prendre au salon. On fixe tes visites avec toi.'); } },
   { q: 'Le salon forme-t-il des barbiers ?', a: () => 'Oui. L’Architecte est titulaire d’un agrément de formateur en coiffure et propose des stages, de l’entretien de la barbe à la coupe homme complexe.', link: '/formations', linkLabel: 'Les formations de L’Archi' },
   { q: 'Peut-on payer par carte ?', a: () => 'Oui, la carte bancaire est acceptée au salon.' }
 ];
@@ -2188,16 +2198,17 @@ const FAQ = [
 function aboLow() { const m = LXE.memberships(); return m && m.live && m.plans.length ? Math.min.apply(null, m.plans.map((p) => p.price)) : 0; }
 /* a carnet bought with its dates, in the services list: « 5 coupes · 5 semaines · 16 € la coupe », what it includes and
    excludes (the Catalogue's own lines), and its rule in one plain sentence */
+const NUM_FR = { 2: 'deux', 3: 'trois', 4: 'quatre', 5: 'cinq', 6: 'six', 7: 'sept', 8: 'huit', 9: 'neuf', 10: 'dix' };
 function packWords(f) {
   const n = f.pack.credits;
-  const per = Math.round(f.p * 100) % n === 0 ? num(f.p / n) + NB + '€ la coupe' : '';
+  const per = Math.round(f.p * 100) % n === 0 ? num(f.p / n) + NB + '€ la visite' : '';
   return {
-    sum: [n + ' coupes', n + ' semaines', per].filter(Boolean).join(' · '), inc: (f.inc || []).join(' · '),
-    rule: 'Un rendez-vous par semaine pendant ' + n + ' semaines : ' + (f.pack.missed === 'once' ? 'une semaine manquée se rattrape une fois.' : 'une semaine sans coupe est perdue.')
+    sum: [n + ' visites', '1 par semaine', per].filter(Boolean).join(' · '), inc: (f.inc || []).join(' · '),
+    rule: 'Une visite par semaine, ' + (NUM_FR[n] || n) + ' semaines de suite. ' + (f.pack.missed === 'once' ? 'Une semaine sautée se rattrape une fois.' : 'Une semaine sautée est perdue.')
   };
 }
 /* ', soit 16 € la coupe' from the carnet's price, said only when it falls on whole cents */
-function perCut(cents, n) { return cents && cents % n === 0 ? ', soit ' + num(cents / n / 100) + NB + '€ la coupe' : ''; }
+function perCut(cents, n) { return cents && cents % n === 0 ? ', soit ' + num(cents / n / 100) + NB + '€ la visite' : ''; }
 /* the FAQ as the page shows it now: the salon's whole menu (online or not: a price quoted is a price) and hours */
 function faqNow() {
   const sal = LXE.salon();
@@ -3727,6 +3738,8 @@ const BookingMixin = {
           const PF = LXE.SV[x.f] || F;
           return { token: p.token, code: p.code, manage: p.manage, day: p.day, time: p.start, dur: PF.d, f: x.f, n: PF.n, p: PF.p, from: !!PF.from, barber: p.barber || x.assigned || x.barber, any: x.barber === 'any', first: p.first, guest: p.guest, status: p.status, deposit: p.deposit, payUrl: p.payment ? p.payment.url : null };
         });
+        // the organiser's recap: the total, and the message for his friends with each one's own link (server/domain/group.js)
+        result.group = r.group ? { by: r.group.by || '', total: r.group.total || 0, share: r.group.share || null } : null;
         const h0 = result.people[0];
         if (h0) Object.assign(result, { day: h0.day, time: h0.time, dur: h0.dur, f: h0.f, n: h0.n, p: h0.p, from: h0.from, barber: h0.barber, any: h0.any });
         result.forWho = head.gfor === 'me' ? '' : (h0 ? h0.first : '');
@@ -3869,7 +3882,7 @@ const BookingMixin = {
     const gName = b.gfor !== 'me' ? capFirst(String(b.gFirst || '').trim().split(/\s+/)[0] || '') : '';
     const forW = b.gfor === 'me' || b.moving ? '' : gName ? 'pour ' + gName : b.gfor === 'child' ? 'pour ton enfant' : 'pour cette personne';
     const FOR_TITLE = { svc: 'Quelle coupe ', who: 'Avec qui ', when: 'Quand ' };
-    v.bkStepLabel = b.moving && si >= 0 ? 'Déplacer · ' + BK_LABEL[step] : si >= 0 ? (party.length ? 'Personne ' + (party.length + 1) + ' · ' : '') + 'Étape ' + (si + 1) + ' sur 4 · ' + BK_LABEL[step] : (step === 'done' ? (pending ? (serie ? 'Carnet à régler' : 'Acompte à régler') : (b.moved ? 'Déplacé' : 'Confirmé')) : (step === 'manage' ? 'Réservation' : 'Annulation'));
+    v.bkStepLabel = b.moving && si >= 0 ? 'Déplacer · ' + BK_LABEL[step] : si >= 0 ? (party.length ? 'Personne ' + (party.length + 1) + ' · ' : '') + 'Étape ' + (si + 1) + ' sur 4 · ' + BK_LABEL[step] : (step === 'done' ? (pending ? (serie ? 'Formule à régler' : 'Acompte à régler') : (b.moved ? 'Déplacé' : 'Confirmé')) : (step === 'manage' ? 'Réservation' : 'Annulation'));
     v.bkTitle = step === 'done' && b.result ? (pending ? 'Presque réservé, ' + b.result.first + '.' : (b.moved ? 'C’est déplacé, ' : 'C’est réservé, ') + b.result.first + '.') : (b.moving && step === 'when' ? 'Pour quand ?' : inSeries ? 'Tes ' + (F.pack.credits - 1) + ' autres rendez-vous' : forW && FOR_TITLE[step] ? FOR_TITLE[step] + forW + ' ?' : BK_TITLE[step]);
     v.progCls = 'bk-prog' + (si < 0 ? ' off' : '');
     ['pg0', 'pg1', 'pg2', 'pg3'].forEach((k, i) => { v[k] = i < si ? 'done' : (i === si ? 'on' : ''); });
@@ -4132,7 +4145,7 @@ const BookingMixin = {
     if (inSeries) {
       const cover = F.pack.coverKey;
       v.serLoading = !!b.serLoading;
-      v.serFirstLine = 'Coupe 1 sur ' + nCuts + (v.recapWho ? ' · ' + v.recapWho : '');
+      v.serFirstLine = 'Visite 1 sur ' + nCuts + (v.recapWho ? ' · ' + v.recapWho : '');
       v.serLead = 'Le même jour, la même heure et le même barbier pour les ' + (nCuts - 1) + ' semaines suivantes. Chaque ligne se modifie.';
       const choose = (week, patch) => { const cur = this.state.bk; this.setState({ bk: Object.assign({}, cur, { err: '', serEdit: null, serDay: null, serWho: null, series: (cur.series || []).map((w) => (w.week === week ? Object.assign({}, w, patch) : w)) }) }); buzz(6); };
       v.serRows = (b.series || []).map((w) => {
@@ -4140,7 +4153,7 @@ const BookingMixin = {
         const open = b.serEdit === w.week;
         const bb = LXE.BMAP[w.barber];
         const row = {
-          cls: 'ser-r' + (open ? ' open' : '') + (w.later ? ' later' : ''), open: open, k: 'Semaine ' + (w.week + 1) + ' · coupe ' + (w.week + 1) + ' sur ' + nCuts,
+          cls: 'ser-r' + (open ? ' open' : '') + (w.later ? ' later' : ''), open: open, k: 'Semaine ' + (w.week + 1) + ' · visite ' + (w.week + 1) + ' sur ' + nCuts,
           when: w.later ? 'Je choisirai plus tard' : capFirst(LXE.dayLong(w.day)) + ' · ' + LXE.fmtH(w.time), who: w.later ? 'Semaine du ' + strip(from) + ', à réserver depuis ton espace' : (bb ? 'avec ' + bb.n : ''),
           hasWhy: !!w.why, why: w.why ? w.why + (w.none ? ' : rien de libre cette semaine.' : /pris :/.test(w.why) ? '' : w.later ? '.' : ' : voici le plus proche cette semaine.') : '',
           editText: open ? 'Fermer' : w.later ? 'Choisir' : 'Modifier', editLabel: (open ? 'Fermer' : w.later ? 'Choisir le rendez-vous de' : 'Modifier le rendez-vous de') + ' la semaine ' + (w.week + 1),
@@ -4168,7 +4181,7 @@ const BookingMixin = {
         row.emptyText = !days.length ? 'Le salon est fermé toute cette semaine.' : LXE.ready(cover, who, sel) ? 'Rien de libre ce jour-là' + (who !== 'any' && LXE.BMAP[who] ? ' avec ' + LXE.BMAP[who].n : '') + '.' : 'On regarde…';
         return row;
       });
-      v.serFoot = 'Ensuite, chaque rendez-vous se déplace ou s’annule séparément, jusqu’à ' + (sal ? sal.booking.cancelUntilHours : 12) + NB + 'h avant.' + (b.serEnd ? ' Tes coupes se prennent jusqu’au ' + LXE.dayLong(b.serEnd) + '.' : '');
+      v.serFoot = 'Ensuite, chaque rendez-vous se déplace ou s’annule séparément, jusqu’à ' + (sal ? sal.booking.cancelUntilHours : 12) + NB + 'h avant.' + (b.serEnd ? ' Tes visites se prennent jusqu’au ' + LXE.dayLong(b.serEnd) + '.' : '');
     }
     v.isSerInfo = step === 'info' && isPack;
     v.serList = []; v.serListK = ''; v.serPayLine = ''; v.serBack = () => this.bkBack();
@@ -4177,11 +4190,11 @@ const BookingMixin = {
       v.serListK = (b.gfor === 'child' && gName ? 'Les ' + kept.length + ' rendez-vous ' + deName(gName) : 'Tes ' + kept.length + ' rendez-vous');
       v.serList = kept.map((x, i) => ({ k: 'Coupe ' + (i + 1) + ' sur ' + nCuts, line: capFirst(LXE.dayShort(x.day)) + ' · ' + LXE.fmtH(x.time) + (LXE.BMAP[x.barber] ? ' avec ' + LXE.BMAP[x.barber].n : '') }))
         .concat((b.series || []).filter((w) => w.later).map((w) => ({ k: 'Semaine du ' + strip(LXE.addDays(b.day, 7 * w.week)), line: 'À réserver plus tard, depuis ton espace' })));
-      v.serPayLine = payOnline ? 'Les ' + eur(F) + ' se règlent en ligne juste après. Sans paiement dans les ' + (sal ? sal.booking.pendingPayMin || 15 : 15) + ' minutes, les créneaux sont libérés.' : 'Les ' + eur(F) + ' se règlent au salon, à ta première coupe. Les suivantes sont déjà payées.';
+      v.serPayLine = payOnline ? 'Les ' + eur(F) + ' se règlent en ligne juste après. Sans paiement dans les ' + (sal ? sal.booking.pendingPayMin || 15 : 15) + ' minutes, les créneaux sont libérés.' : 'Les ' + eur(F) + ' se règlent au salon, à ta première visite. Les suivantes sont déjà payées.';
     }
     v.accGate = v.isSerInfo && !signed;
     v.accIn = v.isSerInfo && signed;
-    v.accInLine = 'Connecté à ton espace' + (s.acct && s.acct.first ? ', ' + s.acct.first : '') + ' : tes ' + nCuts + ' coupes s’y ajoutent.';
+    v.accInLine = 'Connecté à ton espace' + (s.acct && s.acct.first ? ', ' + s.acct.first : '') + ' : tes ' + nCuts + ' visites s’y ajoutent.';
     v.accLine = acc.sent ? 'Tape le code reçu par SMS au ' + String(s.fPhone || '') + '. Tes créneaux restent gardés.' : 'Ton prénom et ton numéro : tu reçois un code par SMS, sans mot de passe. Tes créneaux restent gardés.';
     v.accCode = v.accGate && !!acc.sent;
     v.fCode = acc.code || '';
@@ -4206,9 +4219,25 @@ const BookingMixin = {
       // the server's word, never the page's guess: « Inclus dans ton abonnement · 2/2 ce mois »
       v.hasMemberLine = !!r.member; v.memberLine = r.member || '';
       v.tkWho = (rb ? 'Avec ' + rb.n + ' · ' : '') + fmtDur(f.d);
-      v.tkK = serie ? 'Coupe 1 sur ' + serie.of + (r.forWho ? ' · ' + r.forWho : '') : r.forWho ? 'Le rendez-vous ' + deName(r.forWho) : 'Ton rendez-vous';
+      v.tkK = serie ? 'Visite 1 sur ' + serie.of + (r.forWho ? ' · ' + r.forWho : '') : r.forWho ? 'Le rendez-vous ' + deName(r.forWho) : 'Ton rendez-vous';
       const others = (r.people || []).slice(1);
       v.isGroupDone = step === 'done' && others.length > 0;
+      const grp = r.group || null;
+      const grpAll = [r].concat(others);
+      v.grpK = 'Tu es l’organisateur · ' + grpAll.length + ' personnes';
+      v.grpTotal = LXE.eur(grp && grp.total ? grp.total / 100 : grpAll.reduce((t, p) => t + ((LXE.SV[p.f] || { p: p.p || 0 }).p || 0), 0));
+      v.grpShare = !!(grp && grp.share && grp.share.text);
+      v.grpNote = s.grpNote || '';
+      v.grpHint = v.grpShare && /Ta place \(/.test(grp.share.text) ? 'Chaque ami reçoit le lien de sa propre place : il peut la voir, la déplacer ou l’annuler, rien d’autre. Toi, tu gardes la main sur toutes.' : 'Le message donne le jour, l’heure et l’adresse. Toi, tu gardes la main sur chaque place.';
+      v.grpSend = () => {
+        const sh = grp.share;
+        if (navigator.share) navigator.share({ title: sh.title, text: sh.text }).catch(() => {});
+        else window.open('https://wa.me/?text=' + encodeURIComponent(sh.text), '_blank', 'noopener');
+      };
+      v.grpCopy = () => {
+        const done = (ok) => this.setState({ grpNote: ok ? 'Message copié. Colle-le dans ta conversation.' : 'Copie impossible ici : utilise « Envoyer à mes amis ».' });
+        try { navigator.clipboard.writeText(grp.share.text).then(() => done(true), () => done(false)); } catch (e) { done(false); }
+      };
       v.doneOthers = others.map((p) => {
         const pf = LXE.SV[p.f] || { n: p.n || '', p: p.p || 0, from: !!p.from, d: p.dur || 30 };
         const pb = LXE.BMAP[p.barber];
@@ -4222,7 +4251,7 @@ const BookingMixin = {
       });
       const tf = this.faceOf(rb);
       v.tkHasWho = !!rb; v.tkIni = tf.ini; v.tkHasPhoto = tf.hasPhoto; v.tkPhoto = tf.photo; v.tkPhotoErr = tf.err;
-      v.smsText = serie ? "L'Architecte : c'est noté " + r.first + ' ! ' + (r.forWho ? 'Les ' + serie.dates.length + ' coupes ' + deName(r.forWho) : 'Tes ' + serie.dates.length + ' coupes') + ' : ' + serie.dates.map((d) => strip(d.day) + ' à ' + LXE.fmtH(d.time)).join(', ') + '.' + (serie.pay === 'salon' ? ' ' + LXE.eur(serie.amount / 100) + ' à régler à la 1re coupe.' : '') + ' Gérer : ' + (r.manage || '') : this.smsText(r);
+      v.smsText = serie ? "L'Architecte : c'est noté " + r.first + ' ! ' + (r.forWho ? 'Les ' + serie.dates.length + ' visites ' + deName(r.forWho) : 'Tes ' + serie.dates.length + ' visites') + ' : ' + serie.dates.map((d) => strip(d.day) + ' à ' + LXE.fmtH(d.time)).join(', ') + '.' + (serie.pay === 'salon' ? ' ' + LXE.eur(serie.amount / 100) + ' à régler à la 1re visite.' : '') + ' Gérer : ' + (r.manage || '') : this.smsText(r);
       v.goMove = () => this.bkMove();
       v.askCancel = () => this.setState({ bk: Object.assign({}, this.state.bk, { ask: true }) });
       v.keep = () => this.setState({ bk: Object.assign({}, this.state.bk, { ask: false }) });
@@ -4239,7 +4268,7 @@ const BookingMixin = {
     } else {
       v.hasMemberLine = false; v.memberLine = '';
       v.tkHasWho = false; v.tkIni = ''; v.tkHasPhoto = false; v.tkPhoto = ''; v.tkPhotoErr = () => {};
-      v.tkK = 'Ton rendez-vous'; v.isGroupDone = false; v.doneOthers = [];
+      v.tkK = 'Ton rendez-vous'; v.isGroupDone = false; v.doneOthers = []; v.grpK = ''; v.grpTotal = ''; v.grpShare = false; v.grpNote = ''; v.grpHint = ''; v.grpSend = () => {}; v.grpCopy = () => {};
       v.doneCode = ''; v.tkWhen = ''; v.tkWhat = ''; v.tkWho = ''; v.smsText = ''; v.cancelLine = ''; v.manageUrl = ''; v.needPay = false; v.payUrl = ''; v.payLine = ''; v.payMore = false; v.payTarget = '_self';
       v.goMove = () => {}; v.askCancel = () => {}; v.keep = () => {}; v.doCancel = () => {}; v.toCockpit = () => {};
     }
@@ -4247,9 +4276,9 @@ const BookingMixin = {
     v.payBtn = serie ? 'Régler ' + LXE.eur(serie.amount / 100) : 'Régler l’acompte';
     v.isSerDone = step === 'done' && !!serie;
     v.oneManage = !serie;
-    v.serDone = serie ? serie.dates.map((d) => ({ k: 'Coupe ' + d.n + ' sur ' + serie.of, line: capFirst(LXE.dayLong(d.day)) + ' · ' + LXE.fmtH(d.time) + (LXE.BMAP[d.barber] ? ' avec ' + LXE.BMAP[d.barber].n : ''), manage: d.manage || '', label: 'Coupe ' + d.n + ' sur ' + serie.of + ', ' + LXE.dayLong(d.day) + ' : déplacer ou annuler' })) : [];
+    v.serDone = serie ? serie.dates.map((d) => ({ k: 'Visite ' + d.n + ' sur ' + serie.of, line: capFirst(LXE.dayLong(d.day)) + ' · ' + LXE.fmtH(d.time) + (LXE.BMAP[d.barber] ? ' avec ' + LXE.BMAP[d.barber].n : ''), manage: d.manage || '', label: 'Visite ' + d.n + ' sur ' + serie.of + ', ' + LXE.dayLong(d.day) + ' : déplacer ou annuler' })) : [];
     v.serDoneK = serie ? (r && r.forWho ? 'Les ' + serie.dates.length + ' rendez-vous ' + deName(r.forWho) : 'Tes ' + serie.dates.length + ' rendez-vous') : '';
-    v.serDoneHint = serie ? (serie.later ? (serie.later > 1 ? serie.later + ' semaines restent' : 'Une semaine reste') + ' à réserver, depuis ton espace. ' : '') + (serie.pay === 'salon' ? LXE.eur(serie.amount / 100) + ' à régler au salon à ta première coupe. ' : '') + 'Chaque rendez-vous se déplace ou s’annule séparément : touche-le.' : '';
+    v.serDoneHint = serie ? (serie.later ? (serie.later > 1 ? serie.later + ' semaines restent' : 'Une semaine reste') + ' à réserver, depuis ton espace. ' : '') + (serie.pay === 'salon' ? LXE.eur(serie.amount / 100) + ' à régler au salon à ta première visite. ' : '') + 'Chaque rendez-vous se déplace ou s’annule séparément : touche-le.' : '';
     // the message's preview only when one really leaves (sms is false in production without a provider, unless the
     // salon's texts go by WhatsApp)
     v.showSms = v.notPay && textsLeave();
@@ -4391,7 +4420,7 @@ const SubscribeMixin = {
     v.carnetOnline = !!c && !!ck;
     v.carnetWhere = v.carnetOnline ? 'En ligne avec un compte client, ou au salon' : 'À acheter au salon';
     v.carnetGo = () => this.openWith({ formula: ck, fresh: true });
-    v.carnetLine = c ? [c.price % c.credits === 0 ? num(c.price / c.credits / 100) + NB + '€ la coupe' : '', weeks ? 'valable ' + weeks : ''].filter(Boolean).join(' · ') : '';
+    v.carnetLine = c ? [c.price % c.credits === 0 ? num(c.price / c.credits / 100) + NB + '€ la visite' : '', weeks ? 'valable ' + weeks : ''].filter(Boolean).join(' · ') : '';
     /* the sheet */
     const a = s.ab;
     const p = a ? this.aboPlan(a.plan) : null;

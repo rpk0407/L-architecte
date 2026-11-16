@@ -18,10 +18,10 @@ type Week = Record<string, Iv>;
 type Status = 'set' | 'same' | 'kept';
 export type PresetPlan = {
   id: string; name: string; source: string; todo: number; notes: string[];
-  count: { hours: number; rules: number; services: number; team: number; absences: number; photos: number };
+  count: { hours: number; rules: number; services: number; updates?: number; team: number; absences: number; photos: number };
   hours: { to: Week; now: Week; status: Status };
   rules: { key: string; label: string; text: string; nowText: string; status: Status }[];
-  services: { slug: string; name: string; category: string; price: number; dur: number; from: boolean; online: boolean; pack: { credits: number; days: number } | null; draft: boolean; status: 'create' | 'exists'; archived: boolean }[];
+  services: { slug: string; name: string; category: string; price: number; dur: number; from: boolean; online: boolean; pack: { credits: number; days: number; weekly?: boolean } | null; draft: boolean; status: 'create' | 'exists' | 'update'; was?: string; archived: boolean }[];
   // owner: the line is the owner's own account (account: its name when it is another); online: false, kept off the site
   team: { name: string; color: string; schedule: Week; status: 'create' | 'chair' | 'exists'; archived: boolean; hasPin: boolean; owner?: boolean; account?: string; online?: boolean; photo?: 'create' | 'exists' | null }[];
   absences: { staff: string; from: string; to: string; reason: string; status: 'create' | 'exists' | 'past' }[];
@@ -51,8 +51,8 @@ export function weekWords(w: Week): string[] {
 const restDays = (w: Week) => ORDER.filter((d) => !(w[d] || []).length).map((d) => dates.DAYS_FR[d]).join(' et ');
 const span = (a: { from: string; to: string }) => (a.from === a.to ? 'le ' + dates.dayShort(a.from) : 'du ' + dates.dayShort(a.from) + ' au ' + dates.dayShort(a.to));
 
-const TAG: Record<string, string> = { create: 'à créer', chair: 'fauteuil à ajouter', mine: 'sur ton compte', photo: 'portrait à poser', exists: 'déjà là', set: 'à régler', same: 'déjà réglé', kept: 'ton réglage, gardé', past: 'passée' };
-const Tag = ({ s }: { s: string }) => <span className={'badge' + (s === 'create' || s === 'chair' || s === 'mine' || s === 'photo' || s === 'set' ? ' badge-accent' : '')}>{TAG[s] || s}</span>;
+const TAG: Record<string, string> = { update: 'à mettre à jour', create: 'à créer', chair: 'fauteuil à ajouter', mine: 'sur ton compte', photo: 'portrait à poser', exists: 'déjà là', set: 'à régler', same: 'déjà réglé', kept: 'ton réglage, gardé', past: 'passée' };
+const Tag = ({ s }: { s: string }) => <span className={'badge' + (s === 'create' || s === 'update' || s === 'chair' || s === 'mine' || s === 'photo' || s === 'set' ? ' badge-accent' : '')}>{TAG[s] || s}</span>;
 
 export default function Preset() {
   const { reloadBoot } = useApp();
@@ -65,14 +65,16 @@ export default function Preset() {
   const p = data;
   const c = p.count;
   const what = [c.team ? plural(c.team, 'barbier') : '', c.services ? plural(c.services, 'prestation') : '', c.hours ? 'les horaires du salon' : '', c.rules ? plural(c.rules, 'règle') + ' de réservation' : '', c.absences ? plural(c.absences, 'absence') : '', c.photos ? plural(c.photos, 'portrait') : ''].filter(Boolean);
+  const renamed = p.services.filter((x) => x.status === 'update');
+  const onlyUpdates = renamed.length > 0 && renamed.length === p.todo;
   const after = async () => { refreshAll(); await Promise.all([refresh(), reloadBoot().catch(() => {})]); };
   const apply = async () => {
-    if (!await confirm({ title: 'Mettre le salon en place ?', body: 'Seront créés : ' + what.join(', ') + '. Ce qui existe déjà n’est pas modifié, et tu peux tout ajuster ensuite.', ok: 'Mettre en place' })) return;
+    if (!await confirm({ title: onlyUpdates ? 'Mettre la carte à jour ?' : 'Mettre le salon en place ?', body: (what.length ? 'Seront créés : ' + what.join(', ') + '. ' : '') + (renamed.length ? renamed.map((x) => '« ' + x.was + ' » devient « ' + x.name + ' » : même prix, même lien, l’entretien de la barbe compris dans la visite. ').join('') : '') + 'Le reste n’est pas modifié, et tu peux tout ajuster ensuite.', ok: onlyUpdates ? 'Mettre à jour' : 'Mettre en place' })) return;
     setBusy(true);
     try {
       const r = await api.post<{ done: PresetPlan['count'] }>('/api/v1/preset/apply', {});
       const d = r.done;
-      toast({ title: 'Le salon est en place', sub: [d.team ? plural(d.team, 'barbier') : '', d.services ? plural(d.services, 'prestation') : '', d.hours ? 'horaires' : '', d.rules ? plural(d.rules, 'règle') : '', d.absences ? plural(d.absences, 'absence') : '', d.photos ? plural(d.photos, 'portrait') : ''].filter(Boolean).join(' · ') || 'Tout y était déjà.', icon: 'check', ttl: 8000 });
+      toast({ title: 'Le salon est en place', sub: [d.updates ? plural(d.updates, 'prestation mise à jour', 'prestations mises à jour') : '', d.team ? plural(d.team, 'barbier') : '', d.services ? plural(d.services, 'prestation') : '', d.hours ? 'horaires' : '', d.rules ? plural(d.rules, 'règle') : '', d.absences ? plural(d.absences, 'absence') : '', d.photos ? plural(d.photos, 'portrait') : ''].filter(Boolean).join(' · ') || 'Tout y était déjà.', icon: 'check', ttl: 8000 });
       await after();
     } catch (e) { toastError(e); } finally { setBusy(false); }
   };
@@ -86,7 +88,7 @@ export default function Preset() {
   const detail = open || !done;
   return (
     <section className="card col mr-preset" style={{ gap: 12 }} data-guide="mer-preset" data-todo={p.todo}>
-      <div className="card-h"><h2><Icon name="sparkle" size={16} />Le salon {p.name}, en un geste</h2><span className={'badge' + (done ? ' badge-ok' : ' badge-accent')}>{done ? 'en place' : plural(p.todo, 'ligne') + ' à créer'}</span></div>
+      <div className="card-h"><h2><Icon name="sparkle" size={16} />Le salon {p.name}, en un geste</h2><span className={'badge' + (done ? ' badge-ok' : ' badge-accent')}>{done ? 'en place' : plural(p.todo, 'ligne') + (onlyUpdates ? ' à mettre à jour' : ' à créer')}</span></div>
       <p className="muted" style={{ fontSize: 13.5 }}>
         {done ? 'L’équipe, la carte, les horaires et les règles de l’ancien site sont en place. ' : 'L’équipe et ses vrais horaires, la carte et ses prix, les horaires du salon et ses règles de réservation, tels qu’ils sont sur l’ancien site. Rien n’est créé avant que tu confirmes ; ce qui existe déjà n’est jamais modifié. '}
         <span className="faint">{p.source}.</span>
@@ -118,7 +120,7 @@ export default function Preset() {
             <p className="section-k">Carte</p>
             <ul className="list">{p.services.map((x) => (
               <li key={x.slug} className="li">
-                <span className="li-main"><b>{x.name}</b><small>{x.category} · {dur(x.dur)}{x.pack ? ' · carnet de ' + x.pack.credits + ' coupes, ' + x.pack.days + ' jours' : ''}{!x.online ? ' · au salon seulement' : ''}{x.archived ? ' · archivée' : ''}</small></span>
+                <span className="li-main"><b>{x.name}</b><small>{x.category} · {dur(x.dur)}{x.pack ? (x.pack.weekly ? ' · ' + x.pack.credits + ' visites, 1 par semaine' : ' · carnet de ' + x.pack.credits + ' coupes, ' + x.pack.days + ' jours') : ''}{x.status === 'update' && x.was ? ' · remplace « ' + x.was + ' », avec l’entretien de la barbe' : ''}{!x.online ? ' · au salon seulement' : ''}{x.archived ? ' · archivée' : ''}</small></span>
                 <b className="tnum">{x.from ? <small className="faint">dès </small> : null}{eur(x.price)}</b>
                 <Tag s={x.status} />
               </li>
@@ -141,7 +143,7 @@ export default function Preset() {
         </div>
       ) : null}
       <div className="row wrap" style={{ gap: 8 }}>
-        {done ? <Button variant="ghost" size="sm" onClick={() => setOpen(!open)}>{open ? 'Masquer le détail' : 'Voir le détail'}</Button> : <Button variant="primary" icon="check" busy={busy} onClick={apply}>Mettre le salon en place</Button>}
+        {done ? <Button variant="ghost" size="sm" onClick={() => setOpen(!open)}>{open ? 'Masquer le détail' : 'Voir le détail'}</Button> : <Button variant="primary" icon="check" busy={busy} onClick={apply}>{onlyUpdates ? 'Mettre à jour' : 'Mettre le salon en place'}</Button>}
         {done ? <Link to="/equipe" className="btn btn-ghost btn-sm">Équipe<Icon name="chevR" size={14} /></Link> : null}
         {done ? <Link to="/catalogue" className="btn btn-ghost btn-sm">Catalogue<Icon name="chevR" size={14} /></Link> : null}
       </div>

@@ -68,8 +68,8 @@ function One({ f, onChange, demo }: { f: MeFormule; onChange: (c: Card) => void;
           return (
             <li key={w.k} className={w.state === 'lost' ? 'gone' : ''}>
               <span className="m-rows-t">
-                <b>{w.state === 'done' || w.state === 'booked' ? 'Coupe ' + w.n + ' · ' + (a ? whenOf(a.day, a.start) : '') : w.state === 'lost' ? 'Semaine perdue' : 'À réserver'}</b>
-                <small>{w.state === 'done' ? 'Faite' + (a && a.staff ? ' avec ' + a.staff.name : '') : w.state === 'booked' ? 'Réservée' + (a && a.staff ? ' avec ' + a.staff.name : '') : w.state === 'lost' ? (w.missed ? 'Rendez-vous manqué' : 'Sans coupe') + ', du ' + dayWords(w.from) + ' au ' + dayWords(w.to) : 'Semaine du ' + dayWords(w.from) + ' au ' + dayWords(w.to)}</small>
+                <b>{w.state === 'done' || w.state === 'booked' ? 'Visite ' + w.n + ' · ' + (a ? whenOf(a.day, a.start) : '') : w.state === 'lost' ? 'Semaine perdue' : 'À réserver'}</b>
+                <small>{w.state === 'done' ? 'Faite' + (a && a.staff ? ' avec ' + a.staff.name : '') : w.state === 'booked' ? 'Réservée' + (a && a.staff ? ' avec ' + a.staff.name : '') : w.state === 'lost' ? (w.missed ? 'Rendez-vous manqué' : 'Semaine sautée') + ', du ' + dayWords(w.from) + ' au ' + dayWords(w.to) : 'Semaine du ' + dayWords(w.from) + ' au ' + dayWords(w.to)}</small>
                 {w.state === 'open' && open.includes(w) ? (
                   <span className="m-fo-a">
                     {usual ? <button type="button" className="c-btn" disabled={busy} data-fo-week={f.id + '_' + w.k} onClick={() => book(usual)}>Réserver cette semaine · {whenOf(usual.day, usual.start)}{s.staff[usual.staffId] ? ' avec ' + s.staff[usual.staffId] : ''}</button>
@@ -89,17 +89,17 @@ function One({ f, onChange, demo }: { f: MeFormule; onChange: (c: Card) => void;
                   );
                 })() : null}
               </span>
-              {w.state === 'booked' && a && a.token ? <a className="c-link" href={'/r/' + a.token} aria-label={'Déplacer ou annuler la coupe ' + w.n}>Gérer</a> : null}
+              {w.state === 'booked' && a && a.token ? <a className="c-link" href={'/r/' + a.token} aria-label={'Déplacer ou annuler la visite ' + w.n}>Gérer</a> : null}
               {w.state === 'done' && a && a.receipt ? <a className="c-link" href={a.receipt}>Reçu</a> : null}
             </li>
           );
         })}
       </ul>
-      <p className="c-muted">{f.status === 'released' ? 'La première coupe n’a pas eu lieu et rien n’était réglé : les autres rendez-vous ont été libérés.' : f.status === 'ended' ? (f.left ? 'Terminé le ' + dayWords(f.end, { long: true }) + '.' : 'Tes ' + f.credits + ' coupes sont faites.') : 'Tes coupes se prennent jusqu’au ' + dayWords(f.end, { weekday: true, long: true }) + (f.missed === 'once' ? ' (une semaine manquée se rattrape une fois).' : ' : une semaine sans coupe est perdue.')}</p>
+      <p className="c-muted">{f.status === 'released' ? 'La première visite n’a pas eu lieu et rien n’était réglé : les autres rendez-vous ont été libérés.' : f.status === 'ended' ? (f.left ? 'Terminé le ' + dayWords(f.end, { long: true }) + '.' : 'Tes ' + f.credits + ' visites sont faites.') : 'Une visite par semaine, jusqu’au ' + dayWords(f.end, { weekday: true, long: true }) + (f.missed === 'once' ? '. Une semaine sautée se rattrape une fois.' : '. Une semaine sautée est perdue.')}</p>
       {f.status === 'open' || f.pay === 'paid' || f.pay === 'online' ? (
         <p className={'m-fo-pay' + (f.pay === 'due' || f.pay === 'pending' ? ' warn' : '')}>
-          {f.pay === 'paid' ? 'Payé au salon : ' + money(f.price) + '.' : f.pay === 'online' ? 'Payé en ligne : ' + money(f.price) + '.' : f.pay === 'pending' ? money(f.price) + ' à régler en ligne pour confirmer tes rendez-vous.' : money(f.price) + ' à régler au salon, à ta première coupe.'}
-          {f.receipt ? <> <a className="c-link" href={f.receipt}>Reçu du carnet</a></> : null}
+          {f.pay === 'paid' ? 'Payé au salon : ' + money(f.price) + '.' : f.pay === 'online' ? 'Payé en ligne : ' + money(f.price) + '.' : f.pay === 'pending' ? money(f.price) + ' à régler en ligne pour confirmer tes rendez-vous.' : money(f.price) + ' à régler au salon, à ta première visite.'}
+          {f.receipt ? <> <a className="c-link" href={f.receipt}>Reçu de la formule</a></> : null}
           {f.pay === 'pending' && first && first.appt ? <> <a className="c-link" href={'/r/' + first.appt.token}>Régler</a></> : null}
         </p>
       ) : null}
@@ -118,8 +118,8 @@ export default function Formule({ me }: CardProps) {
       {c.renew && c.offer ? (
         <section className="c-card m-fo" data-guide="moi-carnet-reprendre">
           <h2 className="c-k">{c.offer.name}</h2>
-          <p className="c-muted">Ton carnet est terminé. On repart pour {c.offer.credits} coupes, une par semaine ?</p>
-          <a className="c-btn" href={'/?reserver&prestation=' + encodeURIComponent(c.offer.slug || '')}>Reprendre {c.offer.credits} coupes · {money(c.offer.price)}</a>
+          <p className="c-muted">Ta formule est terminée. On repart pour {c.offer.credits} semaines, une visite par semaine ?</p>
+          <a className="c-btn" href={'/?reserver&prestation=' + encodeURIComponent(c.offer.slug || '')}>Reprendre {c.offer.credits} semaines · {money(c.offer.price)}</a>
         </section>
       ) : null}
     </>

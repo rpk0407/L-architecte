@@ -2,6 +2,7 @@
 // The Comptoir API, for signed-in staff. Every route states the capability it needs; the handlers
 // re-check finer rules (own chair, discount caps) inside the commands.
 import { HttpError } from './kit.js';
+import { groupBrief } from '../domain/group.js';
 import { agendaView, apptView, clientCard, clientFull, saleView, staffView, serviceView, productView, typedFor } from './views.js';
 import { freeSlots, staffIntervals, walkinEstimate, UNDECIDED } from '../domain/availability.js';
 import { clientStats, report, previousPeriod, goalOf, goalShares, autoGoal } from '../domain/insights.js';
@@ -482,10 +483,12 @@ export function staffRoutes(app) {
     const stats = clientStats(s, r.local.day, r.now);
     const c = a.clientId ? s.clients.get(a.clientId) : null;
     const history = c ? [...s.appts.values()].filter((x) => x.clientId === c.id && x.id !== a.id && (x.status === 'done' || x.status === 'no_show')).sort((x, y) => (x.day < y.day ? 1 : -1)).slice(0, 8)
-      .map((x) => ({ id: x.id, day: x.day, start: x.start, services: x.services.map((v) => v.name), staff: (s.staff.get(x.staffId) || {}).name, status: x.status, price: x.saleId ? (s.sales.get(x.saleId)?.totals.revenue ?? x.price) : x.price })) : [];
+      .map((x) => ({ id: x.id, day: x.day, start: x.start, services: x.services.map((v) => v.name), staff: (s.staff.get(x.staffId) || {}).name, status: x.status, price: x.saleId && s.sales.get(x.saleId)?.apptId === x.id ? (s.sales.get(x.saleId)?.totals.revenue ?? x.price) : x.price })) : [];
     const messages = [...s.messages.values()].filter((m) => m.apptId === a.id).map((m) => ({ id: m.id, channel: m.channel || 'sms', template: m.template, status: m.status, at: m.at, sentAt: m.sentAt || null, to: m.toMasked }));
     const payments = [...s.payments.values()].filter((p) => p.apptId === a.id).map((p) => ({ id: p.id, kind: p.kind, amount: p.amount, status: p.status, at: p.createdAt }));
-    return { appt: apptView(s, a, r.caps, stats, r.now), client: c && r.caps.has('client.view') ? clientFull(s, c, r.caps, stats, r.now) : null, history, messages, payments, sale: a.saleId && s.sales.get(a.saleId) ? saleView(s, s.sales.get(a.saleId), r.caps) : null };
+    // the sheet and the till read every place of a group (who, what, the price, paid or not), to ring it up as one
+    const grp = a.ext && a.ext.group ? groupBrief(s, a, { detail: true }) : null;
+    return { appt: { ...apptView(s, a, r.caps, stats, r.now), ...(grp ? { group: grp } : {}) }, client: c && r.caps.has('client.view') ? clientFull(s, c, r.caps, stats, r.now) : null, history, messages, payments, sale: a.saleId && s.sales.get(a.saleId) ? saleView(s, s.sales.get(a.saleId), r.caps) : null };
   }, { cap: 'agenda.own' });
 
   app.post('/api/v1/appointments', (r) => r.run(A.createAppointment, r.body), { cap: 'agenda.own' });

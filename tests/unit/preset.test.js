@@ -68,7 +68,7 @@ test('the plan: four barbers and the owner’s chair, twelve services, the hours
   assert.equal(p.hours.status, 'set');
   // the rules that differ from the Comptoir's own defaults: 5 min of notice, 24 h to cancel; the two others are already so
   assert.deepEqual(p.rules.map((x) => [x.key, x.status]), [['stepMin', 'same'], ['minNoticeMin', 'set'], ['maxDaysAhead', 'same'], ['cancelUntilHours', 'set']]);
-  assert.deepEqual(p.count, { hours: 1, rules: 2, services: 12, team: 5, absences: 2, photos: 5 });
+  assert.deepEqual(p.count, { hours: 1, rules: 2, services: 12, updates: 0, team: 5, absences: 2, photos: 5 });
   assert.ok(p.notes.length >= 6);
   for (const n of p.notes) assert.ok(!n.includes('—'), 'no em dash: ' + n);
   assert.equal(s().version, v, 'a read');
@@ -80,7 +80,7 @@ test('applied: the real week of each barber, the twelve services at their price 
   const v0 = rt.engine.journal.length;
   const r = await b.post('/api/v1/preset/apply', {});
   assert.equal(r.status, 200);
-  assert.deepEqual({ ...r.json.done, written: 0 }, { hours: 1, rules: 2, services: 12, team: 5, absences: 2, photos: 5, written: 0 });
+  assert.deepEqual({ ...r.json.done, written: 0 }, { hours: 1, rules: 2, services: 12, updates: 0, team: 5, absences: 2, photos: 5, written: 0 });
   assert.equal(r.json.plan.todo, 0);
 
   // the salon: Tuesday to Saturday 8 h 30 – 18 h 30, closed Sunday and Monday
@@ -113,18 +113,20 @@ test('applied: the real week of each barber, the twelve services at their price 
   const menu = [...s().services.values()].sort((x, y) => x.order - y.order).map((x) => [x.name, x.price / 100, x.dur]);
   assert.deepEqual(menu, [
     ['Coupe classique', 20, 30], ['Coupe + contour de barbe', 25, 30], ['Coupe + taille de barbe', 30, 30], ['Taille de barbe', 18, 30], ['Entretien barbe', 15, 30], ['Cover barbe', 15, 30],
-    ['Transformation', 50, 60], ['Décoloration', 60, 60], ['Coloration', 30, 60], ['Silver', 100, 60], ['Carnet 5 coupes', 80, 30], ['Coupe + coloration', 35, 30]
+    ['Transformation', 50, 60], ['Décoloration', 60, 60], ['Coloration', 30, 60], ['Silver', 100, 60], ['Formule Entretien 5 semaines', 80, 30], ['Coupe + coloration', 35, 30]
   ]);
   for (const x of s().services.values()) {
-    assert.ok(!/formule|€|\d+\s*eur/i.test(x.name), x.name);
+    // no « Formule … 20€ » of the old titles; the one formule is the owner's own name for his five weeks of upkeep
+    assert.ok(!/€|\d+\s*eur/i.test(x.name) && (x.slug === 'ab' || !/formule/i.test(x.name)), x.name);
     assert.equal(x.active, true);
     const old = ARCHITECTE.services.find((o) => o.slug === x.slug).wp;
     assert.equal(Number(/(\d+)\s*€/.exec(old)[1]) * 100, x.price, 'the price in the old title: ' + old);
   }
-  assert.deepEqual([...new Set([...s().services.values()].map((x) => x.category))], ['Coupes', 'Barbe', 'Changer de tête', 'Carnet']);
+  assert.deepEqual([...new Set([...s().services.values()].map((x) => x.category))], ['Coupes', 'Barbe', 'Changer de tête', 'Formule']);
   // the carnet pays a coupe classique, one a week for five weeks from the first date (a missed week is lost), and is sold
   // on the site; the old site's draft is kept at the salon only
-  assert.deepEqual(bySlug(s(), 'ab').pack, { credits: 5, days: 35, serviceIds: [bySlug(s(), 'cl').id], weekly: true, missed: 'lost' });
+  assert.deepEqual(bySlug(s(), 'ab').pack, { credits: 5, days: 35, serviceIds: [bySlug(s(), 'cl').id, bySlug(s(), 'cc').id], withIds: [bySlug(s(), 'eb').id], weekly: true, missed: 'lost' });
+  assert.deepEqual(bySlug(s(), 'ab').includes, ['Shampooing', 'Coupe', 'Coiffage', 'Entretien de barbe']);
   assert.deepEqual([...s().services.values()].filter((x) => x.online === false).map((x) => x.name), ['Coupe + coloration']);
   assert.deepEqual([bySlug(s(), 'de').from, bySlug(s(), 'co').from, bySlug(s(), 'cl').from], [true, true, false]);
 
@@ -172,7 +174,7 @@ test('running it twice changes nothing: not one event more', async () => {
   const v = s().version, n = rt.engine.journal.length;
   const again = await b.post('/api/v1/preset/apply', {});
   assert.equal(again.status, 200);
-  assert.deepEqual(again.json.done, { hours: 0, rules: 0, services: 0, team: 0, absences: 0, photos: 0, written: 0 });
+  assert.deepEqual(again.json.done, { hours: 0, rules: 0, services: 0, updates: 0, team: 0, absences: 0, photos: 0, written: 0 });
   assert.equal(s().version, v);
   assert.equal(rt.engine.journal.length, n);
   assert.equal([...s().staff.values()].filter((x) => x.role === 'barber').length, 4);

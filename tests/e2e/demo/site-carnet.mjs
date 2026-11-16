@@ -27,7 +27,7 @@ async function run(h, page, step) {
   const offer = page.locator('.bk button.so-pack');
   await offer.waitFor({ timeout: T });
   const words = (await offer.innerText()).replace(/[  ]/g, ' ');
-  for (const w of ['Carnet 5 coupes', '5 coupes · 5 semaines · 16 € la coupe', 'Sans la barbe', 'Un rendez-vous par semaine pendant 5 semaines : une semaine sans coupe est perdue.', '80 €']) if (!words.includes(w)) throw new Error('the offer does not say « ' + w + ' »: ' + words);
+  for (const w of ['Formule Entretien 5 semaines', '5 visites · 1 par semaine · 16 € la visite', 'Entretien de barbe', 'Une visite par semaine, cinq semaines de suite. Une semaine sautée est perdue.', '80 €']) if (!words.includes(w)) throw new Error('the offer does not say « ' + w + ' »: ' + words);
   await offer.scrollIntoViewIfNeeded();
   await snap(page, 'site-carnet-offre-390');
   await offer.click();
@@ -59,7 +59,7 @@ async function run(h, page, step) {
 
   step('the account');
   await h.expectText(page, 'Étape 4 sur 4');
-  await h.expectText(page, 'Cette formule demande un compte : c’est ce qui garde tes 5 coupes.');
+  await h.expectText(page, 'Cette formule demande un compte : c’est ce qui garde tes 5 visites.');
   await h.expectText(page, 'Tes 5 rendez-vous');
   if (await page.getByRole('radio', { name: 'Une autre personne' }).getAttribute('aria-disabled') !== 'true') throw new Error('the carnet can be taken for another adult');
   await page.fill('#f-first', 'Karim');
@@ -88,7 +88,7 @@ async function run(h, page, step) {
   await page.locator('.c-pay .c-btn').click();
   await page.waitForURL(/\/r\//, { timeout: T });
   await h.expectText(page, 'Confirmé', 12000);
-  await h.expectText(page, 'coupe 1 sur 5');
+  await h.expectText(page, 'visite 1 sur 5');
 
   step('the five dates in the agenda, nothing given before a ticket');
   await h.setup();
@@ -102,7 +102,7 @@ async function run(h, page, step) {
 
   step('the card of /moi');
   await page.goto(h.base + '/moi');
-  await h.expectText(page, 'Carnet 5 coupes');
+  await h.expectText(page, 'Formule Entretien 5 semaines');
   await page.locator('[data-guide="moi-carnet"]').waitFor({ timeout: T });
   if ((await page.locator('[data-guide="moi-carnet"] .fo-dot').count()) !== 5) throw new Error('not five dots');
   if ((await page.locator('[data-guide="moi-carnet"] .fo-dot.booked').count()) !== 5) throw new Error('the five dates are not « réservées »');

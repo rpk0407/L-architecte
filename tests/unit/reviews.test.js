@@ -199,3 +199,68 @@ test('the Google link check and the redirect guard', () => {
   assert.equal(safeRedirect('//evil.example/'), '');
   assert.equal(safeRedirect(' https://g.page/r/x/review '), 'https://g.page/r/x/review');
 });
+
+// RETOURS-01 · After the visit the receipt carries the link: one text, not a second one; the same opt-outs, the same cap.
+import { receiptMayAsk, RECEIPT_REVIEW } from '../../server/commands/reviews.js';
+import { reviewStats } from '../../server/projections/reviews.js';
+
+const receipt = (t, saleId, o = {}) => t.engine.run(S.sendReceipt, { saleId, ...o }, { ...t.asOwner(), meta: { reviewLink: LINK, receiptLink: (x) => 'https://salon.test/recu/' + x.number } });
+const receipts = (t) => [...t.engine.state.messages.values()].filter((m) => m.template === 'receipt');
+
+test('the receipt sent after the visit carries the review link, and no separate request follows that quarter', async () => {
+  const t = await salon({ hour: 8 });
+  const { a, sale } = await visit(t, { start: 600, paidAt: 640 });
+  const r = await receipt(t, sale.id);
+  const [m] = receipts(t);
+  assert.equal(m.id, r.id);
+  assert.equal(m.review, true);
+  assert.equal(m.apptId, a.id);
+  assert.match(m.body, /^L'Architecte : merci Yanis ! Ton ticket T\d{6} de 20,00 € : https:\/\/salon\.test\/recu\/\d+/);
+  assert.ok(m.body.endsWith(' Ton avis Google nous aide : https://salon.test/avis/' + m.id + '.sig'), m.body);
+  assert.ok(!/offert|cadeau|réduction|remise|si tu as aimé|satisfait/i.test(m.body), 'no reward, no gating');
+  // the tick finds the client already asked: nothing more, that day or after another visit of the quarter
+  await run(t, DAY, 12, 40); await run(t, DAY, 15);
+  assert.equal(reviews(t).length, 0, 'one message, not a second one');
+  const v2 = await visit(t, { day: addDays(DAY, 7), start: 600, paidAt: 640 });
+  await receipt(t, v2.sale.id);
+  assert.equal(receipts(t)[1].review, undefined, 'asked once a quarter: the next receipt is a plain receipt');
+  assert.ok(!receipts(t)[1].body.includes('/avis/'));
+  await run(t, addDays(DAY, 7), 15);
+  assert.equal(reviews(t).length, 0);
+  // the link's opening counts like a request's, once
+  assert.deepEqual(await t.engine.run(reviewClicked, { id: m.id }, t.sys), { recorded: true });
+  assert.deepEqual(await t.engine.run(reviewClicked, { id: m.id }, t.sys), { recorded: false });
+  assert.deepEqual(await t.engine.run(reviewClicked, { id: receipts(t)[1].id }, t.sys), { recorded: false }, 'a plain receipt is not a request');
+});
+
+test('the receipt stays a plain receipt: reviews off, no link, a STOP, texts off, another number, a refund, a request already sent', async () => {
+  const plain = async (prep, o = {}) => {
+    const t = await salon({ hour: 8 });
+    const v = await visit(t, { start: 600, paidAt: 640 });
+    await prep(t, v);
+    const s = t.engine.state;
+    const sale = s.sales.get(v.sale.id), c = s.clients.get(t.ids.yanis);
+    const asked = receiptMayAsk(s, { now: t.clock.now, drafts: [] }, sale, c, o.to || c.phone);
+    if (!o.noSend) { await receipt(t, v.sale.id, o.phone ? { phone: o.phone } : {}); const m = receipts(t)[0]; if (m) assert.ok(!m.body.includes('/avis/') && !m.review, m.body); }
+    return asked;
+  };
+  assert.equal(await plain(async () => {}, { noSend: true }), true, 'the base case asks');
+  assert.equal(await plain((t) => t.engine.run(updateSettings, { messages: { review: false } }, t.asOwner())), false);
+  assert.equal(await plain((t) => { t.engine.state.settings.shop.reviewUrl = ''; }), false);
+  assert.equal(await plain((t) => { t.engine.state.clients.get(t.ids.yanis).sms = false; }), false, 'texts switched off');
+  assert.equal(await plain((t) => { t.engine.state.clients.get(t.ids.yanis).marketingSrc = 'stop'; }), false, 'a STOP');
+  assert.equal(await plain(async () => {}, { to: '+33699999999', phone: '06 99 99 99 99' }), false, 'a receipt sent to another number asks nothing');
+  assert.equal(await plain((t, v) => { t.engine.state.sales.get(v.sale.id).refunded = 500; }), false, 'a ticket refunded');
+  assert.equal(await plain(async (t) => { await run(t, DAY, 12, 40); assert.equal(reviews(t).length, 1); }), false, 'the request already left');
+});
+
+test('Rapports › Avis Google counts a receipt that carried the link like a request', async () => {
+  const t = await salon({ hour: 8 });
+  const { sale } = await visit(t, { start: 600, paidAt: 640 });
+  const r = await receipt(t, sale.id);
+  await t.engine.run({ run: (s, i, ctx) => ctx.emit('message.updated', { id: r.id, patch: { status: 'sent', sentAt: ctx.now } }) }, {}, t.sys);
+  await t.engine.run(reviewClicked, { id: r.id }, t.sys);
+  const st = reviewStats(t.engine.state, DAY, DAY);
+  assert.deepEqual([st.sent, st.opened], [1, 1]);
+  assert.equal(RECEIPT_REVIEW, ' Ton avis Google nous aide : {avis}');
+});

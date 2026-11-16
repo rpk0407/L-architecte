@@ -25,6 +25,8 @@ import { addMonths, abandoned } from '../domain/membership.js';
 import { BILLING } from '../payments/billing.js';
 import { memberScheduled, startDayOf } from '../commands/member-billing.js';
 import { fmtEur } from '../../shared/money.js';
+import { safeRedirect } from '../../shared/reviews.js';
+import { groupMembers, organiserOf, heldByOrganiser, groupView } from '../domain/group.js';
 import { claimFromLink } from './routes-loyalty.js';
 import { receiptLoyalty } from '../domain/loyalty.js';
 import { readMemberToken, MEMBER_BOOK } from '../auth/member-token.js';
@@ -100,12 +102,31 @@ function bookingView(r, a) {
     canChange: ['booked', 'pending'].includes(a.status) && clientMayChange(s, a, r.rt.engine.clock()), cancelUntilHours: s.settings.booking.cancelUntilHours,
     shop: { name: s.settings.shop.name, address: s.settings.shop.address + ', ' + s.settings.shop.zip + ' ' + s.settings.shop.city, phone: s.settings.shop.phone, mapsUrl: s.settings.shop.mapsUrl },
     cancelled: a.cancel ? { by: a.cancel.by, at: a.cancel.at } : null,
-    ...formuleLine(s, a)
+    // « Laisser un avis »: only once the visit is done, for everyone alike (no question first, no reward: Google's rules)
+    ...(a.status === 'done' && safeRedirect(s.settings.shop.reviewUrl) ? { reviewUrl: safeRedirect(s.settings.shop.reviewUrl) } : {}),
+    ...formuleLine(s, a),
+    ...(r.guestLink ? { guestLink: true } : {}),
+    ...groupLine(r, a)
   };
 }
 
+/** The group of a booking as its page shows it: everything to the organiser, « réservé par Karim » to a friend. */
+function groupLine(r, a) {
+  const s = r.s;
+  const members = groupMembers(s, a);
+  if (members.length < 2) return {};
+  const org = organiserOf(s, members);
+  const organiser = !r.guestLink && heldByOrganiser(s, a, org);
+  const g = groupView(s, a, { organiser, origin: r.origin, tokenFor: (x, kind) => signLink(r.rt.secret, kind, x.code) });
+  return g ? { group: g } : {};
+}
+
 function apptFromToken(r) {
-  const code = checkLink(r.rt.secret, 'appt', r.params.token);
+  // two kinds of link open a booking: the contact's own ('appt', which also opens his other bookings, routes-client.js)
+  // and a friend's ('guest', sent by the organiser of a group: that one place and nothing else)
+  let code = checkLink(r.rt.secret, 'appt', r.params.token);
+  r.guestLink = false;
+  if (!code) { code = checkLink(r.rt.secret, 'guest', r.params.token); r.guestLink = !!code; }
   const id = code ? r.s.apptByCode.get(code) : null;
   const a = id ? r.s.appts.get(id) : null;
   if (!a) throw new HttpError(404, 'not_found', 'Ce lien n’est pas (ou plus) valable.');
@@ -290,10 +311,11 @@ export function publicRoutes(app) {
     const places = res.people || [res];
     const outs = [];
     for (const x of places) {
-      const token = signLink(r.rt.secret, 'appt', x.code);
-      let payment = null;
       // a retry finds the booking as it now stands: its deposit page is the one already opened, never a second one
       const now = r.s.appts.get(x.id);
+      // a place booked for a friend under his own number: the booker follows that place, not his friend's other bookings
+      const token = signLink(r.rt.secret, now && now.ext && now.ext.guest && now.ext.guest.by ? 'guest' : 'appt', x.code);
+      let payment = null;
       const open = again ? [...r.s.payments.values()].find((p) => p.apptId === x.id && p.kind === 'deposit' && p.status === 'pending') : null;
       // in a booking of several people, any place taken back means the whole booking was (its deposit page failed)
       if (again && (x.status === 'pending' || res.people) && (!now || now.status === 'cancelled')) throw new HttpError(409, 'gone', 'Cette réservation n’a pas abouti : rien n’est enregistré. Choisis ton créneau à nouveau.');
@@ -327,7 +349,9 @@ export function publicRoutes(app) {
     // FID-02: a booking that came through a referrer's link (?parrain=); a refusal never touches the booking
     const ref = r.body && r.body.parrain && !again ? await claimFromLink(r, res.id, r.body.parrain) : null;
     const { first: _f, day: _d, start: _s, guest: _g, price: _p, ...one } = head;
-    return json({ ...one, ...(res.people ? { people: outs } : {}), ...(ref ? { referral: { ok: !!ref.ok, why: ref.ok ? null : ref.why } } : {}) }, 201);
+    // a group: the recap the confirmation shows and the text « Envoyer à mes amis » sends, as the organiser's page has them
+    const grp = res.people ? groupLine(r, r.s.appts.get(res.id)).group : null;
+    return json({ ...one, ...(res.people ? { people: outs } : {}), ...(grp && grp.organiser ? { group: { by: grp.by, total: grp.total, share: grp.share } } : {}), ...(ref ? { referral: { ok: !!ref.ok, why: ref.ok ? null : ref.why } } : {}) }, 201);
   });
 
   app.get('/api/public/bookings/:token', (r) => bookingView(r, apptFromToken(r)));

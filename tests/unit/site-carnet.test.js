@@ -16,9 +16,10 @@ test('the order of the booking steps never changes: the four other dates live in
 });
 
 test('the carnet: its own words, an account before anything is bought, never for another adult', () => {
-  assert.ok(site.includes('Cette formule demande un compte&nbsp;: c’est ce qui garde tes 5 coupes.'));
-  assert.ok(site.includes("[n + ' coupes', n + ' semaines', per]"), '« 5 coupes · 5 semaines · 16 € la coupe »');
-  assert.ok(site.includes('une semaine sans coupe est perdue.') && site.includes('une semaine manquée se rattrape une fois.'));
+  assert.ok(site.includes('Cette formule demande un compte&nbsp;: c’est ce qui garde tes 5 visites.'));
+  assert.ok(site.includes("[n + ' visites', '1 par semaine', per]"), '« 5 visites · 1 par semaine · 16 € la visite »');
+  assert.ok(site.includes("' semaines de suite. '") && site.includes('Une semaine sautée est perdue.') && site.includes('Une semaine sautée se rattrape une fois.'));
+  assert.ok(!/sans (la )?barbe|hors barbe|pas la barbe/i.test(site.slice(site.indexOf("{ id: 'ab'"), site.indexOf("{ id: 'ab'") + 400)), 'the formule includes the beard upkeep');
   assert.ok(site.includes('Je choisirai plus tard'));
   // bought only signed in (the server takes the file from the session), and the code is typed on the page
   assert.ok(site.includes("if (PF && PF.pack) return !!(s.acct && s.acct.signedIn) && this.bkGuestOk(s.bk);"));

@@ -29,9 +29,9 @@ const nameStr = (min) => str({ min, max: 40, pattern: /^[^:/]*$/ });
 const slotSchema = obj({ holdId: opt(id()), staffId: str({ min: 1, max: 64 }), day: day(), start: minute() });
 const byTime = (a, b) => a.day.localeCompare(b.day) || a.start - b.start;
 
-export const ACCOUNT_NEEDED = 'Cette formule demande un compte : c’est ce qui garde tes 5 coupes.';
+export const ACCOUNT_NEEDED = 'Cette formule demande un compte : c’est ce qui garde tes 5 visites.';
 const PERSONAL = 'Cette formule est personnelle : elle ne se prend pas pour une autre personne. Pour ton enfant, choisis « Mon enfant ».';
-export const RELEASE_REASON = 'Formule non réglée : première coupe manquée';
+export const RELEASE_REASON = 'Formule non réglée : première visite manquée';
 
 /** The offer, or 404/409 in the client's words. */
 function offerFor(s, ctx, serviceId, staffSide) {
@@ -101,8 +101,8 @@ export function confirmFormule(s, ctx, f, appts, c, forFirst = '') {
   const v = apptVars(s, head, ctx.meta.linkFor);
   const sameChair = list.every((a) => a.staffId === head.staffId);
   const dates = list.map((a, i) => (i ? ddmm(a.day) : v.date) + (i && a.start === head.start ? '' : ' à ' + fmtTime(a.start)) + (sameChair ? '' : ' (' + ((s.staff.get(a.staffId) || {}).name || '') + ')')).join(', ');
-  const due = f.pay === 'salon' ? ' ' + fmtEur(f.price) + ' à régler à la 1re coupe.' : '';
-  const text = "L'Architecte : c'est noté {prenom} ! " + (forFirst ? 'Les ' + list.length + ' coupes de ' + forFirst : 'Tes ' + list.length + ' coupes') + (sameChair ? ' avec {barbier}' : '') + ' : ' + dates + '.' + due + ' Gérer : {lien}';
+  const due = f.pay === 'salon' ? ' ' + fmtEur(f.price) + ' à régler à la 1re visite.' : '';
+  const text = "L'Architecte : c'est noté {prenom} ! " + (forFirst ? 'Les ' + list.length + ' visites de ' + forFirst : 'Tes ' + list.length + ' visites') + (sameChair ? ' avec {barbier}' : '') + ' : ' + dates + '.' + due + ' Gérer : {lien}';
   if (s.settings.messages.confirmation && c.phone && c.sms !== false) queueMessage(s, ctx, { key: 'fconf_' + f.id, template: 'confirmation', text, to: c.phone, cid: c.id, apptId: head.id, vars: { ...v, prenom: c.first || v.prenom } });
   if (c.email) mailConfirmation(s, ctx, { ...head, status: 'booked', moves: 0 }, { to: c.email, first: c.first, link: ctx.meta.linkFor ? ctx.meta.linkFor(head) : '' });
 }
@@ -169,12 +169,12 @@ export const bookFormule = {
     const ids = c.created ? [] : fileIds(s, rootFile(s, c.id) || { id: c.id });
     const person = guest ? guest.cid : '';
     if (formulesOfFiles(s, ids).some((f) => running(s, f, today) && personOf(f) === person)) {
-      fail(409, 'has_formule', guest ? 'Une formule est déjà en cours pour ' + name + ' : ses coupes sont dans ton espace.' : staffSide ? 'Ce client a déjà une formule en cours.' : 'Tu as déjà une formule en cours : tes coupes sont dans ton espace.');
+      fail(409, 'has_formule', guest ? 'Une formule est déjà en cours pour ' + name + ' : ses visites sont dans ton espace.' : staffSide ? 'Ce client a déjà une formule en cours.' : 'Tu as déjà une formule en cours : tes visites sont dans ton espace.');
     }
     // a carnet already paid at the desk and not started (no date, no cut): its dates are fixed now, nothing more to pay
     const linked = new Set([...s.formules.values()].map((f) => f.packId).filter(Boolean));
     const paidPack = guest ? null : [...s.packs.values()].find((k) => ids.includes(k.clientId) && k.serviceId === offer.id && !k.voided && k.used < k.total && k.expires >= today && !linked.has(k.id)) || null;
-    if (paidPack && (!staffSide || paidPack.used > 0)) fail(409, 'has_formule', staffSide ? 'Ce client a déjà un carnet en cours : réserve ses coupes une à une.' : 'Tu as déjà un carnet en cours : réserve tes coupes une à une, il les paie.');
+    if (paidPack && (!staffSide || paidPack.used > 0)) fail(409, 'has_formule', staffSide ? 'Ce client a déjà une formule en cours : réserve ses visites une à une.' : 'Tu as déjà une formule en cours : réserve tes visites une à une, elle les paie.');
 
     // the dates: the first one, then one a week at most inside the formule's weeks
     const later = b.weeks.filter((w) => w.later).length;
@@ -262,10 +262,10 @@ export const addFormuleWeek = {
     if (!running(s, f, today)) fail(409, 'ended', 'Cette formule est terminée.');
     if (payState(s, f) === 'pending') fail(409, 'unpaid', 'Règle d’abord la formule : ses rendez-vous attendent le paiement.');
     const w = weeksOf(s, f, today).find((k) => x.day >= k.from && x.day <= k.to);
-    if (!w || w.state !== 'open') fail(409, 'weeks', !w ? 'Ta formule se termine le ' + dayLong(endOf(s, f)) + ' : choisis un jour avant.' : 'Une coupe par semaine : tu as déjà un rendez-vous cette semaine-là.');
+    if (!w || w.state !== 'open') fail(409, 'weeks', !w ? 'Ta formule se termine le ' + dayLong(endOf(s, f)) + ' : choisis un jour avant.' : 'Une visite par semaine : tu as déjà un rendez-vous cette semaine-là.');
     const pk = f.packId ? s.packs.get(f.packId) : null;
     const standing = f.apptIds.map((i) => s.appts.get(i)).filter((a) => a && (LIVE.has(a.status) || a.status === 'done'));
-    if (standing.length >= f.credits || (pk && pk.used + standing.filter((a) => LIVE.has(a.status)).length >= pk.total)) fail(409, 'full', 'Tes ' + f.credits + ' coupes ont déjà leur rendez-vous.');
+    if (standing.length >= f.credits || (pk && pk.used + standing.filter((a) => LIVE.has(a.status)).length >= pk.total)) fail(409, 'full', 'Tes ' + f.credits + ' visites ont déjà leur rendez-vous.');
     const services = snapshotServices(s, [f.coverId]);
     const dur = totalDur(services);
     if (s.closures.has(x.day)) fail(409, 'taken', 'Le salon a fermé ses réservations pour ce jour-là.');

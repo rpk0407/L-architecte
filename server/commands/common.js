@@ -50,7 +50,7 @@ export const serviceShape = {
   description: opt(str({ max: 300 })), includes: opt(arr(str({ min: 1, max: 60 }), { max: 10 })), tag: opt(str({ max: 30 })),
   // weekly: one cut a week from the first date, bought with its dates (domain/formule.js); missed: a week without a cut is
   // lost, or made up once in one more week
-  pack: opt(obj({ credits: int({ min: 2, max: 50 }), days: int({ min: 7, max: 730 }), serviceIds: opt(arr(id(), { max: 20 })), weekly: opt(bool()), missed: opt(oneOf(/** @type {const} */ (['lost', 'once']))) }))
+  pack: opt(obj({ credits: int({ min: 2, max: 50 }), days: int({ min: 7, max: 730 }), serviceIds: opt(arr(id(), { max: 20 })), withIds: opt(arr(id(), { max: 20 })), weekly: opt(bool()), missed: opt(oneOf(/** @type {const} */ (['lost', 'once']))) }))
 };
 export const productShape = {
   name: str({ min: 2, max: 60 }), price: money(500000), cost: opt(money(500000)), stock: opt(int({ min: -9999, max: 99999 })),

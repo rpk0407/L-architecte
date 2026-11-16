@@ -12,10 +12,18 @@ export type Booking = {
   shop: { name: string; address: string; phone: string; mapsUrl: string }; cancelled: { by: string; at: number } | null;
   /** a date of a carnet bought with its dates: « coupe 3 sur 5 », and what is still to pay (cents, 0 once paid) */
   formule?: Formule;
+  /** the salon's Google review page, given only once the visit is done */
+  reviewUrl?: string;
+  /** a friend's link to his own place in a group: nothing else opens with it */
+  guestLink?: boolean;
+  /** a booking of several people: everything for the organiser, « réservé par Karim » for a friend */
+  group?: Group;
 };
+export type GroupPerson = { first: string; self: boolean; organiser: boolean; day: string; start: number; status: string; staff: string; services: string[]; price: number; from: boolean; token: string; link: string };
+export type Group = { organiser: true; by: string; size: number; people: GroupPerson[]; total: number; share: { title: string; text: string } } | { organiser: false; by: string; size: number };
 export type Formule = { n: number; of: number; name: string; pay: 'paid' | 'online' | 'pending' | 'due'; due: number; end: string };
 /** « coupe 3 sur 5 » */
-export const serieWords = (f: { n: number; of: number }) => 'coupe ' + f.n + ' sur ' + f.of;
+export const serieWords = (f: { n: number; of: number }) => 'visite ' + f.n + ' sur ' + f.of;
 
 /** The pill of each status: its words and its tone (ok, warn, or none). */
 export const STATUS_WORDS: Record<Booking['status'], [string, string]> = {

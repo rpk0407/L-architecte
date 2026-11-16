@@ -10,7 +10,8 @@ import { membersOf, statusOf, periodAt, graceOf, abandoned, weekUse } from '../d
 import { rhythmOf, perWeekOf, missedOf } from '../../shared/membership-words.js';
 import { localParts, addDays } from '../../shared/dates.js';
 import { cardLine, saleLoyalty } from '../domain/loyalty.js';
-import { formuleOfAppt, rankOf, payState, paidOnline } from '../domain/formule.js';
+import { formuleOfAppt, rankOf, payState, paidOnline, packCover } from '../domain/formule.js';
+import { groupBrief } from '../domain/group.js';
 
 /** photo: the version of the person's photo (TEAM-02, /api/v1/staff/:id/photo?v=), null without one; photoSite: shown on the site */
 export function staffView(st, full = false) {
@@ -74,7 +75,7 @@ export function clientCard(s, c, caps, stats, now = Date.now()) {
     phone: caps.has('client.contact') ? fmtPhone(c.phone) : maskPhone(c.phone), hasPhone: !!c.phone, hasEmail: !!c.email,
     badges, visits: st ? st.visits : 0, lastDay: st ? st.lastDay : null, sinceLast: st ? st.sinceLast : null, cadence: st ? st.cadence : null,
     spend: st ? st.spend : 0, noShows: st ? st.noShows : 0, next: st ? st.next : null, overdue: st ? st.overdue : false, dueIn: st ? st.dueIn : null,
-    tech: c.tech || '', sms: c.sms, marketing: !!c.marketing, packs: packs.map((k) => ({ id: k.id, name: k.name, used: k.used, total: k.total, expires: k.expires, serviceIds: k.serviceIds || [] })), memberships, ...(loyalty ? { loyalty } : {})
+    tech: c.tech || '', sms: c.sms, marketing: !!c.marketing, packs: packs.map((k) => { const c = packCover(s, k); return { id: k.id, name: k.name, used: k.used, total: k.total, expires: k.expires, serviceIds: c.ids, withIds: c.withIds }; }), memberships, ...(loyalty ? { loyalty } : {})
   };
 }
 
@@ -130,7 +131,9 @@ export function apptView(s, a, caps, stats, now = Date.now()) {
     status: a.status, source: a.source, note: a.note || '', name: c ? nameOn(a, c) : a.name || 'Client',
     client: c ? clientCard(s, c, caps, stats, now) : null, deposit: a.deposit, guarantee: a.guarantee || null, saleId: a.saleId, createdAt: a.createdAt,
     statusAt: a.statusAt || {}, cancel: a.cancel, moves: a.moves || 0, demo: !!a.demo, legacy: !!a.legacy, paidOld: a.ext && a.ext.paid && !a.saleId ? a.ext.paid : 0,
-    ...(formuleBrief(s, a) ? { formule: formuleBrief(s, a) } : {})
+    ...(formuleBrief(s, a) ? { formule: formuleBrief(s, a) } : {}),
+    // « Groupe de Karim · 3 personnes »: a place booked with others on the site
+    ...(a.ext && a.ext.group && groupBrief(s, a) ? { group: groupBrief(s, a) } : {})
   };
 }
 

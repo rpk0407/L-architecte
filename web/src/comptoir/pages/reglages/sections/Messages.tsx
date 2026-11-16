@@ -73,7 +73,7 @@ export default function Messages({ s, data }: SectionProps) {
           <Field label="Heure du rappel de la veille"><select className="input select" value={M.reminderHour} onChange={(e) => m.setV({ ...M, reminderHour: Number(e.target.value) })}>{Array.from({ length: 14 }, (_, i) => i + 8).map((h) => <option key={h} value={h}>{h} h</option>)}</select></Field>
         </div>
         <Note icon="moon">{quietWords(M.quiet)} Les avis, les relances et les places libérées attendent le matin.</Note>
-        {!boot.providers.sms && boot.mode !== 'demo' ? <Note icon="info">Sans fournisseur SMS, rien n’est perdu : les messages aux clients arrivent sur l’écran Messages, à envoyer depuis le WhatsApp du salon (« Messages aux clients », ci-dessous). Les demandes d’avis et les relances, elles, attendent un fournisseur SMS.</Note> : null}
+        {!boot.providers.sms && boot.mode !== 'demo' ? <Note icon="info">Sans fournisseur SMS, rien n’est perdu : les messages aux clients arrivent sur l’écran Messages, à envoyer depuis le WhatsApp du salon (« Messages aux clients », en haut de cette page). Les demandes d’avis et les relances, elles, attendent un fournisseur SMS.</Note> : null}
       </Card>
       <Avis s={s} data={data} />
       <Card title="E-mails aux clients" icon="mail" aside={<span className={'badge ' + (mailer ? 'badge-ok' : boot.mode === 'demo' ? 'badge-info' : 'badge-warn')}>{mailer ? (mailer === 'smtp' ? 'Par la boîte du salon' : 'E-mail via ' + cap(mailer)) : boot.mode === 'demo' ? 'Démo · simulé' : 'Aucun fournisseur'}</span>}>
@@ -101,7 +101,7 @@ export default function Messages({ s, data }: SectionProps) {
       <Card title="Bons plans et STOP" guide="messages-stop" icon="shield">
         <p className="muted" style={{ fontSize: 13.5 }}>Les relances ne partent qu’aux clients qui ont coché « Les bons plans du salon par SMS » sur le site (ou dont la fiche le dit), avec la mention « {(M.stopSuffix || '').trim()} » à la fin. Un client qui répond STOP est retiré tout seul. Aucun SMS ne part vers un numéro hors des indicatifs autorisés{Array.isArray(M.countries) && M.countries.length ? ' (' + M.countries.join(', ') + ')' : ''}.</p>
         {hook.data?.url ? <Field label="Adresse des désinscriptions (webhook Brevo)" hint="Envoyée avec chaque SMS. À renseigner aussi dans les webhooks SMS de Brevo, pour les réponses STOP."><input className="input" readOnly value={hook.data.url} onFocus={(e) => e.currentTarget.select()} /></Field>
-          : hook.data && boot.mode !== 'demo' ? <Note tone="warn" icon="alert">Définis <code>CRON_SECRET</code> pour que les réponses STOP reviennent dans les fiches clients.</Note> : null}
+          : hook.data && boot.mode !== 'demo' ? <Note tone="warn" icon="alert">Les réponses STOP ne reviennent pas encore dans les fiches clients : il manque le planificateur (Mise en route, étape « Planificateur »).</Note> : null}
       </Card>
       <Card title="Les textes" guide="messages-textes" icon="edit">
         <p className="muted" style={{ fontSize: 13.5 }}>Les mots entre accolades sont remplacés pour chaque client. Un SMS fait 160 caractères ; un « ç », un « ê » ou un « ô » le fait passer à 70 (les apostrophes courbes sont corrigées automatiquement).</p>

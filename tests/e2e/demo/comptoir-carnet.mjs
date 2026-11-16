@@ -5,6 +5,7 @@ export const name = 'comptoir: the carnet sold with five dates, 80 € at the fi
 
 const T = 10000;
 const OUT = process.env.OFFRE_SHOTS || '';
+const SHOTS390 = process.env.RETOURS_SHOTS || '';
 
 export default async ({ h, page }) => {
   let at = 'start';
@@ -28,7 +29,7 @@ async function run(h, page, step) {
   await sheet.locator('#nc-f').fill('Walid');
   await sheet.locator('#nc-l').fill('Carnet');
   await sheet.locator('#nc-p').fill('0611000022');
-  await sheet.getByRole('switch', { name: /Carnet 5 coupes/ }).click();
+  await sheet.getByRole('switch', { name: /Formule Entretien 5 semaines/ }).click();
   await sheet.locator('.slot').first().waitFor({ timeout: T });
   await sheet.locator('.slot').first().click();
   const dates = sheet.locator('[data-guide="agenda-carnet-dates"]');
@@ -36,7 +37,7 @@ async function run(h, page, step) {
   if ((await dates.locator('.pick-r').count()) !== 4) throw new Error('not four other dates');
   await h.shot(page, 'comptoir-carnet-sheet');
   await sheet.getByRole('button', { name: 'Réserver les 5 dates' }).click();
-  await page.getByText(/Carnet 5 coupes : 5 dates réservées/).first().waitFor({ timeout: T });
+  await page.getByText(/Formule Entretien 5 semaines : 5 dates réservées/).first().waitFor({ timeout: T });
 
   step('five dates in the agenda, « coupe 1 sur 5 », nothing paid');
   const cl = (await call('/api/v1/clients?q=0611000022')).json.items[0];
@@ -49,7 +50,7 @@ async function run(h, page, step) {
   const d1 = (await call('/api/v1/appointments/' + mine[0].id)).json.appt;
   if (!d1.formule || d1.formule.n !== 1 || d1.formule.of !== 5 || d1.formule.pay !== 'due' || !d1.formule.sell) throw new Error('the first date does not say « coupe 1 sur 5 », to pay: ' + JSON.stringify(d1.formule));
   await page.goto(h.base + '/comptoir/agenda?rdv=' + mine[0].id);
-  await page.getByRole('dialog').getByText('Coupe 1 sur 5').first().waitFor({ timeout: T });
+  await page.getByRole('dialog').getByText('Visite 1 sur 5').first().waitFor({ timeout: T });
   await page.keyboard.press('Escape');
 
   step('first visit: the till asks for the 80 €');
@@ -59,8 +60,8 @@ async function run(h, page, step) {
   await h.loginOwner(small);
   await small.goto(h.base + '/comptoir/caisse?rdv=' + mine[0].id);
   await small.locator('.ticket').waitFor({ timeout: T });
-  await small.getByText('Coupe 1 sur 5').first().waitFor({ timeout: T });
-  await small.getByText(/le carnet s’encaisse sur ce ticket/).waitFor({ timeout: T });
+  await small.getByText('Visite 1 sur 5').first().waitFor({ timeout: T });
+  await small.getByText(/la formule s’encaisse sur ce ticket/).waitFor({ timeout: T });
   if ((await small.evaluate(() => document.scrollingElement.scrollWidth)) > 390) throw new Error('the ticket scrolls sideways on a phone');
   await h.shot(small, 'comptoir-carnet-caisse-390');
   if (OUT) { await small.waitForTimeout(600); await small.screenshot({ path: OUT + '/comptoir-carnet-caisse-390.png' }); }
@@ -86,14 +87,19 @@ async function run(h, page, step) {
   if (d2.formule.n !== 2 || d2.formule.pay !== 'paid' || d2.formule.sell) throw new Error('the second date: ' + JSON.stringify(d2.formule));
   await page.goto(h.base + '/comptoir/caisse?rdv=' + mine[1].id);
   await page.locator('.ticket').waitFor({ timeout: T });
-  await page.getByText(/Coupe 2 sur 5/).first().waitFor({ timeout: T });
+  await page.getByText(/Visite 2 sur 5/).first().waitFor({ timeout: T });
   await page.getByText('Couvert par le carnet').first().waitFor({ timeout: T });
+  // the beard upkeep done in the same visit is part of the formule: the line is added, it costs nothing and takes no credit
+  await page.getByRole('button', { name: 'Ajouter', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: /Entretien barbe/ }).first().click();
+  await page.getByText('Compris dans la formule').first().waitFor({ timeout: T });
   await h.shot(page, 'comptoir-carnet-caisse-2');
+  if (SHOTS390) { await page.setViewportSize({ width: 390, height: 844 }); await page.waitForTimeout(400); await page.screenshot({ path: SHOTS390 + '/1-caisse-formule-barbe-comprise.png' }); await page.setViewportSize({ width: 1440, height: 900 }); await page.waitForTimeout(300); }
   await page.getByRole('button', { name: /Valider l’encaissement · 0\s€/ }).click();
   await page.getByText('Encaissé').first().waitFor({ timeout: T });
   sales = (await call('/api/v1/sales?day=' + pulse.today)).json.items;
   const s2 = sales.find((x) => x.apptId === mine[1].id);
-  if (!s2 || s2.totals.due !== 0) throw new Error('second ticket: ' + JSON.stringify(s2 && s2.totals));
+  if (!s2 || s2.totals.due !== 0 || s2.lines.length !== 2 || s2.lines[1].net !== 0 || s2.lines[1].packId) throw new Error('second ticket: ' + JSON.stringify(s2 && [s2.totals, s2.lines]));
   packs = (await call('/api/v1/clients/' + cl.id)).json.packs;
   if (packs[0].used !== 2) throw new Error('the carnet is not 2 of 5: ' + JSON.stringify(packs));
   // the month counts the 80 € once, the day they were paid

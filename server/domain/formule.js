@@ -12,11 +12,26 @@ const LIVE = new Set(['pending', 'booked', 'arrived', 'in_chair']);
  * paid, {nombre} other dates freed; the last cut taken, « Reprendre 5 coupes » ({nombre}: the cuts of a new one).
  */
 export const FORMULE_TEXT = {
-  released: "L'Architecte : {prenom}, 1re coupe manquée et carnet non payé : tes {nombre} autres rendez-vous sont libérés. Reprendre : {lien}",
-  renew: "L'Architecte : {prenom}, ton carnet est fini. Reprendre {nombre} coupes : {lien}"
+  released: "L'Architecte : {prenom}, 1re visite manquée et formule non payée : tes {nombre} autres rendez-vous sont libérés. Reprendre : {lien}",
+  renew: "L'Architecte : {prenom}, ta formule est finie. Reprendre {nombre} semaines : {lien}"
 };
 /** a missed week is lost, or made up once in one more week */
 export const MISSED = /** @type {const} */ (['lost', 'once']);
+
+/**
+ * What a carnet pays for, read live: the services one credit covers (`ids`; empty: any service) and those included at
+ * 0 € in the same visit as a covered one (`withIds`, the beard upkeep of the « Formule Entretien »). A carnet already
+ * sold also gets what its service covers today, so a change of the offer never takes a right away from a holder.
+ * @param {any} s @param {any} pk a sold pack (s.packs) or the one a ticket is selling
+ */
+export function packCover(s, pk) {
+  const sv = pk && pk.serviceId ? s.services.get(pk.serviceId) : null;
+  const live = sv && sv.pack ? sv.pack : null;
+  const own = (pk && pk.serviceIds) || [];
+  const ids = own.length ? [...new Set([...own, ...((live && live.serviceIds) || [])])] : [];
+  const withIds = [...new Set([...((pk && pk.withIds) || []), ...((live && live.withIds) || [])])].filter((x) => !ids.includes(x));
+  return { ids, withIds };
+}
 
 /** Days a weekly carnet is good for: one week per cut, and one more when a missed week may be made up. */
 export const weeklyDays = (credits, missed) => credits * 7 + (missed === 'once' ? 7 : 0);
@@ -113,7 +128,7 @@ export function rankOf(s, apptId) {
   const i = list.findIndex((a) => a.id === apptId);
   return i < 0 ? null : { n: Math.min(i + 1, f.credits), of: f.credits };
 }
-export const rankWords = (r) => (r ? 'coupe ' + r.n + ' sur ' + r.of : '');
+export const rankWords = (r) => (r ? 'visite ' + r.n + ' sur ' + r.of : '');
 
 /**
  * Would these days hold one cut a week at most, inside its validity? `days`: the day of every date still standing after
@@ -128,7 +143,7 @@ export function weeksRefusal(f, days, fixedAnchor = '') {
   for (const d of sorted) {
     const k = Math.floor(diffDays(anchor, d) / 7);
     if (diffDays(anchor, d) < 0 || k >= weeks) return 'Ta formule tient sur ' + f.credits + ' semaines d’affilée : choisis un jour avant le ' + dayLong(addDays(anchor, f.days)) + '.';
-    if (seen.has(k)) return 'Une coupe par semaine : tu as déjà un rendez-vous cette semaine-là.';
+    if (seen.has(k)) return 'Une visite par semaine : tu as déjà un rendez-vous cette semaine-là.';
     seen.add(k);
   }
   return '';
