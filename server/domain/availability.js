@@ -54,6 +54,8 @@ export function shopIntervals(s, day) {
  * barber it names works the opening's hours (a longer Saturday before Christmas); on a day the salon is usually
  * closed, 'all' gives them to every barber whose template is empty that weekday. Anyone else keeps his own hours,
  * inside the opening's: on a usual day, 'all' only changes the salon's hours (an early close on the 24th).
+ * An opening worked « like » a weekday (a Monday before Christmas like a Tuesday) gives each barber it covers ('all',
+ * or those it names) his own hours of that weekday instead, break and early leave included, inside the opening's.
  */
 export function staffIntervals(s, staffId, day) {
   const st = s.staff.get(staffId);
@@ -62,7 +64,8 @@ export function staffIntervals(s, staffId, day) {
   let tpl = (st.schedule && st.schedule[wd]) || [];
   const op = openingOn(s, day);
   const named = !!op && Array.isArray(op.staff) && op.staff.includes(staffId);
-  if (op && (named || (!tpl.length && !Array.isArray(op.staff) && !(s.settings.hours[wd] || []).length))) tpl = op.intervals;
+  if (op && op.like != null && (named || !Array.isArray(op.staff))) tpl = (st.schedule && st.schedule[op.like]) || [];
+  else if (op && (named || (!tpl.length && !Array.isArray(op.staff) && !(s.settings.hours[wd] || []).length))) tpl = op.intervals;
   let iv = intersect(shopIntervals(s, day), tpl);
   for (const t of s.timeoff.values()) {
     if (t.staffId !== staffId || day < t.from || day > t.to || UNDECIDED.has(t.status)) continue;

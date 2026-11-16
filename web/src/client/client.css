@@ -181,3 +181,18 @@ button:disabled { opacity: .5; cursor: default; }
 .c-photo-cv.story { max-width: 260px; align-self: center; }
 .c-photo-acts { justify-content: flex-start; gap: 18px; }
 .c-photo-acts .c-link { min-height: 44px; display: inline-flex; align-items: center; }
+
+/* « Payer ma coupe »: what is owed today, the tip, the button */
+.c-paycut { display: flex; flex-direction: column; gap: 14px; }
+.c-paycut .c-amount { font-size: 56px; }
+.c-paylines { display: flex; flex-direction: column; gap: 8px; padding: 12px 0; border-top: 1px dashed var(--line2); border-bottom: 1px dashed var(--line2); }
+.c-paylines p { display: flex; justify-content: space-between; gap: 12px; font-size: 15.5px; }
+.c-paylines p.sub { font-size: 13.5px; color: var(--ink2); }
+.c-paylines s { margin-right: 8px; color: var(--ink3); font-weight: 400; }
+.c-tip { display: flex; flex-direction: column; gap: 10px; }
+.c-paychips { display: flex; flex-wrap: wrap; gap: 8px; }
+.c-paychips button { min-height: 48px; padding: 0 18px; border-radius: 999px; box-shadow: inset 0 0 0 1.5px var(--line2); font: 600 15px/1 var(--sans); }
+.c-paychips button[aria-pressed="true"] { background: var(--ink); color: var(--paper); box-shadow: none; }
+.c-tipother { display: flex; flex-direction: column; gap: 6px; font-size: 13.5px; color: var(--ink2); }
+.c-tipother input { min-height: 48px; padding: 0 14px; border-radius: 14px; box-shadow: inset 0 0 0 1.5px var(--line2); font: 600 17px/1 var(--sans); background: transparent; color: var(--ink); }
+.c-paycut.c-center { align-items: center; }

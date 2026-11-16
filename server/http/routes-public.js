@@ -108,7 +108,9 @@ function bookingView(r, a) {
     ...formuleLine(s, a),
     ...(r.guestLink ? { guestLink: true } : {}),
     ...groupLine(r, a),
-    // « Payer ma coupe »: what he owes today, or « payé » with his receipt (routes-selfpay.js)
+    // « Payer ma coupe »: what he owes today, or « payé » with his receipt (routes-selfpay.js); today: the page then
+    // follows the till by itself (seated, a product added, rung up)
+    ...(a.day === r.local.day ? { today: true } : {}),
     ...(payView(r, a) || {})
   };
 }

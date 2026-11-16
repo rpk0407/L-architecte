@@ -1,5 +1,6 @@
 // The client's pages, reached from an SMS or the site: my appointment, paying a deposit, my receipt, a gift card.
 // No account, no password: each link carries a signature the server checks.
+import { PayCut } from './pay';
 import { StrictMode, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { api } from '../lib/api';
@@ -16,7 +17,7 @@ import { Contact, EarlierOffer, readEarlier } from './contact';
 function App() {
   const parts = location.pathname.split('/').filter(Boolean);
   const q = new URLSearchParams(location.search);
-  if (parts[0] === 'r' && parts[1]) return <Manage token={parts[1]} back={q.get('paiement')} offer={readEarlier(q.get('plus-tot'))} moveNow={q.has('deplacer')} />;
+  if (parts[0] === 'r' && parts[1]) return <Manage token={parts[1]} back={q.get('paiement')} offer={readEarlier(q.get('plus-tot'))} moveNow={q.has('deplacer')} payNow={q.has('payer')} />;
   if (parts[0] === 'paiement' && parts[1] === 'merci') return <Thanks ok={q.get('paiement') !== 'annule'} member={q.get('abonnement')} />;
   if (parts[0] === 'paiement' && parts[1]) return <Checkout id={parts[1]} />;
   if (parts[0] === 'recu' && parts[1]) return <Receipt token={parts[1]} />;
@@ -48,7 +49,7 @@ function Spinner() { return <div className="c-card c-center" aria-busy="true"><s
 
 /* ---------------- my appointment ---------------- */
 
-function Manage({ token, back, offer, moveNow }: { token: string; back: string | null; offer: { day: string; start: number } | null; moveNow: boolean }) {
+function Manage({ token, back, offer, moveNow, payNow }: { token: string; back: string | null; offer: { day: string; start: number } | null; moveNow: boolean; payNow: boolean }) {
   const [b, setB] = useState<Booking | null>(null);
   const [slot, setSlot] = useState(offer);
   const [err, setErr] = useState('');
@@ -56,7 +57,7 @@ function Manage({ token, back, offer, moveNow }: { token: string; back: string |
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<{ tone: string; text: string } | null>(back === 'ok' ? { tone: 'ok', text: 'Paiement reçu. On confirme ton rendez-vous…' } : back === 'annule' ? { tone: 'warn', text: 'Paiement annulé. Ton créneau reste gardé quelques minutes : tu peux réessayer.' } : null);
   const load = () => api.get<Booking>('/api/public/bookings/' + encodeURIComponent(token)).then(setB).catch((e) => setErr(e.message));
-  useEffect(() => { load(); if (back || offer || moveNow) history.replaceState(null, '', location.pathname); }, []);
+  useEffect(() => { load(); if (back || offer || moveNow || payNow) history.replaceState(null, '', location.pathname); }, []);
   // « Déplacer » from the list of /mon-rendez-vous (?deplacer): the move opens at once when it is still allowed
   useEffect(() => { if (moveNow && b && b.canChange && mode === '') setMode('move'); }, [b && b.code]);
   // after paying, the bank's confirmation can take a few seconds to reach the salon
@@ -65,6 +66,27 @@ function Manage({ token, back, offer, moveNow }: { token: string; back: string |
     const t = setTimeout(load, 2000);
     return () => clearTimeout(t);
   }, [b]);
+  // « Payer ma coupe »: back from the payment page, the salon's confirmation can take a few seconds; and while he is
+  // at the salon the page follows the till (the barber seats him, adds a product, rings him up) without a reload
+  const settled = b?.pay?.state === 'paid';
+  useEffect(() => {
+    if (!b || !b.pay) return;
+    if (back === 'annule') { setNote({ tone: 'warn', text: 'Paiement annulé : rien n’est débité. Tu peux réessayer, ou régler au salon.' }); return; }
+    if (back !== 'ok') return;
+    if (settled || b.pay.refunded) { setNote(null); return; }
+    setNote({ tone: 'ok', text: 'Paiement reçu. Un instant, le salon l’enregistre…' });
+    const t = setTimeout(load, 2000);
+    return () => clearTimeout(t);
+  }, [b]);
+  const here = !!b && !!b.today && ['booked', 'arrived', 'in_chair'].includes(b.status) && !settled;
+  useEffect(() => {
+    if (!here) return;
+    const t = setInterval(() => { if (document.visibilityState === 'visible') load(); }, 8000);
+    return () => clearInterval(t);
+  }, [here]);
+  // the payment link (?payer) opens on the amount
+  const due = b?.pay?.state === 'due';
+  useEffect(() => { if (payNow && due) document.getElementById('payer')?.scrollIntoView({ block: 'start' }); }, [due]);
   if (err) return <Shell><Lost msg={err} /></Shell>;
   if (!b) return <Shell><Spinner /></Shell>;
 
@@ -104,6 +126,8 @@ function Manage({ token, back, offer, moveNow }: { token: string; back: string |
         {fo ? <p className="c-dep" data-guide="r.carnet">{fo.pay === 'paid' ? 'Comprise dans ta formule : rien à payer pour la visite.' : fo.pay === 'online' ? 'Formule payée en ligne (' + eur(b.deposit?.paid || 0) + ') : rien à payer pour la visite.' : fo.pay === 'pending' ? 'Formule de ' + eur(fo.due) + ' à régler pour confirmer tes rendez-vous.' : 'Formule de ' + eur(fo.due) + ' à régler au salon, à ta première visite.'}{fo.end ? ' Tes visites se prennent jusqu’au ' + dates.dayLong(fo.end) + '.' : ''}</p> : b.deposit ? <p className="c-dep">{b.deposit.paid ? 'Acompte de ' + eur(b.deposit.paid, { decimals: b.deposit.paid % 100 !== 0 }) + ' payé, déduit au salon.' : 'Acompte de ' + eur(b.deposit.amount, { decimals: b.deposit.amount % 100 !== 0 }) + ' à régler pour confirmer.'}</p> : null}
         <p className="c-addr">{b.shop.address}</p>
       </section>
+
+      {b.pay && mode === '' ? <PayCut p={b.pay} token={token} staff={b.staff?.name || ''} onReload={load} onNote={setNote} /> : null}
 
       {b.group && mode === '' ? <GroupCard g={b.group} /> : null}
 

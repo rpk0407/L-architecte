@@ -138,7 +138,7 @@ export function presetPlan(s, P, o) {
 
   // the days the salon closes and the ones it opens exceptionally: posted once, never for a day already past
   const closures = (P.closures || []).map((c) => ({ from: c.from, to: c.to, label: c.label, status: c.to < o.today ? 'past' : st.closures.some((x) => x.from <= c.from && x.to >= c.to) ? 'exists' : 'create' }));
-  const openings = (P.openings || []).map((x) => ({ day: x.day, intervals: x.intervals.map(([a, b]) => [a, b]), label: x.label, staff: x.staff || 'all', status: x.day < o.today ? 'past' : (st.openings || []).some((y) => y.day === x.day) ? 'exists' : 'create' }));
+  const openings = (P.openings || []).map((x) => ({ day: x.day, intervals: x.intervals.map(([a, b]) => [a, b]), label: x.label, staff: x.staff || 'all', ...(x.like != null ? { like: x.like } : {}), status: x.day < o.today ? 'past' : (st.openings || []).some((y) => y.day === x.day) ? 'exists' : 'create' }));
   const closed = (d) => st.closures.some((c) => d >= c.from && d <= c.to) || closures.some((c) => c.status === 'create' && d >= c.from && d <= c.to);
 
   // the apprentice's school weeks: his CFA days from today to the end of the school year (the summer belongs to the next
@@ -242,7 +242,7 @@ export async function applyPreset(engine, P, input, base) {
       if (rules.length) { patch.booking = Object.fromEntries(rules.map((r) => [r.key, r.to])); done.rules = rules.length; }
       // an exceptional opening: the whole list goes in one patch (settings/hours.js), the owner's own kept as they are
       const opens = parts.has('openings') ? plan.openings.filter((x) => x.status === 'create') : [];
-      if (opens.length) { patch.openings = [...(s.settings.openings || []), ...opens.map((x) => ({ day: x.day, intervals: x.intervals, label: x.label, staff: x.staff }))]; done.openings = opens.length; }
+      if (opens.length) { patch.openings = [...(s.settings.openings || []), ...opens.map((x) => ({ day: x.day, intervals: x.intervals, label: x.label, staff: x.staff, ...(x.like != null ? { like: x.like } : {}) }))]; done.openings = opens.length; }
       if (Object.keys(patch).length) step(updateSettings, patch, base);
       if (parts.has('closures')) for (const c of plan.closures) if (c.status === 'create') { step(addClosure, { from: c.from, to: c.to, label: c.label }, base); done.closures++; }
 

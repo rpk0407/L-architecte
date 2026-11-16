@@ -23,7 +23,7 @@ export type PresetPlan = {
   count: { hours: number; rules: number; closures?: number; openings?: number; services: number; updates?: number; team: number; schedules?: number; absences: number; cfa?: number; photos: number };
   hours: { to: Week; now: Week; status: Status; was?: boolean };
   closures?: { from: string; to: string; label: string; status: 'create' | 'exists' | 'past' }[];
-  openings?: { day: string; intervals: Iv; label: string; status: 'create' | 'exists' | 'past' }[];
+  openings?: { day: string; intervals: Iv; label: string; like?: number; status: 'create' | 'exists' | 'past' }[];
   // the apprentice's CFA days of the school weeks, one absence each, and the holidays he works his full week
   school?: { staff: string; reason: string; zone: string; academie: string; read: string; year: string | null; unconfirmed: boolean; todo: number; from: string | null; until: string | null; days: { day: string; startMin?: number; status: 'create' | 'exists' }[]; holidays: { name: string; from: string; to: string }[] } | null;
   stranded?: { count: number; by: { name: string; count: number }[] };
@@ -103,7 +103,7 @@ export default function Preset() {
     <section className="card col mr-preset" style={{ gap: 12 }} data-guide="mer-preset" data-todo={p.todo}>
       <div className="card-h"><h2><Icon name="sparkle" size={16} />Le salon {p.name}, en un geste</h2><span className={'badge' + (done ? ' badge-ok' : ' badge-accent')}>{done ? 'en place' : plural(p.todo, 'ligne') + (onlyUpdates ? ' à mettre à jour' : ' à créer')}</span></div>
       <p className="muted" style={{ fontSize: 13.5 }}>
-        {done ? 'L’équipe, la carte, les horaires et les règles de l’ancien site sont en place. ' : 'L’équipe et ses vrais horaires, la carte et ses prix, les horaires du salon et ses règles de réservation, tels qu’ils sont sur l’ancien site. Rien n’est créé avant que tu confirmes ; ce qui existe déjà n’est jamais modifié. '}
+        {done ? 'L’équipe et ses horaires, la carte, les horaires du salon, ses fermetures et ses règles sont en place. ' : 'L’équipe et ses vrais horaires, la carte et ses prix, les horaires du salon, ses jours de fermeture et ses règles de réservation. Rien n’est écrit avant que tu confirmes ; ce que tu as réglé toi-même n’est jamais modifié. '}
         <span className="faint">{p.source}.</span>
       </p>
       {detail ? (
@@ -153,7 +153,7 @@ export default function Preset() {
             <div className="mr-pre-b" data-part="days">
               <p className="section-k">Fermetures et ouvertures exceptionnelles</p>
               <ul className="list">
-                {[...closings.map((x) => ({ at: x.from, k: 'c' + x.from, b: 'Fermé ' + span(x), small: x.label, status: x.status })), ...opens.map((x) => ({ at: x.day, k: 'o' + x.day, b: 'Ouvert ' + dates.dayLong(x.day), small: ivText(x.intervals) + ' · toute l’équipe', status: x.status }))]
+                {[...closings.map((x) => ({ at: x.from, k: 'c' + x.from, b: 'Fermé ' + span(x), small: x.label, status: x.status })), ...opens.map((x) => ({ at: x.day, k: 'o' + x.day, b: 'Ouvert ' + dates.dayLong(x.day), small: ivText(x.intervals) + (x.like != null ? ' · chacun à ses horaires du ' + dates.DAYS_FR[x.like] : ' · toute l’équipe'), status: x.status }))]
                   .sort((a, b) => (a.at < b.at ? -1 : 1)).map((x) => <li key={x.k} className="li"><span className="li-main"><b>{x.b}</b><small>{x.small}</small></span><Tag s={x.status} /></li>)}
               </ul>
             </div>

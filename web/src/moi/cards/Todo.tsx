@@ -22,6 +22,7 @@ const money = (c: number) => eur(c, { decimals: c % 100 !== 0 });
 /** The sentence under each title, from the item's facts. */
 export function todoText(x: TodoItem): string {
   const k = x.id.split('_')[0];
+  if (k === 'pay') return money(x.amount || 0) + ' pour ta coupe d’aujourd’hui : carte, Apple Pay ou Google Pay, depuis ton téléphone. Tu peux aussi régler au salon.';
   if (k === 'dep' && /^Carnet/.test(x.title)) return money(x.amount || 0) + ' à régler en ligne pour confirmer tes rendez-vous, dont le premier le ' + dayWords(x.day || '', { weekday: true }) + ' à ' + time(x.start || 0) + '.';
   if (x.id.startsWith('fo_due_')) return money(x.amount || 0) + ' à régler au salon, à ta première coupe. Les suivantes sont déjà payées.';
   if (x.id.startsWith('fo_wk_')) return 'Du ' + dayWords(x.from || '') + ' au ' + dayWords(x.until || '') + ' : une coupe par semaine, celle-ci n’a pas encore son rendez-vous.';

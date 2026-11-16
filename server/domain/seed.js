@@ -252,6 +252,8 @@ export async function buildDemoJournal(nowReal, opt = {}) {
   await eng.run(setCredentials, { id: desk.id, pinHash: hashSecretSync(DEMO.pins['Inès'], { light: true }) }, base);
   // barbers may text their own regulars in the demo (off in production)
   await eng.run(updateSettings, { team: { barberRebook: true } }, base);
+  // « Payer ma coupe » is on in the demo, on the test payment page (off in production until the owner turns it on)
+  await eng.run(updateSettings, { payments: { selfPay: true } }, base);
   // the client space is open in the demo (off in production until the SMS route is tested, AC-01)
   await eng.run(updateSettings, { accounts: { enabled: true } }, base);
   const slugId = {};

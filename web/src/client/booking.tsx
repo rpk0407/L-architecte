@@ -1,5 +1,6 @@
 // A booking's shared bits, for the /r/ page (web/src/client/main.tsx) and the client space (/moi): the words of each
 // status, the .ics file for the phone's calendar, and moving to another slot through the booking's signed /r/ token.
+import type { PayCutState } from './pay';
 import { useEffect, useRef, useState } from 'react';
 import { api, qs, uuid } from '../lib/api';
 import { dates, time } from '../lib/format';
@@ -18,6 +19,8 @@ export type Booking = {
   guestLink?: boolean;
   /** a booking of several people: everything for the organiser, « réservé par Karim » for a friend */
   group?: Group;
+  /** « Payer ma coupe »: what he owes today at the salon, or « payé » (pay.tsx); today: the visit is today */
+  pay?: PayCutState; today?: boolean;
 };
 export type GroupPerson = { first: string; self: boolean; organiser: boolean; day: string; start: number; status: string; staff: string; services: string[]; price: number; from: boolean; token: string; link: string };
 export type Group = { organiser: true; by: string; size: number; people: GroupPerson[]; total: number; share: { title: string; text: string } } | { organiser: false; by: string; size: number };

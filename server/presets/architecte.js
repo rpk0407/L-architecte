@@ -137,13 +137,13 @@ export const ARCHITECTE = {
   ],
 
   /**
-   * The two Mondays of the holidays the salon opens. The owner gave neither the hours nor who works: an opening has one
-   * set of hours for everyone it gives a day to (domain/availability.js), so these are a normal day's, 9 h 30 to the last
-   * cut at 17 h 30, for the whole team, and the notes tell him what is his to set.
+   * The two Mondays of the Christmas holidays the salon opens, worked like a normal day (the owner, 16 November 2026):
+   * the salon's usual hours, and each barber his Tuesday hours (`like: 2`: Frank 9 h – 16 h 30, JKut, Esteban and Aland
+   * 9 h 30 – 17 h 30 with their lunch break, Le Soldat 9 h 30 – 15 h). Both are in the zone B holidays: Aland is there.
    */
   openings: [
-    { day: '2026-12-21', intervals: span(570, 1050 + CUT), label: 'Ouverture exceptionnelle', staff: /** @type {'all'} */ ('all') },
-    { day: '2026-12-28', intervals: span(570, 1050 + CUT), label: 'Ouverture exceptionnelle', staff: /** @type {'all'} */ ('all') }
+    { day: '2026-12-21', intervals: span(540, 1050 + CUT), label: 'Ouverture exceptionnelle', staff: /** @type {'all'} */ ('all'), like: 2 },
+    { day: '2026-12-28', intervals: span(540, 1050 + CUT), label: 'Ouverture exceptionnelle', staff: /** @type {'all'} */ ('all'), like: 2 }
   ],
 
   /** What the owner should know before he confirms: what looks wrong on the old site, and what the Comptoir cannot guess. */
@@ -152,7 +152,6 @@ export const ARCHITECTE = {
     'Frank : dernière coupe à 16 h 30, et à 13 h le mercredi, soit 30 minutes plus tard que sur l’ancien site. Si 16 h 30 et 13 h sont tes heures de départ, raccourcis ta semaine dans Équipe.',
     'Le salon ouvre du mardi au samedi de 9 h à 18 h, au lieu de 8 h 30 – 18 h 30 sur l’ancien site : ce sont les heures que l’équipe travaille vraiment.',
     'Aland est en alternance. Sa semaine est celle des vacances scolaires (mardi au samedi). Les semaines d’école, ses absences « CFA » sont posées une par une : le mercredi à partir de 12 h et le jeudi toute la journée, jusqu’à la fin de l’année scolaire, hors vacances de la zone B. Tu les vois dans Équipe, sur sa fiche. Un jeudi férié hors vacances (Ascension, 6 mai 2027) est posé comme les autres : retire l’absence s’il travaille ce jour-là. À la rentrée, reviens ici pour poser l’année suivante.',
-    'Lundis 21 et 28 décembre : le salon ouvre de 9 h 30 à 18 h (dernière coupe à 17 h 30) et toute l’équipe est proposée toute la journée, sans pause. À régler par toi : qui travaille ces deux lundis (Réglages › Horaires, Ouvertures exceptionnelles : supprime l’ouverture et recrée-la avec les barbiers présents) et, pour chacun, sa pause ou son départ plus tôt (Équipe, sa fiche, une absence de quelques heures).',
     'Six prestations ont sur l’ancien site un « prix par barbier » qui contredit leur titre (Cover barbe et Entretien barbe : 20 € au lieu de 15 € ; Transformation, Décoloration, Coloration et Silver : 25 €). Les réservations ont toujours été au prix du titre : c’est lui qui est repris.',
     '« Coupe et coloration 35 € » est en brouillon sur l’ancien site mais a encore un rendez-vous à venir : elle est reprise « au salon seulement », jamais proposée sur le site.',
     'L’« Abonnement 80 € » de l’ancien site devient la Formule Entretien 5 semaines, vendue sur le site (avec un compte client) et au salon : 5 visites, une par semaine, avec l’entretien de la barbe. Un rendez-vous déjà pris sous ce nom est une coupe classique : à la caisse, vends la formule et paie la visite avec.',

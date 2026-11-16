@@ -27,7 +27,8 @@ export function holidaysAhead(today: string) {
   return [...holidays(y), ...holidays(y + 1)].filter((h) => h.day >= today && h.day <= end);
 }
 
-type Opening = { id?: string; day: string; intervals: [number, number][]; label: string; staff: 'all' | string[] };
+// like: worked « comme un mardi » (a weekday): each barber it covers keeps his own hours of that weekday (the salon's preset sets it)
+type Opening = { id?: string; day: string; intervals: [number, number][]; label: string; staff: 'all' | string[]; like?: number };
 const ivText = (iv: [number, number][]) => iv.map(([a, b]) => time(a) + ' – ' + time(b)).join(' et ');
 
 /** The last two Mondays of this December still to come: 'ouverts exceptionnellement les lundis 21 & 28 décembre'. */
@@ -102,7 +103,7 @@ export default function Horaires({ s }: SectionProps) {
   };
   const names = (ids: string[]) => ids.map((id) => staffById.get(id)?.name).filter(Boolean).join(', ') || 'Personne';
   // as availability.js does it: on a usual day the team keeps its hours, those named do the opening's
-  const who = (o: Opening) => usualOn(o.day).length
+  const who = (o: Opening) => o.like != null ? (o.staff === 'all' ? 'chacun' : names(o.staff)) + ' à ses horaires du ' + dates.DAYS_FR[o.like] : usualOn(o.day).length
     ? (o.staff === 'all' ? 'chacun à ses horaires' : names(o.staff) + ' sur ces horaires, les autres aux leurs')
     : (o.staff === 'all' ? 'Toute l’équipe' : names(o.staff));
   return (

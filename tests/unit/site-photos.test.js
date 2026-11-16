@@ -58,7 +58,7 @@ test('the portraits fit what setPhoto takes: WebP, at most 24 KB, one per person
   assert.equal(await presetPhoto(undefined), '');
 });
 
-test('applied: each one has his portrait in the Comptoir, shown on the site; Aland (not online) is not on the site', async () => {
+test('applied: each one has his portrait in the Comptoir, shown on the site; someone taken off the site is not on it', async () => {
   const { rt, b, s, byName, owner } = await fresh();
   assert.equal(s().staffPhotos.size, 5);
   for (const st of [owner(), byName('JKut'), byName('Le Soldat'), byName('Esteban'), byName('Aland')]) {
@@ -75,7 +75,7 @@ test('applied: each one has his portrait in the Comptoir, shown on the site; Ala
 
   // the site: the address of each bookable barber's photo, under its version; nothing else about it
   const site = await pub(rt);
-  assert.deepEqual(site.barbers.map((x) => x.name), ['Frank R.', 'JKut', 'Le Soldat', 'Esteban']);
+  assert.deepEqual(site.barbers.map((x) => x.name), ['Frank R.', 'JKut', 'Le Soldat', 'Esteban', 'Aland']);
   for (const x of site.barbers) {
     const st = s().staff.get(x.id);
     assert.equal(x.photo, '/api/public/barbers/' + st.id + '/photo?v=' + st.photoV, x.name);
@@ -92,7 +92,10 @@ test('applied: each one has his portrait in the Comptoir, shown on the site; Ala
   const raw = Buffer.from(await (await handle(new Request(ORIGIN + site.barbers[1].photo), { runtime: rt })).arrayBuffer());
   assert.equal(raw.toString('latin1', 8, 12), 'WEBP');
   assert.equal('data:image/webp;base64,' + raw.toString('base64'), s().staffPhotos.get(byName('JKut').id).data, 'the very bytes, nothing added');
-  // another version, someone unknown, Aland (not online), the owner's own route: 404
+  // another version, someone unknown, Aland once the owner takes him off the site, the owner's own route: 404
+  assert.equal((await browser(rt).get('/api/public/barbers/' + byName('Aland').id + '/photo?v=' + byName('Aland').photoV)).status, 200, 'online since his hours are known');
+  assert.equal((await b.patch('/api/v1/staff/' + byName('Aland').id, { bookable: false })).status, 200);
+  assert.deepEqual((await pub(rt)).barbers.map((x) => x.name), ['Frank R.', 'JKut', 'Le Soldat', 'Esteban']);
   const jk = byName('JKut');
   assert.equal((await browser(rt).get('/api/public/barbers/' + jk.id + '/photo?v=1')).status, 404);
   assert.equal((await browser(rt).get('/api/public/barbers/st_nobody/photo')).status, 404);
@@ -148,7 +151,7 @@ test('« Photo visible sur le site »: a barber hides his own in his space, the 
   // the owner, for a colleague and for himself
   assert.equal((await b.post('/api/v1/staff/' + ls.id + '/photo/site', { on: false })).status, 200);
   assert.equal((await b.post('/api/v1/staff/' + owner().id + '/photo/site', { on: false })).status, 200);
-  assert.deepEqual((await pub(rt)).barbers.filter((x) => x.photo).map((x) => x.name), ['JKut', 'Esteban']);
+  assert.deepEqual((await pub(rt)).barbers.filter((x) => x.photo).map((x) => x.name), ['JKut', 'Esteban', 'Aland']);
   // nothing written when nothing changes
   const n = rt.engine.journal.length;
   assert.equal((await b.post('/api/v1/staff/' + ls.id + '/photo/site', { on: false })).status, 200);

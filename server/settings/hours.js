@@ -1,6 +1,6 @@
 // @ts-check
 // Horaires: the shop's usual week, the days it is closed, and the days it opens when it usually doesn't.
-import { week, arr, obj, opt, str, day, id, intervals, either, oneOf, InvalidInput } from '../lib/validate.js';
+import { week, arr, obj, opt, str, int, day, id, intervals, either, oneOf, InvalidInput } from '../lib/validate.js';
 import { fmtTime, DAYS_FR } from '../../shared/dates.js';
 
 export default /** @type {const} */ ({
@@ -18,11 +18,17 @@ export const closures = /** @type {const} */ ({
   schema: null
 });
 
-/** @typedef {{ id: string, day: string, intervals: [number, number][], label: string, staff: 'all' | string[] }} Opening */
+/**
+ * like: « comme un mardi » (a weekday, 0 = Sunday): that day each barber the opening covers works the hours of his own
+ * week for that weekday (his start, his lunch break, his early leave), inside the opening's hours, instead of all
+ * working the opening's (domain/availability.js). The two Mondays before Christmas are worked like a Tuesday.
+ * @typedef {{ id: string, day: string, intervals: [number, number][], label: string, staff: 'all' | string[], like?: number }} Opening
+ */
 
 const item = obj({
   id: opt(id()), day: day(), intervals: intervals(), label: opt(str({ max: 60 })),
-  staff: opt(either([oneOf(/** @type {const} */ (['all'])), arr(id(), { min: 1, max: 20 })]))
+  staff: opt(either([oneOf(/** @type {const} */ (['all'])), arr(id(), { min: 1, max: 20 })])),
+  like: opt(int({ min: 0, max: 6 }))
 });
 /**
  * The whole list in one patch (PATCH /api/v1/settings { openings }): replacing it is idempotent, and a closure on
@@ -44,7 +50,7 @@ const openingsSchema = {
         if (j && a < iv[j - 1][1]) throw new InvalidInput(at, 'des plages se chevauchent');
       });
       if (out.some((y) => y.day === o.day)) throw new InvalidInput(at, 'une seule ouverture par jour');
-      out.push({ id: o.id || 'op-' + o.day, day: o.day, intervals: /** @type {[number, number][]} */ (iv.map(([a, b]) => [a, b])), label: o.label || 'Ouverture exceptionnelle', staff: o.staff || 'all' });
+      out.push({ id: o.id || 'op-' + o.day, day: o.day, intervals: /** @type {[number, number][]} */ (iv.map(([a, b]) => [a, b])), label: o.label || 'Ouverture exceptionnelle', staff: o.staff || 'all', ...(o.like != null ? { like: o.like } : {}) });
     });
     return out.sort((a, b) => (a.day < b.day ? -1 : 1));
   }
