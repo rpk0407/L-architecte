@@ -571,3 +571,20 @@ test('a sent mail’s calendar file leaves the memory, the journal still verifie
   assert.equal(file.status, 200, JSON.stringify(file.json));
   assert.deepEqual(file.json.messages.map((x) => [x.template, x.channel]), [['confirmation', 'email']]);
 });
+
+test('« pas de SMS de confirmation quand l’e-mail part »: the e-mail is the confirmation, a client without an address still gets the SMS', async () => {
+  const t = await salon();
+  await t.engine.run(updateSettings, { messages: { confirmationEmailFirst: true } }, t.asOwner());
+  const r = await bookKarim(t);
+  const M = t.engine.state.messages;
+  assert.ok(M.get('msg_mconf_' + r.id + '_0'), 'the e-mail leaves');
+  assert.equal(M.get('msg_conf_' + r.id + '_0'), undefined, 'no confirmation SMS beside it');
+  // no address: the SMS, as before
+  const n = await bookKarim(t, { email: '', phone: '0611223355', first: 'nadir', start: 660 });
+  assert.equal(M.get('msg_mconf_' + n.id + '_0'), undefined);
+  assert.ok(M.get('msg_conf_' + n.id + '_0'), 'the SMS confirms a client who gave no e-mail');
+  // e-mails switched off: everyone gets the SMS again
+  await t.engine.run(updateSettings, { messages: { email: false } }, t.asOwner());
+  const k = await bookKarim(t, { phone: '0611223366', first: 'kamel', email: 'kamel@exemple.fr', start: 720 });
+  assert.ok(M.get('msg_conf_' + k.id + '_0'));
+});

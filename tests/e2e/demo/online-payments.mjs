@@ -57,7 +57,7 @@ export default async ({ h, page }) => {
   await events.waitFor({ timeout: 8000 });
   const list = await events.inputValue();
   for (const e of ['checkout.session.completed', 'charge.refunded', 'charge.dispute.created', 'charge.dispute.closed', 'payout.paid']) if (!list.includes(e)) throw new Error('event missing in Réglages: ' + e);
-  if (!(await page.getByLabel('Adresse du webhook').inputValue()).endsWith('/api/pay/stripe/webhook')) throw new Error('webhook address');
+  if (!(await page.getByLabel('Adresse à coller chez Stripe').inputValue()).endsWith('/api/pay/stripe/webhook')) throw new Error('webhook address');
   await page.getByRole('button', { name: 'Voir les paiements et virements' }).click();
   await page.getByRole('dialog', { name: 'Paiements en ligne' }).waitFor({ timeout: 8000 });
 

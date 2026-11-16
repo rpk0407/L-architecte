@@ -49,12 +49,15 @@ export function onlineSlot(s, ctx, q) {
 export function confirmText(s, ctx, a, clientPhone, first, typed, extra) {
   // its own channel: a client who wants no SMS still gets the file for their agenda;
   // a booking waiting for its deposit gets it once paid (commands/payments.js), never before
+  let mailed = false;
   if (a.status !== 'pending') {
     const c = a.clientId ? s.clients.get(a.clientId) : null;
     const to = typed && typed.to ? typed : { to: (c && !c.erased && c.email) || '', first: (c && c.first) || first || '' };
-    mailConfirmation(s, ctx, a, { ...to, link: ctx.meta.linkFor ? ctx.meta.linkFor(a) : '' });
+    mailed = !!mailConfirmation(s, ctx, a, { ...to, link: ctx.meta.linkFor ? ctx.meta.linkFor(a) : '' });
   }
   if (!s.settings.messages.confirmation || !a.sms || !clientPhone) return;
+  // « Confirmation par e-mail d'abord »: the e-mail just queued is the confirmation, the SMS is kept for the reminder
+  if (mailed && s.settings.messages.confirmationEmailFirst) return;
   const vars = apptVars(s, a, ctx.meta.linkFor);
   if (first && !vars.prenom) vars.prenom = first;
   if (extra) Object.assign(vars, extra);

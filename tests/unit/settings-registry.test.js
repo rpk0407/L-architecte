@@ -83,6 +83,7 @@ const BEFORE = () => {
       email: true,
       // added since: the reminder also by e-mail, off until the owner decides
       reminderEmail: false,
+      confirmationEmailFirst: false,
       // MSG-02: WhatsApp off until the owner maps an approved template
       whatsapp: { enabled: false, templates: {} }
     },

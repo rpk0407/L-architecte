@@ -103,7 +103,7 @@ export default async ({ browser, h, page }) => {
   if (boot.settings.shop.cgvVersion !== boot.today) throw new Error('the CGV version was not dated today: ' + boot.settings.shop.cgvVersion);
   expect(await read(browser, h, '/cgv'), 'Annulation gratuite jusqu’à 24 h avant', '/cgv after the change');
   await page.goto(h.base + '/comptoir/reglages/paiements');
-  await page.getByText('Paiement en ligne non branché : aucun acompte n’est demandé et le QR est désactivé. Branche Stripe pour les activer.').waitFor({ timeout: 10000 });
+  await page.getByText('Pas encore branché : aucun acompte n’est demandé en ligne et le QR de la caisse est éteint. Les trois étapes ci-dessous le mettent en route.').waitFor({ timeout: 10000 });
   if (await page.locator('.badge', { hasText: 'Simulé' }).count()) throw new Error('Paiements still says « Simulé » in production');
   ok();
 
