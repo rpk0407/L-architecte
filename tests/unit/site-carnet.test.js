@@ -33,13 +33,45 @@ test('the carnet: its own words, an account before anything is bought, never for
 
 test('a person added to a booking chooses his own service: nothing preselected, the steps name him, each one is changed alone', () => {
   // the added person starts from an empty place (no service, barber nor time carried over)
-  assert.match(site, /this\.setState\(\{ bk: Object\.assign\(this\.bkEmpty\(\), \{ party: party, mbr: b\.mbr, day: party\[0\]\.day, gfor: hasMe \? 'other' : 'me', wide: false \}\) \}\);/);
+  // (after a child, most often a brother or a sister; the booking is then one of several people)
+  assert.match(site, /this\.setState\(\{ bk: Object\.assign\(this\.bkEmpty\(\), \{ party: party, mbr: b\.mbr, day: party\[0\]\.day, gfor: b\.gfor === 'child' \? 'child' : hasMe \? 'other' : 'me', multi: true, wide: false \}\) \}\);/);
   assert.ok(site.includes("const FOR_TITLE = { svc: 'Quelle coupe ', who: 'Avec qui ', when: 'Quand ' };"));
   assert.ok(site.includes('Cette personne, c’est'));
   assert.ok(site.includes("'Total pour ' + everyone.length + ' personnes : '"));
   assert.ok(site.includes('>Modifier</button>') && site.includes('bkEdit(to)'));
   // a carnet is never offered to an added person
-  assert.ok(site.includes('!(f.pack && (party.length || b.mbr || b.moving))'));
+  // (nor to a booking of several people, nor for another adult: it is personal)
+  assert.ok(site.includes("!(f.pack && (party.length || b.mbr || b.moving || b.multi || b.gfor === 'other'))"));
+});
+
+test('« C’est pour qui ? » opens the booking: four choices at the top of the first step, « Pour moi » by default, the details only confirm', () => {
+  // the first thing of step 1, above « Comme la dernière fois ? » and the services
+  const svc = site.slice(site.indexOf('<sc-if value="{{isSvc}}"'), site.indexOf('<sc-if value="{{isWho}}"'));
+  assert.ok(svc.indexOf('{{svcEntry}}') > 0 && svc.indexOf('{{svcEntry}}') < svc.indexOf('{{hasRebook}}') && svc.indexOf('{{hasRebook}}') < svc.indexOf('{{svcGroups}}'));
+  assert.ok(site.includes("[['me', 'Pour moi'], ['child', 'Pour mon enfant'], ['other', 'Pour quelqu’un d’autre'], ['multi', 'À plusieurs']]"));
+  assert.ok(/gfor: 'me', multi: false,/.test(site), '« Pour moi » by default');
+  // no step added, the standard order kept (docs/refonte-conventions.md)
+  assert.ok(site.includes("const BK_ORDER = ['svc', 'who', 'when', 'info'];"));
+  // not from the member's link, a move, nor « Modifier »
+  assert.ok(site.includes("v.svcEntry = step === 'svc' && party.length === 0 && !b.moving && !b.mbr && !b.keep && !v.noMenu;"));
+  // the details confirm in one line, and « Changer » opens the three choices again
+  assert.ok(site.includes('v.forOpen = v.canFor && (!b.forSeen || !!b.forEdit);') && site.includes('>Changer</button>'));
+  // « À plusieurs »: the next person is the way on, and a tap while the slot is being kept is not lost
+  assert.ok(site.includes("v.addLead = v.canAdd && !!b.multi && party.length === 0;") && site.includes('if (cur.addQ) this.bkAdd(kept);'));
+});
+
+test('the free slots are read once for the whole sheet, and the sheet opens on slots already asked', () => {
+  assert.ok(site.includes("'/api/public/availability?days=' + WIN + '&all=1'"));
+  // asked with the salon when the page opens, never after it
+  assert.ok(/init: function \(\) \{ const p = Promise\.all\(\[loadSalon\(\), loadMemberships\(\)\]\)[^\n]*fetchAll\(0\)/.test(site));
+  // a salon that does not know this read: one read per service and barber, as before
+  assert.ok(site.includes('if (e && (e.status === 400 || e.status === 404)) bulkOff = true;'));
+  // moving a booking keeps its own read (its slot left out)
+  assert.ok(site.includes('if (moving || bulkOff) fetchAv(f, who, w);'));
+  // no spinner in the way: grey boxes of the slots' height while the first read is on its way
+  assert.ok(site.includes('<div class="sk" role="status">') && !site.includes('<p class="ld" role="status"><i aria-hidden="true"></i>On regarde les créneaux libres'));
+  // the sheet and its steps answer within 300 ms
+  assert.ok(site.includes('.bk.open{transform:none;visibility:visible;transition:transform .3s var(--ease)}') && site.includes('.st{animation:stIn .18s var(--ease) both}'));
 });
 
 test('no em dash in what the new screens say', () => {

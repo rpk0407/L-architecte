@@ -26,13 +26,45 @@ async function run(h, page, step) {
   step('first person');
   await page.goto(h.base + '/');
   await page.locator('.cta').first().click();
+  // « C’est pour qui ? » opens the booking: four choices, « Pour moi » by default, one tap changes the wording
+  const ent = page.getByRole('radiogroup', { name: 'C’est pour qui ?' });
+  await ent.waitFor({ timeout: T });
+  const opts = (await ent.getByRole('radio').allInnerTexts()).map((x) => x.trim());
+  if (opts.join(' | ') !== 'Pour moi | Pour mon enfant | Pour quelqu’un d’autre | À plusieurs') throw new Error('the choices read « ' + opts.join(' | ') + ' »');
+  if ((await ent.getByRole('radio', { name: 'Pour moi' }).getAttribute('aria-checked')) !== 'true') throw new Error('« Pour moi » is not the default');
+  await h.expectText(page, 'Étape 1 sur 4');
+  await h.expectText(page, 'On te fait quoi ?');
+  // above the services: nothing to scroll to find it
+  const above = await page.evaluate(() => document.querySelector('.ent').getBoundingClientRect().bottom <= document.querySelector('.bk button.so').getBoundingClientRect().top);
+  if (!above) throw new Error('the question is not above the services');
+  await ent.getByRole('radio', { name: 'Pour mon enfant' }).click();
+  await h.expectText(page, 'Quelle coupe pour ton enfant ?');
+  await page.fill('#g-first', 'Nour');
+  await h.expectText(page, 'Quelle coupe pour Nour ?');
+  await ent.getByRole('radio', { name: 'Pour quelqu’un d’autre' }).click();
+  // the formule is personal: not offered for another adult, and the page says so
+  if (await page.locator('.bk button.so-pack').count()) throw new Error('the formule is offered for another adult');
+  await h.expectText(page, 'se prend pour toi ou pour ton enfant');
+  const tiny = await page.evaluate(() => [...document.querySelectorAll('.ent .fo')].filter((e) => e.getBoundingClientRect().height < 44).length);
+  if (tiny) throw new Error(tiny + ' choice(s) under 44 px');
+  if ((await page.evaluate(() => document.scrollingElement.scrollWidth)) > 390) throw new Error('the first step scrolls sideways');
+  await ent.getByRole('radio', { name: 'Pour moi' }).click();
+  await h.expectText(page, 'On te fait quoi ?');
+  if (await page.locator('#g-first').count()) throw new Error('a first name is asked for one’s own place');
+  if (!(await page.locator('.bk button.so-pack').count())) throw new Error('the formule is gone for one’s own place');
+  if (process.env.VITESSE_SHOTS) { await page.locator('.bk-body').evaluate((e) => { e.scrollTop = 0; }); await page.waitForTimeout(500); await page.screenshot({ path: process.env.VITESSE_SHOTS + '/1-debut-pour-qui-390.png' }); }
   await page.locator('.bk button.so').first().click();
   await page.locator('.bk button.wh').first().click();
   await page.locator('.bk button.sl').first().waitFor({ timeout: T });
+  if (process.env.VITESSE_SHOTS) { await page.waitForTimeout(500); await page.screenshot({ path: process.env.VITESSE_SHOTS + '/2-creneaux-390.png' }); }
   await page.locator('.bk button.sl').first().click();
   await page.locator('#f-first').waitFor({ timeout: T });
-  const me = page.getByRole('radio', { name: 'Moi' });
-  if ((await me.getAttribute('aria-checked')) !== 'true') throw new Error('« Moi » is not the default');
+  // already answered at the start: the details confirm it in one line, « Changer » still opens the three choices
+  await h.expectText(page, 'C’est pour toi.');
+  if (await page.getByRole('radio', { name: 'Moi', exact: true }).count()) throw new Error('the question is asked again at the details');
+  await page.getByRole('button', { name: 'Changer la personne de ce rendez-vous' }).click();
+  const me = page.getByRole('radio', { name: 'Moi', exact: true });
+  if ((await me.getAttribute('aria-checked')) !== 'true') throw new Error('« Moi » is not the answer kept from the first step');
   await page.fill('#f-first', 'Karim');
   await page.fill('#f-last', 'Zerbib');
   await page.fill('#f-phone', '0611223344');
@@ -66,9 +98,11 @@ async function run(h, page, step) {
   await page.locator('.bk button.sl').first().click();
   // asked again with the details, already answered
   await page.locator('#g-first').waitFor({ timeout: T });
-  if ((await page.getByRole('radio', { name: 'Mon enfant' }).getAttribute('aria-checked')) !== 'true') throw new Error('« Mon enfant » was forgotten between the steps');
+  await h.expectText(page, 'C’est pour Léo, ton enfant.');
   if ((await page.inputValue('#g-first')) !== 'Léo') throw new Error('his first name was forgotten between the steps');
-  if ((await page.getByRole('radio', { name: 'Moi' }).getAttribute('aria-disabled')) !== 'true') throw new Error('« Moi » can be chosen twice');
+  await page.getByRole('button', { name: 'Changer la personne de ce rendez-vous' }).click();
+  if ((await page.getByRole('radio', { name: 'Mon enfant', exact: true }).getAttribute('aria-checked')) !== 'true') throw new Error('« Mon enfant » was forgotten between the steps');
+  if ((await page.getByRole('radio', { name: 'Moi', exact: true }).getAttribute('aria-disabled')) !== 'true') throw new Error('« Moi » can be chosen twice');
   await page.fill('#g-age', '8');
   // each one with his own service and price, and what it comes to
   const flat = async (loc) => (await loc.innerText()).replace(/[\u00a0\u202f]/g, ' ');

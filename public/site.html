@@ -784,10 +784,10 @@ position:relative;font:400 17px/1.5 var(--f-sans);color:var(--os);background:var
 .tk-av{width:34px;height:34px;font-size:15px}
 
 /* booking sheet */
-.bk-veil{position:fixed;inset:0;z-index:90;background:rgba(15,14,13,.52);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);opacity:0;pointer-events:none;transition:opacity .45s}
+.bk-veil{position:fixed;inset:0;z-index:90;background:rgba(15,14,13,.52);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);opacity:0;pointer-events:none;transition:opacity .25s}
 .bk-veil.open{opacity:1;pointer-events:auto}
-.bk{position:fixed;z-index:91;left:0;right:0;bottom:0;height:94svh;display:flex;flex-direction:column;background:var(--os);color:var(--encre);border-radius:28px 28px 0 0;box-shadow:0 -24px 70px rgba(0,0,0,.3);transform:translateY(104%);visibility:hidden;transition:transform .6s var(--ease),visibility 0s .6s}
-.bk.open{transform:none;visibility:visible;transition:transform .6s var(--ease)}
+.bk{position:fixed;z-index:91;left:0;right:0;bottom:0;height:94svh;display:flex;flex-direction:column;background:var(--os);color:var(--encre);border-radius:28px 28px 0 0;box-shadow:0 -24px 70px rgba(0,0,0,.3);transform:translateY(104%);visibility:hidden;transition:transform .3s var(--ease),visibility 0s .3s}
+.bk.open{transform:none;visibility:visible;transition:transform .3s var(--ease)}
 .bk::before{content:"";position:absolute;top:8px;left:50%;width:42px;height:5px;margin-left:-21px;border-radius:3px;background:var(--iligne2)}
 .bk-top{display:grid;grid-template-columns:44px minmax(0,1fr) 44px;align-items:center;gap:10px;padding:20px 14px 10px}
 .bk-back,.bk-x{display:grid;place-items:center;width:44px;height:44px;border-radius:50%;background:rgba(15,14,13,.07);transition:background-color .2s,opacity .2s}
@@ -803,12 +803,12 @@ position:relative;font:400 17px/1.5 var(--f-sans);color:var(--os);background:var
 .bk-prog{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px;padding:4px 24px 2px}
 .bk-prog.off{visibility:hidden}
 .bk-prog i{height:3px;border-radius:3px;background:var(--iligne);overflow:hidden;position:relative}
-.bk-prog i::after{content:"";position:absolute;inset:0;background:var(--encre);transform:scaleX(0);transform-origin:0 50%;transition:transform .5s var(--ease)}
+.bk-prog i::after{content:"";position:absolute;inset:0;background:var(--encre);transform:scaleX(0);transform-origin:0 50%;transition:transform .25s var(--ease)}
 .bk-prog i.on::after{transform:scaleX(.5)}
 .bk-prog i.done::after{transform:none}
 .bk-body{position:relative;flex:1;overflow-y:auto;overscroll-behavior:contain;padding:10px 20px 40px;-webkit-overflow-scrolling:touch}
-.st{animation:stIn .45s var(--ease) both}
-@keyframes stIn{from{opacity:0;transform:translateX(18px)}}
+.st{animation:stIn .18s var(--ease) both}
+@keyframes stIn{from{opacity:0;transform:translateX(10px)}}
 
 /* 1 · prestation */
 .rb{position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:4px 14px;width:100%;margin:8px 0 6px;padding:18px 18px 18px 20px;border-radius:20px;background:var(--encre);color:var(--os);text-align:left}
@@ -943,6 +943,22 @@ position:relative;font:400 17px/1.5 var(--f-sans);color:var(--os);background:var
 .pty-n{margin:2px 0 10px;padding:12px 14px;border-radius:14px;background:rgba(15,14,13,.05);font:500 14px/1.4 var(--f-sans)}
 .so-w{white-space:normal}
 .svc-for{margin:0 0 16px}
+/* « C’est pour qui ? » at the top of step 1: one tap, « Pour moi » by default */
+.for-c{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px;margin-top:14px;font:600 15px/1.3 var(--f-sans)}
+.for-c .tl{flex:none;min-height:44px;font-weight:500}
+.ent{margin:4px 0 14px}
+.ent-o{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin-top:8px;padding:4px;border-radius:18px;background:var(--blanc);box-shadow:inset 0 0 0 1.5px var(--iligne)}
+.ent-o .fo{min-height:46px}
+.ent+.svc-for{margin-top:-4px}
+.add-p.lead{margin-top:14px;border:0;background:var(--encre);color:var(--os)}
+.add-p.lead .add-p-i{background:var(--rouge);color:var(--encre)}
+.add-p.lead small{color:var(--cendre)}
+/* the slots on their way: grey boxes where they will be, the same height, so nothing jumps when they arrive */
+.sk .slots i{display:block;min-height:50px;border-radius:14px;background:rgba(15,14,13,.06);animation:skP 1.2s ease-in-out infinite}
+.sk .slots i:nth-child(3n){animation-delay:.15s}
+.sk .slots i:nth-child(3n+1){animation-delay:.3s}
+.sk-t{margin-top:10px;font:500 13px/1.3 var(--f-sans);color:var(--cendre2)}
+@keyframes skP{50%{opacity:.45}}
 .rc-edit{display:flex;flex-wrap:wrap;align-items:center;gap:0 16px;margin-top:6px;font:500 14px/1.3 var(--f-sans);color:var(--cendre2)}
 .rc-edit .tl{font-size:14.5px}
 .pty-e{color:var(--encre);text-decoration:underline;text-underline-offset:4px}
@@ -1177,7 +1193,7 @@ html{scroll-behavior:auto}
 .ab-ok{margin-top:10px;font:400 26px/1.15 var(--f-serif)}
 .cx-s a{color:var(--encre);text-decoration:underline;text-underline-offset:3px}
 /* the subscribe sheet exists only while open: it slides in as the booking sheet does */
-.bk.ab-sh{animation:abUp .6s var(--ease) both}
+.bk.ab-sh{animation:abUp .3s var(--ease) both}
 @keyframes abUp{from{transform:translateY(104%)}to{transform:none}}
 @media (min-width:1000px){.bk.ab-sh{animation-name:abIn}@keyframes abIn{from{transform:translateX(104%)}to{transform:none}}}
 .tk-m{display:inline-flex;align-items:center;gap:8px;margin-top:12px;padding:8px 12px;border-radius:999px;background:rgba(74,222,128,.14);color:#86EFAC;font:600 14px/1.2 var(--f-sans)}
@@ -1499,13 +1515,18 @@ html{scroll-behavior:auto}
 <div class="st">
 <sc-if value="{{hasErr}}" hint-placeholder-val="{{ false }}"><p class="bk-err" role="alert">{{bkErr}}</p></sc-if>
 <sc-if value="{{noMenu}}" hint-placeholder-val="{{ false }}"><p class="st-none">La réservation en ligne ouvre bientôt. En attendant, <a href="{{contactHref}}">{{contactText}}</a>.</p></sc-if>
-<sc-if value="{{hasRebook}}" hint-placeholder-val="{{ false }}">
-<button type="button" class="rb" onClick="{{rebook}}"><span class="rb-k">Bon retour, {{meFirst}}</span><span class="rb-t">Comme la dernière fois&nbsp;?</span><span class="rb-s">{{rebookLine}}</span><span class="rb-go">Reprendre<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h15M13 6l6 6-6 6"/></svg></span></button>
+<sc-if value="{{svcEntry}}" hint-placeholder-val="{{ true }}">
+<div class="for ent"><p class="for-k" id="ent-k">C’est pour qui&nbsp;?</p><div class="ent-o" role="radiogroup" aria-labelledby="ent-k"><sc-for list="{{entOpts}}" as="o" hint-placeholder-count="4"><button type="button" class="{{o.cls}}" role="radio" aria-checked="{{o.on}}" onClick="{{o.go}}">{{o.t}}</button></sc-for></div>
+<sc-if value="{{entHasHint}}" hint-placeholder-val="{{ false }}"><p class="g-hint">{{entHint}}</p></sc-if>
+</div>
 </sc-if>
 <sc-if value="{{svcFor}}" hint-placeholder-val="{{ false }}">
-<div class="for svc-for"><p class="for-k" id="for-k1">Cette personne, c’est</p><div class="for-o" role="radiogroup" aria-labelledby="for-k1"><sc-for list="{{forOpts}}" as="o" hint-placeholder-count="3"><button type="button" class="{{o.cls}}" role="radio" aria-checked="{{o.on}}" aria-disabled="{{o.off}}" onClick="{{o.go}}">{{o.t}}</button></sc-for></div>
+<div class="for svc-for"><sc-if value="{{svcForWho}}" hint-placeholder-val="{{ false }}"><p class="for-k" id="for-k1">{{svcForK}}</p><div class="for-o" role="radiogroup" aria-labelledby="for-k1"><sc-for list="{{forOpts}}" as="o" hint-placeholder-count="3"><button type="button" class="{{o.cls}}" role="radio" aria-checked="{{o.on}}" aria-disabled="{{o.off}}" onClick="{{o.go}}">{{o.t}}</button></sc-for></div></sc-if>
 <sc-if value="{{svcForName}}" hint-placeholder-val="{{ false }}"><div class="fld"><label for="g-first">{{gFirstLabel}} <span class="opt-l">pour lui choisir sa coupe</span></label><input id="g-first" type="text" autocomplete="off" value="{{gFirst}}" onChange="{{setGFirst}}"></div></sc-if>
 </div>
+</sc-if>
+<sc-if value="{{hasRebook}}" hint-placeholder-val="{{ false }}">
+<button type="button" class="rb" onClick="{{rebook}}"><span class="rb-k">Bon retour, {{meFirst}}</span><span class="rb-t">Comme la dernière fois&nbsp;?</span><span class="rb-s">{{rebookLine}}</span><span class="rb-go">Reprendre<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h15M13 6l6 6-6 6"/></svg></span></button>
 </sc-if>
 <sc-for list="{{svcGroups}}" as="g" hint-placeholder-count="4">
 <div class="sg">
@@ -1540,7 +1561,6 @@ html{scroll-behavior:auto}
 <sc-if value="{{hasEarliest}}" hint-placeholder-val="{{ true }}">
 <button type="button" class="fast" onClick="{{pickEarliest}}"><span class="fast-l"><span class="fast-k">Le plus tôt</span><span class="fast-t">{{earliestLine}}</span></span><span class="fast-go">Choisir</span></button>
 </sc-if>
-<sc-if value="{{slotsLoading}}" hint-placeholder-val="{{ false }}"><p class="ld" role="status"><i aria-hidden="true"></i>On regarde les créneaux libres…</p></sc-if>
 <sc-if value="{{dPaged}}" hint-placeholder-val="{{ false }}"><div class="dnav"><span class="dnav-t">{{dRange}}</span><button type="button" class="{{dPrevCls}}" aria-label="Jours précédents" aria-disabled="{{dNoPrev}}" onClick="{{dPrevSafe}}">‹</button><button type="button" class="{{dNextCls}}" aria-label="Jours suivants" aria-disabled="{{dNoNext}}" onClick="{{dNextSafe}}">›</button></div></sc-if>
 <div class="dstrip" aria-label="Choisis un jour" ref="{{r.dstrip}}">
 <sc-if value="{{dHasPrev}}" hint-placeholder-val="{{ false }}"><button type="button" class="dc dc-more" aria-label="Jours précédents" onClick="{{dPrev}}"><small>Plus tôt</small><b aria-hidden="true">‹</b><span>{{dPrevLabel}}</span></button></sc-if>
@@ -1564,6 +1584,7 @@ html{scroll-behavior:auto}
 </div></sc-for>
 </div>
 </sc-if>
+<sc-if value="{{slotsLoading}}" hint-placeholder-val="{{ false }}"><div class="sk" role="status"><div class="slg"><p class="slg-h">Matin</p><div class="slots" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div><div class="slg"><p class="slg-h">Après-midi</p><div class="slots" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div><p class="sk-t">On regarde les créneaux libres…</p></div></sc-if>
 <sc-if value="{{notWide}}" hint-placeholder-val="{{ true }}">
 <sc-for list="{{slotGroups}}" as="g" hint-placeholder-count="3">
 <div class="slg">
@@ -1606,9 +1627,11 @@ html{scroll-behavior:auto}
 <p class="{{holdCls}}"><i aria-hidden="true"></i><span>{{holdText}}</span><b>{{holdLeft}}</b></p>
 <div class="recap"><div class="recap-t"><p class="recap-w">{{recapWhen}}</p><p class="recap-s">{{recapWhat}} · {{recapWho}}</p></div><sc-if value="{{rcHasWho}}" hint-placeholder-val="{{ false }}"><span class="rc-av" aria-hidden="true">{{rcIni}}<sc-if value="{{rcHasPhoto}}" hint-placeholder-val="{{ false }}"><img sc-camel-src="{{rcPhoto}}" alt="" width="46" height="46" decoding="async" sc-camel-on-error="{{rcPhotoErr}}"></sc-if></span></sc-if></div>
 <sc-if value="{{canEdit}}" hint-placeholder-val="{{ false }}"><p class="rc-edit"><span>Modifier</span><button type="button" class="tl" aria-label="{{editSvcLabel}}" onClick="{{editSvc}}">la prestation</button><button type="button" class="tl" aria-label="{{editWhoLabel}}" onClick="{{editWho}}">le barbier</button><button type="button" class="tl" aria-label="{{editWhenLabel}}" onClick="{{editWhen}}">le créneau</button></p></sc-if>
+<sc-if value="{{addLead}}" hint-placeholder-val="{{ false }}"><button type="button" class="add-p lead" onClick="{{addPerson}}"><span class="add-p-i" aria-hidden="true">+</span><span><b>{{addLeadText}}</b><small>{{addLeadHint}}</small></span></button></sc-if>
 <sc-if value="{{isSerInfo}}" hint-placeholder-val="{{ false }}"><div class="pty ser-list"><p class="pty-k">{{serListK}}</p><sc-for list="{{serList}}" as="x" hint-placeholder-count="5"><div class="pty-r"><div class="pty-t"><b>{{x.k}}</b><small>{{x.line}}</small></div></div></sc-for><button type="button" class="tl" onClick="{{serBack}}">Modifier mes rendez-vous</button></div></sc-if>
 <sc-if value="{{isParty}}" hint-placeholder-val="{{ false }}"><div class="pty"><p class="pty-k">Déjà dans cette réservation</p><sc-for list="{{partyRows}}" as="x" hint-placeholder-count="2"><div class="pty-r"><button type="button" class="pty-t" aria-label="{{x.editLabel}}" onClick="{{x.edit}}"><b>{{x.who}}</b><small>{{x.line}}</small></button><button type="button" class="pty-x pty-e" aria-label="{{x.modLabel}}" onClick="{{x.edit}}">Modifier</button><button type="button" class="pty-x" aria-label="{{x.dropLabel}}" onClick="{{x.drop}}">Retirer</button></div></sc-for><p class="g-hint">{{partyTotal}}</p></div></sc-if>
-<sc-if value="{{canFor}}" hint-placeholder-val="{{ true }}">
+<sc-if value="{{forLine}}" hint-placeholder-val="{{ false }}"><p class="for-c"><span>{{forLineText}}</span><button type="button" class="tl" aria-label="Changer la personne de ce rendez-vous" onClick="{{forChange}}">Changer</button></p></sc-if>
+<sc-if value="{{forOpen}}" hint-placeholder-val="{{ true }}">
 <div class="for"><p class="for-k" id="for-k">C’est pour</p><div class="for-o" role="radiogroup" aria-labelledby="for-k"><sc-for list="{{forOpts}}" as="o" hint-placeholder-count="3"><button type="button" class="{{o.cls}}" role="radio" aria-checked="{{o.on}}" aria-disabled="{{o.off}}" onClick="{{o.go}}">{{o.t}}</button></sc-for></div></div>
 </sc-if>
 <sc-if value="{{forSome}}" hint-placeholder-val="{{ false }}">
@@ -1619,7 +1642,7 @@ html{scroll-behavior:auto}
 </div>
 <p class="{{gHintCls}}">{{gHint}}</p>
 </sc-if>
-<sc-if value="{{canAdd}}" hint-placeholder-val="{{ false }}"><button type="button" class="add-p" onClick="{{addPerson}}"><span class="add-p-i" aria-hidden="true">+</span><span><b>Ajouter une personne</b><small>{{addHint}}</small></span></button></sc-if>
+<sc-if value="{{canAddLow}}" hint-placeholder-val="{{ false }}"><button type="button" class="add-p" onClick="{{addPerson}}"><span class="add-p-i" aria-hidden="true">+</span><span><b>Ajouter une personne</b><small>{{addHint}}</small></span></button></sc-if>
 <sc-if value="{{accGate}}" hint-placeholder-val="{{ false }}"><div class="acc" data-guide="site-compte"><p class="acc-t">Cette formule demande un compte&nbsp;: c’est ce qui garde tes 5 visites.</p><p class="acc-s">{{accLine}}</p></div></sc-if>
 <sc-if value="{{accIn}}" hint-placeholder-val="{{ false }}"><p class="dep" data-guide="site-compte-ok">{{accInLine}}</p></sc-if>
 <sc-if value="{{showIdent}}" hint-placeholder-val="{{ true }}">
@@ -1989,11 +2012,68 @@ const LXE = (function () {
     }).catch(function () { e.err = true; if (!e.days) e.days = null; }).then(function () { e.loading = false; e.at = Date.now(); emit(); });
     return e.p;
   }
+  /* One read per 14 days for the whole sheet (all=1): every service, « sans préférence » and each barber. Choosing a
+     service, a barber or a day then shows its slots from memory; the read is done again in the background (pull, every
+     few seconds while the sheet is open). Moving a booking keeps the read per barber (it leaves its own slot out). */
+  const bulk = {};
+  let bulkOff = false, resyncAt = 0, warmed = false;
+  function fetchAll(w) {
+    w = w || 0;
+    const B = bulk[w] || (bulk[w] = { at: 0, loading: false, p: null, err: false });
+    if (B.loading) return B.p;
+    B.loading = true;
+    // the first days ask nothing of the salon's answer: both leave together when the page opens
+    const ask = w === 0 ? call('GET', '/api/public/availability?days=' + WIN + '&all=1')
+      : Promise.resolve(salon ? null : loadSalon()).then(function () { if (!salon) throw new Error('salon'); return call('GET', '/api/public/availability?from=' + addDays(now().key, w * WIN) + '&days=' + WIN + '&all=1'); });
+    B.p = Promise.all([ask, salon ? null : loadSalon()]).then(function (r) {
+      if (!salon) throw new Error('salon');
+      applyAll(r[0], w); B.err = false;
+    }).catch(function (e) {
+      B.err = true;
+      // a salon that does not know this read yet: back to one read per service and barber
+      if (e && (e.status === 400 || e.status === 404)) bulkOff = true;
+    }).then(function () { B.loading = false; B.at = Date.now(); emit(); });
+    return B.p;
+  }
+  function applyAll(j, w) {
+    const t = Date.now(), sets = {}, staff = j.staff || [];
+    (j.sets || []).forEach(function (set) { set.services.forEach(function (id) { sets[id] = set; }); });
+    const whos = ['any'].concat(BARBERS.map(function (b) { return b.id; }));
+    let stale = staff.some(function (id) { return !barberIdOf[id]; });
+    (catalog || []).forEach(function (f) {
+      if (f.pack) return;
+      const set = sets[f.id];
+      if (!set) stale = true;
+      whos.forEach(function (who) {
+        const bit = who === 'any' ? -1 : staff.indexOf(staffOf[who]);
+        const days = {};
+        (set ? set.days : []).forEach(function (d) {
+          const out = [];
+          d.slots.forEach(function (x) {
+            if (who === 'any') out.push({ m: x[0], free: true, barber: barberIdOf[staff[x[1]]] || staff[x[1]] });
+            else if (bit >= 0 && (x[2] & (1 << bit))) out.push({ m: x[0], free: true, barber: who });
+          });
+          days[d.day] = out;
+        });
+        av[f.key + '|' + who + '||' + w] = { at: t, loading: false, days: days, err: !set };
+      });
+    });
+    // the answer names a service or a barber this page does not have (the catalogue changed since): read the salon again
+    if (stale && t - resyncAt > 15000) { resyncAt = t; loadSalon(true).then(function () { if (bulk[w]) bulk[w].at = 0; emit(); }); }
+  }
+  function preload(w) {
+    if (moving || bulkOff || !salon || w * WIN > salon.booking.maxDaysAhead) return;
+    const B = bulk[w];
+    if (!B || (!B.loading && Date.now() - B.at > 20000)) fetchAll(w);
+  }
   function entry(f, who, w) {
     const k = avKey(f, who, w);
     used[k] = Date.now();
     const e = av[k];
-    if (!e || (!e.loading && Date.now() - e.at > (e.err ? 6000 : 20000))) fetchAv(f, who, w);
+    if (!e || (!e.loading && Date.now() - e.at > (e.err ? 6000 : 20000))) {
+      if (moving || bulkOff) fetchAv(f, who, w);
+      else { const B = bulk[w || 0]; if (!B || (!B.loading && Date.now() - B.at > (B.err ? 6000 : 3000))) fetchAll(w); }
+    }
     return av[k];
   }
   /* are the slots of that day (default: the first two weeks) known yet? */
@@ -2018,16 +2098,23 @@ const LXE = (function () {
     return null;
   }
   function stillFree(key, barber, m, f) { return slots(key, barber, f).some(function (x) { return x.m === m; }); }
-  function invalidate() { Object.keys(av).forEach(function (k) { av[k].at = 0; }); }
+  function invalidate() { Object.keys(av).forEach(function (k) { av[k].at = 0; }); Object.keys(bulk).forEach(function (w) { bulk[w].at = 0; }); }
   function pull() {
     const t = Date.now(), jobs = [];
     if (!salon || t - salonAt > 300000) jobs.push(loadSalon(true));
     if (!mbr || t - mbrAt > 300000) jobs.push(loadMemberships(true));
+    const wins = {};
     Object.keys(used).forEach(function (k) {
       if (t - used[k] > 90000) return;
       const e = av[k];
-      if (e && !e.loading && t - e.at > 8000) { const p = k.split('|'); if ((p[2] || '') === (moving || '')) jobs.push(fetchAv(p[0], p[1], Number(p[3]) || 0)); }
+      if (e && !e.loading && t - e.at > 8000) {
+        const p = k.split('|');
+        if ((p[2] || '') !== (moving || '')) return;
+        if (moving || bulkOff) jobs.push(fetchAv(p[0], p[1], Number(p[3]) || 0)); else wins[Number(p[3]) || 0] = 1;
+      }
     });
+    // one read per 14 days brings every service and barber up to date
+    Object.keys(wins).forEach(function (w) { jobs.push(fetchAll(Number(w))); });
     return Promise.all(jobs);
   }
 
@@ -2106,7 +2193,9 @@ const LXE = (function () {
     BARBERS: BARBERS, BMAP: BMAP, SV: SV, DAYS: DAYS, DAYS_SH: DAYS_SH, MONTHS: MONTHS, MONTHS_SH: MONTHS_SH,
     pad: pad, clamp: clamp, parisParts: parisParts, keyOf: keyOf, parts: parts, addDays: addDays, diffDays: diffDays,
     isOpenDay: isOpenDay, hoursOf: hoursOf, closureOf: closureOf, openingOf: openingOf, specialOf: specialOf, notices: notices, now: now, nextOpen: nextOpen, fmtH: fmtH, hm: hm, dayLong: dayLong, dayShort: dayShort, dayWord: dayWord, eur: eur,
-    slots: slots, ready: ready, openDays: openDays, earliest: earliest, stillFree: stillFree, pull: pull, on: on, init: function () { return Promise.all([loadSalon(), loadMemberships()]).then(function () {}); },
+    slots: slots, ready: ready, openDays: openDays, earliest: earliest, stillFree: stillFree, pull: pull, preload: preload, on: on,
+    // the page opens: the salon and the first days' free slots are asked together, so the sheet opens on slots already known
+    init: function () { const p = Promise.all([loadSalon(), loadMemberships()]).then(function () {}); if (!warmed) { warmed = true; fetchAll(0); } return p; },
     memberships: function () { return mbr; }, account: function () { return acct; }, loadAccount: loadAccount, subscribe: subscribe,
     salon: function () { return salon; }, services: function () { return catalog; }, first: first, barberOf: barberOf, serviceOf: serviceOf, clock: function () { return Date.now() + skew; }, hold: hold, release: release, book: book, person: person, booking: booking, cancel: cancel, move: move, wait: wait, offer: offer, live: live,
     setMoving: setMoving, uid: uid, series: series, holdSeries: holdSeries, join: join, verify: verify, buy: buy
@@ -3289,7 +3378,8 @@ const BookingMixin = {
     // party: the people already chosen in this booking (« Ajouter une personne »), each with his own slot and kept hold;
     // gfor: who the place being chosen is for (moi, une autre personne, mon enfant); wide: the view of every barber's day
     return { step: 'svc', f: null, barber: null, day: null, time: null, assigned: null, holdId: null, holdExp: 0, holdTok: null, moving: null, err: '', result: null, busy: false, ask: false, waited: '', waitAsk: false,
-      party: [], gfor: 'me', gFirst: '', gPhone: '', gAge: '', wide: false,
+      // multi: « À plusieurs » chosen at the very start (the first person, then « Ajouter la personne suivante »)
+      party: [], gfor: 'me', multi: false, gFirst: '', gPhone: '', gAge: '', wide: false,
       // the carnet bought with its dates: sub 'series' is « Tes 4 autres rendez-vous » inside step 3; series: one line per
       // following week; serHolds: every chosen slot kept together; acc: the code being asked for the account it needs
       sub: null, series: null, serEdit: null, serOk: false, serTok: null, serHolds: null, serLoading: false, acc: null };
@@ -3399,7 +3489,7 @@ const BookingMixin = {
     if (!finished && bk.keep && !pre) { this.setState({ sheet: true, menu: false, bk: Object.assign(bk, { step: 'info', holdId: bk.keep.holdId, holdExp: bk.keep.holdExp, holdTok: null, keep: null }) }); this.bkTick(); return; }
     if (bk.keep) { LXE.release(bk.keep.holdId); bk.keep = null; }
     if (pre) {
-      if (pre.mbr) { bk.mbr = pre.mbr; bk.gfor = 'me'; }
+      if (pre.mbr) { bk.mbr = pre.mbr; bk.gfor = 'me'; bk.multi = false; }
       if (pre.formula) bk.f = pre.formula;
       if (pre.barber) bk.barber = pre.barber;
       if (pre.day) { bk.day = pre.day; bk.time = pre.time != null ? pre.time : null; bk.assigned = null; }
@@ -3415,6 +3505,8 @@ const BookingMixin = {
     this.setState({ sheet: true, menu: false, bk: bk });
     if (loadSer) this.serLoad(bk);
     LXE.pull();
+    // the days after the first two weeks, ready before « Plus tard » is touched
+    LXE.preload(1);
   },
 
   /* your appointment lives on its own page: always up to date, works from the SMS link too */
@@ -3433,7 +3525,9 @@ const BookingMixin = {
 
   bkPick(patch) {
     const prev = this.state.bk;
-    const bk = Object.assign({}, prev, patch, { err: '' });
+    const bk = Object.assign({}, prev, patch, { err: '', holdFail: false, addQ: false, retry: false });
+    // the first step asked who the place is for: the details will only confirm it
+    if (prev.step === 'svc' && !prev.moving && !prev.mbr && !prev.keep) bk.forSeen = true;
     this.bkRelease(prev);
     bk.holdId = null; bk.holdTok = null;
     // « Modifier » from the details: the slot he still keeps
@@ -3482,7 +3576,7 @@ const BookingMixin = {
 
   /* ---------- the slot is held on the salon's side while you type ---------- */
   /* replace: his own hold on this very slot, kept while he changed the service (« Modifier la prestation »): swapped in one go */
-  bkHold(bk, replace) {
+  bkHold(bk, replace, retried) {
     const tok = LXE.uid('t');
     const sal = LXE.salon();
     bk.holdTok = tok; bk.holdId = null;
@@ -3490,10 +3584,27 @@ const BookingMixin = {
     LXE.hold(bk.f, bk.assigned || bk.barber, bk.day, bk.time, (bk.party || []).length + 1, replace).then((h) => {
       const cur = this.state.bk;
       if (!this._mounted || cur.holdTok !== tok || cur.step !== 'info') { LXE.release(h.id); return; }
-      this.setState({ bk: Object.assign({}, cur, { holdId: h.id, assigned: h.barber }) });
+      const kept = Object.assign({}, cur, { holdId: h.id, assigned: h.barber, holdFail: false, addQ: false });
+      this.setState({ bk: kept });
+      // « Ajouter la personne suivante » touched while the slot was being kept: it goes on now
+      if (cur.addQ) this.bkAdd(kept);
     }).catch((e) => {
       const cur = this.state.bk;
-      if (this._mounted && cur.holdTok === tok && cur.step === 'info') { if (e.code === 'service_gone') this.bkGone(); else this.bkConflict(e.code === 'taken' ? null : e.message); }
+      if (!this._mounted || cur.holdTok !== tok || cur.step !== 'info') return;
+      if (e.code === 'service_gone') { this.bkGone(); return; }
+      // no network for a moment: he stays on his details (the slot is checked again at the confirmation), one more try on its own
+      if (e.code === 'network') {
+        this.setState({ bk: Object.assign({}, cur, { holdTok: null, holdFail: true, addQ: false }) });
+        if (!retried) setTimeout(() => {
+          const c = this.state.bk;
+          if (!this._mounted || !this.state.sheet || c.step !== 'info' || !c.holdFail || c.holdId || c.busy || c.day !== bk.day || c.time !== bk.time) return;
+          const nb = Object.assign({}, c, { holdFail: false });
+          this.bkHold(nb, replace, true);
+          this.setState({ bk: nb });
+        }, 2500);
+        return;
+      }
+      this.bkConflict(e.code === 'taken' ? null : e.message);
     });
     this.bkTick();
   },
@@ -3670,16 +3781,18 @@ const BookingMixin = {
   /* one person's place, kept while the next one chooses */
   bkPlace(b) { return { f: b.f, barber: b.barber, assigned: b.assigned, day: b.day, time: b.time, holdId: b.holdId, holdExp: b.holdExp, gfor: b.gfor, gFirst: b.gFirst, gPhone: b.gPhone, gAge: b.gAge }; },
   /* « Ajouter une personne »: this place is kept (hold included), the next person starts at the first step, on the same day */
-  bkAdd() {
-    const b = this.state.bk;
+  bkAdd(b0) {
+    const b = b0 || this.state.bk;
     if (b.busy || (b.party || []).length + 1 >= PARTY_MAX || (b.f && LXE.SV[b.f] && LXE.SV[b.f].pack)) return;
     if (!this.bkGuestOk(b)) { this.setState({ bk: Object.assign({}, b, { err: b.gfor === 'child' ? 'Indique le prénom de l’enfant avant d’ajouter une personne.' : 'Indique son prénom avant d’ajouter une personne.' }) }); return; }
     // the slot must be kept first: a place left without its hold could go to someone else meanwhile
-    if (!b.holdId && b.holdTok) { this.setState({ bk: Object.assign({}, b, { err: 'Un instant : on garde encore ce créneau.' }) }); return; }
+    // (the tap is kept: the next person's first step opens as soon as the slot is)
+    if (!b.holdId && b.holdTok) { this.setState({ bk: Object.assign({}, b, { addQ: true, err: '' }) }); return; }
     const party = (b.party || []).concat(this.bkPlace(b));
     const hasMe = party.some((x) => x.gfor === 'me');
     clearInterval(this._holdT);
-    this.setState({ bk: Object.assign(this.bkEmpty(), { party: party, mbr: b.mbr, day: party[0].day, gfor: hasMe ? 'other' : 'me', wide: false }) });
+    // after a child, most often a brother or a sister; after oneself, someone else
+    this.setState({ bk: Object.assign(this.bkEmpty(), { party: party, mbr: b.mbr, day: party[0].day, gfor: b.gfor === 'child' ? 'child' : hasMe ? 'other' : 'me', multi: true, wide: false }) });
     buzz(6);
   },
   /* a person taken out of the booking: his kept slot goes back to everyone */
@@ -3701,7 +3814,7 @@ const BookingMixin = {
     // the place being chosen joins the others only once it has its slot; a half-chosen one is simply left
     const cur = b.step === 'info' && b.day && b.time != null ? [this.bkPlace(b)] : [];
     if (!cur.length) this.bkRelease(b);
-    const bk = Object.assign(this.bkEmpty(), x, { party: rest.concat(cur), mbr: b.mbr, err: err || '' });
+    const bk = Object.assign(this.bkEmpty(), x, { party: rest.concat(cur), mbr: b.mbr, multi: !!b.multi, err: err || '' });
     if (err) { if (x.holdId) LXE.release(x.holdId); bk.holdId = null; bk.time = null; bk.assigned = null; bk.step = 'when'; }
     else { bk.step = 'info'; bk.holdTok = null; }
     this.setState({ bk: bk });
@@ -3716,7 +3829,7 @@ const BookingMixin = {
     // what the ticket shows is read now: the catalogue may reload while the booking is on its way
     const F = LXE.SV[b.f];
     if (!F) { this.bkGone(); return; }
-    this.setState({ bk: Object.assign({}, b, { busy: true, err: '' }) });
+    this.setState({ bk: Object.assign({}, b, { busy: true, err: '', retry: false }) });
     const first = capFirst(String(s0.fFirst).trim().split(/\s+/)[0]).slice(0, 40);
     // everyone of the booking, the booker's own place first (the server takes the others as guests)
     const all = (b.party || []).concat(this.bkPlace(b)).map((x, i) => Object.assign({}, x, { at: i }));
@@ -3744,6 +3857,7 @@ const BookingMixin = {
         if (h0) Object.assign(result, { day: h0.day, time: h0.time, dur: h0.dur, f: h0.f, n: h0.n, p: h0.p, from: h0.from, barber: h0.barber, any: h0.any });
         result.forWho = head.gfor === 'me' ? '' : (h0 ? h0.first : '');
       } else if (head.gfor !== 'me') result.forWho = this.bkGuestOf(head).first;
+      result.forChild = head.gfor === 'child';
       this.remember({ first: String(s0.fFirst).trim(), last: String(s0.fLast || '').trim(), phone: s0.fPhone, email: String(s0.fEmail || '').trim(), lastF: head.gfor === 'me' ? head.f : (readMe() || {}).lastF, lastBarber: head.gfor === 'me' ? r.barber : (readMe() || {}).lastBarber }, result);
       (result.people || []).slice(1).forEach((p) => this.remember(null, { token: p.token, code: p.code, manage: p.manage, day: p.day, time: p.time, dur: p.dur, f: p.f, n: p.n, p: p.p, barber: p.barber, first: p.first, status: p.status }));
       markBooked();
@@ -3757,7 +3871,8 @@ const BookingMixin = {
       if (who && who.at < (b.party || []).length) { this.setState({ bk: Object.assign({}, this.state.bk, { busy: false }) }); this.bkFocus(who.at, e.message); return; }
       if (e.code === 'taken') this.bkConflict(e.message);
       else if (e.code === 'service_gone') this.bkGone();
-      else this.setState({ bk: Object.assign({}, this.state.bk, { busy: false, err: e.message }) });
+      // the network or the salon's server: nothing is lost, the same tap again (the same request: never booked twice)
+      else this.setState({ bk: Object.assign({}, this.state.bk, { busy: false, err: e.message, retry: e.code === 'network' || e.code === 'http' || e.status >= 500 }) });
     }
   },
 
@@ -3770,7 +3885,7 @@ const BookingMixin = {
   bkConflict(msg) {
     const b = this.state.bk;
     LXE.pull();
-    this.setState({ bk: Object.assign({}, b, { busy: false, step: 'when', time: null, assigned: null, holdId: null, holdTok: null, err: msg || 'Ce créneau vient d’être pris. Choisis-en un autre, tes choix sont gardés.' }) });
+    this.setState({ bk: Object.assign({}, b, { busy: false, step: 'when', time: null, assigned: null, holdId: null, holdTok: null, holdFail: false, addQ: false, retry: false, err: msg || 'Ce créneau vient d’être pris. Choisis-en un autre, tes choix sont gardés.' }) });
   },
 
   async bkCancel() {
@@ -3882,7 +3997,7 @@ const BookingMixin = {
     const gName = b.gfor !== 'me' ? capFirst(String(b.gFirst || '').trim().split(/\s+/)[0] || '') : '';
     const forW = b.gfor === 'me' || b.moving ? '' : gName ? 'pour ' + gName : b.gfor === 'child' ? 'pour ton enfant' : 'pour cette personne';
     const FOR_TITLE = { svc: 'Quelle coupe ', who: 'Avec qui ', when: 'Quand ' };
-    v.bkStepLabel = b.moving && si >= 0 ? 'Déplacer · ' + BK_LABEL[step] : si >= 0 ? (party.length ? 'Personne ' + (party.length + 1) + ' · ' : '') + 'Étape ' + (si + 1) + ' sur 4 · ' + BK_LABEL[step] : (step === 'done' ? (pending ? (serie ? 'Formule à régler' : 'Acompte à régler') : (b.moved ? 'Déplacé' : 'Confirmé')) : (step === 'manage' ? 'Réservation' : 'Annulation'));
+    v.bkStepLabel = b.moving && si >= 0 ? 'Déplacer · ' + BK_LABEL[step] : si >= 0 ? (party.length || (b.multi && !b.mbr) ? 'Personne ' + (party.length + 1) + ' · Étape ' + (si + 1) + ' sur 4' : 'Étape ' + (si + 1) + ' sur 4 · ' + BK_LABEL[step]) : (step === 'done' ? (pending ? (serie ? 'Formule à régler' : 'Acompte à régler') : (b.moved ? 'Déplacé' : 'Confirmé')) : (step === 'manage' ? 'Réservation' : 'Annulation'));
     v.bkTitle = step === 'done' && b.result ? (pending ? 'Presque réservé, ' + b.result.first + '.' : (b.moved ? 'C’est déplacé, ' : 'C’est réservé, ') + b.result.first + '.') : (b.moving && step === 'when' ? 'Pour quand ?' : inSeries ? 'Tes ' + (F.pack.credits - 1) + ' autres rendez-vous' : forW && FOR_TITLE[step] ? FOR_TITLE[step] + forW + ' ?' : BK_TITLE[step]);
     v.progCls = 'bk-prog' + (si < 0 ? ' off' : '');
     ['pg0', 'pg1', 'pg2', 'pg3'].forEach((k, i) => { v[k] = i < si ? 'done' : (i === si ? 'on' : ''); });
@@ -3894,7 +4009,7 @@ const BookingMixin = {
     const live = LXE.services();
     v.noMenu = !!(live && !live.length);
     // the first booking's helper line, only when there is something to choose (no catalogue: the sheet says the salon opens soon)
-    const help = si >= 0 && !b.moving && !me && !v.noMenu && !bookedBefore() ? (step === 'info' ? (textsLeave() ? BK_HELP.info + chanWord() : BK_HELP_NOSMS) : BK_HELP[step]) : '';
+    const help = si >= 0 && !inSeries && !b.moving && !me && !v.noMenu && !bookedBefore() ? (step === 'info' ? (textsLeave() ? BK_HELP.info + chanWord() : BK_HELP_NOSMS) : BK_HELP[step]) : '';
     v.hasBkHelp = !!help; v.bkHelp = help;
     const tel = sal && sal.shop && sal.shop.phone ? String(sal.shop.phone) : '';
     const mail = sal && sal.shop && sal.shop.email ? String(sal.shop.email) : 'larchitectebarber@gmail.com';
@@ -3904,14 +4019,14 @@ const BookingMixin = {
     /* 1 · prestation */
     const lastF = me && me.lastF && LXE.SV[me.lastF] ? me.lastF : null;
     const lastB = me && me.lastBarber && LXE.BMAP[me.lastBarber] ? me.lastBarber : null;
-    v.hasRebook = !!(step === 'svc' && lastF && lastB && me.first);
+    v.hasRebook = !!(step === 'svc' && lastF && lastB && me.first && b.gfor === 'me' && !b.multi && !party.length);
     v.meFirst = me && me.first ? capFirst(me.first.split(/\s+/)[0]) : '';
     v.rebookLine = lastF ? LXE.SV[lastF].n + ' · avec ' + (lastB ? LXE.BMAP[lastB].n : '') : '';
     v.rebook = () => this.bkPick({ f: lastF, barber: lastB });
     v.svcGroups = menuGroups(SVC_GROUPS).map((g) => ({
       t: g.t,
       // a carnet is personal: it is not offered to a person added to a booking, nor from a member's link
-      items: g.items.filter((f) => f && f.n && !(f.pack && (party.length || b.mbr || b.moving))).map((f) => {
+      items: g.items.filter((f) => f && f.n && !(f.pack && (party.length || b.mbr || b.moving || b.multi || b.gfor === 'other'))).map((f) => {
         const on = b.f === f.key;
         const pk = f.pack ? packWords(f) : null;
         return {
@@ -3948,7 +4063,27 @@ const BookingMixin = {
     /* 3 · créneau */
     v.hasErr = !!b.err; v.bkErr = b.err;
     // an added person says who he is from the first step, so the steps can name him (asked again with the details)
-    v.svcFor = step === 'svc' && party.length > 0 && !b.moving;
+    // « C’est pour qui ? » opens the booking: one tap, « Pour moi » by default, kept through the steps (the details step
+    // confirms it and still lets him change it). Not from the member's link, a move, nor « Modifier » (his own place)
+    v.svcEntry = step === 'svc' && party.length === 0 && !b.moving && !b.mbr && !b.keep && !v.noMenu;
+    const ent = b.multi ? 'multi' : b.gfor;
+    const packs = (live || []).filter((f) => f.pack);
+    const setEnt = (k) => {
+      const cur = this.state.bk;
+      const patch = k === 'multi' ? { multi: true } : { multi: false, gfor: k };
+      // the formule is personal (his own, or his child's): taken out when the place is for another adult or for several
+      const PF = cur.f ? LXE.SV[cur.f] : null;
+      if (PF && PF.pack && (k === 'multi' || k === 'other')) patch.f = null;
+      this.setState({ bk: Object.assign({}, cur, patch, { err: '' }) });
+      buzz(4);
+    };
+    v.entOpts = [['me', 'Pour moi'], ['child', 'Pour mon enfant'], ['other', 'Pour quelqu’un d’autre'], ['multi', 'À plusieurs']].map(([k, t]) => ({ t: t, on: ent === k, cls: 'fo' + (ent === k ? ' on' : ''), go: () => setEnt(k) }));
+    v.entHint = !v.svcEntry ? '' : b.multi ? 'Jusqu’à ' + PARTY_MAX + ' personnes. Tu choisis pour la première, puis tu ajoutes les suivantes.' : b.gfor === 'other' && packs.length ? 'La ' + packs[0].n + ' se prend pour toi ou pour ton enfant.' : '';
+    v.entHasHint = !!v.entHint;
+    // an added person says who he is from the first step, so the steps can name him (asked again with the details)
+    v.svcFor = step === 'svc' && !b.moving && (party.length > 0 || (v.svcEntry && (b.multi || b.gfor !== 'me')));
+    v.svcForWho = v.svcFor && (party.length > 0 || !!b.multi);
+    v.svcForK = party.length ? 'Cette personne, c’est' : 'La première personne, c’est';
     v.svcForName = v.svcFor && b.gfor !== 'me';
     let dayCards = [], slotGroups = [], dayFull = false, early = null;
     // the view of every barber reads the day as « peu importe »: the strip counts what anyone has free
@@ -3978,6 +4113,7 @@ const BookingMixin = {
       });
       const turn = (to) => () => {
         this.setState({ bk: Object.assign({}, this.state.bk, { dpage: to, day: null, time: null, assigned: null, err: '', waitAsk: false }) });
+        LXE.preload(to + 1);
         if (this._dstrip) try { this._dstrip.scrollLeft = 0; } catch (e) { /* ignore */ }
       };
       v.dHasPrev = dPage > 0; v.dPrev = turn(dPage - 1);
@@ -4037,7 +4173,7 @@ const BookingMixin = {
     v.viewList = () => this.setState({ bk: Object.assign({}, this.state.bk, { wide: false }) });
     v.viewWide = () => this.setState({ bk: Object.assign({}, this.state.bk, { wide: true }) });
     if (!v.dPrev) { v.dPaged = false; v.dRange = ''; v.dNoPrev = true; v.dNoNext = true; v.dPrevCls = 'dnav-b off'; v.dNextCls = 'dnav-b off'; v.dPrevSafe = () => {}; v.dNextSafe = () => {}; v.dHasPrev = false; v.dHasNext = false; v.dPrev = () => {}; v.dNext = () => {}; v.dPrevLabel = ''; v.dNextLabel = ''; }
-    v.slotsLoading = step === 'when' && !inSeries && !!F && !(v.selDay ? LXE.ready(b.f, who, v.selDay) : loaded);
+    v.slotsLoading = step === 'when' && !inSeries && !v.wideOn && !!F && !(v.selDay ? LXE.ready(b.f, who, v.selDay) : loaded);
     v.hasEarliest = !!early && step === 'when' && !inSeries;
     v.earliestLine = early ? LXE.dayWord(early.day) + ' · ' + LXE.fmtH(early.m) + (LXE.BMAP[early.barber] ? ' avec ' + LXE.BMAP[early.barber].n : '') : '';
     v.pickEarliest = () => { if (early) this.bkPick({ day: early.day, time: early.m, dpage: null }); };
@@ -4045,8 +4181,8 @@ const BookingMixin = {
     /* 4 · coordonnées */
     const left = Math.max(0, Math.round((b.holdExp - (s.holdNow || Date.now())) / 1000));
     v.holdLeft = Math.floor(left / 60) + ':' + LXE.pad(left % 60);
-    v.holdCls = 'hold' + (left <= 0 || (!b.holdId && b.holdTok) ? ' gone' : '');
-    v.holdText = b.offer ? 'Place gardée pour toi' : !b.holdId ? 'On réserve le créneau…' : left > 0 ? 'Créneau gardé pour toi' : 'On revérifie le créneau à la confirmation';
+    v.holdCls = 'hold' + (left <= 0 || (!b.holdId && (b.holdTok || b.holdFail)) ? ' gone' : '');
+    v.holdText = b.offer ? 'Place gardée pour toi' : b.holdFail && !b.holdId ? 'On revérifie le créneau à la confirmation' : !b.holdId ? 'On réserve le créneau…' : left > 0 ? 'Créneau gardé pour toi' : 'On revérifie le créneau à la confirmation';
     const bar = b.assigned || (b.barber !== 'any' ? b.barber : null);
     v.recapWhen = b.day && b.time != null ? capFirst(LXE.dayLong(b.day)) + ' · ' + LXE.fmtH(b.time) : '';
     v.recapWhat = F ? (isPack ? F.n + ' · ' + F.pack.credits + ' rendez-vous' : F.n + ' · ' + fmtDur(F.d) + (party.length ? ' · ' + eur(F) : '')) : '';
@@ -4072,6 +4208,11 @@ const BookingMixin = {
       const off = (k === 'me' && hasMe) || (k === 'other' && isPack);
       return { cls: 'fo' + (b.gfor === k ? ' on' : '') + (off ? ' off' : ''), on: b.gfor === k, off: off, t: t, go: () => { if (!off) setBk({ gfor: k }); } };
     });
+    // already answered at the very start: the details only confirm it in one line, « Changer » opens the three choices
+    v.forOpen = v.canFor && (!b.forSeen || !!b.forEdit);
+    v.forLine = v.canFor && !v.forOpen;
+    v.forLineText = b.gfor === 'me' ? 'C’est pour toi.' : b.gfor === 'child' ? (gName ? 'C’est pour ' + gName + ', ton enfant.' : 'C’est pour ton enfant.') : gName ? 'C’est pour ' + gName + '.' : 'C’est pour une autre personne.';
+    v.forChange = () => setBk({ forEdit: true });
     v.forSome = v.canFor && b.gfor !== 'me'; v.forOther = b.gfor === 'other'; v.forChild = b.gfor === 'child';
     v.gFirst = b.gFirst || ''; v.gPhone = b.gPhone || ''; v.gAge = b.gAge || '';
     v.setGFirst = (e) => setBk({ gFirst: e.target.value });
@@ -4105,6 +4246,11 @@ const BookingMixin = {
     v.editSvcLabel = 'Modifier la prestation' + whoseIt; v.editWhoLabel = 'Modifier le barbier' + whoseIt; v.editWhenLabel = 'Modifier le créneau' + whoseIt;
     v.canAdd = v.canFor && !b.mbr && !isPack && party.length + 1 < PARTY_MAX;
     v.addPerson = () => this.bkAdd();
+    // « À plusieurs »: once the first person has his slot, the next one is the way on, right under the recap
+    v.addLead = v.canAdd && !!b.multi && party.length === 0;
+    v.canAddLow = v.canAdd && !v.addLead;
+    v.addLeadText = b.addQ ? 'Un instant…' : 'Ajouter la personne suivante';
+    v.addLeadHint = 'Sa prestation, son barbier, son créneau. Tes coordonnées se remplissent à la fin.';
     v.addHint = 'Jusqu’à ' + PARTY_MAX + ' personnes, côte à côte ou l’une après l’autre.';
     v.meHead = step === 'info' && (b.gfor !== 'me' || party.length > 0);
     v.meFirstLabel = v.meHead ? 'Ton prénom' : 'Prénom';
@@ -4188,7 +4334,7 @@ const BookingMixin = {
     if (v.isSerInfo) {
       const kept = this.serSlots(b);
       v.serListK = (b.gfor === 'child' && gName ? 'Les ' + kept.length + ' rendez-vous ' + deName(gName) : 'Tes ' + kept.length + ' rendez-vous');
-      v.serList = kept.map((x, i) => ({ k: 'Coupe ' + (i + 1) + ' sur ' + nCuts, line: capFirst(LXE.dayShort(x.day)) + ' · ' + LXE.fmtH(x.time) + (LXE.BMAP[x.barber] ? ' avec ' + LXE.BMAP[x.barber].n : '') }))
+      v.serList = kept.map((x, i) => ({ k: 'Visite ' + (i + 1) + ' sur ' + nCuts, line: capFirst(LXE.dayShort(x.day)) + ' · ' + LXE.fmtH(x.time) + (LXE.BMAP[x.barber] ? ' avec ' + LXE.BMAP[x.barber].n : '') }))
         .concat((b.series || []).filter((w) => w.later).map((w) => ({ k: 'Semaine du ' + strip(LXE.addDays(b.day, 7 * w.week)), line: 'À réserver plus tard, depuis ton espace' })));
       v.serPayLine = payOnline ? 'Les ' + eur(F) + ' se règlent en ligne juste après. Sans paiement dans les ' + (sal ? sal.booking.pendingPayMin || 15 : 15) + ' minutes, les créneaux sont libérés.' : 'Les ' + eur(F) + ' se règlent au salon, à ta première visite. Les suivantes sont déjà payées.';
     }
@@ -4219,7 +4365,7 @@ const BookingMixin = {
       // the server's word, never the page's guess: « Inclus dans ton abonnement · 2/2 ce mois »
       v.hasMemberLine = !!r.member; v.memberLine = r.member || '';
       v.tkWho = (rb ? 'Avec ' + rb.n + ' · ' : '') + fmtDur(f.d);
-      v.tkK = serie ? 'Visite 1 sur ' + serie.of + (r.forWho ? ' · ' + r.forWho : '') : r.forWho ? 'Le rendez-vous ' + deName(r.forWho) : 'Ton rendez-vous';
+      v.tkK = serie ? 'Visite 1 sur ' + serie.of + (r.forWho ? ' · ' + r.forWho : '') : r.forWho ? 'Le rendez-vous ' + deName(r.forWho) + (r.forChild ? ' (ton enfant)' : '') : 'Ton rendez-vous';
       const others = (r.people || []).slice(1);
       v.isGroupDone = step === 'done' && others.length > 0;
       const grp = r.group || null;
@@ -4305,7 +4451,7 @@ const BookingMixin = {
       else { cta = acc.busy ? 'Vérification…' : 'Valider mon code'; off = !!acc.busy || !/^\d{6}$/.test(String(acc.code || '')); go = () => this.accVerify(); }
     }
     else if (step === 'info' && isPack) { cta = b.busy ? 'Vérification…' : payOnline ? 'Confirmer et régler ' + eur(F) : 'Confirmer mes ' + this.serSlots(b).length + ' rendez-vous'; off = b.busy || !this.bkValid(); go = () => this.bkBuy(); }
-    else if (step === 'info') { cta = b.busy ? 'Vérification…' : party.length ? 'Confirmer les ' + (party.length + 1) + ' rendez-vous' : (dep > 0 && !b.mbr ? 'Réserver et régler l’acompte' : 'Confirmer'); off = b.busy || !this.bkValid(); go = () => this.bkConfirm(); }
+    else if (step === 'info') { cta = b.busy ? 'Vérification…' : party.length ? 'Confirmer les ' + (party.length + 1) + ' rendez-vous' : (b.retry ? 'Réessayer' : dep > 0 && !b.mbr ? 'Réserver et régler l’acompte' : 'Confirmer'); off = b.busy || !this.bkValid(); go = () => this.bkConfirm(); }
     else if (step === 'done' && v.needPay) { cta = v.payBtn; off = false; go = () => { if (v.payMore) window.open(r.payUrl, '_blank', 'noopener'); else window.location.href = r.payUrl; }; }
     else if (step === 'done' || step === 'manage') { cta = 'Fermer'; off = false; go = () => this.setState({ sheet: false }); }
     else if (step === 'cancelled') { cta = 'Choisir un autre créneau'; off = false; go = () => this.openWith({ formula: b.f, fresh: true }); }

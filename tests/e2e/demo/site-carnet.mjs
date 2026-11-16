@@ -26,6 +26,14 @@ async function run(h, page, step) {
   await page.locator('.cta').first().click();
   const offer = page.locator('.bk button.so-pack');
   await offer.waitFor({ timeout: T });
+  // the formule is personal: « À plusieurs » and « Pour quelqu’un d’autre » take it out of the list, « Pour mon enfant » keeps it
+  const ent = page.getByRole('radiogroup', { name: 'C’est pour qui ?' });
+  await ent.getByRole('radio', { name: 'À plusieurs' }).click();
+  if (await offer.count()) throw new Error('the formule is offered to a booking of several people');
+  await ent.getByRole('radio', { name: 'Pour mon enfant' }).click();
+  await offer.waitFor({ timeout: T });
+  await ent.getByRole('radio', { name: 'Pour moi' }).click();
+  await offer.waitFor({ timeout: T });
   const words = (await offer.innerText()).replace(/[  ]/g, ' ');
   for (const w of ['Formule Entretien 5 semaines', '5 visites · 1 par semaine · 16 € la visite', 'Entretien de barbe', 'Une visite par semaine, cinq semaines de suite. Une semaine sautée est perdue.', '80 €']) if (!words.includes(w)) throw new Error('the offer does not say « ' + w + ' »: ' + words);
   await offer.scrollIntoViewIfNeeded();
@@ -61,6 +69,8 @@ async function run(h, page, step) {
   await h.expectText(page, 'Étape 4 sur 4');
   await h.expectText(page, 'Cette formule demande un compte : c’est ce qui garde tes 5 visites.');
   await h.expectText(page, 'Tes 5 rendez-vous');
+  await h.expectText(page, 'C’est pour toi.');
+  await page.getByRole('button', { name: 'Changer la personne de ce rendez-vous' }).click();
   if (await page.getByRole('radio', { name: 'Une autre personne' }).getAttribute('aria-disabled') !== 'true') throw new Error('the carnet can be taken for another adult');
   await page.fill('#f-first', 'Karim');
   await page.fill('#f-last', 'Zerbib');

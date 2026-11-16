@@ -141,8 +141,8 @@ export function minStartFor(s, day, local, { online = true } = {}) {
 /**
  * Free starts on one day.
  * @param {State} s
- * @param {{ day: string, dur: number, serviceIds: string[], staffId: string, now: number, local: { day: string, min: number }, online?: boolean, ignoreHold?: string|null, ignoreAppt?: string|null, step?: number }} q
- * @returns {{ m: number, staffId: string }[]}
+ * @param {{ day: string, dur: number, serviceIds: string[], staffId: string, now: number, local: { day: string, min: number }, online?: boolean, ignoreHold?: string|null, ignoreAppt?: string|null, step?: number, each?: boolean }} q
+ * @returns {{ m: number, staffId: string, free?: string[] }[]}
  */
 export function freeSlots(s, q) {
   const step = q.step || s.settings.booking.stepMin;
@@ -166,12 +166,16 @@ export function freeSlots(s, q) {
     if (m < minStart) continue;
     const end = m + q.dur;
     let best = null;
+    /** @type {string[]|null} */
+    const all = q.each ? [] : null;
     for (const p of per) {
       if (!p.work.some(([a, b]) => m >= a && end <= b)) continue;
       if (p.busy.some(([a, b]) => a < end && m < b)) continue;
+      if (all) all.push(p.st.id);
       if (!best || p.load < best.load) best = p;
     }
-    if (best) out.push({ m, staffId: best.st.id });
+    // each: everyone free at that time too (what asking barber by barber would answer), for the site's one read
+    if (best) out.push(all ? { m, staffId: best.st.id, free: all } : { m, staffId: best.st.id });
   }
   return out;
 }

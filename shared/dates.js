@@ -15,14 +15,41 @@ function fmt(tz) {
 }
 const WD = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
 
+// The zone's offset changes a few times a year, always on a quarter of an hour: read once per quarter (Intl is slow,
+// and the server asks thousands of times), then plain arithmetic gives the same parts.
+const OFFSETS = new Map();
+const QUARTER = 900000;
+function offsetAt(ms, tz) {
+  const k = tz + '|' + Math.floor(ms / QUARTER);
+  let off = OFFSETS.get(k);
+  if (off !== undefined) return off;
+  /** @type {Record<string,string>} */
+  const o = {};
+  for (const p of fmt(tz).formatToParts(new Date(ms))) o[p.type] = p.value;
+  off = Date.UTC(+o.year, +o.month - 1, +o.day, +o.hour % 24, +o.minute, +o.second) - Math.floor(ms / 1000) * 1000;
+  if (OFFSETS.size > 20000) OFFSETS.clear();
+  OFFSETS.set(k, off);
+  return off;
+}
+
 /** Local wall-clock parts of an instant. */
 export function localParts(ms, tz = TZ) {
+  ms = +ms;
+  // outside the years a salon lives in (or not a date at all): the slow, exact way
+  if (!(ms > 0 && ms < 4102444800000)) return localPartsIntl(ms, tz);
+  const d = new Date(ms + offsetAt(ms, tz));
+  const y = d.getUTCFullYear(), m = d.getUTCMonth() + 1, day = d.getUTCDate();
+  return { y, m, d: day, wd: d.getUTCDay(), min: d.getUTCHours() * 60 + d.getUTCMinutes(), sec: d.getUTCSeconds(), day: keyOf(y, m, day) };
+}
+function localPartsIntl(ms, tz) {
   /** @type {Record<string,string>} */
   const o = {};
   for (const p of fmt(tz).formatToParts(new Date(ms))) o[p.type] = p.value;
   const h = +o.hour % 24;
   return { y: +o.year, m: +o.month, d: +o.day, wd: WD[/** @type {keyof typeof WD} */ (o.weekday)], min: h * 60 + +o.minute, sec: +o.second, day: keyOf(+o.year, +o.month, +o.day) };
 }
+/** For the tests: the parts as Intl gives them, to compare. */
+export const localPartsExact = localPartsIntl;
 
 export function pad2(n) { return n < 10 ? '0' + n : '' + n; }
 export function keyOf(y, m, d) { return y + '-' + pad2(m) + '-' + pad2(d); }
@@ -52,9 +79,17 @@ export function addDays(key, n) {
   return keyOf(dt.getUTCFullYear(), dt.getUTCMonth() + 1, dt.getUTCDate());
 }
 /** b − a in days. */
-export function diffDays(a, b) {
-  const A = dayParts(a), B = dayParts(b);
-  return Math.round((Date.UTC(B.y, B.m - 1, B.d) - Date.UTC(A.y, A.m - 1, A.d)) / 86400000);
+export function diffDays(a, b) { return dayNumber(b) - dayNumber(a); }
+// the day's rank since 1970, kept like its parts
+const NUMS = new Map();
+function dayNumber(key) {
+  let n = NUMS.get(key);
+  if (n !== undefined) return n;
+  const p = dayParts(key);
+  n = Math.round(Date.UTC(p.y, p.m - 1, p.d) / 86400000);
+  if (NUMS.size > 5000) NUMS.clear();
+  NUMS.set(key, n);
+  return n;
 }
 /** Monday of the week containing `key`. */
 export function weekStart(key) { return addDays(key, -((weekday(key) + 6) % 7)); }

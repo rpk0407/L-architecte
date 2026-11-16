@@ -2,7 +2,7 @@
 // The public API: what the client site and the "mon rendez-vous" page use. No account, no personal data out.
 import { HttpError, guard, json } from './kit.js';
 import { serviceView, staffView } from './views.js';
-import { freeSlots, walkinEstimate, shopIntervals, staffIntervals, UNDECIDED } from '../domain/availability.js';
+import { freeSlots, eligibleStaff, walkinEstimate, shopIntervals, staffIntervals, UNDECIDED } from '../domain/availability.js';
 import { clientMayChange, payWindowMin, payDeadline } from '../domain/policy.js';
 import { signLink, checkLink } from '../auth/session.js';
 import { addDays, isDay, diffDays, dayLong } from '../../shared/dates.js';
@@ -267,6 +267,34 @@ export function publicRoutes(app) {
     const days = Math.max(1, Math.min(14, Number(q.get('days')) || 10));
     const ids = String(q.get('services') || '').split(',').filter(Boolean).slice(0, 4);
     const staffId = q.get('staff') || 'any';
+    // all=1: the site's one read for the whole booking sheet. Every service sold online, « sans préférence » and barber
+    // by barber, in one answer: choosing a service, a barber or a day then shows its slots from memory. Services that
+    // take the same time with the same barbers share one list (sets); who is free at a time is a bit mask over `staff`.
+    if (q.has('all')) {
+      const fresh = q.has('fresh');
+      const online = [...s.services.values()].filter((x) => x && x.active && x.online !== false && !x.pack);
+      /** @type {string[]} */
+      const staff = [];
+      const bit = (id) => { let i = staff.indexOf(id); if (i < 0) { i = staff.length; staff.push(id); } return i; };
+      /** @type {Map<string, { services: string[], dur: number, days: any[] }>} */
+      const sets = new Map();
+      for (const x of online) {
+        const d = x.dur + Math.max(0, x.buffer || 0);
+        const k = d + '|' + eligibleStaff(s, [x.id], { online: true }).map((st) => st.id).join(',');
+        const set = sets.get(k);
+        if (set) { set.services.push(x.id); continue; }
+        const out = [];
+        for (let i = 0; i < days; i++) {
+          const day = addDays(from, i);
+          if (diffDays(L.day, day) > s.settings.booking.maxDaysAhead) break;
+          const slots = freeSlots(s, { day, dur: d, serviceIds: [x.id], staffId: 'any', now: r.now, local: L, online: true, each: true });
+          out.push({ day, open: !s.closures.has(day) && shopIntervals(s, day).length > 0, slots: slots.map((y) => [y.m, bit(y.staffId), (y.free || []).reduce((t, id) => t | (1 << bit(id)), 0)]) });
+        }
+        sets.set(k, { services: [x.id], dur: d, days: out });
+      }
+      if (staff.length > 30) throw new HttpError(400, 'invalid', 'Trop de barbiers pour cette lecture.');
+      return json({ now: r.now, from, staff, sets: [...sets.values()] }, 200, { 'cache-control': fresh ? 'no-store' : 'public, max-age=0, s-maxage=5' });
+    }
     if (!ids.length) throw new HttpError(400, 'invalid', 'Choisis une prestation.');
     const services = ids.map((id) => s.services.get(id)).filter((x) => x && x.active && x.online !== false && !x.pack);
     if (services.length !== ids.length) throw new HttpError(404, 'not_found', 'Prestation introuvable.');
