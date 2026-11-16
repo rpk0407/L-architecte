@@ -724,11 +724,14 @@ export const sendReceipt = {
     if (!to) fail(400, 'invalid', 'Aucun numéro pour envoyer le reçu.');
     // after the visit, the receipt is also the review request: one text, never a second one (commands/reviews.js)
     const key = 'receipt_' + sale.id + '_' + (input.n || 0);
-    const ask = receiptMayAsk(s, ctx, sale, c, normPhone(to) || to);
+    // never beside the words of a loyalty reward (« ta prochaine coupe est offerte »): a review is never rewarded, and must
+    // not read as if it were; the request then leaves on its own, later, as usual
+    const fid = receiptWords(s, sale, ctx.local.day);
+    const ask = receiptMayAsk(s, ctx, sale, c, normPhone(to) || to) && !/offert|récompense|cadeau/i.test(fid);
     const id = queueMessage(s, ctx, {
       key, template: 'receipt', to, cid: c ? c.id : null,
       ...(ask ? { review: true, apptId: sale.apptId || null, text: (s.settings.messages.templates.receipt || '') + RECEIPT_REVIEW } : {}),
-      vars: { ...(ask ? { avis: reviewLink(s, ctx, messageId(key)) } : {}), prenom: c ? c.first : '', ticket: 'T' + String(sale.number).padStart(6, '0'), montant: (sale.totals.due / 100).toFixed(2).replace('.', ',') + ' €', lien: ctx.meta.receiptLink ? ctx.meta.receiptLink(sale) : '', fidelite: receiptWords(s, sale, ctx.local.day) }
+      vars: { ...(ask ? { avis: reviewLink(s, ctx, messageId(key)) } : {}), prenom: c ? c.first : '', ticket: 'T' + String(sale.number).padStart(6, '0'), montant: (sale.totals.due / 100).toFixed(2).replace('.', ',') + ' €', lien: ctx.meta.receiptLink ? ctx.meta.receiptLink(sale) : '', fidelite: fid }
     });
     return { id };
   }
