@@ -19,7 +19,9 @@ type Item = {
   id: string; kind: string; template: string; at: number; dueAt: number; client: { id: string; name: string };
   appt: { id: string; day: string; start: number; barber: string } | null; text: string; link: string; error: string;
 };
+type NotLeft = { id: string; kind: string; channel: 'sms' | 'email'; status: string; at: number; error: string; client: { id: string; name: string } };
 type Hand = {
+  failed?: NotLeft[];
   items: Item[]; held: number; later: number; left: { optout: number; nomobile: number };
   mode: 'sms' | 'phone' | 'auto'; effective: 'sms' | 'phone' | 'auto'; hold: boolean; all: boolean; demo: boolean;
 };
@@ -69,6 +71,18 @@ export default function Messages() {
       refreshAll();
       await refresh();
     } catch (e) { toastError(e); void refresh(); } finally { setBusy(false); }
+  };
+
+  /** « Renvoyer »: a fresh copy of a message that did not leave, by e-mail; the server says where it went */
+  const [again, setAgain] = useState('');
+  const resend = async (m: NotLeft) => {
+    setAgain(m.id);
+    try {
+      const r = await api.post<{ to: string; status: string; error?: string }>('/api/v1/messages/' + encodeURIComponent(m.id) + '/resend', {});
+      if (r.status === 'failed') toast({ kind: 'err', title: 'L’e-mail n’est pas parti', sub: r.error || undefined, icon: 'alert' });
+      else toast({ title: r.status === 'queued' ? 'E-mail en attente d’envoi' : 'Renvoyé par e-mail', sub: 'À ' + r.to, icon: 'check' });
+      await refresh();
+    } catch (e) { toastError(e); } finally { setAgain(''); }
   };
 
   const title = <PageTitle><h1>Messages</h1></PageTitle>;
@@ -129,6 +143,20 @@ export default function Messages() {
                   <span className="li-main"><b>{x.client.name}</b><small>{x.kind}{x.appt ? ' · ' + dayWord(x.appt.day, today) + ' à ' + time(x.appt.start) : ''}</small></span>
                   <Icon name="chevR" size={16} />
                 </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
+      {data.failed && data.failed.length ? (
+        <section className="card mh-rest" aria-label="Pas partis" data-failed>
+          <p className="section-k">Pas partis</p>
+          <ul className="list">
+            {data.failed.map((x) => (
+              <li key={x.id} className="mh-failed">
+                <span className="li-main"><b>{x.client.name}</b><small>{x.kind} · {x.status === 'expired' ? 'trop tard' : 'échec'}{x.error && x.status === 'failed' ? ' : ' + x.error : ''}</small></span>
+                <Button variant="subtle" size="sm" icon="mail" busy={again === x.id} onClick={() => void resend(x)}>Renvoyer par e-mail</Button>
               </li>
             ))}
           </ul>

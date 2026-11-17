@@ -356,3 +356,7 @@ button.agp-h:active { background: var(--panel2); }
 @media (prefers-reduced-motion: reduce) {
   .agp-grid.wide { scroll-behavior: auto; scroll-snap-type: none; }
 }
+
+/* « Renvoyer »: the confirmation again by e-mail, and one message of the list (44 px to the finger) */
+.ap-resend { display: flex; flex-direction: column; gap: 6px; }
+.ap-again { margin-left: 10px; min-height: 44px; display: inline-flex; align-items: center; }

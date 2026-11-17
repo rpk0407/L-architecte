@@ -40,3 +40,6 @@ a.rl-why { color: var(--tx2); font-weight: 500; text-decoration: underline; text
   .rl-side { position: static; }
 }
 @media (min-width: 761px) { .rl-autolink { display: none; } .rl-auto:not(.on) { display: block; } }
+
+/* « Renvoyer par e-mail » under a row's state: a full touch target */
+.rl-again { display: flex; align-items: center; min-height: 44px; font-size: 13px; }

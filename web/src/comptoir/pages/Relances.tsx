@@ -19,7 +19,7 @@ type Overdue = ClientCard & { lastText: number | null; lastDue?: number | null }
 type WaitItem = { id: string; first: string; phone: string; day: string; staffId: string; serviceId: string; from: number; to: number; status: string; offer: { start: number; staffId: string; exp: number } | null; at: number };
 // via, fallback (MSG-02): the way a text really left ('whatsapp' or 'sms'; 'fallback': by Brevo after the salon's phone
 // refused it, FID-01), and why the first way handed it on
-type Msg = { id: string; channel?: 'sms' | 'email'; template: string; status: string; at: number; dueAt: number; sentAt: number | null; to: string; body: string; subject?: string; error: string; via?: 'sms' | 'whatsapp' | 'fallback' | null; fallback?: string; held?: boolean; hand?: boolean };
+type Msg = { id: string; channel?: 'sms' | 'email'; template: string; status: string; at: number; dueAt: number; sentAt: number | null; to: string; body: string; subject?: string; error: string; via?: 'sms' | 'whatsapp' | 'fallback' | 'email' | null; fallback?: string; held?: boolean; hand?: boolean; resend?: boolean };
 type Back = { sent: number; clientsBack: number; revenueBack: number; rate: number };
 type Quiet = { from: number; to: number; sunday: boolean; holidays?: boolean } | undefined;
 type RebookData = { items: Overdue[]; excludedNoConsent: number; stats: Back; template: string; stop: string; quiet?: Quiet };
@@ -430,7 +430,18 @@ function InquiryCard({ q, data }: { q: Inquiry; data: InquiryData }) {
 
 function Sent() {
   const { can, now } = useApp();
-  const { data, loading } = useQuery<{ items: Msg[]; provider: string | null; emailProvider?: string | null; mode: string }>(can('marketing') ? '/api/v1/messages?limit=150' : null);
+  const { data, loading, refresh } = useQuery<{ items: Msg[]; provider: string | null; emailProvider?: string | null; mode: string }>(can('marketing') ? '/api/v1/messages?limit=150' : null);
+  const [again, setAgain] = useState('');
+  /** « Renvoyer »: a fresh copy by e-mail; the server says where it went and whether it left */
+  const resend = async (m: Msg) => {
+    setAgain(m.id);
+    try {
+      const r = await api.post<{ to: string; status: string; error?: string }>('/api/v1/messages/' + encodeURIComponent(m.id) + '/resend', {});
+      if (r.status === 'failed') toast({ kind: 'err', title: 'L’e-mail n’est pas parti', sub: r.error || undefined, icon: 'alert' });
+      else toast({ title: r.status === 'queued' ? 'E-mail en attente d’envoi' : 'Renvoyé par e-mail', sub: 'À ' + r.to, icon: 'check' });
+      await refresh();
+    } catch (e) { toastError(e); } finally { setAgain(''); }
+  };
   if (!can('marketing')) return <Empty icon="lock" title="Réservé à l’accueil et au gérant" />;
   if (loading && !data) return <Skeleton h={320} r={22} />;
   if (!data) return null;
@@ -453,11 +464,11 @@ function Sent() {
                 <tr key={m.id}>
                   <td className="tnum hide-phone" style={{ whiteSpace: 'nowrap' }}>{dates.dayShort(day)} · {clock(m.at)}</td>
                   {/* on a phone, when and to whom fold under the message so the state stays in view */}
-                  <td><span className="faint" style={{ display: 'inline-flex', verticalAlign: '-2px', marginRight: 6 }}><Icon name={mail ? 'mail' : m.via === 'whatsapp' ? 'globe' : 'sms'} size={15} title={mail ? 'E-mail' : m.via === 'whatsapp' ? 'WhatsApp' : 'SMS'} /></span>{LABEL[m.template] || m.template}{m.via === 'whatsapp' ? <span className="faint"> · WhatsApp</span> : m.via === 'fallback' ? <span className="faint"> · par Brevo, en secours</span> : null}<small className="rl-meta tnum">{dates.dayShort(day)} · {clock(m.at)} · {m.to}</small></td>
+                  <td><span className="faint" style={{ display: 'inline-flex', verticalAlign: '-2px', marginRight: 6 }}><Icon name={mail ? 'mail' : m.via === 'whatsapp' ? 'globe' : 'sms'} size={15} title={mail ? 'E-mail' : m.via === 'whatsapp' ? 'WhatsApp' : 'SMS'} /></span>{LABEL[m.template] || m.template}{m.via === 'whatsapp' ? <span className="faint"> · WhatsApp</span> : m.via === 'fallback' ? <span className="faint"> · par Brevo, en secours</span> : m.via === 'email' ? <span className="faint"> · parti par e-mail</span> : null}<small className="rl-meta tnum">{dates.dayShort(day)} · {clock(m.at)} · {m.to}</small></td>
                   <td className="tnum hide-phone" style={{ whiteSpace: 'nowrap' }}>{m.to}</td>
                   {can('settings') ? <td className="hide-phone rl-body" title={m.body}>{mail && m.subject ? m.subject : m.body}</td> : null}
                   {/* why it did not leave, in words: a tooltip never shows on a phone */}
-                  <td><span className={'badge ' + tone} title={label === 'attend un fournisseur' ? 'En attente d’un fournisseur ' + (mail ? 'e-mail' : 'SMS') : undefined}>{label}</span>{m.status === 'queued' && m.hand && !m.held ? <Link to="/messages" className="rl-why link">depuis l’écran Messages</Link> : null}{m.error && ['expired', 'failed', 'skipped'].includes(m.status) ? <small className="rl-why">{m.status === 'expired' ? cap(m.error.replace(/^Trop tard : /, '')) : m.error}</small> : null}{m.fallback ? <small className="rl-why">{m.via === 'fallback' ? 'Téléphone du salon : ' + m.fallback.replace(/^Téléphone du salon : /, '') : 'Par SMS : ' + m.fallback}</small> : null}</td>
+                  <td><span className={'badge ' + tone} title={label === 'attend un fournisseur' ? 'En attente d’un fournisseur ' + (mail ? 'e-mail' : 'SMS') : undefined}>{label}</span>{m.status === 'queued' && m.hand && !m.held ? <Link to="/messages" className="rl-why link">depuis l’écran Messages</Link> : null}{m.error && ['expired', 'failed', 'skipped'].includes(m.status) ? <small className="rl-why">{m.status === 'expired' ? cap(m.error.replace(/^Trop tard : /, '')) : m.error}</small> : null}{m.fallback ? <small className="rl-why">{m.via === 'fallback' ? 'Téléphone du salon : ' + m.fallback.replace(/^Téléphone du salon : /, '') : 'Par SMS : ' + m.fallback}</small> : null}{m.resend ? <button type="button" className="link rl-again" title="Renvoyer ce message par e-mail" data-resend={m.id} disabled={again === m.id} onClick={() => void resend(m)}>{again === m.id ? 'Envoi…' : 'Renvoyer'}</button> : null}</td>
                 </tr>
               );
             })}</tbody>

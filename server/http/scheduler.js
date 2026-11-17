@@ -9,7 +9,9 @@ import { startsAt } from '../domain/policy.js';
 import { nightlyBackup, backupsOf, backupState, backupOff, ownBackups, salonOf, keyProblem } from '../core/backup.js';
 import { webhookUrl, gatewayStop } from '../messaging/sms.js';
 import { fillBody, attachmentsOf } from '../domain/messages.js';
-import { byHand, handEligible, handStale, waTemplateOf } from '../messaging/hand.js';
+import { byHand, byMail, handEligible, handStale, waTemplateOf } from '../messaging/hand.js';
+import { mailOfText } from '../messaging/bymail.js';
+import { maskEmail } from '../lib/util.js';
 import { TEMPLATE_FLAGS, classOf } from '../core/templates.js';
 import { digestDue } from '../commands/steps/digest.js';
 import { localParts } from '../../shared/dates.js';
@@ -191,6 +193,18 @@ async function sendText(rt, s, m, beforeSms) {
 }
 
 /**
+ * A text no SMS can carry, to the client's e-mail (messaging/hand.js byMail says when): the same words, laid out as a
+ * mail (messaging/bymail.js). The outcome says so (via 'email') and where it went, masked.
+ */
+async function sendByMail(rt, s, m, to) {
+  const mail = mailOfText(s, m, fillBody(m, rt));
+  try {
+    const r = await rt.email.send({ to, ...mail, fromName: s.settings.shop.name, tag: m.template });
+    return { status: 'sent', providerRef: r.ref, via: 'email', toMasked: maskEmail(to, { domain: true }) };
+  } catch (err) { return { status: 'failed', error: String(err && err.message || err), via: 'email' }; }
+}
+
+/**
  * Deliver queued messages: claim them in one write, send each by its channel, record the outcomes in one write.
  * They leave in sendRank order. `only`: these messages and nothing else (dispatchNow).
  * @param {any} rt @param {number} [limit] @param {{ only?: Set<string> }} [o]
@@ -204,7 +218,7 @@ export async function dispatch(rt, limit = 10, o = {}) {
   // still sends its own reminders, and the links would open a site that is not live. Every channel goes through here
   const hold = cutoverHold(e.state);
   // a text that waits for a person (mode téléphone, messaging/hand.js) is never taken here, in demo either
-  const live = (m) => !byHand(e.state, rt, m) && (demo || ((m.channel === 'email' ? !!rt.email : !!rt.sms || (!!wa && !!waRoute(e.state, m))) && !(hold && heldByCutover(m))));
+  const live = (m) => !byHand(e.state, rt, m) && (demo || ((m.channel === 'email' ? !!rt.email : !!rt.sms || (!!wa && !!waRoute(e.state, m)) || !!byMail(e.state, rt, m)) && !(hold && heldByCutover(m))));
   const now = e.clock();
   await expireHand(rt, now, hold);
   if (!demo && !rt.sms && !rt.email && !wa) return 0;
@@ -242,12 +256,15 @@ export async function dispatch(rt, limit = 10, o = {}) {
     if (!m || m.status !== 'claimed') continue;
     const email = m.channel === 'email';
     // the demo sends nothing; its outbox still says which way each text would have gone
-    if (demo || (email ? !rt.email : !rt.sms && !wa)) { outcomes.push({ id, status: 'simulated', ...(email ? {} : { via: waRoute(e.state, m) ? 'whatsapp' : 'sms' }) }); continue; }
+    // read again once claimed: the address may have left the file meanwhile
+    const mailTo = email || demo ? '' : byMail(e.state, rt, m);
+    if (demo || (email ? !rt.email : !rt.sms && !wa && !mailTo)) { outcomes.push({ id, status: 'simulated', ...(email ? {} : { via: waRoute(e.state, m) ? 'whatsapp' : 'sms' }) }); continue; }
     const late = staleReason(e.state, m, now);
     if (late) { outcomes.push({ id, status: 'expired', error: late }); continue; }
     if (!m.to) { outcomes.push({ id, status: 'skipped', error: email ? 'Adresse effacée' : 'Numéro effacé' }); continue; }
     let out;
-    if (!email) out = await sendText(rt, e.state, m, beforeSms);
+    if (mailTo) out = await sendByMail(rt, e.state, m, mailTo);
+    else if (!email) out = await sendText(rt, e.state, m, beforeSms);
     else {
       try {
         const mail = m.mail || {};
