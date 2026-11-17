@@ -1,8 +1,8 @@
 // @ts-check
 // Signing in. The owner uses e-mail + password anywhere; on a device enrolled as "poste du salon",
 // the team switches with a 4–6 digit PIN. A PIN is useless anywhere else.
-import { HttpError, guard, failureGuard, cookie, parseCookies } from './kit.js';
-import { signSession, checkLink, SESSION_COOKIE, DEVICE_COOKIE, HOUR, PIN_PHONE_DAYS } from '../auth/session.js';
+import { HttpError, guard, failureGuard, limited, cookie, parseCookies } from './kit.js';
+import { signSession, signLink, checkLink, SESSION_COOKIE, DEVICE_COOKIE, HOUR, PIN_PHONE_DAYS } from '../auth/session.js';
 import { hashSecret, verifySecret, verifyDummy, passwordProblem, pinProblem } from '../auth/password.js';
 import { capsOf, ROLES } from '../domain/permissions.js';
 import { staffView } from './views.js';
@@ -13,6 +13,7 @@ import { DEMO } from '../domain/seed.js';
 import { isEmail } from '../lib/util.js';
 import { backupKey, backupsOf, keyProblem, restoreBackup } from '../core/backup.js';
 import { prefsOf, linkUsed, ofName } from '../projections/staffprefs.js';
+import { issuePasswordReset, usePasswordReset, resetOf, resettable, RESET_MS } from '../commands/reset.js';
 
 const DAY = 24 * HOUR;
 /** an uploaded backup arrives in parts: the function body limit is 4.5 MB on Vercel */
@@ -271,6 +272,60 @@ export function authRoutes(app) {
     if (text == null) throw new HttpError(409, 'backup_parts', 'Une partie du fichier manque : recommence l’envoi.');
     try { return await restore(r, text, 'fichier'); }
     finally { if (blob) await blob.clearChunks().catch(() => {}); else r.rt.restoreParts = null; }
+  }, { auth: false });
+
+  /* ---------------- « Mot de passe oublié » (commands/reset.js) ---------------- */
+
+  const RESET_SYS = { actor: /** @type {const} */ ({ t: 'system', id: 'reset', n: 'Mot de passe oublié' }), caps: new Set() };
+  const wait = (ms) => new Promise((ok) => setTimeout(ok, ms));
+  /** « staffId~exp~nonce », signed: the person and the link, or why not (said before the form, checked again by the write) */
+  const resetLink = (r, token) => {
+    guard('reset-ip|' + r.ip, 30, 15 * 60000);
+    const id = checkLink(r.rt.secret, 'pwd', token);
+    const [staffId, , nonce] = id ? id.split('~') : [];
+    if (!staffId || !nonce) throw new HttpError(404, 'bad_link', 'Ce lien n’est pas valide. Demande-en un nouveau.');
+    return { ...resetOf(r.s, staffId, nonce, r.now), nonce };
+  };
+
+  /**
+   * Ask for a link. The answer is the same whether the address is an account's or not, and takes about as long: nobody
+   * learns from here who works at the salon. Three links an hour per account, ten asks a quarter of an hour per address.
+   */
+  app.post('/api/auth/forgot', async (r) => {
+    guard('forgot|' + r.ip, 10, 15 * 60000);
+    const email = String(r.body.email || '').trim().toLowerCase();
+    if (!isEmail(email)) throw new HttpError(400, 'invalid', 'E-mail invalide.');
+    if (r.s.mode !== 'demo' && !r.rt.email) throw new HttpError(409, 'not_configured', 'L’envoi d’e-mails n’est pas branché : demande à ton prestataire.');
+    const st = resettable(r.s, email);
+    const floor = wait(900 + Math.floor(Math.random() * 500));
+    // one link at a time: a second ask within two minutes sends nothing more (read from the journal, so it holds on every instance)
+    const last = st ? r.s.pwdResets.get(st.id) : null;
+    const justSent = !!last && !last.used && r.now - last.at < 2 * 60000;
+    if (st && !justSent && !limited('forgot-acct|' + st.id, 3, 3600000)) {
+      const res = await r.rt.engine.run(issuePasswordReset, { staffId: st.id }, RESET_SYS);
+      const url = r.origin + '/comptoir/mot-de-passe/' + signLink(r.rt.secret, 'pwd', res.staffId + '~' + res.exp.toString(36) + '~' + res.id);
+      const shop = r.s.settings.shop.name;
+      const text = ['Bonjour ' + st.name + ',', '', 'Tu as demandé à choisir un nouveau mot de passe pour le Comptoir de ' + shop + '.', '', 'Ouvre ce lien dans les ' + Math.round(RESET_MS / 60000) + ' minutes : ' + url, '', 'Il ne sert qu’une fois. Si tu n’as rien demandé, ignore cet e-mail : ton mot de passe ne change pas.'].join('\n');
+      // the demo sends nothing; a send that fails is not said here either (the answer never tells an account from a stranger)
+      if (r.rt.email) await r.rt.email.send({ to: st.email, subject: 'Ton nouveau mot de passe · Le Comptoir', text, fromName: shop, tag: 'reset', cta: { url, label: 'Choisir mon mot de passe' } }).catch((err) => console.error('[lx] reset mail', err && err.message ? err.message : err));
+    }
+    await floor;
+    return { ok: true, minutes: Math.round(RESET_MS / 60000) };
+  }, { auth: false });
+
+  app.get('/api/auth/reset/:token', (r) => {
+    const { st, link } = resetLink(r, r.params.token);
+    return { staff: { name: st.name }, exp: link.exp };
+  }, { auth: false });
+
+  /** The new password: the link is spent, every session of that person ends, and this browser is signed in. */
+  app.post('/api/auth/reset', async (r) => {
+    const { st, nonce } = resetLink(r, String(r.body.token || ''));
+    const problem = passwordProblem(r.body.password);
+    if (problem) throw new HttpError(400, 'weak', problem);
+    await r.rt.engine.run(usePasswordReset, { staffId: st.id, nonce, pwdHash: await hashSecret(r.body.password) }, RESET_SYS);
+    setSession(r, r.s.staff.get(st.id), 'pwd', true);
+    return { ok: true };
   }, { auth: false });
 
   /** First start in production: create the owner. Needs SETUP_TOKEN, so nobody else can claim the salon. */
