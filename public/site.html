@@ -2786,33 +2786,73 @@ class Component extends DCLogic {
 
     /* hero: your appointment, or the next free slot */
     const days10 = LXE.openDays(10);
+    const today = LXE.now().key;
     const f0 = LXE.first();
     const nf = mine ? null : LXE.earliest('any', f0, days10);
     const nextK = mine ? 'Ton rendez-vous' : 'Prochain créneau';
     const nextV = mine ? LXE.dayWord(mine.day).replace(/^(\S+) (\d+) \S+$/, '$1 $2') + ' · ' + LXE.fmtH(mine.time) : (nf ? LXE.dayWord(nf.day) + ' · ' + LXE.fmtH(nf.m) : 'Voir les créneaux');
 
-    /* barbers */
+    /* the salon's own catalogue and team, once it answers (never a made-up price, name or slot before that) */
+    const cat = LXE.services();
+    const picks = cat ? cat.filter((f) => !f.pack) : [];
+    const firstCat = picks.length ? picks.filter((f) => f.cat === picks[0].cat) : [];
+    const price = (f) => (f.from ? 'dès ' : '') + num(f.p) + NB + '€';
+    // « + contour » beside « Coupe »: the first formula's name is not repeated on the others
+    const base = firstCat[0] ? (firstCat[0].sh || firstCat[0].n) : '';
+    const shortOf = (f, i) => {
+      let x = f.sh || f.n;
+      if (i > 0 && base && x.toLowerCase().indexOf(base.toLowerCase() + ' + ') === 0) x = '+ ' + x.slice(base.length + 3);
+      return x.replace(/ de (la )?barbe$/i, '');
+    };
+    /* the hero's shortcuts: the first three formulas, and the whole carte */
+    const hxChips = firstCat.slice(0, 3).map((f, i) => ({ t: shortOf(f, i), s: price(f), label: 'Réserver : ' + f.n + ', ' + price(f), go: () => this.openWith({ formula: f.key }) }));
+    if (hxChips.length) hxChips.push({ t: 'Autre', s: 'la carte', label: 'Choisir une autre prestation', go: () => this.openWith(null) });
+
+    /* « Prends place » : the formula he reads the slots for (his own choice on the page, the first one until then) */
+    const nowF = s.nowF && LXE.SV[s.nowF] && !LXE.SV[s.nowF].pack ? s.nowF : f0;
+    const NF = nowF ? LXE.SV[nowF] : null;
+    const nowChips = firstCat.slice(0, 4).map((f, i) => ({ cls: 'fc' + (f.key === nowF ? ' on' : ''), on: f.key === nowF, t: shortOf(f, 0), p: price(f), go: () => this.setState({ nowF: f.key }) }));
+    if (picks.length > nowChips.length && nowChips.length) nowChips.push({ cls: 'fc', on: false, t: 'Autre', p: '', go: () => this.openWith(null) });
+    const known = !!cat && !!NF && LXE.ready(nowF, 'any', today);
+    const dayOf = (k) => { const dd = LXE.diffDays(today, k); return dd === 0 ? 'Aujourd’hui' : dd === 1 ? 'Demain' : LXE.dayWord(k); };
+    // away, with the note the owner wrote for the site: « JKut revient le 12 novembre » reads « Revient le 12 novembre » under his name
+    const awayOf = (x) => { const aw = x.away && x.away.until >= today ? x.away : null; return aw ? (aw.note.indexOf(x.n + ' ') === 0 ? aw.note.charAt(x.n.length + 1).toUpperCase() + aw.note.slice(x.n.length + 2) : aw.note) : ''; };
+    const firstOf = (who) => { for (let i = 0; i < days10.length; i++) { const fr = LXE.slots(days10[i], who, nowF); if (fr.length) return { day: days10[i], slots: fr }; } return null; };
+    const anyF = known ? firstOf('any') : null;
+    const nxCells = !known ? [0, 1, 2, 3].map((i) => ({ li: i ? '' : 'nx-any', wait: true, ok: false }))
+      : [{
+        li: 'nx-any', wait: false, ok: true, who: false, any: true, cls: 'nx-b' + (anyF ? '' : ' none'),
+        d: anyF ? 'Le premier libre · ' + dayOf(anyF.day) : 'Sans préférence', t: anyF ? LXE.fmtH(anyF.slots[0].m) : 'Complet ces jours-ci',
+        label: anyF ? 'Le premier créneau libre : ' + dayOf(anyF.day) + ' à ' + LXE.fmtH(anyF.slots[0].m) + ', ' + NF.n : 'Voir les créneaux',
+        go: () => this.openWith(anyF ? { formula: nowF, barber: 'any', day: anyF.day, time: anyF.slots[0].m } : { formula: nowF, barber: 'any' })
+      }].concat(LXE.BARBERS.map((x) => {
+        const f = firstOf(x.id), aw = awayOf(x), fc = this.faceOf(x);
+        return {
+          li: '', wait: false, ok: true, who: true, any: false, cls: 'nx-b' + (f ? '' : ' none'),
+          avCls: 'bb-av' + (fc.hasPhoto ? ' pic' : ''), ini: x.ini, hasPhoto: fc.hasPhoto, photo: fc.photo, photoErr: fc.err, n: x.n,
+          d: f ? dayOf(f.day) : aw ? 'Absent' : 'Complet', t: f ? LXE.fmtH(f.slots[0].m) : (aw || 'Complet ces jours-ci'),
+          label: x.n + (f ? ' : ' + dayOf(f.day) + ' à ' + LXE.fmtH(f.slots[0].m) + ', ' + NF.n : ' : voir ses créneaux'),
+          go: () => this.openWith(f ? { formula: nowF, barber: x.id, day: f.day, time: f.slots[0].m } : { formula: nowF, barber: x.id })
+        };
+      }));
+
+    /* « Comme la dernière fois ? » : what this phone remembers of his last booking, and its next free slot */
+    const me = s.forgot ? null : readMe();
+    const lastK = !mine && me && me.lastF && LXE.SV[me.lastF] && !LXE.SV[me.lastF].pack ? me.lastF : null;
+    const lastB = lastK && me.lastBarber && LXE.BMAP[me.lastBarber] ? me.lastBarber : null;
+    const lastS = lastK ? LXE.earliest(lastB || 'any', lastK, days10) : null;
+
+    /* the team: each one's card, open, with his next free hours for that formula */
     const barbers = LXE.BARBERS.map((x) => {
-      let f = null;
-      for (let i = 0; i < days10.length && !f; i++) {
-        const fr = LXE.slots(days10[i], x.id, f0);
-        if (fr.length) f = { day: days10[i], slots: fr.slice(0, 4) };
-      }
-      const op = s.bOpen === x.id;
-      const dd = f ? LXE.diffDays(LXE.now().key, f.day) : 0;
-      // away today, with a note for the site (the owner's choice): 'JKut revient le 12 novembre'
-      const aw = x.away && x.away.until >= LXE.now().key ? x.away : null;
-      const fc = this.faceOf(x);
+      const f = known ? firstOf(x.id) : null, aw = awayOf(x), fc = this.faceOf(x);
       return {
-        n: x.n, ini: x.ini, open: op, cls: 'bb-i' + (op ? ' open' : '') + (aw ? ' away' : ''),
+        n: x.n, ini: x.ini, cls: 'bb-i' + (aw ? ' away' : ''), nCls: 'bb-n' + (x.n.length > 12 ? ' lg' : ''),
         avCls: 'bb-av' + (fc.hasPhoto ? ' pic' : ''), hasPhoto: fc.hasPhoto, photo: fc.photo, photoErr: fc.err,
-        hasBio: !!x.bio, bio: x.bio || '', hasIg: !!igUrl(x.ig), ig: igUrl(x.ig),
-        // the name is right above: 'JKut revient le 12 novembre' reads 'Revient le 12 novembre' under it
-        next: aw ? (aw.note.indexOf(x.n + ' ') === 0 ? aw.note.charAt(x.n.length + 1).toUpperCase() + aw.note.slice(x.n.length + 2) : aw.note) : f ? 'Libre ' + (dd === 0 ? 'aujourd’hui' : (dd === 1 ? 'demain' : LXE.dayLong(f.day).replace(/ \S+$/, ''))) + ' · ' + LXE.fmtH(f.slots[0].m) : 'Complet ces jours-ci',
-        dayLabel: f ? LXE.dayWord(f.day) + (dd <= 1 ? ', ' + LXE.dayLong(f.day) : '') : '',
-        slots: f ? f.slots.map((sl) => ({ t: LXE.fmtH(sl.m), go: () => this.openWith({ formula: this.state.bk.f || null, barber: x.id, day: f.day, time: sl.m }) })) : [],
-        other: () => this.openWith({ barber: x.id }),
-        toggle: () => this.setState({ bOpen: op ? null : x.id })
+        hasBio: !!x.bio, bio: x.bio || '', hasIg: !!igUrl(x.ig), ig: igUrl(x.ig), igLabel: 'Le travail de ' + x.n + ' sur Instagram',
+        hasAway: !!aw, away: aw,
+        hasK: !aw && known, kCls: 'bb-k' + (f ? '' : ' none'), k: f ? dayOf(f.day) + ' · ' + shortOf(NF, 0) : 'Complet ces jours-ci',
+        slots: f ? f.slots.slice(0, 3).map((sl) => ({ t: LXE.fmtH(sl.m), label: x.n + ', ' + dayOf(f.day) + ' à ' + LXE.fmtH(sl.m) + ' : garder ce créneau', go: () => this.openWith({ formula: nowF, barber: x.id, day: f.day, time: sl.m }) })) : [],
+        otherText: f ? 'Un autre jour' : 'Voir ses créneaux', otherLabel: 'Choisir un autre jour avec ' + x.n, other: () => this.openWith({ formula: nowF, barber: x.id })
       };
     });
 
@@ -2837,21 +2877,20 @@ class Component extends DCLogic {
     const live = LXE.services();
     const low = (live || FORMULAS).reduce((m, f) => Math.min(m, f.p), Infinity);
 
-    /* la carte */
-    const groups = menuGroups(TABS);
+    /* la carte: everything the salon sells, in its order; what is not booked online says so */
+    const menu = sal && Array.isArray(sal.menu) && sal.menu.length ? sal.menu.map((m) => {
+      const f = LXE.SV[m.slug];
+      return f && !f.pack ? Object.assign({ can: true }, f) : { can: false, key: m.slug, n: m.name, p: m.price / 100, d: m.dur, from: !!m.from, cat: m.category || 'Prestations', tag: '', inc: [], note: '' };
+    }).filter((f) => !(LXE.SV[f.key] && LXE.SV[f.key].pack)) : picks.map((f) => Object.assign({ can: true }, f));
+    const groups = [];
+    menu.forEach((f) => { let g = groups.filter((x) => x.t === f.cat)[0]; if (!g) { g = { t: f.cat, items: [] }; groups.push(g); } g.items.push(f); });
     const tab = groups[s.tab] || groups[0] || { t: '', items: [] };
-    const tabs = groups.map((t, i) => ({ t: t.t, on: t === tab, cls: 'cr-tab' + (t === tab ? ' on' : ''), go: () => this.setState({ tab: i, crOpen: null }) }));
-    const carteItems = tab.items.map((f) => {
-      const id = f.key;
-      const op = s.crOpen === id;
-      return {
-        n: f.n, meta: fmtDur(f.d) + (f.tag ? ' · ' + f.tag : ''), pre: f.from ? 'dès' : '', p: num(f.p) + NB + '€', price: eur(f),
-        open: op, cls: 'cr-i' + (op ? ' open' : ''),
-        inc: (f.inc || []).map((t) => ({ t: t })), hasNote: !!f.note, note: f.note || '',
-        toggle: () => this.setState({ crOpen: op ? null : id }),
-        book: () => this.openWith({ formula: id })
-      };
-    });
+    const tabs = groups.map((g, i) => ({ t: g.t, on: g === tab, cls: 'cr-tab' + (g === tab ? ' on' : ''), go: () => this.setState({ tab: i }) }));
+    const carteItems = tab.items.map((f) => ({
+      n: f.n, cls: 'cr-row' + (f.can ? ' can' : ''), hasMeta: true, meta: fmtDur(f.d) + ((f.inc || []).length ? ' · ' + f.inc.join(' · ') : ''),
+      hasNote: !!f.note, note: f.note || '', hasTag: !!f.tag, tag: f.tag || '', from: !!f.from, p: num(f.p) + NB + '€',
+      can: !!f.can, cant: !f.can, label: 'Réserver : ' + f.n + ', ' + price(f), book: () => this.openWith({ formula: f.key })
+    }));
 
     /* chapters and the index: « Abonnement » is one only while it is sold online */
     const aboOn = this.aboOn();
@@ -2889,6 +2928,13 @@ class Component extends DCLogic {
       nextK: nextK,
       nextV: nextV,
       bookNext: () => (mine ? this.openManage(mine) : (nf ? this.openWith({ barber: 'any', day: nf.day, time: nf.m }) : this.openWith(null))),
+      hasHx: hxChips.length > 0, hxN: String(hxChips.length), hxChips: hxChips,
+      hasHb: !!lastK, hbK: lastK && me.first ? 'Salut ' + capFirst(me.first) : 'Rebonjour', hbLine: lastK ? LXE.SV[lastK].n + (lastB ? ' · avec ' + LXE.BMAP[lastB].n : '') : '',
+      hbHasSlot: !!lastS, hbSlot: lastS ? dayOf(lastS.day).toLowerCase() + ' · ' + LXE.fmtH(lastS.m) : '',
+      hbGo: () => this.openWith(lastS ? { formula: lastK, barber: lastB || 'any', day: lastS.day, time: lastS.m } : { formula: lastK, barber: lastB || undefined }),
+      nowChips: nowChips, homeWait: !cat, nxCells: nxCells,
+      bookOther: () => this.openWith({ formula: nowF, barber: 'any' }),
+      teamWait: !sal,
 
       cutNum: LXE.pad(Math.min(s.cut + 1, Math.max(1, cutTotal))),
       cutTotal: LXE.pad(cutTotal),
@@ -2914,15 +2960,11 @@ class Component extends DCLogic {
       bAny: () => this.openWith({ barber: 'any' }),
 
       tabs: tabs,
-      hasMenu: groups.length > 0,
+      hasMenu: groups.length > 1,
       tabName: tab.t,
       carteItems: carteItems,
-
-      tmLine: TM_LINES[s.tmStage],
-
-      finCls: 'fin' + (s.finDone ? ' done' : ''),
-      finK1: 'J+28.',
-      shaveKey: (e) => this.shaveKey(e),
+      carteWait: !sal, carteNone: !!sal && groups.length === 0,
+      contactHref: '/contact', contactText: 'écris au salon',
 
       stText: st.text,
       stCls: 'ft-st ' + st.cls,
