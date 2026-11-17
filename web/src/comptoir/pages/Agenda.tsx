@@ -158,11 +158,11 @@ export default function Agenda() {
                 day={day} today={today} nowStep={Math.ceil(nowMin / 5) * 5} view={viewOf(rawView)} setView={setPhoneView} lane={lane} setLane={setLane}
                 selected={sel} myId={boot.me.id} canSeeMoney={moneyOk && k!.scope === 'shop'}
                 extra={phoneExtra} closed={phoneClosed} scale={scaleOf(agView)} tools={phoneTools}
-                onDay={goDay} onOpen={open} onFree={onFree} onEmpty={onEmpty} onBlock={onBlock} onLane={day === today && can('agenda.edit') ? onLane : undefined} />
+                onDay={goDay} onOpen={open} onFree={onFree} onEmpty={onEmpty} onBlock={onBlock} late={can('agenda.edit')} onLane={day === today && can('agenda.edit') ? onLane : undefined} />
             ) : loading ? <Skeleton h={560} r={22} /> : error ? <Empty icon="alert" title="Agenda indisponible">{error.message}</Empty> : data ? (
               !data.lanes.length || (data.lanes.every((l) => !l.work.length) && !data.appts.length) ? <ClosedDay day={day} today={today} onGo={goDay} /> :
               <Board data={data} today={today} nowMin={nowMin} canSeeMoney={moneyOk && k!.scope === 'shop'} myId={boot.me.id} selected={sel} lane={lane} setLane={setLane}
-                onOpen={open} onMove={move} canMove={canMove} onEmpty={onEmpty} onBlock={onBlock}
+                onOpen={open} onMove={move} canMove={canMove} onEmpty={onEmpty} onBlock={onBlock} late={can('agenda.edit')}
                 view={agView} setView={setAgView} canChoose={!!boot.me.chair && data.lanes.length > 1 && data.lanes.some((l) => l.id === boot.me.id)}
                 onLane={day === today && can('agenda.edit') ? onLane : undefined} />
             ) : null}

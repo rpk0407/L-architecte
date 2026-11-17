@@ -11,6 +11,8 @@ test('the hours drawn: the chairs’ working hours on whole hours, stretched to 
   assert.deepEqual(drawnRange([[[540, 1110]]], [ap(1110, 45)]), [540, 1200], 'a late appointment is drawn');
   assert.deepEqual(drawnRange([[[540, 1110]]], [ap(500, 30)]), [480, 1140], 'an early one too');
   assert.deepEqual(drawnRange([[]], []), [540, 1140], 'a closed day keeps the usual frame');
+  assert.deepEqual(drawnRange([[[510, 1110]]], [], true), [420, 1260], 'whoever may force sees an hour before and two after');
+  assert.deepEqual(drawnRange([[[360, 1350]]], [], true), [360, 1380], 'never beyond 06:00 – 23:00, never less than the hours');
 });
 
 test('not bookable, and why: closed before and after, a pause inside, away for a long stretch or a whole day', () => {

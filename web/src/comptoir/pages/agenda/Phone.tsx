@@ -52,6 +52,7 @@ export type PhoneProps = {
   onEmpty: (staffId: string, min: number, at: At) => void;
   onBlock: (id: string, at: At) => void;
   onLane?: (staffId: string, at: At) => void;
+  late?: boolean;
 };
 
 type WeekData = { days: { day: string; staff: { minutes: number; cap: number }[] }[] };
@@ -108,7 +109,7 @@ export const PhoneAgenda = memo(function PhoneAgenda(p: PhoneProps) {
   const px = (compact ? 1.55 : 2.1) * (p.scale || 1);
   const gut = compact ? GUT : 46;
 
-  const [from, to] = useMemo(() => drawnRange(lanes.map((l) => l.work), appts), [data]);
+  const [from, to] = useMemo(() => drawnRange(lanes.map((l) => l.work), appts, p.late), [data, p.late]);
   const y = (m: number) => (m - from) * px;
   const floor = p.day < p.today ? Infinity : isToday ? p.nowStep : 0;
   const shopOpen = lanes.some((l) => l.work.length > 0);
