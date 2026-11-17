@@ -392,7 +392,7 @@ export function staffRoutes(app) {
       messages: { ...s.settings.messages, templates: r.caps.has('marketing') ? s.settings.messages.templates : {} }
     };
     return {
-      me: meView(s, r.me, r.device, r.session.kind), mode: s.mode, today: r.local.day, now: r.now, version: s.version, cfg: s.cfgVersion, settings,
+      me: meView(s, r.me, r.device, r.session ? r.session.kind : 'support'), mode: s.mode, today: r.local.day, now: r.now, version: s.version, cfg: s.cfgVersion, settings,
       staff: [...s.staff.values()].filter((x) => x.active || full).sort((a, b) => (a.order ?? 99) - (b.order ?? 99)).map((x) => staffView(x, full || x.id === r.me.id)),
       services: [...s.services.values()].filter((x) => !x.legacy && (x.active || r.caps.has('catalog'))).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)).map(serviceView),
       products: [...s.products.values()].filter((x) => x.active || r.caps.has('catalog')).map(productView),

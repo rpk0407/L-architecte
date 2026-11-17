@@ -37,7 +37,7 @@ export function presetRoutes(app) {
     // every part asked needs its right, checked before anything runs (and again by each command)
     const parts = Array.isArray(r.body && r.body.parts) && r.body.parts.length ? r.body.parts.map(String) : [...PRESET_PARTS];
     for (const p of parts) if (NEED[p] && !r.caps.has(NEED[p])) throw new HttpError(403, 'forbidden', 'Seul le gérant met le salon en place.');
-    const base = { actor: { t: /** @type {const} */ ('staff'), id: r.me.id, n: r.me.name, ...(r.device ? { dev: r.device.id } : {}) }, staff: r.me, caps: r.caps, meta: r.meta };
+    const base = { actor: r.actor, staff: r.me, caps: r.caps, meta: r.meta };
     const done = await applyPreset(r.rt.engine, ARCHITECTE, { parts }, base);
     return { done, ...(r.caps.has('settings') ? { plan: planOf(r) } : {}) };
   });

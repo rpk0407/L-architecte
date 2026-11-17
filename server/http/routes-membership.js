@@ -59,7 +59,7 @@ function staffRun(r) {
   const meta = memberMeta(r);
   return (cmd, input) => {
     const i = n++;
-    return r.rt.engine.run(cmd, input, { actor: { t: 'staff', id: r.me.id, n: r.me.name, ...(r.device ? { dev: r.device.id } : {}) }, staff: r.me, caps: r.caps, meta, requestId: rq && i ? rq + ':' + i : rq });
+    return r.rt.engine.run(cmd, input, { actor: r.actor, staff: r.me, caps: r.caps, meta, requestId: rq && i ? rq + ':' + i : rq });
   };
 }
 
