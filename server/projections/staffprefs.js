@@ -57,7 +57,7 @@ export function ofName(name) {
 
 /** @type {import('../core/extensions.js').Extension} */
 export const staffprefsExtension = {
-  init(s) { s.prefs = new Map(); s.staffPhotos = new Map(); s.photoEvents = new Map(); s.phoneLinks = new Map(); s.calTop = new Map(); s.phoneMisses = new Map(); },
+  init(s) { s.prefs = new Map(); s.staffPhotos = new Map(); s.photoEvents = new Map(); s.phoneLinks = new Map(); s.calTop = new Map(); s.phoneMisses = new Map(); s.pwdResets = new Map(); },
   on: {
     'prefs.set': (s, e, d) => {
       s.prefs.set(d.staffId, { ...(s.prefs.get(d.staffId) || {}), ...d.prefs });
@@ -77,6 +77,9 @@ export const staffprefsExtension = {
       for (const [k, l] of s.phoneLinks) if (l.exp < e.at - LINK_KEEP) s.phoneLinks.delete(k);
       s.phoneLinks.set(d.id, { id: d.id, staffId: d.staffId, exp: d.exp, at: e.at, by: e.actor.id });
     },
+    // « Mot de passe oublié » (commands/reset.js): one link per person, the last one asked; used once
+    'pwd.resetIssued': (s, e, d) => { s.pwdResets.set(d.staffId, { id: d.id, staffId: d.staffId, exp: d.exp, at: e.at, used: false }); },
+    'pwd.resetUsed': (s, e, d) => { const l = s.pwdResets.get(d.staffId); if (l && l.id === d.id) l.used = true; },
     'phone.pinMissed': (s, e, d) => { s.phoneMisses.set(d.id, (s.phoneMisses.get(d.id) || 0) + 1); },
     'phone.pinCleared': (s, e, d) => { s.phoneMisses.delete(d.id); },
     'phone.locked': (s, e, d) => { s.phoneMisses.delete(d.id); }

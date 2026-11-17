@@ -37,6 +37,7 @@ const LABELS = {
   'timeoff.added': 'Absence posée', 'timeoff.removed': 'Absence retirée', 'timeoff.requested': 'Absence demandée', 'timeoff.refused': 'Absence refusée',
   'timeoff.withdrawn': 'Demande d’absence retirée', 'device.enrolled': 'Appareil enregistré', 'device.revoked': 'Appareil retiré',
   'support.granted': 'Accès prestataire ouvert', 'support.revoked': 'Accès prestataire retiré',
+  'pwd.resetIssued': 'Lien « mot de passe oublié » envoyé', 'pwd.resetUsed': 'Mot de passe redéfini par e-mail',
   'import.started': 'Reprise WordPress commencée', 'import.batch': 'Paquet WordPress repris', 'import.finished': 'Reprise WordPress terminée',
   'service.added': 'Prestation créée', 'service.updated': 'Prestation modifiée', 'service.archived': 'Prestation retirée', 'product.added': 'Produit créé',
   'product.updated': 'Produit modifié', 'product.archived': 'Produit retiré', 'stock.adjusted': 'Stock ajusté', 'client.added': 'Client créé',
@@ -133,6 +134,7 @@ function summary(s, e) {
     case 'tech.logged': return d.kind === 'key' ? 'clé ' + d.kid + (d.backlog && d.backlog.length ? ' · ' + d.backlog.length + ' en attente' : '') : d.kind === 'version' ? 'version ' + d.to : d.kind;
     case 'import.batch': return d.i != null ? 'Paquet n° ' + (d.i + 1) : '';
     case 'phone.linkIssued': return 'pour ' + ((s.staff.get(d.staffId) || {}).name || '');
+    case 'pwd.resetIssued': case 'pwd.resetUsed': return 'pour ' + ((s.staff.get(d.staffId) || {}).name || '');
     case 'device.enrolled': case 'phone.locked': return d.staffId ? 'téléphone de ' + ((s.staff.get(d.staffId) || {}).name || '') + ' · ' + (d.name || '') : '';
     case 'cut.noted': return ((s.staff.get(d.staffId) || {}).name || '') + ' · ' + d.day + (d.by && d.by !== d.staffId ? ' · écrite par ' + ((s.staff.get(d.by) || {}).name || '') : '');
     case 'staff.photo': return ((s.staff.get(d.id) || {}).name || '') + (d.v ? '' : ' · retirée');

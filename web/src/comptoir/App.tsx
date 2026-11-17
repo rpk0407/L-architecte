@@ -9,7 +9,7 @@ import { Icon } from '../ui/Icon';
 import { Avatar, Button, ConfirmHost, Empty, Menu, Sheet, Toasts, dismiss, toast, Skeleton } from '../ui/kit';
 import { AppProvider, photoOf, useApp } from './state';
 import { forgetHome, homeOf } from './home';
-import { Login, linkToken, type AuthState } from './Login';
+import { Login, linkToken, resetToken, type AuthState } from './Login';
 import { Palette } from './Palette';
 import { FeedSheet } from './Feed';
 import type { Boot, FeedItem } from './types';
@@ -115,7 +115,8 @@ export function Root() {
   if (failed) return <div className="auth"><div className="auth-box"><div className="empty"><b>Le Comptoir est injoignable</b><p>{failed}</p><Button variant="primary" onClick={load}>Réessayer</Button></div></div></div>;
   if (!auth) return <div className="auth"><div className="spin" style={{ width: 28, height: 28, color: 'var(--tx3)' }} /></div>;
   // a phone link (/comptoir/lier/…) shows its own screen, even on a browser already signed in
-  if (!auth.me || !boot || linkToken()) return <><Login state={auth} onDone={load} /><Toasts /></>;
+  // so does the link of « Mot de passe oublié » (/comptoir/mot-de-passe/…)
+  if (!auth.me || !boot || linkToken() || resetToken()) return <><Login state={auth} onDone={load} /><Toasts /></>;
   return (
     // signed out (or the phone removed): the sign-in screen starts from the fresh state, never from the stale one
     <AppProvider initial={boot} onOut={() => { forgetHome(); wasIn(false); setBoot(null); setAuth(null); load(); }}>
