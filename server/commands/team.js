@@ -77,6 +77,8 @@ export const updateStaff = {
     const self = ctx.staff && ctx.staff.id === st.id;
     const patch = parse(patchSchema, input.patch || {});
     const selfOnly = ['bio', 'instagram', 'color'];
+    // a prestataire's access (commands/support.js) leaves who signs in, and as what, to the owner
+    if (ctx.actor.via && (patch.email !== undefined || patch.role !== undefined)) fail(403, 'support', 'Un accès prestataire ne change ni l’e-mail de connexion ni le rôle de quelqu’un.');
     if (!ctx.can('team') && !(self && Object.keys(patch).every((k) => selfOnly.includes(k)))) fail(403, 'forbidden', 'Seul le gérant modifie l’équipe.');
     if ((patch.role === 'owner' || st.role === 'owner') && ctx.staff?.role !== 'owner' && patch.role !== undefined) fail(403, 'forbidden', 'Seul le gérant change ce rôle.');
     if (st.role === 'owner' && patch.role && patch.role !== 'owner' && owners(s).length <= 1) fail(409, 'last_owner', 'Il faut au moins un gérant.');
@@ -176,6 +178,8 @@ export const archiveStaff = {
 const hashPattern = /^scrypt\$\d+\$\d+\$\d+\$[A-Za-z0-9+/=]+\$[A-Za-z0-9+/=]+$/;
 export const setCredentials = {
   run(s, input, ctx) {
+    // a prestataire's access (commands/support.js) never sets a password or a code, the owner's least of all
+    if (ctx.actor.via) fail(403, 'support', 'Un accès prestataire ne touche ni aux mots de passe ni aux codes.');
     const st = getStaff(s, input.id);
     const self = ctx.staff && ctx.staff.id === st.id;
     if (!self && !ctx.can('team')) fail(403, 'forbidden', 'Seul le gérant peut changer les accès de l’équipe.');
@@ -550,6 +554,7 @@ export const revokeDevice = {
  */
 export const issuePhoneLink = {
   run(s, input, ctx) {
+    if (ctx.actor.via) fail(403, 'support', 'Un accès prestataire ne lie pas de téléphone.');
     const st = getStaff(s, input.staffId);
     if (!(ctx.staff && ctx.staff.id === st.id)) {
       if (!ctx.can('team')) fail(403, 'forbidden', 'Seul le gérant lie le téléphone d’un collègue.');

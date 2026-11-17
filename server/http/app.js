@@ -37,6 +37,7 @@ import { bulkRoutes } from './routes-bulk.js';
 import { presetRoutes } from './routes-preset.js';
 import { formuleRoutes } from './routes-formule.js';
 import { selfPayRoutes } from './routes-selfpay.js';
+import { supportRoutes } from './routes-support.js';
 
 // A REGISTRY: one line per route file
 const app = router();
@@ -70,8 +71,13 @@ bulkRoutes(app);
 presetRoutes(app);
 formuleRoutes(app);
 selfPayRoutes(app);
+supportRoutes(app);
 
 const MUTATING = new Set(['POST', 'PATCH', 'PUT', 'DELETE']);
+// What a prestataire's access (commands/support.js) never opens: sign-in, passwords, codes, phones, devices; and the
+// rights it leaves to the owner in person.
+const SUPPORT_SHUT = /^\/api\/auth\/|^\/api\/v1\/staff\/[^/]+\/(pin|password|phone-link|revoke)$|^\/api\/v1\/preset\/codes$|^\/api\/v1\/devices/;
+const SUPPORT_NO_CAPS = ['devices', 'client.erase'];
 const READ_DOWN = 'La base de données ne répond pas. Réessaie dans un instant.';
 /** the site and the client pages: a client has no ticket to note on paper */
 const CLIENT_DOWN = 'Le salon ne répond pas. Réessaie dans un instant.';
@@ -169,7 +175,18 @@ export async function handle(req, opt = {}) {
       if (live) { me = live.staff; session = p; if (!device && live.device) device = live.device; }
     }
     if (!me && cookies[SESSION_COOKIE]) setCookies.push(cookie(SESSION_COOKIE, '', { maxAge: 0, secure: rt.cfg.secureCookies }));
+    // a prestataire's key (commands/support.js): the owner who accepted it, for as long as he said, and not everything
+    let support = null;
+    const bearer = !me && /^Bearer lxa_([a-f0-9]{64})$/.exec(req.headers.get('authorization') || '');
+    if (bearer) {
+      const g = s.support.get(s.supportByHash.get(sha256(bearer[1])) || '');
+      const st = g && !g.revoked && g.exp > now ? s.staff.get(g.staffId) : null;
+      if (!st || !st.active || st.role !== 'owner') throw new HttpError(401, 'support_over', 'Cet accès prestataire est terminé ou a été retiré.');
+      if (SUPPORT_SHUT.test(pathname) && (MUTATING.has(req.method) || !pathname.startsWith('/api/auth/'))) throw new HttpError(403, 'support', 'Un accès prestataire ne touche ni aux mots de passe, ni aux codes, ni aux appareils.');
+      me = st; support = g;
+    }
     const caps = me ? capsOf(me, s.settings) : new Set();
+    if (support) for (const c of SUPPORT_NO_CAPS) caps.delete(c);
     const needsAuth = opt2.auth !== false && pathname.startsWith('/api/v1/');
     if (needsAuth && !me) throw idle ? new HttpError(401, 'pin_idle', p && p.ph ? 'Téléphone verrouillé après 12 h sans activité. Saisis ton code.' : 'Poste verrouillé après 10 minutes sans activité. Saisis ton code.') : new HttpError(401, 'signed_out', 'Session expirée. Reconnecte-toi.');
     if (opt2.cap && !caps.has(opt2.cap)) throw new HttpError(403, 'forbidden', 'Tu n’as pas accès à cette page.');
@@ -191,14 +208,14 @@ export async function handle(req, opt = {}) {
     // ':' is refused in x-request-id, so a derived key can never equal an id a client sends
     let n = 0;
     const r = {
-      req, url, params, query: url.searchParams, body, raw, ip, rt, me, caps, device, session, setCookies, meta, origin,
+      req, url, params, query: url.searchParams, body, raw, ip, rt, me, caps, device, session, support, setCookies, meta, origin,
       get s() { return rt.engine.state; },
       get now() { return rt.engine.clock(); },
       get local() { return localParts(rt.engine.clock()); },
       run: (handler, input) => {
         const i = n++;
         return engine.run(handler, input, {
-          actor: { t: 'staff', id: me.id, n: me.name, ...(device ? { dev: device.id } : {}) }, staff: me, caps, meta,
+          actor: support ? { t: 'staff', id: me.id, n: 'Prestataire (accès donné par ' + me.name + ')', via: support.id } : { t: 'staff', id: me.id, n: me.name, ...(device ? { dev: device.id } : {}) }, staff: me, caps, meta,
           requestId: requestId && i ? requestId + ':' + i : requestId
         });
       }

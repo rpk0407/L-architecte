@@ -21,6 +21,8 @@ export function emptyState() {
     get dataVersion() { return this.version - this.quiet; },
     settings: defaultSettings(),
     staff: new Map(), creds: new Map(), devices: new Map(), deviceByHash: new Map(),
+    /** a prestataire's temporary access, given by the owner (commands/support.js): id → { hash, exp, staffId, revoked } */
+    support: new Map(), supportByHash: new Map(),
     services: new Map(), products: new Map(),
     clients: new Map(), clientByPhone: new Map(),
     /** keyed hashes of erased files' numbers and e-mails → why and when (an import skips their older rows) */
@@ -138,6 +140,11 @@ export function evolve(s, e) {
       s.deviceByHash.set(d.tokenHash, d.id);
       break;
     case 'device.revoked': { const x = s.devices.get(d.id); if (x) { x.revoked = true; s.deviceByHash.delete(x.tokenHash); } break; }
+    case 'support.granted':
+      s.support.set(d.id, { id: d.id, hash: d.hash, exp: d.exp, staffId: d.staffId, label: d.label || 'Prestataire', at: e.at, revoked: false });
+      s.supportByHash.set(d.hash, d.id);
+      break;
+    case 'support.revoked': { const x = s.support.get(d.id); if (x) x.revoked = true; break; }
 
     case 'service.added': s.services.set(d.id, { ...d.service, id: d.id, active: true }); break;
     case 'service.updated': { const x = s.services.get(d.id); if (x) s.services.set(d.id, { ...x, ...d.patch }); break; }

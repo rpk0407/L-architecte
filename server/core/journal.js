@@ -13,7 +13,8 @@ import { canonical, sha256 } from '../lib/util.js';
 export const GENESIS = '0'.repeat(64);
 
 /**
- * @typedef {{ t: 'staff'|'client'|'system'|'provider', id: string, n?: string, dev?: string }} Actor
+ * Actor.via: a prestataire's access (commands/support.js), acting for the owner who gave it.
+ * @typedef {{ t: 'staff'|'client'|'system'|'provider', id: string, n?: string, dev?: string, via?: string }} Actor
  * @typedef {{ v: number, id: string, at: number, type: string, actor: Actor, data: any, pii?: any, ph?: string|null, p: string, h: string }} JEvent
  * @typedef {{ id?: string, type: string, data: any, pii?: any }} Draft
  */
