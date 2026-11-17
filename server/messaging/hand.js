@@ -4,9 +4,11 @@
 // waLink); « Envoyé » records it (commands/messages.js handSent). Nothing here sends anything by itself.
 // One rule decides who carries a text, read by the scheduler (it leaves these alone) and by the screen (it shows them):
 // byHand below. The hold before the switch from WordPress applies here as everywhere (projections/bascule.js).
-import { TEMPLATE_FLAGS, classOf } from '../core/templates.js';
+import { TEMPLATE_FLAGS, SECRET_TEMPLATES, classOf } from '../core/templates.js';
 import { waMode, salonWhatsapp } from '../settings/messages.js';
 import { waMapping, fileOf } from '../domain/messages.js';
+import { ownerEmail } from '../domain/mails.js';
+import { isEmail } from '../lib/util.js';
 import { startsAt } from '../domain/policy.js';
 import { cutoverHeld } from '../projections/bascule.js';
 import { addDays } from '../../shared/dates.js';
@@ -31,6 +33,51 @@ export function waTemplateOf(s, m) {
   return (isMoved(m) && waMapping(M, 'moved')) || waMapping(M, m.template);
 }
 
+/** The e-mails that already say what a text says, by the text's key: conf_ → mconf_ (domain/mails.js, commands/system.js). */
+const TWIN_KEYS = [['msg_conf_', 'msg_mconf_'], ['msg_rem_', 'msg_mrem_'], ['msg_rem2_', 'msg_mrem2_'], ['msg_cx_', 'msg_mcx_']];
+
+/**
+ * Was an e-mail queued for the same event as this text? Its named twin (the confirmation's, the reminder's, the
+ * cancellation's own mail), or any mail to the client queued by the same command (the same instant, the same file, the
+ * same appointment): a contract's acknowledgement, a link sent both ways. A mail to the salon itself (the owner's
+ * alert about this client) is no twin.
+ */
+export function mailTwin(s, m) {
+  for (const [a, b] of TWIN_KEYS) if (m.id.startsWith(a) && s.messages.has(b + m.id.slice(a.length))) return true;
+  let own = null;
+  for (const x of s.messages.values()) {
+    if (x.channel !== 'email' || x.owner || x.at !== m.at || x.cid !== m.cid || (x.apptId || null) !== (m.apptId || null) || x.resendOf) continue;
+    if (!own) { own = new Set([String(ownerEmail(s) || '').toLowerCase()]); for (const st of s.staff.values()) if (st.email) own.add(String(st.email).toLowerCase()); }
+    if (!own.has(String(x.to || '').toLowerCase())) return true;
+  }
+  return false;
+}
+
+/**
+ * THE RULE « everything leaves by e-mail when no SMS can »: the address this text leaves to by e-mail, or ''.
+ * It lives here, read as the text leaves (http/scheduler.js) and not as it is queued, for three reasons: only the
+ * runtime knows which providers are plugged in (a command does not, and its events must replay the same on any server);
+ * the text keeps its id, its hour (the review's delay, the quiet hours) and its consent check at the claim, so the
+ * tracked links and the once-a-quarter cap need no second copy; and it is the same message that leaves, claimed once,
+ * so nothing can go twice. byHand below reads it too: a text the mail takes is no longer a person's to send.
+ * Yes when: production, an e-mail provider, the salon's e-mails to clients on, no SMS provider and no automatic WhatsApp
+ * for this text; a text to the client's own mobile (never a gift card's code texted to someone else), whose file has an
+ * address; and no e-mail already says the same (mailTwin: confirmation, reminder, cancellation, move).
+ * Never: an offer (the client's yes was asked for SMS: « les bons plans par SMS », and no mail carries an unsubscribe
+ * link), a sign-in code, the owner's own tests.
+ * @param {any} s @param {{ sms?: any, whatsapp?: any, email?: any }} rt @param {any} m @returns {string}
+ */
+export function byMail(s, rt, m) {
+  if (!m || m.channel === 'email' || m.owner || !m.cid || !rt || !rt.email || rt.sms || s.mode === 'demo') return '';
+  if (s.settings.messages.email === false || m.marketing || classOf(m.template) === 'marketing' || SECRET_TEMPLATES.has(m.template)) return '';
+  if (rt.whatsapp && !m.manual && waMode(s.settings.messages) === 'auto' && waTemplateOf(s, m)) return '';
+  const c = fileOf(s, m.cid);
+  if (!c || c.erased || !isEmail(c.email) || !m.to || m.to !== c.phone) return '';
+  // FEATURE B: a client who chose WhatsApp keeps it: a person sends his texts from the salon's WhatsApp (byHand)
+  if (c.notify === 'whatsapp' && salonWhatsapp(s.settings.messages)) return '';
+  return mailTwin(s, m) ? '' : String(c.email).toLowerCase();
+}
+
 /**
  * Does this text wait for a person? Yes when the owner chose the phone mode, when an automatic send handed it back
  * (`manual`), when the automatic mode is chosen but not plugged in, or when nothing automatic can take it: no SMS
@@ -40,6 +87,8 @@ export function waTemplateOf(s, m) {
  */
 export function byHand(s, rt, m) {
   if (!handEligible(m)) return false;
+  // nothing automatic can text, but the client has an address and no mail says it yet: the mail takes it (byMail)
+  if (byMail(s, rt, m)) return false;
   if (m.manual) return true;
   const mode = waMode(s.settings.messages);
   if (mode === 'phone') return true;

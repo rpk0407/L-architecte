@@ -21,3 +21,8 @@
 .mh-foot p { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; line-height: 1.45; color: var(--tx3); }
 .mh-foot p svg { flex: none; margin-top: 2px; }
 .mh-foot .link { min-height: 44px; display: inline-flex; align-items: center; }
+
+/* « Pas partis »: who, what, and the button to send it again by e-mail */
+.mh-failed { display: flex; align-items: center; gap: 10px; padding: 8px 4px; flex-wrap: wrap; }
+.mh-failed .li-main { flex: 1 1 180px; min-width: 0; }
+.mh-failed .btn { min-height: 44px; }
