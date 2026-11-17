@@ -4,7 +4,7 @@
 import { fail } from '../core/engine.js';
 import { str, int, bool, opt, obj, arr, day, id, oneOf, parse } from '../lib/validate.js';
 import { freeSlots, isFree, staffIntervals, canDo, busyIntervals, intersect, subtract } from '../domain/availability.js';
-import { normPhone, capFirst } from '../lib/util.js';
+import { normPhone, capFirst, isEmail } from '../lib/util.js';
 import { depositFor, memberCovers, clientMayChange, payWindowMin } from '../domain/policy.js';
 import { bookedWords } from '../../shared/membership-words.js';
 import { rootOf } from '../domain/membership.js';
@@ -119,7 +119,7 @@ export const PARTY_MAX = 4;
 const FILE_UPCOMING_MAX = 8;
 const bookSchema = obj({
   holdId: opt(id()), serviceIds: serviceIds(), staffId: str({ min: 1, max: 64 }), day: day(), start: minute(),
-  first: nameStr(2), last: opt(str({ max: 40, pattern: /^[^:/]*$/ })), phone: str({ min: 6, max: 24 }), email: opt(str({ max: 120, lower: true })),
+  first: nameStr(2), last: opt(str({ max: 40, pattern: /^[^:/]*$/ })), phone: opt(str({ max: 24 })), email: opt(str({ max: 120, lower: true })),
   note: opt(str({ max: 200 })), sms: opt(bool()), marketing: opt(bool()), demo: opt(bool()),
   guest: opt(guestSchema), others: opt(arr(personSchema, { max: PARTY_MAX - 1 }))
 });
@@ -157,6 +157,13 @@ export const bookOnline = {
   run(s, input, ctx) {
     const b = parse(bookSchema, input);
     if (!s.settings.booking.enabled) fail(409, 'closed', 'La réservation en ligne est momentanément fermée. Appelle le salon.');
+    // what the salon asks before it books (settings/booking.js `contact`): a number while it texts, an address when
+    // everything leaves by e-mail. The other one stays welcome, and is checked when it is given
+    const byEmail = s.settings.booking.contact === 'email';
+    if (byEmail) {
+      if (!b.email || !isEmail(b.email)) fail(400, 'invalid', 'email : indique une adresse e-mail valide, ta confirmation et ton rappel y arrivent.');
+      if (b.phone && !normPhone(b.phone)) fail(400, 'invalid', 'phone : ce numéro n’est pas valide (tu peux aussi le laisser vide).');
+    } else if (!b.phone || b.phone.length < 6) fail(400, 'invalid', 'phone : au moins 6 caractères');
     const people = [{ holdId: b.holdId, serviceIds: b.serviceIds, staffId: b.staffId, day: b.day, start: b.start, guest: b.guest }, ...(b.others || [])];
     if (people.filter((p) => !p.guest).length > 1) fail(400, 'invalid', 'Une seule des personnes peut être toi : pour les autres, indique leur prénom.');
     const group = people.length > 1;
@@ -177,7 +184,7 @@ export const bookOnline = {
       return { p, services, dur, staffId: got.staffId, hold: got.hold };
     });
     const consent = b.marketing === true;
-    const client = upsertClient(s, ctx, { first: b.first, last: b.last || '', phone: b.phone, email: b.email || '', sms: b.sms !== false, marketing: consent }, 'site');
+    const client = upsertClient(s, ctx, { first: b.first, last: b.last || '', phone: b.phone || '', email: b.email || '', sms: b.sms !== false, marketing: consent }, 'site', { byEmail });
     const existing = client.created ? null : getClient(s, client.id);
     // the proof of consent: when and where the client said yes (an unticked box takes nothing back)
     if (consent && (client.created || !existing.marketing)) ctx.emit('client.updated', { id: client.id, cid: client.id, patch: { marketing: true, marketingAt: ctx.now, marketingSrc: 'site' }, fields: [] });
@@ -189,7 +196,8 @@ export const bookOnline = {
       // an address typed on the site never lands on an existing file: the phone alone does not prove who typed it, and
       // the file's address receives every later mail with its links to move or cancel (only the salon sets it there)
     }
-    const bookerPhone = existing ? existing.phone : normPhone(b.phone);
+    // a new file made by its address leaves off a number another file already carries (upsertClient): so does this booking
+    const bookerPhone = existing ? existing.phone : byEmail && b.phone && s.clientByPhone.has(normPhone(b.phone)) ? '' : b.phone ? normPhone(b.phone) : '';
     const bookerFirst = existing ? existing.first : capFirst(b.first);
     // ctx.meta.payLive: the API says whether a deposit can really be paid online (false: production without Stripe);
     // the file found by the phone above brings its history: a client who already missed may owe one below the threshold
