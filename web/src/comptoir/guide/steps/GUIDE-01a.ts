@@ -35,6 +35,8 @@ const steps: GuideStep[] = [
     title: 'La journée en chiffres', body: 'Ce qui est fait, ce qui reste et le remplissage, en direct. Le prochain client s’ouvre d’un appui.' },
   { id: 'agenda.board', page: '/comptoir/agenda', target: 'ag-board', order: 70,
     title: 'Le planning', body: 'Une colonne par barbier, la ligne de l’heure qui avance. Touche un rendez-vous pour l’ouvrir ou fais-le glisser pour le déplacer, et touche une case libre pour en créer un.' },
+  { id: 'agenda.tools', page: '/comptoir/agenda', target: 'ag-tools', order: 75,
+    title: 'Agrandir, réduire, agenda seul', body: '« − » et « + » changent la taille du planning. « Agenda seul » lui laisse toute la place, et « Moi » ne montre que ton fauteuil.' },
   { id: 'agenda.queue', page: '/comptoir/agenda', target: 'ag-queue', order: 80,
     title: 'La file', body: 'Les clients sans rendez-vous, dans l’ordre d’arrivée. Préviens-les par SMS quand leur tour approche, puis installe-les chez le barbier libre.' },
   { id: 'agenda.topay', page: '/comptoir/agenda', target: 'ag-topay', order: 90,

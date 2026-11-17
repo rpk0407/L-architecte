@@ -13,6 +13,7 @@ import { PageTitle } from '../App';
 import { FeedList } from '../Feed';
 import { Board } from './agenda/Board';
 import { PhoneAgenda, VIEW_KEY, viewOf, type PhoneView } from './agenda/Phone';
+import { AgendaTools, scaleOf, useAgendaView } from './agenda/view';
 import { Dock } from './accueil/Dock';
 import { ApptSheet, BlockSheet, CreateSheet, WalkinSheet, type Prefill } from './agenda/Sheets';
 import { ReportSheet, undoReport, useCountdown, type ReportAbout, type Reported } from './agenda/Report';
@@ -51,6 +52,8 @@ export default function Agenda() {
     const t = window.setTimeout(() => { for (const d of [dates.addDays(day, 1), dates.addDays(day, -1)]) if (peek(agendaKey(d)) === undefined) void load(agendaKey(d)); }, 250);
     return () => clearTimeout(t);
   }, [phone, day, view]);
+  // zoom, « Équipe / Moi » and « Agenda seul »: each person's own, kept on the device (agenda/view.tsx)
+  const [agView, setAgView] = useAgendaView(boot.me.id);
   const [create, setCreate] = useState<Prefill | null>(null);
   const [walkin, setWalkin] = useState(false);
   const [block, setBlock] = useState<{ staffId: string; day: string; start: number; absent?: boolean } | null | false>(false);
@@ -96,6 +99,7 @@ export default function Agenda() {
   const queued = data && !data.closed && day === today ? (data.queue || []).length : 0;
   const phoneExtra = useMemo(() => (day !== today ? <Button size="sm" variant="ghost" onClick={() => goDay(null)}>Aujourd’hui</Button>
     : queued ? <button type="button" className="chip chip-sm" onClick={() => document.querySelector('[data-guide="ag-queue"]')?.scrollIntoView({ behavior: 'smooth', block: 'center' })}><Icon name="walk" size={14} />File · {queued}</button> : null), [day, today, queued]);
+  const phoneTools = useMemo(() => <AgendaTools view={agView} set={setAgView} compact />, [agView.zoom, agView.focus, agView.who]);
   const phoneClosed = useMemo(() => <ClosedDay day={day} today={today} onGo={goDay} />, [day, today]);
 
   const k = data?.kpis;
@@ -136,7 +140,7 @@ export default function Agenda() {
           {data?.closed ? <div className="note ok"><Icon name="lock" /><div><b>Journée clôturée</b> · {/* the Z's figures only reach whoever closes or reads the salon's money; the others get its number */}{data.closure ? 'Z' + String(data.closure.number).padStart(4, '0') + (typeof data.closure.net === 'number' ? ' · ' + eur(data.closure.net) : '') : ''}. Les ventes de ce jour ne peuvent plus être modifiées.</div></div> : null}
           {/* one grid for the figures, the planning and the side column: on the salon tablet (761–1100 px) the file and
               « À encaisser » stand beside the figures, in sight without scrolling, instead of under the planning */}
-          <div className="ag-grid">
+          <div className={'ag-grid' + (agView.focus ? ' focus' : '')}>
             <section className="kpis" aria-label="La journée en chiffres" data-guide="ag-kpis">
               {desk ? null : moneyOk ? <Kpi k={k!.scope === 'own' ? 'Mon chiffre' : 'Encaissé'} v={<Money cents={k!.revenue} />} s={<>sur <Money cents={k!.planned} /> prévus{k!.tips ? <> · <Money cents={k!.tips} /> de pourboires</> : null}</>} bar={k!.planned ? (k!.revenue || 0) / k!.planned : 0} icon="euro" />
                 : <Kpi k="Mes rendez-vous" v={k ? k.total : '—'} s={k ? k.upcoming + ' à venir' : ''} icon="calendar" />}
@@ -153,12 +157,13 @@ export default function Agenda() {
               <PhoneAgenda data={data} loading={loading} error={error && !data ? <Empty icon="alert" title="Agenda indisponible">{error.message}</Empty> : undefined}
                 day={day} today={today} nowStep={Math.ceil(nowMin / 5) * 5} view={viewOf(rawView)} setView={setPhoneView} lane={lane} setLane={setLane}
                 selected={sel} myId={boot.me.id} canSeeMoney={moneyOk && k!.scope === 'shop'}
-                extra={phoneExtra} closed={phoneClosed}
+                extra={phoneExtra} closed={phoneClosed} scale={scaleOf(agView)} tools={phoneTools}
                 onDay={goDay} onOpen={open} onFree={onFree} onEmpty={onEmpty} onBlock={onBlock} onLane={day === today && can('agenda.edit') ? onLane : undefined} />
             ) : loading ? <Skeleton h={560} r={22} /> : error ? <Empty icon="alert" title="Agenda indisponible">{error.message}</Empty> : data ? (
               !data.lanes.length || (data.lanes.every((l) => !l.work.length) && !data.appts.length) ? <ClosedDay day={day} today={today} onGo={goDay} /> :
               <Board data={data} today={today} nowMin={nowMin} canSeeMoney={moneyOk && k!.scope === 'shop'} myId={boot.me.id} selected={sel} lane={lane} setLane={setLane}
                 onOpen={open} onMove={move} canMove={canMove} onEmpty={onEmpty} onBlock={onBlock}
+                view={agView} setView={setAgView} canChoose={!!boot.me.chair && data.lanes.length > 1 && data.lanes.some((l) => l.id === boot.me.id)}
                 onLane={day === today && can('agenda.edit') ? onLane : undefined} />
             ) : null}
 

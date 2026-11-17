@@ -12,6 +12,8 @@ const P: Record<string, string> = {
   journal: 'M7 4h10l3 3v13H7zM10 9h7M10 13h7M10 17h4M4 8v12',
   plus: 'M12 5v14M5 12h14',
   minus: 'M5 12h14',
+  expand: 'M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5',
+  collapse: 'M4 9h5V4M20 9h-5V4M4 15h5v5M20 15h-5v5',
   x: 'M6 6l12 12M18 6L6 18',
   check: 'M5 12.5l4.5 4.5L19 7.5',
   chevL: 'M15 6l-6 6 6 6', chevR: 'M9 6l6 6-6 6', chevD: 'M6 9l6 6 6-6', chevU: 'M6 15l6-6 6 6',
