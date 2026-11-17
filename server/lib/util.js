@@ -4,14 +4,18 @@ import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 
 const B62 = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
 
+// one read of the system's random source for many ids (an id costs 8 characters): the demo salon makes thousands at start
+/** @type {Buffer} */
+let POOL = Buffer.alloc(0);
+let poolAt = 0;
 /** Random base62 string of `n` characters (uniform: rejection sampling). */
 export function rand62(n) {
   let out = '';
   while (out.length < n) {
-    const buf = randomBytes(n * 2);
-    for (let i = 0; i < buf.length && out.length < n; i++) {
-      if (buf[i] < 248) out += B62[buf[i] % 62];
-    }
+    if (poolAt >= POOL.length) { POOL = randomBytes(1024); poolAt = 0; }
+    const b = POOL[poolAt];
+    POOL[poolAt++] = 0;
+    if (b < 248) out += B62[b % 62];
   }
   return out;
 }

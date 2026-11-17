@@ -157,3 +157,42 @@ button:disabled { opacity: .5; cursor: default; }
 .c-chip[aria-pressed='true'] { background: var(--ink); color: var(--paper); box-shadow: none; }
 .c-wa { width: 100%; min-height: 52px; }
 .c-earlier { box-shadow: inset 0 0 0 2px var(--ok); }
+
+/* RETOURS-01 · the review link (after the visit), the group (organiser's recap, share), « Ta coupe en photo » */
+.c-avis { align-self: center; min-height: 44px; display: inline-flex; align-items: center; color: var(--ink2); font-weight: 500; }
+.c-vh { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.c-chip[aria-checked='true'] { background: var(--ink); color: var(--paper); box-shadow: none; }
+.c-group-by { text-align: center; padding: 0 8px; }
+.c-group-l { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.c-group-l li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line2, var(--edge)); }
+.c-group-l li > span:first-child { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.c-group-l b { font: 600 16px/1.2 var(--sans); }
+.c-group-l small { font-size: 13.5px; color: var(--ink2); }
+.c-group-p { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; font: 600 16px/1.2 var(--sans); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.c-group-p .c-link { min-height: 44px; display: inline-flex; align-items: center; font-size: 14px; padding: 0 2px; }
+.c-group-t { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding-top: 14px; border-top: 1.5px solid var(--ink); font: 500 15px/1.2 var(--sans); }
+.c-group-t b { font: 400 30px/1 var(--serif); font-variant-numeric: tabular-nums; }
+.c-share { display: flex; flex-direction: column; align-items: stretch; gap: 8px; }
+.c-share .c-link { align-self: center; min-height: 44px; display: inline-flex; align-items: center; }
+.c-photo-pick { position: relative; cursor: pointer; }
+.c-photo-pick:focus-within { outline: 2px solid var(--red); outline-offset: 3px; }
+.c-photo-fmt { display: flex; gap: 8px; }
+.c-photo-cv { display: block; width: 100%; height: auto; border-radius: 18px; background: #0F0E0D; }
+.c-photo-cv.story { max-width: 260px; align-self: center; }
+.c-photo-acts { justify-content: flex-start; gap: 18px; }
+.c-photo-acts .c-link { min-height: 44px; display: inline-flex; align-items: center; }
+
+/* « Payer ma coupe »: what is owed today, the tip, the button */
+.c-paycut { display: flex; flex-direction: column; gap: 14px; }
+.c-paycut .c-amount { font-size: 56px; }
+.c-paylines { display: flex; flex-direction: column; gap: 8px; padding: 12px 0; border-top: 1px dashed var(--line2); border-bottom: 1px dashed var(--line2); }
+.c-paylines p { display: flex; justify-content: space-between; gap: 12px; font-size: 15.5px; }
+.c-paylines p.sub { font-size: 13.5px; color: var(--ink2); }
+.c-paylines s { margin-right: 8px; color: var(--ink3); font-weight: 400; }
+.c-tip { display: flex; flex-direction: column; gap: 10px; }
+.c-paychips { display: flex; flex-wrap: wrap; gap: 8px; }
+.c-paychips button { min-height: 48px; padding: 0 18px; border-radius: 999px; box-shadow: inset 0 0 0 1.5px var(--line2); font: 600 15px/1 var(--sans); }
+.c-paychips button[aria-pressed="true"] { background: var(--ink); color: var(--paper); box-shadow: none; }
+.c-tipother { display: flex; flex-direction: column; gap: 6px; font-size: 13.5px; color: var(--ink2); }
+.c-tipother input { min-height: 48px; padding: 0 14px; border-radius: 14px; box-shadow: inset 0 0 0 1.5px var(--line2); font: 600 17px/1 var(--sans); background: transparent; color: var(--ink); }
+.c-paycut.c-center { align-items: center; }

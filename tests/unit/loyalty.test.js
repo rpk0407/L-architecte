@@ -706,7 +706,7 @@ test('the receipt text says where the card stands; the figures and what is owed 
   const meta = { receiptLink: () => 'https://salon.test/recu/x' };
   const first = await t.pay(karim, [t.cut()], { due: 2500 });
   const m1 = await t.e.run(sendReceipt, { saleId: first.id }, { ...t.asOwner(), meta });
-  assert.match(t.s().messages.get(m1.id).body, /: https:\/\/salon\.test\/recu\/x Carte 1\/3\.$/);
+  assert.match(t.s().messages.get(m1.id).body, /: https:\/\/salon\.test\/recu\/x Carte 1\/3\. Ton avis Google nous aide : https:\/\/\S+$/);
   t.go(d(1)); await t.pay(karim, [t.cut()], { due: 2500 });
   t.go(d(2));
   const third = await t.pay(karim, [t.cut()], { due: 2500 });

@@ -54,6 +54,8 @@ export function shopIntervals(s, day) {
  * barber it names works the opening's hours (a longer Saturday before Christmas); on a day the salon is usually
  * closed, 'all' gives them to every barber whose template is empty that weekday. Anyone else keeps his own hours,
  * inside the opening's: on a usual day, 'all' only changes the salon's hours (an early close on the 24th).
+ * An opening worked « like » a weekday (a Monday before Christmas like a Tuesday) gives each barber it covers ('all',
+ * or those it names) his own hours of that weekday instead, break and early leave included, inside the opening's.
  */
 export function staffIntervals(s, staffId, day) {
   const st = s.staff.get(staffId);
@@ -62,7 +64,8 @@ export function staffIntervals(s, staffId, day) {
   let tpl = (st.schedule && st.schedule[wd]) || [];
   const op = openingOn(s, day);
   const named = !!op && Array.isArray(op.staff) && op.staff.includes(staffId);
-  if (op && (named || (!tpl.length && !Array.isArray(op.staff) && !(s.settings.hours[wd] || []).length))) tpl = op.intervals;
+  if (op && op.like != null && (named || !Array.isArray(op.staff))) tpl = (st.schedule && st.schedule[op.like]) || [];
+  else if (op && (named || (!tpl.length && !Array.isArray(op.staff) && !(s.settings.hours[wd] || []).length))) tpl = op.intervals;
   let iv = intersect(shopIntervals(s, day), tpl);
   for (const t of s.timeoff.values()) {
     if (t.staffId !== staffId || day < t.from || day > t.to || UNDECIDED.has(t.status)) continue;
@@ -141,8 +144,8 @@ export function minStartFor(s, day, local, { online = true } = {}) {
 /**
  * Free starts on one day.
  * @param {State} s
- * @param {{ day: string, dur: number, serviceIds: string[], staffId: string, now: number, local: { day: string, min: number }, online?: boolean, ignoreHold?: string|null, ignoreAppt?: string|null, step?: number }} q
- * @returns {{ m: number, staffId: string }[]}
+ * @param {{ day: string, dur: number, serviceIds: string[], staffId: string, now: number, local: { day: string, min: number }, online?: boolean, ignoreHold?: string|null, ignoreAppt?: string|null, step?: number, each?: boolean }} q
+ * @returns {{ m: number, staffId: string, free?: string[] }[]}
  */
 export function freeSlots(s, q) {
   const step = q.step || s.settings.booking.stepMin;
@@ -166,12 +169,16 @@ export function freeSlots(s, q) {
     if (m < minStart) continue;
     const end = m + q.dur;
     let best = null;
+    /** @type {string[]|null} */
+    const all = q.each ? [] : null;
     for (const p of per) {
       if (!p.work.some(([a, b]) => m >= a && end <= b)) continue;
       if (p.busy.some(([a, b]) => a < end && m < b)) continue;
+      if (all) all.push(p.st.id);
       if (!best || p.load < best.load) best = p;
     }
-    if (best) out.push({ m, staffId: best.st.id });
+    // each: everyone free at that time too (what asking barber by barber would answer), for the site's one read
+    if (best) out.push(all ? { m, staffId: best.st.id, free: all } : { m, staffId: best.st.id });
   }
   return out;
 }

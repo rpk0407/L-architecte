@@ -526,3 +526,11 @@ html{scroll-behavior:auto}
 .rc-av{position:relative;flex:none;display:inline-grid;place-items:center;width:28px;height:28px;margin-right:8px;border-radius:50%;overflow:hidden;background:var(--pierre);color:var(--encre);font:400 13px/1 var(--f-serif);vertical-align:middle}
 .who-f{display:flex;align-items:center;justify-content:flex-end}
 #done-who.who-f{justify-content:flex-start}
+
+/* ce qui revient dans les avis Google, comme sur le site principal */
+.pv-th{margin-top:clamp(40px,7vw,84px)}
+.pv-k{font:600 12.5px/1 var(--f-sans);letter-spacing:.1em;text-transform:uppercase;color:var(--cendre)}
+.pv-th ul{display:flex;flex-wrap:wrap;gap:2px 0;margin-top:18px;list-style:none;padding:0}
+.pv-th li{font:400 clamp(28px,7.4vw,64px)/1.08 var(--f-serif);letter-spacing:-.012em}
+.pv-th li:not(:last-child)::after{content:"·";margin:0 .22em;color:var(--rouge)}
+.pv-th+.tl,.pv-th+.pv-link{display:inline-block;margin-top:28px}

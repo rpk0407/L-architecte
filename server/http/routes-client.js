@@ -15,6 +15,7 @@ import { LINK_IP_PER_HOUR, LINK_PER_DAY, linkIpKey, linkPhoneKey } from '../doma
 import { dispatchNow } from './scheduler.js';
 import { accountsOn } from '../settings/accounts.js';
 import { waitUntil } from '@vercel/functions';
+import { formuleLine } from './routes-public.js';
 
 export const LOOKUP_MESSAGE = 'Si un rendez-vous existe à ce numéro, tu reçois un SMS dans un instant.';
 const DAY_MS = 86400000, HOUR_MS = 3600000;
@@ -58,12 +59,13 @@ export function contactView(r, a) {
     const st = s.staff.get(x.staffId);
     const pay = x.deposit && x.deposit.paymentId ? s.payments.get(x.deposit.paymentId) : null;
     return {
-      token: signLink(r.rt.secret, 'appt', x.code), code: x.code, self: x.id === a.id, day: x.day, start: x.start, dur: x.dur, status: x.status,
+      // a place he booked for a friend who has his own number: the place alone, never that friend's other bookings
+      token: signLink(r.rt.secret, ids.includes(contactCidOf(x, s) || '') ? 'appt' : 'guest', x.code), code: x.code, self: x.id === a.id, day: x.day, start: x.start, dur: x.dur, status: x.status,
       services: x.services.map((v) => ({ name: v.name, price: v.price, from: !!v.from })), price: x.price,
       staff: st ? { name: st.name, initials: st.initials, color: st.color } : null, anyStaff: !!x.anyStaff,
       deposit: x.deposit ? { amount: x.deposit.amount, paid: x.deposit.paid || 0, open: !!pay && pay.status === 'pending' } : null,
       canChange: clientMayChange(s, x, now), changeUntil: startsAt(x) - hours * 3600000,
-      earlier: !!x.earlier, forFirst: forFirstIn(s, ids, x)
+      earlier: !!x.earlier, forFirst: forFirstIn(s, ids, x), ...formuleLine(s, x)
     };
   });
   return {
@@ -135,7 +137,10 @@ export function clientRoutes(app, o = {}) {
     await answer;
     if (!a || a.legacy || !c || c.erased || !c.phone || c.phone !== phone) { g.fail(); throw new HttpError(404, 'not_found', FIND_FAIL); }
     g.done();
-    return { token: signLink(r.rt.secret, 'appt', a.code) };
+    // the code of a place booked for a friend opens that place alone: the friend has the code (it is in his link) and
+    // knows the organiser's number, and neither opens the organiser's other bookings
+    const friend = !!(a.ext && a.ext.guest && a.ext.guest.kind === 'other' && !a.ext.guest.by && a.ext.group);
+    return { token: signLink(r.rt.secret, friend ? 'guest' : 'appt', a.code) };
   });
 
   /** Every booking to come of the link's contact (his own and those booked for someone else), and how he is reached. */

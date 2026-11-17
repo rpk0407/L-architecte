@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="fr" data-cgv-text="2026-10-28">
+<html lang="fr" data-cgv-text="2026-11-16">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -63,6 +63,7 @@
 <section aria-labelledby="t-pay">
 <h2 id="t-pay">Paiement</h2>
 <p>Au salon, par carte bancaire ou en espèces, ou avec une carte cadeau. Un ticket t’est remis à chaque passage en caisse.</p>
+<p>Quand le salon le propose, tu peux aussi régler ta prestation toi-même, une fois au salon, depuis la page de ton rendez-vous&nbsp;: par carte, Apple Pay ou Google Pay, sur la page sécurisée de Stripe. Le montant est celui du ticket du salon, ton acompte déduit&nbsp;; le pourboire est facultatif. Tu reçois le même ticket.</p>
 </section>
 
 <section aria-labelledby="t-gift">
@@ -71,10 +72,11 @@
 </section>
 
 <section aria-labelledby="t-sub">
-<h2 id="t-sub">Carnet</h2>
+<h2 id="t-sub">Formule Entretien et carnets</h2>
 <p data-unless="pack" hidden>Le carnet comprend 5&nbsp;coupes, valables 70&nbsp;jours à partir de son achat.</p>
-<p data-if="pack"><span data-f="pack.name">Carnet 5 coupes</span>&nbsp;: <b><span data-f="pack.credits">5</span>&nbsp;prestations valables <span data-f="pack.days">70</span>&nbsp;jours</b> à partir de son achat, pour <span data-f="pack.price">80&nbsp;€</span>, payé d’avance au salon.</p>
-<p>Il est personnel. Les prestations non utilisées à la fin de la période sont perdues&nbsp;: le salon fixe les rendez-vous avec toi pour que tu en profites en entier.</p>
+<p data-if="pack.plain"><span data-f="pack.name">Formule Entretien 5 semaines</span>&nbsp;: <b><span data-f="pack.credits">5</span>&nbsp;prestations valables <span data-f="pack.days">70</span>&nbsp;jours</b> à partir de son achat, pour <span data-f="pack.price">80&nbsp;€</span>, payé d’avance au salon.</p>
+<p data-if="pack.weekly" hidden><span data-f="pack.name">Formule Entretien 5 semaines</span>&nbsp;: <b><span data-f="pack.credits">5</span>&nbsp;visites, une par semaine pendant <span data-f="pack.weeks">5</span>&nbsp;semaines d’affilée</b> à partir du premier rendez-vous, pour <span data-f="pack.price">80&nbsp;€</span>. <span data-f="pack.incLine">Chaque visite comprend&nbsp;: shampooing, coupe, coiffage, entretien de barbe.</span> Elle se prend sur le site avec un compte client, en réservant ses rendez-vous, ou au salon. Elle se paie en ligne à l’achat quand le paiement en ligne est proposé, sinon au salon à la première visite&nbsp;; sans paiement, ou si la première visite est manquée sans que rien soit payé, les autres rendez-vous sont libérés. <span data-f="pack.missedLine">Une semaine sautée est perdue.</span></p>
+<p>La formule, comme le carnet, est personnelle. Les prestations non utilisées à la fin de la période sont perdues&nbsp;: le salon fixe les rendez-vous avec toi pour que tu en profites en entier.</p>
 </section>
 
 <section id="abonnement" aria-labelledby="t-abo" data-if="membership.terms" hidden>

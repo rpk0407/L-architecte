@@ -31,6 +31,7 @@ export { providerLabel };
  * @typedef {{
  *   name: string, live: boolean, caps: ProviderCaps, sigHeader?: string,
  *   createCheckout: (o: { id: string, amount: number, label: string, successUrl: string, cancelUrl: string, email?: string, mode?: 'payment'|'setup', metadata?: Record<string,string>, payMin?: number }) => Promise<{ ref: string, url: string, exp: number }>,
+ *   expireCheckout?: (ref: string) => Promise<{ ok: boolean }>,
  *   refund: (chargeRef: string, amount: number, idem: string) => Promise<{ ref: string, status: string }>,
  *   chargeSaved: (o: { customer: string, pm: string, amount: number, label: string, idem: string }) => Promise<ChargeResult>,
  *   parseWebhook: (rawBody: string, sigHeader: string|null) => ProviderEvent|null,

@@ -38,3 +38,22 @@ test('a checkout request carries an idempotency key and never the card', async (
   assert.equal(seen.init.headers['idempotency-key'], 'lx-co-py_9');
   assert.match(seen.url, /\/v1\/checkout\/sessions$/);
 });
+
+test('Stripe Checkout offers the card and its wallets (Apple Pay, Google Pay), never PayPal: a payment, a card kept, a membership', async () => {
+  const sent = [];
+  const p = stripeProvider({ secretKey: 'sk_test_x', webhookSecret: secret, fetchImpl: async (url, init) => { sent.push(Object.fromEntries(new URLSearchParams(init.body))); return new Response(JSON.stringify({ id: 'cs_9', url: 'https://checkout.stripe.com/c/pay/cs_9' })); } });
+  await p.createCheckout({ id: 'py_1', amount: 8000, label: 'Formule Entretien 5 semaines', successUrl: 'https://x/ok', cancelUrl: 'https://x/ko' });
+  await p.createCheckout({ id: 'py_2', mode: 'setup', label: 'Carte', successUrl: 'https://x/ok', cancelUrl: 'https://x/ko' });
+  for (const body of sent) {
+    // Apple Pay and Google Pay have no type of their own: Stripe shows them with « card »; any other type would have to be listed
+    assert.deepEqual(Object.entries(body).filter(([k]) => k.startsWith('payment_method_types')), [['payment_method_types[0]', 'card']]);
+    assert.ok(!JSON.stringify(body).includes('paypal') && !('automatic_payment_methods[enabled]' in body) && !('payment_method_configuration' in body));
+  }
+  assert.deepEqual(sent.map((b) => b.mode), ['payment', 'setup']);
+  // the page of Réglages says it in plain words, with the three steps and no secret to type
+  const { readFileSync } = await import('node:fs');
+  const ui = readFileSync(new URL('../../web/src/comptoir/pages/reglages/sections/Paiements.tsx', import.meta.url), 'utf8');
+  assert.ok(ui.includes('Carte, Apple Pay, Google Pay. Pas de PayPal.'));
+  for (const w of ['1. Ton compte Stripe', '2. Deux clés dans Vercel', '3. L’adresse où Stripe prévient le salon', 'STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET']) assert.ok(ui.includes(w), w);
+  assert.ok(!/sk_(live|test)_[A-Za-z0-9]{6,}|whsec_[A-Za-z0-9]{6,}/.test(ui) && !/type="password"|name="secret"/.test(ui), 'no secret shown or asked in the browser');
+});

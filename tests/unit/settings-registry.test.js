@@ -31,7 +31,7 @@ const BEFORE = () => {
       instagram: 'https://www.instagram.com/barbershoplarchitecte/',
       // added since the split: the legal pages' fields
       legalForm: 'Entrepreneur individuel', registration: '', ape: '', publicationDirector: '', mediator: { name: '', url: '' },
-      host: { name: 'Vercel Inc.', address: '440 N Barranca Ave #4133, Covina, CA 91723, USA', phone: '+1 559 288 7060' }, dataHost: 'Neon (Union européenne)', cgvVersion: '2026-10-28'
+      host: { name: 'Vercel Inc.', address: '440 N Barranca Ave #4133, Covina, CA 91723, USA', phone: '+1 559 288 7060' }, dataHost: 'Neon (Union européenne)', cgvVersion: '2026-11-16'
     },
     hours: { 0: [], 1: [], 2: day, 3: day, 4: day, 5: day, 6: day },
     closures: [],
@@ -39,7 +39,7 @@ const BEFORE = () => {
     openings: [],
     booking: { enabled: true, stepMin: 30, minNoticeMin: 30, maxDaysAhead: 90, holdMin: 5, pendingPayMin: 15, cancelUntilHours: 12, waitlist: true, walkinWait: true },
     deposits: { mode: 'threshold', thresholdCents: 5000, percent: 30, noShowFeeCents: 1000, riskBased: false },
-    payments: { card: true, cash: true, qr: true, giftcard: true, tips: true, tipPresets: [200, 500, 1000], vat: 2000, receiptFooter: 'Merci et à bientôt !' },
+    payments: { card: true, cash: true, qr: true, giftcard: true, selfPay: false, tips: true, tipPresets: [200, 500, 1000], vat: 2000, receiptFooter: 'Merci et à bientôt !' },
     messages: {
       confirmation: true, reminder: true, reminderHour: 18, reminder2h: false, review: true, reviewDelayMin: 120, rebook: true, waitlist: true,
       templates: {
@@ -83,6 +83,7 @@ const BEFORE = () => {
       email: true,
       // added since: the reminder also by e-mail, off until the owner decides
       reminderEmail: false,
+      confirmationEmailFirst: false,
       // MSG-02: WhatsApp off until the owner maps an approved template
       whatsapp: { enabled: false, templates: {} }
     },

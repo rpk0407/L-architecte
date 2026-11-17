@@ -246,7 +246,7 @@ function Domain({ d, domain, setDomain }: { d: Data; domain: string; setDomain: 
 
       <ol className="io-steps">
         <li><b>48 h avant</b><span>Chez IONOS, baisse le TTL de <code>@</code> et de <code>www</code> à 300 secondes, et note les valeurs actuelles : c’est le plan de retour.</span></li>
-        <li><b>Dans Vercel</b><span>Ton projet › Settings › Domains : ajoute {domain || 'ton domaine'} et www.{domain || 'ton domaine'}. Vercel affiche les deux valeurs à recopier, propres à ton projet.</span></li>
+        <li><b>Dans Vercel</b><span>Ton projet › Settings › Domains : ajoute {domain || 'ton domaine'} et {domain ? 'www.' + domain : 'le même avec www. devant'}. Vercel affiche les deux valeurs à recopier, propres à ton projet.</span></li>
         <li><b>Le jour J, chez IONOS</b><span>Domaines › DNS, deux lignes :</span></li>
       </ol>
       <ul className="io-recs" aria-label="Les deux lignes à changer chez IONOS">

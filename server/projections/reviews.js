@@ -32,7 +32,8 @@ export function reviewStats(s, from, to, staffId = null) {
   const by = new Map();
   let sent = 0, opened = 0, waiting = 0, failed = 0;
   for (const m of s.messages.values()) {
-    if (m.template !== 'review' || !m.apptId) continue;
+    // the request, or the receipt of the visit that carried its link (m.review)
+    if ((m.template !== 'review' && m.review !== true) || !m.apptId) continue;
     const a = s.appts.get(m.apptId);
     if (staffId && (!a || a.staffId !== staffId)) continue;
     const day = localParts(m.sentAt || m.dueAt || m.at).day;

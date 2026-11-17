@@ -1,6 +1,6 @@
 // @ts-check
 // Stripe through its REST API (no SDK: fewer dependencies, faster cold starts).
-// Card data never touches this server: clients pay on Stripe Checkout (Apple Pay, Google Pay, cards),
+// Card data never touches this server: clients pay on Stripe Checkout (cards, Apple Pay, Google Pay; never PayPal),
 // which keeps the salon in the lightest PCI scope (SAQ A).
 import { createHmac, createHash, timingSafeEqual } from 'node:crypto';
 import { STRIPE_PAY_MIN } from '../domain/policy.js';
@@ -118,12 +118,19 @@ export function stripeProvider({ secretKey, webhookSecret, fetchImpl = fetch }) 
      */
     async createCheckout(o) {
       const expires = Math.floor(Date.now() / 1000) + Math.min(24 * 60 - 1, Math.max(STRIPE_PAY_MIN, (o.payMin || 0) + 1)) * 60;
-      const common = { success_url: o.successUrl, cancel_url: o.cancelUrl, client_reference_id: o.id, metadata: { lx: o.id, ...(o.metadata || {}) }, expires_at: expires, locale: 'fr', customer_email: o.email || undefined };
+      // Card only, said outright: Stripe then shows Apple Pay and Google Pay beside the card on the devices that have them
+      // (they are card wallets, with no type of their own) and can never offer PayPal, whatever is ticked in the dashboard.
+      const common = { payment_method_types: ['card'], success_url: o.successUrl, cancel_url: o.cancelUrl, client_reference_id: o.id, metadata: { lx: o.id, ...(o.metadata || {}) }, expires_at: expires, locale: 'fr', customer_email: o.email || undefined };
       const params = o.mode === 'setup'
         ? { ...common, mode: 'setup', currency: 'eur', customer_creation: 'always', setup_intent_data: { metadata: { lx: o.id } } }
         : { ...common, mode: 'payment', line_items: [{ quantity: 1, price_data: { currency: 'eur', unit_amount: o.amount, product_data: { name: o.label } } }], payment_intent_data: { metadata: { lx: o.id }, description: o.label } };
       const s = await call('POST', '/checkout/sessions', params, 'lx-co-' + o.id);
       return { ref: s.id, url: s.url, exp: expires * 1000 };
+    },
+    /** Close a checkout page nobody paid on (the barber took the payment another way): it can no longer be paid. */
+    async expireCheckout(ref) {
+      await call('POST', '/checkout/sessions/' + encodeURIComponent(ref) + '/expire', {}, 'lx-exp-' + ref);
+      return { ok: true };
     },
     /** metadata.lx marks it ours, so its charge.refunded notice is never taken for a refund made in the dashboard */
     async refund(chargeRef, amount, idem) {

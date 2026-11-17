@@ -109,7 +109,7 @@
       .map((x, i) => ({ id: 'sim_b' + i, name: x[0], initials: x[1], photo: '../img/equipe/' + x[2] + '.webp', bio: x[3], instagram: '', away: null }))
   };
   FALLBACK.menu = FALLBACK.services.map((x) => ({ slug: x.slug, name: x.name, category: x.category, price: x.price, from: x.from, dur: x.dur, online: true }))
-    .concat([{ slug: 'ab', name: 'Carnet 5 coupes', category: 'Carnet', price: 8000, from: false, dur: 30, online: false }]);
+    .concat([{ slug: 'ab', name: 'Formule Entretien 5 semaines', category: 'Formule', price: 8000, from: false, dur: 30, online: false }]);
 
   const SIM = { taken: new Map(), n: 0 };
   function hash(s) { let x = 2166136261; for (let i = 0; i < s.length; i++) { x ^= s.charCodeAt(i); x = Math.imul(x, 16777619); } return (x >>> 0) % 100; }

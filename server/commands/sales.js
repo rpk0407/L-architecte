@@ -11,12 +11,15 @@ import { giftCode, normGiftCode, normPhone, sha256 } from '../lib/util.js';
 import { addDays, isDay, fmtTime, MONTHS_FR } from '../../shared/dates.js';
 import { shopIntervals } from '../domain/availability.js';
 import { DENOMS, fmtEur } from '../../shared/money.js';
-import { queueMessage } from '../domain/messages.js';
+import { queueMessage, messageId, reviewLink } from '../domain/messages.js';
+import { receiptMayAsk, RECEIPT_REVIEW } from './reviews.js';
+import { groupIdOf } from '../domain/group.js';
 import { TEMPLATES } from '../core/templates.js';
 import { clientParts } from './clients.js';
 import { cover, coverWords, cutValue, label as memberLabel, rootOf, liveIn } from '../domain/membership.js';
 import { earnOf, receiptWords } from '../domain/loyalty.js';
 import { withReward, loyaltyAfterSale, loyaltyAfterRefund } from './loyalty.js';
+import { FORMULE_TEXT, formuleOfAppt, formulesOfFiles, personOf, running, anchorOf, weeklyDays, offerOf, packCover } from '../domain/formule.js';
 
 const lineSchema = obj({
   kind: oneOf(/** @type {const} */ (['service', 'product', 'giftcard', 'pack', 'fee', 'membership'])), ref: opt(id()), name: opt(str({ max: 60 })),
@@ -31,12 +34,21 @@ const lineSchema = obj({
 const paySchema = obj({ method: oneOf(/** @type {const} */ (['card', 'cash', 'online', 'giftcard', 'deposit', 'ancien'])), amount: money(1000000), given: opt(money(1000000)), ref: opt(str({ max: 40 })) });
 const checkoutSchema = obj({
   apptId: opt(id()), clientId: opt(id()), lines: arr(lineSchema, { min: 1, max: 30 }),
+  // the other places of the same group (a booking of several people) paid on this one ticket
+  groupApptIds: opt(arr(id(), { max: 3 })),
   discount: opt(obj({ amount: money(500000), reason: opt(str({ max: 40 })) })),
   tip: opt(obj({ amount: money(50000), staffId: id() })),
   payments: arr(paySchema, { min: 1, max: 6 }), note: opt(str({ max: 200 }))
 });
 
 const PACK_NEW = 'new';
+/** the formule (a weekly carnet bought with its dates) this ticket pays for: the appointment's, else the client's unpaid one */
+function formuleToStart(s, appt, client, serviceId, today) {
+  const of = appt ? formuleOfAppt(s, appt.id) : null;
+  if (of && of.status === 'open' && !of.packId && of.serviceId === serviceId) return of;
+  if (of || !client) return null;
+  return formulesOfFiles(s, [client.id]).find((f) => !f.packId && f.serviceId === serviceId && !personOf(f) && running(s, f, today)) || null;
+}
 /**
  * An online payment the ticket uses: as the state has it, or written earlier in this same command (a membership's
  * month, paid and rung up in one write: commands/memberships.js memberPaid).
@@ -52,6 +64,17 @@ function paymentOf(s, ctx, ref) {
 // the Comptoir's reasons (Checkout.tsx). Anything else is typed by staff and may name someone: it is kept in pii,
 // out of the chain (the client can be erased) and off his receipt, which shows "Autre"
 export const DISCOUNT_REASONS = ['Fidélité', 'Ami de la maison', 'Geste commercial', 'Retard du salon', 'Étudiant'];
+
+const QUOTE = Symbol('quote');
+/**
+ * What this ticket would come to, as the till would ring it up (prices, carnet, membership, discount within the
+ * caller's cap, tip), without writing anything: every rule of checkout up to the payments. A symbol asks for it, so no
+ * request body ever can.
+ * @returns {{ totals: ReturnType<typeof ticketTotals>, lines: any[], clientId: string|null }}
+ */
+export function quoteCheckout(s, input, ctx) {
+  return /** @type {any} */ (checkout.run(s, { ...input, payments: [{ method: 'card', amount: 0 }], [QUOTE]: true }, ctx));
+}
 
 export const checkout = {
   run(s, input, ctx) {
@@ -79,8 +102,28 @@ export const checkout = {
         if (appt.day !== day || !started) fail(409, 'not_yet', 'Ce rendez-vous ne s’encaisse pas maintenant : le client doit être là aujourd’hui.');
       }
     }
-    if (appt && (appt.status === 'done' || appt.saleId)) fail(409, 'paid', 'Ce rendez-vous est déjà encaissé.');
+    if (appt && (appt.status === 'done' || appt.saleId)) {
+      // the client paid his cut himself, on his own page, while the till was ringing him up: one ticket, said plainly
+      const was = appt.saleId ? s.sales.get(appt.saleId) : null;
+      const self = was && appt.payId && (s.payments.get(appt.payId) || {}).usedBy === was.id;
+      if (self) fail(409, 'paid_online', 'Le client vient de payer en ligne (ticket ' + ticketNo(was.number) + ') : rien à encaisser. Si tu as pris des espèces ou passé sa carte, rends-les-lui. Un produit en plus se vend sur un ticket à part.', { saleId: was.id });
+      fail(409, 'paid', 'Ce rendez-vous est déjà encaissé.');
+    }
     if (appt && appt.status === 'cancelled') fail(409, 'cancelled', 'Ce rendez-vous est annulé.');
+    // a group on one ticket: the other places of the same booking, here today and not rung up yet. Each one is closed
+    // by this ticket (appt.status and appt.updated below); the ticket itself stays the organiser's, like any other
+    /** @type {any[]} */
+    const groupAppts = [];
+    for (const gid of new Set(x.groupApptIds || [])) {
+      const g = getAppt(s, gid);
+      if (!appt || phone) fail(400, 'invalid', 'Un groupe s’encaisse à la caisse, depuis l’un de ses rendez-vous.');
+      if (g.id === appt.id) continue;
+      if (!groupIdOf(appt) || groupIdOf(g) !== groupIdOf(appt)) fail(409, 'group', 'Ces rendez-vous ne font pas partie du même groupe.');
+      if (g.status === 'done' || g.saleId) fail(409, 'paid', 'Un rendez-vous du groupe est déjà encaissé : retire-le du ticket.');
+      if (g.status === 'cancelled' || g.status === 'no_show') fail(409, 'cancelled', 'Un rendez-vous du groupe est annulé ou absent : retire-le du ticket.');
+      if (g.day !== appt.day) fail(409, 'group', 'Un ticket de groupe réunit des rendez-vous du même jour.');
+      groupAppts.push(g);
+    }
     // online: the buyer's file sellGiftcardOnline adds in this same command (not in the state yet)
     const client = online && input.newClient ? input.newClient : x.clientId ? getClient(s, x.clientId) : appt && appt.clientId ? getClient(s, appt.clientId) : null;
     const isBoss = ctx.staff && ['owner', 'manager'].includes(ctx.staff.role);
@@ -88,7 +131,7 @@ export const checkout = {
     // chair's agenda (owner, manager, the desk ringing up for the barbers) may credit any of them.
     const anyPerformer = ctx.actor.t === 'system' || ctx.can('agenda.edit');
     const performer = (l) => {
-      if (l.staffId && l.staffId !== (appt && appt.staffId) && l.staffId !== (ctx.staff && ctx.staff.id)) {
+      if (l.staffId && l.staffId !== (appt && appt.staffId) && l.staffId !== (ctx.staff && ctx.staff.id) && !groupAppts.some((g) => g.staffId === l.staffId)) {
         if (!anyPerformer) fail(403, 'performer', 'Seul le gérant peut attribuer la prestation d’un autre barbier.');
         getStaff(s, l.staffId);
       }
@@ -96,7 +139,7 @@ export const checkout = {
     };
     // the client pays the price he booked at, or today's if it went down: a later rise never reaches his ticket.
     // Each booked service covers one line. Exact prices are matched first, so the order of the lines does not matter.
-    const pool = appt ? (appt.services || []).map((v) => ({ id: v.id, price: v.price })) : [];
+    const pool = appt ? [appt, ...groupAppts].flatMap((g) => (g.services || []).map((v) => ({ id: v.id, price: v.price }))) : [];
     /** @type {Map<number, number>} line index → booked price */
     const bookedAt = new Map();
     const low = (v) => { const sv = s.services.get(v.id); return sv ? Math.min(v.price, sv.price) : v.price; };
@@ -113,6 +156,8 @@ export const checkout = {
     const lines = [];
     const issued = [];
     let newPack = null;
+    /** @type {any} */
+    let startFormule = null;
     // a pack sold on this ticket can pay for a service on the same ticket
     for (const l of x.lines) {
       if (l.kind !== 'pack') continue;
@@ -120,9 +165,23 @@ export const checkout = {
       if (!sv.pack) fail(400, 'invalid', `« ${sv.name} » n’est pas un carnet.`);
       if (!client) fail(400, 'no_client', 'Un carnet se vend à un client avec sa fiche.');
       if (newPack) fail(400, 'invalid', 'Un seul carnet par ticket.');
-      newPack = { id: ctx.id('pk'), clientId: client.id, name: sv.name, total: sv.pack.credits, serviceIds: sv.pack.serviceIds || [], expires: addDays(day, sv.pack.days), serviceId: sv.id };
+      // a weekly carnet is good for its weeks, the first day included; bought with its dates, they run from the first date
+      startFormule = sv.pack.weekly ? formuleToStart(s, appt, client, sv.id, day) : null;
+      const from = startFormule ? anchorOf(s, startFormule) || day : day;
+      const expires = startFormule ? addDays(from, startFormule.days - 1) : sv.pack.weekly ? addDays(day, weeklyDays(sv.pack.credits, sv.pack.missed) - 1) : addDays(day, sv.pack.days);
+      newPack = { id: ctx.id('pk'), clientId: client.id, name: sv.name, total: sv.pack.credits, serviceIds: sv.pack.serviceIds || [], ...(sv.pack.withIds && sv.pack.withIds.length ? { withIds: sv.pack.withIds } : {}), expires, serviceId: sv.id, ...(sv.pack.weekly ? { weekly: true } : {}) };
+      if (startFormule) startFormule = { f: startFormule, from, expires };
     }
     const packUses = new Map();
+    // what a carnet includes at 0 € in the same visit as the cut it pays (the beard upkeep of the « Formule Entretien »):
+    // one such line per credit used on this ticket, no credit taken, a plain service line at 0 € (nothing new in the journal)
+    /** @type {Map<string, number>} service id → lines still included */
+    const included = new Map();
+    for (const l of x.lines) {
+      if (l.kind !== 'service' || !l.packId) continue;
+      const pk = l.packId === PACK_NEW ? newPack : s.packs.get(l.packId);
+      if (pk) for (const w of packCover(s, pk).withIds) included.set(w, (included.get(w) || 0) + (l.qty || 1));
+    }
     /** member id → the cuts it pays on this ticket: { periodStart, forced } each */
     const memberUses = new Map();
     /** the loyalty rewards on this ticket (one at most) */
@@ -135,8 +194,10 @@ export const checkout = {
         const at = bookedAt.get(i);
         const price = at == null ? sv.price : Math.min(at, sv.price);
         let unit = l.unit ?? price;
-        if (unit !== price && !(sv.from && unit >= price) && !isBoss && !l.memberId) fail(403, 'price', `Le prix de « ${sv.name} » est fixé à la carte. Utilise une remise.`);
-        let name = sv.name, packId = null, member = null;
+        const incl = !l.packId && !l.memberId && !l.rewardId && qty === 1 && (included.get(sv.id) || 0) > 0;
+        if (incl) { included.set(sv.id, /** @type {number} */ (included.get(sv.id)) - 1); unit = 0; }
+        if (!incl && unit !== price && !(sv.from && unit >= price) && !isBoss && !l.memberId) fail(403, 'price', `Le prix de « ${sv.name} » est fixé à la carte. Utilise une remise.`);
+        let name = incl ? sv.name + ' · inclus' : sv.name, packId = null, member = null;
         if (l.packId && l.memberId) fail(400, 'invalid', 'Une coupe se paie par le carnet ou par l’abonnement, pas les deux.');
         if (l.packId) {
           const pk = l.packId === PACK_NEW ? newPack : s.packs.get(l.packId);
@@ -146,7 +207,8 @@ export const checkout = {
           const used = (l.packId === PACK_NEW ? 0 : pk.used) + (packUses.get(pk.id) || 0);
           if (used + qty > pk.total) fail(409, 'pack_empty', 'Il ne reste plus de coupe sur ce carnet.');
           if (pk.expires < day) fail(409, 'pack_expired', 'Ce carnet a expiré.');
-          if (pk.serviceIds.length && !pk.serviceIds.includes(sv.id)) fail(409, 'pack_service', `Le carnet ne couvre pas « ${sv.name} ».`);
+          const cov = packCover(s, pk).ids;
+          if (cov.length && !cov.includes(sv.id)) fail(409, 'pack_service', `Le carnet ne couvre pas « ${sv.name} ».`);
           packUses.set(pk.id, (packUses.get(pk.id) || 0) + qty);
           unit = 0; packId = pk.id; name = sv.name + ' · carnet ' + (used + qty) + '/' + pk.total;
         } else if (l.memberId) {
@@ -173,7 +235,7 @@ export const checkout = {
         }
         // a cut paid by a carnet or a membership keeps its price: a refund of the carnet later values the cuts taken at it
         // (refundPlan); the membership's cut also carries its share of the month (credit)
-        lines.push(withReward(s, client, l.rewardId, { kind: 'service', ref: sv.id, name, qty, unit, discount: member ? 0 : l.discount || 0, staffId: performer(l), vat: sv.vat ?? P.vat, packId, category: sv.category, ...(packId || member ? { listPrice: price } : {}), ...(member ? { memberId: member.id, credit: cutValue(member) } : {}) }, day, rewarded));
+        lines.push(withReward(s, client, l.rewardId, { kind: 'service', ref: sv.id, name, qty, unit, discount: member || incl ? 0 : l.discount || 0, staffId: performer(l), vat: sv.vat ?? P.vat, packId, category: sv.category, ...(packId || member ? { listPrice: price } : {}), ...(member ? { memberId: member.id, credit: cutValue(member) } : {}) }, day, rewarded));
       } else if (l.kind === 'product') {
         const p = getProduct(s, l.ref || '');
         if (!p.active) fail(409, 'inactive', `« ${p.name} » n’est plus en vente.`);
@@ -218,6 +280,9 @@ export const checkout = {
     const typed = why && !DISCOUNT_REASONS.includes(why) ? why : '';
     if (x.tip && x.tip.amount > 0) getStaff(s, x.tip.staffId);
 
+    // what the ticket comes to, nothing written: the client's own page and the payment link read the till's own rules
+    if (input[QUOTE] === true) return /** @type {any} */ ({ quote: true, totals, lines: lines.map((l, i) => ({ ...l, net: totals.nets[i] })), clientId: client ? client.id : null });
+
     /* payments must cover the ticket exactly */
     const paid = x.payments.reduce((t, p) => t + p.amount, 0);
     if (paid !== totals.due) fail(400, 'unbalanced', 'Le paiement ne correspond pas au total.', { due: totals.due, paid });
@@ -241,7 +306,9 @@ export const checkout = {
         const py = paymentOf(s, ctx, p.ref || '');
         if (!py || py.status !== 'paid') fail(409, 'unpaid', 'Ce paiement en ligne n’est pas encore confirmé.');
         if (py.usedBy || usedOnline.has(py.id)) fail(409, 'used', 'Ce paiement a déjà été utilisé sur un ticket.');
-        if (p.method === 'deposit' && (!appt || py.apptId !== appt.id)) fail(409, 'deposit', 'Cet acompte concerne un autre rendez-vous.');
+        // the 80 € of a formule paid online ride on its first date and pay the ticket of whichever date he first comes to
+        const sameFormule = !!appt && !!py.apptId && !!formuleOfAppt(s, appt.id) && formuleOfAppt(s, appt.id) === formuleOfAppt(s, py.apptId);
+        if (p.method === 'deposit' && (!appt || (py.apptId !== appt.id && !sameFormule && !groupAppts.some((g) => g.id === py.apptId)))) fail(409, 'deposit', 'Cet acompte concerne un autre rendez-vous.');
         if (py.amount !== p.amount) fail(400, 'invalid', 'Le montant ne correspond pas au paiement en ligne.');
         usedOnline.add(py.id);
         Object.assign(out, { paymentId: py.id });
@@ -275,6 +342,7 @@ export const checkout = {
       tip: totals.tip ? { amount: totals.tip, staffId: /** @type {any} */ (x.tip).staffId } : null, totals: { gross: totals.gross, discount: totals.discount, total: totals.total, tip: totals.tip, due: totals.due, revenue: totals.revenue, revenueHT: totals.revenueHT, liability: totals.liability, vat: totals.vat },
       payments, note: x.note || '', ...(backfill ? { at: input.at } : {}), ...(ctx.actor.t === 'system' && !online ? { demo: true } : {}), ...(stamps ? { loyalty: { units: stamps } } : {})
     }, typed ? { discountReason: typed } : undefined);
+    for (const g of groupAppts) { ctx.emit('appt.status', { id: g.id, status: 'done', prev: g.status, cid: g.clientId || undefined }); ctx.emit('appt.updated', { id: g.id, patch: { saleId: sid } }); }
     loyaltyAfterSale(s, ctx, ctx.drafts.find((d) => d.type === 'sale.completed' && d.data.id === sid).data);
     for (const l of lines) if (l.kind === 'product') ctx.emit('stock.adjusted', { productId: l.ref, delta: -l.qty, reason: 'Vente', saleId: sid, name: l.name });
     // online: the name the buyer typed ("De la part de"), which may not be the one on the file their number found
@@ -284,7 +352,17 @@ export const checkout = {
     }
     for (const r of redeem) ctx.emit('giftcard.redeemed', { id: r.id, amount: r.amount, saleId: sid });
     if (newPack) ctx.emit('pack.sold', { ...newPack, saleId: sid, cid: newPack.clientId });
+    if (newPack && startFormule) ctx.emit('formule.started', { id: startFormule.f.id, packId: newPack.id, startDay: startFormule.from, expires: startFormule.expires, saleId: sid, cid: newPack.clientId });
     for (const [pid, n] of packUses) for (let i = 0; i < n; i++) ctx.emit('pack.used', { id: pid, saleId: sid });
+    // the last cut of a weekly carnet: « Reprendre 5 coupes », once, by the salon's usual channel
+    for (const [pid, n] of packUses) {
+      const pk = pid === (newPack && newPack.id) ? newPack : s.packs.get(pid);
+      const used = (pid === (newPack && newPack.id) ? 0 : pk.used) + n;
+      const offer = pk && pk.weekly && used >= pk.total ? offerOf(s) : null;
+      if (offer && offer.online && offer.id === pk.serviceId && client && !client.erased && client.phone && client.sms !== false) {
+        queueMessage(s, ctx, { key: 'frenew_' + pk.id, template: 'formuleRenew', text: FORMULE_TEXT.renew, to: client.phone, cid: client.id, vars: { prenom: client.first || '', nombre: String(offer.credits), lien: (ctx.meta.siteUrl || '') + '?reserver&prestation=' + (offer.slug || '') } });
+      }
+    }
     for (const [mid, list] of memberUses) for (const u of list) ctx.emit('member.used', { id: mid, saleId: sid, periodStart: u.periodStart, day, forced: u.forced, cid: client ? client.id : undefined });
     const change = payments.reduce((t, p) => t + (p.change || 0), 0);
     // the only time the full code is known: the till prints it (voucher) or texts it (sendGiftcode), nothing keeps it
@@ -664,9 +742,16 @@ export const sendReceipt = {
     const c = sale.clientId ? s.clients.get(sale.clientId) : null;
     const to = input.phone || (c && c.phone) || '';
     if (!to) fail(400, 'invalid', 'Aucun numéro pour envoyer le reçu.');
+    // after the visit, the receipt is also the review request: one text, never a second one (commands/reviews.js)
+    const key = 'receipt_' + sale.id + '_' + (input.n || 0);
+    // never beside the words of a loyalty reward (« ta prochaine coupe est offerte »): a review is never rewarded, and must
+    // not read as if it were; the request then leaves on its own, later, as usual
+    const fid = receiptWords(s, sale, ctx.local.day);
+    const ask = receiptMayAsk(s, ctx, sale, c, normPhone(to) || to) && !/offert|récompense|cadeau/i.test(fid);
     const id = queueMessage(s, ctx, {
-      key: 'receipt_' + sale.id + '_' + (input.n || 0), template: 'receipt', to, cid: c ? c.id : null,
-      vars: { prenom: c ? c.first : '', ticket: 'T' + String(sale.number).padStart(6, '0'), montant: (sale.totals.due / 100).toFixed(2).replace('.', ',') + ' €', lien: ctx.meta.receiptLink ? ctx.meta.receiptLink(sale) : '', fidelite: receiptWords(s, sale, ctx.local.day) }
+      key, template: 'receipt', to, cid: c ? c.id : null,
+      ...(ask ? { review: true, apptId: sale.apptId || null, text: (s.settings.messages.templates.receipt || '') + RECEIPT_REVIEW } : {}),
+      vars: { ...(ask ? { avis: reviewLink(s, ctx, messageId(key)) } : {}), prenom: c ? c.first : '', ticket: 'T' + String(sale.number).padStart(6, '0'), montant: (sale.totals.due / 100).toFixed(2).replace('.', ',') + ' €', lien: ctx.meta.receiptLink ? ctx.meta.receiptLink(sale) : '', fidelite: fid }
     });
     return { id };
   }

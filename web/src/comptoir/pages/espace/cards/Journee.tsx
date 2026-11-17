@@ -1,5 +1,6 @@
 // « Ma journée »: one row per appointment of his, in order. The ones already done fold away (all but the last),
 // so the first rows on a phone are the ones that matter now.
+import { OnlineBadge } from '../../caisse/OnlineBadge';
 import { useState } from 'react';
 import { navigate } from '../../../../lib/router';
 import { time } from '../../../../lib/format';
@@ -37,8 +38,8 @@ export default function Journee({ data, note }: EspaceCardProps) {
             <li key={r.id} className={'es-row' + (closed(r) ? ' past' : '') + (r.status === 'in_chair' ? ' live' : '')}>
               <button type="button" className="es-row-main" onClick={() => navigate('/agenda?rdv=' + r.id + (data.day === data.today ? '' : '&day=' + data.day))}>
                 <span className="es-rt tnum">{time(r.start)}</span>
-                <span className="es-rn"><b>{r.name}</b><small>{r.services.join(' + ')}</small></span>
-                {r.late > 0 ? <span className="badge badge-warn">En retard · {r.late} min</span> : WORD[r.status] ? <span className={'badge ' + (TONE[r.status] || '')}>{WORD[r.status]}</span> : null}
+                <span className="es-rn"><b>{r.name}</b><small>{r.services.join(' + ')}{r.serie ? ' · ' + r.serie : ''}</small></span>
+                {r.paidOnline || r.onlinePay ? <OnlineBadge a={r} /> : r.late > 0 ? <span className="badge badge-warn">En retard · {r.late} min</span> : WORD[r.status] ? <span className={'badge ' + (TONE[r.status] || '')}>{WORD[r.status]}</span> : null}
               </button>
               <PhoneCheckoutButton size="sm" row={r} nowMin={data.now ? data.now.min : null} isToday={data.day === data.today} />
               {r.needsNote && (noteOn == null || r.id === noteOn) ? <Button className="es-note" size="sm" variant="ghost" icon="plus" disabled={offline} aria-label={'Ajouter une note de coupe pour ' + r.name} onClick={() => note({ id: r.id, name: r.name })}>note</Button> : null}

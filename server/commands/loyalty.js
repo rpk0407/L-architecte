@@ -50,6 +50,10 @@ export function withReward(s, client, rewardId, line, day, taken) {
 
 /** The file's referral, by the file kept. @param {any} s @param {string} root */
 function referralOf(s, root) {
+  // few files have a referral: look from them first (the list of every file's members is rebuilt after each ticket)
+  let n = 0;
+  for (const f of L(s).referrals.keys()) { if (rootOf(s, f) === root && ++n > 1) break; }
+  if (!n) return null;
   for (const f of filesOf(s, root)) { const ref = L(s).referrals.get(f); if (ref) return ref; }
   return null;
 }

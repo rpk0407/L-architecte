@@ -6,6 +6,8 @@ import { HttpError, guard } from './kit.js';
 import { verifyChain } from '../core/journal.js';
 import { backupState, backupStatus } from '../core/backup.js';
 import { shopIntervals } from '../domain/availability.js';
+import { onSite } from '../domain/formule.js';
+import { accountsOn } from '../settings/accounts.js';
 import { phoneAllowed, renderTemplate } from '../domain/messages.js';
 import { normPhone, maskPhone } from '../lib/util.js';
 import { frHoliday } from '../../shared/sms.js';
@@ -260,7 +262,8 @@ export async function healthOf(rt, L) {
     setup: {
       legal: { missing: LEGAL.filter(([k]) => !String(get(shop, k) || '').trim()).map(([, label]) => label) },
       hours: { openDays: [0, 1, 2, 3, 4, 5, 6].filter((d) => (s.settings.hours[d] || []).length).length, holidays: hol.open, holidaysClosed: hol.closed, closures: s.settings.closures.filter((c) => c.to >= L.day).length },
-      services: { active: services.length, online: services.filter((x) => x.online !== false).length },
+      // online: really offered on the site (a carnet only with its dates and the client space open, domain/formule.js)
+      services: { active: services.length, online: services.filter((x) => onSite(s, x, accountsOn(s))).length },
       team: { chairs: chairs.map((x) => ({ id: x.id, name: x.name, pin: !!x.hasPin })) },
       devices: [...s.devices.values()].filter((d) => !d.revoked).length,
       import: jourJ(s, now),

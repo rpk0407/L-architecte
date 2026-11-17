@@ -1,4 +1,5 @@
 // « Prochain client »: who sits down next, what is known of the cut, and the one gesture the moment asks for.
+import { OnlineBadge } from '../../caisse/OnlineBadge';
 import { useState } from 'react';
 import { api } from '../../../../lib/api';
 import { navigate } from '../../../../lib/router';
@@ -89,7 +90,7 @@ export default function Prochain({ data, reload, note }: EspaceCardProps) {
   return (
     <EsCard guide="espace.prochain" title="Prochain client" icon="scissors" className="es-next" end={n.status === 'in_chair' ? 'au fauteuil' : n.late > 0 ? 'en retard' : undefined}>
       <div className="es-when"><span className="es-t tnum">{time(n.start)}</span><h3 className="es-who">{n.name}</h3></div>
-      <p className="es-svc">{n.services.join(' + ')} · {n.dur} min</p>
+      <p className="es-svc">{n.services.join(' + ')}{n.serie ? ' · ' + n.serie : ''} · {n.dur} min</p>
       <Chips n={n} />
       {last ? (
         <p className="es-last"><b>La dernière fois</b> ({shortDay(last.day)}, {who(last)}) : {last.text}</p>
@@ -112,6 +113,7 @@ export default function Prochain({ data, reload, note }: EspaceCardProps) {
         {n.late >= LATE_ABSENT && (n.status === 'booked' || n.status === 'pending') ? <Button variant="ghost" icon="x" busy={busy === 'no_show'} disabled={offline} onClick={absent}>Absent</Button> : null}
         {n.canNote ? <Button variant="ghost" icon="edit" disabled={offline} onClick={() => note({ id: n.id, name: n.name, text: n.myNote })}>{n.myNote ? 'Corriger la note' : 'Note de coupe'}</Button> : null}
       </div>
+      {n.onlinePay || n.paidOnline ? <p className="es-tech"><OnlineBadge a={n} /></p> : null}
       {n.status === 'in_chair' && !can('sale.create') ? <p className="es-tech faint">À encaisser à l’accueil.</p> : null}
     </EsCard>
   );

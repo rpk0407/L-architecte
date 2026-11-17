@@ -4,7 +4,7 @@
 import { HttpError, guard } from './kit.js';
 import { dispatchNow } from './scheduler.js';
 import { checkLink } from '../auth/session.js';
-import { reviewClicked, queueReviewTest } from '../commands/reviews.js';
+import { reviewClicked, queueReviewTest, asksReview } from '../commands/reviews.js';
 import { clickedAt, reviewStats, left, FAILED } from '../projections/reviews.js';
 import { ownerEmail } from '../domain/mails.js';
 import { fileOf } from '../domain/messages.js';
@@ -32,7 +32,7 @@ export function reviewRoutes(app) {
     const id = checkLink(r.rt.secret, 'review', r.params.token);
     const m = id ? s.messages.get(id) : null;
     const person = r.req.method === 'GET' && !PREVIEW.test(r.req.headers.get('user-agent') || '');
-    if (m && m.template === 'review' && person && !clickedAt(s, id)) {
+    if (asksReview(m) && person && !clickedAt(s, id)) {
       // a click lost to a store hiccup is a figure a little low, never a client stuck on an error page
       try { await r.rt.engine.run(reviewClicked, { id }, { ...VISITOR, meta: r.meta }); } catch (e) { console.warn('[lx] review click', e && /** @type {any} */ (e).message); }
     }
@@ -53,7 +53,7 @@ export function reviewRoutes(app) {
     const c = fileOf(s, r.params.id);
     if (!c) throw new HttpError(404, 'not_found', 'Client introuvable.');
     if (c.erased) return { last: null, count: 0 };
-    const mine = [...s.messages.values()].filter((m) => m.template === 'review' && m.apptId && fileOf(s, m.cid) === c).sort((a, b) => b.at - a.at);
+    const mine = [...s.messages.values()].filter((m) => asksReview(m) && m.apptId && fileOf(s, m.cid) === c).sort((a, b) => b.at - a.at);
     const m = mine[0];
     const last = m ? { at: m.sentAt || m.at, channel: m.channel || 'sms', status: left(s, m) ? 'sent' : FAILED.has(m.status) || m.status === 'simulated' ? 'failed' : 'queued', opened: clickedAt(s, m.id) || null } : null;
     return { last, count: mine.length };

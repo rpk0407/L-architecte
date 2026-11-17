@@ -14,6 +14,7 @@ import { ticketNo, refundNo, METHOD_LABEL } from '../domain/cash.js';
 import { localParts, dayLong, hhmm, isDay } from '../../shared/dates.js';
 import { tillDay, tillMonth } from '../domain/till.js';
 import { fmtEur } from '../../shared/money.js';
+import { formuleOfAppt } from '../domain/formule.js';
 
 const DAY = 86400000;
 /** Stripe's dispute reasons, as the owner reads them */
@@ -268,6 +269,9 @@ export function paymentRoutes(app) {
     const a = p && p.apptId ? r.s.appts.get(p.apptId) : null;
     if (!p || p.status !== 'paid' || p.usedBy) throw new HttpError(409, 'settled', 'Cet acompte est déjà encaissé ou remboursé.');
     if (p.kind !== 'deposit' || !a || !['cancelled', 'no_show'].includes(a.status)) throw new HttpError(409, 'invalid', 'Cet acompte attend encore son rendez-vous : encaisse-le sur son ticket.');
+    // the 80 € of a carnet bought with its dates pay the ticket of its next date: not kept nor given back while one stands
+    const fo = formuleOfAppt(r.s, a.id);
+    if (fo && fo.apptIds.some((i) => ['pending', 'booked', 'arrived', 'in_chair'].includes((r.s.appts.get(i) || {}).status))) throw new HttpError(409, 'invalid', 'Ce paiement est celui d’un carnet dont des rendez-vous restent à venir : il réglera le ticket de la prochaine coupe.');
     return { p, a };
   };
   app.post('/api/v1/payments/:id/keep', (r) => {

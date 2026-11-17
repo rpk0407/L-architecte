@@ -1,6 +1,7 @@
 // @ts-check
 // What leaves the server, per audience. Nothing is sent "just in case": a barber without the
 // right sees masked phone numbers, the public site never sees a client, a booking link shows one booking.
+import { payBrief } from '../commands/selfpay.js';
 import { maskPhone, fmtPhone, maskEmail } from '../lib/util.js';
 import { staffIntervals } from '../domain/availability.js';
 import { clientStats } from '../domain/insights.js';
@@ -10,6 +11,8 @@ import { membersOf, statusOf, periodAt, graceOf, abandoned, weekUse } from '../d
 import { rhythmOf, perWeekOf, missedOf } from '../../shared/membership-words.js';
 import { localParts, addDays } from '../../shared/dates.js';
 import { cardLine, saleLoyalty } from '../domain/loyalty.js';
+import { formuleOfAppt, rankOf, payState, paidOnline, packCover } from '../domain/formule.js';
+import { groupBrief } from '../domain/group.js';
 
 /** photo: the version of the person's photo (TEAM-02, /api/v1/staff/:id/photo?v=), null without one; photoSite: shown on the site */
 export function staffView(st, full = false) {
@@ -73,7 +76,7 @@ export function clientCard(s, c, caps, stats, now = Date.now()) {
     phone: caps.has('client.contact') ? fmtPhone(c.phone) : maskPhone(c.phone), hasPhone: !!c.phone, hasEmail: !!c.email,
     badges, visits: st ? st.visits : 0, lastDay: st ? st.lastDay : null, sinceLast: st ? st.sinceLast : null, cadence: st ? st.cadence : null,
     spend: st ? st.spend : 0, noShows: st ? st.noShows : 0, next: st ? st.next : null, overdue: st ? st.overdue : false, dueIn: st ? st.dueIn : null,
-    tech: c.tech || '', sms: c.sms, marketing: !!c.marketing, packs: packs.map((k) => ({ id: k.id, name: k.name, used: k.used, total: k.total, expires: k.expires, serviceIds: k.serviceIds || [] })), memberships, ...(loyalty ? { loyalty } : {})
+    tech: c.tech || '', sms: c.sms, marketing: !!c.marketing, packs: packs.map((k) => { const c = packCover(s, k); return { id: k.id, name: k.name, used: k.used, total: k.total, expires: k.expires, serviceIds: c.ids, withIds: c.withIds }; }), memberships, ...(loyalty ? { loyalty } : {})
   };
 }
 
@@ -103,13 +106,37 @@ export function typedFor(a, c) {
   return x && y && !x.startsWith(y) && !y.startsWith(x) ? typed : '';
 }
 
+/**
+ * A date of a weekly carnet bought with its dates: « coupe 3 sur 5 », and what the till does with it. sell: the carnet is
+ * not paid yet, the ticket sells it (its service, its price) and this cut is its first; deposit: the 80 € paid online,
+ * to put on that ticket; packId: the carnet that pays this cut.
+ */
+export function formuleBrief(s, a) {
+  const f = formuleOfAppt(s, a.id);
+  const r = f ? rankOf(s, a.id) : null;
+  if (!f || !r) return null;
+  const sv = s.services.get(f.serviceId);
+  const pay = payState(s, f);
+  const dep = pay === 'online' ? paidOnline(s, f) : null;
+  return {
+    id: f.id, n: r.n, of: r.of, pay, packId: f.packId || null,
+    sell: !f.packId && sv && sv.active ? { serviceId: sv.id, name: sv.name, price: sv.price } : null,
+    deposit: dep ? { paymentId: dep.paymentId, paid: dep.amount } : null
+  };
+}
+
 export function apptView(s, a, caps, stats, now = Date.now()) {
   const c = a.clientId ? s.clients.get(a.clientId) : null;
   return {
     id: a.id, code: a.code, staffId: a.staffId, anyStaff: a.anyStaff, day: a.day, start: a.start, dur: a.dur, services: a.services, price: a.price,
     status: a.status, source: a.source, note: a.note || '', name: c ? nameOn(a, c) : a.name || 'Client',
     client: c ? clientCard(s, c, caps, stats, now) : null, deposit: a.deposit, guarantee: a.guarantee || null, saleId: a.saleId, createdAt: a.createdAt,
-    statusAt: a.statusAt || {}, cancel: a.cancel, moves: a.moves || 0, demo: !!a.demo, legacy: !!a.legacy, paidOld: a.ext && a.ext.paid && !a.saleId ? a.ext.paid : 0
+    statusAt: a.statusAt || {}, cancel: a.cancel, moves: a.moves || 0, demo: !!a.demo, legacy: !!a.legacy, paidOld: a.ext && a.ext.paid && !a.saleId ? a.ext.paid : 0,
+    ...(formuleBrief(s, a) ? { formule: formuleBrief(s, a) } : {}),
+    // « Payer ma coupe »: the link is out, the client is paying on his phone, or he paid online (commands/selfpay.js)
+    ...payBrief(s, a, now),
+    // « Groupe de Karim · 3 personnes »: a place booked with others on the site
+    ...(a.ext && a.ext.group && groupBrief(s, a) ? { group: groupBrief(s, a) } : {})
   };
 }
 

@@ -6,7 +6,7 @@ import { api } from '../../../../../lib/api';
 import { plural } from '../../../../../lib/format';
 import { REVIEW_HOWTO, REVIEW_KIND, reviewLinkKind, sampleReviewLink } from '../../../../../lib/reviews';
 import { Icon } from '../../../../../ui/Icon';
-import { Button, Field, Note, Switch, toast, toastError } from '../../../../../ui/kit';
+import { Button, Field, Note, Switch, confirm, toast, toastError } from '../../../../../ui/kit';
 import { useApp } from '../../../../state';
 import { smsSegments } from '../../../Relances';
 import { Card, useSave, useSection, type SectionProps } from '../../shared';
@@ -36,7 +36,9 @@ export default function Avis({ s, data }: SectionProps) {
   const noLink = !v.text.includes('{avis}');
   const def = data.defaultTemplates.review || '';
 
-  const onSave = () => {
+  const onSave = async () => {
+    // a link that is not one of Google's review pages is kept only if the owner says so (a typo would send clients nowhere)
+    if (url !== s.shop.reviewUrl && !urlErr && !kind && !await confirm({ title: 'Garder ce lien ?', body: 'Ce n’est pas une page d’avis Google reconnue. Les clients y seront envoyés tel quel après leur visite. ' + REVIEW_HOWTO + '.', ok: 'Garder ce lien' })) return;
     const messages: Record<string, unknown> = {};
     if (v.review !== !!s.messages.review) messages.review = v.review;
     if (v.delay !== Number(s.messages.reviewDelayMin)) messages.reviewDelayMin = v.delay;
@@ -56,12 +58,12 @@ export default function Avis({ s, data }: SectionProps) {
 
   return (
     <Card title="Avis Google" guide="messages-avis" icon="star" aside={<span className={'badge ' + (v.review && kind ? 'badge-ok' : v.review ? 'badge-warn' : '')}>{v.review ? (kind ? 'actif' : 'lien à vérifier') : 'coupé'}</span>}>
-      <Switch on={v.review} onChange={(x) => f.setV({ ...v, review: x })} title="Demander un avis après chaque visite" hint="Une fois la visite terminée et encaissée, une fois par trimestre au plus par client. Par SMS, ou par e-mail s’il n’a pas laissé de numéro. Un client qui a répondu STOP ou refusé les SMS n’en reçoit pas." />
+      <Switch on={v.review} onChange={(x) => f.setV({ ...v, review: x })} title="Demander un avis après chaque visite" hint="Une fois la visite terminée et encaissée, une fois par trimestre au plus par client. Si tu envoies le reçu par SMS à la caisse, le lien part avec lui et rien d’autre ne suit. Un client qui a répondu STOP ou refusé les SMS n’en reçoit pas." />
       <div className="grid2 stack">
         <Field label="Envoyé après la visite" htmlFor="av-delay" hint="La nuit, le dimanche et les jours fériés, il part le matin suivant.">
           <select id="av-delay" className="input select" value={v.delay} onChange={(e) => f.setV({ ...v, delay: Number(e.target.value) })}>{DELAYS.map((n) => <option key={n} value={n}>{delayWords(n)}</option>)}</select>
         </Field>
-        <Field label="Lien Google" htmlFor="av-url" error={urlErr} hint={urlErr ? undefined : kind ? 'Ouvre ' + REVIEW_KIND[kind] + '.' : REVIEW_HOWTO + '.'}>
+        <Field label="Lien pour laisser un avis Google" htmlFor="av-url" error={urlErr} hint={urlErr ? undefined : kind ? 'Ouvre ' + REVIEW_KIND[kind] + '.' : REVIEW_HOWTO + '.'}>
           <input id="av-url" className="input" type="url" inputMode="url" maxLength={300} placeholder="https://g.page/r/…/review" value={v.url} onChange={(e) => f.setV({ ...v, url: e.target.value })} aria-invalid={urlErr ? true : undefined} />
         </Field>
       </div>

@@ -94,7 +94,7 @@ test('the site, /r/ and /mon-rendez-vous lead to the space, only while the salon
   assert.match(site, /<sc-if value="\{\{espaceOn\}\}"[^>]*><a class="mn-me" href="\/moi">/);
   assert.match(site, /<sc-if value="\{\{espaceOn\}\}"[^>]*><a class="tb-me" href="\/moi" aria-label="\{\{meAria\}\}"/);
   assert.match(site, /meName: s\.acct && s\.acct\.signedIn && s\.acct\.first \? 'Salut ' \+ s\.acct\.first : 'Mon espace'/);
-  assert.match(site, /<sc-if value="\{\{espaceOn\}\}"[^>]*><p class="ab-esp">Ton abonnement, ton carnet et tes coupes restantes se suivent dans <a href="\/moi">Mon espace<\/a>\.<\/p><\/sc-if>/);
+  assert.match(site, /<sc-if value="\{\{espaceOn\}\}"[^>]*><p class="ab-esp">Ton abonnement, ta formule et tes visites restantes se suivent dans <a href="\/moi">Mon espace<\/a>\.<\/p><\/sc-if>/);
   assert.match(site, /<sc-if value="\{\{espaceOn\}\}"[^>]*><li><a href="\/moi"[^>]*>Mon espace<\/a><\/li><\/sc-if>/);
   assert.match(site, /espaceUrl: '\/moi\?garder=' \+ encodeURIComponent\(/);
   // « C’est dans ton espace » only for a booking that is his (booked with another number, it is not)

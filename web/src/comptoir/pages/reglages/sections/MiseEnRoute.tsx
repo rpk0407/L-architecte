@@ -113,7 +113,7 @@ export function stepsOf(h: Health, robots: boolean | null, countries: string[], 
   out.push({ id: 'stripe', title: 'Stripe', to: '/reglages/paiements', go: 'Paiements',
     tone: demo ? 'info' : p.provider !== 'stripe' ? 'todo' : !p.live ? 'warn' : p.lastWebhook ? 'ok' : 'warn',
     line: demo ? 'Démo : les acomptes passent par la page de paiement simulée.'
-      : p.provider !== 'stripe' ? 'Simulé : aucun acompte n’est demandé en ligne et le QR de la caisse est coupé.'
+      : p.provider !== 'stripe' ? 'Pas encore branché : aucun acompte n’est demandé en ligne et le QR de la caisse est éteint. Paiements donne les trois étapes.'
         : !p.live ? 'Mode test : un acompte « payé » ne fait bouger aucun argent. Passe aux clés réelles avant d’ouvrir.'
           : p.lastWebhook ? 'Réel. Dernier retour de Stripe ' + since(p.lastWebhook) + '.' : 'Réel, mais Stripe n’a encore rien renvoyé : fais un acompte test de 1 €, puis rembourse-le.',
     more: <>Le jour où Stripe est branché, enregistre Réglages › Réservation pour dater une nouvelle version des CGV. Les frais d’absence restent hors des CGV tant qu’aucune carte n’est gardée.</> });

@@ -78,7 +78,10 @@ export function payWindowMin(s, { stripe = false } = {}) {
 
 /** When an unpaid booking frees its slot: the deadline set at booking, or (older bookings) the salon's setting. */
 export function payDeadline(s, appt) {
-  return appt.deposit && appt.deposit.until ? appt.deposit.until : appt.createdAt + s.settings.booking.pendingPayMin * 60000;
+  if (appt.deposit && appt.deposit.until) return appt.deposit.until;
+  // the other dates of a formule bought online wait with its first one (commands/formule.js)
+  if (appt.ext && appt.ext.until) return appt.ext.until;
+  return appt.createdAt + s.settings.booking.pendingPayMin * 60000;
 }
 
 /** Can the client still move or cancel online? (otherwise: call the salon) */

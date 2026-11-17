@@ -3,7 +3,7 @@
 // happens outside the decision (it is a network side effect); these handlers only record what the provider said.
 import { fail } from '../core/engine.js';
 import { getAppt, getClient } from './common.js';
-import { str, int, opt, obj, oneOf, either, parse } from '../lib/validate.js';
+import { str, int, opt, obj, arr, oneOf, either, parse } from '../lib/validate.js';
 import { normPhone, isEmail, capFirst } from '../lib/util.js';
 import { instantOf, isDay } from '../../shared/dates.js';
 import { queueMessage, apptVars } from '../domain/messages.js';
@@ -13,6 +13,8 @@ import { payDeadline } from '../domain/policy.js';
 import { busyIntervals } from '../domain/availability.js';
 import { providerKnown } from '../projections/payments.js';
 import { advanceRate } from '../domain/ledger.js';
+import { formuleOfAppt } from '../domain/formule.js';
+import { formulePaid, formuleUnpaid } from './formule.js';
 
 const KINDS = new Set(['deposit', 'qr', 'guarantee', 'giftcard']);
 
@@ -55,6 +57,9 @@ export function giftOrder(input, now) {
   return { amount: x.amount, buyer, recipient, message: x.message || '', delivery: x.delivery, sendAt };
 }
 
+const selfSchema = obj({ tip: int({ min: 0, max: 5000 }), group: opt(arr(str({ min: 1, max: 64 }), { max: 3 })) });
+const selfOf = (x) => { const v = parse(selfSchema, x || {}); return { tip: v.tip, ...(v.group && v.group.length ? { group: v.group } : {}) }; };
+
 export const createPayment = {
   run(s, input, ctx) {
     if (!KINDS.has(input.kind)) fail(400, 'invalid', 'Type de paiement inconnu.');
@@ -81,7 +86,9 @@ export const createPayment = {
       id: input.id, kind: input.kind, amount: input.amount, provider: input.provider, providerRef: input.providerRef || null,
       url: input.url || null, apptId: input.apptId || null, exp: input.exp || ctx.now + 30 * 60000, label: String(input.label || '').slice(0, 80),
       // names and numbers travel in pii (read back from the journal at fulfilment, routes-giftshop.js orderOf)
-      ...(cid ? { cid } : {}), ...(gift ? { gift: gift.data } : {})
+      ...(cid ? { cid } : {}), ...(gift ? { gift: gift.data } : {}),
+      // the client pays his own cut from his page (commands/selfpay.js): the tip he chose, the group places he pays for
+      ...(input.kind === 'qr' && input.self && input.apptId ? { self: selfOf(input.self) } : {})
     }, gift ? gift.pii : undefined);
     return { id: input.id, ...(gift ? { cid: gift.cid } : {}) };
   }
@@ -111,10 +118,15 @@ export const paymentSucceeded = {
       // paid after its deadline (the tick has not run yet): the slot may already belong to someone else
       if (a.status === 'pending' && payDeadline(s, a) < ctx.now && busyIntervals(s, a.staffId, a.day, { now: ctx.now, ignoreAppt: a.id }).some(([x, y]) => x < a.start + a.dur && a.start < y)) {
         ctx.emit('appt.cancelled', { id: a.id, by: 'system', reason: 'Acompte réglé trop tard', cid: a.clientId || undefined });
+        const late = formuleOfAppt(s, a.id);
+        if (late) formuleUnpaid(s, ctx, late, a, 'Formule réglée trop tard');
         return { ok: true, late: true };
       }
       if (a.status === 'pending') {
         ctx.emit('appt.confirmed', { id: a.id, cid: a.clientId || undefined });
+        // the 80 € of a formule: its other dates are confirmed with the first, one text lists them (commands/formule.js)
+        const fo = formuleOfAppt(s, a.id);
+        if (fo) { formulePaid(s, ctx, fo, a); return { ok: true }; }
         const c = a.clientId ? getClient(s, a.clientId) : null;
         if (c && c.phone && a.sms && s.settings.messages.confirmation) {
           // a child's or a friend's place on this contact's file: « avec JKut pour Léo », as the booking's own text said

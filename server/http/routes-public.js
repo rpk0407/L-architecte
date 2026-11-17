@@ -2,7 +2,7 @@
 // The public API: what the client site and the "mon rendez-vous" page use. No account, no personal data out.
 import { HttpError, guard, json } from './kit.js';
 import { serviceView, staffView } from './views.js';
-import { freeSlots, walkinEstimate, shopIntervals, staffIntervals, UNDECIDED } from '../domain/availability.js';
+import { freeSlots, eligibleStaff, walkinEstimate, shopIntervals, staffIntervals, UNDECIDED } from '../domain/availability.js';
 import { clientMayChange, payWindowMin, payDeadline } from '../domain/policy.js';
 import { signLink, checkLink } from '../auth/session.js';
 import { addDays, isDay, diffDays, dayLong } from '../../shared/dates.js';
@@ -25,11 +25,16 @@ import { addMonths, abandoned } from '../domain/membership.js';
 import { BILLING } from '../payments/billing.js';
 import { memberScheduled, startDayOf } from '../commands/member-billing.js';
 import { fmtEur } from '../../shared/money.js';
+import { safeRedirect } from '../../shared/reviews.js';
+import { groupMembers, organiserOf, heldByOrganiser, groupView } from '../domain/group.js';
 import { claimFromLink } from './routes-loyalty.js';
 import { receiptLoyalty } from '../domain/loyalty.js';
 import { readMemberToken, MEMBER_BOOK } from '../auth/member-token.js';
 import { salonWhatsapp } from '../settings/messages.js';
 import { effectiveMode } from '../messaging/hand.js';
+import { formuleOfAppt, rankOf, payState, endOf, onSite } from '../domain/formule.js';
+import { accountsOn } from '../settings/accounts.js';
+import { payView, settleSelfPay } from './routes-selfpay.js';
 
 /** The demo, for real: both the configuration and the journal say so (a demo journal opened in production is not one). */
 export const isDemo = (r) => r.rt.cfg.mode === 'demo' && r.s.mode === 'demo';
@@ -71,6 +76,19 @@ export function awayOf(s, st, today) {
   return note ? { until, back, note } : null;
 }
 
+/**
+ * A date of a weekly carnet bought with its dates, for the booking's own page: « coupe 3 sur 5 », and what is left to pay
+ * (nothing once the carnet is paid; 80 € at the salon at the first cut otherwise). Nothing for any other booking.
+ */
+export function formuleLine(s, a) {
+  const f = formuleOfAppt(s, a.id);
+  const r = f ? rankOf(s, a.id) : null;
+  if (!f || !r) return {};
+  const sv = s.services.get(f.serviceId);
+  const pay = payState(s, f);
+  return { formule: { n: r.n, of: r.of, name: sv ? sv.name : 'Carnet', pay, due: pay === 'due' || pay === 'pending' ? (sv ? sv.price : 0) : 0, end: endOf(s, f) } };
+}
+
 function bookingView(r, a) {
   const s = r.s;
   const st = s.staff.get(a.staffId);
@@ -84,12 +102,36 @@ function bookingView(r, a) {
     deposit: a.deposit ? { amount: a.deposit.amount, paid: a.deposit.paid || 0, url: pay && pay.status === 'pending' ? pay.url : null } : null,
     canChange: ['booked', 'pending'].includes(a.status) && clientMayChange(s, a, r.rt.engine.clock()), cancelUntilHours: s.settings.booking.cancelUntilHours,
     shop: { name: s.settings.shop.name, address: s.settings.shop.address + ', ' + s.settings.shop.zip + ' ' + s.settings.shop.city, phone: s.settings.shop.phone, mapsUrl: s.settings.shop.mapsUrl },
-    cancelled: a.cancel ? { by: a.cancel.by, at: a.cancel.at } : null
+    cancelled: a.cancel ? { by: a.cancel.by, at: a.cancel.at } : null,
+    // « Laisser un avis »: only once the visit is done, for everyone alike (no question first, no reward: Google's rules)
+    ...(a.status === 'done' && safeRedirect(s.settings.shop.reviewUrl) ? { reviewUrl: safeRedirect(s.settings.shop.reviewUrl) } : {}),
+    ...formuleLine(s, a),
+    ...(r.guestLink ? { guestLink: true } : {}),
+    ...groupLine(r, a),
+    // « Payer ma coupe »: what he owes today, or « payé » with his receipt (routes-selfpay.js); today: the page then
+    // follows the till by itself (seated, a product added, rung up)
+    ...(a.day === r.local.day ? { today: true } : {}),
+    ...(payView(r, a) || {})
   };
 }
 
-function apptFromToken(r) {
-  const code = checkLink(r.rt.secret, 'appt', r.params.token);
+/** The group of a booking as its page shows it: everything to the organiser, « réservé par Karim » to a friend. */
+function groupLine(r, a) {
+  const s = r.s;
+  const members = groupMembers(s, a);
+  if (members.length < 2) return {};
+  const org = organiserOf(s, members);
+  const organiser = !r.guestLink && heldByOrganiser(s, a, org);
+  const g = groupView(s, a, { organiser, origin: r.origin, tokenFor: (x, kind) => signLink(r.rt.secret, kind, x.code) });
+  return g ? { group: g } : {};
+}
+
+export function apptFromToken(r) {
+  // two kinds of link open a booking: the contact's own ('appt', which also opens his other bookings, routes-client.js)
+  // and a friend's ('guest', sent by the organiser of a group: that one place and nothing else)
+  let code = checkLink(r.rt.secret, 'appt', r.params.token);
+  r.guestLink = false;
+  if (!code) { code = checkLink(r.rt.secret, 'guest', r.params.token); r.guestLink = !!code; }
   const id = code ? r.s.apptByCode.get(code) : null;
   const a = id ? r.s.appts.get(id) : null;
   if (!a) throw new HttpError(404, 'not_found', 'Ce lien n’est pas (ou plus) valable.');
@@ -106,15 +148,15 @@ export const lapse = (r, co) => r.now + Math.max(0, co.exp - Date.now());
 /**
  * Ask the provider for a checkout page and record it.
  * @param {any} r
- * @param {{ kind: string, amount: number, label: string, apptId: string|null, returnPath: string, email?: string }} o
+ * @param {{ kind: string, amount: number, label: string, apptId: string|null, returnPath: string, email?: string, self?: { tip: number, group?: string[] } }} o
  */
-export async function startPayment(r, { kind, amount, label, apptId, returnPath, email }) {
+export async function startPayment(r, { kind, amount, label, apptId, returnPath, email, self }) {
   if (!payLive(r)) throw new HttpError(409, 'no_provider', 'Le paiement en ligne n’est pas branché (Stripe).');
   const id = newId('py');
   const origin = r.origin;
   const payMin = kind === 'deposit' ? payWindowMin(r.s, { stripe: r.rt.pay.name === 'stripe' }) : undefined;
   const co = await r.rt.pay.createCheckout({ id, amount, label, email, payMin, successUrl: origin + returnPath + (returnPath.includes('?') ? '&' : '?') + 'paiement=ok', cancelUrl: origin + returnPath + (returnPath.includes('?') ? '&' : '?') + 'paiement=annule' });
-  await r.rt.engine.run(createPayment, { id, kind, amount, provider: r.rt.pay.name, providerRef: co.ref, url: co.url, apptId, exp: lapse(r, co), label }, { actor: { t: 'system', id: 'payments' }, caps: new Set(['sale.create']), meta: r.meta });
+  await r.rt.engine.run(createPayment, { id, kind, amount, provider: r.rt.pay.name, providerRef: co.ref, url: co.url, apptId, exp: lapse(r, co), label, ...(self ? { self } : {}) }, { actor: { t: 'system', id: 'payments' }, caps: new Set(['sale.create']), meta: r.meta });
   return { id, url: co.url };
 }
 
@@ -170,9 +212,13 @@ export function publicRoutes(app) {
     const live = payLive(r);
     // no online payment: no deposit is asked, so the site must not announce one either
     const active = [...s.services.values()].filter((x) => x.active).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-    const services = active.filter((x) => x.online !== false).map((x) => (live ? serviceView(x) : { ...serviceView(x), deposit: 0 }));
+    // a carnet is on the site only when it can be bought there: the weekly one, with its dates, and the client space open
+    // (it asks for an account); any other stays on the price list, « au salon »
+    const space = accountsOn(s);
+    const sellable = (x) => onSite(s, x, space);
+    const services = active.filter((x) => x.online !== false && sellable(x)).map((x) => (live ? serviceView(x) : { ...serviceView(x), deposit: 0 }));
     // the whole price list (the CGV show it, the site's FAQ quotes it): booked at the salon only when online is false
-    const menu = active.map((x) => ({ slug: x.slug || null, name: x.name, category: x.category, price: x.price, from: !!x.from, dur: x.dur, online: x.online !== false }));
+    const menu = active.map((x) => ({ slug: x.slug || null, name: x.name, category: x.category, price: x.price, from: !!x.from, dur: x.dur, online: x.online !== false && sellable(x) }));
     const chairs = [...s.staff.values()].filter((x) => x.active && x.chair && x.bookable).sort((a, b) => (a.order ?? 99) - (b.order ?? 99));
     // photo: the address of his photo when he shows it on the site (« Photo visible sur le site »), absent otherwise;
     // the Comptoir's version number and the switch itself are the Comptoir's
@@ -226,8 +272,36 @@ export function publicRoutes(app) {
     const days = Math.max(1, Math.min(14, Number(q.get('days')) || 10));
     const ids = String(q.get('services') || '').split(',').filter(Boolean).slice(0, 4);
     const staffId = q.get('staff') || 'any';
+    // all=1: the site's one read for the whole booking sheet. Every service sold online, « sans préférence » and barber
+    // by barber, in one answer: choosing a service, a barber or a day then shows its slots from memory. Services that
+    // take the same time with the same barbers share one list (sets); who is free at a time is a bit mask over `staff`.
+    if (q.has('all')) {
+      const fresh = q.has('fresh');
+      const online = [...s.services.values()].filter((x) => x && x.active && x.online !== false && !x.pack);
+      /** @type {string[]} */
+      const staff = [];
+      const bit = (id) => { let i = staff.indexOf(id); if (i < 0) { i = staff.length; staff.push(id); } return i; };
+      /** @type {Map<string, { services: string[], dur: number, days: any[] }>} */
+      const sets = new Map();
+      for (const x of online) {
+        const d = x.dur + Math.max(0, x.buffer || 0);
+        const k = d + '|' + eligibleStaff(s, [x.id], { online: true }).map((st) => st.id).join(',');
+        const set = sets.get(k);
+        if (set) { set.services.push(x.id); continue; }
+        const out = [];
+        for (let i = 0; i < days; i++) {
+          const day = addDays(from, i);
+          if (diffDays(L.day, day) > s.settings.booking.maxDaysAhead) break;
+          const slots = freeSlots(s, { day, dur: d, serviceIds: [x.id], staffId: 'any', now: r.now, local: L, online: true, each: true });
+          out.push({ day, open: !s.closures.has(day) && shopIntervals(s, day).length > 0, slots: slots.map((y) => [y.m, bit(y.staffId), (y.free || []).reduce((t, id) => t | (1 << bit(id)), 0)]) });
+        }
+        sets.set(k, { services: [x.id], dur: d, days: out });
+      }
+      if (staff.length > 30) throw new HttpError(400, 'invalid', 'Trop de barbiers pour cette lecture.');
+      return json({ now: r.now, from, staff, sets: [...sets.values()] }, 200, { 'cache-control': fresh ? 'no-store' : 'public, max-age=0, s-maxage=5' });
+    }
     if (!ids.length) throw new HttpError(400, 'invalid', 'Choisis une prestation.');
-    const services = ids.map((id) => s.services.get(id)).filter((x) => x && x.active && x.online !== false);
+    const services = ids.map((id) => s.services.get(id)).filter((x) => x && x.active && x.online !== false && !x.pack);
     if (services.length !== ids.length) throw new HttpError(404, 'not_found', 'Prestation introuvable.');
     const dur = services.reduce((t, x) => t + x.dur, 0) + Math.max(0, ...services.map((x) => x.buffer || 0));
     let ignoreAppt = null;
@@ -270,10 +344,11 @@ export function publicRoutes(app) {
     const places = res.people || [res];
     const outs = [];
     for (const x of places) {
-      const token = signLink(r.rt.secret, 'appt', x.code);
-      let payment = null;
       // a retry finds the booking as it now stands: its deposit page is the one already opened, never a second one
       const now = r.s.appts.get(x.id);
+      // a place booked for a friend under his own number: the booker follows that place, not his friend's other bookings
+      const token = signLink(r.rt.secret, now && now.ext && now.ext.guest && now.ext.guest.by ? 'guest' : 'appt', x.code);
+      let payment = null;
       const open = again ? [...r.s.payments.values()].find((p) => p.apptId === x.id && p.kind === 'deposit' && p.status === 'pending') : null;
       // in a booking of several people, any place taken back means the whole booking was (its deposit page failed)
       if (again && (x.status === 'pending' || res.people) && (!now || now.status === 'cancelled')) throw new HttpError(409, 'gone', 'Cette réservation n’a pas abouti : rien n’est enregistré. Choisis ton créneau à nouveau.');
@@ -307,7 +382,9 @@ export function publicRoutes(app) {
     // FID-02: a booking that came through a referrer's link (?parrain=); a refusal never touches the booking
     const ref = r.body && r.body.parrain && !again ? await claimFromLink(r, res.id, r.body.parrain) : null;
     const { first: _f, day: _d, start: _s, guest: _g, price: _p, ...one } = head;
-    return json({ ...one, ...(res.people ? { people: outs } : {}), ...(ref ? { referral: { ok: !!ref.ok, why: ref.ok ? null : ref.why } } : {}) }, 201);
+    // a group: the recap the confirmation shows and the text « Envoyer à mes amis » sends, as the organiser's page has them
+    const grp = res.people ? groupLine(r, r.s.appts.get(res.id)).group : null;
+    return json({ ...one, ...(res.people ? { people: outs } : {}), ...(grp && grp.organiser ? { group: { by: grp.by, total: grp.total, share: grp.share } } : {}), ...(ref ? { referral: { ok: !!ref.ok, why: ref.ok ? null : ref.why } } : {}) }, 201);
   });
 
   app.get('/api/public/bookings/:token', (r) => bookingView(r, apptFromToken(r)));
@@ -335,7 +412,9 @@ export function publicRoutes(app) {
     if (open) return { url: open.url };
     // a new checkout page would outlive the booking's hold: the client would pay for a slot already given back
     if (payDeadline(r.s, a) - r.now < 120000) throw new HttpError(409, 'late', 'Le délai pour régler l’acompte est dépassé. Réserve un autre créneau.');
-    const p = await startPayment(r, { kind: 'deposit', amount: a.deposit.amount, label: 'Acompte · ' + a.services.map((x) => x.name).join(' + '), apptId: a.id, returnPath: '/r/' + r.params.token });
+    const fo = formuleOfAppt(r.s, a.id);
+    const fsv = fo ? r.s.services.get(fo.serviceId) : null;
+    const p = await startPayment(r, { kind: 'deposit', amount: a.deposit.amount, label: fo ? (fsv ? fsv.name : 'Carnet') + ' · ' + fo.apptIds.length + ' rendez-vous' : 'Acompte · ' + a.services.map((x) => x.name).join(' + '), apptId: a.id, returnPath: '/r/' + r.params.token });
     return { url: p.url };
   });
 
@@ -358,7 +437,9 @@ export function publicRoutes(app) {
     if (m) return memberCheckout(r, m);
     if (!p) throw new HttpError(404, 'not_found', 'Paiement introuvable.');
     const a = p.apptId ? r.s.appts.get(p.apptId) : null;
-    return { id: p.id, status: p.status, amount: p.amount, label: p.label, kind: p.kind, provider: p.provider, exp: p.exp, shop: r.s.settings.shop.name, back: a ? '/r/' + signLink(r.rt.secret, 'appt', a.code) : null };
+    // a friend's place paid from the organiser's link goes back to that place alone, never to the friend's other bookings
+    const friend = !!(a && p.self && a.ext && a.ext.guest && a.ext.guest.by);
+    return { id: p.id, status: p.status, amount: p.amount, label: p.label, kind: p.kind, provider: p.provider, exp: p.exp, shop: r.s.settings.shop.name, back: a ? '/r/' + signLink(r.rt.secret, friend ? 'guest' : 'appt', a.code) : null };
   });
 
   app.post('/api/public/payments/:id/simulate', async (r) => {
@@ -464,5 +545,7 @@ export async function afterProviderPaid(r, ev, provider) {
   if (res && res.late) await refundOnline(r, p, 'Réservation expirée avant le paiement');
   // a gift card bought online (IN-01): the sale and the code's SMS, on every paid notice (fulfilGiftcard is idempotent)
   if (p && p.kind === 'giftcard' && p.status === 'paid') await fulfilGiftcard(r, p);
+  // the client paid his own cut from his page: the till's ticket, on every paid notice (settleSelfPay is idempotent)
+  if (p && p.self) await settleSelfPay(r, r.s.payments.get(p.id));
   return res;
 }

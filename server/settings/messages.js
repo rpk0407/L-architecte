@@ -90,6 +90,9 @@ export default /** @type {const} */ ({
     // link). Off until the owner decides. Whatever it says, a confirmation or a reminder whose SMS failed for good goes
     // once by e-mail when `email` is on, and a booking that missed the evening reminder gets the 2-hours one (system.js)
     reminderEmail: false,
+    // the owner pays each SMS: when on, a client whose confirmation leaves by e-mail gets no confirmation SMS (the
+    // reminder stays an SMS); a client without an address, or with e-mails switched off, still gets the SMS
+    confirmationEmailFirst: false,
     // MSG-02: by WhatsApp when switched on and the text has an approved template here ({ name: the template's name at
     // Meta, lang: its language, params: the variables in the template's order}); a text without one goes by SMS, or
     // waits for a person on the Messages screen. null takes a mapping out. `mode` ('sms', 'phone', 'auto': waMode above)
@@ -105,7 +108,7 @@ export default /** @type {const} */ ({
     // it can be reworded, never removed
     stopSuffix: opt(str({ min: 6, max: 40, trim: false, pattern: /\bSTOP\b/ })),
     countries: opt(arr(str({ min: 2, max: 5, pattern: /^\+\d{1,4}$/ }), { min: 1, max: 40 })),
-    email: opt(bool()), reminderEmail: opt(bool()),
+    email: opt(bool()), reminderEmail: opt(bool()), confirmationEmailFirst: opt(bool()),
     whatsapp: opt(obj({
       enabled: opt(bool()),
       mode: opt(oneOf(WA_MODES)),

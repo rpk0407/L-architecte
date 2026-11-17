@@ -83,7 +83,7 @@ export function handStale(s, m, now) {
   return now - m.dueAt > DAY_MS ? 'Trop tard : en attente depuis plus de 24 h' : '';
 }
 
-const KIND = { confirmation: 'Confirmation', reminder: 'Rappel', reminder2h: 'Rappel du jour', cancelled: 'Annulation', waitlist: 'Place libérée', queue: 'Bientôt ton tour', receipt: 'Reçu', reassign: 'Barbier absent', reassignAt: 'Barbier absent', reschedule: 'Rendez-vous à décaler', giftcardCode: 'Carte cadeau', giftcard: 'Carte cadeau' };
+const KIND = { confirmation: 'Confirmation', reminder: 'Rappel', reminder2h: 'Rappel du jour', cancelled: 'Annulation', waitlist: 'Place libérée', queue: 'Bientôt ton tour', receipt: 'Reçu', payLink: 'Lien de paiement', reassign: 'Barbier absent', reassignAt: 'Barbier absent', reschedule: 'Rendez-vous à décaler', giftcardCode: 'Carte cadeau', giftcard: 'Carte cadeau' };
 /** The word the screen puts on a text: « Confirmation », « Déplacement », « Rappel »… */
 export const handKind = (m) => (isMoved(m) ? 'Déplacement' : KIND[m.template] || 'Message');
 

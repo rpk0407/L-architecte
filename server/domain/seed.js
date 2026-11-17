@@ -61,7 +61,7 @@ const SERVICES = [
   { slug: 'tb', name: 'Taille de barbe', category: 'Barbe', price: 1800, dur: 30, includes: ['Taille', 'Mise en forme', 'Huile'], w: 5 },
   { slug: 'cb', name: 'Cover barbe', category: 'Barbe', price: 1500, dur: 30, includes: ['Couleur de la barbe', 'Soin'], w: 2 },
   // the prepaid pack is a « carnet », sold at the till (« abonnement » is the monthly membership below)
-  { slug: 'ab', name: 'Carnet 5 coupes', short: 'Carnet', category: 'Carnet', price: 8000, dur: 30, online: false, includes: ['5 coupes sur 5 semaines', 'Sans barbe'], description: '16 € la coupe. Il se prend au salon : on fixe tes coupes avec toi.', tag: '16 € la coupe', w: 0, pack: { credits: 5, days: 70 } }
+  { slug: 'ab', name: 'Formule Entretien 5 semaines', short: 'Entretien 5 sem.', category: 'Formule', price: 8000, dur: 30, online: false, includes: ['Shampooing', 'Coupe', 'Coiffage', 'Entretien de barbe'], description: '16 € la visite. Elle se prend au salon : on fixe tes visites avec toi.', tag: '16 € la visite', w: 0, pack: { credits: 5, days: 70 } }
 ];
 
 /*
@@ -240,18 +240,20 @@ export async function buildDemoJournal(nowReal, opt = {}) {
   const at = (day, min) => { clock = Math.min(nowReal, instantOf(day, min)); };
 
   at(start, 7 * 60);
-  const init = await eng.run(initialize, { mode: 'demo', owner: { name: 'Le gérant', email: DEMO.email }, pwdHash: hashSecretSync(DEMO.password), pinHash: hashSecretSync(DEMO.ownerPin) }, SYS);
+  const init = await eng.run(initialize, { mode: 'demo', owner: { name: 'Le gérant', email: DEMO.email }, pwdHash: hashSecretSync(DEMO.password, { light: true }), pinHash: hashSecretSync(DEMO.ownerPin, { light: true }) }, SYS);
   const base = { ...SYS, staff: eng.state.staff.get(init.ownerId), meta: { siteUrl: opt.siteUrl || 'https://larchitecte.fr/site' } };
   await eng.run(updateSettings, { shop: { phone: '04 91 00 00 00', legalName: 'L’Architecte SAS', legalForm: 'SAS', siret: '000 000 000 00000' } }, base);
   for (const [i, b] of BARBERS.entries()) {
     const res = await eng.run(addStaff, { name: b.name, role: 'barber', color: b.color, initials: b.initials, bookable: true, chair: true, schedule: b.week, commission: { service: 4000, product: 1000 }, bio: b.bio, instagram: b.instagram, order: i + 1 }, base);
-    await eng.run(setCredentials, { id: res.id, pinHash: hashSecretSync(DEMO.pins[b.name]) }, base);
+    await eng.run(setCredentials, { id: res.id, pinHash: hashSecretSync(DEMO.pins[b.name], { light: true }) }, base);
   }
   // the desk persona (TEAM-01): Inès on the tablet sees the salon's counts and fill, never its money
   const desk = await eng.run(addStaff, { name: 'Inès', role: 'desk', order: BARBERS.length + 1 }, base);
-  await eng.run(setCredentials, { id: desk.id, pinHash: hashSecretSync(DEMO.pins['Inès']) }, base);
+  await eng.run(setCredentials, { id: desk.id, pinHash: hashSecretSync(DEMO.pins['Inès'], { light: true }) }, base);
   // barbers may text their own regulars in the demo (off in production)
   await eng.run(updateSettings, { team: { barberRebook: true } }, base);
+  // « Payer ma coupe » is on in the demo, on the test payment page (off in production until the owner turns it on)
+  await eng.run(updateSettings, { payments: { selfPay: true } }, base);
   // the client space is open in the demo (off in production until the SMS route is tested, AC-01)
   await eng.run(updateSettings, { accounts: { enabled: true } }, base);
   const slugId = {};
@@ -556,6 +558,9 @@ export async function buildDemoJournal(nowReal, opt = {}) {
   // AC-03a: the client « Essayer avec un client de démo » opens holds a carnet, so « Mes avantages » shows in the demo
   const persona = personaOf(eng.state, clock);
   if (persona) await eng.run(checkout, { clientId: persona.id, lines: [{ kind: 'pack', ref: slugId.ab }], payments: [{ method: 'card', amount: eng.state.services.get(slugId.ab).price }] }, base).catch(() => null);
+  // the carnet as the salon sells it today: on the site, five cuts, one a week from the first date (a missed week is
+  // lost). Set last, so the demo's history (carnets sold at the till over ten weeks) reads as it always did
+  await eng.run(updateService, { id: slugId.ab, patch: { online: true, description: '5 visites · 1 par semaine · 16 € la visite. Une visite par semaine, cinq semaines de suite. Une semaine sautée est perdue.', pack: { credits: 5, days: 35, serviceIds: [slugId.cl, slugId.cc].filter(Boolean), withIds: [slugId.eb].filter(Boolean), weekly: true, missed: 'lost' } } }, base);
   await eng.run({ run(s, input, ctx) { ctx.emit('demo.seeded', { days: seeded }); return {}; } }, {}, SYS);
   return eng.journal;
 }

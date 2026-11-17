@@ -19,5 +19,6 @@ Règle posée par le propriétaire : **la commande (le parcours de réservation)
 
 - La **première page** : photo, grand titre en points, motion, ton et typographie du site principal.
 - Les **raccourcis d'entrée** (prochain créneau, « Comme la dernière fois ? », carte d'un barbier) : ils **préremplissent** des étapes du parcours standard, puis le client arrive sur la première étape non remplie. Le parcours reste le même, on lui épargne des touches.
+- **« C’est pour qui ? »** (pour moi, pour mon enfant, pour quelqu’un d’autre, à plusieurs) : en haut de l’étape 1, « Pour moi » par défaut, un seul geste. Ce n’est pas une étape de plus et l’ordre ne change pas : la réponse règle les mots des étapes, et l’étape Coordonnées la confirme en une ligne (« Changer » la rouvre).
 - Le **statut en direct** (ouvert, fauteuils libres), la preuve sociale, la présentation de l'équipe, le planning du salon comme **vue facultative** à côté de la liste d'heures.
 - L'habillage : cartes, transitions, détails de micro-interaction.

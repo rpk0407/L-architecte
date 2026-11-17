@@ -92,7 +92,7 @@
       if (p === '/salon') {
         return { shop: { name: 'Barber L’Architecte', address: '16, place Pélabon', zip: '13013', city: 'Marseille', mapsUrl: '' }, hours: { 0: [], 1: [], 2: [[540, 1110]], 3: [[540, 1110]], 4: [[540, 1110]], 5: [[540, 1110]], 6: [[540, 1110]] }, hoursText: 'Du mardi au samedi, 9 h – 18 h 30', closures: [],
           booking: { enabled: true, maxDaysAhead: 60, holdMin: 5, cancelUntilHours: 12, pendingPayMin: 15 }, deposits: { mode: 'none' }, services: SV,
-          menu: SV.map((x) => ({ slug: x.slug, name: x.name, category: x.category, price: x.price, from: x.from, dur: x.dur, online: true })).concat([{ slug: 'ab', name: 'Carnet 5 coupes', category: 'Carnet', price: 8000, from: false, dur: 30, online: false }]),
+          menu: SV.map((x) => ({ slug: x.slug, name: x.name, category: x.category, price: x.price, from: x.from, dur: x.dur, online: true })).concat([{ slug: 'ab', name: 'Formule Entretien 5 semaines', category: 'Formule', price: 8000, from: false, dur: 30, online: false }]),
           barbers: staff.map((x) => ({ id: x.id, name: x.name, initials: x.initials, bio: x.bio, photo: x.photo, away: null })), sms: false, channel: 'sms', today: now().day, now: Date.now() };
       }
       if (p === '/availability') {

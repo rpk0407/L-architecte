@@ -1,4 +1,5 @@
 // L'agenda: the day of the salon, live.
+import { OnlineBadge } from './caisse/OnlineBadge';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { api, qs } from '../../lib/api';
 import { load, peek, refreshAll, useQuery } from '../../lib/query';
@@ -169,7 +170,7 @@ export default function Agenda() {
                   <ul className="list">{toPay.map((a) => (
                     <li key={a.id}><button type="button" className="li" onClick={() => navigate('/caisse?rdv=' + a.id)}>
                       <Avatar name={staffById.get(a.staffId)?.name} initials={staffById.get(a.staffId)?.initials} color={staffById.get(a.staffId)?.color} size="sm" />
-                      <span className="li-main"><b>{a.name}</b><small>{a.services.map((s) => s.name).join(' + ')} · {a.status === 'in_chair' ? 'au fauteuil' : 'fini à ' + time(a.start + a.dur)}</small></span>
+                      <span className="li-main"><b>{a.name}</b><small>{a.services.map((s) => s.name).join(' + ')} · {a.status === 'in_chair' ? 'au fauteuil' : 'fini à ' + time(a.start + a.dur)}</small>{a.onlinePay ? <small><OnlineBadge a={a} /></small> : null}</span>
                       <span className="li-end"><b><Money cents={a.price} /></b></span>
                     </button></li>
                   ))}</ul>

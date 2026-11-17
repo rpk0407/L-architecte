@@ -91,7 +91,7 @@ export default function Canal({ s }: { s: any }) {
 
   // what each way needs before it works, in words; '' when it is ready
   const autoMissing = d.whatsapp.live || demo ? '' : d.whatsapp.incomplete ? 'Il manque une des deux clés : WHATSAPP_TOKEN et WHATSAPP_PHONE_ID vont ensemble (dans Vercel).'
-    : 'Pas encore branché : il faut un compte Meta Business, un numéro pour l’API et quatre modèles approuvés, puis WHATSAPP_TOKEN et WHATSAPP_PHONE_ID dans Vercel. Le guide docs/messages-whatsapp.md donne les étapes.';
+    : 'Pas encore branché : il faut un compte Meta Business, un numéro pour l’API et quatre modèles approuvés, puis WHATSAPP_TOKEN et WHATSAPP_PHONE_ID dans Vercel. Ton prestataire a le guide pas à pas.';
   const smsMissing = sms || demo ? '' : 'Aucun fournisseur SMS branché (voir plus bas).';
   const modes: { k: Mode; t: string; d: string; state: string; ok: boolean }[] = [
     { k: 'phone', t: 'WhatsApp, depuis le téléphone du salon', d: 'Marche dès maintenant, sans compte ni abonnement. Le Comptoir écrit chaque message ; sur l’écran Messages, un bouton ouvre WhatsApp, tu appuies sur Envoyer. Gratuit.', state: 'Prêt.', ok: true },

@@ -32,9 +32,11 @@ async function run(h, page, step) {
 
   step('his son');
   await page.getByRole('button', { name: /Ajouter une personne/ }).click();
-  await pick(page);
-  await page.getByRole('radio', { name: 'Mon enfant' }).click();
+  // who he is, asked at his first step: the details only confirm it
+  await page.getByRole('radio', { name: 'Mon enfant', exact: true }).click();
   await page.fill('#g-first', 'Ilyes');
+  await pick(page);
+  await h.expectText(page, 'C’est pour Ilyes, ton enfant.');
   await page.locator('.bk-foot .btn').click();
 
   step('both deposits at hand');

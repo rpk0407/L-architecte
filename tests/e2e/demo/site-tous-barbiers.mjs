@@ -15,9 +15,18 @@ export default async ({ h, page }) => {
 
 async function run(h, page, step) {
   step('open the view from the barber step');
+  // the free slots: one read for the whole sheet, never one per barber or per day
+  const reads = [];
+  page.on('request', (r) => { if (r.url().includes('/api/public/availability')) reads.push(r.url()); });
+  const first = page.waitForResponse((r) => /availability\?.*all=1/.test(r.url()), { timeout: T });
   await page.goto(h.base + '/');
   await page.locator('.cta').first().click();
+  if ((await page.getByRole('radio', { name: 'Pour moi' }).getAttribute('aria-checked')) !== 'true') throw new Error('« Pour moi » is not the default of the first step');
+  // the slots were asked when the page opened: the barbers' next times are there as the step opens
+  await (await first).finished();
   await page.locator('.bk button.so').first().click();
+  const waiting = await page.locator('.bk button.wh small').allInnerTexts();
+  if (waiting.some((x) => /on regarde/.test(x))) throw new Error('the barbers’ next times are not in memory: ' + waiting.join(' | '));
   await page.getByRole('button', { name: 'Voir les créneaux de tous les barbiers' }).click();
   // the standard step order holds: this is still step 3, the time
   await h.expectText(page, 'Étape 3 sur 4');
@@ -73,4 +82,7 @@ async function run(h, page, step) {
   await page.locator('.bk-foot .btn').click();
   await h.expectText(page, 'C’est réservé, Sami');
   await h.expectText(page, 'Avec ' + barber);
+  const per = reads.filter((u) => !/[?&]all=1/.test(u));
+  if (per.length) throw new Error(per.length + ' read(s) of the slots per barber or per service: ' + per[0]);
+  if (!reads.length) throw new Error('the slots were never asked');
 }

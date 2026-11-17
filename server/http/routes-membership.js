@@ -319,7 +319,7 @@ export function membershipRoutes(app, o = {}) {
     }));
     // PAY-04: the carnet sold at the salon, shown beside the plans (« Carnet 5 coupes · 80 € · valable 10 semaines »)
     const pk = [...s.services.values()].filter((x) => x.active && x.pack && x.pack.credits).sort((a, b) => (a.order ?? 0) - (b.order ?? 0))[0];
-    const carnet = pk ? { name: pk.name, price: pk.price, credits: pk.pack.credits, days: pk.pack.days || 0 } : null;
+    const carnet = pk ? { name: pk.name, price: pk.price, credits: pk.pack.credits, days: pk.pack.days || 0, ...(pk.pack.weekly ? { weekly: true, missed: pk.pack.missed === 'once' ? 'once' : 'lost' } : {}) } : null;
     // live: the site shows the block and its button; sepa: no SEPA in v1; startDay: the day a start not asked for now begins
     // terms: the CGV keep the membership's clauses while it is on or any contract still runs (its members link to them)
     const terms = !!M.enabled || [...s.members.values()].some((x) => liveIn(s, x, r.local.day));

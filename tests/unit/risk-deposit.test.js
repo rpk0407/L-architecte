@@ -114,9 +114,12 @@ test('turning it on dates new CGV; trusting a client is for who edits every book
   const t = await missedTwice();
   const v0 = t.engine.state.settings.shop.cgvVersion;
   await rejects(t.engine.run(updateSettings, { deposits: { riskBased: 'oui' } }, t.asOwner()), 'invalid');
+  // a day after the CGV text's own date (CGV_TEXT): a rule change dates the version that day
+  const later = '2026-12-01';
+  t.clock.now = at(later, 10);
   await riskOn(t);
-  assert.equal(t.engine.state.settings.shop.cgvVersion, DAY, 'the deposit rules changed: the CGV in force are dated today');
-  assert.ok(DAY >= v0);
+  assert.equal(t.engine.state.settings.shop.cgvVersion, later, 'the deposit rules changed: the CGV in force are dated today');
+  assert.ok(later >= v0);
 
   // a barber edits tags, but sparing a client the deposit is a money decision
   await rejects(t.engine.run(C.updateClient, { id: t.ids.yanis, patch: { tags: [TRUSTED] } }, t.asStaff('Ali')), 'forbidden');

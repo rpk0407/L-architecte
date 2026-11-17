@@ -142,3 +142,10 @@
 .dm-held .btn { margin-left: 8px; }
 .cs-month-nav { align-items: center; gap: 10px; }
 .cs-month-nav h2 { font-size: 26px; text-align: center; }
+
+/* « Envoyer le lien de paiement »: the till waits for the client's own payment */
+.tk-wait { display: grid; gap: 10px; padding: 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel2); }
+.tk-wait-h { display: flex; align-items: center; gap: 10px; margin: 0; font-size: 15px; }
+.tk-wait .muted { margin: 0; }
+.tk-wait-qr summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; color: var(--tx2); font-size: 13.5px; }
+.badge-online { background: var(--ok-bg, #e6f4ea); color: var(--ok-tx, #17633a); }

@@ -12,7 +12,9 @@
 // (he said no: the salon does not switch channels behind his back); an e-mail only goes to a file without a phone; a
 // file imported from WordPress gets none before it was told about the new site.
 import { fail } from '../core/engine.js';
-import { queueMessage, apptVars, whenWords, afterQuiet, messageId, reviewLink, fileOf } from '../domain/messages.js';
+import { queueMessage, apptVars, whenWords, afterQuiet, messageId, reviewLink, fileOf, refusal } from '../domain/messages.js';
+import { safeRedirect } from '../../shared/reviews.js';
+import { localParts } from '../../shared/dates.js';
 import { hashStr, isEmail } from '../lib/util.js';
 import { clickedAt } from '../projections/reviews.js';
 
@@ -43,6 +45,36 @@ export function reviewDueAt(s, a) {
   if (!closed) return 0;
   const M = s.settings.messages;
   return afterQuiet(M.quiet, closed + (M.reviewDelayMin ?? 120) * 60000);
+}
+
+/** Is this message a review request: the request itself, or a receipt that carried the link (m.review)? */
+export const asksReview = (m) => !!m && (m.template === 'review' || m.review === true);
+
+/** Was this file already asked this quarter, by the request or by a receipt that carried the link? */
+export function askedThisQuarter(s, ctx, c, quarter) {
+  const id = messageId('rev_' + c.id + '_' + quarter);
+  if (s.messages.has(id) || ctx.drafts.some((d) => d.type === 'message.queued' && d.data.id === id)) return true;
+  for (const m of s.messages.values()) if (m.review === true && m.cid === c.id && quarterOf(localParts(m.at).day) === quarter) return true;
+  return false;
+}
+
+/** What a receipt adds when it also asks for the review: the same request, in the same text, never a second one. */
+export const RECEIPT_REVIEW = ' Ton avis Google nous aide : {avis}';
+
+/**
+ * May the receipt of this ticket carry the review link? The same rules as the request (no gating, no reward: every
+ * eligible client, whatever the visit was like): reviews on with a link, a visit done and paid on a ticket not refunded,
+ * the text going to the client's own number, texts accepted and no STOP, not asked yet this quarter.
+ * @returns {boolean}
+ */
+export function receiptMayAsk(s, ctx, sale, c, to) {
+  const M = s.settings.messages;
+  if (!M.review || !safeRedirect(s.settings.shop.reviewUrl) || !c || c.erased || !c.phone || to !== c.phone) return false;
+  const a = sale.apptId ? s.appts.get(sale.apptId) : null;
+  // a ticket without an appointment (a walk-in rung up at the till) is a visit too, as long as a service was done
+  const visit = a ? visitClosedAt(s, a) > 0 : !sale.refunded && !(sale.refundIds && sale.refundIds.length) && sale.lines.some((l) => l.kind === 'service');
+  if (!visit || refusal(s, c, 'relation', 'sms')) return false;
+  return !askedThisQuarter(s, ctx, c, quarterOf(a ? a.day : localParts(sale.at || ctx.now).day));
 }
 
 /** The way to say no, at the end of every request by e-mail: replies reach EMAIL_REPLY_TO, the salon's inbox. */
@@ -95,7 +127,8 @@ export function queueReviews(s, ctx, o = {}) {
     if (!c || c.erased) continue;
     const key = 'rev_' + c.id + '_' + quarterOf(a.day);
     const id = messageId(key);
-    if (s.messages.has(id) || ctx.drafts.some((d) => d.type === 'message.queued' && d.data.id === id)) continue;
+    // already asked: by this request, or by the receipt of a visit that carried the link (one ask, not two)
+    if (askedThisQuarter(s, ctx, c, quarterOf(a.day))) continue;
     const vars = { ...apptVars(s, a), avis: reviewLink(s, ctx, id) };
     const st = s.staff.get(a.staffId);
     const r = c.phone ? queueMessage(s, ctx, { key, template: 'review', to: c.phone, cid: c.id, apptId: a.id, vars })
@@ -111,7 +144,7 @@ export const reviewClicked = {
   run(s, input, ctx) {
     const id = String((input && input.id) || '');
     const m = s.messages.get(id);
-    if (!m || m.template !== 'review' || clickedAt(s, id)) return { recorded: false };
+    if (!asksReview(m) || clickedAt(s, id)) return { recorded: false };
     ctx.emit('review.clicked', { id });
     return { recorded: true };
   }
