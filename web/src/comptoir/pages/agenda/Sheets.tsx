@@ -52,8 +52,12 @@ export function StaffPicker({ value, onChange, any = true }: { value: string; on
 
 /** Next free slots over the coming days, for a service and a chair. */
 export function SlotPicker({ serviceIds, staffId, day, value, onPick, ignore, horizon = 14 }: { serviceIds: string[]; staffId: string; day: string; value: { day: string; start: number; staffId: string } | null; onPick: (v: { day: string; start: number; staffId: string }) => void; ignore?: string; horizon?: number }) {
-  const { boot, staffById } = useApp();
+  const { boot, staffById, can } = useApp();
   const [d, setD] = useState(day);
+  // an hour of his own choosing, outside the hours or the free slots: whoever may force a booking (the server asks to confirm)
+  const [own, setOwn] = useState('');
+  const ownMin = /^\d{2}:\d{2}$/.test(own) ? Number(own.slice(0, 2)) * 60 + Number(own.slice(3)) : null;
+  const mayForce = can('agenda.edit') && staffId !== 'any';
   const days = useMemo(() => Array.from({ length: horizon }, (_, i) => dates.addDays(boot.today, i)), [boot.today]);
   const key = serviceIds.length ? '/api/v1/slots' + qs({ day: d, services: serviceIds.join(','), staff: staffId, ignore }) : null;
   const { data, loading } = useQuery<{ days: { day: string; slots: { m: number; s: string }[] }[] }>(key);
@@ -75,6 +79,16 @@ export function SlotPicker({ serviceIds, staffId, day, value, onPick, ignore, ho
           </div>
         );
       })}
+      {mayForce ? (
+        <div className="col" style={{ gap: 8 }} data-guide="slot-own">
+          <p className="section-k">Une autre heure</p>
+          <div className="row" style={{ gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <input className="input tnum" type="time" step={300} value={own} onChange={(e) => setOwn(e.target.value)} aria-label="Heure de ton choix" style={{ width: 140, minHeight: 48 }} />
+            <button type="button" className="slot" disabled={ownMin == null} aria-pressed={!!value && ownMin != null && value.day === d && value.start === ownMin && value.staffId === staffId} onClick={() => { if (ownMin != null) onPick({ day: d, start: ownMin, staffId }); }}>Prendre cette heure</button>
+          </div>
+          <p className="faint" style={{ fontSize: 12.5 }}>Hors de ses horaires ou sur un créneau déjà pris : le Comptoir te demandera de confirmer.</p>
+        </div>
+      ) : null}
     </div>
   );
 }
