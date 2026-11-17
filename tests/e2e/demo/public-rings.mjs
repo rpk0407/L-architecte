@@ -33,7 +33,7 @@ export default async ({ h, page }) => {
   await page.emulateMedia({ colorScheme: 'light' });
   await page.goto(h.base + '/');
   await page.locator('.cta .btn').waitFor({ timeout: 10000 });
-  for (const sel of ['.hr-next', '.cr-tab.on', '.ab .btn', '.ct-go', '.fq-i summary', '.ft .btn']) await focusRing(page, sel, 'the site');
+  for (const sel of ['.hx-next', '.hx-c', '.cr-tab.on', '.ab .btn', '.ct-go', '.fq-i summary', '.ft .btn']) await focusRing(page, sel, 'the site');
   for (const sel of ['a.skip', '.cta .btn', '.ct-zoom']) {
     await page.keyboard.press('Tab');
     // (the red button fades its band in: read it once the fade is over)
