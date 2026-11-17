@@ -67,28 +67,6 @@
    "priceRange": "15 € – 100 €",
    "currenciesAccepted": "EUR",
    "paymentAccepted": "Carte bancaire",
-   "employee": [
-    {
-     "@type": "Person",
-     "name": "JKut",
-     "jobTitle": "Barbier"
-    },
-    {
-     "@type": "Person",
-     "name": "Frank",
-     "jobTitle": "Barbier"
-    },
-    {
-     "@type": "Person",
-     "name": "Le Soldat",
-     "jobTitle": "Barbier"
-    },
-    {
-     "@type": "Person",
-     "name": "Esteban",
-     "jobTitle": "Barbier"
-    }
-   ],
    "knowsAbout": [
     "Dégradé",
     "Coupe homme",
@@ -338,8 +316,11 @@
 <x-dc>
 <helmet>
 <style>
-html{scroll-behavior:smooth;-webkit-text-size-adjust:100%;text-size-adjust:100%}
-body{margin:0;background:#0F0E0D}
+/* Nothing may widen the document: a phone that finds the page wider than its screen lays it out wide and shows it small.
+   clip, not hidden: no scroll container is made, so the sticky layers and the fixed bar keep working (hidden on the root only is the
+   older engines' fallback: it goes to the viewport and makes no container either). */
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%;text-size-adjust:100%;overflow-x:hidden;overflow-x:clip}
+body{margin:0;background:#0F0E0D;overflow-x:clip}
 .lp{
 --pierre:#D3D0C8;--os:#ECE8E0;--blanc:#F6F3EE;
 --encre:#0F0E0D;--encre2:#171513;--encre3:#221F1C;
@@ -362,10 +343,10 @@ position:relative;font:400 17px/1.5 var(--f-sans);color:var(--os);background:var
 :where(.lp) sup{font-size:.62em;line-height:0;vertical-align:.45em}
 /* The focus ring is the colour of the text of the surface it is drawn on, never the control's own text colour: on the red button, on the
    ink-filled chip and on the skip link that is the very colour of what lies behind the ring (1:1, no ring at all). The sections say their
-   tone (data-tone), the booking sheet is bone, the menu and the success layer of « Glisse pour raser » are ink. */
+   tone (data-tone), the booking sheet is bone, the menu and the hero's glass card are ink. */
 .lp{--ring:var(--os)}
-.lp [data-tone="light"],.lp .bk,.lp .tb.light,.lp .fin-fresh{--ring:var(--encre)}
-.lp [data-tone="dark"],.lp .mn,.lp .tb.dark,.lp .fin-grown{--ring:var(--os)}
+.lp [data-tone="light"],.lp .bk,.lp .tb.light{--ring:var(--encre)}
+.lp [data-tone="dark"],.lp .mn,.lp .tb.dark,.lp .hx{--ring:var(--os)}
 .lp :focus-visible{outline:2.5px solid var(--ring);outline-offset:3px}
 .vh{position:absolute!important;width:1px!important;height:1px!important;overflow:hidden!important;clip:rect(0 0 0 0)!important;clip-path:inset(50%)!important;white-space:nowrap!important;margin:-1px!important;padding:0!important;border:0!important}
 .skip{position:fixed;left:12px;top:-60px;z-index:100;padding:12px 18px;border-radius:999px;background:var(--os);color:var(--encre);font-weight:600}
@@ -376,7 +357,7 @@ position:relative;font:400 17px/1.5 var(--f-sans);color:var(--os);background:var
 .lp .cta .btn:focus-visible{outline-color:var(--os);box-shadow:0 0 0 3px var(--encre),0 16px 44px rgba(0,0,0,.3)}
 .wrap{width:100%;max-width:1320px;margin:0 auto;padding:0 var(--pad)}
 .h2{font:400 clamp(48px,13.4vw,136px)/.92 var(--f-serif);letter-spacing:-.015em;text-wrap:balance}
-.ht{display:block;width:100%}
+.ht{display:block;width:100%;max-width:100%}
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:12px;min-height:56px;padding:0 30px;border-radius:999px;background:var(--rouge);color:var(--encre);font:600 17px/1 var(--f-sans);letter-spacing:.005em;white-space:nowrap;transition:background-color .25s,color .25s,box-shadow .25s,transform .25s var(--ease)}
 .btn:hover{background:var(--os);color:var(--encre)}
 .btn:active{transform:scale(.97)}
@@ -492,7 +473,7 @@ position:relative;font:400 17px/1.5 var(--f-sans);color:var(--os);background:var
 .hr-ph-in{position:absolute;inset:0;transform-origin:47% 36%;will-change:transform}
 .hr-ph img{width:100%;height:100%;object-fit:cover;object-position:50% 18%;-webkit-mask-image:linear-gradient(180deg,transparent 0,#000 20%);mask-image:linear-gradient(180deg,transparent 0,#000 20%)}
 .hr-top{position:absolute;z-index:2;top:calc(78px + env(safe-area-inset-top,0px));left:var(--pad);right:var(--pad);display:flex;flex-direction:column;align-items:flex-start;gap:14px}
-.hr-word{width:100%;max-width:640px}
+.hr-word{width:100%;max-width:640px;min-width:0;overflow:hidden}
 .hr-sub{font:400 21px/1.15 var(--f-serif);color:var(--encre);opacity:.86;animation:rise .9s .5s var(--ease) both}
 .hr-rate{display:inline-flex;align-items:center;gap:10px;min-height:36px;font:500 14px/1 var(--f-sans);color:var(--encre);animation:rise .9s .65s var(--ease) both}
 .hr-rate .stars{position:relative;display:block;width:74px;height:14px;fill:var(--encre)}
@@ -500,53 +481,96 @@ position:relative;font:400 17px/1.5 var(--f-sans);color:var(--os);background:var
 .hr-rate .st-bg{opacity:.22}
 .hr-rate .st-fg{-webkit-clip-path:inset(0 var(--off,0%) 0 0);clip-path:inset(0 var(--off,0%) 0 0)}
 .hr-rate:hover span{text-decoration:underline;text-underline-offset:4px}
-.hr-next-w{position:absolute;z-index:3;left:var(--pad);right:var(--pad);bottom:calc(98px + env(safe-area-inset-bottom,0px));animation:rise .9s .8s var(--ease) both}
-.hr-next{display:flex;align-items:center;gap:16px;min-height:66px;padding:9px 9px 9px 22px;border-radius:22px;background:rgba(15,14,13,.52);-webkit-backdrop-filter:blur(16px) saturate(1.2);backdrop-filter:blur(16px) saturate(1.2);color:var(--os);text-align:left;transition:background-color .3s,transform .3s var(--ease)}
-.hr-next:hover{background:rgba(15,14,13,.7)}
-.hr-next:active{transform:scale(.98)}
-.hr-next-t{display:flex;flex-direction:column;gap:5px}
-.hr-next-k{display:flex;align-items:center;gap:8px;font:500 12.5px/1 var(--f-sans);letter-spacing:.02em;color:rgba(236,232,224,.75)}
-.hr-next-k i{width:7px;height:7px;border-radius:50%;background:#4ADE80;box-shadow:0 0 0 0 rgba(74,222,128,.6);animation:ping 2s infinite}
 @keyframes ping{0%{box-shadow:0 0 0 0 rgba(74,222,128,.55)}70%,100%{box-shadow:0 0 0 7px rgba(74,222,128,0)}}
-.hr-next-v{font:400 24px/1 var(--f-serif)}
-.hr-next-a{display:grid;place-items:center;width:48px;height:48px;border-radius:15px;background:var(--rouge);color:var(--encre)}
-.hr-next-a svg{width:22px;height:22px}
+/* the glass card: the next slot, and the first gesture (the formule) right in the hero */
+.hx{position:absolute;z-index:3;left:calc(var(--pad) - 6px);right:calc(var(--pad) - 6px);bottom:calc(90px + env(safe-area-inset-bottom,0px));padding:6px;border-radius:24px;background:rgba(15,14,13,.6);-webkit-backdrop-filter:blur(16px) saturate(1.2);backdrop-filter:blur(16px) saturate(1.2);color:var(--os);animation:rise .9s .8s var(--ease) both}
+.hx-next{display:flex;align-items:center;justify-content:space-between;gap:14px;width:100%;min-height:62px;padding:7px 7px 7px 16px;border-radius:18px;text-align:left;transition:background-color .3s,transform .3s var(--ease)}
+.hx-next:hover{background:rgba(236,232,224,.08)}
+.hx-next:active{transform:scale(.98)}
+.hx-t{display:flex;flex-direction:column;gap:5px;min-width:0}
+.hx-k{display:flex;align-items:center;gap:8px;font:500 13px/1 var(--f-sans);letter-spacing:.02em;color:rgba(236,232,224,.8)}
+.hx-k i{flex:none;width:7px;height:7px;border-radius:50%;background:#4ADE80;animation:ping 2s infinite}
+.hx-v{font:400 24px/1.05 var(--f-serif);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hx-a{flex:none;display:grid;place-items:center;width:48px;height:48px;border-radius:15px;background:var(--rouge);color:var(--encre)}
+.hx-a svg{width:22px;height:22px}
+/* one chip per formule of the catalogue's first category (three at most), then « Autre · la carte » */
+.hx-f{display:grid;grid-template-columns:repeat(var(--n,4),minmax(0,1fr));gap:6px;margin-top:6px}
+.hx-c{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;min-width:0;min-height:54px;padding:6px 3px;border-radius:15px;background:rgba(236,232,224,.12);text-align:center;transition:background-color .2s,color .2s,transform .2s var(--ease)}
+.hx-c b{max-width:100%;font:600 13.5px/1.05 var(--f-sans);letter-spacing:-.005em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hx-c small{font:500 12.5px/1 var(--f-sans);color:rgba(236,232,224,.78);font-variant-numeric:tabular-nums}
+.hx-c:hover{background:var(--os);color:var(--encre)}
+.hx-c:hover small{color:var(--cendre2)}
+.hx-c:active{transform:scale(.96)}
 
-/* 01 la maison : une phrase, une photo qui s'ouvre */
-.ms{position:relative;z-index:1;background:var(--os);color:var(--encre);border-radius:30px 30px 0 0;box-shadow:0 -24px 60px rgba(15,14,13,.22)}
-.ms-txt{padding-top:clamp(84px,13vw,160px);padding-bottom:clamp(40px,7vw,80px)}
-.ms-h{margin-top:22px;font:400 clamp(84px,24vw,240px)/.86 var(--f-serif);letter-spacing:-.03em}
-.ms-h em{font-style:italic;color:var(--rouge)}
-.ms-lead{max-width:24ch;margin-top:clamp(28px,5vw,48px);font:400 clamp(27px,7.2vw,52px)/1.12 var(--f-serif);letter-spacing:-.01em;text-wrap:pretty}
-.ms-meta{margin-top:24px;font:500 14.5px/1.4 var(--f-sans);color:var(--cendre2)}
-.ms-pin{position:relative;height:300svh}
-.ms-st{position:sticky;top:0;height:100svh;overflow:hidden;transform:scale(calc(1 - var(--o,0) * .05));transform-origin:50% 0}
-.ms-fr{position:absolute;inset:0;margin:0;-webkit-clip-path:inset(calc((1 - var(--e,0)) * 12svh) calc((1 - var(--e,0)) * var(--pad)) calc((1 - var(--e,0)) * 16svh) round calc((1 - var(--e,0)) * 28px));clip-path:inset(calc((1 - var(--e,0)) * 12svh) calc((1 - var(--e,0)) * var(--pad)) calc((1 - var(--e,0)) * 16svh) round calc((1 - var(--e,0)) * 28px));background:var(--encre)}
-.ms-ph{position:absolute;inset:0;display:grid;place-items:center;background:radial-gradient(90% 60% at 70% 30%,rgba(235,70,57,.16),transparent 60%),radial-gradient(80% 70% at 20% 90%,rgba(236,232,224,.07),transparent 60%),var(--encre2);transform:scale(calc(1.12 - var(--e,0) * .12))}
-.ms-ph img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
-.ms-ph-w{font:italic 400 clamp(64px,19vw,240px)/1 var(--f-serif);letter-spacing:-.02em;color:rgba(236,232,224,.07);white-space:nowrap}
-.ms-ph-l{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:inline-flex;align-items:center;gap:10px;padding:12px 18px;border-radius:999px;box-shadow:inset 0 0 0 1px rgba(236,232,224,.22);font:600 12.5px/1 var(--f-sans);letter-spacing:.08em;text-transform:uppercase;color:rgba(236,232,224,.72);white-space:nowrap}
-.ms-ph-l svg{width:18px;height:18px}
-.ms-cap{position:absolute;left:var(--pad);bottom:calc(112px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:8px;color:var(--os);font:500 15px/1.3 var(--f-sans);opacity:clamp(0,calc((var(--e,0) - .82) * 6),1);transform:translateY(calc((1 - clamp(0,calc((var(--e,0) - .82) * 6),1)) * 16px))}
-.ms-cap span{font:400 clamp(44px,11vw,96px)/.95 var(--f-serif);letter-spacing:-.015em}
-.dk + .cuts.sheet{margin-top:-100svh}
-@media (min-width:1000px){
-.ms-txt{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);column-gap:64px;align-items:end}
-.ms-txt .kk{grid-column:1/-1}
-.ms-h{grid-row:2}
-.ms-lead{grid-row:2;align-self:end;max-width:22ch;font-size:clamp(30px,2.8vw,44px)}
-.ms-meta{grid-column:2}
-.ms-cap{left:max(var(--pad),calc((100vw - 1320px) / 2 + var(--pad)))}
-}
-
-/* le temps passe */
-.tm{position:relative;height:210svh;background:var(--encre)}
-.tm-st{position:sticky;top:0;height:100svh;overflow:hidden;background:var(--pierre)}
-.tm-ink{position:absolute;inset:-2px;background:var(--encre);-webkit-mask-image:radial-gradient(circle,#000 var(--r,0px),transparent calc(var(--r,0px) + .9px));mask-image:radial-gradient(circle,#000 var(--r,0px),transparent calc(var(--r,0px) + .9px));-webkit-mask-size:12px 12px;mask-size:12px 12px;-webkit-mask-position:50% 50%;mask-position:50% 50%}
-.tm-in{position:relative;z-index:1;height:100%;display:flex;flex-direction:column;justify-content:center;padding:0 var(--pad);color:#fff;mix-blend-mode:difference}
-.tm-cvw{width:100%}
-.tm-l{margin-top:clamp(12px,3vw,30px);min-height:2.2em;font:400 clamp(34px,8.6vw,84px)/1.02 var(--f-serif);letter-spacing:-.01em;text-wrap:balance}
-.tm-kk{position:absolute;z-index:2;top:calc(104px + env(safe-area-inset-top,0px));left:var(--pad);color:#fff;mix-blend-mode:difference}
+/* 01 réserver : the formule, then the next slot of each barber */
+.now{position:relative;z-index:1;background:var(--os);color:var(--encre);border-radius:30px 30px 0 0;box-shadow:0 -24px 60px rgba(15,14,13,.22);padding:clamp(72px,11vw,130px) 0 clamp(96px,12vw,150px)}
+.now-hd{display:flex;flex-direction:column;gap:22px;margin-top:22px}
+.now-h{font:400 clamp(72px,20vw,200px)/.86 var(--f-serif);letter-spacing:-.03em}
+.now-h em{font-style:italic;color:var(--rouge)}
+.now-3{display:flex;flex-wrap:wrap;gap:8px}
+.now-3 li{display:inline-flex;align-items:center;gap:9px;min-height:38px;padding:0 15px 0 5px;border-radius:999px;box-shadow:inset 0 0 0 1.5px var(--iligne2);font:500 14.5px/1 var(--f-sans)}
+.now-3 b{display:grid;place-items:center;width:28px;height:28px;border-radius:50%;background:var(--encre);color:var(--os);font:400 17px/1 var(--f-serif)}
+.now-k{font:600 14px/1.3 var(--f-sans);color:var(--cendre2)}
+.now-f{margin-top:clamp(34px,6vw,56px)}
+.now-chips{display:flex;gap:8px;margin:12px calc(var(--pad) * -1) 0;padding:2px var(--pad) 4px;overflow-x:auto;scrollbar-width:none}
+.now-chips::-webkit-scrollbar{display:none}
+.fc{flex:none;display:inline-flex;align-items:center;gap:9px;min-height:48px;padding:0 18px;border-radius:999px;box-shadow:inset 0 0 0 1.5px var(--iligne2);font:500 16px/1 var(--f-sans);white-space:nowrap;transition:background-color .25s,color .25s,box-shadow .25s}
+.fc small{font:500 14px/1 var(--f-sans);color:var(--cendre2);font-variant-numeric:tabular-nums;transition:color .25s}
+.fc:hover{box-shadow:inset 0 0 0 1.5px var(--encre)}
+.fc.on{background:var(--encre);color:var(--os);box-shadow:none}
+.fc.on small{color:var(--cendre)}
+.now-k2{margin-top:28px}
+.nx{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:14px}
+.nx-b{position:relative;display:flex;flex-direction:column;gap:14px;width:100%;height:100%;min-height:148px;padding:14px 14px 16px;border-radius:22px;background:var(--blanc);box-shadow:inset 0 0 0 1.5px var(--iligne);text-align:left;transition:background-color .25s,color .25s,box-shadow .25s,transform .25s var(--ease)}
+.nx-b:hover{background:var(--encre);color:var(--os);box-shadow:none}
+.nx-b:active{transform:scale(.97)}
+.nx-hd{display:flex;align-items:center;gap:10px;min-width:0}
+.nx-hd .bb-av{width:44px;height:44px;font-size:19px}
+.nx-n{font:600 15.5px/1.1 var(--f-sans);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nx-w{margin-top:auto;display:flex;flex-direction:column;gap:6px;min-width:0}
+.nx-d{display:flex;align-items:center;gap:7px;font:500 13.5px/1.15 var(--f-sans);color:var(--cendre2);transition:color .25s}
+.nx-d i{flex:none;width:7px;height:7px;border-radius:50%;background:#23824B}
+.nx-b:hover .nx-d{color:var(--cendre)}
+.nx-b:hover .nx-d i{background:#4ADE80}
+.nx-t{font:400 clamp(36px,10.4vw,52px)/.9 var(--f-serif);letter-spacing:-.02em;font-variant-numeric:tabular-nums;white-space:nowrap}
+.nx-b.none .nx-t{font-size:22px;line-height:1.1;letter-spacing:0;white-space:normal;color:var(--cendre2)}
+.nx-b.none:hover .nx-t{color:var(--cendre)}
+.nx-b.none .nx-d i{background:var(--cendre)}
+.nx-any{grid-column:1/-1}
+.nx-any .nx-b{flex-direction:row;align-items:center;justify-content:space-between;min-height:84px;padding:14px 12px 14px 20px;background:var(--encre);color:var(--os);box-shadow:none}
+.nx-any .nx-b:hover{background:var(--rouge);color:var(--encre)}
+.nx-any .nx-w{margin:0;gap:7px}
+.nx-any .nx-d{color:var(--cendre)}
+.nx-any .nx-d i{background:#4ADE80;animation:ping 2s infinite}
+.nx-any .nx-b:hover .nx-d{color:var(--encre)}
+.nx-any .nx-b:hover .nx-d i{background:var(--encre);animation:none}
+.nx-any .nx-t{font-size:clamp(28px,8vw,40px)}
+.nx-any .nx-b.none .nx-t{font-size:22px;color:var(--cendre)}
+.nx-any .nx-b.none:hover .nx-t{color:var(--encre)}
+.nx-go{flex:none;display:grid;place-items:center;width:52px;height:52px;border-radius:16px;background:var(--rouge);color:var(--encre);transition:background-color .25s,color .25s}
+.nx-go svg{width:22px;height:22px}
+.nx-any .nx-b:hover .nx-go{background:var(--encre);color:var(--os)}
+/* the cards on their way: grey boxes where they will be, the same height, so nothing jumps when they arrive */
+.nx-sk,.fc-sk,.cr-sk{display:block;border-radius:22px;background:linear-gradient(100deg,rgba(15,14,13,.05) 30%,rgba(15,14,13,.1) 50%,rgba(15,14,13,.05) 70%) 0 0/200% 100%;animation:sk 1.4s linear infinite}
+.nx-sk{min-height:148px}
+.nx-any .nx-sk{min-height:84px}
+.fc-sk{flex:none;width:132px;height:48px;border-radius:999px}
+@keyframes sk{to{background-position:-200% 0}}
+.now-foot{margin-top:18px;font-size:15px;line-height:1.5;color:var(--cendre2)}
+.now-foot .tl{display:inline-flex;color:var(--encre)}
+/* comme la dernière fois ? (this phone has booked here before) */
+.hb{position:relative;display:flex;align-items:center;justify-content:space-between;gap:16px;width:100%;margin-top:clamp(30px,5vw,48px);padding:20px 14px 20px 22px;border-radius:24px;background:var(--encre);color:var(--os);text-align:left;animation:rise .7s var(--ease) both;transition:transform .25s var(--ease)}
+.hb::before,.hb::after{content:"";position:absolute;top:50%;width:20px;height:20px;margin-top:-10px;border-radius:50%;background:var(--os)}
+.hb::before{left:-10px}
+.hb::after{right:-10px}
+.hb:active{transform:scale(.985)}
+.hb-l{display:flex;flex-direction:column;gap:8px;min-width:0}
+.hb-k{font:500 13.5px/1.2 var(--f-sans);color:var(--cendre)}
+.hb-t{font:400 clamp(30px,8.4vw,48px)/1 var(--f-serif);letter-spacing:-.012em}
+.hb-s{font:500 15px/1.35 var(--f-sans);color:var(--os)}
+.hb-s b{font-weight:600;color:#FF7468}
+.hb-go{flex:none;display:inline-flex;align-items:center;min-height:48px;padding:0 20px;margin-right:8px;border-radius:999px;background:var(--rouge);color:var(--encre);font:600 16px/1 var(--f-sans);transition:background-color .25s}
+.hb:hover .hb-go{background:var(--os)}
 
 /* sorti du fauteuil */
 .cuts{background:var(--encre);padding:clamp(96px,14vw,170px) 0 clamp(120px,16vw,190px)}
@@ -634,43 +658,39 @@ position:relative;font:400 17px/1.5 var(--f-sans);color:var(--os);background:var
 .pv-link{margin-top:28px;color:var(--cendre)}
 .pv-link:hover{color:var(--os)}
 
-/* les barbiers */
-.team{position:relative;background:var(--encre);padding:clamp(110px,18vw,200px) 0;overflow:hidden}
+/* 03 l'équipe : every barber's card is open; his next times keep the slot */
+.team{position:relative;z-index:2;background:var(--encre);padding:clamp(60px,10vw,120px) 0 clamp(120px,16vw,190px);overflow:hidden}
 .team-bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.24;filter:saturate(1.15)}
 .team::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,var(--encre) 0%,rgba(15,14,13,.55) 38%,rgba(15,14,13,.7) 70%,var(--encre) 100%)}
 .team .wrap{position:relative;z-index:1}
+.team .h2,.carte .h2{margin-top:22px}
 .bb-lead{margin-top:18px;font-size:16px;color:var(--cendre)}
-.bb{margin-top:clamp(34px,7vw,60px);border-top:1px solid var(--ligne2)}
-.bb-i{border-bottom:1px solid var(--ligne2)}
-.bb-row{display:flex;align-items:center;gap:16px;width:100%;min-height:104px;padding:14px 0;text-align:left}
-.bb-av{position:relative;flex:none;display:grid;place-items:center;width:58px;height:58px;border-radius:50%;background:var(--pierre);color:var(--encre);font:400 23px/1 var(--f-serif);letter-spacing:-.02em;overflow:hidden;transition:transform .4s var(--ease)}
+.bb{margin-top:clamp(28px,5vw,48px);border-top:1px solid var(--ligne2)}
+.bb-i{display:grid;align-content:start;grid-template-columns:auto minmax(0,1fr);gap:6px 16px;padding:22px 0 24px;border-bottom:1px solid var(--ligne2)}
+.bb-av{position:relative;flex:none;align-self:center;display:grid;place-items:center;width:58px;height:58px;border-radius:50%;background:var(--pierre);color:var(--encre);font:400 23px/1 var(--f-serif);letter-spacing:-.02em;overflow:hidden}
 .bb-av::after{content:"";position:absolute;inset:0;background:radial-gradient(circle,var(--encre) 1.1px,transparent 1.6px) 0 0/5px 5px;-webkit-mask-image:linear-gradient(180deg,transparent 55%,#000);mask-image:linear-gradient(180deg,transparent 55%,#000);opacity:.55}
-.bb-id{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px}
-.bb-n{font:400 clamp(44px,12.4vw,96px)/.92 var(--f-serif);letter-spacing:-.015em;transition:color .3s}
-.bb-next{display:flex;align-items:center;gap:8px;font:500 14px/1.2 var(--f-sans);color:var(--cendre)}
-.bb-next i{flex:none;width:7px;height:7px;border-radius:50%;background:#4ADE80}
-.bb-chev{flex:none;width:28px;height:28px;opacity:.6;transition:transform .45s var(--ease),opacity .3s}
-.bb-row:hover .bb-n{color:var(--rouge)}
-.bb-row:hover .bb-av{transform:rotate(-8deg) scale(1.05)}
-.bb-i.open .bb-chev{transform:rotate(180deg);opacity:1}
-.bb-x{display:grid;grid-template-rows:0fr;visibility:hidden;transition:grid-template-rows .5s var(--ease),visibility 0s .5s}
-.bb-i.open .bb-x{grid-template-rows:1fr;visibility:visible;transition:grid-template-rows .5s var(--ease)}
-.bb-x>div{overflow:hidden}
-.bb-xi{padding:0 0 26px 74px}
-.bb-k{font:500 14px/1.2 var(--f-sans);color:var(--cendre)}
-.bb-slots{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
-.bb-slots .chip{min-height:50px;padding:0 20px;border-radius:999px;background:var(--os);color:var(--encre);font:600 16px/1 var(--f-sans);font-variant-numeric:tabular-nums;transition:background-color .2s,transform .2s var(--ease)}
+/* the name as the salon writes it, whatever its length: it shrinks to the card rather than leave it */
+.bb-n{align-self:center;min-width:0;font:400 clamp(44px,12.4vw,92px)/.92 var(--f-serif);letter-spacing:-.015em;overflow-wrap:anywhere}
+.bb-n.lg{font-size:clamp(34px,9.6vw,72px);line-height:.96}
+.bb-x{grid-column:1/-1;display:flex;flex-direction:column;gap:12px;margin-top:8px}
+.bb-bio{max-width:36ch;font:400 clamp(21px,5.6vw,26px)/1.18 var(--f-serif);color:var(--os);text-wrap:pretty}
+.bb-k{display:flex;align-items:center;gap:8px;font:500 14px/1.2 var(--f-sans);color:var(--cendre)}
+.bb-k i{flex:none;width:7px;height:7px;border-radius:50%;background:#4ADE80}
+.bb-k.none i{background:var(--cendre2)}
+.bb-slots{display:flex;flex-wrap:wrap;gap:8px}
+.bb-slots .chip{display:inline-flex;align-items:center;min-height:50px;padding:0 20px;border-radius:999px;background:var(--os);color:var(--encre);font:600 16px/1 var(--f-sans);font-variant-numeric:tabular-nums;white-space:nowrap;transition:background-color .2s,transform .2s var(--ease)}
 .bb-slots .chip:hover{background:var(--rouge)}
 .bb-slots .chip:active{transform:scale(.96)}
-.bb-more{display:flex;flex-wrap:wrap;gap:4px 22px;margin-top:10px}
-.bb-more .tl{color:var(--cendre)}
-.bb-more .tl:hover{color:var(--os)}
-.bb-foot{display:flex;flex-wrap:wrap;align-items:center;gap:14px 24px;margin-top:34px}
-.bb-demo{font-size:13px;color:var(--cendre)}
+.bb-slots .chip.more{background:transparent;color:var(--os);box-shadow:inset 0 0 0 1.5px var(--ligne2);font-weight:500}
+.bb-slots .chip.more:hover{background:rgba(236,232,224,.12)}
+.bb-ig{align-self:flex-start;color:var(--cendre)}
+.bb-ig:hover{color:var(--os)}
+.bb-sk{display:block;min-height:150px;margin-top:22px;border-radius:22px;background:rgba(236,232,224,.07);animation:skP 1.2s ease-in-out infinite}
+.bb-demo{margin-top:26px;font-size:13px;color:var(--cendre)}
 
-/* la carte (clair) */
-.carte{background:var(--pierre);color:var(--encre);padding:clamp(110px,18vw,200px) 0 clamp(80px,12vw,140px)}
-.cr-tabs{display:flex;gap:8px;margin:clamp(28px,6vw,48px) calc(var(--pad) * -1) 0;padding:0 var(--pad) 4px;overflow-x:auto;scrollbar-width:none}
+/* 04 la carte (clair) : every row says what it holds, and books it */
+.carte{background:var(--blanc);color:var(--encre);padding:clamp(96px,14vw,170px) 0 clamp(120px,16vw,190px)}
+.cr-tabs{display:flex;gap:8px;margin:clamp(28px,6vw,48px) calc(var(--pad) * -1) 0;padding:2px var(--pad) 4px;overflow-x:auto;scrollbar-width:none}
 .cr-tabs::-webkit-scrollbar{display:none}
 .cr-tab{flex:none;min-height:46px;padding:0 20px;border-radius:999px;box-shadow:inset 0 0 0 1.5px var(--iligne2);font:500 16px/1 var(--f-sans);white-space:nowrap;transition:background-color .25s,color .25s,box-shadow .25s}
 .cr-tab:hover{box-shadow:inset 0 0 0 1.5px var(--encre)}
@@ -680,50 +700,24 @@ position:relative;font:400 17px/1.5 var(--f-sans);color:var(--os);background:var
 .cr-i:nth-child(2){animation-delay:.05s}
 .cr-i:nth-child(3){animation-delay:.1s}
 .cr-i:nth-child(4){animation-delay:.15s}
-.cr-row{display:flex;align-items:center;justify-content:space-between;gap:18px;width:100%;min-height:100px;padding:16px 0;text-align:left;transition:padding .45s var(--ease)}
-.cr-row:hover{padding-left:10px}
-.cr-n{display:flex;flex-direction:column;gap:7px;font:500 19px/1.2 var(--f-sans)}
-.cr-n small{font:500 14px/1.2 var(--f-sans);color:var(--cendre2)}
+.cr-row{position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:6px 18px;min-height:104px;padding:18px 0;transition:padding .45s var(--ease)}
+.cr-row.can:hover{padding-left:10px}
+.cr-n{display:flex;flex-direction:column;gap:7px;min-width:0;font:500 19px/1.2 var(--f-sans)}
+.cr-n small{font:500 14px/1.35 var(--f-sans);color:var(--cendre2)}
+.cr-n em{align-self:flex-start;padding:5px 10px;border-radius:999px;background:var(--os);font:600 13px/1 var(--f-sans);font-style:normal;letter-spacing:.01em}
 .cr-p{display:flex;align-items:baseline;gap:6px;font:400 clamp(48px,12.4vw,84px)/1 var(--f-serif);letter-spacing:-.02em;white-space:nowrap}
 .cr-p small{font:500 13px/1 var(--f-sans);letter-spacing:0;color:var(--cendre2)}
-.cr-x{display:grid;grid-template-rows:0fr;visibility:hidden;transition:grid-template-rows .5s var(--ease),visibility 0s .5s}
-.cr-i.open .cr-x{grid-template-rows:1fr;visibility:visible;transition:grid-template-rows .5s var(--ease)}
-.cr-x>div{overflow:hidden}
-.cr-xi{padding:0 0 24px}
-.cr-inc{display:flex;flex-wrap:wrap;gap:8px}
-.cr-inc li{display:inline-flex;align-items:center;gap:8px;min-height:36px;padding:0 14px;border-radius:999px;background:var(--os);font:500 14px/1 var(--f-sans)}
-.cr-inc li::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--rouge)}
-.cr-note{margin-top:12px;font-size:14px;color:var(--cendre2)}
-.cr-xi .btn{margin-top:18px}
+/* « Réserver → »: the button is the line of text, its ::after makes the whole row the target */
+.cr-go{grid-column:1/-1;justify-self:start;display:inline-flex;align-items:center;gap:8px;min-height:48px;margin:-10px 0 -14px;font:600 16px/1 var(--f-sans);color:#B92F24}
+button.cr-go::after{content:"";position:absolute;inset:0}
+.cr-go svg{width:18px;height:18px;transition:transform .3s var(--ease)}
+.cr-row.can:hover .cr-go svg{transform:translateX(5px)}
+.cr-go.off{font-weight:500;color:var(--cendre2)}
+.cr-sk{min-height:104px;margin-top:10px;border-radius:18px}
 .cr-foot{margin-top:28px;font-size:15px;color:var(--cendre2)}
 .cr-none{margin-top:clamp(28px,6vw,48px);max-width:34em;font-size:17px;line-height:1.5;color:var(--cendre2)}
 .cr-none a,.st-none a{color:inherit;text-decoration:underline;text-underline-offset:3px}
 .cr-foot a{color:var(--encre);text-decoration:underline;text-underline-offset:4px}
-
-/* on recoupe ? */
-.fin{position:relative;height:100svh;min-height:660px;overflow:hidden;background:var(--encre)}
-.fin-l{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;padding:0 var(--pad) 150px}
-.fin-grown{background:var(--encre);color:var(--os)}
-.fin-fresh{background:var(--pierre);color:var(--encre);-webkit-clip-path:inset(0 calc(100% - var(--s,0) * 100%) 0 0);clip-path:inset(0 calc(100% - var(--s,0) * 100%) 0 0)}
-.fin-k{white-space:nowrap;margin-bottom:clamp(14px,3vw,30px);font:400 clamp(36px,9.4vw,84px)/1 var(--f-serif);letter-spacing:-.01em;text-wrap:balance}
-.fin-word{width:100%;max-width:900px}
-.fin-razor{position:absolute;z-index:2;top:0;bottom:0;left:calc(var(--s,0) * 100%);width:2px;margin-left:-1px;background:var(--rouge);box-shadow:0 0 22px 3px var(--rouge);opacity:0;transition:opacity .3s}
-.fin.cutting .fin-razor{opacity:1}
-.fin-bits{position:absolute;z-index:3;inset:0;width:100%;height:100%;pointer-events:none}
-.fin-ctl{position:absolute;z-index:4;left:var(--pad);right:var(--pad);bottom:calc(40px + env(safe-area-inset-bottom,0px))}
-.sv{position:relative;max-width:520px;height:72px;border-radius:999px;background:rgba(236,232,224,.08);box-shadow:inset 0 0 0 1.5px rgba(236,232,224,.3);touch-action:none;-webkit-user-select:none;user-select:none;cursor:grab}
-.sv:active{cursor:grabbing}
-.sv:focus-visible{outline:2.5px solid var(--os);outline-offset:4px}
-.sv-l{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding-left:60px;font:500 17px/1 var(--f-sans);color:var(--os);opacity:calc(1 - var(--s,0) * 2.2);pointer-events:none}
-.sv-l::after{content:"";width:28px;height:1.5px;margin-left:12px;background:currentColor;opacity:.6;animation:nudge 1.8s var(--ease) infinite}
-@keyframes nudge{0%,100%{transform:translateX(0)}50%{transform:translateX(8px)}}
-.sv-k{position:absolute;top:6px;left:calc(6px + var(--s,0) * (100% - 72px));width:60px;height:60px;border-radius:50%;display:grid;place-items:center;background:var(--rouge);color:var(--encre);box-shadow:0 8px 24px rgba(0,0,0,.4);pointer-events:none}
-.sv-k svg{width:28px;height:28px;transform:rotate(90deg)}
-.fin-done{display:none;flex-direction:column;align-items:flex-start;gap:12px;color:var(--encre)}
-.fin-done p{font:500 15px/1 var(--f-sans);color:var(--cendre2)}
-.fin.done .sv{display:none}
-.fin.done .fin-done{display:flex;animation:rise .8s var(--ease) both}
-.fin.done .fin-fresh{-webkit-clip-path:none;clip-path:none}
 
 /* 07 questions */
 .fq{background:var(--pierre);color:var(--encre);padding:clamp(96px,14vw,170px) 0 clamp(110px,16vw,190px)}
@@ -1085,6 +1079,11 @@ position:relative;font:400 17px/1.5 var(--f-sans);color:var(--os);background:var
 .ct{flex-basis:min(46vw,440px)}
 .days{grid-template-columns:repeat(6,minmax(0,1fr))}
 .slots{grid-template-columns:repeat(5,minmax(0,1fr))}
+.hx{right:auto;width:440px}
+.nx{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+.bb{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:clamp(32px,5vw,72px)}
+.bb-n{font-size:clamp(48px,6vw,84px)}
+.bb-n.lg{font-size:clamp(40px,4.8vw,66px)}
 }
 @media (min-width:1000px){
 .tb{height:76px}
@@ -1093,20 +1092,30 @@ position:relative;font:400 17px/1.5 var(--f-sans);color:var(--os);background:var
 .hero{max-height:none}
 .hr-ph{left:46vw;right:-4vw;top:0;bottom:0}
 .hr-ph img{object-position:42% 30%;-webkit-mask-image:linear-gradient(90deg,transparent 0,#000 26%);mask-image:linear-gradient(90deg,transparent 0,#000 26%)}
-.hr-top{top:auto;bottom:24svh;max-width:none;right:auto;width:min(50vw,740px)}
+.hr-top{top:auto;bottom:calc(7svh + 176px);max-width:none;right:auto;width:min(50vw,740px)}
 .hr-word{max-width:none}
 .hr-sub{font-size:26px}
-.hr-next-w{right:auto;bottom:7svh}
-.tm-in{align-items:center;text-align:center}
-.tm-cvw{max-width:1100px}
+.hx{bottom:7svh;width:480px}
+.now-hd{flex-direction:row;align-items:flex-end;justify-content:space-between}
+.now-h{font-size:clamp(110px,11.5vw,160px);white-space:nowrap}
+.now-3{padding-bottom:14px;justify-content:flex-end}
+.now-chips{margin:12px 0 0;padding:2px 0 4px;flex-wrap:wrap}
+.nx{grid-template-columns:repeat(auto-fit,minmax(168px,1fr))}
+.nx-any{grid-column:auto}
+.nx-any .nx-b{flex-direction:column;align-items:stretch;justify-content:flex-start;padding:14px 14px 16px}
+.nx-any .nx-w{margin-top:auto}
+.nx-b,.nx-any .nx-b,.nx-sk,.nx-any .nx-sk{min-height:190px}
+.nx-t,.nx-any .nx-t{font-size:clamp(36px,3.4vw,52px)}
+.nx-go{align-self:flex-start;width:44px;height:44px;border-radius:50%}
+.hb{padding:26px 22px 26px 34px}
 .ls{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:40px 80px;align-items:start}
 .ls-body{margin-top:12px}
 .ls-h{font-size:clamp(64px,6.6vw,104px);max-width:9ch}
 .ct-row{gap:22px;padding-left:max(var(--pad),calc((100vw - 1320px) / 2 + var(--pad)));scroll-padding-left:max(var(--pad),calc((100vw - 1320px) / 2 + var(--pad)))}
 .ct{flex-basis:420px}
-.bb{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:56px;border-top:0}
-.bb-i{border-top:1px solid var(--ligne2);border-bottom:0}
-.cr-tabs{margin-left:0;margin-right:0;padding:0}
+.cr-tabs{margin-left:0;margin-right:0;padding:2px 0 4px}
+.cr-row{grid-template-columns:minmax(0,1fr) auto auto;gap:6px 36px}
+.cr-go{grid-column:auto;order:3;min-width:120px;justify-content:flex-end;margin:0}
 .team .wrap,.carte .wrap{max-width:1100px}
 .pv-score{justify-content:flex-end}
 .pv-big{transform-origin:100% 100%}
@@ -1114,9 +1123,6 @@ position:relative;font:400 17px/1.5 var(--f-sans);color:var(--os);background:var
 .pv-q{width:min(100%,580px);padding:34px 32px 28px}
 .pv-cards{grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
 .pv-c{min-height:280px;padding:30px}
-
-.fin-l{padding-bottom:120px}
-.fin-ctl{left:var(--pad);right:auto;width:520px}
 .ft-g{grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);align-items:center}
 .ft-links{grid-template-columns:repeat(4,minmax(0,1fr))}
 .cta{justify-content:flex-end;padding-right:max(24px,calc(var(--pad) - 6px))}
@@ -1142,10 +1148,8 @@ html{scroll-behavior:auto}
 /* an exceptional opening: green */
 .ann.ann-op i{background:#4ADE80;box-shadow:0 0 0 4px rgba(74,222,128,.22)}
 .mn-ann.ann-op{box-shadow:inset 3px 0 0 #4ADE80}
-.bb-i.away .bb-next i{background:var(--cendre2)}
 /* a barber's bio and the FAQ's answers keep their line breaks */
 .fq-a p,.bb-bio{white-space:pre-line}
-.bb-bio{max-width:46ch;margin-bottom:16px;font:400 16px/1.5 var(--f-sans);color:var(--os)}
 .dnav{display:flex;align-items:center;gap:6px;margin-top:16px}
 .dnav-t{flex:1;min-width:0;font:600 12px/1.2 var(--f-sans);letter-spacing:.06em;text-transform:uppercase;color:var(--cendre2)}
 .dnav-b{flex:none;display:grid;place-items:center;width:40px;height:40px;border-radius:50%;box-shadow:inset 0 0 0 1.5px var(--iligne);font:400 24px/1 var(--f-serif);color:var(--encre);transition:box-shadow .2s,opacity .2s}
@@ -1244,32 +1248,41 @@ html{scroll-behavior:auto}
 <p class="hr-sub">Barbier, place Pélabon.<br>Marseille 13<sup>e</sup>.</p>
 <sc-if value="{{hasRating}}" hint-placeholder-val="{{ true }}"><a class="hr-rate" href="#preuve"><span class="stars" style="--off: {{starOff}}" aria-hidden="true"><svg class="st-bg" viewBox="0 0 120 22"><path d="M11 1.6l2.7 6.2 6.7.6-5.1 4.5 1.5 6.6L11 16l-5.8 3.5 1.5-6.6L1.6 8.4l6.7-.6z"/><path transform="translate(24 0)" d="M11 1.6l2.7 6.2 6.7.6-5.1 4.5 1.5 6.6L11 16l-5.8 3.5 1.5-6.6L1.6 8.4l6.7-.6z"/><path transform="translate(48 0)" d="M11 1.6l2.7 6.2 6.7.6-5.1 4.5 1.5 6.6L11 16l-5.8 3.5 1.5-6.6L1.6 8.4l6.7-.6z"/><path transform="translate(72 0)" d="M11 1.6l2.7 6.2 6.7.6-5.1 4.5 1.5 6.6L11 16l-5.8 3.5 1.5-6.6L1.6 8.4l6.7-.6z"/><path transform="translate(96 0)" d="M11 1.6l2.7 6.2 6.7.6-5.1 4.5 1.5 6.6L11 16l-5.8 3.5 1.5-6.6L1.6 8.4l6.7-.6z"/></svg><svg class="st-fg" viewBox="0 0 120 22"><path d="M11 1.6l2.7 6.2 6.7.6-5.1 4.5 1.5 6.6L11 16l-5.8 3.5 1.5-6.6L1.6 8.4l6.7-.6z"/><path transform="translate(24 0)" d="M11 1.6l2.7 6.2 6.7.6-5.1 4.5 1.5 6.6L11 16l-5.8 3.5 1.5-6.6L1.6 8.4l6.7-.6z"/><path transform="translate(48 0)" d="M11 1.6l2.7 6.2 6.7.6-5.1 4.5 1.5 6.6L11 16l-5.8 3.5 1.5-6.6L1.6 8.4l6.7-.6z"/><path transform="translate(72 0)" d="M11 1.6l2.7 6.2 6.7.6-5.1 4.5 1.5 6.6L11 16l-5.8 3.5 1.5-6.6L1.6 8.4l6.7-.6z"/><path transform="translate(96 0)" d="M11 1.6l2.7 6.2 6.7.6-5.1 4.5 1.5 6.6L11 16l-5.8 3.5 1.5-6.6L1.6 8.4l6.7-.6z"/></svg></span><span>{{rateShort}}</span></a></sc-if>
 </div>
-<div class="hr-next-w">
-<button type="button" class="hr-next" onClick="{{bookNext}}" data-guide="site.sans-compte" data-guide-n="20" data-guide-scroll="top" data-guide-title="Sans compte" data-guide-body="Pas besoin de compte pour réserver&nbsp;: ton prénom et ton numéro suffisent. Ce bouton ouvre les créneaux libres.">
-<span class="hr-next-t"><span class="hr-next-k"><i aria-hidden="true"></i>{{nextK}}</span><span class="hr-next-v">{{nextV}}</span></span>
-<span class="hr-next-a" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h15M13 6l6 6-6 6"/></svg></span>
+<div class="hx">
+<button type="button" class="hx-next" onClick="{{bookNext}}" data-guide="site.sans-compte" data-guide-n="20" data-guide-scroll="top" data-guide-title="Sans compte" data-guide-body="Pas besoin de compte pour réserver&nbsp;: ton prénom et ton numéro suffisent. Ce bouton ouvre les créneaux libres.">
+<span class="hx-t"><span class="hx-k"><i aria-hidden="true"></i>{{nextK}}</span><span class="hx-v">{{nextV}}</span></span>
+<span class="hx-a" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h15M13 6l6 6-6 6"/></svg></span>
 </button>
+<sc-if value="{{hasHx}}" hint-placeholder-val="{{ true }}"><div class="hx-f" role="group" aria-label="Réserver une formule" style="--n: {{hxN}}">
+<sc-for list="{{hxChips}}" as="c" hint-placeholder-count="4"><button type="button" class="hx-c" aria-label="{{c.label}}" onClick="{{c.go}}"><b>{{c.t}}</b><small>{{c.s}}</small></button></sc-for>
+</div></sc-if>
 </div>
 <div class="hr-veil" aria-hidden="true"></div>
 </section>
-<section class="ms" id="maison" data-ch="1" data-tone="light" ref="{{r.ms}}" aria-labelledby="t-ms">
-<div class="wrap ms-txt">
-<p class="kk" data-rv><span>01</span>La maison</p>
-<h2 class="ms-h" id="t-ms" data-rv="lines"><span class="ln"><span>Prends</span></span><span class="ln"><span><em>place.</em></span></span></h2>
-<p class="ms-lead" data-rv>Ici, on prend le temps. On t’écoute, on regarde ce qui te va, on te conseille. Puis on construit ta coupe au millimètre, pour qu’elle tienne et que tu saches la coiffer chez toi.</p>
-<p class="ms-meta" data-rv>Place Pélabon · Marseille 13<sup>e</sup> · Pour l’homme de tout âge</p>
+<section class="now" id="reserver" data-ch="1" data-tone="light" aria-labelledby="t-now">
+<div class="wrap">
+<p class="kk" data-rv><span>01</span>Réserver</p>
+<div class="now-hd">
+<h2 class="now-h" id="t-now" data-rv>Prends <em>place.</em></h2>
+<ol class="now-3" data-rv aria-label="Réserver en quatre étapes"><li><b>1</b>Ta formule</li><li><b>2</b>Ton barbier</li><li><b>3</b>Le jour et l’heure</li><li><b>4</b>Tes coordonnées</li></ol>
 </div>
-<div class="ms-pin">
-<div class="ms-st" data-cov="#coupes">
-<figure class="ms-fr" data-tone="dark">
-<div class="ms-ph" role="img" aria-label="Photo du salon Barber L’Architecte, à venir">
-<span class="ms-ph-w" aria-hidden="true">L’Architecte</span>
-<span class="ms-ph-l" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l1.6-2.2h6.8L17 8h3v11H4z"/><circle cx="12" cy="13.2" r="3.6"/></svg>Photo du salon · à venir</span>
+<sc-if value="{{hasHb}}" hint-placeholder-val="{{ false }}"><button type="button" class="hb" onClick="{{hbGo}}"><span class="hb-l"><span class="hb-k">{{hbK}}</span><span class="hb-t">Comme la dernière fois&nbsp;?</span><span class="hb-s">{{hbLine}}<sc-if value="{{hbHasSlot}}" hint-placeholder-val="{{ false }}"> · prochain créneau <b>{{hbSlot}}</b></sc-if></span></span><span class="hb-go">Reprendre</span></button></sc-if>
+<div class="now-f" data-rv>
+<p class="now-k" id="now-fk">Pour quelle formule&nbsp;?</p>
+<div class="now-chips" role="group" aria-labelledby="now-fk"><sc-for list="{{nowChips}}" as="c" hint-placeholder-count="4"><button type="button" class="{{c.cls}}" aria-pressed="{{c.on}}" onClick="{{c.go}}">{{c.t}}<small>{{c.p}}</small></button></sc-for><sc-if value="{{homeWait}}" hint-placeholder-val="{{ false }}"><i class="fc-sk" aria-hidden="true"></i><i class="fc-sk" aria-hidden="true"></i><i class="fc-sk" aria-hidden="true"></i></sc-if></div>
 </div>
-<figcaption class="ms-cap"><span>Le salon</span>16, place Pélabon, Marseille</figcaption>
-</figure>
-<div class="cov-veil" aria-hidden="true"></div>
-</div>
+<p class="now-k now-k2" id="now-bk" data-rv>Le prochain créneau de chaque barbier. Touche, c’est gardé pour toi.</p>
+<ul class="nx" aria-labelledby="now-bk" data-rv>
+<sc-for list="{{nxCells}}" as="x" hint-placeholder-count="5"><li class="{{x.li}}">
+<sc-if value="{{x.wait}}" hint-placeholder-val="{{ false }}"><div class="nx-sk" aria-hidden="true"></div></sc-if>
+<sc-if value="{{x.ok}}" hint-placeholder-val="{{ true }}"><button type="button" class="{{x.cls}}" aria-label="{{x.label}}" onClick="{{x.go}}">
+<sc-if value="{{x.who}}" hint-placeholder-val="{{ true }}"><span class="nx-hd"><span class="{{x.avCls}}" aria-hidden="true">{{x.ini}}<sc-if value="{{x.hasPhoto}}" hint-placeholder-val="{{ false }}"><img sc-camel-src="{{x.photo}}" alt="" width="44" height="44" loading="lazy" decoding="async" sc-camel-on-error="{{x.photoErr}}"></sc-if></span><span class="nx-n">{{x.n}}</span></span></sc-if>
+<span class="nx-w"><span class="nx-d"><i aria-hidden="true"></i>{{x.d}}</span><span class="nx-t">{{x.t}}</span></span>
+<sc-if value="{{x.any}}" hint-placeholder-val="{{ false }}"><span class="nx-go" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h15M13 6l6 6-6 6"/></svg></span></sc-if>
+</button></sc-if>
+</li></sc-for>
+</ul>
+<p class="now-foot" data-rv>Sans compte. Le créneau est gardé pendant que tu écris. <button type="button" class="tl" onClick="{{bookOther}}">Un autre jour, une autre heure</button></p>
 </div>
 </section>
 </div>
@@ -1298,10 +1311,57 @@ html{scroll-behavior:auto}
 </div>
 <div class="wrap ct-foot" aria-hidden="true"><p class="ct-bar"><i style="--c: {{cutPct}}"></i></p><p class="ct-hint">Glisse</p></div>
 </section>
-<section class="pv sheet" id="preuve" data-ch="3" data-tone="dark" aria-labelledby="t-pv">
+<section class="team" id="barbiers" data-ch="3" data-tone="dark" aria-labelledby="t-team">
+<img class="team-bg" src="/img/salon.jpg" width="1220" height="901" alt="" loading="lazy">
+<div class="wrap">
+<p class="kk" data-rv><span>03</span>L’équipe</p>
+<h2 class="h2" id="t-team" data-rv="lines"><span class="ln"><span>Choisis ton</span></span><span class="ln"><span>barbier.</span></span></h2>
+<p class="bb-lead" data-rv>Chacun sa main. Touche une heure pour la garder.</p>
+<sc-if value="{{teamWait}}" hint-placeholder-val="{{ false }}"><p class="bb-k none bb-wait" role="status"><i aria-hidden="true"></i>On regarde qui est là…</p></sc-if>
+<ul class="bb">
+<sc-for list="{{barbers}}" as="b" hint-placeholder-count="4">
+<li class="{{b.cls}}">
+<span class="{{b.avCls}}" aria-hidden="true">{{b.ini}}<sc-if value="{{b.hasPhoto}}" hint-placeholder-val="{{ false }}"><img sc-camel-src="{{b.photo}}" alt="" width="58" height="58" loading="lazy" decoding="async" sc-camel-on-error="{{b.photoErr}}"></sc-if></span>
+<h3 class="{{b.nCls}}">{{b.n}}</h3>
+<div class="bb-x">
+<sc-if value="{{b.hasBio}}" hint-placeholder-val="{{ false }}"><p class="bb-bio">{{b.bio}}</p></sc-if>
+<sc-if value="{{b.hasAway}}" hint-placeholder-val="{{ false }}"><p class="bb-k none"><i aria-hidden="true"></i>{{b.away}}</p></sc-if>
+<sc-if value="{{b.hasK}}" hint-placeholder-val="{{ true }}"><p class="{{b.kCls}}"><i aria-hidden="true"></i>{{b.k}}</p></sc-if>
+<div class="bb-slots"><sc-for list="{{b.slots}}" as="s" hint-placeholder-count="3"><button type="button" class="chip" aria-label="{{s.label}}" onClick="{{s.go}}">{{s.t}}</button></sc-for><button type="button" class="chip more" aria-label="{{b.otherLabel}}" onClick="{{b.other}}">{{b.otherText}}</button></div>
+<sc-if value="{{b.hasIg}}" hint-placeholder-val="{{ false }}"><a class="tl bb-ig" href="{{b.ig}}" target="_blank" rel="noopener" aria-label="{{b.igLabel}}">Son travail sur Instagram</a></sc-if>
+</div>
+</li>
+</sc-for>
+</ul>
+<sc-if value="{{isDemo}}" hint-placeholder-val="{{ false }}"><p class="bb-demo">Disponibilités de démonstration.</p></sc-if>
+</div>
+</section>
+<section class="carte sheet" id="carte" data-ch="4" data-tone="light" aria-labelledby="t-carte">
+<div class="wrap">
+<p class="kk" data-rv><span>04</span>La carte</p>
+<h2 class="h2" id="t-carte" data-rv="lines"><span class="ln"><span>Les prix,</span></span><span class="ln"><span>sans surprise.</span></span></h2>
+<sc-if value="{{hasMenu}}" hint-placeholder-val="{{ true }}"><div class="cr-tabs" role="tablist" aria-label="Catégories de la carte">
+<sc-for list="{{tabs}}" as="t" hint-placeholder-count="4"><button type="button" role="tab" class="{{t.cls}}" aria-selected="{{t.on}}" onClick="{{t.go}}">{{t.t}}</button></sc-for>
+</div></sc-if>
+<sc-if value="{{carteNone}}" hint-placeholder-val="{{ false }}"><p class="cr-none">La carte arrive. En attendant, <a href="{{contactHref}}">{{contactText}}</a>.</p></sc-if>
+<sc-if value="{{carteWait}}" hint-placeholder-val="{{ false }}"><div role="status" aria-label="La carte arrive"><i class="cr-sk" aria-hidden="true"></i><i class="cr-sk" aria-hidden="true"></i><i class="cr-sk" aria-hidden="true"></i></div></sc-if>
+<ul class="cr" role="tabpanel" aria-label="{{tabName}}">
+<sc-for list="{{carteItems}}" as="f" hint-placeholder-count="3">
+<li class="cr-i"><div class="{{f.cls}}">
+<span class="cr-n">{{f.n}}<sc-if value="{{f.hasMeta}}" hint-placeholder-val="{{ true }}"><small>{{f.meta}}</small></sc-if><sc-if value="{{f.hasNote}}" hint-placeholder-val="{{ false }}"><small>{{f.note}}</small></sc-if><sc-if value="{{f.hasTag}}" hint-placeholder-val="{{ false }}"><em>{{f.tag}}</em></sc-if></span>
+<span class="cr-p"><sc-if value="{{f.from}}" hint-placeholder-val="{{ false }}"><small>dès</small></sc-if>{{f.p}}</span>
+<sc-if value="{{f.can}}" hint-placeholder-val="{{ true }}"><button type="button" class="cr-go" aria-label="{{f.label}}" onClick="{{f.book}}">Réserver<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h15M13 6l6 6-6 6"/></svg></button></sc-if>
+<sc-if value="{{f.cant}}" hint-placeholder-val="{{ false }}"><span class="cr-go off">Se prend au salon</span></sc-if>
+</div></li>
+</sc-for>
+</ul>
+<p class="cr-foot">Carte bancaire acceptée au salon · <a href="/carte-cadeau">Offrir une carte cadeau</a></p>
+</div>
+</section>
+<section class="pv sheet" id="preuve" data-ch="5" data-tone="dark" aria-labelledby="t-pv">
 <div class="pv-cov" data-cov>
 <div class="pv-top">
-<p class="kk" data-rv><span>03</span>La preuve</p>
+<p class="kk" data-rv><span>05</span>La preuve</p>
 <h2 class="pv-h" id="t-pv" data-rv="lines"><span class="ln"><span>Ne nous crois pas</span></span><span class="ln"><span>sur parole.</span></span></h2>
 </div>
 <sc-if value="{{hasRating}}" hint-placeholder-val="{{ true }}"><div class="pv-score" data-rv>
@@ -1333,99 +1393,10 @@ html{scroll-behavior:auto}
 </div>
 </div>
 </section>
-<section class="team sheet" id="barbiers" data-ch="4" data-tone="dark" aria-labelledby="t-team">
-<img class="team-bg" src="/img/salon.jpg" width="1220" height="901" alt="" loading="lazy">
-<div class="wrap">
-<p class="kk" data-rv><span>04</span>L’équipe</p>
-<h2 class="h2" id="t-team" data-rv="lines"><span class="ln"><span>Choisis ton</span></span><span class="ln"><span>barbier.</span></span></h2>
-<p class="bb-lead" data-rv>Touche un nom pour voir ses prochains créneaux.</p>
-<ul class="bb">
-<sc-for list="{{barbers}}" as="b" hint-placeholder-count="4">
-<li class="{{b.cls}}">
-<button type="button" class="bb-row" aria-expanded="{{b.open}}" onClick="{{b.toggle}}">
-<span class="{{b.avCls}}" aria-hidden="true">{{b.ini}}<sc-if value="{{b.hasPhoto}}" hint-placeholder-val="{{ false }}"><img sc-camel-src="{{b.photo}}" alt="" width="58" height="58" loading="lazy" decoding="async" sc-camel-on-error="{{b.photoErr}}"></sc-if></span>
-<span class="bb-id"><span class="bb-n">{{b.n}}</span><span class="bb-next"><i aria-hidden="true"></i>{{b.next}}</span></span>
-<svg class="bb-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
-</button>
-<div class="bb-x"><div class="bb-xi">
-<sc-if value="{{b.hasBio}}" hint-placeholder-val="{{ false }}"><p class="bb-bio">{{b.bio}}</p></sc-if>
-<p class="bb-k">{{b.dayLabel}}</p>
-<div class="bb-slots"><sc-for list="{{b.slots}}" as="s" hint-placeholder-count="4"><button type="button" class="chip" onClick="{{s.go}}">{{s.t}}</button></sc-for></div>
-<div class="bb-more">
-<button type="button" class="tl" onClick="{{b.other}}">Un autre jour</button>
-<sc-if value="{{b.hasIg}}" hint-placeholder-val="{{ false }}"><a class="tl" href="{{b.ig}}" target="_blank" rel="noopener">Instagram</a></sc-if>
-</div>
-</div></div>
-</li>
-</sc-for>
-</ul>
-<div class="bb-foot">
-<button type="button" class="btn ghost" onClick="{{bAny}}">Le premier libre</button>
-<sc-if value="{{isDemo}}" hint-placeholder-val="{{ false }}"><p class="bb-demo">Disponibilités de démonstration.</p></sc-if>
-</div>
-</div>
-</section>
-<section class="carte sheet" id="carte" data-ch="5" data-tone="light" aria-labelledby="t-carte">
-<div class="wrap">
-<p class="kk" data-rv><span>05</span>La carte</p>
-<h2 class="h2" id="t-carte" data-rv="lines"><span class="ln"><span>Les prix,</span></span><span class="ln"><span>sans surprise.</span></span></h2>
-<sc-if value="{{hasMenu}}" hint-placeholder-val="{{ true }}"><div class="cr-tabs" role="tablist" aria-label="Catégories de la carte">
-<sc-for list="{{tabs}}" as="t" hint-placeholder-count="4"><button type="button" role="tab" class="{{t.cls}}" aria-selected="{{t.on}}" onClick="{{t.go}}">{{t.t}}</button></sc-for>
-</div></sc-if>
-<sc-if value="{{noMenu}}" hint-placeholder-val="{{ false }}"><p class="cr-none">La carte arrive. En attendant, <a href="{{contactHref}}">{{contactText}}</a>.</p></sc-if>
-<ul class="cr" role="tabpanel" aria-label="{{tabName}}">
-<sc-for list="{{carteItems}}" as="f" hint-placeholder-count="3">
-<li class="{{f.cls}}">
-<button type="button" class="cr-row" aria-expanded="{{f.open}}" onClick="{{f.toggle}}"><span class="cr-n">{{f.n}}<small>{{f.meta}}</small></span><span class="cr-p"><small>{{f.pre}}</small>{{f.p}}</span></button>
-<div class="cr-x"><div class="cr-xi">
-<ul class="cr-inc"><sc-for list="{{f.inc}}" as="i" hint-placeholder-count="3"><li>{{i.t}}</li></sc-for></ul>
-<sc-if value="{{f.hasNote}}" hint-placeholder-val="{{ false }}"><p class="cr-note">{{f.note}}</p></sc-if>
-<button type="button" class="btn" onClick="{{f.book}}">Réserver · {{f.price}}</button>
-</div></div>
-</li>
-</sc-for>
-</ul>
-<p class="cr-foot">Carte bancaire acceptée au salon · <a href="/carte-cadeau">Offrir une carte cadeau</a></p>
-</div>
-</section>
-<section class="tm" id="temps" data-ch="6" data-tone="light" ref="{{r.time}}" aria-labelledby="t-tm">
-<div class="tm-st">
-<div class="tm-ink" aria-hidden="true"></div>
-<p class="kk tm-kk"><span>06</span>Le rendez-vous</p>
-<div class="tm-in">
-<h2 class="vh" id="t-tm">Le temps passe sur ta coupe</h2>
-<div class="tm-cvw"><canvas class="ht" ref="{{r.timeCv}}" aria-hidden="true"></canvas></div>
-<p class="tm-l">{{tmLine}}</p>
-</div>
-</div>
-</section>
-<section class="{{finCls}}" id="recouper" data-ch="6" data-tone="dark" ref="{{r.fin}}" aria-labelledby="t-fin">
-<h2 class="vh" id="t-fin">On recoupe&nbsp;?</h2>
-<div class="fin-l fin-grown" aria-hidden="true">
-<p class="fin-k"><span>{{finK1}}</span><br>On recoupe&nbsp;?</p>
-<div class="fin-word"><canvas class="ht" ref="{{r.finGrown}}"></canvas></div>
-</div>
-<div class="fin-l fin-fresh" aria-hidden="true">
-<p class="fin-k">J+0.<br>Comme neuf.</p>
-<div class="fin-word"><canvas class="ht" ref="{{r.finFresh}}"></canvas></div>
-</div>
-<i class="fin-razor" aria-hidden="true"></i>
-<canvas class="fin-bits" ref="{{r.bits}}" aria-hidden="true"></canvas>
-<div class="fin-ctl">
-<div class="sv" ref="{{r.shave}}" role="slider" tabindex="0" aria-label="Glisse pour raser" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" onKeyDown="{{shaveKey}}">
-<span class="sv-l">Glisse pour raser</span>
-<span class="sv-k"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 12h12v11.5a4.5 4.5 0 0 1-4.5 4.5h-3a4.5 4.5 0 0 1-4.5-4.5z"/><path d="M9 8h14v4H9z"/><path d="M11 5v3M14 5v3M17 5v3M20 5v3"/></svg></span>
-</div>
-<div class="fin-done">
-<button type="button" class="btn big" onClick="{{openMain}}">Réserver ma coupe</button>
-<p>Dès 20&#8239;€ · sans compte</p>
-</div>
-</div>
-</section>
 <sc-if value="{{aboOn}}" hint-placeholder-val="{{ false }}">
-<section class="ab sheet" id="abonnement" data-ch="7" data-tone="dark" aria-labelledby="t-ab" data-guide="site-abonnement">
+<section class="ab sheet" id="abonnement" data-ch="6" data-tone="dark" aria-labelledby="t-ab" data-guide="site-abonnement">
 <div class="wrap">
-<p class="kk" data-rv><span>07</span>Abonnement &amp; formule</p>
+<p class="kk" data-rv><span>06</span>Abonnement &amp; formule</p>
 <h2 class="h2" id="t-ab" data-rv="lines"><span class="ln"><span>Ta coupe,</span></span><span class="ln"><span>chaque mois.</span></span></h2>
 <p class="ab-lead" data-rv>Un prix par mois, sans engagement. Ou cinq semaines d’entretien, payées une fois.</p>
 <div class="ab-g">
@@ -1796,14 +1767,9 @@ const LXE = (function () {
     cd: { n: 'Coupe + décoloration', sh: 'Coupe + déco', p: 80, d: 90, from: true },
     ab: { n: 'Formule Entretien 5 semaines', sh: 'Entretien 5 sem.', p: 80, d: 30 }
   };
-  const BARBERS = [
-    { id: 'jkut', n: 'JKut', ini: 'JK' },
-    { id: 'frank', n: 'Frank', ini: 'F' },
-    { id: 'soldat', n: 'Le Soldat', ini: 'LS' },
-    { id: 'esteban', n: 'Esteban', ini: 'E' }
-  ];
+  /* the team is the salon's (GET /api/public/salon `barbers`): no name is written here, the list is empty until it answers */
+  const BARBERS = [];
   const BMAP = {};
-  BARBERS.forEach(function (b) { BMAP[b.id] = b; });
   const staffOf = {}, barberIdOf = {};
   /* the old site's names for the team, still in links people kept (?barbier=larchi) */
   const ALIAS = { larchi: 'frank' };
@@ -2206,14 +2172,12 @@ const LXE = (function () {
 })();
 
 const NB = ' ';
-const NBS = ' ';
 const DAYS_FR = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
 const DAYS_SH = ['dim.', 'lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.'];
 const MONTHS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
 const MONTHS_SH = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
 const SERIF = '"Instrument Serif", "Times New Roman", serif';
 const INK = '#0F0E0D';
-const BONE = '#ECE8E0';
 
 const FORMULAS = [
   { id: 'cl', n: 'Coupe classique', s: 'Coupe classique', p: 20, d: 30, k: 'coupe', inc: ['Coupe', 'Shampooing', 'Coiffage'] },
@@ -2232,33 +2196,17 @@ const FORMULAS = [
 const FMAP = {};
 FORMULAS.forEach(function (f) { FMAP[f.id] = f; });
 
-const BARBERS = [
-  { id: 'any', n: 'Peu importe' },
-  { id: 'jkut', n: 'JKut' },
-  { id: 'frank', n: 'Frank' },
-  { id: 'soldat', n: 'Le Soldat' },
-  { id: 'esteban', n: 'Esteban' }
-];
-const BMAP = {};
-BARBERS.forEach(function (b) { BMAP[b.id] = b; });
-
+/* the chapters, in the page's order: the Sommaire and the top bar's pill follow it (data-ch on each section) */
 const CH = [
-  { id: 'maison', t: 'La maison', d: 'Qui on est, ce qu’on fait' },
+  { id: 'reserver', t: 'Réserver', d: 'Le prochain créneau de chaque barbier' },
   { id: 'coupes', t: 'Le travail', d: 'Les coupes du salon' },
-  { id: 'preuve', t: 'La preuve', d: '5,0 sur 316 avis Google' },
   { id: 'barbiers', t: 'L’équipe', d: 'Choisis ton barbier' },
-  { id: 'carte', t: 'La carte', d: 'Les prix' },
-  { id: 'temps', t: 'Le rendez-vous', d: 'On recoupe' + NBS + '?' },
+  { id: 'carte', t: 'La carte', d: 'Les prix, sans surprise' },
+  { id: 'preuve', t: 'La preuve', d: '5,0 sur 316 avis Google' },
   /* shown only while the monthly membership is sold online (PAY-04): the chapters after it move by one */
   { id: 'abonnement', t: 'Abonnement', d: 'Au mois, ou la formule', opt: true },
   { id: 'questions', t: 'Questions', d: 'Prix, horaires, réservation' },
   { id: 'venir', t: 'Venir', d: '16, place Pélabon' }
-];
-const TABS = [
-  { t: 'Coupes', ids: ['cl', 'cc', 'ct'] },
-  { t: 'Barbe', ids: ['eb', 'tb', 'cb'] },
-  { t: 'Changer de tête', ids: ['tr', 'de', 'co', 'si'] },
-  { t: 'Formule', ids: ['ab'] }
 ];
 /* ---------- the site's own words: fixed, the owner does not edit the site ----------
    Prices and hours come from the salon (/api/public/salon `menu` and `hoursText`), the old menu until it answers. */
@@ -2340,13 +2288,6 @@ function igUrl(x) {
 function igHandle(u) { const m = /instagram\.com\/([^/?#]+)/i.exec(u || ''); return m ? '@' + m[1] : 'Instagram'; }
 function ratingText(r) { return typeof r === 'number' ? r.toFixed(1).replace('.', ',') : ''; }
 
-const TM_LINES = [
-  'Une semaine plus tard.',
-  'Le contour s’efface.',
-  'Le dégradé se brouille.',
-  'Ça se voit.'
-];
-
 /* the menu by category, in the catalogue's order once the salon answers; FORMULAS, TABS and SVC_GROUPS until then */
 function menuGroups(placeholder) {
   const live = LXE.services();
@@ -2388,11 +2329,6 @@ function hash(str) {
   return h >>> 0;
 }
 function buzz(p) { try { if (navigator.vibrate) navigator.vibrate(p); } catch (e) { /* not available */ } }
-function rng(seed) {
-  let s = seed % 2147483647;
-  if (s <= 0) s += 2147483646;
-  return function () { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; };
-}
 function coverRect(iw, ih, W, H, px, py) {
   const sc = Math.max(W / iw, H / ih);
   const sw = W / sc, sh = H / sc;
@@ -2402,13 +2338,12 @@ function coverRect(iw, ih, W, H, px, py) {
 /* ---------- Halftone lettering: the fade, drawn in dots ---------- */
 function Halftone(cv, o) {
   this.cv = cv;
-  this.o = Object.assign({ lines: ['Frais.'], fill: 1, lh: 0.9, align: 'left', cellK: 30, seed: 7, maxH: 0, ref: '' }, o || {});
+  this.o = Object.assign({ lines: ['Frais.'], fill: 1, lh: 0.9, align: 'left', cellK: 30, maxH: 0 }, o || {});
   this.ctx = cv.getContext('2d');
   this.mask = document.createElement('canvas');
   this.ok = false;
 }
 Halftone.prototype.font = function (s) { return '400 ' + s.toFixed(2) + 'px ' + SERIF; };
-Halftone.prototype.setLines = function (lines) { this.o.lines = lines; this.layout(); };
 Halftone.prototype.layout = function () {
   const cv = this.cv, o = this.o;
   const box = cv.parentElement;
@@ -2419,7 +2354,7 @@ Halftone.prototype.layout = function () {
   c.setTransform(1, 0, 0, 1, 0, 0);
   c.font = this.font(100);
   let mw = 1;
-  (o.ref ? [o.ref] : o.lines).forEach(function (l) { mw = Math.max(mw, c.measureText(l).width); });
+  o.lines.forEach(function (l) { mw = Math.max(mw, c.measureText(l).width); });
   let size = (W * o.fill) / (mw / 100);
   if (o.maxH) size = Math.min(size, o.maxH);
   c.font = this.font(size);
@@ -2440,7 +2375,7 @@ Halftone.prototype.layout = function () {
   cv.height = Math.round(H * dpr);
   const m = this.mask;
   m.width = cv.width; m.height = cv.height;
-  const mc = m.getContext('2d', { willReadFrequently: true });
+  const mc = m.getContext('2d');
   mc.setTransform(dpr, 0, 0, dpr, 0, 0);
   mc.clearRect(0, 0, W, H);
   mc.font = this.font(size);
@@ -2454,47 +2389,10 @@ Halftone.prototype.layout = function () {
     return { t: l, x: x, w: w, base: base, top: base - asc - 2, bot: base + desc + 2 };
   });
   this.cell = Math.max(3.2, Math.min(11, size / o.cellK));
-  this.fuzz();
   this.ok = true;
 };
-Halftone.prototype.fuzz = function () {
-  const d = this.dpr, cell = this.cell;
-  const mw = this.mask.width, mh = this.mask.height;
-  let md, sd;
-  try {
-    md = this.mask.getContext('2d').getImageData(0, 0, mw, mh).data;
-    const st = document.createElement('canvas');
-    st.width = mw; st.height = mh;
-    const sc = st.getContext('2d', { willReadFrequently: true });
-    sc.setTransform(d, 0, 0, d, 0, 0);
-    sc.font = this.font(this.size);
-    sc.lineJoin = 'round';
-    sc.lineWidth = cell * 2.4;
-    sc.strokeStyle = '#000';
-    this.lines.forEach(function (L) { sc.strokeText(L.t, L.x, L.base); });
-    sd = sc.getImageData(0, 0, mw, mh).data;
-  } catch (e) { this.rim = []; this.stub = []; return; }
-  const A = function (data, x, y) {
-    const px = (x * d) | 0, py = (y * d) | 0;
-    if (px < 0 || py < 0 || px >= mw || py >= mh) return 0;
-    return data[(py * mw + px) * 4 + 3];
-  };
-  const rnd = rng(this.o.seed);
-  const rim = [], stub = [];
-  this.lines.forEach(function (L, li) {
-    const x0 = L.x - cell * 2, x1 = L.x + L.w + cell * 2, y0 = L.top - cell, y1 = L.bot + cell;
-    const n = Math.min(16000, Math.round((x1 - x0) * (y1 - y0) / (cell * cell) * 1.5));
-    for (let i = 0; i < n; i++) {
-      const x = x0 + rnd() * (x1 - x0), y = y0 + rnd() * (y1 - y0);
-      if (A(md, x, y) > 110) stub.push([x, y, cell * (0.13 + rnd() * 0.12), rnd(), li]);
-      else if (A(sd, x, y) > 40) rim.push([x, y, cell * (0.1 + rnd() * 0.14), rnd(), li]);
-    }
-  });
-  this.rim = rim;
-  this.stub = stub;
-};
-// f: share of the cap height drawn as a halftone fade. g: growth (0 fresh, 1 grown out).
-Halftone.prototype.draw = function (f, g, color) {
+// f: share of the cap height drawn as a halftone fade
+Halftone.prototype.draw = function (f, color) {
   if (!this.ok) return;
   const c = this.ctx, d = this.dpr, W = this.W, H = this.H, cell = this.cell, capH = this.capH;
   c.setTransform(d, 0, 0, d, 0, 0);
@@ -2502,19 +2400,16 @@ Halftone.prototype.draw = function (f, g, color) {
   c.clearRect(0, 0, W, H);
   c.fillStyle = color;
   c.beginPath();
-  const R = cell * 0.6, FULL = cell * 0.64;
-  const bands = [];
+  const R = cell * 0.6;
   this.lines.forEach(function (L) {
     const bTop = L.base - capH * f;
-    bands.push(bTop);
     const top = L.top - cell;
     if (bTop > top) c.rect(L.x - cell, top, L.w + cell * 2, bTop - top);
     const span = Math.max(1, L.base - bTop);
     let row = 0;
     for (let y = bTop + cell * 0.3; y < L.bot + cell; y += cell * 0.866, row++) {
       const t = (y - bTop) / span;
-      let rad = t >= 1 ? 0 : R * Math.pow(1 - t, 1.15);
-      rad += (FULL - rad) * g;
+      const rad = t >= 1 ? 0 : R * Math.pow(1 - t, 1.15);
       if (rad < 0.22) continue;
       const off = (row % 2) ? cell / 2 : 0;
       for (let x = L.x - cell + off; x < L.x + L.w + cell; x += cell) {
@@ -2529,96 +2424,30 @@ Halftone.prototype.draw = function (f, g, color) {
   c.drawImage(this.mask, 0, 0);
   c.setTransform(d, 0, 0, d, 0, 0);
   c.globalCompositeOperation = 'source-over';
-  if (g > 0.02 && this.rim) {
-    c.beginPath();
-    const k = Math.pow(g, 1.35);
-    for (let i = 0; i < this.rim.length; i++) {
-      const p = this.rim[i];
-      if (p[3] < k) { const r = p[2] * (0.75 + g * 0.6); c.moveTo(p[0] + r, p[1]); c.arc(p[0], p[1], r, 0, 6.2832); }
-    }
-    for (let i = 0; i < this.stub.length; i++) {
-      const p = this.stub[i];
-      if (p[3] < g && p[1] > bands[p[4]]) { const r = p[2] * (0.9 + g); c.moveTo(p[0] + r, p[1]); c.arc(p[0], p[1], r, 0, 6.2832); }
-    }
-    c.fill();
-  }
-};
-
-/* ---------- Clippings that fall when you shave ---------- */
-function Bits(cv) {
-  this.cv = cv; this.ctx = cv.getContext('2d'); this.p = []; this.raf = 0;
-  const self = this;
-  this.tick = function () { self.step(); };
-}
-Bits.prototype.layout = function () {
-  const W = this.cv.clientWidth, H = this.cv.clientHeight;
-  if (!W || !H) return;
-  const d = Math.min(2, window.devicePixelRatio || 1);
-  this.W = W; this.H = H; this.d = d;
-  this.cv.width = Math.round(W * d);
-  this.cv.height = Math.round(H * d);
-};
-Bits.prototype.spawn = function (x, y0, y1, n) {
-  if (!this.W) this.layout();
-  for (let i = 0; i < n; i++) {
-    this.p.push({ x: x + (Math.random() - 0.5) * 8, y: y0 + Math.random() * (y1 - y0), vx: (Math.random() - 0.35) * 0.9, vy: -Math.random() * 1.2, a: Math.random() * 3.14, va: (Math.random() - 0.5) * 0.2, len: 2 + Math.random() * 6, l: 1 });
-  }
-  if (this.p.length > 500) this.p.splice(0, this.p.length - 500);
-  if (!this.raf) this.raf = requestAnimationFrame(this.tick);
-};
-Bits.prototype.step = function () {
-  const c = this.ctx, d = this.d;
-  c.setTransform(d, 0, 0, d, 0, 0);
-  c.clearRect(0, 0, this.W, this.H);
-  c.strokeStyle = '#4a4440';
-  c.lineWidth = 1.3;
-  c.lineCap = 'round';
-  const keep = [];
-  for (let i = 0; i < this.p.length; i++) {
-    const q = this.p[i];
-    q.vy += 0.16; q.x += q.vx; q.y += q.vy; q.a += q.va; q.l -= 0.011;
-    if (q.l <= 0 || q.y > this.H + 10) continue;
-    keep.push(q);
-    c.globalAlpha = Math.min(1, q.l * 1.4);
-    c.beginPath();
-    c.moveTo(q.x - Math.cos(q.a) * q.len / 2, q.y - Math.sin(q.a) * q.len / 2);
-    c.lineTo(q.x + Math.cos(q.a) * q.len / 2, q.y + Math.sin(q.a) * q.len / 2);
-    c.stroke();
-  }
-  c.globalAlpha = 1;
-  this.p = keep;
-  this.raf = keep.length ? requestAnimationFrame(this.tick) : 0;
 };
 
 class Component extends DCLogic {
   constructor(props) {
     super(props);
     this.state = {
-      now: Date.now(), chap: 0, tone: 'light', scrolled: false, ctaHide: false, tmStage: 0, menu: false,
-      finDone: false, shaved: false, cut: 0, zoom: -1, bOpen: null,
-      tab: 0, crOpen: null,
+      now: Date.now(), chap: 0, tone: 'light', scrolled: false, ctaHide: false, menu: false,
+      cut: 0, zoom: -1,
+      // tab: the carte's category; hf: the formule touched under « Pour quelle formule ? » (none: the first of the catalogue)
+      tab: 0, hf: null,
       sheet: false, bk: this.bkEmpty(), fFirst: '', fLast: '', fPhone: '', fEmail: '', fNote: '', fSms: true, fMkt: false, forgot: false, icsUrl: '', holdNow: 0, storeV: 0,
       // the subscribe sheet (PAY-04): { plan, step: 'form'|'already', busy, err } while open; abNow: the express request, never ticked for him
       ab: null, abNow: false
     };
-    this._s = 0; this._t = 0; this._par = 0; this._intro = 0; this._ap = 0;
+    this._par = 0; this._intro = 0;
     this._rm = false;
     const self = this;
     this.r = {
       chBtn: function (el) { self._chBtn = el; },
       chTxt: function (el) { self._chTxt = el; },
       hero: function (el) { self._hero = el; },
-      ms: function (el) { self._ms = el; self._msPin = el ? el.querySelector('.ms-pin') : null; },
       heroPh: function (el) { self._heroPh = el; },
       heroCv: function (el) { self._heroCv = el; if (!el) self.htHero = null; self.boot(); },
       cuts: function (el) { self.bindCuts(el); },
-      time: function (el) { self._time = el; },
-      timeCv: function (el) { self._timeCv = el; if (!el) self.htTime = null; self.boot(); },
-      fin: function (el) { self._fin = el; },
-      finGrown: function (el) { self._finG = el; if (!el) self.htFinG = null; self.boot(); },
-      finFresh: function (el) { self._finF = el; if (!el) self.htFinF = null; self.boot(); },
-      bits: function (el) { self._bitsCv = el; self.bits = el ? new Bits(el) : null; },
-      shave: function (el) { self.bindShave(el); },
       bkBody: function (el) { self._bkBody = el; },
       dstrip: function (el) {
         self._dstrip = el;
@@ -2643,7 +2472,9 @@ class Component extends DCLogic {
   componentDidMount() {
     this._mounted = true;
     try { this._rm = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { this._rm = false; }
-    this._tick = setInterval(() => this.setState({ now: Date.now() }), 30000);
+    // every half minute: the status line; and the salon is asked again if its first answer never came (the team, the carte and the
+    // slots are its own: nothing stands in for them)
+    this._tick = setInterval(() => { if (!LXE.salon()) LXE.init(); this.setState({ now: Date.now() }); }, 30000);
     window.addEventListener('scroll', this.onScroll, { passive: true });
     window.addEventListener('resize', this.onResize);
     const go = () => { if (!this._mounted || this._fontsOk) return; this._fontsOk = true; this.boot(); this.measure(true); this.intro(); this.toHash(); };
@@ -2674,12 +2505,12 @@ class Component extends DCLogic {
       .then((r) => (r.ok ? r.json() : null)).then((m) => { if (this._mounted && m && (m.upcoming || []).some((u) => u.token === token)) this.setState({ ownTok: token }); }).catch(() => { /* nothing said */ });
   }
 
-  /* the old WordPress pages (/nos-services, /creations) land on #carte or #coupes: go there once the page is laid out */
+  /* the old WordPress pages (/nos-services, /creations) land on #carte or #coupes, a link on #reserver or #barbiers: go to that chapter once the page is laid out */
   toHash() {
     let id = '';
     try { id = decodeURIComponent(String(window.location.hash || '').slice(1)); } catch (e) { return; }
     const el = id && /^[a-z][\w-]*$/.test(id) ? document.getElementById(id) : null;
-    if (!el || !el.classList.contains('sheet')) return;
+    if (!el || !(el.classList.contains('sheet') || el.hasAttribute('data-ch'))) return;
     setTimeout(() => { if (this._mounted) el.scrollIntoView({ block: 'start', behavior: 'auto' }); }, 80);
   }
 
@@ -2704,11 +2535,11 @@ class Component extends DCLogic {
   componentWillUnmount() {
     this._mounted = false;
     clearInterval(this._tick);
-    clearTimeout(this._t1); clearTimeout(this._t2); clearTimeout(this._t3); clearTimeout(this._rz); clearTimeout(this._autoOpen);
+    clearTimeout(this._t1); clearTimeout(this._t2); clearTimeout(this._t3); clearTimeout(this._rz);
     if (this._io) { try { this._io.disconnect(); } catch (e) { /* ignore */ } this._io = null; }
     window.removeEventListener('scroll', this.onScroll);
     window.removeEventListener('resize', this.onResize);
-    ['_shaveOff', '_cutsOff'].forEach((k) => { if (this[k]) this[k](); });
+    if (this._cutsOff) this._cutsOff();
     this.bkDestroy();
     try { document.documentElement.style.overflow = ''; } catch (e) { /* ignore */ }
   }
@@ -2753,7 +2584,7 @@ class Component extends DCLogic {
           try { this._chTxt.animate([{ transform: 'translateY(70%)', opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: 480, easing: 'cubic-bezier(.2,.7,.2,1)' }); } catch (e) { /* ignore */ }
         }
       }
-      if (s.tab !== this._pTab || s.bOpen !== this._pB) { this._pTab = s.tab; this._pB = s.bOpen; setTimeout(() => this.measure(false), 520); }
+      if (s.tab !== this._pTab || s.hf !== this._pHf) { this._pTab = s.tab; this._pHf = s.hf; setTimeout(() => this.measure(false), 520); }
       const key = s.sheet ? s.bk.step : '';
       if (key !== this._lastStep) {
         this._lastStep = key;
@@ -2773,25 +2604,9 @@ class Component extends DCLogic {
     const vh = window.innerHeight || 800;
     const wide = (window.innerWidth || 400) > 900;
     if (this._heroCv && (!this.htHero || this.htHero.cv !== this._heroCv)) {
-      this.htHero = new Halftone(this._heroCv, { lines: [HERO_WORD], fill: 1, cellK: 30, seed: 3, maxH: vh * (wide ? 0.5 : 0.3) });
+      this.htHero = new Halftone(this._heroCv, { lines: [HERO_WORD], fill: 1, cellK: 30, maxH: vh * (wide ? 0.5 : 0.3) });
       this.htHero.layout();
       this.drawHero();
-    }
-    if (this._timeCv && (!this.htTime || this.htTime.cv !== this._timeCv)) {
-      this._tmText = 'J+' + this.timeDay();
-      this.htTime = new Halftone(this._timeCv, { lines: [this._tmText], ref: 'J+28', fill: wide ? 0.62 : 0.9, align: wide ? 'center' : 'left', cellK: 28, seed: 9, maxH: vh * 0.42 });
-      this.htTime.layout();
-      this.drawTime(true);
-    }
-    if (this._finG && (!this.htFinG || this.htFinG.cv !== this._finG)) {
-      this.htFinG = new Halftone(this._finG, { lines: ['Frais.'], fill: 1, cellK: 30, seed: 5, maxH: vh * (wide ? 0.42 : 0.26) });
-      this.htFinG.layout();
-      this.htFinG.draw(0.5, 1, BONE);
-    }
-    if (this._finF && (!this.htFinF || this.htFinF.cv !== this._finF)) {
-      this.htFinF = new Halftone(this._finF, { lines: ['Frais.'], fill: 1, cellK: 30, seed: 5, maxH: vh * (wide ? 0.42 : 0.26) });
-      this.htFinF.layout();
-      this.htFinF.draw(0.5, 0, INK);
     }
   }
 
@@ -2799,10 +2614,6 @@ class Component extends DCLogic {
     const vh = window.innerHeight || 800;
     const wide = (window.innerWidth || 400) > 900;
     if (this.htHero) { this.htHero.o.maxH = vh * (wide ? 0.5 : 0.3); this.htHero.layout(); this.drawHero(); }
-    if (this.htTime) { this.htTime.o.maxH = vh * 0.42; this.htTime.o.fill = wide ? 0.62 : 0.9; this.htTime.o.align = wide ? 'center' : 'left'; this.htTime.layout(); this.drawTime(true); }
-    if (this.htFinG) { this.htFinG.o.maxH = vh * (wide ? 0.42 : 0.26); this.htFinG.layout(); this.htFinG.draw(0.5, 1, BONE); }
-    if (this.htFinF) { this.htFinF.o.maxH = vh * (wide ? 0.42 : 0.26); this.htFinF.layout(); this.htFinF.draw(0.5, 0, INK); }
-    if (this.bits) this.bits.layout();
   }
 
   intro() {
@@ -2815,20 +2626,7 @@ class Component extends DCLogic {
   drawHero() {
     if (!this.htHero) return;
     const f = (1 - this._intro) * 1.02 + this._intro * 0.42;
-    this.htHero.draw(f, 0, INK);
-  }
-
-  timeDay() { return clamp(7 + Math.floor(this._t * 14.999), 7, 21); }
-
-  drawTime(force) {
-    if (!this.htTime) return;
-    const d = this.timeDay();
-    const txt = 'J+' + d;
-    if (txt !== this._tmText) { this._tmText = txt; this.htTime.setLines([txt]); force = true; }
-    if (force || d !== this._tmDrawn) {
-      this._tmDrawn = d;
-      this.htTime.draw(0.5, 0.18 + 0.78 * (d - 7) / 14, '#FFFFFF');
-    }
+    this.htHero.draw(f, INK);
   }
 
   tween(from, to, ms, fn, done) {
@@ -2860,12 +2658,10 @@ class Component extends DCLogic {
     if (!this._mounted) return;
     const root = document.querySelector('.lp');
     if (!root) return;
-    const sy = window.scrollY || 0;
     this._covs = Array.prototype.map.call(root.querySelectorAll('[data-cov]'), (el) => {
       const sel = el.getAttribute('data-cov');
       return { el: el, body: sel ? document.querySelector(sel) : el.nextElementSibling, o: -1 };
     }).filter((c) => !!c.body);
-    if (this._time) { const r = this._time.getBoundingClientRect(); this._tmTop = r.top + sy; this._tmH = r.height; }
     const W = window.innerWidth;
     if (force || W !== this._lastW) { this._lastW = W; if (this._fontsOk) this.relayout(); }
     this.setupReveal();
@@ -2892,41 +2688,19 @@ class Component extends DCLogic {
       const o = this._rm ? 0 : clamp(1 - top / vh, 0, 1);
       if (Math.abs(o - c.o) > 0.002 || (o === 0 && c.o !== 0) || (o === 1 && c.o !== 1)) { c.o = o; c.el.style.setProperty('--o', o.toFixed(3)); }
     }
-    /* 01 la maison: the photo frame opens to full screen */
-    if (this._msPin && this._ms) {
-      const r = this._msPin.getBoundingClientRect();
-      const e = this._rm ? 1 : clamp(-r.top / Math.max(1, (r.height - 2 * vh) * 0.85), 0, 1);
-      const k = e < 0.5 ? 2 * e * e : 1 - Math.pow(-2 * e + 2, 2) / 2;
-      if (Math.abs(k - (this._msE || 0)) > 0.001 || k === 0 || k === 1) { this._msE = k; this._ms.style.setProperty('--e', k.toFixed(4)); }
-    }
-    let stage = s.tmStage;
-    if (this._time && this._tmTop != null) {
-      const span = Math.max(1, this._tmH - vh);
-      this._t = clamp((y - this._tmTop) / span, 0, 1);
-      const r = clamp((this._t - 0.06) / 0.3, 0, 1) * 8.7;
-      this._time.style.setProperty('--r', r.toFixed(2) + 'px');
-      if (y + vh > this._tmTop && y < this._tmTop + this._tmH) this.drawTime(false);
-      const d = this.timeDay();
-      stage = d < 10 ? 0 : (d < 14 ? 1 : (d < 21 ? 2 : 3));
-    }
     if (this._heroPh && y < vh * 1.3) { this._par = this._rm ? 0 : y * 0.14; this._heroPh.style.transform = 'translate3d(0,' + this._par.toFixed(1) + 'px,0)'; }
     /* what is under the top bar, and which chapter fills the screen */
     let tone = s.tone, chap = s.chap;
     const hb = this.hitAt(6, 34);
     const tt = hb ? hb.closest('[data-tone]') : null;
-    if (tt) {
-      tone = tt.getAttribute('data-tone');
-      if (tt.id === 'temps') tone = this._t > 0.22 ? 'dark' : 'light';
-      if (tt.id === 'recouper') tone = (s.finDone || this._s > 0.5) ? 'light' : 'dark';
-    }
+    if (tt) tone = tt.getAttribute('data-tone');
     const hc = this.hitAt(6, Math.round(vh * 0.48));
     if (hc) { const ch = hc.closest('[data-ch]'); chap = ch ? (parseInt(ch.getAttribute('data-ch'), 10) || 0) : 0; }
     let hide = false;
-    if (this._fin) { const r = this._fin.getBoundingClientRect(); if (r.top < vh * 0.7 && r.bottom > vh * 0.3) hide = true; }
     if (this._ftCta) { const r = this._ftCta.getBoundingClientRect(); if (r.top < vh - 90 && r.bottom > 60) hide = true; }
     const scrolled = y > 30;
-    if (chap !== s.chap || tone !== s.tone || hide !== s.ctaHide || stage !== s.tmStage || scrolled !== s.scrolled) {
-      this.setState({ chap: chap, tone: tone, ctaHide: hide, tmStage: stage, scrolled: scrolled });
+    if (chap !== s.chap || tone !== s.tone || hide !== s.ctaHide || scrolled !== s.scrolled) {
+      this.setState({ chap: chap, tone: tone, ctaHide: hide, scrolled: scrolled });
     }
   }
 
@@ -2934,15 +2708,6 @@ class Component extends DCLogic {
     const open = !this.state.menu;
     this._menuFocusBack = !open;
     this.setState({ menu: open });
-  }
-
-  goCarte(i, id) {
-    this.setState({ tab: i, crOpen: id || null, menu: false });
-    const el = document.getElementById('carte');
-    if (!el) return;
-    setTimeout(() => {
-      try { el.scrollIntoView({ behavior: this._rm ? 'auto' : 'smooth', block: 'start' }); } catch (e) { el.scrollIntoView(); }
-    }, 40);
   }
 
   /* ---------- cuts carousel ---------- */
@@ -2973,86 +2738,6 @@ class Component extends DCLogic {
     const c = el.querySelector('.ct');
     const w = c ? c.getBoundingClientRect().width + 20 : 400;
     try { el.scrollBy({ left: dir * w, behavior: this._rm ? 'auto' : 'smooth' }); } catch (e) { el.scrollLeft += dir * w; }
-  }
-
-  /* ---------- shave to book ---------- */
-  bindShave(el) {
-    if (this._shave === el) return;
-    if (this._shaveOff) { this._shaveOff(); this._shaveOff = null; }
-    this._shave = el;
-    if (!el) return;
-    const down = (e) => {
-      if (this.state.finDone || e.button > 0) return;
-      e.preventDefault();
-      try { el.setPointerCapture(e.pointerId); } catch (x) { /* ignore */ }
-      if (this._shTw) this._shTw.stop = true;
-      this._sv = { rect: el.getBoundingClientRect() };
-      this.moveShave(e.clientX);
-    };
-    const move = (e) => { if (this._sv) this.moveShave(e.clientX); };
-    const up = () => {
-      if (!this._sv) return;
-      this._sv = null;
-      if (this._s >= 0.78) this.finishShave();
-      else { const s0 = this._s; this._shTw = this.tween(s0, 0, 420, (v) => this.setShave(v, true)); }
-    };
-    el.addEventListener('pointerdown', down);
-    el.addEventListener('pointermove', move);
-    el.addEventListener('pointerup', up);
-    el.addEventListener('pointercancel', up);
-    this._shaveOff = () => {
-      el.removeEventListener('pointerdown', down);
-      el.removeEventListener('pointermove', move);
-      el.removeEventListener('pointerup', up);
-      el.removeEventListener('pointercancel', up);
-    };
-  }
-
-  moveShave(cx) {
-    const r = this._sv.rect;
-    const knob = 68;
-    this.setShave(clamp((cx - r.left - knob / 2) / Math.max(1, r.width - knob), 0, 1), false);
-  }
-
-  setShave(s, quiet) {
-    const prev = this._s || 0;
-    this._s = s;
-    if (this._fin) {
-      this._fin.style.setProperty('--s', s.toFixed(4));
-      this._fin.classList.toggle('cutting', s > 0.004 && s < 0.999);
-    }
-    if (this._shave) this._shave.setAttribute('aria-valuenow', String(Math.round(s * 100)));
-    if (!quiet && s > prev + 0.002 && this.bits && this._fin && this._finG && !this._rm) {
-      const fr = this._fin.getBoundingClientRect();
-      const wr = this._finG.getBoundingClientRect();
-      const n = Math.min(14, Math.ceil((s - prev) * 160));
-      this.bits.spawn(s * fr.width, wr.top - fr.top + wr.height * 0.15, wr.bottom - fr.top - wr.height * 0.05, n);
-    }
-    if (!quiet && Math.floor(s * 10) !== Math.floor(prev * 10)) buzz(8);
-    const tone = (this.state.finDone || s > 0.5) ? 'light' : 'dark';
-    if (this._fin) {
-      const r = this._fin.getBoundingClientRect();
-      if (r.top <= 34 && r.bottom > 34 && tone !== this.state.tone) this.setState({ tone: tone });
-    }
-  }
-
-  finishShave() {
-    const s0 = this._s;
-    this._shTw = this.tween(s0, 1, 380, (v) => this.setShave(v, false), () => {
-      if (this._fin) this._fin.classList.remove('cutting');
-      this.setState({ finDone: true, shaved: true });
-      buzz([22, 40, 22]);
-      clearTimeout(this._autoOpen);
-      this._autoOpen = setTimeout(() => { if (!this.state.sheet) this.openWith(null); }, 1100);
-    });
-  }
-
-  shaveKey(e) {
-    if (this.state.finDone) return;
-    const k = e.key;
-    if (k === 'ArrowRight' || k === 'ArrowUp') { e.preventDefault(); this.setShave(clamp(this._s + 0.1, 0, 1), true); if (this._s >= 0.999) this.finishShave(); }
-    else if (k === 'ArrowLeft' || k === 'ArrowDown') { e.preventDefault(); this.setShave(clamp(this._s - 0.1, 0, 1), true); }
-    else if (k === 'Enter' || k === ' ' || k === 'End') { e.preventDefault(); this.finishShave(); }
   }
 
   /* open or closed, from the salon's real hours and closures; when open, the live wait without appointment */
@@ -3481,7 +3166,6 @@ const BookingMixin = {
   /* ---------- opening the sheet ---------- */
   openWith(pre) {
     try { this._lastFocus = document.activeElement; } catch (e) { /* ignore */ }
-    clearTimeout(this._autoOpen);
     let bk = this.state.bk;
     const finished = !bk || ['done', 'cancelled', 'manage'].indexOf(bk.step) >= 0 || (pre && pre.fresh);
     if (finished) LXE.setMoving(null);
