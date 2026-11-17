@@ -49,7 +49,7 @@ async function run({ browser, h }, step) {
   if (!said.startsWith('Première visite ?') || !said.includes('Je te montre en 30 s')) throw new Error('the bubble says « ' + said + ' »');
   await shot(p, 'site-visite-bulle-390');
   // the bubble covers neither the booking button nor the first available slot, on a phone and on every screen
-  const geo = (q) => q.evaluate(() => { const r = (s) => document.querySelector(s).getBoundingClientRect(); const b = r('.gd-bub'), c = r('.cta .btn'), n = r('.hr-next'); const hit = (x, y) => x.left < y.right && y.left < x.right && x.top < y.bottom && y.top < x.bottom; return { cta: hit(b, c), next: hit(b, n) }; });
+  const geo = (q) => q.evaluate(() => { const r = (s) => document.querySelector(s).getBoundingClientRect(); const b = r('.gd-bub'), c = r('.cta .btn'), n = r('.hx'); const hit = (x, y) => x.left < y.right && y.left < x.right && x.top < y.bottom && y.top < x.bottom; return { cta: hit(b, c), next: hit(b, n) }; });
   const g0 = await geo(p);
   if (g0.cta || g0.next) throw new Error('the bubble covers a booking button at 390: ' + JSON.stringify(g0));
   for (const [vw, vh] of [[960, 700], [1000, 700], [1024, 768], [1440, 900]]) {
