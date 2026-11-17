@@ -33,6 +33,8 @@ export type BoardProps = {
   setView: (patch: Partial<AgendaView>) => void;
   /** he has a chair among several: « Équipe » or « Moi » is his to choose */
   canChoose: boolean;
+  /** he may book outside the hours: the board shows an hour before and two after them */
+  late?: boolean;
 };
 
 const STEP = 15;
@@ -52,7 +54,7 @@ export const Board = memo(function Board(p: BoardProps) {
   const isToday = p.data.day === p.today;
 
   // the drawn range: opening hours, stretched to anything booked outside them
-  const [from, to] = useMemo(() => drawnRange(lanes.map((l) => l.work), appts), [lanes, appts]);
+  const [from, to] = useMemo(() => drawnRange(lanes.map((l) => l.work), appts, p.late), [lanes, appts, p.late]);
   // what is free reads « Libre 30 min »: from now on today, nothing on a day gone by (agenda/day.ts)
   const floor = p.data.day < p.today ? Infinity : isToday ? Math.ceil(p.nowMin / 5) * 5 : 0;
   const shopOpen = lanes.some((l) => l.work.length > 0);
@@ -85,7 +87,8 @@ export const Board = memo(function Board(p: BoardProps) {
     // open on "now" (or the morning) the first time a day is shown; the page itself never jumps
     if (scrolled.current === p.data.day) return;
     scrolled.current = p.data.day;
-    const target = isToday ? p.nowMin - 60 : from;
+    const opens = Math.min(...lanes.flatMap((l) => l.work.map((w) => w[0])), Infinity);
+    const target = isToday ? p.nowMin - 60 : Number.isFinite(opens) ? opens : from;
     if (scrollRef.current) scrollRef.current.scrollTop = Math.max(0, y(Math.max(from, target)));
   }, [p.data.day]);
 

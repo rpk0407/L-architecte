@@ -14,13 +14,15 @@ export const FREE_MIN = 15;
 export const STEP = 15;
 
 /** The hours drawn: the working hours of the chairs, stretched to anything booked outside them, on whole hours. */
-export function drawnRange(works: readonly (readonly Iv[])[], appts: readonly Span[]): Iv {
+/** `late`: whoever may book outside the hours gets an hour before and two after them to touch (06:00 – 23:00 at most). */
+export function drawnRange(works: readonly (readonly Iv[])[], appts: readonly Span[], late = false): Iv {
   let a = 9 * 60, b = 18 * 60 + 30;
   const starts = works.flatMap((w) => w.map((x) => x[0])).concat(appts.map((x) => x.start));
   const ends = works.flatMap((w) => w.map((x) => x[1])).concat(appts.map((x) => x.start + x.dur));
   if (starts.length) a = Math.min(...starts);
   if (ends.length) b = Math.max(...ends);
-  return [Math.floor(a / 60) * 60, Math.ceil(b / 60) * 60];
+  const lo = Math.floor(a / 60) * 60, hi = Math.ceil(b / 60) * 60;
+  return late ? [Math.min(lo, Math.max(6 * 60, lo - 60)), Math.max(hi, Math.min(23 * 60, hi + 120))] : [lo, hi];
 }
 
 export type OffKind = 'ferme' | 'pause' | 'absent';

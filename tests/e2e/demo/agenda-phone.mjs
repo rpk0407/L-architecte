@@ -164,7 +164,10 @@ export default async ({ h }) => {
   await page.evaluate(() => scrollBy(0, -160));
   await slot.tap({ position: { x: 30, y: 6 } });
   await sheet.getByRole('heading', { name: 'Nouveau rendez-vous' }).waitFor({ timeout: 8000 });
-  const kicker = (await sheet.locator('.k').first().innerText()).replace(/[  ]/g, ' ').toLowerCase();
+  // the sheet opens, then takes the hour and the barber it was given: read its kicker once it names them
+  const readK = async () => (await sheet.locator('.k').first().innerText()).replace(/[  ]/g, ' ').toLowerCase();
+  let kicker = await readK();
+  for (let i = 0; i < 20 && !kicker.includes(who[2]); i++) { await page.waitForTimeout(150); kicker = await readK(); }
   must(kicker.includes(who[1].toLowerCase()) && kicker.includes(who[2]), 'the new booking does not start on ' + who[1] + ' at ' + who[2] + ': ' + kicker);
   await sheet.getByRole('button', { name: 'Sans fiche' }).tap();
   await sheet.locator('#nc-n').fill('Client Pouce');
