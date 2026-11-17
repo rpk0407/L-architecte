@@ -86,7 +86,7 @@ function targets(app, r, x, known) {
 /** A context for a command run on the state without the engine: what it would emit is collected and thrown away. */
 function dryCtx(r) {
   const ctx = {
-    now: r.now, local: r.local, actor: { t: 'staff', id: r.me.id }, staff: r.me, caps: r.caps, meta: r.meta, drafts: /** @type {any[]} */ ([]),
+    now: r.now, local: r.local, actor: r.actor.via ? { t: 'staff', id: r.me.id, via: r.actor.via } : { t: 'staff', id: r.me.id }, staff: r.me, caps: r.caps, meta: r.meta, drafts: /** @type {any[]} */ ([]),
     emit(type, data, pii) { ctx.drafts.push(pii == null ? { type, data } : { type, data, pii }); },
     id: (p) => p + '_dry', token: () => 'dry', code: () => 'DRY',
     can: (c) => r.caps.has(c),

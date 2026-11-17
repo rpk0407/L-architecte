@@ -44,6 +44,15 @@ test('the owner accepts with his password; the key works as him, signed Prestata
   assert.equal(me.status, 200, me.text);
   assert.ok(me.json.caps.includes('settings'));
   assert.ok(!me.json.caps.includes('devices') && !me.json.caps.includes('client.erase'));
+  // the Comptoir itself opens with the key (the screens the owner uses, driven for him)
+  const boot = await p.get('/api/v1/bootstrap');
+  assert.equal(boot.status, 200, boot.text);
+  assert.equal(boot.json.me.session, 'support');
+  // the preset is applied through its own route: signed Prestataire too
+  const v0 = rt.engine.state.version;
+  assert.equal((await p.post('/api/v1/preset/apply', { parts: ['rules'] })).status, 200);
+  const evs = (await rt.engine.store.read(v0)).events;
+  for (const e of evs) assert.equal(e.actor.via, g.json.id, e.type);
   // a setting changed through the key: done, and the journal says who
   const up = await p.patch('/api/v1/settings', { shop: { legalName: 'Entreprise MARIANI' } });
   assert.equal(up.status, 200, up.text);

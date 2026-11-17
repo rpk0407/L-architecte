@@ -207,15 +207,17 @@ export async function handle(req, opt = {}) {
     // answer for the second; a retried request replays the same sequence, so it stays idempotent.
     // ':' is refused in x-request-id, so a derived key can never equal an id a client sends
     let n = 0;
+    /** who signs what this request writes: the person, or the prestataire acting for the owner (commands/support.js) */
+    const actor = !me ? null : support ? { t: /** @type {const} */ ('staff'), id: me.id, n: 'Prestataire (accès donné par ' + me.name + ')', via: support.id } : { t: /** @type {const} */ ('staff'), id: me.id, n: me.name, ...(device ? { dev: device.id } : {}) };
     const r = {
-      req, url, params, query: url.searchParams, body, raw, ip, rt, me, caps, device, session, support, setCookies, meta, origin,
+      req, url, params, query: url.searchParams, body, raw, ip, rt, me, caps, device, session, support, actor, setCookies, meta, origin,
       get s() { return rt.engine.state; },
       get now() { return rt.engine.clock(); },
       get local() { return localParts(rt.engine.clock()); },
       run: (handler, input) => {
         const i = n++;
         return engine.run(handler, input, {
-          actor: support ? { t: 'staff', id: me.id, n: 'Prestataire (accès donné par ' + me.name + ')', via: support.id } : { t: 'staff', id: me.id, n: me.name, ...(device ? { dev: device.id } : {}) }, staff: me, caps, meta,
+          actor, staff: me, caps, meta,
           requestId: requestId && i ? requestId + ':' + i : requestId
         });
       }
