@@ -455,7 +455,7 @@ export const cancelAppointment = {
     const freed = fo && ACTIVE.has(a.status) && lateCancel(s, a, ctx.now) ? releaseIfFirstMissed(s, ctx, a) : null;
     const fpaid = fo && !fo.packId ? paidOnline(s, fo) : null;
     if (fo) {
-      if (x.notify && a.clientId && a.day >= ctx.local.day) { const c = getClient(s, a.clientId); if (c.phone && c.sms) queueMessage(s, ctx, { key: 'cx_' + a.id, template: 'cancelled', to: c.phone, cid: c.id, apptId: a.id, vars: { ...apptVars(s, a), lien: ctx.meta.siteUrl || '' } }); }
+      if (x.notify && a.clientId && a.day >= ctx.local.day) { const c = getClient(s, a.clientId); if (c.phone && c.sms) queueMessage(s, ctx, { key: 'cx_' + a.id, template: 'cancelled', to: c.phone, cid: c.id, apptId: a.id, vars: { ...apptVars(s, a), lien: ctx.meta.siteUrl || '' } }); if (a.status !== 'pending') mailCancellation(s, ctx, a, { to: c.email, first: c.first, by: 'salon' }); }
       const dep = fpaid && (!rest.length || freed) ? { paymentId: fpaid.paymentId, paid: fpaid.amount, amount: fpaid.amount } : null;
       return { ok: true, deposit: dep, ...(freed ? { formule: freed } : {}) };
     }

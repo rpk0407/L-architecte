@@ -81,7 +81,7 @@ export function SlotPicker({ serviceIds, staffId, day, value, onPick, ignore, ho
 
 /* ---------------- an appointment ---------------- */
 
-type ApptDetail = { appt: Appt; client: ClientFull | null; history: { id: string; day: string; services: string[]; staff: string; status: string; price: number }[]; messages: { id: string; channel?: 'sms' | 'email'; template: string; status: string; at: number; sentAt: number | null }[]; payments: { id: string; kind: string; amount: number; status: string }[]; sale: any };
+type ApptDetail = { appt: Appt; client: ClientFull | null; history: { id: string; day: string; services: string[]; staff: string; status: string; price: number }[]; messages: { id: string; channel?: 'sms' | 'email'; template: string; status: string; at: number; sentAt: number | null; via?: string | null; resend?: boolean }[]; confirmMail?: '' | 'ok' | 'off' | 'no_email'; payments: { id: string; kind: string; amount: number; status: string }[]; sale: any };
 const TPL: Record<string, string> = { confirmation: 'Confirmation', reminder: 'Rappel la veille', reminder2h: 'Rappel 2 h avant', review: 'Demande d’avis', cancelled: 'Annulation', receipt: 'Reçu', lookup: 'Lien Mon rendez-vous' };
 /** A text's fate in a few words. Outside the demo nothing is simulated: without a provider a text waits for one. */
 function smsState(status: string, demo: boolean, provider: string | null, mail = false): string {
@@ -138,8 +138,14 @@ export function ApptSheet({ id, onClose }: { id: string | null; onClose: () => v
     if (res.formule) { toast({ kind: 'info', title: 'Marqué absent · carnet non payé', sub: res.formule.released ? 'Ses ' + res.formule.released + ' autres rendez-vous sont libérés, le client est prévenu par message.' : 'Il n’avait pas d’autre rendez-vous.', icon: 'alert', ttl: 9000 }); return; }
     toast({ title: 'Marqué absent · le créneau est libéré', icon: 'check', action: { label: 'Annuler', run: async () => { try { await api.post('/api/v1/appointments/' + id + '/status', { status: 'booked' }); refreshAll(); refresh(); } catch (e) { toastError(e); } } } });
   });
+  /** « Renvoyer »: a fresh copy by e-mail (the confirmation written again, or one message of the list); the answer says where it went */
+  const resend = (key: string, url: string) => run(key, async () => {
+    const r = await api.post<{ to: string; status: string; error?: string }>(url, {});
+    if (r.status === 'failed') toast({ kind: 'err', title: 'L’e-mail n’est pas parti', sub: r.error || undefined, icon: 'alert' });
+    else toast({ title: r.status === 'queued' ? 'E-mail en attente d’envoi' : 'Renvoyé par e-mail', sub: 'À ' + r.to, icon: 'check' });
+  });
   const saveTech = () => { if (data?.client && tech !== data.client.tech) run('tech', () => api.patch('/api/v1/clients/' + data.client!.id, { tech }), 'Fiche technique enregistrée'); };
-  const doMove = () => moveTo && run('move', () => api.post('/api/v1/appointments/' + a!.id + '/move', { ...moveTo, notify: true }), 'Rendez-vous déplacé · SMS envoyé').then(() => setMode('view'));
+  const doMove = () => moveTo && run('move', () => api.post('/api/v1/appointments/' + a!.id + '/move', { ...moveTo, notify: true }), 'Rendez-vous déplacé · le client est prévenu').then(() => setMode('view'));
   const doEdit = () => run('edit', () => api.patch('/api/v1/appointments/' + a!.id, { serviceIds: edit.serviceIds, note: edit.note }), 'Rendez-vous modifié').then(() => setMode('view'));
 
   const footer = !a ? null : mode === 'move' ? (
@@ -161,7 +167,7 @@ export function ApptSheet({ id, onClose }: { id: string | null; onClose: () => v
     <Sheet open={!!id} onClose={onClose} title={a ? a.name : ' '} kicker={a ? (STATUS[a.status] || a.status) + ' · ' + a.code : 'Rendez-vous'} footer={footer}>
       {!a ? <div className="col"><Skeleton h={60} /><Skeleton h={120} /><Skeleton h={80} /></div> : mode === 'move' ? (
         <>
-          <p className="muted">Avec qui, et quand ? Le client reçoit un SMS avec le nouvel horaire.</p>
+          <p className="muted">Avec qui, et quand ? Le client reçoit le nouvel horaire par message.</p>
           <StaffPicker value={moveTo?.staffId || (a.anyStaff ? 'any' : a.staffId)} onChange={(v) => setMoveTo(moveTo ? { ...moveTo, staffId: v } : { day: a.day, start: -1, staffId: v })} />
           <SlotPicker serviceIds={a.services.map((s) => s.id)} staffId={moveTo?.staffId || a.staffId} day={a.day} value={moveTo} onPick={setMoveTo} ignore={a.id} />
         </>
@@ -219,10 +225,16 @@ export function ApptSheet({ id, onClose }: { id: string | null; onClose: () => v
               <ul className="hist">{data.history.slice(0, 5).map((h) => <li key={h.id}><span className="d">{dates.dayShort(h.day)}</span><span className="ellipsis">{h.services.join(' + ')} · {h.staff}</span><span className={h.status === 'no_show' ? 'badge badge-warn' : 'muted tnum'}>{h.status === 'no_show' ? 'absent' : <Money cents={h.price} />}</span></li>)}</ul>
             </div>
           ) : null}
+          {data && data.confirmMail ? (
+            <div className="ap-resend" data-guide="ap-resend">
+              <Button variant="subtle" icon="mail" block disabled={data.confirmMail !== 'ok'} busy={busy === 'reconf'} onClick={() => resend('reconf', '/api/v1/appointments/' + a.id + '/resend-confirmation')}>Renvoyer la confirmation par e-mail</Button>
+              {data.confirmMail !== 'ok' ? <small className="faint">{data.confirmMail === 'no_email' ? 'Pas d’adresse e-mail sur sa fiche.' : 'Les e-mails aux clients sont coupés (Réglages › Messages).'}</small> : null}
+            </div>
+          ) : null}
           {data && data.messages.length ? (
             <div className="card card-tight">
               <div className="card-h"><h3>Messages automatiques</h3></div>
-              <ul className="msgs">{data.messages.map((m) => { const ok = m.status === 'sent' || (m.status === 'simulated' && boot.mode === 'demo'); return <li key={m.id}><i className={ok ? 'ok' : ''}>{ok ? <Icon name="check" /> : null}</i><span className="grow" style={{ flex: '1 0 auto' }}>{TPL[m.template] || m.template}{m.channel === 'email' ? ' par e-mail' : ''}</span><small className="faint" style={{ textAlign: 'right' }}>{m.channel === 'email' ? smsState(m.status, boot.mode === 'demo', (boot.providers as { email?: string | null }).email || null, true) : smsState(m.status, boot.mode === 'demo', boot.providers.sms)}<span style={{ whiteSpace: 'nowrap' }}>{ago(m.status === 'expired' ? m.at : m.sentAt || m.at)}</span></small></li>; })}</ul>
+              <ul className="msgs">{data.messages.map((m) => { const ok = m.status === 'sent' || (m.status === 'simulated' && boot.mode === 'demo'); return <li key={m.id}><i className={ok ? 'ok' : ''}>{ok ? <Icon name="check" /> : null}</i><span className="grow" style={{ flex: '1 0 auto' }}>{TPL[m.template] || m.template}{m.channel === 'email' || m.via === 'email' ? ' par e-mail' : ''}{m.resend ? <button type="button" className="link ap-again" data-resend={m.id} disabled={busy === 'rs' + m.id} onClick={() => resend('rs' + m.id, '/api/v1/messages/' + encodeURIComponent(m.id) + '/resend')}>Renvoyer</button> : null}</span><small className="faint" style={{ textAlign: 'right' }}>{m.channel === 'email' ? smsState(m.status, boot.mode === 'demo', (boot.providers as { email?: string | null }).email || null, true) : smsState(m.status, boot.mode === 'demo', boot.providers.sms)}<span style={{ whiteSpace: 'nowrap' }}>{ago(m.status === 'expired' ? m.at : m.sentAt || m.at)}</span></small></li>; })}</ul>
             </div>
           ) : null}
         </>

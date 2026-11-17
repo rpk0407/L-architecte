@@ -2,12 +2,18 @@
 // Delivery bookkeeping for queued messages, the "on recoupe ?" campaign, and the STOP replies.
 import { fail } from '../core/engine.js';
 import { str, arr, id, opt, obj, bool, parse } from '../lib/validate.js';
-import { normPhone } from '../lib/util.js';
-import { queueMessage, consentGone, fileOf } from '../domain/messages.js';
+import { normPhone, isEmail, maskEmail } from '../lib/util.js';
+import { queueMessage, consentGone, fileOf, FILLERS } from '../domain/messages.js';
+import { mailConfirmation } from '../domain/mails.js';
+import { contactCidOf } from '../domain/notify.js';
+import { startsAt } from '../domain/policy.js';
+import { mailOfText } from '../messaging/bymail.js';
+import { localParts } from '../../shared/dates.js';
+import { getAppt, needChair } from './common.js';
 import { clientStats } from '../domain/insights.js';
 import { membersOf, liveIn, weekUse } from '../domain/membership.js';
 import { rhythmOf } from '../../shared/membership-words.js';
-import { SECRET_TEMPLATES, SECRET_ERROR } from '../core/templates.js';
+import { SECRET_TEMPLATES, SECRET_ERROR, classOf } from '../core/templates.js';
 import { handEligible, handRefusal, maySend } from '../messaging/hand.js';
 import { cutoverHeld } from '../projections/bascule.js';
 
@@ -33,7 +39,8 @@ export const messageResult = {
     const status = ['sent', 'failed', 'simulated', 'skipped', 'queued', 'expired'].includes(input.status) ? input.status : 'failed';
     // via (MSG-02): the way it really left, 'whatsapp' or 'sms' ('fallback': by Brevo SMS after the salon's phone
     // refused it, FID-01), and fallback: why the first way handed it on
-    const via = ['whatsapp', 'sms', 'fallback'].includes(input.via) ? { via: input.via } : {};
+    // 'email': a text no SMS could carry, sent to the client's address instead (messaging/hand.js byMail), toMasked: where
+    const via = ['whatsapp', 'sms', 'fallback', 'email'].includes(input.via) ? { via: input.via, ...(input.via === 'email' && input.toMasked ? { toMasked: String(input.toMasked).slice(0, 120) } : {}) } : {};
     // a text with a code: the provider's words may echo it, and this patch is chained for good (whatever the status)
     const secret = SECRET_TEMPLATES.has(m.template);
     const fallback = input.fallback ? { fallback: secret ? SECRET_ERROR : String(input.fallback).slice(0, 160) } : {};
@@ -78,6 +85,98 @@ export const handSent = {
     const c = !skip && m.informs ? fileOf(s, m.cid) : null;
     if (c && !c.erased && !(s.informed && s.informed.has(c.id))) ctx.emit('client.informed', { cid: c.id, msgId: m.id });
     return { ok: true, status: skip ? 'skipped' : 'sent' };
+  }
+};
+
+/* ---------------- « Renvoyer »: a fresh copy of a client's message, by e-mail ---------------- */
+
+/** A message, or an appointment's confirmation, is sent again at most this many times a day. */
+export const RESENDS_PER_DAY = 3;
+const resendsToday = (s, ctx, root) => { let n = 0; for (const x of s.messages.values()) if (x.resendOf === root && localParts(x.at).day === ctx.local.day) n++; return n; };
+const TOO_MANY = 'Déjà renvoyé ' + RESENDS_PER_DAY + ' fois aujourd’hui. Réessaie demain.';
+
+/**
+ * Why this message cannot be sent again by e-mail, or '' (the lists of the Comptoir show « Renvoyer » on '' only).
+ * What can: a message to a client that failed or came too late, whatever its channel, and an e-mail that left (the
+ * client lost it, or asks for it again). Never an offer (the client's yes is for SMS), a sign-in code, a text filled as
+ * it leaves, nor one still waiting or sent by SMS or WhatsApp (it reached him).
+ * @returns {string}
+ */
+export function resendRefusal(s, m) {
+  if (!m || !m.cid || m.owner || SECRET_TEMPLATES.has(m.template) || Object.hasOwn(FILLERS, m.template)) return 'Ce message ne se renvoie pas.';
+  if (m.marketing || classOf(m.template) === 'marketing') return 'Une offre ne part pas par e-mail : le client a dit oui aux SMS seulement.';
+  const mail = m.channel === 'email' || m.via === 'email';
+  const left = m.status === 'sent' || (m.status === 'simulated' && s.mode === 'demo');
+  if (!(m.status === 'failed' || m.status === 'expired' || (left && mail))) return m.status === 'queued' || m.status === 'claimed' ? 'Ce message est encore en attente.' : 'Ce message ne se renvoie pas : il est déjà parti, ou il a été écarté.';
+  if (s.settings.messages.email === false) return 'Les e-mails aux clients sont coupés (Réglages › Messages).';
+  const c = fileOf(s, m.cid);
+  if (!c || c.erased) return 'Cette fiche est effacée.';
+  const gone = consentGone(s, m);
+  if (gone) return 'Ce client ne veut plus de ce message (' + gone + ').';
+  return isEmail(m.channel === 'email' && isEmail(m.to) ? m.to : c.email) ? '' : 'Ce client n’a pas d’adresse e-mail.';
+}
+
+/**
+ * « Renvoyer » on a message of the Comptoir's lists: a fresh copy by e-mail, under a new id, to the address the mail
+ * went to (else the file's). The copy is a message like any other: it waits in the outbox and leaves by the normal
+ * dispatch. A confirmation of an appointment still to come is written again from the appointment (its hour today, a
+ * fresh calendar file); anything else leaves with the words it had. Who may: whoever may send this client's messages
+ * (messaging/hand.js maySend: the desk, a manager, the owner; a barber for his own appointments). At most three a day
+ * per message, counted on the first one (a copy of a copy counts with it). The journal names who asked (the actor).
+ */
+export const resendMessage = {
+  run(s, input, ctx) {
+    const m = s.messages.get(String((input && input.id) || ''));
+    if (!m || !m.cid || m.owner) fail(404, 'not_found', 'Message introuvable.');
+    if (!maySend(s, m, { caps: ctx.caps, staffId: ctx.staff ? ctx.staff.id : undefined })) fail(403, 'forbidden', 'Ce message n’est pas pour un de tes clients.');
+    const no = resendRefusal(s, m);
+    if (no) fail(409, 'not_resendable', no);
+    const c = fileOf(s, m.cid);
+    const to = m.channel === 'email' && isEmail(m.to) ? m.to : c.email;
+    const root = m.resendOf || m.id;
+    const n = resendsToday(s, ctx, root);
+    if (n >= RESENDS_PER_DAY) fail(429, 'slow_down', TOO_MANY);
+    const key = 'rs_' + root.replace(/^msg_/, '') + '_' + ctx.local.day + '_' + (n + 1);
+    const a = m.apptId ? s.appts.get(m.apptId) : null;
+    let id;
+    if (m.template === 'confirmation' && a && a.status === 'booked' && startsAt(a) > ctx.now) {
+      id = mailConfirmation(s, ctx, a, { to, first: c.first, link: ctx.meta.linkFor ? ctx.meta.linkFor(a) : '', key, resendOf: root });
+    } else {
+      // a mail keeps its subject and button (its calendar file left with the first one); a text is laid out as a mail
+      const x = m.channel === 'email' ? { subject: (m.mail || {}).subject || '', text: m.body, html: (m.mail || {}).html, cta: (m.mail || {}).cta, links: (m.mail || {}).links } : mailOfText(s, m);
+      id = queueMessage(s, ctx, { key, channel: 'email', template: m.template, to, cid: m.cid, apptId: m.apptId || null, vars: {}, ...x, resendOf: root });
+    }
+    if (!id) fail(409, 'not_resendable', 'Ce message ne peut pas partir par e-mail.');
+    return { ok: true, id, to: maskEmail(to, { domain: true }) };
+  }
+};
+
+/** The address an appointment's confirmation goes to: the client's, else the parent's who booked for a child. */
+export function confirmAddress(s, a) {
+  for (const cid of [a.clientId, contactCidOf(a, s)]) { const c = cid ? fileOf(s, cid) : null; if (c && !c.erased && isEmail(c.email)) return { to: c.email, first: c.first || '' }; }
+  return null;
+}
+
+/**
+ * « Renvoyer la confirmation par e-mail » on an appointment's sheet: the confirmation written again from the
+ * appointment (with the calendar file and the « Gérer mon rendez-vous » link), whether or not one ever left. Who may:
+ * whoever may change this appointment (needChair). At most three a day per appointment.
+ */
+export const resendConfirmation = {
+  run(s, input, ctx) {
+    const a = getAppt(s, String((input && input.id) || ''));
+    needChair(ctx, a.staffId);
+    if (a.status === 'pending') fail(409, 'unpaid', 'Ce rendez-vous attend son acompte : la confirmation part une fois payé.');
+    if (a.status !== 'booked' || startsAt(a) <= ctx.now) fail(409, 'closed', 'Ce rendez-vous n’est plus à venir : pas de confirmation à renvoyer.');
+    if (s.settings.messages.email === false) fail(409, 'email_off', 'Les e-mails aux clients sont coupés (Réglages › Messages).');
+    const who = confirmAddress(s, a);
+    if (!who) fail(409, 'no_email', 'Ce client n’a pas d’adresse e-mail.');
+    const root = 'conf:' + a.id;
+    const n = resendsToday(s, ctx, root);
+    if (n >= RESENDS_PER_DAY) fail(429, 'slow_down', TOO_MANY);
+    const id = mailConfirmation(s, ctx, a, { ...who, link: ctx.meta.linkFor ? ctx.meta.linkFor(a) : '', key: 'rs_mconf_' + a.id + '_' + ctx.local.day + '_' + (n + 1), resendOf: root });
+    if (!id) fail(409, 'not_resendable', 'La confirmation ne peut pas partir par e-mail.');
+    return { ok: true, id, to: maskEmail(who.to, { domain: true }) };
   }
 };
 

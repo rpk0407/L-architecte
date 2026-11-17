@@ -31,7 +31,8 @@ const hello = (first) => 'Bonjour' + (first ? ' ' + first : '') + ',';
 
 /**
  * The client's confirmation, or the new time after a move (a.moves counts it): the same calendar event, updated.
- * @param {{ to: string, first?: string, link?: string }} o
+ * @param {{ to: string, first?: string, link?: string, key?: string, resendOf?: string }} o key, resendOf: a fresh copy
+ *   asked from the Comptoir (« Renvoyer la confirmation », commands/messages.js), under its own key
  */
 export function mailConfirmation(s, ctx, a, o) {
   if (!s.settings.messages.email || !isEmail(o.to)) return null;
@@ -50,7 +51,7 @@ export function mailConfirmation(s, ctx, a, o) {
     '', 'Le fichier joint ajoute le rendez-vous à ton agenda.', 'À bientôt !'
   ].join('\n');
   return queueMessage(s, ctx, {
-    key: 'mconf_' + a.id + '_' + (a.moves || 0), channel: 'email', template: 'confirmation', to: o.to, cid: a.clientId, apptId: a.id, vars: {},
+    key: o.key || 'mconf_' + a.id + '_' + (a.moves || 0), channel: 'email', template: 'confirmation', to: o.to, cid: a.clientId, apptId: a.id, vars: {}, ...(o.resendOf ? { resendOf: o.resendOf } : {}),
     subject: (moved ? 'Rendez-vous déplacé : ' : 'Rendez-vous confirmé : ') + when + pour + ' · ' + shop.name, text,
     cta: o.link ? { label: 'Gérer mon rendez-vous', url: o.link } : undefined, links: [o.link || ''],
     attachments: [{ name: 'rendez-vous.ics', type: 'text/calendar; charset=utf-8; method=PUBLISH', content: apptIcs(shop, a, { barber, link: o.link, now: ctx.now }) }]

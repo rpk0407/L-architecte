@@ -23,7 +23,9 @@ import { meView } from './routes-auth.js';
 import * as A from '../commands/agenda.js';
 import * as C from '../commands/clients.js';
 import * as S from '../commands/sales.js';
-import { sendRebook } from '../commands/messages.js';
+import { startsAt } from '../domain/policy.js';
+import { sendRebook, resendConfirmation, resendRefusal, confirmAddress } from '../commands/messages.js';
+import { maySend } from '../messaging/hand.js';
 import { rangeWords, timeoffConflicts } from '../commands/team.js';
 import { AWAY_LABEL } from '../commands/report.js';
 import { parseSearch, searchRank } from '../domain/client-search.js';
@@ -484,11 +486,23 @@ export function staffRoutes(app) {
     const c = a.clientId ? s.clients.get(a.clientId) : null;
     const history = c ? [...s.appts.values()].filter((x) => x.clientId === c.id && x.id !== a.id && (x.status === 'done' || x.status === 'no_show')).sort((x, y) => (x.day < y.day ? 1 : -1)).slice(0, 8)
       .map((x) => ({ id: x.id, day: x.day, start: x.start, services: x.services.map((v) => v.name), staff: (s.staff.get(x.staffId) || {}).name, status: x.status, price: x.saleId && s.sales.get(x.saleId)?.apptId === x.id ? (s.sales.get(x.saleId)?.totals.revenue ?? x.price) : x.price })) : [];
-    const messages = [...s.messages.values()].filter((m) => m.apptId === a.id).map((m) => ({ id: m.id, channel: m.channel || 'sms', template: m.template, status: m.status, at: m.at, sentAt: m.sentAt || null, to: m.toMasked }));
+    const messages = [...s.messages.values()].filter((m) => m.apptId === a.id).map((m) => ({ id: m.id, channel: m.channel || 'sms', template: m.template, status: m.status, at: m.at, sentAt: m.sentAt || null, to: m.toMasked, via: m.via || null,
+      // « Renvoyer » by e-mail: a message that failed or came too late, or an e-mail that left (commands/messages.js)
+      resend: !resendRefusal(s, m) && maySend(s, m, { caps: r.caps, staffId: r.me.id }) }));
+    // « Renvoyer la confirmation par e-mail »: 'ok', or why the button is off ('' when there is nothing to confirm any more)
+    const confirmMail = a.status !== 'booked' || startsAt(a) <= r.now ? '' : s.settings.messages.email === false ? 'off' : confirmAddress(s, a) ? 'ok' : 'no_email';
     const payments = [...s.payments.values()].filter((p) => p.apptId === a.id).map((p) => ({ id: p.id, kind: p.kind, amount: p.amount, status: p.status, at: p.createdAt }));
     // the sheet and the till read every place of a group (who, what, the price, paid or not), to ring it up as one
     const grp = a.ext && a.ext.group ? groupBrief(s, a, { detail: true }) : null;
-    return { appt: { ...apptView(s, a, r.caps, stats, r.now), ...(grp ? { group: grp } : {}) }, client: c && r.caps.has('client.view') ? clientFull(s, c, r.caps, stats, r.now) : null, history, messages, payments, sale: a.saleId && s.sales.get(a.saleId) ? saleView(s, s.sales.get(a.saleId), r.caps) : null };
+    return { appt: { ...apptView(s, a, r.caps, stats, r.now), ...(grp ? { group: grp } : {}) }, client: c && r.caps.has('client.view') ? clientFull(s, c, r.caps, stats, r.now) : null, history, messages, confirmMail, payments, sale: a.saleId && s.sales.get(a.saleId) ? saleView(s, s.sales.get(a.saleId), r.caps) : null };
+  }, { cap: 'agenda.own' });
+
+  /** « Renvoyer la confirmation par e-mail »: queued by a journaled command, then sent now by the normal dispatch. */
+  app.post('/api/v1/appointments/:id/resend-confirmation', async (r) => {
+    const out = await r.run(resendConfirmation, { id: r.params.id });
+    try { await dispatchNow(r.rt, [out.id]); } catch (e) { console.warn('[lx] resend', e && /** @type {any} */ (e).message); }
+    const m = r.s.messages.get(out.id);
+    return { ok: true, id: out.id, to: out.to, status: m ? m.status : 'queued', error: m && m.status === 'failed' ? m.error || '' : '' };
   }, { cap: 'agenda.own' });
 
   app.post('/api/v1/appointments', (r) => r.run(A.createAppointment, r.body), { cap: 'agenda.own' });
@@ -830,7 +844,9 @@ export function staffRoutes(app) {
     const items = [...r.s.messages.values()].sort((a, b) => b.at - a.at).slice(0, Math.min(300, Number(r.query.get('limit')) || 100))
       .map((m) => ({ id: m.id, channel: m.channel || 'sms', template: m.template, status: m.status, at: m.at, dueAt: m.dueAt || m.at, sentAt: m.sentAt || null, to: m.toMasked || maskPhone(m.to), body: r.caps.has('settings') ? m.body : '', subject: r.caps.has('settings') && m.mail ? m.mail.subject || '' : '', error: m.error || '', via: m.via || null, fallback: m.fallback || '', held: m.status === 'queued' && cutoverHeld(r.s, m),
         // « mode téléphone »: waits for a person on the Messages screen, not for a provider (messaging/hand.js)
-        hand: m.status === 'queued' && byHand(r.s, r.rt, m) }));
+        hand: m.status === 'queued' && byHand(r.s, r.rt, m),
+        // « Renvoyer » by e-mail (commands/messages.js resendRefusal says which messages can)
+        resend: !resendRefusal(r.s, m) }));
     return { items, provider: r.rt.sms ? r.rt.sms.name : null, emailProvider: r.rt.email ? r.rt.email.name : null, mode: r.s.mode };
   }, { cap: 'marketing' });
   /** The address that brings STOP replies back (sent with every text; also for the provider's own settings). */

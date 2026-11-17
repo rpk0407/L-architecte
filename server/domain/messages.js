@@ -182,7 +182,7 @@ const originOf = (ctx) => String((ctx && ctx.meta && ctx.meta.siteUrl) || '').re
  * @param {any} s
  * @param {import('../core/engine.js').Ctx} ctx
  * @param {{ key: string, template: string, text?: string, to: string, cid?: string|null, apptId?: string|null, vars: Record<string, any>, dueAt?: number, channel?: 'sms'|'email',
- *   subject?: string, html?: string, cta?: { label: string, url: string }, links?: string[], attachments?: import('../messaging/email.js').MailAttachment[], owner?: boolean, review?: boolean }} m
+ *   subject?: string, html?: string, cta?: { label: string, url: string }, links?: string[], attachments?: import('../messaging/email.js').MailAttachment[], owner?: boolean, review?: boolean, resendOf?: string }} m
  */
 export function queueMessage(s, ctx, m) {
   const id = messageId(m.key);
@@ -203,7 +203,9 @@ export function queueMessage(s, ctx, m) {
   const informs = cls === 'service' && own && !!origin && !Object.hasOwn(FILLERS, m.template) && neverInformed(s, c) && !informing(s, ctx, c.id);
   const told = informs ? renderTemplate(INFORM_LINE, { origin }) : '';
   // review: this message carries the tracked review link (a receipt sent after the visit): it is the quarter's request
-  const extra = { ...(informs ? { informs: true } : {}), ...(m.owner ? { owner: true } : {}), ...(m.review ? { review: true } : {}) };
+  const extra = { ...(informs ? { informs: true } : {}), ...(m.owner ? { owner: true } : {}), ...(m.review ? { review: true } : {}),
+    // « Renvoyer » (commands/messages.js): the message this one is a fresh copy of, and who asked for it
+    ...(m.resendOf ? { resendOf: String(m.resendOf), by: ctx.actor ? ctx.actor.id : null } : {}) };
   if (m.channel === 'email') return queueMail(ctx, m, id, flags, told, extra);
   const tpl = m.text || M.templates[m.template] || '';
   let body = renderTemplate(tpl, m.vars);

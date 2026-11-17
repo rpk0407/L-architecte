@@ -16,8 +16,10 @@ import { phoneAllowed, renderTemplate, whenWords, waMapping } from '../domain/me
 import { ownerEmail } from '../domain/mails.js';
 import { normPhone, maskPhone, fmtPhone, isEmail, maskEmail } from '../lib/util.js';
 import { WA_TEMPLATES, waDefaults } from '../messaging/whatsapp.js';
-import { byHand, effectiveMode, handCount, handQueue } from '../messaging/hand.js';
-import { handSent } from '../commands/messages.js';
+import { byHand, effectiveMode, handCount, handQueue, handKind, maySend } from '../messaging/hand.js';
+import { handSent, resendMessage, resendRefusal } from '../commands/messages.js';
+import { fileOf } from '../domain/messages.js';
+import { dispatchNow } from './scheduler.js';
 import { cutoverHold } from '../projections/bascule.js';
 import { parseFrom } from '../messaging/email.js';
 import { IONOS_DKIM, IONOS_LIMIT, IONOS_SMTP, IONOS_SPF, mailDns, mailExpected, mailTrouble, mailVars, resolverOf } from '../messaging/ionos.js';
@@ -47,6 +49,29 @@ export function lastSmsTrouble(msgs) {
     if (m.fallback && (!fallback || at > fallback.at)) fallback = { at, error: m.fallback };
   }
   return { lastFailure: failed, lastFallback: fallback };
+}
+
+const NOT_LEFT_MS = 48 * 3600000;
+/**
+ * The Messages screen's « Pas partis »: this person's client messages of the last two days that failed or came too late
+ * and can be sent again by e-mail (« Renvoyer »), the newest first. One line per client and kind: the latest.
+ */
+function notLeft(s, now, who) {
+  const out = [], seen = new Set();
+  const list = [...s.messages.values()].filter((m) => (m.status === 'failed' || m.status === 'expired') && now - (m.sentAt || m.at) < NOT_LEFT_MS).sort((a, b) => (b.sentAt || b.at) - (a.sentAt || a.at));
+  // sent again since (a copy that left, or still on its way): no longer « pas parti »
+  const again = new Set();
+  for (const m of s.messages.values()) if (m.resendOf && m.status !== 'failed' && m.status !== 'expired') again.add(m.resendOf);
+  for (const m of list) {
+    if (out.length >= 30) break;
+    if (!maySend(s, m, who) || again.has(m.resendOf || m.id) || resendRefusal(s, m)) continue;
+    const k = m.cid + '|' + m.template + '|' + (m.apptId || '');
+    if (seen.has(k)) continue;
+    seen.add(k);
+    const c = fileOf(s, m.cid);
+    out.push({ id: m.id, kind: handKind(m), channel: m.channel || 'sms', status: m.status, at: m.sentAt || m.at, error: m.error || '', client: { id: c.id, name: [c.first, c.last].filter(Boolean).join(' ') || 'Client' } });
+  }
+  return out;
 }
 
 /** @param {any} app */
@@ -174,7 +199,7 @@ export function channelRoutes(app) {
   app.get('/api/v1/messages/hand', (r) => {
     const s = r.s;
     const q = handQueue(s, r.rt, r.now, r.local, whoOf(r));
-    return { ...q, mode: waMode(s.settings.messages), effective: effectiveMode(s, r.rt), hold: cutoverHold(s), all: r.caps.has('agenda.edit'), demo: s.mode === 'demo' };
+    return { ...q, failed: notLeft(s, r.now, whoOf(r)), mode: waMode(s.settings.messages), effective: effectiveMode(s, r.rt), hold: cutoverHold(s), all: r.caps.has('agenda.edit'), demo: s.mode === 'demo' };
   }, { cap: 'agenda.own' });
 
   /** « Envoyé » (or « Écarter », skip): recorded once, by a journaled command that checks the rights again. */
@@ -183,6 +208,17 @@ export function channelRoutes(app) {
     // a text an automatic way is about to take is not a person's to mark (the scheduler would send it a second time)
     if (m && m.status === 'queued' && !byHand(r.s, r.rt, m)) throw new HttpError(409, 'automatic', 'Ce message part tout seul : rien à faire.');
     return r.run(handSent, { id: r.params.id, skip: !!(r.body && r.body.skip) });
+  }, { cap: 'agenda.own' });
+
+  /**
+   * « Renvoyer »: a fresh copy of a client's message by e-mail (commands/messages.js resendMessage: the rights, three a
+   * day per message, the journal). It leaves now by the normal dispatch, not at the next tick: someone is waiting.
+   */
+  app.post('/api/v1/messages/:id/resend', async (r) => {
+    const out = await r.run(resendMessage, { id: r.params.id });
+    try { await dispatchNow(r.rt, [out.id]); } catch (e) { console.warn('[lx] resend', e && /** @type {any} */ (e).message); }
+    const m = r.s.messages.get(out.id);
+    return { ok: true, id: out.id, to: out.to, status: m ? m.status : 'queued', error: m && m.status === 'failed' ? m.error || '' : '' };
   }, { cap: 'agenda.own' });
 
   /** One text through one route to the owner's own phone: the route checked before the salon depends on it. */
