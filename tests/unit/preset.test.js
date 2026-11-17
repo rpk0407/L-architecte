@@ -78,7 +78,7 @@ test('the plan: four barbers and the owner’s chair, twelve services, the hours
   // Frank's line is the owner's account, and the plan says so first, in plain words
   const frank = p.team.find((t) => t.name === 'Frank');
   assert.deepEqual([frank.owner, frank.account, frank.id], [true, 'Gérant', frankOf(s()).id]);
-  assert.equal(p.notes[0], 'Frank est le gérant : ton compte « Gérant » reçoit son fauteuil, sa semaine, sa couleur et ses initiales. Aucun second compte « Frank » n’est créé.');
+  assert.equal(p.notes[0], 'Frank est le gérant : ton compte « Gérant » reçoit son fauteuil, sa semaine, sa couleur et ses initiales, et s’affiche « 💈 L\'Architecte » pour les clients et l’équipe. Aucun second compte « Frank » n’est créé.');
   // Aland: his hours are known now, so he is online like the others, and the owner is told how his school weeks work
   const aland = p.team.find((t) => t.name === 'Aland');
   assert.deepEqual([aland.online, aland.schedule[4], aland.wp], [true, [[hm(9, 30), hm(13)], [hm(14), hm(18)]], '']);
@@ -134,7 +134,7 @@ test('applied: the real week of each barber, the twelve services at their price 
   for (const x of team) assert.deepEqual([x.chair, x.bookable, x.active, x.services, x.commission, !!x.hasPin], [true, true, true, 'all', { service: 0, product: 0 }, false], x.name);
   // Frank is the owner's account: his chair, week, colour and initials, still the owner, nobody else called Frank
   const fr = frankOf(s());
-  assert.deepEqual([fr.name, fr.role, fr.chair, fr.bookable, fr.color, fr.initials, fr.services], ['Gérant', 'owner', true, true, '#F5B544', 'FR', 'all']);
+  assert.deepEqual([fr.name, fr.role, fr.chair, fr.bookable, fr.color, fr.initials, fr.services], ["💈 L'Architecte", 'owner', true, true, '#F5B544', 'FR', 'all']);
   assert.equal(byName(s(), 'Frank'), undefined);
   const wk = (name) => (name === 'Frank' ? frankOf(s()) : byName(s(), name)).schedule;
   const lunch = [[hm(9, 30), hm(13)], [hm(14), hm(18)]];
@@ -218,7 +218,7 @@ test('the site offers the real week at once: each barber’s first and last cut 
   assert.equal(weekday(mon), 1);
   // everyone is on the site, Aland too
   const site = (await browser(rt).get('/api/public/salon')).json;
-  assert.deepEqual(site.barbers.map((x) => x.name), ['Gérant', 'JKut', 'Le Soldat', 'Esteban', 'Aland']);
+  assert.deepEqual(site.barbers.map((x) => x.name), ["💈 L'Architecte", 'JKut', 'Le Soldat', 'Esteban', 'Aland']);
   // and the public endpoint agrees
   const pub = await browser(rt).get('/api/public/availability?from=' + wed + '&days=1&services=' + bySlug(s(), 'cl').id + '&staff=' + byName(s(), 'JKut').id);
   assert.equal(pub.status, 200);
@@ -403,12 +403,13 @@ test('the owner who cuts too: his account of the setup screen gets his chair, we
     assert.deepEqual(plan.team.map((x) => [x.name, x.status]), [['JKut', 'create'], ['Le Soldat', 'create'], ['Frank', 'chair'], ['Esteban', 'create'], ['Aland', 'create']], name);
     const line = plan.team[2];
     assert.deepEqual([line.owner, line.account], [true, name === 'Frank' ? '' : name]);
-    assert.equal(plan.notes[0], 'Frank est le gérant : ' + (name === 'Frank' ? 'ton compte' : 'ton compte « ' + name + ' »') + ' reçoit son fauteuil, sa semaine, sa couleur et ses initiales. Aucun second compte « Frank » n’est créé.');
+    assert.equal(plan.notes[0], 'Frank est le gérant : ' + (name === 'Frank' ? 'ton compte' : 'ton compte « ' + name + ' »') + ' reçoit son fauteuil, sa semaine, sa couleur et ses initiales, et s’affiche « 💈 L\'Architecte » pour les clients et l’équipe. Aucun second compte « Frank » n’est créé.');
     await b.post('/api/v1/preset/apply', {});
     const all = [...s().staff.values()];
-    assert.equal(all.filter((x) => /frank/i.test(x.name)).length, name.startsWith('Frank') ? 1 : 0, name);
+    // whatever he typed, his account now goes by the name the owner asked for, and no account is called Frank
+    assert.equal(all.filter((x) => /frank/i.test(x.name)).length, 0, name);
     const owner = all.find((x) => x.role === 'owner');
-    assert.deepEqual([owner.name, owner.chair, owner.bookable, owner.schedule[3], owner.color, owner.initials], [name, true, true, [[540, 810]], '#F5B544', 'FR'], name);
+    assert.deepEqual([owner.name, owner.chair, owner.bookable, owner.schedule[3], owner.color, owner.initials], ["💈 L'Architecte", true, true, [[540, 810]], '#F5B544', 'FR'], name);
     assert.equal(all.length, 5, name + ': the owner and four barbers');
     const after = (await b.get('/api/v1/preset')).json;
     assert.equal(after.todo, 0, name);
@@ -567,7 +568,7 @@ test('a barber of the preset has no code: he is not on the tablet, no code opens
 
   // before: only the owner is offered on the tablet, and guessing a code for JKut opens nothing
   // the owner holds Frank's chair and already has his code
-  assert.deepEqual((await tablet().get('/api/auth/state')).json.team.map((x) => x.name), ['Gérant']);
+  assert.deepEqual((await tablet().get('/api/auth/state')).json.team.map((x) => x.name), ["💈 L'Architecte"]);
   for (const pin of ['', '0000', '1313']) assert.equal((await tablet().post('/api/auth/pin', { staffId: jk, pin })).status, 401);
   assert.equal((await b.post('/api/v1/staff/' + jk + '/phone-link', {})).json.error.code, 'no_pin');
   assert.deepEqual((await b.get('/api/v1/preset')).json.noCode.map((x) => x.name), ['JKut', 'Le Soldat', 'Esteban', 'Aland']);
@@ -583,7 +584,7 @@ test('a barber of the preset has no code: he is not on the tablet, no code opens
   assert.ok([...s().staff.values()].filter((x) => x.role === 'barber').every((x) => x.hasPin));
 
   // now each one is on the tablet and enters with his own code, into his own space, with a barber's rights only
-  assert.deepEqual((await tablet().get('/api/auth/state')).json.team.map((x) => x.name), ['Gérant', 'JKut', 'Le Soldat', 'Esteban', 'Aland']);
+  assert.deepEqual((await tablet().get('/api/auth/state')).json.team.map((x) => x.name), ["💈 L'Architecte", 'JKut', 'Le Soldat', 'Esteban', 'Aland']);
   const mine = tablet();
   assert.equal((await mine.post('/api/auth/pin', { staffId: jk, pin: codes[1].pin })).status, 401, 'Soldat’s code does not open JKut');
   assert.equal((await mine.post('/api/auth/pin', { staffId: jk, pin: codes[0].pin })).status, 200);
@@ -665,4 +666,12 @@ test('a salon that applied the earlier preset is offered the new hours, before a
   const d3 = (await t3.b.post('/api/v1/preset/apply', { parts: ['team'] })).json.done;
   assert.deepEqual([d3.schedules, d3.hours, d3.cfa, d3.closures], [3, 0, 0, 0]);
   assert.deepEqual(frankOf(t3.s()).schedule[3], [[hm(9), hm(13, 30)]], 'Frank’s untouched week follows');
+});
+
+test('the gérant’s display name carries a barber pole, and a text to a client never does (one SMS, not three)', async () => {
+  const { apptVars } = await import('../../server/domain/messages.js');
+  const s = { clients: new Map(), staff: new Map([['st1', { name: "💈 L'Architecte" }]]), settings: { shop: { name: 'L’Architecte' } } };
+  const v = apptVars(s, { staffId: 'st1', day: '2026-11-24', start: 900, services: [{ name: 'Coupe' }], price: 2000, name: 'Karim' }, null);
+  assert.equal(v.barbier, "L'Architecte");
+  assert.ok(/^[\x20-\x7e]*$/.test(v.barbier), 'plain characters only');
 });

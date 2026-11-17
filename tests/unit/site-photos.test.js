@@ -75,7 +75,7 @@ test('applied: each one has his portrait in the Comptoir, shown on the site; som
 
   // the site: the address of each bookable barber's photo, under its version; nothing else about it
   const site = await pub(rt);
-  assert.deepEqual(site.barbers.map((x) => x.name), ['Frank R.', 'JKut', 'Le Soldat', 'Esteban', 'Aland']);
+  assert.deepEqual(site.barbers.map((x) => x.name), ["💈 L'Architecte", 'JKut', 'Le Soldat', 'Esteban', 'Aland']);
   for (const x of site.barbers) {
     const st = s().staff.get(x.id);
     assert.equal(x.photo, '/api/public/barbers/' + st.id + '/photo?v=' + st.photoV, x.name);
@@ -95,7 +95,7 @@ test('applied: each one has his portrait in the Comptoir, shown on the site; som
   // another version, someone unknown, Aland once the owner takes him off the site, the owner's own route: 404
   assert.equal((await browser(rt).get('/api/public/barbers/' + byName('Aland').id + '/photo?v=' + byName('Aland').photoV)).status, 200, 'online since his hours are known');
   assert.equal((await b.patch('/api/v1/staff/' + byName('Aland').id, { bookable: false })).status, 200);
-  assert.deepEqual((await pub(rt)).barbers.map((x) => x.name), ['Frank R.', 'JKut', 'Le Soldat', 'Esteban']);
+  assert.deepEqual((await pub(rt)).barbers.map((x) => x.name), ["💈 L'Architecte", 'JKut', 'Le Soldat', 'Esteban']);
   const jk = byName('JKut');
   assert.equal((await browser(rt).get('/api/public/barbers/' + jk.id + '/photo?v=1')).status, 404);
   assert.equal((await browser(rt).get('/api/public/barbers/st_nobody/photo')).status, 404);

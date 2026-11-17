@@ -102,7 +102,7 @@ export const ARCHITECTE = {
     { name: 'JKut', color: '#EB4639', initials: 'JK', schedule: week({ 2: lunch, 3: lunch, 4: lunch, 5: lunch, 6: lunch }), wp: 'JKut', photo: new URL('./equipe/jkut.webp', import.meta.url) },
     { name: 'Le Soldat', color: '#60A5FA', initials: 'LS', schedule: week({ 2: span(570, 900 + CUT), 3: span(570, 1050 + CUT), 4: span(570, 900 + CUT), 5: span(570, 900 + CUT), 6: span(570, 1050 + CUT) }), wp: 'Soldat', photo: new URL('./equipe/le-soldat.webp', import.meta.url),
       was: [{ schedule: week({ 2: span(570, 930), 3: span(570, 1080), 4: span(570, 930), 5: span(570, 930), 6: span(540, 1080) }) }] },
-    { name: 'Frank', owner: true, color: '#F5B544', initials: 'FR', schedule: week({ 2: span(540, 990 + CUT), 3: span(540, 780 + CUT), 4: span(540, 990 + CUT), 5: span(540, 990 + CUT), 6: span(540, 990 + CUT) }), wp: 'Frank', photo: new URL('./equipe/frank.webp', import.meta.url),
+    { name: 'Frank', as: "💈 L'Architecte", owner: true, color: '#F5B544', initials: 'FR', schedule: week({ 2: span(540, 990 + CUT), 3: span(540, 780 + CUT), 4: span(540, 990 + CUT), 5: span(540, 990 + CUT), 6: span(540, 990 + CUT) }), wp: 'Frank', photo: new URL('./equipe/frank.webp', import.meta.url),
       was: [{ schedule: week({ 2: span(540, 990), 3: span(540, 780), 4: span(540, 990), 5: span(540, 990), 6: span(540, 990) }) }] },
     { name: 'Esteban', color: '#4ADE80', initials: 'ES', schedule: week({ 2: lunch, 3: lunch, 4: lunch, 5: lunch, 6: lunch }), wp: 'Esteban', photo: new URL('./equipe/esteban.webp', import.meta.url) },
     { name: 'Aland', color: '#C084FC', initials: 'AL', schedule: week({ 2: lunch, 3: lunch, 4: lunch, 5: lunch, 6: lunch }), wp: '', photo: new URL('./equipe/aland.webp', import.meta.url),
