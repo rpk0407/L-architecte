@@ -10,7 +10,7 @@ import { createRuntime, readConfig } from '../../server/http/runtime.js';
 import { memoryStore } from '../../server/store/memory.js';
 import { SmtpError } from '../../server/messaging/smtp.js';
 import { IONOS_SMTP, IONOS_SPF, mailDns, mailEnvOf, mailExpected, mailTrouble, mailVars } from '../../server/messaging/ionos.js';
-import { dnsReport, isVercelIp, isVercelCname } from '../../server/http/routes-bascule.js';
+import { dnsReport, isVercelIp, isVercelCname, sameTarget } from '../../server/http/routes-bascule.js';
 import { salonDomain } from '../../server/http/routes-channels.js';
 
 const DAY = '2026-11-03';
@@ -137,8 +137,8 @@ test('the domain: the new site, still the old host, half of it (apex or www), no
   assert.equal((await rep({})).where, 'none');
   assert.equal((await rep({ A: new Error('queryA ESERVFAIL'), AAAA: new Error('x'), CNAME: new Error('x') })).where, 'unknown');
   // Vercel's registered ranges, and its CNAME names
-  for (const ip of ['76.76.21.21', '76.76.21.164', '216.198.79.1', '216.198.79.65', '64.29.17.1']) assert.equal(isVercelIp(ip), true, ip);
-  for (const ip of ['217.160.0.36', '76.76.22.1', '64.29.170.1']) assert.equal(isVercelIp(ip), false, ip);
+  for (const ip of ['76.76.21.21', '76.76.21.164', '216.198.79.1', '216.198.79.65', '64.29.17.1', '216.150.1.1', '216.150.16.1']) assert.equal(isVercelIp(ip), true, ip);
+  for (const ip of ['217.160.0.36', '76.76.22.1', '64.29.170.1', '216.150.2.1', '216.150.160.1']) assert.equal(isVercelIp(ip), false, ip);
   for (const n of ['cname.vercel-dns.com', 'cname.vercel-dns-0.com', 'd1d4fc829fe7bc7c.vercel-dns-017.com.']) assert.equal(isVercelCname(n), true, n);
   assert.equal(isVercelCname('vercel-dns.com.evil.fr'), false);
 });
@@ -220,4 +220,16 @@ test('the routes: owner only, no secret in any answer, the checks paced and mock
   const g = (await d.get('/api/v1/ionos')).json;
   assert.equal(g.demo, true);
   assert.equal(g.mail.state, 'none');
+});
+
+test('a redirect whose query Vercel rewrote still leads to the same page', () => {
+  // seen on the day of the switch, on the salon's own domain
+  assert.equal(sameTarget('/?page_id=2&reserver', '/?reserver&page_id=2'), true);
+  assert.equal(sameTarget('/?reserver=&barbier=larchi', '/?reserver&barbier=larchi'), true);
+  assert.equal(sameTarget('/?reserver', '/?reserver'), true);
+  // another page, another barber, another site: still wrong
+  assert.equal(sameTarget('/?reserver&barbier=jkut', '/?reserver&barbier=larchi'), false);
+  assert.equal(sameTarget('/ancien-lien?booking_id=4410', '/?booking_id=4410'), false);
+  assert.equal(sameTarget('https://autre.test/?reserver', '/?reserver'), false);
+  assert.equal(sameTarget('', '/?reserver'), false);
 });
