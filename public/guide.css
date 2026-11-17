@@ -11,7 +11,7 @@
 .gd-vh{position:absolute!important;width:1px!important;height:1px!important;overflow:hidden!important;clip:rect(0 0 0 0)!important;clip-path:inset(50%)!important;white-space:nowrap!important;margin:-1px!important;padding:0!important;border:0!important}
 
 /* the invitation: above the booking button on a phone, bottom-left on a screen */
-.gd-bub{position:fixed;z-index:80;left:14px;bottom:calc(176px + env(safe-area-inset-bottom,0px));display:flex;align-items:center;gap:6px;max-width:min(330px,calc(100vw - 28px));padding:8px 8px 8px 20px;border-radius:999px;background:var(--encre);color:var(--os);box-shadow:0 0 0 1px rgba(236,232,224,.16) inset,0 14px 40px rgba(0,0,0,.34);animation:gd-rise .5s var(--ease) both}
+.gd-bub{position:fixed;z-index:80;left:14px;bottom:calc(246px + env(safe-area-inset-bottom,0px));display:flex;align-items:center;gap:6px;max-width:min(330px,calc(100vw - 28px));padding:8px 8px 8px 20px;border-radius:999px;background:var(--encre);color:var(--os);box-shadow:0 0 0 1px rgba(236,232,224,.16) inset,0 14px 40px rgba(0,0,0,.34);animation:gd-rise .5s var(--ease) both}
 .gd-bub.out{opacity:0;transform:translateY(10px);transition:opacity .28s,transform .28s var(--ease);pointer-events:none}
 .gd-bub p{margin:0;min-width:0;font:500 14.5px/1.25 var(--f-sans)}
 .gd-bub p b{display:block;font:italic 400 19px/1.1 var(--f-serif);letter-spacing:0}
