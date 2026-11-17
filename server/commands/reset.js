@@ -8,17 +8,20 @@ import { fail } from '../core/engine.js';
 export const RESET_MS = 30 * 60000;
 const hashPattern = /^scrypt\$\d+\$\d+\$\d+\$[A-Za-z0-9+/=]+\$[A-Za-z0-9+/=]+$/;
 
-/** Who may get a link: an active person who signs in with an e-mail. */
+/**
+ * Who may get a link: an active person who already signs in with an e-mail and a password. A barber whose e-mail is on
+ * file but who was never given a password does not get one this way: opening that door stays the owner's choice (Équipe).
+ */
 export const resettable = (s, email) => {
   const e = String(email || '').trim().toLowerCase();
-  return e ? [...s.staff.values()].find((x) => x.active && x.email && x.email === e) || null : null;
+  return e ? [...s.staff.values()].find((x) => x.active && x.hasPwd && x.email && x.email === e) || null : null;
 };
 
 export const issuePasswordReset = {
   run(s, input, ctx) {
     if (ctx.actor.t !== 'system') fail(403, 'forbidden', 'Action réservée au serveur.');
     const st = s.staff.get(String(input.staffId || ''));
-    if (!st || !st.active || !st.email) fail(404, 'not_found', 'Compte introuvable.');
+    if (!st || !st.active || !st.email || !st.hasPwd) fail(404, 'not_found', 'Compte introuvable.');
     const id = ctx.id('pr');
     const exp = ctx.now + RESET_MS;
     ctx.emit('pwd.resetIssued', { id, staffId: st.id, exp });

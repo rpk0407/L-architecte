@@ -51,6 +51,17 @@ test('the owner asks: one e-mail to his own address, with a link that opens the 
   assert.equal(sent.length, 1);
 });
 
+test('someone with an e-mail on file but no password gets no link: that door is the owner’s to open', async () => {
+  const { updateStaff } = await import('../../server/commands/team.js');
+  const owner = rt.engine.state.staff.get(ownerId);
+  const barber = [...rt.engine.state.staff.values()].find((x) => x.role === 'barber' && x.active && !x.hasPwd);
+  await rt.engine.run(updateStaff, { id: barber.id, patch: { email: 'barbier@exemple.fr' } }, { actor: { t: 'staff', id: owner.id }, staff: owner, caps: new Set(['team', 'agenda.own']) });
+  const n = sent.length, v = rt.engine.state.version;
+  assert.deepEqual((await fresh().post('/api/auth/forgot', { email: 'barbier@exemple.fr' })).json, { ok: true, minutes: 30 });
+  assert.equal(sent.length, n);
+  assert.equal(rt.engine.state.version, v);
+});
+
 test('a link nobody signed, or cut short, opens nothing', async () => {
   const token = tokenOf();
   assert.equal((await fresh().get('/api/auth/reset/' + encodeURIComponent(token.slice(0, -2) + 'zz'))).status, 404);
