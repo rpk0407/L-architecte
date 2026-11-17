@@ -16,6 +16,7 @@ const System = lazy(() => import('./reglages/System'));
 const Wordpress = lazy(() => import('./reglages/Wordpress'));
 const MiseEnRoute = lazy(() => import('./reglages/sections/MiseEnRoute'));
 const Ionos = lazy(() => import('./reglages/sections/Ionos'));
+const Prestataire = lazy(() => import('./reglages/sections/Prestataire'));
 
 // The salon sections are one file each but load together, on the first visit to any of them, so moving between them
 // never waits again (as when they were all in Shop).
@@ -57,6 +58,7 @@ const SECTIONS: Section[] = [
   { id: 'fidelite', label: 'Fidélité', hint: 'Carte à tampons et parrainage', icon: 'gift', group: 'Salon', component: salon(() => import('./reglages/sections/Fidelite')) },
   { id: 'compta', label: 'Comptabilité', hint: 'TVA, plan de comptes, ton comptable', icon: 'euro', group: 'Salon', component: () => <Comptabilite /> },
   { id: 'appareils', label: 'Appareils', hint: 'Postes autorisés à la connexion par code', icon: 'device', group: 'Sécurité', component: system('appareils') },
+  { id: 'prestataire', label: 'Accès prestataire', hint: 'Laisser ton prestataire travailler 24 h', icon: 'shield', group: 'Sécurité', component: () => <Prestataire /> },
   { id: 'donnees', label: 'Données et intégrité', hint: 'Santé, vérification, exports, système', icon: 'shieldOk', group: 'Sécurité', component: system('donnees') },
   { id: 'journal', label: 'Journal d’activité', hint: 'Qui a fait quoi, quand', icon: 'journal', group: 'Sécurité', component: system('journal') }
 ];

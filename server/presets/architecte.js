@@ -38,7 +38,7 @@ const week = (days) => Object.fromEntries([0, 1, 2, 3, 4, 5, 6].map((d) => [d, d
  * site yet. photo: his portrait (a file beside this one), set only on a person who has no photo yet. was: the weeks an
  * earlier version of this preset gave him (online: false when it kept him off the site): someone who still has one of
  * them is offered today's week, anyone whose week is another keeps it.
- * @typedef {{ name: string, color: string, initials: string, schedule: Record<string, [number, number][]>, wp: string, owner?: boolean, online?: boolean, photo?: URL, was?: { schedule: Record<string, [number, number][]>, online?: boolean }[] }} PresetStaff
+ * @typedef {{ name: string, color: string, initials: string, schedule: Record<string, [number, number][]>, wp: string, as?: string, owner?: boolean, online?: boolean, photo?: URL, was?: { schedule: Record<string, [number, number][]>, online?: boolean }[] }} PresetStaff
  */
 
 export const ARCHITECTE = {

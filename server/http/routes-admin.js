@@ -36,6 +36,7 @@ const LABELS = {
   'staff.archived': 'Membre désactivé', 'staff.restored': 'Membre réactivé', 'staff.credentials': 'Accès modifiés', 'staff.revoked': 'Sessions fermées',
   'timeoff.added': 'Absence posée', 'timeoff.removed': 'Absence retirée', 'timeoff.requested': 'Absence demandée', 'timeoff.refused': 'Absence refusée',
   'timeoff.withdrawn': 'Demande d’absence retirée', 'device.enrolled': 'Appareil enregistré', 'device.revoked': 'Appareil retiré',
+  'support.granted': 'Accès prestataire ouvert', 'support.revoked': 'Accès prestataire retiré',
   'import.started': 'Reprise WordPress commencée', 'import.batch': 'Paquet WordPress repris', 'import.finished': 'Reprise WordPress terminée',
   'service.added': 'Prestation créée', 'service.updated': 'Prestation modifiée', 'service.archived': 'Prestation retirée', 'product.added': 'Produit créé',
   'product.updated': 'Produit modifié', 'product.archived': 'Produit retiré', 'stock.adjusted': 'Stock ajusté', 'client.added': 'Client créé',
@@ -164,6 +165,8 @@ function refundMethods(rf) {
   return rf.parts && rf.parts.length > 1 ? refundParts(rf).map((p) => (METHOD_LABEL[p.method] || p.method) + ' ' + fmtEur(p.amount, { decimals: true })).join(' + ') : METHOD_LABEL[rf.method] || rf.method;
 }
 function actorName(s, a) {
+  // done through a prestataire's access (commands/support.js): the journal says so, not the owner's name alone
+  if (a.t === 'staff' && a.via) return 'Prestataire (accès donné par ' + ((s.staff.get(a.id) || {}).name || 'le gérant') + ')';
   if (a.t === 'staff') return (s.staff.get(a.id) || {}).name || 'Équipe';
   if (a.t === 'client') return a.id === 'moi' ? 'Client (espace)' : 'Client (site)';
   if (a.t === 'provider') return a.id === 'stripe' ? 'Stripe' : 'Paiement';

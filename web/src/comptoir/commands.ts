@@ -56,6 +56,7 @@ const SECTIONS: Record<string, { label: string; icon: string; mots: string[] }> 
   'mise-en-route': { label: 'Mise en route', icon: 'check', mots: ['demarrer', 'ouverture', 'sante', 'etapes'] },
   wordpress: { label: 'Reprendre WordPress', icon: 'download', mots: ['importer', 'ancien site', 'reprise', 'migration'] },
   ionos: { label: 'Connexion IONOS', icon: 'globe', mots: ['ionos', 'boite mail', 'smtp', 'nom de domaine', 'dns', 'vercel', 'spf', 'dkim'] },
+  prestataire: { label: 'Accès prestataire', icon: 'shield', mots: ['prestataire', 'acces temporaire', 'developpeur', 'support', 'assistance', 'deleguer'] },
   compte: { label: 'Mon compte', icon: 'user', mots: ['code', 'mot de passe', 'profil', 'pin', 'absences', 'conges'] },
   salon: { label: 'Le salon', icon: 'map', mots: ['adresse', 'telephone', 'coordonnees', 'ticket', 'mentions', 'nom'] },
   horaires: { label: 'Horaires et fermetures', icon: 'clock', mots: ['ouverture', 'jours feries', 'fermeture', 'conges', 'semaine'] },
