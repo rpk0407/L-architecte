@@ -1927,7 +1927,10 @@ const LXE = (function () {
       w.done(r.status);
       return r.json().catch(function () { return {}; }).then(function (j) {
         if (!r.ok) {
-          const e = new Error((j && j.error && j.error.message) || 'Le salon ne répond pas. Réessaie dans un instant.');
+          let msg = (j && j.error && j.error.message) || 'Le salon ne répond pas. Réessaie dans un instant.';
+          // a field check from the server (« others[0].guest.first : … ») is never shown as is: said in words the client knows
+          if (/^[a-zA-Z_][\w.\[\]]*\s*:/.test(msg)) msg = /guest\.first|\.first\b|first\s*:/.test(msg) ? 'Il manque un prénom (2 lettres au moins) pour une des personnes. Vérifie chaque place, puis confirme.' : /phone/.test(msg) ? 'Un numéro de téléphone n’est pas valide : 10 chiffres, commençant par 0.' : 'Une information n’est pas valide. Vérifie les prénoms et le numéro, puis réessaie.';
+          const e = new Error(msg);
           e.code = j && j.error ? j.error.code : 'http'; e.status = r.status; e.extra = j && j.error ? j.error.extra : null;
           throw e;
         }
@@ -3804,18 +3807,21 @@ const BookingMixin = {
     this.setState({ bk: Object.assign({}, b, { party: b.party.filter((y, k) => k !== i), err: '' }) });
   },
   /* back to one person of the booking (to change his time, or because his slot was just taken): the one being chosen is kept */
-  bkFocus(i, err) {
+  bkFocus(i, err, keep) {
     const b = this.state.bk;
     const x = (b.party || [])[i];
     if (!x) return;
     // the place being left must have its hold first (as before adding a person): without it, its slot could go meanwhile
-    if (!err && b.step === 'info' && !b.holdId && b.holdTok) { this.setState({ bk: Object.assign({}, b, { err: 'Un instant : on garde encore ce créneau.' }) }); return; }
+    // the place being left keeps its person: no switching to another one with this one's first name missing
+    if (!err && b.step === 'info' && b.day && b.time != null && !this.bkGuestOk(b)) { this.setState({ bk: Object.assign({}, b, { err: b.gfor === 'child' ? 'Indique le prénom de l’enfant avant de passer à une autre personne.' : 'Indique son prénom avant de passer à une autre personne.' }) }); return; }
+    if ((!err || keep) && b.step === 'info' && !b.holdId && b.holdTok) { this.setState({ bk: Object.assign({}, b, { err: 'Un instant : on garde encore ce créneau.' }) }); return; }
     const rest = b.party.filter((y, k) => k !== i);
     // the place being chosen joins the others only once it has its slot; a half-chosen one is simply left
     const cur = b.step === 'info' && b.day && b.time != null ? [this.bkPlace(b)] : [];
     if (!cur.length) this.bkRelease(b);
     const bk = Object.assign(this.bkEmpty(), x, { party: rest.concat(cur), mbr: b.mbr, multi: !!b.multi, err: err || '' });
-    if (err) { if (x.holdId) LXE.release(x.holdId); bk.holdId = null; bk.time = null; bk.assigned = null; bk.step = 'when'; }
+    // keep: only a word to say (a first name missing), the place keeps its slot
+    if (err && !keep) { if (x.holdId) LXE.release(x.holdId); bk.holdId = null; bk.time = null; bk.assigned = null; bk.step = 'when'; }
     else { bk.step = 'info'; bk.holdTok = null; }
     this.setState({ bk: bk });
     if (bk.step === 'info') this.bkTick();
@@ -3826,6 +3832,15 @@ const BookingMixin = {
     const s0 = this.state;
     const b = s0.bk;
     if (!this.bkValid() || b.busy) return;
+    // every person already in the booking needs his first name (and only one of them can be « moi »): the one missing it
+    // is reopened with a plain sentence, the others kept, instead of a refusal from the server
+    {
+      const party = b.party || [];
+      const bad = party.findIndex((x) => !this.bkGuestOk(x));
+      const meTwice = party.filter((x) => x.gfor === 'me').length + (b.gfor === 'me' ? 1 : 0) > 1;
+      if (bad >= 0) { this.bkFocus(bad, party[bad].gfor === 'child' ? 'Indique le prénom de l’enfant (2 lettres au moins).' : 'Indique le prénom de cette personne (2 lettres au moins).', true); return; }
+      if (meTwice) { this.setState({ bk: Object.assign({}, b, { err: 'Une seule place peut être pour toi : choisis « Une autre personne » ou « Mon enfant » pour celle-ci, avec son prénom.' }) }); return; }
+    }
     // what the ticket shows is read now: the catalogue may reload while the booking is on its way
     const F = LXE.SV[b.f];
     if (!F) { this.bkGone(); return; }
