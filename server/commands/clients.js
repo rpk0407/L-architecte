@@ -44,9 +44,30 @@ export function clientParts(x) {
 }
 
 /** Emit a new client, or return the existing one with that phone. Used by bookings too. */
-export function upsertClient(s, ctx, x, source) {
+/** The file that carries this address (a client's own, never a child's nor an erased one): the oldest when several do. */
+export function clientByEmail(s, email) {
+  const e = String(email || '').trim().toLowerCase();
+  if (!e) return null;
+  let found = null;
+  for (const c of s.clients.values()) {
+    if (c.erased || !c.email || c.email.toLowerCase() !== e || (c.ext && c.ext.parent)) continue;
+    if (!found || (c.createdAt || 0) < (found.createdAt || 0)) found = c;
+  }
+  return found;
+}
+
+/**
+ * @param {{ byEmail?: boolean }} [o] byEmail: the salon asks an address and not a number (settings.booking.contact
+ *   'email'): the file is the one that carries this address, and a new one is made otherwise. A number another file
+ *   already carries is then left off the new file: that file's reminders must keep going to its own address.
+ */
+export function upsertClient(s, ctx, x, source, o = {}) {
   const { pii, plain } = clientParts(x);
-  if (pii.phone) {
+  if (o.byEmail) {
+    const mine = clientByEmail(s, pii.email);
+    if (mine) return { id: mine.id, created: false };
+    if (pii.phone && s.clientByPhone.has(pii.phone)) pii.phone = '';
+  } else if (pii.phone) {
     const existing = s.clientByPhone.get(pii.phone);
     if (existing) return { id: getClient(s, existing).id, created: false };
   }

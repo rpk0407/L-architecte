@@ -1,8 +1,8 @@
 // The day, one column per chair. Mouse and pen can drag an appointment to another time or chair;
 // on touch screens the drawer's "Déplacer" does the same job without fighting the scroll.
-import { memo, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from '../../../ui/Icon';
-import { Avatar, Chip, Money } from '../../../ui/kit';
+import { Avatar, Chip, Money, Seg } from '../../../ui/kit';
 import { photoOf } from '../../state';
 import { dur, hhmm, time } from '../../../lib/format';
 import { useIsPhone, useMedia } from '../../../lib/hooks';
@@ -10,6 +10,7 @@ import type { Agenda, Appt, Lane } from '../../types';
 import { serieWords, groupWords } from '../../types';
 import { layoutOverlaps, type Place } from './overlap';
 import { drawnRange, freeGaps, offZones, OFF_LABEL } from './day';
+import { AgendaTools, ZOOMS, scaleOf, usePinchZoom, type AgendaView } from './view';
 
 export type BoardProps = {
   data: Agenda;
@@ -27,9 +28,16 @@ export type BoardProps = {
   /** a touch on a chair's header (absent today, pause now), for whoever edits every chair */
   onLane?: (staffId: string, rect: { x: number; y: number }) => void;
   canMove: (a: Appt, toStaff: string) => boolean;
+  /** how this person reads the agenda on this device (agenda/view.tsx): zoom, his chair or the team's, agenda alone */
+  view: AgendaView;
+  setView: (patch: Partial<AgendaView>) => void;
+  /** he has a chair among several: « Équipe » or « Moi » is his to choose */
+  canChoose: boolean;
 };
 
 const STEP = 15;
+/** the hours' gutter, and the narrowest a chair is still read at: under it the board scrolls sideways instead */
+const GUT = 56, MINW = 64;
 /** height of the « Chevauchement » band */
 const BAND = 18;
 
@@ -37,9 +45,10 @@ export const Board = memo(function Board(p: BoardProps) {
   const phone = useIsPhone();
   // the salon tablet shares its width with the side column (agenda.css): the chairs may be a little narrower there
   const tablet = useMedia('(max-width: 1100px)');
-  const px = phone ? 2.1 : 2;
+  const px = (phone ? 2.1 : 2) * scaleOf(p.view);
   const { lanes, appts, blocks, holds } = p.data;
-  const visible: Lane[] = phone ? lanes.filter((l) => l.id === (p.lane || lanes[0]?.id)) : lanes;
+  const onlyMe = !phone && p.canChoose && p.view.who === 'moi';
+  const visible: Lane[] = phone ? lanes.filter((l) => l.id === (p.lane || lanes[0]?.id)) : onlyMe ? lanes.filter((l) => l.id === p.myId) : lanes;
   const isToday = p.data.day === p.today;
 
   // the drawn range: opening hours, stretched to anything booked outside them
@@ -52,6 +61,26 @@ export const Board = memo(function Board(p: BoardProps) {
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const scrolled = useRef('');
+  // the room the board really has (the side column, the menu and « Agenda seul » all change it): every chair gets an
+  // equal share of it, so none is cut off at the edge
+  const boardRef = useRef<HTMLElement>(null);
+  const [bw, setBw] = useState(0);
+  useEffect(() => {
+    const el = boardRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver((es) => setBw(Math.round(es[0].contentRect.width)));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  // a change of zoom keeps the same hour in the middle of the screen
+  const pxWas = useRef(px);
+  useLayoutEffect(() => {
+    const el = scrollRef.current, old = pxWas.current;
+    pxWas.current = px;
+    if (!el || old === px) return;
+    el.scrollTop = Math.max(0, ((el.scrollTop + el.clientHeight / 2) / old) * px - el.clientHeight / 2);
+  }, [px]);
+  usePinchZoom(scrollRef, (dir) => { const z = p.view.zoom + dir; if (z >= 0 && z < ZOOMS.length) p.setView({ zoom: z }); }, !phone);
   useEffect(() => {
     // open on "now" (or the morning) the first time a day is shown; the page itself never jumps
     if (scrolled.current === p.data.day) return;
@@ -120,17 +149,30 @@ export const Board = memo(function Board(p: BoardProps) {
   const hours = [];
   for (let m = from; m <= to; m += 60) hours.push(m);
   const nowY = isToday && p.nowMin >= from && p.nowMin <= to ? y(p.nowMin) : null;
-  // five chairs and more: narrower columns, so the last one is not cut off beside the side column
-  const minCol = visible.length > 4 ? (tablet ? 84 : 110) : tablet ? 112 : 140;
-  const cols = phone ? '46px minmax(0, 1fr)' : `56px repeat(${visible.length}, minmax(${minCol}px, 1fr))`;
+  // every chair the same width, all of them in sight; too many for the room (under MINW each): the board scrolls sideways
+  const n = Math.max(1, visible.length);
+  const share = bw ? (bw - GUT) / n : tablet ? 112 : 140;
+  const sideways = !phone && share < MINW;
+  const col = sideways ? MINW + 'px' : 'minmax(0, 1fr)';
+  const cols = phone ? '46px minmax(0, 1fr)' : `${GUT}px repeat(${n}, ${col})`;
+  // what a chair's header and its cards can say at that width
+  const dense = phone || n === 1 ? '' : share < 92 ? ' cols-snug cols-tight' : share < 168 ? ' cols-snug' : '';
 
   return (
-    <section className="board" aria-label="Planning de la journée" data-guide="ag-board">
+    <section className={'board' + dense} aria-label="Planning de la journée" data-guide="ag-board" ref={boardRef}>
+      {phone ? null : (
+        <div className="board-tools" data-guide="ag-tools">
+          {p.canChoose ? <Seg label="Fauteuils affichés" value={p.view.who} onChange={(v) => p.setView({ who: v })} options={[{ v: 'equipe' as const, t: 'Équipe' }, { v: 'moi' as const, t: 'Moi' }]} /> : <span />}
+          <AgendaTools view={p.view} set={p.setView} />
+        </div>
+      )}
       {phone && lanes.length > 1 ? (
         <div className="lane-pick" role="tablist" aria-label="Barbier affiché">
           {lanes.map((l) => <Chip key={l.id} small on={l.id === (p.lane || lanes[0]?.id)} dot={l.color} onClick={() => p.setLane(l.id)}>{l.name}{l.id === p.myId ? ' (moi)' : ''}</Chip>)}
         </div>
       ) : null}
+      <div className="board-x">
+      <div className="board-in" style={sideways ? { minWidth: GUT + n * MINW } : undefined}>
       <div className="board-h" style={{ gridTemplateColumns: cols }}>
         <span className="gut-h">{isToday ? <span className="now-chip tnum">{hhmm(p.nowMin)}</span> : null}</span>
         {visible.map((l) => {
@@ -159,9 +201,9 @@ export const Board = memo(function Board(p: BoardProps) {
         })}
       </div>
       <div className="board-scroll" ref={scrollRef}>
-      <div className="tl" style={{ gridTemplateColumns: phone ? '46px minmax(0, 1fr)' : '56px minmax(0, 1fr)', height }}>
+      <div className="tl" style={{ gridTemplateColumns: phone ? '46px minmax(0, 1fr)' : `${GUT}px minmax(0, 1fr)`, height }}>
         <div className="hours" aria-hidden>{hours.map((m) => <span key={m} style={{ top: y(m) }}>{hhmm(m)}</span>)}</div>
-        <div className="lanes-g" style={{ gridTemplateColumns: `repeat(${visible.length}, minmax(${phone ? 0 : minCol}px, 1fr))`, backgroundSize: `100% ${60 * px}px, 100% ${30 * px}px` }}>
+        <div className="lanes-g" style={{ gridTemplateColumns: `repeat(${n}, ${phone ? 'minmax(0, 1fr)' : col})`, backgroundSize: `100% ${60 * px}px, 100% ${30 * px}px` }}>
           {visible.map((l) => {
             const offIv = offZones(l.work, from, to, shopOpen);
             const free = freeGaps(l.work, [...appts.filter((a) => a.staffId === l.id && !['cancelled', 'no_show'].includes(a.status)), ...blocks.filter((b) => b.staffId === l.id), ...holds.filter((h) => h.staffId === l.id)], floor);
@@ -201,6 +243,8 @@ export const Board = memo(function Board(p: BoardProps) {
           })}
           {nowY != null ? <div className="nowline" style={{ top: nowY }} aria-hidden /> : null}
         </div>
+      </div>
+      </div>
       </div>
       </div>
     </section>

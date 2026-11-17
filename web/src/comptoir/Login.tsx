@@ -26,6 +26,12 @@ export function linkToken() {
   try { return m ? decodeURIComponent(m[1]) : null; } catch { return null; }
 }
 
+/** /comptoir/mot-de-passe/<token>: the link of « Mot de passe oublié » */
+export function resetToken() {
+  const m = /^\/comptoir\/mot-de-passe\/([^/]+)/.exec(location.pathname);
+  try { return m ? decodeURIComponent(m[1]) : null; } catch { return null; }
+}
+
 export function Login({ state, onDone }: { state: AuthState; onDone: () => void }) {
   const first = (): 'team' | 'owner' | 'setup' => (state.needsSetup ? 'setup' : state.device && state.team.length ? 'team' : 'owner');
   const [view, setView] = useState(first);
@@ -36,6 +42,8 @@ export function Login({ state, onDone }: { state: AuthState; onDone: () => void 
   // the device changed under the screen: a browser that just became a salon device goes to the team's codes; a phone
   // removed while open goes back to the start, never to a code pad that can no longer work
   useEffect(() => { setView(first()); setWho(alone); }, [state.device?.id ?? '']);
+  const reset = resetToken();
+  if (reset) return <ResetPassword token={reset} state={state} onDone={onDone} />;
   if (link) return <LinkPhone token={link} state={state} onDone={onDone} />;
   return (
     <div className="auth">
@@ -197,6 +205,7 @@ function Owner({ state, onDone, onTeam }: { state: AuthState; onDone: () => void
   const [remember, setRemember] = useState(true);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  const [forgot, setForgot] = useState(false);
   const go = async (e?: React.FormEvent) => {
     e?.preventDefault();
     setBusy(true); setErr('');
@@ -210,6 +219,7 @@ function Owner({ state, onDone, onTeam }: { state: AuthState; onDone: () => void
     catch (x: any) { setErr(x.message); }
     finally { setBusy(false); }
   };
+  if (forgot) return <Forgot email={email} onBack={() => setForgot(false)} />;
   return (
     <>
       <form className="card col" style={{ gap: 14, padding: 22 }} onSubmit={go}>
@@ -217,6 +227,7 @@ function Owner({ state, onDone, onTeam }: { state: AuthState; onDone: () => void
         <Field label="Mot de passe" htmlFor="li-p" error={err || null}><input id="li-p" className="input" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required autoFocus={!!state.demo} /></Field>
         <label className="row" style={{ gap: 10, fontSize: 14, color: 'var(--tx2)' }}><input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} style={{ width: 18, height: 18, accentColor: 'var(--accent)' }} />Rester connecté 30 jours sur cet appareil</label>
         <Button variant="primary" size="lg" block busy={busy} type="submit">Se connecter</Button>
+        {state.demo ? null : <button type="button" className="link" style={{ alignSelf: 'center', minHeight: 44 }} onClick={() => setForgot(true)}>Mot de passe oublié ?</button>}
         {onTeam ? <button type="button" className="link" style={{ alignSelf: 'center' }} onClick={onTeam}>Revenir aux codes de l’équipe</button> : null}
       </form>
       {state.demo ? (
@@ -230,6 +241,83 @@ function Owner({ state, onDone, onTeam }: { state: AuthState; onDone: () => void
         <Note icon="shield">Sur la tablette du salon, connecte-toi une fois en gérant puis « Enregistre ce poste » dans Réglages › Appareils : l’équipe entrera ensuite avec son code.</Note>
       )}
     </>
+  );
+}
+
+/** « Mot de passe oublié »: a link goes to the account's own address. The screen says the same thing whoever asks. */
+function Forgot({ email: first, onBack }: { email: string; onBack: () => void }) {
+  const [email, setEmail] = useState(first);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const [sent, setSent] = useState(0);
+  const go = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    setBusy(true); setErr('');
+    try { const r = await api.post<{ minutes: number }>('/api/auth/forgot', { email }); setSent(r.minutes || 30); }
+    catch (x: any) { setErr(x.message); }
+    finally { setBusy(false); }
+  };
+  if (sent) return (
+    <div className="card col" style={{ gap: 14, padding: 22 }} role="status">
+      <h2 style={{ font: '400 24px/1.2 var(--serif)' }}>Regarde tes e-mails</h2>
+      <p className="muted" style={{ fontSize: 15, overflowWrap: 'anywhere' }}>Si <b>{email}</b> est bien l’adresse de ton compte, un e-mail vient de partir avec un lien pour choisir un nouveau mot de passe. Il est valable {sent} minutes et ne sert qu’une fois.</p>
+      <p className="faint" style={{ fontSize: 13.5 }}>Rien reçu au bout de deux minutes ? Regarde dans les indésirables, puis vérifie l’adresse.</p>
+      <Button variant="ghost" block onClick={onBack}>Revenir à la connexion</Button>
+    </div>
+  );
+  return (
+    <form className="card col" style={{ gap: 14, padding: 22 }} onSubmit={go}>
+      <h2 style={{ font: '400 24px/1.2 var(--serif)' }}>Mot de passe oublié</h2>
+      <p className="muted" style={{ fontSize: 15 }}>Écris l’e-mail de ton compte : on t’envoie un lien pour en choisir un nouveau.</p>
+      <Field label="E-mail" htmlFor="fg-e" error={err || null}><input id="fg-e" className="input" type="email" autoComplete="username" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus /></Field>
+      <Button variant="primary" size="lg" block busy={busy} type="submit">Recevoir le lien</Button>
+      <button type="button" className="link" style={{ alignSelf: 'center', minHeight: 44 }} onClick={onBack}>Revenir à la connexion</button>
+    </form>
+  );
+}
+
+/** /comptoir/mot-de-passe/<token>: choose the new password. The link is checked first, so a dead one says so at once. */
+function ResetPassword({ token, state, onDone }: { token: string; state: AuthState; onDone: () => void }) {
+  const [peek, setPeek] = useState<{ staff: { name: string } } | null>(null);
+  const [dead, setDead] = useState('');
+  const [password, setPassword] = useState('');
+  const [again, setAgain] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  useEffect(() => { api.get<{ staff: { name: string } }>('/api/auth/reset/' + encodeURIComponent(token)).then(setPeek).catch((x: any) => setDead(x.message || 'Ce lien n’est pas valide.')); }, [token]);
+  const leave = () => { navigate('/', { replace: true }); onDone(); };
+  const go = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (password !== again) { setErr('Les deux mots de passe ne sont pas les mêmes.'); return; }
+    setBusy(true); setErr('');
+    try { await api.post('/api/auth/reset', { token, password }); toast({ title: 'Mot de passe changé', sub: 'Tu es connecté. Les autres appareils sont déconnectés.', icon: 'shieldOk' }); leave(); }
+    catch (x: any) { if (x instanceof ApiError && (x.status === 404 || x.status === 409 || x.status === 410)) setDead(x.message); else setErr(x.message); }
+    finally { setBusy(false); }
+  };
+  return (
+    <div className="auth">
+      <div className="auth-box">
+        <div className="auth-brand">
+          <span className="brand-logo" role="img" aria-label="L’Architecte Barbershop" />
+          <h1>Le Comptoir</h1>
+          <p style={{ overflowWrap: 'anywhere' }}>{state.shop.name}</p>
+        </div>
+        {dead ? (
+          <div className="card col" style={{ gap: 14, padding: 22 }} role="alert">
+            <h2 style={{ font: '400 24px/1.2 var(--serif)' }}>Ce lien ne marche plus</h2>
+            <p className="muted" style={{ fontSize: 15 }}>{dead}</p>
+            <Button variant="primary" block onClick={leave}>Revenir à la connexion</Button>
+          </div>
+        ) : !peek ? <div className="spin" style={{ width: 28, height: 28, color: 'var(--tx3)', alignSelf: 'center' }} /> : (
+          <form className="card col" style={{ gap: 14, padding: 22 }} onSubmit={go}>
+            <h2 style={{ font: '400 24px/1.2 var(--serif)' }}>Nouveau mot de passe pour <b>{peek.staff.name}</b></h2>
+            <Field label="Nouveau mot de passe" htmlFor="rp-p" hint="10 caractères minimum"><input id="rp-p" className="input" type="password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} required autoFocus /></Field>
+            <Field label="Encore une fois" htmlFor="rp-a" error={err || null}><input id="rp-a" className="input" type="password" autoComplete="new-password" value={again} onChange={(e) => setAgain(e.target.value)} required /></Field>
+            <Button variant="primary" size="lg" block busy={busy} type="submit">Enregistrer et me connecter</Button>
+          </form>
+        )}
+      </div>
+    </div>
   );
 }
 

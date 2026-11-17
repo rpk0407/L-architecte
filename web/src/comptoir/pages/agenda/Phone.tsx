@@ -32,6 +32,9 @@ const GUT = 36;
 
 type At = { x: number; y: number };
 export type PhoneProps = {
+  /** the zoom this person chose on this device (agenda/view.tsx), and its buttons for the bar */
+  scale?: number;
+  tools?: ReactNode;
   data: Agenda | undefined; loading: boolean; error?: ReactNode;
   day: string; today: string;
   /** now, in steps of five minutes: what is free from now on, who is busy (the line of the hour moves by itself) */
@@ -102,7 +105,7 @@ export const PhoneAgenda = memo(function PhoneAgenda(p: PhoneProps) {
   const visible: Lane[] = view === 'barbier' ? (cur ? [cur] : []) : lanes;
   const compact = view === 'salon';
   const wide = compact && lanes.length > FIT;
-  const px = compact ? 1.55 : 2.1;
+  const px = (compact ? 1.55 : 2.1) * (p.scale || 1);
   const gut = compact ? GUT : 46;
 
   const [from, to] = useMemo(() => drawnRange(lanes.map((l) => l.work), appts), [data]);
@@ -262,6 +265,7 @@ export const PhoneAgenda = memo(function PhoneAgenda(p: PhoneProps) {
         <div className="agp-bar">
           <Seg label="Affichage" value={view} onChange={p.setView}
             options={solo ? [{ v: 'barbier' as PhoneView, t: 'Planning' }, { v: 'liste' as PhoneView, t: 'Liste' }] : [{ v: 'salon' as PhoneView, t: 'Salon' }, { v: 'barbier' as PhoneView, t: 'Barbier' }, { v: 'liste' as PhoneView, t: 'Liste' }]} />
+          {p.tools}
           {p.extra}
         </div>
         {data && !nothing && view === 'barbier' && !solo ? (

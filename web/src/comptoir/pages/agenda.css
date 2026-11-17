@@ -39,9 +39,43 @@
 
 /* the board */
 .board { position: relative; border-radius: 22px; background: var(--panel); overflow: clip; display: flex; flex-direction: column; }
-.board-scroll { height: max(420px, calc(100dvh - 330px)); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; }
+.board-scroll { height: max(420px, calc(100dvh - 330px)); overflow-y: auto; touch-action: pan-x pan-y; overscroll-behavior: contain; scrollbar-width: none; }
 .board-scroll::-webkit-scrollbar { display: none; }
 @media (max-width: 760px) { .board-scroll { height: max(380px, calc(100dvh - 300px)); } }
+/* zoom, « Équipe / Moi », « Agenda seul » (agenda/view.tsx) */
+.board-tools { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 10px; border-bottom: 1px solid var(--line); background: var(--panel); }
+.board-tools .seg button { min-height: 40px; padding: 0 16px; font-size: 13.5px; }
+.ag-tools { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; flex: none; }
+.ag-tool { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-width: 44px; height: 44px; padding: 0 13px; border-radius: 14px; background: var(--panel2); color: var(--tx); font: 600 13.5px/1 var(--sans); white-space: nowrap; }
+.ag-tool:hover { background: var(--panel3); }
+.ag-tool:disabled { opacity: .32; cursor: default; }
+.ag-tool[aria-pressed='true'] { background: var(--tx); color: var(--bg); }
+.ag-tools.compact { gap: 5px; }
+.ag-tools.compact .ag-tool { min-width: 42px; height: 42px; padding: 0; border-radius: 13px; }
+/* « Agenda seul »: the figures and the side column step aside, the planning takes the room */
+.ag-grid.focus { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'b'; }
+.ag-grid.focus > .kpis, .ag-grid.focus > .ag-side { display: none; }
+.ag-grid.focus .board-scroll { height: max(420px, calc(100dvh - 268px)); }
+/* every chair an equal share of the board; more chairs than the room holds: the board scrolls sideways, header and all */
+.board-x { overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; }
+.board-x::-webkit-scrollbar { display: none; }
+.board-in { min-width: 100%; }
+/* a narrow chair: the face over the name, no second line; narrower still: the name and the hour, the rest in the sheet */
+.board.cols-snug .lh { flex-direction: column; align-items: center; justify-content: center; gap: 5px; padding: 9px 4px 8px; text-align: center; }
+.board.cols-snug .lh-t { align-items: center; width: 100%; max-width: 100%; }
+.board.cols-snug .lh-t small { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.board.cols-tight .lh-t small:not(.lh-clash) { display: none; }
+/* a short card in a narrow chair: the name, the hour is read on the grid */
+.board.cols-snug .ap.short:not(.shared) .ap-t { display: none; }
+.board.cols-snug .lh-t b { max-width: 100%; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.board.cols-snug .lh-rev { margin: 0; font-size: 15px; }
+.board.cols-tight .lh .av { --s: 30px; }
+.board.cols-tight .lh-t b { font-size: 12px; }
+.board.cols-tight .lh-rev { display: none; }
+.board.cols-tight .ap { left: 2px; right: 2px; padding: 3px 5px 3px 8px; border-radius: 9px; }
+.board.cols-tight .ap-n { font-size: 12.5px; }
+.board.cols-tight .ap-ic, .board.cols-tight .ap-s > :not(:first-child) { display: none; }
+.board.cols-tight .fr-deco span { font-size: 10.5px; }
 .board-h { position: relative; z-index: 6; display: grid; border-bottom: 1px solid var(--line); background: var(--panel); }
 .lh { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 11px 12px; border-left: 1px solid var(--line); }
 .lh:first-child { border-left: 0; }
@@ -50,7 +84,8 @@
 .lh .av { --s: 36px; }
 .lh.busy .av { box-shadow: 0 0 0 2px var(--panel), 0 0 0 4px var(--accent); }
 .lh-t { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
-.lh-t b { font: 600 14.5px/1.1 var(--sans); }
+.lh-t { flex: 1 1 auto; }
+.lh-t b { font: 600 14.5px/1.1 var(--sans); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .lh-t small { font-size: 12px; line-height: 1.2; color: var(--tx2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .lh-rev { margin-left: auto; font: 400 19px/1 var(--serif); color: var(--tx2); }
 .gut-h { display: grid; place-items: center; }
@@ -231,7 +266,9 @@
 .agp-load i { display: block; height: 100%; border-radius: 2px; background: var(--ok); }
 .agp-load i[data-full] { background: var(--accent); }
 .agp-d[aria-pressed='true'] .agp-load { background: rgba(0, 0, 0, .18); }
-.agp-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 46px; }
+.agp-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; min-height: 46px; }
+.agp-bar .seg { flex: 1 1 auto; min-width: 0; }
+.agp-bar .seg button { flex: 1 1 0; }
 .agp-bar .seg button { min-height: 40px; padding: 0 15px; font-size: 13.5px; }
 .agp-bar .chip, .agp-bar .btn { min-height: 44px; flex: none; }
 .agp .lane-pick { padding: 0; overscroll-behavior-x: contain; }
