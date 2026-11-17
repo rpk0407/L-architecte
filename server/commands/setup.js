@@ -118,7 +118,7 @@ export function presetPlan(s, P, o) {
     const prev = have && have.active && !chair && !same(now, to) ? (x.was || []).find((w) => same(weekOf(w.schedule), now)) || null : null;
     const hoursSt = !have || !have.active || chair || same(now, to) ? null : prev ? 'update' : 'kept';
     return {
-      name: x.name, color: x.color, initials: x.initials, schedule: to, order, wp: x.wp || '', online: x.online !== false,
+      name: x.name, as: x.as || '', color: x.color, initials: x.initials, schedule: to, order, wp: x.wp || '', online: x.online !== false,
       hours: hoursSt, ...(hoursSt ? { now } : {}),
       // kept off the site by the earlier preset only for want of a week: he goes online with it
       goOnline: !!prev && prev.online === false && x.online !== false && !have.bookable,
@@ -190,7 +190,7 @@ export function presetPlan(s, P, o) {
   // said first, in his words: his own account takes the gérant's chair, there is no second « Frank »
   const mine = team.find((t) => t.owner && t.status === 'chair');
   const notes = [
-    ...(mine ? [mine.name + ' est le gérant : ' + (mine.account ? 'ton compte « ' + mine.account + ' »' : 'ton compte') + ' reçoit son fauteuil, sa semaine, sa couleur et ses initiales. Aucun second compte « ' + mine.name + ' » n’est créé.'] : []),
+    ...(mine ? [mine.name + ' est le gérant : ' + (mine.account ? 'ton compte « ' + mine.account + ' »' : 'ton compte') + ' reçoit son fauteuil, sa semaine, sa couleur et ses initiales' + (mine.as ? ', et s’affiche « ' + mine.as + ' » pour les clients et l’équipe' : '') + '. Aucun second compte « ' + mine.name + ' » n’est créé.'] : []),
     ...(stranded.count ? [(stranded.count > 1 ? stranded.count + ' rendez-vous déjà pris tombent' : '1 rendez-vous déjà pris tombe') + ' en dehors de ces horaires (' + stranded.by.map((x) => x.name + ' : ' + x.count).join(', ') + '). Aucun n’est déplacé : dans Équipe, sur la fiche du barbier, « Reporter ses rendez-vous ».'] : []),
     ...(school && school.unconfirmed ? ['Vacances scolaires non confirmées pour l’année qui vient : à vérifier. Les absences « ' + school.reason + ' » de ' + school.staff + ' ne sont pas posées.'] : []),
     ...(P.notes || [])
@@ -283,7 +283,8 @@ export async function applyPreset(engine, P, input, base) {
             who.set(fold(t.name), r.id); done.team++;
           } else if (t.status === 'chair') {
             // his account of the setup screen: the chair, the week, the colour and the initials of the preset's line
-            step(updateStaff, { id: t.id, patch: { chair: true, bookable: t.online, schedule: t.schedule, color: t.color, initials: t.initials } }, base); done.team++;
+            // `as`: the name clients and the team see for him (the gérant goes by the salon's name), asked by the owner
+            step(updateStaff, { id: t.id, patch: { chair: true, bookable: t.online, schedule: t.schedule, color: t.color, initials: t.initials, ...(t.as ? { name: t.as } : {}) } }, base); done.team++;
           } else if (t.hours === 'update') {
             // the week of an earlier preset becomes today's; the appointments it leaves outside stay (the plan counts them)
             step(updateStaff, { id: t.id, patch: { schedule: t.schedule, ...(t.goOnline ? { bookable: true } : {}) } }, base); done.schedules++;

@@ -32,7 +32,8 @@ export function apptVars(s, a, linkFor) {
   return {
     prenom: (c && c.first) || (a.name || '').split(' ')[0] || '',
     ...whenWords(a.day, a.start),
-    barbier: st ? st.name : 'ton barbier',
+    // a pictogram in a name (« 💈 L’Architecte ») would turn the whole SMS into the costly 70-character kind: words only
+    barbier: st ? st.name.replace(/[\p{Extended_Pictographic}\u200d\ufe0f]/gu, '').replace(/\s+/g, ' ').trim() || 'ton barbier' : 'ton barbier',
     prestation: a.services.map((x) => x.name).join(' + '),
     prix: fmtEur(a.price),
     salon: s.settings.shop.name,
