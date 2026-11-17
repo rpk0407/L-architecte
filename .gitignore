@@ -3,3 +3,6 @@ node_modules/
 dist/
 .lx-data/
 *.log
+
+# dossiers de travail locaux des agents
+.claude/worktrees/
