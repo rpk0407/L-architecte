@@ -24,6 +24,9 @@ export default function Reservation({ s }: SectionProps) {
         <Field label="Délai minimum avant un rendez-vous"><div className="chips">{notice.map(([m, t]) => <Chip key={m} small on={B.minNoticeMin === m} onClick={() => b.setV({ ...B, minNoticeMin: m })}>{t}</Chip>)}</div></Field>
         <Field label="Jusqu’à combien de jours à l’avance"><div className="chips">{[14, 30, 60, 90].map((n) => <Chip key={n} small on={B.maxDaysAhead === n} onClick={() => b.setV({ ...B, maxDaysAhead: n })}>{n} jours</Chip>)}</div></Field>
         <Field label="Annulation ou déplacement en ligne possible jusqu’à" hint="Après, le client doit appeler : c’est là que l’acompte protège le salon. Ce délai figure dans les CGV du site."><div className="chips">{[2, 6, 12, 24, 48].map((n) => <Chip key={n} small on={B.cancelUntilHours === n} onClick={() => b.setV({ ...B, cancelUntilHours: n })}>{n} h avant</Chip>)}</div></Field>
+        <Field label="Ce que le site demande au client pour réserver" hint={B.contact === 'email' ? 'Son e-mail est obligatoire, son numéro facultatif. À choisir quand la confirmation et le rappel partent par e-mail : sans adresse, il ne recevrait rien.' : 'Son numéro est obligatoire, son e-mail facultatif. À choisir quand la confirmation et le rappel partent par SMS.'}>
+          <div className="chips"><Chip small on={B.contact !== 'email'} onClick={() => b.setV({ ...B, contact: 'phone' })}>Son numéro</Chip><Chip small on={B.contact === 'email'} onClick={() => b.setV({ ...B, contact: 'email' })}>Son e-mail</Chip></div>
+        </Field>
         <Switch on={B.waitlist} onChange={(v) => b.setV({ ...B, waitlist: v })} title="Liste d’attente" hint="Quand c’est complet, le client s’inscrit ; une place libérée lui est proposée par SMS." />
         <Switch on={B.walkinWait} onChange={(v) => b.setV({ ...B, walkinWait: v })} title="Afficher l’attente sans rendez-vous" hint="Le site montre en direct « environ 20 min d’attente »." />
       </Card>

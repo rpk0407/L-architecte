@@ -1651,15 +1651,16 @@ html{scroll-behavior:auto}
 <div class="fld"><label for="f-first">{{meFirstLabel}}</label><input id="f-first" type="text" autocomplete="given-name" value="{{fFirst}}" onChange="{{setFirst}}"></div>
 <div class="fld"><label for="f-last">Nom <span class="opt-l">facultatif</span></label><input id="f-last" type="text" autocomplete="family-name" value="{{fLast}}" onChange="{{setLast}}"></div>
 </div>
-<div class="fld"><label for="f-phone">Téléphone</label><input id="f-phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="06 12 34 56 78" value="{{fPhone}}" onChange="{{setPhone}}"><span class="{{phoneCls}}">{{phoneHint}}</span></div>
+<sc-if value="{{mailFirst}}" hint-placeholder-val="{{ false }}"><div class="fld"><label for="f-email">E-mail</label><input id="f-email" type="email" inputmode="email" autocomplete="email" placeholder="prenom@exemple.fr" value="{{fEmail}}" onChange="{{setEmail}}"><span class="{{emailCls}}">{{emailHint}}</span></div></sc-if>
+<div class="fld"><label for="f-phone">Téléphone<sc-if value="{{mailFirst}}" hint-placeholder-val="{{ false }}"> <span class="opt-l">facultatif</span></sc-if></label><input id="f-phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="06 12 34 56 78" value="{{fPhone}}" onChange="{{setPhone}}"><span class="{{phoneCls}}">{{phoneHint}}</span></div>
 </sc-if>
 <sc-if value="{{accCode}}" hint-placeholder-val="{{ false }}"><div class="fld"><label for="f-code">Code reçu par SMS</label><input id="f-code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6 chiffres" value="{{fCode}}" onChange="{{setCode}}"><span class="{{codeCls}}">{{codeHint}}</span></div><button type="button" class="tl" onClick="{{codeAgain}}">Recevoir un nouveau code</button></sc-if>
 <sc-if value="{{isSerInfo}}" hint-placeholder-val="{{ false }}"><p class="dep">{{serPayLine}}</p></sc-if>
 <sc-if value="{{showExtras}}" hint-placeholder-val="{{ true }}">
-<div class="fld"><label for="f-email">E-mail <span class="opt-l">facultatif</span></label><input id="f-email" type="email" inputmode="email" autocomplete="email" value="{{fEmail}}" onChange="{{setEmail}}"><span class="hint">Pour recevoir le rendez-vous dans ton agenda.</span></div>
+<sc-if value="{{mailLater}}" hint-placeholder-val="{{ true }}"><div class="fld"><label for="f-email">E-mail <span class="opt-l">facultatif</span></label><input id="f-email" type="email" inputmode="email" autocomplete="email" value="{{fEmail}}" onChange="{{setEmail}}"><span class="hint">Pour recevoir le rendez-vous dans ton agenda.</span></div></sc-if>
 <div class="fld"><label for="f-note">Un mot pour ton barbier <span class="opt-l">facultatif</span></label><input id="f-note" type="text" placeholder="Ex. : dégradé bas, garder la longueur" value="{{fNote}}" onChange="{{setNote}}"></div>
-<button type="button" class="{{smsCls}}" role="switch" aria-checked="{{smsOn}}" onClick="{{toggleSms}}"><span class="sw-t"><b>{{smsTitle}}</b><small>Avec un lien pour déplacer ou annuler.</small></span><span class="sw-k" aria-hidden="true"><i></i></span></button>
-<button type="button" id="f-mkt" class="{{mktCls}}" role="switch" aria-checked="{{mktOn}}" onClick="{{toggleMkt}}"><span class="sw-t"><b>Les bons plans du salon par SMS</b><small>Places de dernière minute, rappel de coupe. Tu arrêtes quand tu veux : STOP, comme indiqué dans chaque SMS.</small></span><span class="sw-k" aria-hidden="true"><i></i></span></button>
+<sc-if value="{{mailLater}}" hint-placeholder-val="{{ true }}"><button type="button" class="{{smsCls}}" role="switch" aria-checked="{{smsOn}}" onClick="{{toggleSms}}"><span class="sw-t"><b>{{smsTitle}}</b><small>Avec un lien pour déplacer ou annuler.</small></span><span class="sw-k" aria-hidden="true"><i></i></span></button>
+<button type="button" id="f-mkt" class="{{mktCls}}" role="switch" aria-checked="{{mktOn}}" onClick="{{toggleMkt}}"><span class="sw-t"><b>Les bons plans du salon par SMS</b><small>Places de dernière minute, rappel de coupe. Tu arrêtes quand tu veux : STOP, comme indiqué dans chaque SMS.</small></span><span class="sw-k" aria-hidden="true"><i></i></span></button></sc-if>
 <p class="priv">Tes coordonnées servent à ce rendez-vous, et aux bons plans seulement si tu coches. <a href="{{dataHref}}" target="_blank" rel="noopener">Comment elles sont traitées</a></p>
 </sc-if>
 <sc-if value="{{bkMbr}}" hint-placeholder-val="{{ false }}"><p class="dep">Réservé avec ton abonnement&nbsp;: si la coupe tombe dans ton mois, elle est incluse, et rien n’est demandé en ligne.</p></sc-if>
@@ -1684,6 +1685,8 @@ html{scroll-behavior:auto}
 <sc-if value="{{isGroupDone}}" hint-placeholder-val="{{ false }}"><div class="grp" data-guide="site-groupe"><p class="grp-k">{{grpK}}</p><p class="grp-t"><span>Total, à régler au salon</span><b>{{grpTotal}}</b></p><sc-if value="{{grpShare}}" hint-placeholder-val="{{ false }}"><div class="grp-s"><button type="button" class="btn" onClick="{{grpSend}}">Envoyer à mes amis</button><button type="button" class="grp-c" onClick="{{grpCopy}}">Copier le message</button><p class="grp-n" role="status">{{grpNote}}</p><p class="grp-h">{{grpHint}}</p></div></sc-if></div></sc-if>
 <sc-if value="{{needPay}}" hint-placeholder-val="{{ false }}"><div class="pay-b"><p>{{payLine}}</p><a class="btn" href="{{payUrl}}" target="{{payTarget}}" rel="noopener">{{payBtn}}</a></div></sc-if>
 <sc-if value="{{espaceNew}}" hint-placeholder-val="{{ false }}"><div class="card espace" data-guide="site.espace"><h3>Garde tout au même endroit</h3><p>{{espaceText}}</p><a class="btn" href="{{espaceUrl}}">Ouvrir mon espace</a><small>Facultatif&nbsp;: ton rendez-vous est déjà confirmé.</small></div></sc-if>
+<sc-if value="{{showMail}}" hint-placeholder-val="{{ false }}"><p class="sms-k">Ta confirmation</p>
+<div class="sms"><p>{{mailLine}}</p><small>Rien reçu dans cinq minutes&nbsp;? Regarde dans tes indésirables.</small></div></sc-if>
 <sc-if value="{{showSms}}" hint-placeholder-val="{{ true }}"><p class="sms-k">{{msgK}}</p>
 <div class="sms"><p>{{smsText}}</p><small>À l’instant</small></div></sc-if>
 <div class="done-act">
@@ -1929,7 +1932,7 @@ const LXE = (function () {
         if (!r.ok) {
           let msg = (j && j.error && j.error.message) || 'Le salon ne répond pas. Réessaie dans un instant.';
           // a field check from the server (« others[0].guest.first : … ») is never shown as is: said in words the client knows
-          if (/^[a-zA-Z_][\w.\[\]]*\s*:/.test(msg)) msg = /guest\.first|\.first\b|first\s*:/.test(msg) ? 'Il manque un prénom (2 lettres au moins) pour une des personnes. Vérifie chaque place, puis confirme.' : /phone/.test(msg) ? 'Un numéro de téléphone n’est pas valide : 10 chiffres, commençant par 0.' : 'Une information n’est pas valide. Vérifie les prénoms et le numéro, puis réessaie.';
+          if (/^[a-zA-Z_][\w.\[\]]*\s*:/.test(msg)) msg = /^email\s*:/.test(msg) ? 'Il manque une adresse e-mail valide : ta confirmation et ton rappel y arrivent.' : /guest\.first|\.first\b|first\s*:/.test(msg) ? 'Il manque un prénom (2 lettres au moins) pour une des personnes. Vérifie chaque place, puis confirme.' : /phone/.test(msg) ? 'Un numéro de téléphone n’est pas valide : 10 chiffres, commençant par 0.' : 'Une information n’est pas valide. Vérifie les prénoms et le numéro, puis réessaie.';
           const e = new Error(msg);
           e.code = j && j.error ? j.error.code : 'http'; e.status = r.status; e.extra = j && j.error ? j.error.extra : null;
           throw e;
@@ -3280,9 +3283,12 @@ const BK_LABEL = { svc: 'Prestation', who: 'Barbier', when: 'Créneau', info: 'C
 /* the first booking only: one line under the title says what the step wants (public/guide.js explains the rest of the page) */
 const BK_HELP = { svc: 'Choisis ta prestation', who: 'Un barbier, ou “Sans préférence”', when: 'Choisis ton créneau', info: 'Pour ta confirmation par ' };
 const BK_HELP_NOSMS = 'Pour confirmer ton rendez-vous';
+const BK_HELP_MAIL = 'Pour ta confirmation par e-mail';
 /* the way the confirmation and the reminder reach the client (GET /api/public/salon `channel`): WhatsApp once the salon's
    number is set and its texts leave that way, SMS otherwise. textsLeave: a confirmation really leaves (`sms` false in
    production without an SMS provider, unless it goes by WhatsApp) */
+/* what the salon asks before it books (GET /api/public/salon booking.contact): an address when everything leaves by e-mail */
+function mailFirst() { const s = LXE.salon(); return !!(s && s.booking && s.booking.contact === 'email'); }
 function chanWord() { const s = LXE.salon(); return s && s.channel === 'whatsapp' ? 'WhatsApp' : 'SMS'; }
 function textsLeave() { const s = LXE.salon(); return !s || s.channel === 'whatsapp' || s.sms !== false; }
 const BOOKED_KEY = 'lx-booked';
@@ -3764,7 +3770,10 @@ const BookingMixin = {
     if (PF && PF.pack) return !!(s.acct && s.acct.signedIn) && this.bkGuestOk(s.bk);
     const ph = String(s.fPhone || '').replace(/\D/g, '');
     const em = String(s.fEmail || '').trim();
-    return String(s.fFirst || '').trim().length >= 2 && ph.length === 10 && ph.charAt(0) === '0' && (!em || /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em)) && this.bkGuestOk(s.bk);
+    const phOk = ph.length === 10 && ph.charAt(0) === '0', emOk = /^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(em);
+    // the salon that sends everything by e-mail asks an address, and a number only if the client likes (mailFirst())
+    if (mailFirst()) return String(s.fFirst || '').trim().length >= 2 && emOk && (!ph || phOk) && this.bkGuestOk(s.bk);
+    return String(s.fFirst || '').trim().length >= 2 && phOk && (!em || emOk) && this.bkGuestOk(s.bk);
   },
   /* the place being chosen is for someone else: his first name at least, a phone (facultatif) that is one, an age that is one */
   bkGuestOk(b) {
@@ -3854,7 +3863,7 @@ const BookingMixin = {
     try {
       const r = await LXE.book({
         f: head.f, barber: head.barber, day: head.day, time: head.time, holdId: head.holdId, first: first, last: String(s0.fLast || '').trim().slice(0, 40),
-        phone: String(s0.fPhone), email: String(s0.fEmail || '').trim(), note: String(s0.fNote || '').trim().slice(0, 200), sms: !!s0.fSms, marketing: s0.fMkt === true,
+        phone: String(s0.fPhone || '').trim() || undefined, email: String(s0.fEmail || '').trim(), note: String(s0.fNote || '').trim().slice(0, 200), sms: !!s0.fSms, marketing: s0.fMkt === true,
         mbr: b.mbr || undefined, guest: this.bkGuestOf(head), others: all.slice(1).map((x) => LXE.person(Object.assign({}, x, { guest: this.bkGuestOf(x) })))
       });
       // the ticket keeps what was booked, even if the service leaves the catalogue later
@@ -4024,7 +4033,7 @@ const BookingMixin = {
     const live = LXE.services();
     v.noMenu = !!(live && !live.length);
     // the first booking's helper line, only when there is something to choose (no catalogue: the sheet says the salon opens soon)
-    const help = si >= 0 && !inSeries && !b.moving && !me && !v.noMenu && !bookedBefore() ? (step === 'info' ? (textsLeave() ? BK_HELP.info + chanWord() : BK_HELP_NOSMS) : BK_HELP[step]) : '';
+    const help = si >= 0 && !inSeries && !b.moving && !me && !v.noMenu && !bookedBefore() ? (step === 'info' ? (mailFirst() ? BK_HELP_MAIL : textsLeave() ? BK_HELP.info + chanWord() : BK_HELP_NOSMS) : BK_HELP[step]) : '';
     v.hasBkHelp = !!help; v.bkHelp = help;
     const tel = sal && sal.shop && sal.shop.phone ? String(sal.shop.phone) : '';
     const mail = sal && sal.shop && sal.shop.email ? String(sal.shop.email) : 'larchitectebarber@gmail.com';
@@ -4293,6 +4302,16 @@ const BookingMixin = {
     const phd = String(s.fPhone || '').replace(/\D/g, '');
     v.phoneHint = phd.length > 0 && (phd.length < 10 || phd.charAt(0) !== '0') ? 'Un numéro français à 10 chiffres, comme 06 12 34 56 78.' : s.fMkt ? (rem.on ? 'Pour la confirmation, le rappel et les bons plans.' : 'Pour la confirmation et les bons plans.') : rem.on ? 'Pour la confirmation et le rappel, rien d’autre.' : 'Pour la confirmation, rien d’autre.';
     v.phoneCls = 'hint' + (phd.length > 0 && (phd.length < 10 || phd.charAt(0) !== '0') ? ' warn' : '');
+    const mf = mailFirst();
+    v.mailFirst = mf;
+    v.mailLater = !mf;
+    if (mf) {
+      const emd = String(s.fEmail || '').trim();
+      const emBad = emd.length > 0 && !/^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(emd);
+      v.emailHint = emBad ? 'Une adresse complète, comme prenom@exemple.fr.' : rem.on ? 'Ta confirmation et ton rappel de la veille arrivent ici.' : 'Ta confirmation arrive ici.';
+      v.emailCls = 'hint' + (emBad ? ' warn' : '');
+      if (!(phd.length > 0 && (phd.length < 10 || phd.charAt(0) !== '0'))) v.phoneHint = 'Si tu veux qu’on puisse t’appeler. Tu peux le laisser vide.';
+    }
     v.dataHref = '/confidentialite';
     v.hasTerms = step === 'info' && dep > 0;
 
@@ -4442,7 +4461,11 @@ const BookingMixin = {
     v.serDoneHint = serie ? (serie.later ? (serie.later > 1 ? serie.later + ' semaines restent' : 'Une semaine reste') + ' à réserver, depuis ton espace. ' : '') + (serie.pay === 'salon' ? LXE.eur(serie.amount / 100) + ' à régler au salon à ta première visite. ' : '') + 'Chaque rendez-vous se déplace ou s’annule séparément : touche-le.' : '';
     // the message's preview only when one really leaves (sms is false in production without a provider, unless the
     // salon's texts go by WhatsApp)
-    v.showSms = v.notPay && textsLeave();
+    // the salon that asks an address sends its confirmation there: said in place of the text nobody will receive
+    const mailDone = mailFirst() && step === 'done';
+    v.showSms = v.notPay && textsLeave() && !mailDone;
+    v.showMail = v.notPay && mailDone;
+    v.mailLine = 'Elle part par e-mail à ' + String(s.fEmail || '').trim() + ', avec un lien pour déplacer ou annuler' + (rem.on ? ', et un rappel la veille à ' + rem.hour + ' h.' : '.');
     v.asking = !!b.ask && !serie; v.notAsking = !b.ask && !serie;
     v.hasIcs = !!s.icsUrl && step === 'done' && !v.needPay;
     v.icsUrl = s.icsUrl || '';
