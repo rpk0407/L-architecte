@@ -122,15 +122,27 @@ export function mailOwner(s, ctx, a, kind, o = {}) {
   const first = o.first || (c && c.first) || (a.name || '').split(' ')[0] || 'Un client';
   const head = (kind === 'booked' ? 'Nouveau rendez-vous : ' : 'Annulation : ') + first + ', ' + shortWhen(a.day, a.start) + ' avec ' + barberOf(s, a) + ' (' + what(a) + ')';
   const comptoir = ctx.meta.siteUrl ? ctx.meta.siteUrl.replace(/\/+$/, '') + '/comptoir' : '';
+  // everything the barber needs without opening the Comptoir: who (and how to reach him), what, how long, how much, his word
+  const name = [first, c && c.last].filter(Boolean).join(' ');
+  const mins = a.dur ? (a.dur >= 60 ? Math.floor(a.dur / 60) + ' h' + (a.dur % 60 ? ' ' + pad2(a.dur % 60) : '') : a.dur + ' min') : '';
   const text = [
     head + '.', '',
-    kind === 'booked' ? 'Réservé en ligne · ' + price(a) + (a.deposit && a.deposit.paid ? ' · acompte de ' + fmtEur(a.deposit.paid, { decimals: true }) + ' réglé' : '')
+    'Quand : ' + dayFr(a.day) + ' à ' + fmtTime(a.start) + (mins ? ' (' + mins + ')' : ''),
+    'Avec : ' + barberOf(s, a),
+    'Client : ' + name + (c && c.phone ? ' · ' + c.phone : '') + (c && c.email ? ' · ' + c.email : ''),
+    'Prestation : ' + what(a) + ' · ' + price(a),
+    ...(a.note ? ['Son mot : « ' + a.note + ' »'] : []), '',
+    kind === 'booked' ? 'Réservé en ligne' + (a.deposit && a.deposit.paid ? ' · acompte de ' + fmtEur(a.deposit.paid, { decimals: true }) + ' réglé' : '')
       : 'Annulé en ligne par le client' + (o.reason ? ' : « ' + o.reason + ' »' : '') + (a.deposit && a.deposit.paid ? ' · acompte de ' + fmtEur(a.deposit.paid, { decimals: true }) + ' à voir' : ''),
     ...(comptoir ? ['', 'Le Comptoir : ' + comptoir] : [])
   ].join('\n');
-  return queueMessage(s, ctx, {
-    key: (kind === 'booked' ? 'obk_' : 'ocx_') + a.id, channel: 'email', template: kind === 'booked' ? 'owner_booking' : 'owner_cancel',
+  const send = (key, addr) => queueMessage(s, ctx, {
+    key, channel: 'email', template: kind === 'booked' ? 'owner_booking' : 'owner_cancel',
     // no apptId: the appointment's own messages are the client's
-    to, cid: a.clientId || null, vars: {}, subject: head, text, links: [comptoir]
+    to: addr, cid: a.clientId || null, vars: {}, subject: head, text, links: [comptoir]
   });
+  // the barber it is with gets the same lines at his own address, when he has one that is not the owner's
+  const st = s.staff.get(a.staffId);
+  if (st && st.active && isEmail(st.email) && st.email.toLowerCase() !== to.toLowerCase()) send((kind === 'booked' ? 'bbk_' : 'bcx_') + a.id, st.email);
+  return send((kind === 'booked' ? 'obk_' : 'ocx_') + a.id, to);
 }
