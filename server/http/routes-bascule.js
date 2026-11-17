@@ -22,8 +22,10 @@ const DAY = 86400000;
  *  projects can show an address such as 216.198.79.1 », vercel.com/docs/domains/troubleshooting, read 14 Nov 2026), and a www
  *  CNAME to the project's own target (xxxx.vercel-dns-017.com) resolves to others again (cname.vercel-dns.com answers
  *  66.33.60.x). So an address counts as Vercel's when it is in one of the ranges registered to Vercel, Inc (ARIN:
- *  76.76.21.0/24 VERCEL-01, 216.198.79.0/24 VERCEL-05, 64.29.17.0/24 VERCEL-12), and a CNAME when it ends in vercel-dns(-N).com. */
-const VERCEL_NETS = ['76.76.21.', '216.198.79.', '64.29.17.'];
+ *  76.76.21.0/24 VERCEL-01, 216.198.79.0/24 VERCEL-05, 64.29.17.0/24 VERCEL-12), and a CNAME when it ends in vercel-dns(-N).com.
+ *  216.150.1.1 and 216.150.16.1 are what Vercel's own API recommended for this project on the day of the switch (17 Nov 2026,
+ *  GET /v6/domains/…/config, recommendedIPv4 rank 1): the card said « pas vers le nouveau site » while the site was live. */
+const VERCEL_NETS = ['76.76.21.', '216.198.79.', '64.29.17.', '216.150.1.', '216.150.16.'];
 export const isVercelIp = (ip) => VERCEL_NETS.some((n) => String(ip).startsWith(n));
 const VERCEL_CNAME = /\.vercel-dns(-\d+)?\.com\.?$/i;
 export const isVercelCname = (n) => VERCEL_CNAME.test(String(n));
@@ -74,6 +76,19 @@ function ownAddress(u) {
 function local(loc, origin) {
   if (!loc) return '';
   try { const u = new URL(loc, origin); return u.origin === origin ? u.pathname + u.search + u.hash : u.href; } catch { return String(loc); }
+}
+/**
+ * Do two redirect targets lead to the same page? Vercel rewrites a query on its way out on a custom domain (« ?reserver »
+ * becomes « ?reserver= », the parameters change order): the page opened is the same, so it is not a wrong redirect.
+ * @param {string} a @param {string} b
+ */
+export function sameTarget(a, b) {
+  if (a === b) return true;
+  try {
+    const x = new URL(a, 'https://x.test'), y = new URL(b, 'https://x.test');
+    const q = (u) => [...u.searchParams].map(([k, v]) => k + '=' + v).sort().join('&');
+    return x.origin === y.origin && x.pathname === y.pathname && x.hash === y.hash && q(x) === q(y);
+  } catch { return false; }
 }
 
 /** @typedef {{ id: string, state: 'ok'|'todo'|'warn'|'err'|'info', line: string, at?: number, field?: string, day?: string }} Step */
@@ -191,7 +206,7 @@ async function redirectsStep(rt, publicUrl) {
       try {
         const r = await f(origin + from, { redirect: 'manual', signal: AbortSignal.timeout(CHECK_MS) });
         const loc = local(r.headers.get('location'), origin);
-        if (r.status !== status || loc !== to) wrong.push(from + ' → ' + r.status + ' ' + (loc || '(sans Location)') + ', attendu ' + status + ' ' + to);
+        if (r.status !== status || !sameTarget(loc, to)) wrong.push(from + ' → ' + r.status + ' ' + (loc || '(sans Location)') + ', attendu ' + status + ' ' + to);
       } catch (err) { wrong.push(from + ' → ' + reason(err)); }
       checked++;
     }
