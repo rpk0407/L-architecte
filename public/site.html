@@ -1351,7 +1351,7 @@ html{scroll-behavior:auto}
 <img class="team-bg" src="/img/salon.jpg" width="1220" height="901" alt="" loading="lazy">
 <div class="wrap">
 <p class="kk" data-rv><span>04</span>L’équipe</p>
-<h2 class="h2" id="t-team" data-rv="lines"><span class="ln"><span>Choisis ton</span></span><span class="ln"><span>barbier.</span></span></h2>
+<h2 class="h2" id="t-team" data-rv="lines"><span class="ln"><span>Choisis ton</span></span><span class="ln"><span>coiffeur.</span></span></h2>
 <p class="bb-lead" data-rv>Chacun sa main. Touche une heure pour la garder.</p>
 <sc-if value="{{teamWait}}" hint-placeholder-val="{{ false }}"><p class="bb-k none bb-wait" role="status"><i aria-hidden="true"></i>On regarde qui est là…</p></sc-if>
 <ul class="bb">
@@ -2204,7 +2204,7 @@ const CH = [
   { id: 'reserver', t: 'Réserver', d: 'Le prochain créneau de chaque barbier' },
   { id: 'preuve', t: 'La preuve', d: '5,0 sur 316 avis Google' },
   { id: 'coupes', t: 'Le travail', d: 'Les coupes du salon' },
-  { id: 'barbiers', t: 'L’équipe', d: 'Choisis ton barbier' },
+  { id: 'barbiers', t: 'L’équipe', d: 'Choisis ton coiffeur' },
   { id: 'carte', t: 'La carte', d: 'Les prix, sans surprise' },
   /* shown only while the monthly membership is sold online (PAY-04): the chapters after it move by one */
   { id: 'abonnement', t: 'Abonnement', d: 'Au mois, ou la formule', opt: true },
@@ -2921,8 +2921,9 @@ class Component extends DCLogic {
       mnSt: 'mn-st ' + st.cls,
       ctaCls: 'cta' + ((s.sheet || s.ab || s.menu || s.ctaHide) ? ' off' : ''),
       ctaLabel: inFlow ? 'Continuer' : 'Réserver',
-      ctaSub: inFlow ? LXE.eur(F.p, F.from) : low < Infinity ? 'dès ' + num(low) + NB + '€' : '',
-      hasCtaSub: inFlow || low < Infinity,
+      /* the owner's choice: the red button says « Réserver » and nothing else */
+      ctaSub: '',
+      hasCtaSub: false,
       openMain: () => this.openWith(null),
 
       nextK: nextK,
