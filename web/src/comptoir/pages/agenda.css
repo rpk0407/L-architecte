@@ -360,3 +360,7 @@ button.agp-h:active { background: var(--panel2); }
 /* « Renvoyer »: the confirmation again by e-mail, and one message of the list (44 px to the finger) */
 .ap-resend { display: flex; flex-direction: column; gap: 6px; }
 .ap-again { margin-left: 10px; min-height: 44px; display: inline-flex; align-items: center; }
+
+.closed-acts { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; padding: 0 16px 18px; }
+.closed-band { border-radius: 14px; margin-bottom: 10px; }
+.closed-band button { margin-left: auto; text-decoration: underline; text-underline-offset: 3px; font-weight: 600; min-height: 36px; padding: 0 8px; }

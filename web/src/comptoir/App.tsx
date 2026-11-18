@@ -240,6 +240,7 @@ function Shell() {
 
       <div className="main">
         {boot.mode === 'demo' ? <div className="demo-band">Démo · aucune donnée réelle, aucun SMS ni paiement réel{app.can('settings') ? <> · <button type="button" onClick={() => navigate('/reglages/donnees')}>remettre à zéro</button></> : null}</div> : null}
+        <EnrollBand />
         {/* a breakdown the owner was told by e-mail today (SMS, planificateur, sauvegarde): it stays in sight while the day lasts */}
         {(app.pulse?.alerts ?? boot.alerts ?? []).map((w) => <div key={w} className="alert-band" role="alert"><Icon name="alert" size={15} /><span>{w}</span></div>)}
         {/* no connection: said calmly within seconds, with the hour of what is on screen; gone as soon as it is back */}
@@ -359,4 +360,30 @@ export function PageTitle({ children }: { children: ReactNode }) {
   useEffect(() => { setEl(document.getElementById('page-title')); }, []);
   useEffect(() => { const t = document.querySelector('#page-title h1')?.textContent; if (t) document.title = t + ' · Le Comptoir'; });
   return el ? createPortal(children, el) : null;
+}
+
+/**
+ * The owner signed in with his password on a screen that is not a « poste du salon » yet: nobody of the team can enter
+ * there with his code. One touch enrolls it (the same call as Réglages › Appareils). Not on a phone (his own), not in
+ * the demo, and « Pas ici » hides it on this browser.
+ */
+function EnrollBand() {
+  const { boot, can, reloadBoot } = useApp();
+  const phone = useIsPhone();
+  const [no, setNo] = useLocal<boolean>('lx.enroll.no', false);
+  const [busy, setBusy] = useState(false);
+  if (boot.mode === 'demo' || phone || no || boot.me.device || boot.me.session !== 'pwd' || !can('devices')) return null;
+  const enroll = async () => {
+    setBusy(true);
+    try { await api.post('/api/auth/device', { name: 'Comptoir' }); await reloadBoot(); toast({ title: 'Ce poste est enregistré', sub: 'L’équipe peut s’y connecter avec son code.', icon: 'device' }); }
+    catch (e) { toast({ title: 'Enregistrement impossible', sub: e instanceof Error ? e.message : '', icon: 'alert' }); } finally { setBusy(false); }
+  };
+  return (
+    <div className="enroll-band" role="status">
+      <Icon name="device" size={18} />
+      <span><b>Cette tablette n’est pas encore le poste du salon.</b> Tant qu’elle ne l’est pas, l’équipe ne peut pas y entrer avec son code.</span>
+      <Button variant="primary" size="sm" disabled={busy} onClick={enroll}>Enregistrer ce poste</Button>
+      <button type="button" className="enroll-no" onClick={() => setNo(true)}>Pas ici</button>
+    </div>
+  );
 }
