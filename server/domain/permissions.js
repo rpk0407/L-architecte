@@ -64,6 +64,8 @@ export function capsOf(staff, settings) {
     if (!t.barberAllAgenda) caps.delete('agenda.all');
     if (teamViewOf(settings) === 'named') caps.add('report.team');
     if (t.barberRebook) caps.add('client.rebook');
+    // the owner lets his barbers read their clients' full number and address (Réglages › Équipe): off unless he says so
+    if (t.barberContact) caps.add('client.contact');
   }
   return caps;
 }
