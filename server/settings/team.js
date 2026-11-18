@@ -20,7 +20,7 @@ const MEMBER = /** @type {const} */ (['split', 'zero', 'list']);
 const REWARD = /** @type {const} */ (['list', 'net']);
 const shape = obj({
   barberCheckout: opt(bool()), barberAllAgenda: opt(bool()), barberMaxDiscountPct: opt(int({ min: 0, max: 50 })), barberSeeRevenue: opt(bool()), timeoffApproval: opt(bool()),
-  teamView: opt(oneOf(VIEWS)), barberRebook: opt(bool()), barberPhone: opt(bool()), barberPhoneCash: opt(bool()), personalPhones: opt(bool()), staffCalendar: opt(bool()), arrivalAsk: opt(bool()),
+  teamView: opt(oneOf(VIEWS)), barberRebook: opt(bool()), barberContact: opt(bool()), barberPhone: opt(bool()), barberPhoneCash: opt(bool()), personalPhones: opt(bool()), staffCalendar: opt(bool()), arrivalAsk: opt(bool()),
   commissionBase: opt(oneOf(BASES)), cutCredit: opt(oneOf(CUTS)), memberCredit: opt(oneOf(MEMBER)), rewardCredit: opt(oneOf(REWARD))
 });
 

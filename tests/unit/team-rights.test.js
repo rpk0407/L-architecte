@@ -381,3 +381,10 @@ test('an absence told to the team holders names nobody in staffId: the barber is
   assert.equal(his.staffId, ids.JKut);
   assert.equal((await jkut.del('/api/v1/timeoff/' + q.json.id)).status, 200);
 });
+
+test('barberContact: the owner lets barbers read full numbers; off by default', async () => {
+  const { capsOf } = await import('../../server/domain/permissions.js');
+  const b = { role: 'barber', active: true };
+  assert.equal(capsOf(b, { team: {} }).has('client.contact'), false);
+  assert.equal(capsOf(b, { team: { barberContact: true } }).has('client.contact'), true);
+});
