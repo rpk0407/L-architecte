@@ -93,6 +93,20 @@ export default function Agenda() {
   const onLane = useEvent((staffId: string, at: { x: number; y: number }) => setMenu({ ...at, staffId, lane: true }));
   // a touch on a free stretch of the phone planning books there: the barber and the hour are already chosen
   const onFree = useEvent((staffId: string, min: number) => setCreate({ day, start: min, staffId }));
+  // « Fermer le salon ce jour-là »: a closure of one day. Nobody is cancelled: the toast says who is left to move
+  const closeDay = useEvent(async () => {
+    try {
+      const r = await api.post<{ conflicts: number }>('/api/v1/settings/closures', { from: day, to: day, label: 'Fermeture exceptionnelle' });
+      await app.reloadBoot(); refreshAll();
+      toast({ title: 'Salon fermé ' + (day === today ? 'aujourd’hui' : 'ce jour-là'), sub: r.conflicts ? r.conflicts + ' rendez-vous déjà pris restent à reporter.' : 'Plus rien n’est proposé sur le site ce jour-là.', icon: 'lock' });
+    } catch (e) { toastError(e); }
+  });
+  // on a closed day: reopen it (a one-day closure), or book all the same (the server asks to confirm)
+  const reopenDay = useEvent(async (id: string) => {
+    try { await api.del('/api/v1/settings/closures/' + id); await app.reloadBoot(); refreshAll(); toast('Journée rouverte · elle est de nouveau proposée sur le site'); } catch (e) { toastError(e); }
+  });
+  const bookClosed = useEvent(() => setCreate({ day }));
+  const dayClosure = (boot.settings.closures || []).find((c: any) => day >= c.from && day <= c.to) as { id: string; from: string; to: string; label: string } | undefined;
   const setPhoneView = useEvent((v: PhoneView) => setRawView(v));
   // what the phone planning shows beside its switch and on a closed day: kept from one render to the next, or the
   // planning (memo) would be drawn again at every pulse
@@ -100,7 +114,7 @@ export default function Agenda() {
   const phoneExtra = useMemo(() => (day !== today ? <Button size="sm" variant="ghost" onClick={() => goDay(null)}>Aujourd’hui</Button>
     : queued ? <button type="button" className="chip chip-sm" onClick={() => document.querySelector('[data-guide="ag-queue"]')?.scrollIntoView({ behavior: 'smooth', block: 'center' })}><Icon name="walk" size={14} />File · {queued}</button> : null), [day, today, queued]);
   const phoneTools = useMemo(() => <AgendaTools view={agView} set={setAgView} compact />, [agView.zoom, agView.focus, agView.who]);
-  const phoneClosed = useMemo(() => <ClosedDay day={day} today={today} onGo={goDay} />, [day, today]);
+  const phoneClosed = useMemo(() => <ClosedDay day={day} today={today} onGo={goDay} onReopen={reopenDay} onBook={bookClosed} />, [day, today, boot.settings.closures]);
 
   const k = data?.kpis;
   const next = data && day === today ? data.appts.filter((a) => ['booked', 'arrived', 'pending'].includes(a.status) && a.start + 5 >= nowMin && (can('agenda.all') || a.staffId === boot.me.id)).sort((a, b) => a.start - b.start)[0] : null;
@@ -135,6 +149,10 @@ export default function Agenda() {
       {view === 'semaine' ? <Week day={day} today={today} onPick={(d) => setQuery({ day: d === today ? null : d, vue: null })} /> : (
         <>
           <AbsentBanner data={data} today={today} />
+          {/* a day closed by a one-day closure that still shows its agenda (appointments are left): say so, and how to undo it */}
+          {dayClosure && day >= today && data && data.appts.length ? (
+            <div className="alert-band closed-band" role="status"><Icon name="lock" size={15} /><span>Salon fermé {day === today ? 'aujourd’hui' : 'ce jour-là'} · {dayClosure.label}. Les rendez-vous déjà pris restent.</span>{dayClosure.from === dayClosure.to && can('settings') ? <button type="button" onClick={() => reopenDay(dayClosure.id)}>Rouvrir</button> : null}</div>
+          ) : null}
           {reported && reported.moved.length ? <ReportedBanner r={reported} onGone={() => setReported(null)} /> : null}
           {can('agenda.edit') && data?.toCall?.length ? <ToCall data={data} onReport={setReport} onOpen={(id) => setQuery({ rdv: id })} /> : null}
           {data?.closed ? <div className="note ok"><Icon name="lock" /><div><b>Journée clôturée</b> · {/* the Z's figures only reach whoever closes or reads the salon's money; the others get its number */}{data.closure ? 'Z' + String(data.closure.number).padStart(4, '0') + (typeof data.closure.net === 'number' ? ' · ' + eur(data.closure.net) : '') : ''}. Les ventes de ce jour ne peuvent plus être modifiées.</div></div> : null}
@@ -158,13 +176,13 @@ export default function Agenda() {
                 day={day} today={today} nowStep={Math.ceil(nowMin / 5) * 5} view={viewOf(rawView)} setView={setPhoneView} lane={lane} setLane={setLane}
                 selected={sel} myId={boot.me.id} canSeeMoney={moneyOk && k!.scope === 'shop'}
                 extra={phoneExtra} closed={phoneClosed} scale={scaleOf(agView)} tools={phoneTools}
-                onDay={goDay} onOpen={open} onFree={onFree} onEmpty={onEmpty} onBlock={onBlock} late={can('agenda.edit')} onLane={day === today && can('agenda.edit') ? onLane : undefined} />
+                onDay={goDay} onOpen={open} onFree={onFree} onEmpty={onEmpty} onBlock={onBlock} late={can('agenda.edit')} onLane={day >= today && can('agenda.edit') ? onLane : undefined} />
             ) : loading ? <Skeleton h={560} r={22} /> : error ? <Empty icon="alert" title="Agenda indisponible">{error.message}</Empty> : data ? (
-              !data.lanes.length || (data.lanes.every((l) => !l.work.length) && !data.appts.length) ? <ClosedDay day={day} today={today} onGo={goDay} /> :
+              !data.lanes.length || (data.lanes.every((l) => !l.work.length) && !data.appts.length) ? <ClosedDay day={day} today={today} onGo={goDay} onReopen={reopenDay} onBook={bookClosed} /> :
               <Board data={data} today={today} nowMin={nowMin} canSeeMoney={moneyOk && k!.scope === 'shop'} myId={boot.me.id} selected={sel} lane={lane} setLane={setLane}
                 onOpen={open} onMove={move} canMove={canMove} onEmpty={onEmpty} onBlock={onBlock} late={can('agenda.edit')}
                 view={agView} setView={setAgView} canChoose={!!boot.me.chair && data.lanes.length > 1 && data.lanes.some((l) => l.id === boot.me.id)}
-                onLane={day === today && can('agenda.edit') ? onLane : undefined} />
+                onLane={day >= today && can('agenda.edit') ? onLane : undefined} />
             ) : null}
 
             <aside className="ag-side" aria-label="À côté de l’agenda">
@@ -213,9 +231,12 @@ export default function Agenda() {
           <>
             {/* a barber who is not coming: whoever edits every chair's agenda already may block his day (no new right) */}
             <p className="k">{staffById.get(menu.staffId!)?.name}</p>
-            <button type="button" onClick={() => setBlock({ staffId: menu.staffId!, day, start: Math.floor(nowMin / 15) * 15, absent: true })}><Icon name="alert" />Absent aujourd’hui : fermer le reste de sa journée</button>
+            {day === today ? <button type="button" onClick={() => setBlock({ staffId: menu.staffId!, day, start: Math.floor(nowMin / 15) * 15, absent: true })}><Icon name="alert" />Absent aujourd’hui : fermer le reste de sa journée</button> : null}
             <button type="button" onClick={() => setReport({ staffId: menu.staffId!, day })}><Icon name="move" />Reporter ses rendez-vous</button>
-            <button type="button" onClick={() => setBlock({ staffId: menu.staffId!, day, start: Math.ceil(nowMin / 15) * 15 })}><Icon name="block" />Pause maintenant</button>
+            {day === today ? <button type="button" onClick={() => setBlock({ staffId: menu.staffId!, day, start: Math.ceil(nowMin / 15) * 15 })}><Icon name="block" />Pause maintenant</button> : null}
+            {/* the owner runs his hours from the agenda: this chair's usual week, and the salon closed for the day shown */}
+            {can('team') ? <button type="button" onClick={() => navigate('/equipe/' + menu.staffId)}><Icon name="calendar" />Changer ses horaires habituels</button> : null}
+            {can('settings') && !dayClosure ? <button type="button" onClick={closeDay}><Icon name="lock" />Fermer le salon {day === today ? 'aujourd’hui' : 'ce jour-là'}</button> : null}
           </>
         ) : menu ? (
           <>
@@ -317,8 +338,8 @@ function NoTeam() {
   );
 }
 
-function ClosedDay({ day, today, onGo }: { day: string; today: string; onGo: (d: string) => void }) {
-  const { boot } = useApp();
+function ClosedDay({ day, today, onGo, onReopen, onBook }: { day: string; today: string; onGo: (d: string) => void; onReopen?: (id: string) => void; onBook?: () => void }) {
+  const { boot, can } = useApp();
   let next = dates.addDays(day, 1);
   for (let i = 0; i < 14 && !(boot.settings.hours[dates.weekday(next)] || []).length; i++) next = dates.addDays(next, 1);
   const closure = (boot.settings.closures || []).find((c: any) => day >= c.from && day <= c.to);
@@ -327,6 +348,12 @@ function ClosedDay({ day, today, onGo }: { day: string; today: string; onGo: (d:
       <Empty icon="lock" title={(day === today ? 'Fermé aujourd’hui' : 'Fermé ce jour-là') + (closure ? ' · ' + closure.label : '')} action={<Button variant="primary" icon="arrowR" onClick={() => onGo(next)}>Voir {dates.dayLong(next)}</Button>}>
         {closure ? 'Fermeture exceptionnelle.' : 'Le salon ouvre du mardi au samedi. Les horaires se règlent dans Réglages, les absences de chacun dans Équipe.'}
       </Empty>
+      {day >= today && (can('settings') || can('agenda.edit')) ? (
+        <div className="closed-acts">
+          {closure && closure.from === closure.to && can('settings') && onReopen ? <Button variant="subtle" icon="undo" onClick={() => onReopen(closure.id)}>Rouvrir cette journée</Button> : null}
+          {can('agenda.edit') && onBook ? <Button variant="subtle" icon="plus" onClick={onBook}>Ajouter un rendez-vous quand même</Button> : null}
+        </div>
+      ) : null}
     </div>
   );
 }

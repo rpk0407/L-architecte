@@ -143,3 +143,7 @@
   .page .cn-row .input { min-height: 44px; }
   .eq-span .select.select { min-height: 44px; }
 }
+
+.enroll-band { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 10px 16px; background: var(--accent-bg); color: var(--tx); font: 400 14px/1.35 var(--sans); }
+.enroll-band > span { flex: 1 1 260px; min-width: 0; }
+.enroll-no { color: var(--tx2); text-decoration: underline; text-underline-offset: 3px; min-height: 36px; padding: 0 6px; }
