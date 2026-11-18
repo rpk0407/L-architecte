@@ -1286,82 +1286,10 @@ html{scroll-behavior:auto}
 </div>
 </section>
 </div>
-<section class="cuts sheet" id="coupes" data-ch="2" data-tone="dark" aria-labelledby="t-cuts">
-<div class="wrap ct-head"><div class="ct-ti"><p class="kk" data-rv><span>02</span>Le travail</p><h2 class="h2" id="t-cuts" data-rv="lines"><span class="ln"><span>Sorti du</span></span><span class="ln"><span>fauteuil.</span></span></h2></div><div class="ct-nav"><p class="ct-count" aria-hidden="true"><b>{{cutNum}}</b><span>/ {{cutTotal}}</span></p><button type="button" class="ct-arr" aria-label="Coupe précédente" onClick="{{cutPrev}}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12H5M11 6l-6 6 6 6"/></svg></button><button type="button" class="ct-arr" aria-label="Coupe suivante" onClick="{{cutNext}}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h15M13 6l6 6-6 6"/></svg></button></div></div>
-<div class="ct-row" ref="{{r.cuts}}" data-rv>
-<sc-for list="{{cuts}}" as="c" hint-placeholder-count="3">
-<article class="{{c.cls}}">
-<div class="ct-ph" style="--ox: {{c.ox}}; --oy: {{c.oy}}; --zs: {{c.zs}}">
-<img src="{{c.url}}" width="1220" height="1500" alt="{{c.alt}}" loading="lazy" style="object-position: {{c.pos}}">
-<span class="ct-ring" aria-hidden="true"></span>
-<sc-if value="{{c.hasTag}}" hint-placeholder-val="{{ true }}"><p class="ct-tag" aria-hidden="true">{{c.tag}}</p></sc-if>
-<button type="button" class="ct-zoom" aria-pressed="{{c.z}}" onClick="{{c.zoom}}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/></svg><span>{{c.zl}}</span></button>
-</div>
-<div class="ct-body"><div><h3 class="ct-n">{{c.n}}</h3><p class="ct-p">{{c.line}}</p></div><sc-if value="{{c.on}}" hint-placeholder-val="{{ true }}"><p class="ct-price"><small>{{c.pre}}</small>{{c.p}}</p></sc-if></div>
-<sc-if value="{{c.on}}" hint-placeholder-val="{{ true }}"><button type="button" class="btn ghost ct-go" onClick="{{c.go}}">Je veux cette coupe</button></sc-if>
-</article>
-</sc-for>
-<sc-if value="{{hasIg}}" hint-placeholder-val="{{ true }}"><a class="ct ct-ig" href="{{igUrl}}" target="_blank" rel="noopener">
-<span class="ct-ig-in">
-<span class="ct-ig-k">Chaque semaine, de nouvelles coupes</span>
-<span class="ct-ig-t">La suite est sur Instagram.</span>
-<span class="ct-ig-h">{{igHandle}}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17L17 7M8 7h9v9"/></svg></span>
-</span>
-</a></sc-if>
-</div>
-<div class="wrap ct-foot" aria-hidden="true"><p class="ct-bar"><i style="--c: {{cutPct}}"></i></p><p class="ct-hint">Glisse</p></div>
-</section>
-<section class="team" id="barbiers" data-ch="3" data-tone="dark" aria-labelledby="t-team">
-<img class="team-bg" src="/img/salon.jpg" width="1220" height="901" alt="" loading="lazy">
-<div class="wrap">
-<p class="kk" data-rv><span>03</span>L’équipe</p>
-<h2 class="h2" id="t-team" data-rv="lines"><span class="ln"><span>Choisis ton</span></span><span class="ln"><span>barbier.</span></span></h2>
-<p class="bb-lead" data-rv>Chacun sa main. Touche une heure pour la garder.</p>
-<sc-if value="{{teamWait}}" hint-placeholder-val="{{ false }}"><p class="bb-k none bb-wait" role="status"><i aria-hidden="true"></i>On regarde qui est là…</p></sc-if>
-<ul class="bb">
-<sc-for list="{{barbers}}" as="b" hint-placeholder-count="4">
-<li class="{{b.cls}}">
-<span class="{{b.avCls}}" aria-hidden="true">{{b.ini}}<sc-if value="{{b.hasPhoto}}" hint-placeholder-val="{{ false }}"><img sc-camel-src="{{b.photo}}" alt="" width="58" height="58" loading="lazy" decoding="async" sc-camel-on-error="{{b.photoErr}}"></sc-if></span>
-<h3 class="{{b.nCls}}">{{b.n}}</h3>
-<div class="bb-x">
-<sc-if value="{{b.hasBio}}" hint-placeholder-val="{{ false }}"><p class="bb-bio">{{b.bio}}</p></sc-if>
-<sc-if value="{{b.hasAway}}" hint-placeholder-val="{{ false }}"><p class="bb-k none"><i aria-hidden="true"></i>{{b.away}}</p></sc-if>
-<sc-if value="{{b.hasK}}" hint-placeholder-val="{{ true }}"><p class="{{b.kCls}}"><i aria-hidden="true"></i>{{b.k}}</p></sc-if>
-<div class="bb-slots"><sc-for list="{{b.slots}}" as="s" hint-placeholder-count="3"><button type="button" class="chip" aria-label="{{s.label}}" onClick="{{s.go}}">{{s.t}}</button></sc-for><button type="button" class="chip more" aria-label="{{b.otherLabel}}" onClick="{{b.other}}">{{b.otherText}}</button></div>
-<sc-if value="{{b.hasIg}}" hint-placeholder-val="{{ false }}"><a class="tl bb-ig" href="{{b.ig}}" target="_blank" rel="noopener" aria-label="{{b.igLabel}}">Son travail sur Instagram</a></sc-if>
-</div>
-</li>
-</sc-for>
-</ul>
-<sc-if value="{{isDemo}}" hint-placeholder-val="{{ false }}"><p class="bb-demo">Disponibilités de démonstration.</p></sc-if>
-</div>
-</section>
-<section class="carte sheet" id="carte" data-ch="4" data-tone="light" aria-labelledby="t-carte">
-<div class="wrap">
-<p class="kk" data-rv><span>04</span>La carte</p>
-<h2 class="h2" id="t-carte" data-rv="lines"><span class="ln"><span>Les prix,</span></span><span class="ln"><span>sans surprise.</span></span></h2>
-<sc-if value="{{hasMenu}}" hint-placeholder-val="{{ true }}"><div class="cr-tabs" role="tablist" aria-label="Catégories de la carte">
-<sc-for list="{{tabs}}" as="t" hint-placeholder-count="4"><button type="button" role="tab" class="{{t.cls}}" aria-selected="{{t.on}}" onClick="{{t.go}}">{{t.t}}</button></sc-for>
-</div></sc-if>
-<sc-if value="{{carteNone}}" hint-placeholder-val="{{ false }}"><p class="cr-none">La carte arrive. En attendant, <a href="{{contactHref}}">{{contactText}}</a>.</p></sc-if>
-<sc-if value="{{carteWait}}" hint-placeholder-val="{{ false }}"><div role="status" aria-label="La carte arrive"><i class="cr-sk" aria-hidden="true"></i><i class="cr-sk" aria-hidden="true"></i><i class="cr-sk" aria-hidden="true"></i></div></sc-if>
-<ul class="cr" role="tabpanel" aria-label="{{tabName}}">
-<sc-for list="{{carteItems}}" as="f" hint-placeholder-count="3">
-<li class="cr-i"><div class="{{f.cls}}">
-<span class="cr-n">{{f.n}}<sc-if value="{{f.hasMeta}}" hint-placeholder-val="{{ true }}"><small>{{f.meta}}</small></sc-if><sc-if value="{{f.hasNote}}" hint-placeholder-val="{{ false }}"><small>{{f.note}}</small></sc-if><sc-if value="{{f.hasTag}}" hint-placeholder-val="{{ false }}"><em>{{f.tag}}</em></sc-if></span>
-<span class="cr-p"><sc-if value="{{f.from}}" hint-placeholder-val="{{ false }}"><small>dès</small></sc-if>{{f.p}}</span>
-<sc-if value="{{f.can}}" hint-placeholder-val="{{ true }}"><button type="button" class="cr-go" aria-label="{{f.label}}" onClick="{{f.book}}">Réserver<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h15M13 6l6 6-6 6"/></svg></button></sc-if>
-<sc-if value="{{f.cant}}" hint-placeholder-val="{{ false }}"><span class="cr-go off">Se prend au salon</span></sc-if>
-</div></li>
-</sc-for>
-</ul>
-<p class="cr-foot">Carte bancaire acceptée au salon · <a href="/carte-cadeau">Offrir une carte cadeau</a></p>
-</div>
-</section>
-<section class="pv sheet" id="preuve" data-ch="5" data-tone="dark" aria-labelledby="t-pv">
+<section class="pv sheet" id="preuve" data-ch="2" data-tone="dark" aria-labelledby="t-pv">
 <div class="pv-cov" data-cov>
 <div class="pv-top">
-<p class="kk" data-rv><span>05</span>La preuve</p>
+<p class="kk" data-rv><span>02</span>La preuve</p>
 <h2 class="pv-h" id="t-pv" data-rv="lines"><span class="ln"><span>Ne nous crois pas</span></span><span class="ln"><span>sur parole.</span></span></h2>
 </div>
 <sc-if value="{{hasRating}}" hint-placeholder-val="{{ true }}"><div class="pv-score" data-rv>
@@ -1394,6 +1322,78 @@ html{scroll-behavior:auto}
 </div>
 </section>
 <sc-if value="{{aboOn}}" hint-placeholder-val="{{ false }}">
+<section class="cuts sheet" id="coupes" data-ch="3" data-tone="dark" aria-labelledby="t-cuts">
+<div class="wrap ct-head"><div class="ct-ti"><p class="kk" data-rv><span>03</span>Le travail</p><h2 class="h2" id="t-cuts" data-rv="lines"><span class="ln"><span>Sorti du</span></span><span class="ln"><span>fauteuil.</span></span></h2></div><div class="ct-nav"><p class="ct-count" aria-hidden="true"><b>{{cutNum}}</b><span>/ {{cutTotal}}</span></p><button type="button" class="ct-arr" aria-label="Coupe précédente" onClick="{{cutPrev}}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12H5M11 6l-6 6 6 6"/></svg></button><button type="button" class="ct-arr" aria-label="Coupe suivante" onClick="{{cutNext}}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h15M13 6l6 6-6 6"/></svg></button></div></div>
+<div class="ct-row" ref="{{r.cuts}}" data-rv>
+<sc-for list="{{cuts}}" as="c" hint-placeholder-count="3">
+<article class="{{c.cls}}">
+<div class="ct-ph" style="--ox: {{c.ox}}; --oy: {{c.oy}}; --zs: {{c.zs}}">
+<img src="{{c.url}}" width="1220" height="1500" alt="{{c.alt}}" loading="lazy" style="object-position: {{c.pos}}">
+<span class="ct-ring" aria-hidden="true"></span>
+<sc-if value="{{c.hasTag}}" hint-placeholder-val="{{ true }}"><p class="ct-tag" aria-hidden="true">{{c.tag}}</p></sc-if>
+<button type="button" class="ct-zoom" aria-pressed="{{c.z}}" onClick="{{c.zoom}}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/></svg><span>{{c.zl}}</span></button>
+</div>
+<div class="ct-body"><div><h3 class="ct-n">{{c.n}}</h3><p class="ct-p">{{c.line}}</p></div><sc-if value="{{c.on}}" hint-placeholder-val="{{ true }}"><p class="ct-price"><small>{{c.pre}}</small>{{c.p}}</p></sc-if></div>
+<sc-if value="{{c.on}}" hint-placeholder-val="{{ true }}"><button type="button" class="btn ghost ct-go" onClick="{{c.go}}">Je veux cette coupe</button></sc-if>
+</article>
+</sc-for>
+<sc-if value="{{hasIg}}" hint-placeholder-val="{{ true }}"><a class="ct ct-ig" href="{{igUrl}}" target="_blank" rel="noopener">
+<span class="ct-ig-in">
+<span class="ct-ig-k">Chaque semaine, de nouvelles coupes</span>
+<span class="ct-ig-t">La suite est sur Instagram.</span>
+<span class="ct-ig-h">{{igHandle}}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17L17 7M8 7h9v9"/></svg></span>
+</span>
+</a></sc-if>
+</div>
+<div class="wrap ct-foot" aria-hidden="true"><p class="ct-bar"><i style="--c: {{cutPct}}"></i></p><p class="ct-hint">Glisse</p></div>
+</section>
+<section class="team" id="barbiers" data-ch="4" data-tone="dark" aria-labelledby="t-team">
+<img class="team-bg" src="/img/salon.jpg" width="1220" height="901" alt="" loading="lazy">
+<div class="wrap">
+<p class="kk" data-rv><span>04</span>L’équipe</p>
+<h2 class="h2" id="t-team" data-rv="lines"><span class="ln"><span>Choisis ton</span></span><span class="ln"><span>barbier.</span></span></h2>
+<p class="bb-lead" data-rv>Chacun sa main. Touche une heure pour la garder.</p>
+<sc-if value="{{teamWait}}" hint-placeholder-val="{{ false }}"><p class="bb-k none bb-wait" role="status"><i aria-hidden="true"></i>On regarde qui est là…</p></sc-if>
+<ul class="bb">
+<sc-for list="{{barbers}}" as="b" hint-placeholder-count="4">
+<li class="{{b.cls}}">
+<span class="{{b.avCls}}" aria-hidden="true">{{b.ini}}<sc-if value="{{b.hasPhoto}}" hint-placeholder-val="{{ false }}"><img sc-camel-src="{{b.photo}}" alt="" width="58" height="58" loading="lazy" decoding="async" sc-camel-on-error="{{b.photoErr}}"></sc-if></span>
+<h3 class="{{b.nCls}}">{{b.n}}</h3>
+<div class="bb-x">
+<sc-if value="{{b.hasBio}}" hint-placeholder-val="{{ false }}"><p class="bb-bio">{{b.bio}}</p></sc-if>
+<sc-if value="{{b.hasAway}}" hint-placeholder-val="{{ false }}"><p class="bb-k none"><i aria-hidden="true"></i>{{b.away}}</p></sc-if>
+<sc-if value="{{b.hasK}}" hint-placeholder-val="{{ true }}"><p class="{{b.kCls}}"><i aria-hidden="true"></i>{{b.k}}</p></sc-if>
+<div class="bb-slots"><sc-for list="{{b.slots}}" as="s" hint-placeholder-count="3"><button type="button" class="chip" aria-label="{{s.label}}" onClick="{{s.go}}">{{s.t}}</button></sc-for><button type="button" class="chip more" aria-label="{{b.otherLabel}}" onClick="{{b.other}}">{{b.otherText}}</button></div>
+<sc-if value="{{b.hasIg}}" hint-placeholder-val="{{ false }}"><a class="tl bb-ig" href="{{b.ig}}" target="_blank" rel="noopener" aria-label="{{b.igLabel}}">Son travail sur Instagram</a></sc-if>
+</div>
+</li>
+</sc-for>
+</ul>
+<sc-if value="{{isDemo}}" hint-placeholder-val="{{ false }}"><p class="bb-demo">Disponibilités de démonstration.</p></sc-if>
+</div>
+</section>
+<section class="carte sheet" id="carte" data-ch="5" data-tone="light" aria-labelledby="t-carte">
+<div class="wrap">
+<p class="kk" data-rv><span>05</span>La carte</p>
+<h2 class="h2" id="t-carte" data-rv="lines"><span class="ln"><span>Les prix,</span></span><span class="ln"><span>sans surprise.</span></span></h2>
+<sc-if value="{{hasMenu}}" hint-placeholder-val="{{ true }}"><div class="cr-tabs" role="tablist" aria-label="Catégories de la carte">
+<sc-for list="{{tabs}}" as="t" hint-placeholder-count="4"><button type="button" role="tab" class="{{t.cls}}" aria-selected="{{t.on}}" onClick="{{t.go}}">{{t.t}}</button></sc-for>
+</div></sc-if>
+<sc-if value="{{carteNone}}" hint-placeholder-val="{{ false }}"><p class="cr-none">La carte arrive. En attendant, <a href="{{contactHref}}">{{contactText}}</a>.</p></sc-if>
+<sc-if value="{{carteWait}}" hint-placeholder-val="{{ false }}"><div role="status" aria-label="La carte arrive"><i class="cr-sk" aria-hidden="true"></i><i class="cr-sk" aria-hidden="true"></i><i class="cr-sk" aria-hidden="true"></i></div></sc-if>
+<ul class="cr" role="tabpanel" aria-label="{{tabName}}">
+<sc-for list="{{carteItems}}" as="f" hint-placeholder-count="3">
+<li class="cr-i"><div class="{{f.cls}}">
+<span class="cr-n">{{f.n}}<sc-if value="{{f.hasMeta}}" hint-placeholder-val="{{ true }}"><small>{{f.meta}}</small></sc-if><sc-if value="{{f.hasNote}}" hint-placeholder-val="{{ false }}"><small>{{f.note}}</small></sc-if><sc-if value="{{f.hasTag}}" hint-placeholder-val="{{ false }}"><em>{{f.tag}}</em></sc-if></span>
+<span class="cr-p"><sc-if value="{{f.from}}" hint-placeholder-val="{{ false }}"><small>dès</small></sc-if>{{f.p}}</span>
+<sc-if value="{{f.can}}" hint-placeholder-val="{{ true }}"><button type="button" class="cr-go" aria-label="{{f.label}}" onClick="{{f.book}}">Réserver<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h15M13 6l6 6-6 6"/></svg></button></sc-if>
+<sc-if value="{{f.cant}}" hint-placeholder-val="{{ false }}"><span class="cr-go off">Se prend au salon</span></sc-if>
+</div></li>
+</sc-for>
+</ul>
+<p class="cr-foot">Carte bancaire acceptée au salon · <a href="/carte-cadeau">Offrir une carte cadeau</a></p>
+</div>
+</section>
 <section class="ab sheet" id="abonnement" data-ch="6" data-tone="dark" aria-labelledby="t-ab" data-guide="site-abonnement">
 <div class="wrap">
 <p class="kk" data-rv><span>06</span>Abonnement &amp; formule</p>
@@ -2202,10 +2202,10 @@ FORMULAS.forEach(function (f) { FMAP[f.id] = f; });
 /* the chapters, in the page's order: the Sommaire and the top bar's pill follow it (data-ch on each section) */
 const CH = [
   { id: 'reserver', t: 'Réserver', d: 'Le prochain créneau de chaque barbier' },
+  { id: 'preuve', t: 'La preuve', d: '5,0 sur 316 avis Google' },
   { id: 'coupes', t: 'Le travail', d: 'Les coupes du salon' },
   { id: 'barbiers', t: 'L’équipe', d: 'Choisis ton barbier' },
   { id: 'carte', t: 'La carte', d: 'Les prix, sans surprise' },
-  { id: 'preuve', t: 'La preuve', d: '5,0 sur 316 avis Google' },
   /* shown only while the monthly membership is sold online (PAY-04): the chapters after it move by one */
   { id: 'abonnement', t: 'Abonnement', d: 'Au mois, ou la formule', opt: true },
   { id: 'questions', t: 'Questions', d: 'Prix, horaires, réservation' },
