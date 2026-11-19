@@ -200,7 +200,7 @@ function Espace({ token }: { token: string }) {
   return (
     <section className="c-card c-espace" aria-labelledby="c-espace-t" data-guide="r.espace">
       <h2 className="c-h2" id="c-espace-t">Ouvre ton espace</h2>
-      <p className="c-muted">Retrouve ce rendez-vous, tes reçus et tes avantages. Un code par SMS, pas de mot de passe.</p>
+      <p className="c-muted">{acc.contact === 'email' ? 'Retrouve ce rendez-vous, tes reçus et tes avantages. Un code par e-mail, pas de mot de passe.' : 'Retrouve ce rendez-vous, tes reçus et tes avantages. Un code par SMS, pas de mot de passe.'}</p>
       <a className="c-btn" href={'/moi?garder=' + encodeURIComponent(token)}>Ouvrir mon espace</a>
     </section>
   );

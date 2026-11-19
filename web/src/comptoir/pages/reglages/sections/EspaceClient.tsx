@@ -16,12 +16,17 @@ export default function EspaceClient({ s }: { s: any }) {
   const { data } = useQuery<Stats>('/api/v1/accounts/stats');
   // a code that cannot leave opens nothing: production waits for the SMS route (plan, decision 3)
   const noSms = boot.mode !== 'demo' && !boot.providers.sms;
+  // a salon that asks an address and not a number (« Coordonnées demandées » above): the code goes by e-mail, so it is
+  // the e-mail route that must work, not the SMS one
+  const byMail = s.booking?.contact === 'email';
+  const noMail = boot.mode !== 'demo' && !boot.providers.email;
   return (
     <div data-guide="espace-client">
       <Card title="Espace client" icon="user">
         <Switch on={on} disabled={busy} onChange={(v) => save({ accounts: { enabled: v } }, v ? 'Espace client ouvert' : 'Espace client fermé')} title="Espace client sur le site"
-          hint="Tes clients retrouvent leurs rendez-vous et leurs reçus avec un code SMS. Un compte se crée en un geste après la première réservation, ou depuis la fiche au salon. Sans mot de passe." />
-        {on && noSms ? <Note tone="warn" icon="alert">Aucun SMS ne peut partir pour l’instant : les clients ne recevraient pas leur code. Branche le SMS avant d’en parler à tes clients.</Note> : null}
+          hint={byMail ? 'Tes clients retrouvent leurs rendez-vous (pour les voir, les déplacer ou les annuler) et leurs reçus avec un code reçu par e-mail. Un compte se crée avec un prénom et une adresse e-mail. Sans mot de passe.' : 'Tes clients retrouvent leurs rendez-vous et leurs reçus avec un code SMS. Un compte se crée en un geste après la première réservation, ou depuis la fiche au salon. Sans mot de passe.'} />
+        {on && byMail && noMail ? <Note tone="warn" icon="alert">Aucun e-mail ne peut partir pour l’instant : les clients ne recevraient pas leur code. Branche l’e-mail avant d’en parler à tes clients.</Note> : null}
+        {on && !byMail && noSms ? <Note tone="warn" icon="alert">Aucun SMS ne peut partir pour l’instant : les clients ne recevraient pas leur code. Branche le SMS avant d’en parler à tes clients.</Note> : null}
         {data ? (
           <p className="muted" style={{ fontSize: 13.5 }}>
             {data.accounts ? <><b>{data.accounts} {data.accounts > 1 ? 'clients ont un espace' : 'client a un espace'}</b>{data.active30 ? ' · ' + data.active30 + (data.active30 > 1 ? ' y sont revenus' : ' y est revenu') + ' ce dernier mois' : ''}</> : 'Aucun client n’a encore ouvert son espace.'}

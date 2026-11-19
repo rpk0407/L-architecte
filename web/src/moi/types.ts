@@ -32,6 +32,8 @@ export type MeGiftcard = { id: string; last4: string; balance: number; expires: 
  * and last and birthday are ''. Unnamed (the first name was not given at the opening): first is '' too (say « Bonjour »).
  */
 export type Me = {
+  /** 'email': the salon writes by e-mail (the sign-in code too), so the space says e-mail where it said SMS */
+  contact?: 'email';
   first: string; last: string; birthday: string; since: number; fenced: boolean; historyFrom: string | null;
   consent: { sms: boolean; marketing: boolean; marketingAt: number | null };
   notify?: MeNotify;
@@ -54,10 +56,10 @@ export type MeHistory = { items: MeHistoryItem[]; more: boolean };
 export type MeSession = { first: string; last: string; phone: string; since: number; fenced: boolean; historyFrom: string | null; named: boolean; demo: boolean };
 
 /** GET /api/public/account: the entry points hide when enabled is false. */
-export type AccountState = { enabled: boolean; signedIn: boolean; first?: string; demo: boolean; loyalty?: { on: boolean; goal: number } };
+export type AccountState = { enabled: boolean; /** 'email': the sign-in asks an address and sends its code by e-mail */ contact?: 'email'; signedIn: boolean; first?: string; demo: boolean; loyalty?: { on: boolean; goal: number } };
 /** POST /api/public/account/start | keep | verify. demoCode: the demo only (the persona, or a visitor's own fresh booking). */
 export type StartAnswer = { ok: true; message: string; demoCode?: string };
-export type KeepAnswer = { ok: true; sentTo: string; demoCode?: string };
+export type KeepAnswer = { ok: true; /** 'email': the code went to the file's address (sentTo is that address, masked) */ via?: 'email'; sentTo: string; demoCode?: string };
 /** ask 'first': the right code at a first opening, « Ton prénom ? » (send the same code again with first). */
 export type VerifyAnswer = { ok: true; first: string } | { ok: false; ask: 'first'; message: string };
 

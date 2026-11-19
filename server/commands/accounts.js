@@ -2,6 +2,8 @@
 // Espace client (AC-01): the client file IS the client; an account is a verified sign-in attached to it, opened by
 // proving the phone with a 6-digit code by SMS. No password, no sign-up form: a file is born from a first booking (or at
 // the salon), so a sign-in never texts a number the salon does not already know (no SMS pumping, nothing to enumerate).
+// A salon that asks an address and not a number (settings.booking.contact 'email', no SMS route) proves the e-mail
+// instead: the same six digits, the same life, tries and caps, sent to the address of the file (signInVia, domain/otp.js).
 // The actor is chained and can never be erased: { t: 'client', id: 'moi', n: '' }, never a name or a number. A client's
 // command takes its file from ctx.meta.me (the session, http/me-kit.js runAs), never from the body.
 import { fail } from '../core/engine.js';
@@ -10,11 +12,11 @@ import { normPhone, maskPhone, isEmail } from '../lib/util.js';
 import { localParts, diffDays } from '../../shared/dates.js';
 import { queueMessage, messageId } from '../domain/messages.js';
 import { linkAllowed } from '../domain/linkcap.js';
-import { OTP_TEXT, OTP_PER_DAY, OTP_TRIES, otpKey, liveCodes, missesOf } from '../domain/otp.js';
+import { OTP_TEXT, OTP_PER_DAY, OTP_TRIES, otpKey, otpMailId, liveCodes, missesOf } from '../domain/otp.js';
 import { accountOf, accountPastOf, nameMissesOf } from '../projections/accounts.js';
 import { accountsOn } from '../settings/accounts.js';
 import { clientStats } from '../domain/insights.js';
-import { fileIds } from './clients.js';
+import { fileIds, clientByEmail } from './clients.js';
 import { getClient } from './common.js';
 import { upcomingOf } from './lookup.js';
 
@@ -38,15 +40,38 @@ export function rootFile(s, cid) {
   return c && !c.mergedInto ? c : null;
 }
 
+/** Does the salon ask an address and not a number (settings.booking.contact 'email')? Then the code goes by e-mail. */
+export const mailMode = (s) => !!(s.settings.booking && s.settings.booking.contact === 'email');
+/** An address as it is compared: trimmed, lower case, at most 120 characters. */
+export const normEmail = (v) => String(v == null ? '' : v).trim().toLowerCase().slice(0, 120);
+
 /**
- * The file a sign-in is about, or null: by the number (only the number on file: a merged file's old number, an erased
+ * Where the code of this sign-in goes: the address typed (only a salon in e-mail mode takes one), the number typed, or
+ * for a link (a booking's, the salon's invite) the file's address in e-mail mode when it has one, else its number.
+ * @param {{ phone?: string, email?: string, apptId?: string, cid?: string }} x @param {any} c the file
+ * @returns {'email' | 'sms'}
+ */
+export function signInVia(s, c, x) {
+  if (x && x.email) return 'email';
+  if (x && x.phone) return 'sms';
+  return mailMode(s) && !!c && isEmail(c.email) ? 'email' : 'sms';
+}
+
+/**
+ * The file a sign-in is about, or null: by the address (e-mail mode only: the file that carries it, clientByEmail, as a
+ * booking finds it; never a merged file's old address), by the number (only the number on file: a merged file's old number, an erased
  * file, a number moved to another file open nothing, exactly as lookup.js), by a booking (the token holder's), or by the
  * file itself (cid: only from the salon's « acc » link, checked by the route, never from a body).
- * @param {{ phone?: string, apptId?: string, cid?: string }} x
+ * @param {{ phone?: string, email?: string, apptId?: string, cid?: string }} x
  */
 export function fileForSignIn(s, x) {
   let c = null;
-  if (x && x.phone) {
+  if (x && x.email) {
+    const e = normEmail(x.email);
+    const hit = mailMode(s) && isEmail(e) ? clientByEmail(s, e) : null;
+    c = hit ? rootFile(s, hit.id) : null;
+    if (c && normEmail(c.email) !== e) return null;
+  } else if (x && x.phone) {
     const p = normPhone(String(x.phone));
     const cid = p ? s.clientByPhone.get(p) : null;
     c = rootFile(s, cid);
@@ -55,7 +80,9 @@ export function fileForSignIn(s, x) {
     const a = s.appts.get(x.apptId);
     c = a && a.clientId ? rootFile(s, a.clientId) : null;
   } else if (x && x.cid) c = rootFile(s, x.cid);
-  return c && !c.erased && c.phone ? c : null;
+  if (!c || c.erased) return null;
+  // the file must carry what the code is sent to
+  return (signInVia(s, c, x) === 'email' ? isEmail(c.email) : !!c.phone) ? c : null;
 }
 
 /** The person who made this booking created the file with it (same instant): he typed its first name himself. */
@@ -117,7 +144,9 @@ const same = (a, b) => { const x = Buffer.from(String(a)), y = Buffer.from(Strin
  * link). Nothing when the space is closed, the file unknown, erased, without a number, or (by number) not that number's
  * file any more; nothing past OTP_PER_DAY codes nor past the shared cap of link texts of the day (domain/linkcap.js).
  * A service text asked for now: it ignores the file's « SMS de service » switch and leaves before anything else.
- * @returns {{ sent: boolean, cid?: string, msgId?: string }} the route never shows them
+ * By e-mail ({ email }, or a link in e-mail mode): nothing is queued, the challenge is account.codeIssued and the route
+ * hands the mail to the provider itself (via: 'email'); the same caps, counted together with the texts.
+ * @returns {{ sent: boolean, cid?: string, msgId?: string, via?: 'email' | 'sms' }} the route never shows them
  */
 export const sendCode = {
   run(s, input, ctx) {
@@ -131,10 +160,18 @@ export const sendCode = {
     else if (!linkAllowed(s, c.id, day)) return { sent: false, cid: c.id };
     const cap = persona ? DEMO_CODES_PER_DAY : OTP_PER_DAY;
     let n = 0;
+    if (signInVia(s, c, input || {}) === 'email') {
+      while (n < cap && s.otpMail.has(otpMailId(c.id, day, n))) n++;
+      if (n >= cap) return { sent: false, cid: c.id };
+      const id = otpMailId(c.id, day, n);
+      // neither the address nor the digits: the code is derived from this id when the mail leaves
+      ctx.emit('account.codeIssued', { id, cid: c.id });
+      return { sent: true, cid: c.id, msgId: id, via: 'email' };
+    }
     while (n < cap && s.messages.has(messageId(otpKey(c.id, day, n)))) n++;
     if (n >= cap) return { sent: false, cid: c.id };
     const id = queueMessage(s, ctx, { key: otpKey(c.id, day, n), template: 'otp', to: c.phone, cid: c.id, vars: {}, text: OTP_TEXT });
-    return id ? { sent: true, cid: c.id, msgId: id } : { sent: false, cid: c.id };
+    return id ? { sent: true, cid: c.id, msgId: id, via: 'sms' } : { sent: false, cid: c.id };
   }
 };
 
@@ -150,7 +187,8 @@ export const sendCode = {
  * question comes back and the fence is set again from today (account.signedIn refenced). The salon's « acc » link proves
  * the phone only, like a code: it is asked the name like any first opening. The demo's persona is never asked nor fenced,
  * and its re-openings write nothing.
- * @returns {{ ok: true, cid: string, first: string, iat: number, fenced: boolean, named: boolean, persona: boolean } | { ok: false, ask?: 'first', wrong?: boolean }}
+ * via: what the code proved (the session follows it: the file's address, or its number).
+ * @returns {{ ok: true, cid: string, first: string, iat: number, fenced: boolean, named: boolean, persona: boolean, via: 'email' | 'sms' } | { ok: false, ask?: 'first', wrong?: boolean, via?: 'email' | 'sms' }}
  */
 export const verifyCode = {
   run(s, input, ctx) {
@@ -158,6 +196,7 @@ export const verifyCode = {
     if (!accountsOn(s)) return { ok: false };
     const c = fileForSignIn(s, x);
     if (!c) return { ok: false };
+    const via = signInVia(s, c, x);
     const derive = ctx.meta && ctx.meta.otpCode;
     const code = String(x.code == null ? '' : x.code).replace(/\s+/g, '').slice(0, 12);
     const live = liveCodes(s, c.id, ctx.now);
@@ -176,7 +215,7 @@ export const verifyCode = {
     if (persona) {
       // the showcase: opened once, named, never fenced; a visitor after that writes nothing (amendment 10)
       if (!row) ctx.emit('account.signedIn', { id: anchor, cid: anchor, msgId: hit.id, fenced: false, named: true, opened: true });
-      return { ok: true, cid: c.id, first: c.first, iat: ctx.now, fenced: false, named: true, persona: true };
+      return { ok: true, cid: c.id, first: c.first, iat: ctx.now, fenced: false, named: true, persona: true, via };
     }
     const inactive = diffDays(lastActivity(s, c, ids, today), today) > days;
     const refenced = !!prev && inactive && ctx.now - (prev.lastAt || 0) > days * DAY_MS;
@@ -185,9 +224,9 @@ export const verifyCode = {
     else {
       named = (!prev && createdByBooking(s, c, x.apptId)) || (x.first != null && sameFirst(x.first, c.first));
       if (!named) {
-        if (x.first == null || !String(x.first).trim()) return { ok: false, ask: 'first' };
+        if (x.first == null || !String(x.first).trim()) return { ok: false, ask: 'first', via };
         // the code stays good for the next name; the third wrong one since the last opening opens the space fenced
-        if (nameMissesOf(s, anchor) + 1 < NAME_TRIES) { miss(s, ctx, anchor, hit.id, true); return { ok: false, ask: 'first', wrong: true }; }
+        if (nameMissesOf(s, anchor) + 1 < NAME_TRIES) { miss(s, ctx, anchor, hit.id, true); return { ok: false, ask: 'first', wrong: true, via }; }
       }
       fenced = !named || inactive || importedUnseen(s, c, ids);
       historyFrom = fenced ? today : null;
@@ -195,9 +234,10 @@ export const verifyCode = {
     ctx.emit('account.signedIn', { id: anchor, cid: anchor, msgId: hit.id, fenced: !!fenced, ...(fenced && historyFrom ? { historyFrom } : {}), named: !!named, ...(prev ? {} : { opened: true }), ...(refenced ? { refenced: true } : {}) });
     // the salon checks it is the same person (staff feed): kept apart from the sign-ins, which are not news
     if (fenced && (!prev || refenced)) ctx.emit('account.fenceOpened', { id: anchor, cid: anchor });
-    if (!prev) mailOpened(s, ctx, c);
+    // opened with a code sent to that very address: a second mail there would tell nobody anything
+    if (!prev && via === 'sms') mailOpened(s, ctx, c);
     // who could not give the first name learns nothing of the file's holder (not even the name he could not give)
-    return { ok: true, cid: c.id, first: named ? c.first : '', iat: ctx.now, fenced: !!fenced, named: !!named, persona: false };
+    return { ok: true, cid: c.id, first: named ? c.first : '', iat: ctx.now, fenced: !!fenced, named: !!named, persona: false, via };
   }
 };
 

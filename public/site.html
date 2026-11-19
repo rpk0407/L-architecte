@@ -448,6 +448,7 @@ position:relative;font:400 17px/1.5 var(--f-sans);color:var(--os);background:var
 .mn-top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px 14px}
 .mn-me{display:inline-flex;align-items:center;gap:10px;min-height:48px;padding:0 18px 0 6px;border-radius:999px;background:rgba(236,232,224,.09);box-shadow:inset 0 0 0 1px var(--ligne);transition:background-color .25s;animation:fadeIn .6s .25s both}
 .mn-me:hover{background:rgba(236,232,224,.16)}
+.mn-join{padding:0 18px;font:600 15px/1.2 var(--f-sans);white-space:nowrap}
 .mn-me-i{flex:none;display:grid;place-items:center;width:36px;height:36px;border-radius:50%;background:var(--os);color:var(--encre)}
 .mn-me-i svg{width:20px;height:20px}
 .mn-me-t{display:flex;flex-direction:column;gap:2px;min-width:0}
@@ -558,6 +559,7 @@ position:relative;font:400 17px/1.5 var(--f-sans);color:var(--os);background:var
 @keyframes sk{to{background-position:-200% 0}}
 .now-foot{margin-top:18px;font-size:15px;line-height:1.5;color:var(--cendre2)}
 .now-foot .tl{display:inline-flex;color:var(--encre)}
+.now-me{margin-top:4px}
 /* comme la dernière fois ? (this phone has booked here before) */
 .hb{position:relative;display:flex;align-items:center;justify-content:space-between;gap:16px;width:100%;margin-top:clamp(30px,5vw,48px);padding:20px 14px 20px 22px;border-radius:24px;background:var(--encre);color:var(--os);text-align:left;animation:rise .7s var(--ease) both;transition:transform .25s var(--ease)}
 .hb::before,.hb::after{content:"";position:absolute;top:50%;width:20px;height:20px;margin-top:-10px;border-radius:50%;background:var(--os)}
@@ -1222,7 +1224,8 @@ html{scroll-behavior:auto}
 <nav class="mn" id="menu" aria-label="Sommaire" onKeyDown="{{menuKey}}">
 <div class="mn-in">
 <div class="mn-top"><p class="mn-k">Sommaire</p>
-<sc-if value="{{espaceOn}}" hint-placeholder-val="{{ false }}"><a class="mn-me" href="/moi"><span class="mn-me-i" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM5 20c.9-3.5 3.6-5 7-5s6.1 1.5 7 5"/></svg></span><span class="mn-me-t"><b>{{meName}}</b><small>{{meSub}}</small></span></a></sc-if></div>
+<sc-if value="{{espaceOn}}" hint-placeholder-val="{{ false }}"><a class="mn-me" href="/moi"><span class="mn-me-i" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM5 20c.9-3.5 3.6-5 7-5s6.1 1.5 7 5"/></svg></span><span class="mn-me-t"><b>{{meName}}</b><small>{{meSub}}</small></span></a></sc-if>
+<sc-if value="{{espaceJoin}}" hint-placeholder-val="{{ false }}"><a class="mn-me mn-join" href="/moi?creer">Créer mon compte</a></sc-if></div>
 <ol class="mn-l">
 <sc-for list="{{nav}}" as="n" hint-placeholder-count="7"><li style="--i: {{n.i}}"><a class="{{n.cls}}" href="{{n.href}}" aria-current="{{n.cur}}" onClick="{{n.go}}"><span class="mn-n">{{n.num}}</span><span class="mn-t">{{n.t}}</span><span class="mn-d">{{n.d}}</span></a></li></sc-for>
 </ol>
@@ -1309,6 +1312,7 @@ html{scroll-behavior:auto}
 </li></sc-for>
 </ul>
 <p class="now-foot" data-rv>Sans compte. Le créneau est gardé pendant que tu écris. <button type="button" class="tl" onClick="{{bookOther}}">Un autre jour, une autre heure</button></p>
+<sc-if value="{{espaceOn}}" hint-placeholder-val="{{ false }}"><p class="now-foot now-me">Déjà un rendez-vous&nbsp;? <a class="tl" href="/moi">{{rdvLine}}</a></p></sc-if>
 </div>
 </section>
 </div>
@@ -1395,14 +1399,14 @@ html{scroll-behavior:auto}
 <p class="cr-foot">Carte bancaire acceptée au salon · <a href="/carte-cadeau">Offrir une carte cadeau</a></p>
 </div>
 </section>
-<sc-if value="{{aboOn}}" hint-placeholder-val="{{ false }}">
+<sc-if value="{{aboChap}}" hint-placeholder-val="{{ false }}">
 <section class="ab sheet" id="abonnement" data-ch="6" data-tone="dark" aria-labelledby="t-ab" data-guide="site-abonnement">
 <div class="wrap">
-<p class="kk" data-rv><span>06</span>Abonnement &amp; formule</p>
-<h2 class="h2" id="t-ab" data-rv="lines"><span class="ln"><span>Ta coupe,</span></span><span class="ln"><span>chaque mois.</span></span></h2>
-<p class="ab-lead" data-rv>Un prix par mois, sans engagement. Ou cinq semaines d’entretien, payées une fois.</p>
+<p class="kk" data-rv><span>06</span>{{aboKick}}</p>
+<h2 class="h2" id="t-ab" data-rv="lines"><span class="ln"><span>{{aboH1}}</span></span><span class="ln"><span>{{aboH2}}</span></span></h2>
+<p class="ab-lead" data-rv>{{aboLead}}</p>
 <div class="ab-g">
-<article class="ab-c" data-rv aria-labelledby="t-ab-m" data-guide="site-abonnement-plans" data-guide-n="40" data-guide-title="Abonnement" data-guide-body="{{aboGuide}}">
+<sc-if value="{{aboOn}}" hint-placeholder-val="{{ false }}"><article class="ab-c" data-rv aria-labelledby="t-ab-m" data-guide="site-abonnement-plans" data-guide-n="40" data-guide-title="Abonnement" data-guide-body="{{aboGuide}}">
 <p class="ab-k" id="t-ab-m">Abonnement mensuel</p>
 <sc-for list="{{aboPlans}}" as="p" hint-placeholder-count="2"><div class="ab-p">
 <h3 class="ab-n">{{p.name}}<small>{{p.price}}/mois</small></h3>
@@ -1410,7 +1414,7 @@ html{scroll-behavior:auto}
 <p class="ab-s"><i aria-hidden="true"></i>Sans engagement · résiliable en 3 clics</p>
 <button type="button" class="btn" aria-label="{{p.aria}}" onClick="{{p.go}}">Je m’abonne</button>
 </div></sc-for>
-</article>
+</article></sc-if>
 <sc-if value="{{hasCarnet}}" hint-placeholder-val="{{ true }}"><article class="ab-c carnet" data-rv aria-labelledby="t-ab-c" data-guide="site-abonnement-carnet">
 <p class="ab-k" id="t-ab-c">Formule</p>
 <div class="ab-p">
@@ -1421,8 +1425,10 @@ html{scroll-behavior:auto}
 </div>
 </article></sc-if>
 </div>
-<sc-if value="{{espaceOn}}" hint-placeholder-val="{{ false }}"><p class="ab-esp">Ton abonnement, ta formule et tes visites restantes se suivent dans <a href="/moi">Mon espace</a>.</p></sc-if>
-<p class="ab-foot"><a href="/cgv#abonnement">Conditions de l’abonnement</a><a href="/resilier">Résilier mon abonnement</a></p>
+<sc-if value="{{aboOn}}" hint-placeholder-val="{{ false }}"><sc-if value="{{espaceOn}}" hint-placeholder-val="{{ false }}"><p class="ab-esp">Ton abonnement, ta formule et tes visites restantes se suivent dans <a href="/moi">Mon espace</a>.</p></sc-if>
+<p class="ab-foot"><a href="/cgv#abonnement">Conditions de l’abonnement</a><a href="/resilier">Résilier mon abonnement</a></p></sc-if>
+<sc-if value="{{aboSolo}}" hint-placeholder-val="{{ false }}"><sc-if value="{{espaceOn}}" hint-placeholder-val="{{ false }}"><p class="ab-esp">Ta formule et tes visites restantes se suivent dans <a href="/moi">Mon espace</a>.</p></sc-if>
+<p class="ab-foot"><a href="/cgv">Conditions de vente</a></p></sc-if>
 </div>
 </section>
 </sc-if>
@@ -1459,8 +1465,9 @@ html{scroll-behavior:auto}
 <li><a href="/contact" data-guide="site.contact" data-guide-n="80" data-guide-title="Contact" data-guide-body="Une question avant de venir&nbsp;? Écris au salon, on te répond.">Écrire au salon</a></li>
 <li><a href="/formations">Formations</a></li>
 <li><a href="/carte-cadeau" data-guide="site.cadeau" data-guide-n="60" data-guide-title="Carte cadeau" data-guide-body="Offre une coupe&nbsp;: tu choisis le montant, on envoie le code par SMS à qui tu veux. Elle se dépense au salon, en une ou plusieurs fois.">Carte cadeau</a></li>
-<li><a href="/mon-rendez-vous" data-guide="site.rdv" data-guide-n="70" data-guide-title="Mon rendez-vous" data-guide-body="Tu as réservé sans compte&nbsp;? Donne ton numéro&nbsp;: on t’envoie le lien pour déplacer ou annuler.">Mon rendez-vous</a></li>
-<sc-if value="{{espaceOn}}" hint-placeholder-val="{{ false }}"><li><a href="/moi" data-guide="site.espace-lien" data-guide-n="30" data-guide-title="Mon espace" data-guide-body="Ouvre ton espace avec ton numéro&nbsp;: tes rendez-vous et tes reçus au même endroit, avec un code par SMS. C’est facultatif, tu peux toujours réserver sans." data-guide-n-2="50" data-guide-title-2="{{fidTitle}}" data-guide-body-2="{{fidBody}}">Mon espace</a></li></sc-if>
+<li><a href="{{rdvHref}}" data-guide="site.rdv" data-guide-n="70" data-guide-title="Mon rendez-vous" data-guide-body="Tu as réservé sans compte&nbsp;? Donne ton numéro&nbsp;: on t’envoie le lien pour déplacer ou annuler.">Mon rendez-vous</a></li>
+<sc-if value="{{espaceOn}}" hint-placeholder-val="{{ false }}"><li><a href="/moi" data-guide="site.espace-lien" data-guide-n="30" data-guide-title="Mon espace" data-guide-body="{{espaceGuide}}" data-guide-n-2="50" data-guide-title-2="{{fidTitle}}" data-guide-body-2="{{fidBody}}">Mon espace</a></li></sc-if>
+<sc-if value="{{espaceJoin}}" hint-placeholder-val="{{ false }}"><li><a href="/moi?creer">Créer mon compte</a></li></sc-if>
 <li><a href="/resilier">Résilier mon abonnement</a></li>
 <li><a href="/?visite" data-guide-replay>Comment ça marche&nbsp;?</a></li>
 <li><a href="/mentions-legales">Mentions légales</a></li>
@@ -1627,7 +1634,7 @@ html{scroll-behavior:auto}
 <sc-if value="{{mailFirst}}" hint-placeholder-val="{{ false }}"><div class="fld"><label for="f-email">E-mail</label><input id="f-email" type="email" inputmode="email" autocomplete="email" placeholder="prenom@exemple.fr" value="{{fEmail}}" onChange="{{setEmail}}"><span class="{{emailCls}}">{{emailHint}}</span></div></sc-if>
 <div class="fld"><label for="f-phone">Téléphone<sc-if value="{{mailFirst}}" hint-placeholder-val="{{ false }}"> <span class="opt-l">facultatif</span></sc-if></label><input id="f-phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="06 12 34 56 78" value="{{fPhone}}" onChange="{{setPhone}}"><span class="{{phoneCls}}">{{phoneHint}}</span></div>
 </sc-if>
-<sc-if value="{{accCode}}" hint-placeholder-val="{{ false }}"><div class="fld"><label for="f-code">Code reçu par SMS</label><input id="f-code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6 chiffres" value="{{fCode}}" onChange="{{setCode}}"><span class="{{codeCls}}">{{codeHint}}</span></div><button type="button" class="tl" onClick="{{codeAgain}}">Recevoir un nouveau code</button></sc-if>
+<sc-if value="{{accCode}}" hint-placeholder-val="{{ false }}"><div class="fld"><label for="f-code">Code reçu par {{codeBy}}</label><input id="f-code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6 chiffres" value="{{fCode}}" onChange="{{setCode}}"><span class="{{codeCls}}">{{codeHint}}</span></div><button type="button" class="tl" onClick="{{codeAgain}}">Recevoir un nouveau code</button></sc-if>
 <sc-if value="{{isSerInfo}}" hint-placeholder-val="{{ false }}"><p class="dep">{{serPayLine}}</p></sc-if>
 <sc-if value="{{showExtras}}" hint-placeholder-val="{{ true }}">
 <sc-if value="{{mailLater}}" hint-placeholder-val="{{ true }}"><div class="fld"><label for="f-email">E-mail <span class="opt-l">facultatif</span></label><input id="f-email" type="email" inputmode="email" autocomplete="email" value="{{fEmail}}" onChange="{{setEmail}}"><span class="hint">Pour recevoir le rendez-vous dans ton agenda.</span></div></sc-if>
@@ -2208,7 +2215,8 @@ const CH = [
   { id: 'preuve', t: 'La preuve', d: '5,0 sur 316 avis Google' },
   { id: 'coupes', t: 'Le travail', d: 'Les coupes du salon' },
   { id: 'carte', t: 'La carte', d: 'Les prix, sans surprise' },
-  /* shown only while the monthly membership is sold online (PAY-04): the chapters after it move by one */
+  /* shown while the monthly membership is sold online (PAY-04) or the salon has a formule (then « La formule », aboChap):
+     the chapters after it move by one */
   { id: 'abonnement', t: 'Abonnement', d: 'Au mois, ou la formule', opt: true },
   { id: 'questions', t: 'Questions', d: 'Prix, horaires, réservation' },
   { id: 'venir', t: 'Venir', d: '16, place Pélabon' }
@@ -2894,9 +2902,10 @@ class Component extends DCLogic {
       can: !!f.can, cant: !f.can, label: 'Réserver : ' + f.n + ', ' + price(f), book: () => this.openWith({ formula: f.key })
     }));
 
-    /* chapters and the index: « Abonnement » is one only while it is sold online */
-    const aboOn = this.aboOn();
-    const chs = CH.filter((c) => !c.opt || aboOn);
+    /* chapters and the index: « Abonnement » is one while the membership is sold online or the salon has a formule
+       (the formule alone: « La formule », in its own words) */
+    const aboChap = this.aboChap(), aboSolo = aboChap && !this.aboOn();
+    const chs = CH.filter((c) => !c.opt || aboChap).map((c) => (c.id === 'abonnement' && aboSolo ? Object.assign({}, c, { t: 'La formule', d: this.carnetShort() }) : c));
     const chap = s.chap;
     const cur = chap > 0 ? chs[chap - 1] : null;
     const at = (id) => chs.findIndex((c) => c.id === id) + 1;
@@ -2980,6 +2989,9 @@ class Component extends DCLogic {
       // the client space: the footer's « Mon espace », « Garde tout au même endroit » under a booking just made (under the deposit's
       // block when one waits, which keeps the lead), « C’est dans ton espace » only when that booking is his
       espaceOn: !!(s.acct && s.acct.enabled),
+      // a salon that writes by e-mail: an account is made with a first name, an address and a code (/moi?creer)
+      espaceJoin: !!(s.acct && s.acct.enabled && !s.acct.signedIn && mailFirst()),
+      espaceGuide: mailFirst() ? 'Ouvre ton espace avec ton adresse e-mail\u00A0: tes rendez-vous et tes reçus au même endroit, avec un code par e-mail. C’est facultatif, tu peux toujours réserver sans.' : 'Ouvre ton espace avec ton numéro\u00A0: tes rendez-vous et tes reçus au même endroit, avec un code par SMS. C’est facultatif, tu peux toujours réserver sans.',
       // the guide's loyalty step only when the salon runs the card (own switch), with its real goal; no title: no step
       fidTitle: s.acct && s.acct.enabled && s.acct.loyalty && s.acct.loyalty.on ? 'Carte fidélité' : '',
       fidBody: s.acct && s.acct.loyalty && s.acct.loyalty.on ? 'Chaque coupe payée remplit ta carte, dans ton espace. À la ' + ((Number(s.acct.loyalty.goal) || 9) + 1) + 'ᵉ coupe, ta récompense t’attend.' : '',
@@ -2989,11 +3001,17 @@ class Component extends DCLogic {
       // the Sommaire's and the top bar's way in: « Salut Yanis » once this phone is signed in
       meName: s.acct && s.acct.signedIn && s.acct.first ? 'Salut ' + s.acct.first : 'Mon espace',
       meSub: s.acct && s.acct.signedIn ? 'Ouvre ton espace' : 'Tes rendez-vous et tes reçus',
+      // near the booking area and in the footer: where a client sees his appointment and cancels it. A salon that writes
+      // by e-mail has no number to look a booking up with (/mon-rendez-vous asks one): the space is the way, when it is open
+      rdvLine: 'Le voir, le déplacer ou l’annuler',
+      rdvHref: s.acct && s.acct.enabled && mailFirst() ? '/moi' : '/mon-rendez-vous',
       meAria: s.acct && s.acct.signedIn && s.acct.first ? 'Mon espace, connecté : ' + s.acct.first : 'Mon espace',
       espaceUrl: '/moi?garder=' + encodeURIComponent((s.bk.result && s.bk.result.token) || ''),
 
       mapsUrl: mapsOf()
-    }, bv, this.abVals());
+    }, bv, this.abVals(),
+    // a salon that writes by e-mail: the code of the space comes by e-mail, and the page says so
+    mailFirst() ? { espaceText: s.acct && s.acct.loyalty && s.acct.loyalty.on ? 'Ton prochain rendez-vous, tes reçus et ta carte fidélité. Un code par e-mail, pas de mot de passe.' : 'Ton prochain rendez-vous et tes reçus. Un code par e-mail, pas de mot de passe.' } : null);
   }
 }
 
@@ -3431,12 +3449,13 @@ const BookingMixin = {
     }) });
   },
   accSet(patch) { const b = this.state.bk; this.setState({ bk: Object.assign({}, b, { acc: Object.assign({}, b.acc || {}, patch) }) }); },
-  /* « Cette formule demande un compte »: a code goes to the number typed */
+  /* « Cette formule demande un compte »: a code goes to the number typed (to the address, in a salon that writes by e-mail) */
+  accWho() { const s = this.state; return mailFirst() ? { email: String(s.fEmail || '').trim() } : { phone: String(s.fPhone) }; },
   accSend() {
     const s = this.state, b = s.bk;
     if ((b.acc && b.acc.busy) || !this.identOk()) return;
     this.accSet({ busy: true, err: '' });
-    LXE.join({ first: capFirst(String(s.fFirst).trim().split(/\s+/)[0]).slice(0, 40), last: String(s.fLast || '').trim().slice(0, 40) || undefined, phone: String(s.fPhone) }).then((j) => {
+    LXE.join(Object.assign({ first: capFirst(String(s.fFirst).trim().split(/\s+/)[0]).slice(0, 40), last: String(s.fLast || '').trim().slice(0, 40) || undefined }, this.accWho())).then((j) => {
       if (!this._mounted) return;
       this.accSet({ busy: false, sent: true, code: j.demoCode || '', demo: j.demoCode || '', err: '', ask: false });
     }).catch((e) => { if (this._mounted) this.accSet({ busy: false, err: e.message }); });
@@ -3445,7 +3464,7 @@ const BookingMixin = {
     const s = this.state, b = s.bk, a = b.acc || {};
     if (a.busy || !/^\d{6}$/.test(String(a.code || ''))) return;
     this.accSet({ busy: true, err: '' });
-    LXE.verify({ phone: String(s.fPhone), code: String(a.code), first: capFirst(String(s.fFirst).trim().split(/\s+/)[0]).slice(0, 40) }).then((r) => {
+    LXE.verify(Object.assign({ code: String(a.code), first: capFirst(String(s.fFirst).trim().split(/\s+/)[0]).slice(0, 40) }, this.accWho())).then((r) => {
       if (!this._mounted) return;
       if (!r.ok) { this.accSet({ busy: false, ask: true, err: r.message || 'Vérifie ton prénom.' }); return; }
       // signed in: the slots are kept again for the time it takes to confirm
@@ -3489,6 +3508,7 @@ const BookingMixin = {
   identOk() {
     const s = this.state;
     const ph = String(s.fPhone || '').replace(/\D/g, '');
+    if (mailFirst()) return String(s.fFirst || '').trim().length >= 2 && /^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(String(s.fEmail || '').trim());
     return String(s.fFirst || '').trim().length >= 2 && ph.length === 10 && ph.charAt(0) === '0';
   },
 
@@ -4104,11 +4124,13 @@ const BookingMixin = {
     v.accGate = v.isSerInfo && !signed;
     v.accIn = v.isSerInfo && signed;
     v.accInLine = 'Connecté à ton espace' + (s.acct && s.acct.first ? ', ' + s.acct.first : '') + ' : tes ' + nCuts + ' visites s’y ajoutent.';
-    v.accLine = acc.sent ? 'Tape le code reçu par SMS au ' + String(s.fPhone || '') + '. Tes créneaux restent gardés.' : 'Ton prénom et ton numéro : tu reçois un code par SMS, sans mot de passe. Tes créneaux restent gardés.';
+    v.accLine = mf ? (acc.sent ? 'Tape le code reçu par e-mail à ' + String(s.fEmail || '').trim() + '. Tes créneaux restent gardés.' : 'Ton prénom et ton e-mail : tu reçois un code par e-mail, sans mot de passe. Tes créneaux restent gardés.')
+      : acc.sent ? 'Tape le code reçu par SMS au ' + String(s.fPhone || '') + '. Tes créneaux restent gardés.' : 'Ton prénom et ton numéro : tu reçois un code par SMS, sans mot de passe. Tes créneaux restent gardés.';
+    v.codeBy = mf ? 'e-mail' : 'SMS';
     v.accCode = v.accGate && !!acc.sent;
     v.fCode = acc.code || '';
     v.setCode = (e) => this.accSet({ code: String(e.target.value || '').replace(/\D/g, '').slice(0, 6), err: '' });
-    v.codeHint = acc.err || (acc.demo ? 'Démo : aucun SMS ne part. Ton code : ' + acc.demo : 'Six chiffres, valables 10 minutes.');
+    v.codeHint = acc.err || (acc.demo ? 'Démo : aucun ' + (mf ? 'e-mail' : 'SMS') + ' ne part. Ton code : ' + acc.demo : 'Six chiffres, valables 10 minutes.');
     v.codeCls = 'hint' + (acc.err ? ' warn' : '');
     v.codeAgain = () => this.accSend();
     if (!b.err && acc.err && !acc.sent && v.accGate) { v.hasErr = true; v.bkErr = acc.err; }
@@ -4214,7 +4236,7 @@ const BookingMixin = {
     else if (step === 'when') { cta = b.busy ? 'Un instant…' : (b.moving ? 'Déplacer ici' : 'Continuer'); off = b.busy || !(b.day && b.time != null); go = () => this.bkPick({}); }
     else if (step === 'info' && isPack && !signed) {
       // the account first: a code to the number typed, then the code typed back
-      if (!acc.sent) { cta = acc.busy ? 'Un instant…' : 'Recevoir mon code par SMS'; off = !!acc.busy || !this.identOk(); go = () => this.accSend(); }
+      if (!acc.sent) { cta = acc.busy ? 'Un instant…' : mf ? 'Recevoir mon code par e-mail' : 'Recevoir mon code par SMS'; off = !!acc.busy || !this.identOk(); go = () => this.accSend(); }
       else { cta = acc.busy ? 'Vérification…' : 'Valider mon code'; off = !!acc.busy || !/^\d{6}$/.test(String(acc.code || '')); go = () => this.accVerify(); }
     }
     else if (step === 'info' && isPack) { cta = b.busy ? 'Vérification…' : payOnline ? 'Confirmer et régler ' + eur(F) : 'Confirmer mes ' + this.serSlots(b).length + ' rendez-vous'; off = b.busy || !this.bkValid(); go = () => this.bkBuy(); }
@@ -4251,6 +4273,11 @@ Object.assign(Component.prototype, BookingMixin);
 const SubscribeMixin = {
   /* the block shows while the salon sells the membership online (enabled, a real or demo payment, at least one plan) */
   aboOn() { const m = LXE.memberships(); return !!(m && m.live && m.plans && m.plans.length); },
+  /* the chapter itself: the membership sold online, or a formule in the catalogue (taken online when the client space
+     is open, at the salon otherwise). The plans' card inside keeps aboOn: a membership that is not live shows nothing. */
+  aboChap() { const m = LXE.memberships(); return this.aboOn() || !!(m && m.carnet); },
+  /* « 5 coupes · 80 € », for the Sommaire */
+  carnetShort() { const m = LXE.memberships(), c = m && m.carnet; return c ? c.credits + NB + 'coupes · ' + num(c.price / 100) + NB + '€' : ''; },
   aboPlan(id) { const m = LXE.memberships(); return m && m.plans ? m.plans.filter((p) => p.id === id)[0] || null : null; },
   /* « 1 coupe par semaine · Coupe classique · semaine manquée : perdue »: the server's words (shared/membership-words.js), with what a missed week does */
   aboWords(p) {
@@ -4331,7 +4358,17 @@ const SubscribeMixin = {
     const weeks = c && c.days && c.days % 7 === 0 ? c.days / 7 + NB + 'semaines' : c && c.days ? c.days + NB + 'jours' : '';
     const ck = Object.keys(LXE.SV).filter((k) => LXE.SV[k].pack)[0] || null;
     v.carnetOnline = !!c && !!ck;
-    v.carnetWhere = v.carnetOnline ? 'En ligne avec un compte client, ou au salon' : 'À acheter au salon';
+    // no online payment (the salon takes every payment itself): taken here with its dates, paid there
+    const sal0 = LXE.salon();
+    v.carnetWhere = !v.carnetOnline ? 'À acheter au salon' : sal0 && sal0.payments && sal0.payments.live === false ? 'Tu la prends ici avec un compte client, tu la règles au salon' : 'En ligne avec un compte client, ou au salon';
+    /* the chapter's own words: the membership's while it is sold, the formule's when it stands alone */
+    v.aboChap = this.aboChap();
+    v.aboSolo = v.aboChap && !v.aboOn;
+    v.aboKick = v.aboSolo ? 'La formule' : 'Abonnement & formule';
+    v.aboH1 = v.aboSolo ? (c && c.credits === 5 ? 'Cinq coupes,' : (c ? c.credits : '') + NB + 'coupes,') : 'Ta coupe,';
+    v.aboH2 = v.aboSolo ? 'un seul prix.' : 'chaque mois.';
+    v.aboLead = !v.aboSolo ? 'Un prix par mois, sans engagement. Ou cinq semaines d’entretien, payées une fois.'
+      : c && c.weekly ? 'Une visite par semaine, à tes dates. Tu règles une seule fois.' : 'Tu règles une seule fois, et tu viens quand tu veux.';
     v.carnetGo = () => this.openWith({ formula: ck, fresh: true });
     v.carnetLine = c ? [c.price % c.credits === 0 ? num(c.price / c.credits / 100) + NB + '€ la visite' : '', weeks ? 'valable ' + weeks : ''].filter(Boolean).join(' · ') : '';
     /* the sheet */
