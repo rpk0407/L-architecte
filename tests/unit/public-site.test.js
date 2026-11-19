@@ -169,3 +169,14 @@ test('site.html: its own fixed texts, no Google Fonts, no rating in the descript
   for (const w of ['Barbier, place Pélabon.', 'Le prochain créneau de chaque barbier.', 'Combien coûte une coupe chez L’Architecte ?', 'Le salon forme-t-il des barbiers ?', 'construction au millimètre', 'Elias R.',
     'https://www.facebook.com/pg/barbershop.larchitecte/', 'https://www.youtube.com/channel/UCi2oLstkv0IIucLyd211G8A', 'https://www.youtube.com/watch?v=IP4PTgpZg-8']) assert.ok(html.includes(w), w);
 });
+
+test('site: the membership switch hides the membership chapter only, never the cuts, the team or the menu', async () => {
+  const { readFileSync } = await import('node:fs');
+  const html = readFileSync(new URL('../../public/site.html', import.meta.url), 'utf8');
+  const i = html.indexOf('<sc-if value="{{aboOn}}"');
+  assert.ok(i > 0);
+  const inside = html.slice(i, html.indexOf('<section class="fq sheet"', i));
+  assert.deepEqual([...inside.matchAll(/<section[^>]* id="([a-z]+)"/g)].map((m) => m[1]), ['abonnement']);
+  // every chapter is in the page, in the order the Sommaire gives
+  assert.deepEqual([...html.matchAll(/<section[^>]* id="([a-z]+)" data-ch/g)].map((m) => m[1]), ['reserver', 'preuve', 'coupes', 'barbiers', 'carte', 'abonnement', 'questions']);
+});
