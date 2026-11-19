@@ -43,6 +43,13 @@ export function rememberedPhone() {
   try { const m = JSON.parse(localStorage.getItem('lx-me') || 'null'); return m && typeof m.phone === 'string' ? m.phone : ''; } catch { return ''; }
 }
 
+/** The address the site remembers on this phone (lx-me), in a salon that asks an address and not a number. */
+export function rememberedEmail() {
+  try { const m = JSON.parse(localStorage.getItem('lx-me') || 'null'); return m && typeof m.email === 'string' ? m.email : ''; } catch { return ''; }
+}
+/** An address as the site's booking form reads one. */
+export const validEmail = (v: string) => /^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(String(v || '').trim());
+
 /** tel: href of a number written any way (« 04 91 00 00 00 »), or '' */
 export function telHref(v: string) {
   const t = String(v || '').replace(/[^\d+]/g, '');

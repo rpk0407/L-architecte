@@ -1,5 +1,6 @@
 // @ts-check
-// Espace client (AC-01): optional client accounts, opened with a code by SMS on a file the salon already knows.
+// Espace client (AC-01): optional client accounts, opened with a code by SMS on a file the salon already knows (by e-mail
+// for a salon that asks an address and not a number: settings.booking.contact 'email').
 //   enabled     the entry points (site, /moi, the lookup text's line) and the sign-in routes; off in production until the
 //               SMS route is tested and the switch to the new site is done (decision 3 of the plan), on in the demo (seed)
 //   sessionDays how long a signed-in phone stays signed in without signing in again (the cookie lx_c slides every week)
@@ -17,7 +18,9 @@ const golive = {
   /** @param {any} s */
   state(s) {
     const on = accountsOn(s);
-    return { on, blocker: on ? '' : 'S’ouvre quand le SMS est testé et la bascule faite' };
+    // a salon that sends everything by e-mail has nothing to wait for from the SMS: the code goes to the client's address
+    const mail = !!(s && s.settings && s.settings.booking && s.settings.booking.contact === 'email');
+    return { on, blocker: on ? '' : mail ? 'Prêt à ouvrir : le code de connexion part par e-mail' : 'S’ouvre quand le SMS est testé et la bascule faite' };
   }
 };
 

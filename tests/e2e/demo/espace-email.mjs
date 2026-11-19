@@ -1,0 +1,123 @@
+// AC-01 by e-mail · A salon that asks an address and not a number (Réglages › Réservation: contact 'email'), on a phone:
+// « Créer mon compte » in the site's Sommaire and footer, /moi?creer (a first name, an address, the code: the demo shows
+// the code of a visitor's own fresh account on the page, no mail leaves), the space that opens, the sign-in that asks an
+// address and promises an e-mail, and the Formule's account step by e-mail down to the five dates paid.
+export const name = 'espace client par e-mail: créer mon compte (menu, pied de page, /moi), connexion, compte de la Formule';
+export const viewport = { width: 430, height: 932 };
+
+const T = 10000;
+const MAIL = 'nadia.e2e@exemple.fr';
+const MAIL2 = 'karim.e2e@exemple.fr';
+
+export default async ({ h, page }) => {
+  await h.setup();
+  const set = await h.api('/api/v1/settings', { method: 'PATCH', body: { booking: { contact: 'email' }, accounts: { enabled: true } } });
+  if (!set.ok) throw new Error('settings: ' + set.text);
+  const acc = (await h.api('/api/public/account', { session: false })).json;
+  if (!acc.enabled || acc.contact !== 'email') throw new Error('the space does not say it signs in by e-mail: ' + JSON.stringify(acc));
+
+  /* ---------- the site: the entries ---------- */
+  await page.goto(h.base + '/');
+  const foot = page.locator('.ft-links a[href="/moi?creer"]');
+  await foot.waitFor({ state: 'attached', timeout: T });
+  if ((await foot.innerText()).trim() !== 'Créer mon compte') throw new Error('the footer does not offer « Créer mon compte »');
+  if (!(await page.locator('.ft-links a[href="/moi"]').count())) throw new Error('the footer lost « Mon espace »');
+  await page.locator('.tb-menu, button[aria-controls="menu"]').first().click();
+  const join = page.locator('#menu a.mn-join');
+  await join.waitFor({ timeout: T });
+  await page.locator('#menu a.mn-me').getByText('Me connecter').waitFor({ timeout: T });
+  const box = await join.boundingBox();
+  if (!box || box.height < 44) throw new Error('« Créer mon compte » is under 44 px in the Sommaire');
+  if ((await page.evaluate(() => document.scrollingElement.scrollWidth)) > 430) throw new Error('the page scrolls sideways');
+  await h.shot(page, 'espace-email-menu-430');
+  await join.click();
+
+  /* ---------- /moi?creer ---------- */
+  await page.waitForURL(/\/moi\?creer/, { timeout: T });
+  await page.getByRole('heading', { name: 'Crée ton compte' }).waitFor({ timeout: T });
+  if (await page.locator('#m-phone').count()) throw new Error('the page asks a number in e-mail mode');
+  const said = (await page.locator('.ms').innerText()).replace(/[  ]/g, ' ');
+  if (/SMS/.test(said)) throw new Error('the page promises an SMS in e-mail mode: ' + (said.match(/.{0,40}SMS.{0,40}/) || [''])[0]);
+  await h.shot(page, 'espace-email-creer-430');
+  // nothing typed, then an address that is not one: said under the fields
+  await page.getByRole('button', { name: 'Recevoir mon code par e-mail' }).click();
+  await h.expectText(page, 'Écris ton prénom.');
+  await page.fill('#m-join', 'Nadia');
+  await page.fill('#m-email', 'nadia@');
+  await page.getByRole('button', { name: 'Recevoir mon code par e-mail' }).click();
+  await h.expectText(page, 'Vérifie ton adresse');
+  await page.fill('#m-email', MAIL);
+  await page.getByRole('button', { name: 'Recevoir mon code par e-mail' }).click();
+  await page.getByText('Le code reçu par e-mail').waitFor({ timeout: T });
+  await h.expectText(page, 'Un code arrive par e-mail à ' + MAIL);
+  // the demo sends no mail: the code of this visitor's own fresh account shows, then goes in; no name is asked again
+  await page.getByText('Code reçu', { exact: true }).waitFor({ timeout: T });
+  await page.waitForFunction(async () => (await (await fetch('/api/public/account')).json()).signedIn, null, { timeout: T });
+  await h.expectText(page, 'Nadia', T);
+  await page.locator('[data-guide="moi.next"], .m-tabs, nav').first().waitFor({ timeout: T });
+  await h.shot(page, 'espace-email-ouvert-430');
+  const me = await page.evaluate(async () => (await fetch('/api/me')).json());
+  if (me.first !== 'Nadia' || me.via !== 'email') throw new Error('the session is not the new account’s: ' + JSON.stringify(me));
+  // the salon has one file for that address, without a number
+  const cl = await h.api('/api/v1/clients?q=' + encodeURIComponent(MAIL));
+  const files = (cl.json.items || []).filter((c) => (c.email || '').toLowerCase() === MAIL || c.first === 'Nadia');
+  if (files.length !== 1) throw new Error(files.length + ' file(s) for the new account');
+
+  /* ---------- signed out: the sign-in asks the address ---------- */
+  await page.evaluate(async () => { await fetch('/api/me/signout', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' }); });
+  await page.goto(h.base + '/moi');
+  await page.getByRole('heading', { name: 'Ouvre ton espace' }).waitFor({ timeout: T });
+  await page.getByText('Pas encore de compte ?').first().waitFor({ timeout: T });
+  await page.getByRole('button', { name: 'Créer mon compte' }).waitFor({ timeout: T });
+  await page.fill('#m-email', MAIL);
+  await h.shot(page, 'espace-email-connexion-430');
+  await page.getByRole('button', { name: 'Recevoir mon code par e-mail' }).click();
+  await h.expectText(page, 'Si cette adresse est connue du salon, un code arrive par e-mail à ' + MAIL);
+  await page.getByText('Le code reçu par e-mail').waitFor({ timeout: T });
+  await page.getByRole('button', { name: 'Changer d’adresse' }).waitFor({ timeout: T });
+  if ((await page.evaluate(() => document.scrollingElement.scrollWidth)) > 430) throw new Error('/moi scrolls sideways');
+  await h.shot(page, 'espace-email-code-430');
+  // a wrong code says so (the mail never left in the demo: nobody can guess it)
+  await page.locator('#m-code').fill('000000');
+  await h.expectText(page, 'Ce code n’est pas le bon, ou il a expiré.', T);
+
+  /* ---------- the Formule: the account it asks for, by e-mail ---------- */
+  await page.goto(h.base + '/');
+  await page.locator('.cta').first().click();
+  const offer = page.locator('.bk button.so-pack');
+  await offer.waitFor({ timeout: T });
+  await offer.click();
+  await page.locator('.bk button.wh:not(.any)').first().click();
+  await page.locator('.bk button.sl').first().waitFor({ timeout: T });
+  await page.locator('.dstrip .dc:not(.full):not(.dc-more)').nth(3).click();
+  await page.locator('.bk button.sl').first().waitFor({ timeout: T });
+  await page.locator('.bk button.sl').first().click();
+  await h.expectText(page, 'Tes 4 autres rendez-vous');
+  await page.locator('.ser-r').nth(3).waitFor({ timeout: T });
+  await page.locator('.bk-foot .btn').click();
+  await h.expectText(page, 'Cette formule demande un compte');
+  await h.expectText(page, 'Ton prénom et ton e-mail : tu reçois un code par e-mail, sans mot de passe.');
+  await page.fill('#f-first', 'Karim');
+  await page.fill('#f-email', MAIL2);
+  await page.locator('.acc').scrollIntoViewIfNeeded();
+  await h.shot(page, 'espace-email-formule-compte-430');
+  await page.getByRole('button', { name: 'Recevoir mon code par e-mail' }).click();
+  await page.locator('#f-code').waitFor({ timeout: T });
+  await page.getByText('Code reçu par e-mail').waitFor({ timeout: T });
+  await h.expectText(page, 'Tape le code reçu par e-mail à ' + MAIL2);
+  await page.waitForFunction(() => /^\d{6}$/.test(document.querySelector('#f-code').value), null, { timeout: T });
+  await page.getByRole('button', { name: 'Valider mon code' }).click();
+  await h.expectText(page, 'Connecté à ton espace, Karim');
+  if ((await page.locator('.ser-list .pty-r').count()) !== 5) throw new Error('the five dates were lost while the code was typed');
+  const cta = page.locator('.bk-foot .btn');
+  if (!/Confirmer et régler 80\s€/.test(await cta.textContent())) throw new Error('the button says « ' + (await cta.textContent()) + ' »');
+  await cta.click();
+  await h.expectText(page, 'Presque réservé, Karim');
+  await page.locator('.pay-b .btn').click();
+  await page.locator('.c-pay .c-btn').click();
+  await page.waitForURL(/\/r\//, { timeout: T });
+  await h.expectText(page, 'Confirmé', 12000);
+  await h.expectText(page, 'visite 1 sur 5');
+  await page.goto(h.base + '/moi');
+  await h.expectText(page, 'Formule Entretien 5 semaines');
+};

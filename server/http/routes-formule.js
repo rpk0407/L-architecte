@@ -9,7 +9,6 @@
 // Buying it online needs the client's account: nothing here takes a file from the body.
 import { HttpError, guard, limited } from './kit.js';
 import { signLink } from '../auth/session.js';
-import { normPhone } from '../lib/util.js';
 import { isDay, addDays } from '../../shared/dates.js';
 import { freeSlots } from '../domain/availability.js';
 import { offerOf, proposeSeries, formulesOfFiles, formuleView, running, personOf, weeksOf } from '../domain/formule.js';
@@ -23,8 +22,7 @@ import { otpCode } from '../domain/otp.js';
 import { LINK_IP_PER_HOUR, LINK_PER_DAY, linkIpKey, linkPhoneKey } from '../domain/linkcap.js';
 import { requireMe, isPersona, runSigningIn } from './me-kit.js';
 import { isDemo, payLive, startPayment } from './routes-public.js';
-import { START_MESSAGE } from './routes-me.js';
-import * as sched from './scheduler.js';
+import { START_MESSAGE, START_MESSAGE_MAIL, identityOf, canMail, codeLeaves } from './routes-me.js';
 import { createHmac } from 'node:crypto';
 
 const HOUR = 3600000, DAY = 86400000;
@@ -85,27 +83,26 @@ export function formuleRoutes(app) {
   });
 
   // « Cette formule demande un compte »: the code goes to the number typed, whose file is made if the salon does not
-  // know it yet. The same words whatever the number; the code is checked by /api/public/account/verify, which signs in
+  // know it yet. The same words whatever the number; the code is checked by /api/public/account/verify, which signs in.
+  // A salon in e-mail mode takes { first, email }: the same, by e-mail (« Créer mon compte » on /moi asks nothing else)
   app.post('/api/public/account/join', async (r) => {
     if (!accountsOn(r.s)) throw new HttpError(409, 'disabled', 'L’espace client n’est pas encore ouvert.');
     guard(linkIpKey(r.ip), LINK_IP_PER_HOUR, HOUR, 'Trop de demandes depuis cet appareil. Réessaie dans une heure ou appelle le salon.');
     const b = r.body || {};
-    const phone = normPhone(String(b.phone || '').slice(0, 32));
-    if (!phone) throw new HttpError(400, 'invalid', 'Vérifie ton numéro : 10 chiffres, comme 06 12 34 56 78.');
+    const who = identityOf(r, b, 'Vérifie ton numéro : 10 chiffres, comme 06 12 34 56 78.');
+    const byMail = 'email' in who;
     let demoCode = null;
-    // past 3 asks a day the number gets nothing more, and the asker is not told
-    if (!limited(linkPhoneKey(phone), LINK_PER_DAY, DAY)) {
+    // past 3 asks a day the number gets nothing more, and the asker is not told; no e-mail provider, no file nor code
+    if (!limited(linkPhoneKey(byMail ? who.email : who.phone), LINK_PER_DAY, DAY) && (!byMail || canMail(r))) {
       const signing = runSigningIn(r, { otpCode: (msgId) => otpCode(r.rt.secret, msgId) });
-      await signing(joinAccount, { first: String(b.first || '').slice(0, 40), last: b.last ? String(b.last).slice(0, 40) : undefined, phone });
-      const res = await signing(sendCode, { phone });
-      if (res.sent && res.msgId) {
-        try { if (typeof sched.dispatchNow === 'function') await sched.dispatchNow(r.rt, [res.msgId]); } catch (e) { console.error('[lx] account join', e && /** @type {any} */ (e).message); }
-      }
+      await signing(joinAccount, { first: String(b.first || '').slice(0, 40), last: b.last ? String(b.last).slice(0, 40) : undefined, ...who });
+      const res = await signing(sendCode, who);
+      try { await codeLeaves(r, res); } catch (e) { console.error('[lx] account join', e && /** @type {any} */ (e).message); }
       // the demo sends no text: a visitor's own fresh file gets its code on the page (never a seeded client's)
       const c = res.cid ? rootFile(r.s, res.cid) : null;
       if (res.msgId && isDemo(r) && c && c.source === 'site' && !c.demo && r.now - c.createdAt < DEMO_PURGE_MS && !accountOf(r.s, fileIds(r.s, c))) demoCode = otpCode(r.rt.secret, res.msgId);
     }
-    return { ok: true, message: START_MESSAGE, ...(demoCode ? { demoCode } : {}) };
+    return { ok: true, message: byMail ? START_MESSAGE_MAIL : START_MESSAGE, ...(demoCode ? { demoCode } : {}) };
   });
 
   /* ---------------- the signed-in client ---------------- */

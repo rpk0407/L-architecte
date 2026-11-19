@@ -16,10 +16,10 @@ import { accountOf } from '../projections/accounts.js';
 import { accountsOn } from '../settings/accounts.js';
 import { cgvVersionOf } from '../settings/shop.js';
 import { getStaff, getClient, snapshotServices, totalDur, totalPrice, needChair } from './common.js';
-import { upsertClient, fileIds } from './clients.js';
-import { rootFile } from './accounts.js';
+import { upsertClient, fileIds, clientByEmail } from './clients.js';
+import { rootFile, mailMode, normEmail } from './accounts.js';
 import { chairFor, onlineSlot, uniqueCode, childFile, confirmText } from './agenda.js';
-import { normPhone, capFirst } from '../lib/util.js';
+import { normPhone, capFirst, isEmail } from '../lib/util.js';
 import { addDays, dayLong, dayParts, fmtTime, pad2 } from '../../shared/dates.js';
 import { fmtEur } from '../../shared/money.js';
 
@@ -356,16 +356,25 @@ export function formuleUnpaid(s, ctx, f, head, reason) {
 
 /* ---------------- an account for a number the salon does not know yet ---------------- */
 
-const joinSchema = obj({ first: nameStr(2), last: opt(str({ max: 40, pattern: /^[^:/]*$/ })), phone: str({ min: 6, max: 32 }) });
+const joinSchema = obj({ first: nameStr(2), last: opt(str({ max: 40, pattern: /^[^:/]*$/ })), phone: opt(str({ min: 6, max: 32 })), email: opt(str({ min: 5, max: 120 })) });
 /**
  * The first step of « Cette formule demande un compte » for a number with no file: the file is made (as a booking
  * would), so the sign-in code can be sent to it. Nothing for a number already on file; the answer never tells which.
+ * A salon in e-mail mode takes an address instead ({ first, email }, « Créer mon compte » on /moi too): the file is the
+ * one that carries it, else a new one with that address and no number.
  */
 export const joinAccount = {
   run(s, input, ctx) {
     const x = parse(joinSchema, input);
     if (!accountsOn(s)) return { ok: false };
-    const phone = normPhone(x.phone);
+    if (x.email != null && mailMode(s)) {
+      const email = normEmail(x.email);
+      if (!isEmail(email)) fail(400, 'invalid', 'Vérifie ton adresse e-mail.');
+      if (clientByEmail(s, email)) return { ok: true, created: false };
+      const made = upsertClient(s, ctx, { first: x.first, last: x.last || '', email, sms: true, marketing: false }, 'site', { byEmail: true });
+      return { ok: true, created: made.created };
+    }
+    const phone = normPhone(x.phone || '');
     if (!phone) fail(400, 'invalid', 'Vérifie ton numéro : 10 chiffres, comme 06 12 34 56 78.');
     if (s.clientByPhone.get(phone)) return { ok: true, created: false };
     const r = upsertClient(s, ctx, { first: x.first, last: x.last || '', phone, sms: true, marketing: false }, 'site');

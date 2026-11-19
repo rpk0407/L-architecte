@@ -3,6 +3,9 @@
 // so the page never says more than it does: it builds its own words from what the person typed. From a booking
 // (« Ouvrir mon espace », /moi?garder=<token>) the code is already on its way and the page says to which number. The demo
 // signs in as its client without a code (texts are simulated there).
+// A salon that asks an address and not a number (mail: /api/public/account says contact 'email') runs the same steps with
+// an e-mail address and a code by e-mail, and adds « Créer mon compte » (/moi?creer): a first name, the address, the code
+// (/api/public/account/join makes the file when no file carries that address).
 // One real <input> takes the code (CodeField) and it is the same tap that sends the code which gives it the focus, because
 // a phone opens its keyboard only for a focus that comes from a tap. Each step is one history entry: the browser's Back
 // goes to the step before, not out of /moi.
@@ -11,7 +14,7 @@ import { flushSync } from 'react-dom';
 import { api, ApiError } from '../lib/api';
 import { Icon } from '../ui/Icon';
 import { CodeField, type CodeState } from './CodeField';
-import { clock, rememberedPhone, showPhone, telHref, typedPhone, validPhone } from './phone';
+import { clock, rememberedEmail, rememberedPhone, showPhone, telHref, typedPhone, validEmail, validPhone } from './phone';
 import { perksLine } from './perks';
 import { useSalon } from './salon';
 import { SitePage } from './SitePage';
@@ -32,9 +35,21 @@ const depth = (): number => (history.state && typeof history.state.moi === 'numb
 /** This entry shows the number: no step of this page is behind it, so the next step pushes its own entry. */
 const flat = () => history.replaceState({ moi: 0 }, '');
 
-export function SignIn({ demo, enabled, loyalty, garder, onIn }: { demo: boolean; enabled: boolean; loyalty: boolean; garder: string | null; onIn: (first: string) => void }) {
+/** « Code envoyé au 06 •• •• •• 78 » or « à k•••@exemple.fr »: where a booking's code went */
+const keptTo = (r: KeepAnswer) => (r.via === 'email' ? 'Code envoyé à ' : 'Code envoyé au ') + r.sentTo + ', en quelques secondes.';
+
+export function SignIn({ demo, enabled, loyalty, mail, create, garder, onIn }: { demo: boolean; enabled: boolean; loyalty: boolean; mail: boolean; create: boolean; garder: string | null; onIn: (first: string) => void }) {
   const salon = useSalon();
   const keeping = enabled && !!garder;
+  /** « Créer mon compte » (e-mail mode): a first name with the address, and the file is made if none carries it */
+  const [creating, setCreating] = useState(mail && create && !keeping);
+  const [email, setEmail] = useState(() => (mail ? rememberedEmail() : ''));
+  const [joinFirst, setJoinFirst] = useState('');
+  /** the code of this step came by e-mail (a booking's link says it in its answer) */
+  const [codeMail, setCodeMail] = useState(mail);
+  const joinRef = useRef<HTMLInputElement>(null);
+  /** the first name given with « Créer mon compte »: it travels with the code, so nothing more is asked */
+  const joined = useRef('');
   const [step, setStep] = useState<Step>(keeping ? 'code' : 'phone');
   /** the code is leaving (the first time): the code step shows it while the answer is awaited */
   const [sending, setSending] = useState(keeping);
@@ -46,7 +61,7 @@ export function SignIn({ demo, enabled, loyalty, garder, onIn }: { demo: boolean
   const [token, setToken] = useState<string | null>(null);
   const [to, setTo] = useState('');
   // what the code is checked against, read when it is checked (a code filled by the demo arrives before a re-render)
-  const via = useRef<{ token: string } | { phone: string }>({ phone: '' });
+  const via = useRef<{ token: string } | { phone: string } | { email: string }>({ phone: '' });
   const [code, setCode] = useState('');
   const [first, setFirst] = useState('');
   const [prob, setProb] = useState<Problem | null>(null);
@@ -94,7 +109,7 @@ export function SignIn({ demo, enabled, loyalty, garder, onIn }: { demo: boolean
     sent.current = false; verifying.current = false;
     setStep('phone'); setSending(false); setResending(false); setBusy(false); setOkay(false);
     setCode(''); setFirst(''); setToken(null); setProb(null); setLive(''); setNote(''); setWait(0);
-    via.current = { phone: '' };
+    via.current = { phone: '' }; joined.current = '';
     flat();
   };
   /** « Changer de numéro » and the arrow of the code step: back to the number */
@@ -138,7 +153,7 @@ export function SignIn({ demo, enabled, loyalty, garder, onIn }: { demo: boolean
       clearTimeout(timers.current.note);
       setNote('Nouveau code envoyé'); setLive('Nouveau code envoyé.');
       timers.current.note = setTimeout(() => setNote(''), 4000);
-    } else setLive('Code envoyé. Entre les 6 chiffres reçus par SMS.');
+    } else setLive('Code envoyé. Entre les 6 chiffres reçus par ' + (mail ? 'e-mail' : 'SMS') + '.');
     codeRef.current?.focus();
   };
 
@@ -156,7 +171,7 @@ export function SignIn({ demo, enabled, loyalty, garder, onIn }: { demo: boolean
     const id = ++run.current;
     setSending(true); setProb(null); setStep('code');
     api.post<KeepAnswer>('/api/public/account/keep', { token: tok })
-      .then((r) => { if (id !== run.current) return; setToken(tok); via.current = { token: tok }; sentOk('Code envoyé au ' + r.sentTo + ', en quelques secondes.', r.demoCode); })
+      .then((r) => { if (id !== run.current) return; setToken(tok); via.current = { token: tok }; setCodeMail(r.via === 'email'); sentOk(keptTo(r), r.demoCode); })
       .catch((x) => {
         if (id !== run.current) return;
         const p = failed(x, () => keep(tok));
@@ -182,29 +197,38 @@ export function SignIn({ demo, enabled, loyalty, garder, onIn }: { demo: boolean
 
   // WebOTP: the phone offers the code from the SMS (its last line names this site)
   useEffect(() => {
-    if (step !== 'code' || sending || !('OTPCredential' in window)) return;
+    if (step !== 'code' || sending || codeMail || !('OTPCredential' in window)) return;
     const ac = new AbortController();
     (navigator.credentials as any).get({ otp: { transport: ['sms'] }, signal: ac.signal })
       .then((c: { code?: string } | null) => { if (c && c.code && /^\d{6}$/.test(c.code)) { setCode(c.code); verify(c.code); } })
       .catch(() => { /* typed by hand */ });
     return () => ac.abort();
-  }, [step, sending]);
+  }, [step, sending, codeMail]);
 
   const start = (e?: FormEvent) => {
     e?.preventDefault();
     if (busy || sending) return;
-    if (!validPhone(phone)) {
-      setProb({ kind: 'phone', text: phone.trim() ? 'Vérifie ton numéro : 10 chiffres, comme 06 12 34 56 78.' : 'Donne ton numéro de mobile pour recevoir ton code.' });
+    const em = email.trim();
+    const name = mail && creating ? joinFirst.trim() : '';
+    if (mail && creating && name.length < 2) {
+      setProb({ kind: 'name', text: 'Écris ton prénom.' });
+      joinRef.current?.focus();
+      return;
+    }
+    if (mail ? !validEmail(em) : !validPhone(phone)) {
+      setProb({ kind: 'phone', text: mail ? (em ? 'Vérifie ton adresse : elle ressemble à prenom@exemple.fr.' : 'Donne ton adresse e-mail pour recevoir ton code.') : phone.trim() ? 'Vérifie ton numéro : 10 chiffres, comme 06 12 34 56 78.' : 'Donne ton numéro de mobile pour recevoir ton code.' });
       phoneRef.current?.focus();
       return;
     }
     const id = ++run.current;
-    via.current = { phone };
-    const shown = showPhone(phone);
+    const ident = mail ? { email: em } : { phone };
+    via.current = ident; joined.current = name;
+    setCodeMail(mail);
+    const shown = mail ? em : showPhone(phone);
     // the code step opens in the tap itself and its field takes the focus there: that is what opens a phone's keyboard
     flushSync(() => { setToken(null); setProb(null); setCode(''); setOkay(false); setNote(''); setTo(shown); setSending(true); setStep('code'); setLive('Étape 2 sur 2. On t’envoie ton code.'); });
     codeRef.current?.focus();
-    api.post<StartAnswer>('/api/public/account/start', { phone })
+    (name ? api.post<StartAnswer>('/api/public/account/join', { first: name, ...ident }) : api.post<StartAnswer>('/api/public/account/start', ident))
       .then((r) => { if (id === run.current) sentOk(shown, r.demoCode); })
       .catch((x) => {
         if (id !== run.current) return;
@@ -218,8 +242,10 @@ export function SignIn({ demo, enabled, loyalty, garder, onIn }: { demo: boolean
     if (wait > 0 || resending || sending || busy) return;
     const id = ++run.current;
     setResending(true); setProb(null); setNote('');
-    const call = token ? api.post<KeepAnswer>('/api/public/account/keep', { token }) : api.post<StartAnswer>('/api/public/account/start', { phone: (via.current as { phone: string }).phone });
-    call.then((r) => { if (id === run.current) sentOk(token ? 'Code envoyé au ' + (r as KeepAnswer).sentTo + ', en quelques secondes.' : to, r.demoCode, true); })
+    const call = token ? api.post<KeepAnswer>('/api/public/account/keep', { token })
+      : joined.current ? api.post<StartAnswer>('/api/public/account/join', { first: joined.current, ...via.current })
+      : api.post<StartAnswer>('/api/public/account/start', via.current);
+    call.then((r) => { if (id === run.current) sentOk(token ? keptTo(r as KeepAnswer) : to, r.demoCode, true); })
       .catch((x) => {
         if (id !== run.current) return;
         const p = failed(x, resend);
@@ -236,7 +262,9 @@ export function SignIn({ demo, enabled, loyalty, garder, onIn }: { demo: boolean
     setBusy(true); setProb(null); setNote(''); setLive('Vérification du code.');
     let done = false;
     try {
-      const body = { ...via.current, code: c, ...(name != null ? { first: name } : {}) };
+      // « Créer mon compte » gave the first name already: it goes with the code
+      const given = name != null ? name : joined.current || undefined;
+      const body = { ...via.current, code: c, ...(given != null ? { first: given } : {}) };
       const r = await api.post<VerifyAnswer>('/api/public/account/verify', body);
       if (id !== run.current) return;
       if (r.ok) { done = true; setOkay(true); setLive('C’est bon, ton espace s’ouvre.'); onIn(r.first); return; }
@@ -246,6 +274,8 @@ export function SignIn({ demo, enabled, loyalty, garder, onIn }: { demo: boolean
         setStep('first'); setFirst('');
         if (depth() < 2) history.pushState({ moi: 2 }, '');
         setLive('Étape 3 sur 3. Une petite vérification.');
+        // the address was the salon's already, under another first name than the one just given
+        if (given != null) setProb({ kind: 'name', text: r.message });
       } else { setProb({ kind: 'name', text: r.message }); firstRef.current?.focus(); }
     } catch (x) {
       if (id !== run.current) return;
@@ -282,7 +312,7 @@ export function SignIn({ demo, enabled, loyalty, garder, onIn }: { demo: boolean
         <div className="ms-head" data-guide="moi.signin">
           <p className="ms-k">Mon espace</p>
           <h1 tabIndex={-1}>L’espace client n’est pas encore <em>ouvert.</em></h1>
-          <p className="ms-lead">Pour retrouver un rendez-vous, on t’envoie son lien par SMS.</p>
+          <p className="ms-lead">{mail ? 'Pour retrouver un rendez-vous, on te renvoie son lien.' : 'Pour retrouver un rendez-vous, on t’envoie son lien par SMS.'}</p>
           <div className="ms-acts"><a className="c-btn" href="/mon-rendez-vous">Retrouver mon rendez-vous</a><a className="c-btn ghost" href="/?reserver">Réserver</a></div>
         </div>
       </SitePage>
@@ -293,15 +323,19 @@ export function SignIn({ demo, enabled, loyalty, garder, onIn }: { demo: boolean
   const tel = telHref(salon.phone);
   const n = step === 'first' ? 3 : 2;
   const total = step === 'first' ? 3 : 2;
-  const title: ReactNode = step === 'phone' ? <>Ouvre ton <em>espace</em></>
+  const title: ReactNode = step === 'phone' ? (creating ? <>Crée ton <em>compte</em></> : <>Ouvre ton <em>espace</em></>)
     : step === 'first' ? <>Une petite <em>vérification</em></>
     : step === 'locked' ? <>Trop d’essais pour le <em>moment</em></>
     : sending ? <>On t’envoie ton <em>code</em></> : <>Entre ton <em>code</em></>;
-  const lead = step === 'phone' ? 'Ton prochain rendez-vous, tes reçus et tes avantages au même endroit. C’est facultatif : tu peux toujours réserver sans.'
-    : step === 'first' ? 'Une seule fois, pour être sûr que ce numéro est bien le tien : quel prénom as-tu donné au salon ?'
+  const lead = step === 'phone' ? (creating ? 'Ton prénom, ton e-mail et un code : c’est tout. Tu y retrouves tes rendez-vous, tes reçus et tes avantages.' : 'Ton prochain rendez-vous, tes reçus et tes avantages au même endroit. C’est facultatif : tu peux toujours réserver sans.')
+    : step === 'first' ? (codeMail ? 'Une seule fois, pour être sûr que cette adresse est bien la tienne : quel prénom as-tu donné au salon ?' : 'Une seule fois, pour être sûr que ce numéro est bien le tien : quel prénom as-tu donné au salon ?')
     : step === 'locked' ? ''
-    : sending ? (link && !to ? 'Le code part au numéro de ta réservation.' : 'Au ' + together(to) + '.')
-    : token ? together(to) : 'Si ce numéro est connu du salon, un code arrive par SMS au ' + together(to) + ', en quelques secondes.';
+    : sending ? (link && !to ? (mail ? 'Le code part à l’adresse de ta réservation.' : 'Le code part au numéro de ta réservation.') : mail ? 'À ' + to + '.' : 'Au ' + together(to) + '.')
+    : token ? together(to)
+    : mail ? (joined.current ? 'Un code arrive par e-mail à ' + to + ', en quelques secondes.' : 'Si cette adresse est connue du salon, un code arrive par e-mail à ' + to + ', en quelques secondes.')
+    : 'Si ce numéro est connu du salon, un code arrive par SMS au ' + together(to) + ', en quelques secondes.';
+  const codeBy = codeMail ? 'e-mail' : 'SMS';
+  const change = mail ? 'Changer d’adresse' : 'Changer de numéro';
   const cells: CodeState = okay ? 'ok' : prob && prob.kind === 'bad' ? 'bad' : busy || sending ? 'busy' : 'idle';
   const errLine = <p id="m-in-err" className="m-err" role="alert">{prob ? prob.text : ''}</p>;
   const spin = <span className="c-spin ms-spin" aria-hidden="true" />;
@@ -325,8 +359,8 @@ export function SignIn({ demo, enabled, loyalty, garder, onIn }: { demo: boolean
             <>
               <div className="ms-stp">
                 {step === 'first' ? <button type="button" className="ms-back" aria-label="Retour au code" onClick={backOne}><Icon name="arrowL" size={20} /></button>
-                  : step === 'code' && !link ? <button type="button" className="ms-back" aria-label="Retour au numéro" onClick={backOne}><Icon name="arrowL" size={20} /></button> : null}
-                <p className="ms-stp-k">Étape {step === 'phone' ? 1 : n} sur {total} · {step === 'phone' ? 'Ton numéro' : step === 'code' ? 'Ton code' : 'Ton prénom'}</p>
+                  : step === 'code' && !link ? <button type="button" className="ms-back" aria-label={mail ? 'Retour à l’adresse' : 'Retour au numéro'} onClick={backOne}><Icon name="arrowL" size={20} /></button> : null}
+                <p className="ms-stp-k">Étape {step === 'phone' ? 1 : n} sur {total} · {step === 'phone' ? (mail ? (creating ? 'Ton prénom et ton e-mail' : 'Ton e-mail') : 'Ton numéro') : step === 'code' ? 'Ton code' : 'Ton prénom'}</p>
               </div>
               <div className="ms-prog" style={{ gridTemplateColumns: 'repeat(' + total + ', minmax(0, 1fr))' }} aria-hidden="true">
                 {Array.from({ length: total }, (_, i) => { const at = step === 'phone' ? 1 : n; return <i key={i} className={i < at - 1 || okay ? 'done' : i === at - 1 ? 'on' : ''} />; })}
@@ -334,7 +368,28 @@ export function SignIn({ demo, enabled, loyalty, garder, onIn }: { demo: boolean
             </>
           ) : null}
 
-          {step === 'phone' ? (
+          {step === 'phone' && mail ? (
+            <form className="ms-form" onSubmit={start} noValidate data-guide="moi.signin.phone">
+              {creating ? (
+                <>
+                  <label htmlFor="m-join">Ton prénom</label>
+                  <input id="m-join" ref={joinRef} className="ms-inp" name="first" type="text" autoComplete="given-name" autoCapitalize="words" enterKeyHint="next" maxLength={40}
+                    value={joinFirst} aria-invalid={!!prob && prob.kind === 'name'} aria-describedby="m-in-err"
+                    onChange={(e) => { setJoinFirst(e.target.value); if (prob) setProb(null); }} />
+                </>
+              ) : null}
+              <label htmlFor="m-email">Ton adresse e-mail</label>
+              <input id="m-email" ref={phoneRef} className="ms-inp" name="email" type="email" inputMode="email" autoComplete="email" enterKeyHint="go" autoCapitalize="none" autoCorrect="off" spellCheck={false} placeholder="prenom@exemple.fr" maxLength={120}
+                value={email} aria-invalid={!!prob && prob.kind === 'phone'} aria-describedby="m-phone-h m-in-err"
+                onChange={(e) => { setEmail(e.target.value); if (prob) setProb(null); }} />
+              <p id="m-phone-h" className="ms-hint">{creating ? 'On t’y envoie ton code, rien d’autre sans ton accord.' : 'Celle de ta réservation, ou que le salon a pour toi.'}</p>
+              {errLine}
+              {prob && prob.kind === 'net' && prob.retry ? <button type="button" className="c-btn ghost ms-sm" onClick={prob.retry}>Réessayer</button> : null}
+              <button type="submit" className="c-btn" aria-busy={busy || sending} onClick={(e) => { e.preventDefault(); start(); }}>Recevoir mon code par e-mail</button>
+              <p className="ms-assure"><Icon name="lock" size={16} />Un e-mail avec un code, c’est tout : pas de mot de passe, pas de pub.</p>
+              <p className="ms-legal">Cet e-mail ne sert qu’à te connecter. Rien n’est vendu ni partagé à des fins publicitaires. <a href="/confidentialite#t-space">Ta vie privée</a></p>
+            </form>
+          ) : step === 'phone' ? (
             <form className="ms-form" onSubmit={start} noValidate data-guide="moi.signin.phone">
               <label htmlFor="m-phone">Ton numéro de mobile</label>
               <input id="m-phone" ref={phoneRef} className="ms-inp" name="phone" type="tel" inputMode="tel" autoComplete="tel" enterKeyHint="go" autoCapitalize="none" placeholder="06 12 34 56 78" maxLength={24}
@@ -351,7 +406,7 @@ export function SignIn({ demo, enabled, loyalty, garder, onIn }: { demo: boolean
             </form>
           ) : step === 'code' ? (
             <form className="ms-form" onSubmit={(e) => { e.preventDefault(); verify(code); }} noValidate data-guide="moi.signin.code" onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}>
-              <label htmlFor="m-code">Le code reçu par SMS</label>
+              <label htmlFor="m-code">Le code reçu par {codeBy}</label>
               <CodeField ref={codeRef} value={code} onChange={onCode} state={cells} describedBy="m-lead m-in-err" />
               <div className="ms-slot">
                 {errLine}
@@ -370,14 +425,17 @@ export function SignIn({ demo, enabled, loyalty, garder, onIn }: { demo: boolean
               <div className="ms-sub">
                 {prob && prob.kind === 'bad' && wait === 0 ? null
                   : <button type="button" className="ms-lnk" disabled={wait > 0 || resending || sending} onClick={resend}>{resending ? 'Envoi…' : wait > 0 ? 'Renvoyer le code dans ' + clock(wait) : 'Renvoyer le code'}</button>}
-                <button type="button" className="ms-lnk" onClick={changeNumber}>Changer de numéro</button>
+                <button type="button" className="ms-lnk" onClick={changeNumber}>{change}</button>
               </div>
               {sent.current && wait === 0 && !sending ? (
                 <div className="ms-help" role="group" aria-labelledby="m-help-t">
                   <h2 id="m-help-t">Rien reçu ?</h2>
                   <ul>
-                    <li>Vérifie que c’est bien le numéro de ta réservation.</li>
-                    {!token ? <li>Tu n’es encore jamais venu ? Ton espace s’ouvre avec ta première réservation.<br /><a className="ms-mini" href="/?reserver">Réserver</a></li> : null}
+                    {codeMail ? <li>Regarde dans tes indésirables (spam) : un e-mail met parfois une minute.</li> : null}
+                    {codeMail && joined.current ? null : <li>{codeMail ? 'Vérifie que c’est bien l’adresse de ta réservation.' : 'Vérifie que c’est bien le numéro de ta réservation.'}</li>}
+                    {token || joined.current ? null
+                      : mail ? <li>Pas encore de compte ?<br /><button type="button" className="ms-mini" onClick={() => { setCreating(true); changeNumber(); }}>Créer mon compte</button></li>
+                      : <li>Tu n’es encore jamais venu ? Ton espace s’ouvre avec ta première réservation.<br /><a className="ms-mini" href="/?reserver">Réserver</a></li>}
                     {tel ? <li>Un souci ? Appelle le salon :<br /><a href={tel}>{showPhone(salon.phone).replace(/ /g, NB)}</a></li> : null}
                     <li>Tu peux demander jusqu’à 3 codes par jour.</li>
                   </ul>
@@ -393,7 +451,7 @@ export function SignIn({ demo, enabled, loyalty, garder, onIn }: { demo: boolean
               {errLine}
               {prob && prob.kind === 'net' && prob.retry ? <button type="button" className="c-btn ghost ms-sm" onClick={prob.retry}>Réessayer</button> : null}
               <button type="submit" className="c-btn" aria-busy={busy}>{busy ? <>{spin}Vérification…</> : 'Entrer'}</button>
-              <div className="ms-sub"><button type="button" className="ms-lnk" onClick={changeNumber}>Changer de numéro</button></div>
+              <div className="ms-sub"><button type="button" className="ms-lnk" onClick={changeNumber}>{change}</button></div>
             </form>
           ) : (
             <div className="ms-lock" role="alert">
@@ -413,14 +471,21 @@ export function SignIn({ demo, enabled, loyalty, garder, onIn }: { demo: boolean
             {demo ? (
               <section className="ms-demo" aria-labelledby="m-demo-t" data-guide="moi.signin.demo">
                 <p className="ms-k red" id="m-demo-t">Démo</p>
-                <p>Démo : aucun SMS ne part. Entre dans l’espace d’un client du salon de démonstration.</p>
+                <p>Démo : aucun {mail ? 'e-mail' : 'SMS'} ne part. Entre dans l’espace d’un client du salon de démonstration.</p>
                 <button type="button" className="c-btn ghost" aria-busy={busy} onClick={demoIn}>Essayer avec un client de démo</button>
               </section>
             ) : null}
-            <section className="ms-first" data-guide="moi.signin.book">
-              <p>Tu n’es encore jamais venu ? Ton espace s’ouvre avec ta première réservation.</p>
-              <a className="c-btn ghost" href="/?reserver">Réserver</a>
-            </section>
+            {mail ? (
+              <section className="ms-first" data-guide="moi.signin.book">
+                <p>{creating ? 'Tu as déjà un compte ?' : 'Pas encore de compte ? Ton prénom et ton e-mail suffisent.'}</p>
+                <button type="button" className="c-btn ghost" onClick={() => { setCreating(!creating); setProb(null); head.current?.focus(); }}>{creating ? 'Me connecter' : 'Créer mon compte'}</button>
+              </section>
+            ) : (
+              <section className="ms-first" data-guide="moi.signin.book">
+                <p>Tu n’es encore jamais venu ? Ton espace s’ouvre avec ta première réservation.</p>
+                <a className="c-btn ghost" href="/?reserver">Réserver</a>
+              </section>
+            )}
             <p className="ms-quiet">Tu veux seulement retrouver un rendez-vous ? <a href="/mon-rendez-vous">Reçois son lien.</a></p>
           </>
         ) : null}

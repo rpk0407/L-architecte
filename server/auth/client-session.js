@@ -3,8 +3,9 @@
 // lx_s (another name, another domain-separated signature: 'client:' here, 'session:' there), so neither can pass for
 // the other. SameSite=Lax, not Strict: /moi opened from an SMS or a mail arrives signed in; writes stay protected by the
 // same-origin check every POST goes through (http/kit.js sameOrigin).
-// The cookie names the file and a tag of the phone it was opened with; every request checks it against the live state
-// (liveClient): a file erased or merged into one with another number, a phone changed or detached by the salon,
+// The cookie names the file and a tag of the phone it was opened with (of the e-mail address, when the code was sent by
+// e-mail: em); every request checks it against the live state
+// (liveClient): a file erased or merged into one with another number, a phone (an address) changed or detached by the salon,
 // « Déconnecter tous mes appareils » and « Supprimer mon espace » end it at once.
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { rand62 } from '../lib/util.js';
@@ -16,9 +17,10 @@ const DAY = 86400000;
 export const CLIENT_SLIDE = 7 * DAY;
 
 /**
- * cid: the file signed in on (merges are followed at each request); ph: phoneTag of its number then; demo: the demo's
- * persona (its writes are simulated, http/me-kit.js isPersona)
- * @typedef {{ sid: string, cid: string, ph: string, iat: number, exp: number, demo?: boolean }} ClientPayload
+ * cid: the file signed in on (merges are followed at each request); ph: phoneTag of its number then ('' for a session
+ * opened by e-mail, which carries em: emailTag of its address then); demo: the demo's persona (its writes are simulated,
+ * http/me-kit.js isPersona)
+ * @typedef {{ sid: string, cid: string, ph: string, em?: string, iat: number, exp: number, demo?: boolean }} ClientPayload
  */
 
 /** @param {string} secret @param {string} data */
@@ -27,6 +29,9 @@ const eq = (a, b) => { const x = Buffer.from(a), y = Buffer.from(b); return x.le
 
 /** 16 characters that say which number a session was opened with, and nothing about it. */
 export const phoneTag = (secret, phone) => mac(secret, 'client-phone:' + String(phone || '')).slice(0, 16);
+
+/** The same for the address a session was opened with (case aside). */
+export const emailTag = (secret, email) => mac(secret, 'client-email:' + String(email || '').trim().toLowerCase()).slice(0, 16);
 
 /** @param {string} secret @param {Omit<ClientPayload, 'sid'> & { sid?: string }} p */
 export function signClient(secret, p) {
@@ -50,15 +55,16 @@ export function readClient(secret, token, now) {
 
 /**
  * Is this session still good against the current state? The file (through its merges, at most 20), not erased, with the
- * same number as at sign-in, an open account on it or a file merged into it, and nothing revoked since the cookie.
+ * same number as at sign-in (the same address, for a session opened by e-mail), an open account on it or a file merged into it, and nothing revoked since the cookie.
  * @param {(c: any) => string[]} idsOf the file and every file merged into it (commands/clients.js fileIds)
  * @returns {{ c: any, cid: string, ids: string[], account: any } | null}
  */
 export function liveClient(s, secret, p, idsOf) {
   let c = s.clients.get(p.cid);
   for (let i = 0; c && c.mergedInto && i < 20; i++) c = s.clients.get(c.mergedInto);
-  if (!c || c.mergedInto || c.erased || !c.phone) return null;
-  if (!eq(phoneTag(secret, c.phone), p.ph)) return null;
+  if (!c || c.mergedInto || c.erased) return null;
+  if (typeof p.em === 'string' && p.em) { if (!c.email || !eq(emailTag(secret, c.email), p.em)) return null; }
+  else if (!c.phone || !eq(phoneTag(secret, c.phone), p.ph)) return null;
   const ids = idsOf(c);
   const account = accountOf(s, ids);
   if (!account || p.iat <= account.revokedAt) return null;

@@ -448,6 +448,7 @@ position:relative;font:400 17px/1.5 var(--f-sans);color:var(--os);background:var
 .mn-top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px 14px}
 .mn-me{display:inline-flex;align-items:center;gap:10px;min-height:48px;padding:0 18px 0 6px;border-radius:999px;background:rgba(236,232,224,.09);box-shadow:inset 0 0 0 1px var(--ligne);transition:background-color .25s;animation:fadeIn .6s .25s both}
 .mn-me:hover{background:rgba(236,232,224,.16)}
+.mn-join{padding:0 18px;font:600 15px/1.2 var(--f-sans);white-space:nowrap}
 .mn-me-i{flex:none;display:grid;place-items:center;width:36px;height:36px;border-radius:50%;background:var(--os);color:var(--encre)}
 .mn-me-i svg{width:20px;height:20px}
 .mn-me-t{display:flex;flex-direction:column;gap:2px;min-width:0}
@@ -1222,7 +1223,8 @@ html{scroll-behavior:auto}
 <nav class="mn" id="menu" aria-label="Sommaire" onKeyDown="{{menuKey}}">
 <div class="mn-in">
 <div class="mn-top"><p class="mn-k">Sommaire</p>
-<sc-if value="{{espaceOn}}" hint-placeholder-val="{{ false }}"><a class="mn-me" href="/moi"><span class="mn-me-i" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM5 20c.9-3.5 3.6-5 7-5s6.1 1.5 7 5"/></svg></span><span class="mn-me-t"><b>{{meName}}</b><small>{{meSub}}</small></span></a></sc-if></div>
+<sc-if value="{{espaceOn}}" hint-placeholder-val="{{ false }}"><a class="mn-me" href="/moi"><span class="mn-me-i" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM5 20c.9-3.5 3.6-5 7-5s6.1 1.5 7 5"/></svg></span><span class="mn-me-t"><b>{{meName}}</b><small>{{meSub}}</small></span></a></sc-if>
+<sc-if value="{{espaceJoin}}" hint-placeholder-val="{{ false }}"><a class="mn-me mn-join" href="/moi?creer">Créer mon compte</a></sc-if></div>
 <ol class="mn-l">
 <sc-for list="{{nav}}" as="n" hint-placeholder-count="7"><li style="--i: {{n.i}}"><a class="{{n.cls}}" href="{{n.href}}" aria-current="{{n.cur}}" onClick="{{n.go}}"><span class="mn-n">{{n.num}}</span><span class="mn-t">{{n.t}}</span><span class="mn-d">{{n.d}}</span></a></li></sc-for>
 </ol>
@@ -1460,7 +1462,8 @@ html{scroll-behavior:auto}
 <li><a href="/formations">Formations</a></li>
 <li><a href="/carte-cadeau" data-guide="site.cadeau" data-guide-n="60" data-guide-title="Carte cadeau" data-guide-body="Offre une coupe&nbsp;: tu choisis le montant, on envoie le code par SMS à qui tu veux. Elle se dépense au salon, en une ou plusieurs fois.">Carte cadeau</a></li>
 <li><a href="/mon-rendez-vous" data-guide="site.rdv" data-guide-n="70" data-guide-title="Mon rendez-vous" data-guide-body="Tu as réservé sans compte&nbsp;? Donne ton numéro&nbsp;: on t’envoie le lien pour déplacer ou annuler.">Mon rendez-vous</a></li>
-<sc-if value="{{espaceOn}}" hint-placeholder-val="{{ false }}"><li><a href="/moi" data-guide="site.espace-lien" data-guide-n="30" data-guide-title="Mon espace" data-guide-body="Ouvre ton espace avec ton numéro&nbsp;: tes rendez-vous et tes reçus au même endroit, avec un code par SMS. C’est facultatif, tu peux toujours réserver sans." data-guide-n-2="50" data-guide-title-2="{{fidTitle}}" data-guide-body-2="{{fidBody}}">Mon espace</a></li></sc-if>
+<sc-if value="{{espaceOn}}" hint-placeholder-val="{{ false }}"><li><a href="/moi" data-guide="site.espace-lien" data-guide-n="30" data-guide-title="Mon espace" data-guide-body="{{espaceGuide}}" data-guide-n-2="50" data-guide-title-2="{{fidTitle}}" data-guide-body-2="{{fidBody}}">Mon espace</a></li></sc-if>
+<sc-if value="{{espaceJoin}}" hint-placeholder-val="{{ false }}"><li><a href="/moi?creer">Créer mon compte</a></li></sc-if>
 <li><a href="/resilier">Résilier mon abonnement</a></li>
 <li><a href="/?visite" data-guide-replay>Comment ça marche&nbsp;?</a></li>
 <li><a href="/mentions-legales">Mentions légales</a></li>
@@ -1627,7 +1630,7 @@ html{scroll-behavior:auto}
 <sc-if value="{{mailFirst}}" hint-placeholder-val="{{ false }}"><div class="fld"><label for="f-email">E-mail</label><input id="f-email" type="email" inputmode="email" autocomplete="email" placeholder="prenom@exemple.fr" value="{{fEmail}}" onChange="{{setEmail}}"><span class="{{emailCls}}">{{emailHint}}</span></div></sc-if>
 <div class="fld"><label for="f-phone">Téléphone<sc-if value="{{mailFirst}}" hint-placeholder-val="{{ false }}"> <span class="opt-l">facultatif</span></sc-if></label><input id="f-phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="06 12 34 56 78" value="{{fPhone}}" onChange="{{setPhone}}"><span class="{{phoneCls}}">{{phoneHint}}</span></div>
 </sc-if>
-<sc-if value="{{accCode}}" hint-placeholder-val="{{ false }}"><div class="fld"><label for="f-code">Code reçu par SMS</label><input id="f-code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6 chiffres" value="{{fCode}}" onChange="{{setCode}}"><span class="{{codeCls}}">{{codeHint}}</span></div><button type="button" class="tl" onClick="{{codeAgain}}">Recevoir un nouveau code</button></sc-if>
+<sc-if value="{{accCode}}" hint-placeholder-val="{{ false }}"><div class="fld"><label for="f-code">Code reçu par {{codeBy}}</label><input id="f-code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6 chiffres" value="{{fCode}}" onChange="{{setCode}}"><span class="{{codeCls}}">{{codeHint}}</span></div><button type="button" class="tl" onClick="{{codeAgain}}">Recevoir un nouveau code</button></sc-if>
 <sc-if value="{{isSerInfo}}" hint-placeholder-val="{{ false }}"><p class="dep">{{serPayLine}}</p></sc-if>
 <sc-if value="{{showExtras}}" hint-placeholder-val="{{ true }}">
 <sc-if value="{{mailLater}}" hint-placeholder-val="{{ true }}"><div class="fld"><label for="f-email">E-mail <span class="opt-l">facultatif</span></label><input id="f-email" type="email" inputmode="email" autocomplete="email" value="{{fEmail}}" onChange="{{setEmail}}"><span class="hint">Pour recevoir le rendez-vous dans ton agenda.</span></div></sc-if>
@@ -2980,15 +2983,18 @@ class Component extends DCLogic {
       // the client space: the footer's « Mon espace », « Garde tout au même endroit » under a booking just made (under the deposit's
       // block when one waits, which keeps the lead), « C’est dans ton espace » only when that booking is his
       espaceOn: !!(s.acct && s.acct.enabled),
+      // a salon that writes by e-mail: an account is made with a first name, an address and a code (/moi?creer)
+      espaceJoin: !!(s.acct && s.acct.enabled && !s.acct.signedIn && mailFirst()),
+      espaceGuide: mailFirst() ? 'Ouvre ton espace avec ton adresse e-mail\u00A0: tes rendez-vous et tes reçus au même endroit, avec un code par e-mail. C’est facultatif, tu peux toujours réserver sans.' : 'Ouvre ton espace avec ton numéro\u00A0: tes rendez-vous et tes reçus au même endroit, avec un code par SMS. C’est facultatif, tu peux toujours réserver sans.',
       // the guide's loyalty step only when the salon runs the card (own switch), with its real goal; no title: no step
       fidTitle: s.acct && s.acct.enabled && s.acct.loyalty && s.acct.loyalty.on ? 'Carte fidélité' : '',
       fidBody: s.acct && s.acct.loyalty && s.acct.loyalty.on ? 'Chaque coupe payée remplit ta carte, dans ton espace. À la ' + ((Number(s.acct.loyalty.goal) || 9) + 1) + 'ᵉ coupe, ta récompense t’attend.' : '',
       espaceNew: !!(s.acct && s.acct.enabled && !s.acct.signedIn && s.bk.result && s.bk.result.token),
       espaceIn: !!(s.acct && s.acct.enabled && s.acct.signedIn && s.bk.result && s.ownTok === s.bk.result.token),
-      espaceText: s.acct && s.acct.loyalty && s.acct.loyalty.on ? 'Ton prochain rendez-vous, tes reçus et ta carte fidélité. Un code par SMS, pas de mot de passe.' : 'Ton prochain rendez-vous et tes reçus. Un code par SMS, pas de mot de passe.',
+      espaceText: s.acct && s.acct.loyalty && s.acct.loyalty.on ? 'Ton prochain rendez-vous, tes reçus et ta carte fidélité. Un code par ' + (mailFirst() ? 'e-mail' : 'SMS') + ', pas de mot de passe.' : 'Ton prochain rendez-vous et tes reçus. Un code par ' + (mailFirst() ? 'e-mail' : 'SMS') + ', pas de mot de passe.',
       // the Sommaire's and the top bar's way in: « Salut Yanis » once this phone is signed in
       meName: s.acct && s.acct.signedIn && s.acct.first ? 'Salut ' + s.acct.first : 'Mon espace',
-      meSub: s.acct && s.acct.signedIn ? 'Ouvre ton espace' : 'Tes rendez-vous et tes reçus',
+      meSub: s.acct && s.acct.signedIn ? 'Ouvre ton espace' : mailFirst() ? 'Me connecter' : 'Tes rendez-vous et tes reçus',
       meAria: s.acct && s.acct.signedIn && s.acct.first ? 'Mon espace, connecté : ' + s.acct.first : 'Mon espace',
       espaceUrl: '/moi?garder=' + encodeURIComponent((s.bk.result && s.bk.result.token) || ''),
 
@@ -3431,12 +3437,13 @@ const BookingMixin = {
     }) });
   },
   accSet(patch) { const b = this.state.bk; this.setState({ bk: Object.assign({}, b, { acc: Object.assign({}, b.acc || {}, patch) }) }); },
-  /* « Cette formule demande un compte »: a code goes to the number typed */
+  /* « Cette formule demande un compte »: a code goes to the number typed (to the address, in a salon that writes by e-mail) */
+  accWho() { const s = this.state; return mailFirst() ? { email: String(s.fEmail || '').trim() } : { phone: String(s.fPhone) }; },
   accSend() {
     const s = this.state, b = s.bk;
     if ((b.acc && b.acc.busy) || !this.identOk()) return;
     this.accSet({ busy: true, err: '' });
-    LXE.join({ first: capFirst(String(s.fFirst).trim().split(/\s+/)[0]).slice(0, 40), last: String(s.fLast || '').trim().slice(0, 40) || undefined, phone: String(s.fPhone) }).then((j) => {
+    LXE.join(Object.assign({ first: capFirst(String(s.fFirst).trim().split(/\s+/)[0]).slice(0, 40), last: String(s.fLast || '').trim().slice(0, 40) || undefined }, this.accWho())).then((j) => {
       if (!this._mounted) return;
       this.accSet({ busy: false, sent: true, code: j.demoCode || '', demo: j.demoCode || '', err: '', ask: false });
     }).catch((e) => { if (this._mounted) this.accSet({ busy: false, err: e.message }); });
@@ -3445,7 +3452,7 @@ const BookingMixin = {
     const s = this.state, b = s.bk, a = b.acc || {};
     if (a.busy || !/^\d{6}$/.test(String(a.code || ''))) return;
     this.accSet({ busy: true, err: '' });
-    LXE.verify({ phone: String(s.fPhone), code: String(a.code), first: capFirst(String(s.fFirst).trim().split(/\s+/)[0]).slice(0, 40) }).then((r) => {
+    LXE.verify(Object.assign({ code: String(a.code), first: capFirst(String(s.fFirst).trim().split(/\s+/)[0]).slice(0, 40) }, this.accWho())).then((r) => {
       if (!this._mounted) return;
       if (!r.ok) { this.accSet({ busy: false, ask: true, err: r.message || 'Vérifie ton prénom.' }); return; }
       // signed in: the slots are kept again for the time it takes to confirm
@@ -3489,6 +3496,7 @@ const BookingMixin = {
   identOk() {
     const s = this.state;
     const ph = String(s.fPhone || '').replace(/\D/g, '');
+    if (mailFirst()) return String(s.fFirst || '').trim().length >= 2 && /^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(String(s.fEmail || '').trim());
     return String(s.fFirst || '').trim().length >= 2 && ph.length === 10 && ph.charAt(0) === '0';
   },
 
@@ -4104,11 +4112,13 @@ const BookingMixin = {
     v.accGate = v.isSerInfo && !signed;
     v.accIn = v.isSerInfo && signed;
     v.accInLine = 'Connecté à ton espace' + (s.acct && s.acct.first ? ', ' + s.acct.first : '') + ' : tes ' + nCuts + ' visites s’y ajoutent.';
-    v.accLine = acc.sent ? 'Tape le code reçu par SMS au ' + String(s.fPhone || '') + '. Tes créneaux restent gardés.' : 'Ton prénom et ton numéro : tu reçois un code par SMS, sans mot de passe. Tes créneaux restent gardés.';
+    v.accLine = mf ? (acc.sent ? 'Tape le code reçu par e-mail à ' + String(s.fEmail || '').trim() + '. Tes créneaux restent gardés.' : 'Ton prénom et ton e-mail : tu reçois un code par e-mail, sans mot de passe. Tes créneaux restent gardés.')
+      : acc.sent ? 'Tape le code reçu par SMS au ' + String(s.fPhone || '') + '. Tes créneaux restent gardés.' : 'Ton prénom et ton numéro : tu reçois un code par SMS, sans mot de passe. Tes créneaux restent gardés.';
+    v.codeBy = mf ? 'e-mail' : 'SMS';
     v.accCode = v.accGate && !!acc.sent;
     v.fCode = acc.code || '';
     v.setCode = (e) => this.accSet({ code: String(e.target.value || '').replace(/\D/g, '').slice(0, 6), err: '' });
-    v.codeHint = acc.err || (acc.demo ? 'Démo : aucun SMS ne part. Ton code : ' + acc.demo : 'Six chiffres, valables 10 minutes.');
+    v.codeHint = acc.err || (acc.demo ? 'Démo : aucun ' + (mf ? 'e-mail' : 'SMS') + ' ne part. Ton code : ' + acc.demo : 'Six chiffres, valables 10 minutes.');
     v.codeCls = 'hint' + (acc.err ? ' warn' : '');
     v.codeAgain = () => this.accSend();
     if (!b.err && acc.err && !acc.sent && v.accGate) { v.hasErr = true; v.bkErr = acc.err; }
@@ -4214,7 +4224,7 @@ const BookingMixin = {
     else if (step === 'when') { cta = b.busy ? 'Un instant…' : (b.moving ? 'Déplacer ici' : 'Continuer'); off = b.busy || !(b.day && b.time != null); go = () => this.bkPick({}); }
     else if (step === 'info' && isPack && !signed) {
       // the account first: a code to the number typed, then the code typed back
-      if (!acc.sent) { cta = acc.busy ? 'Un instant…' : 'Recevoir mon code par SMS'; off = !!acc.busy || !this.identOk(); go = () => this.accSend(); }
+      if (!acc.sent) { cta = acc.busy ? 'Un instant…' : mf ? 'Recevoir mon code par e-mail' : 'Recevoir mon code par SMS'; off = !!acc.busy || !this.identOk(); go = () => this.accSend(); }
       else { cta = acc.busy ? 'Vérification…' : 'Valider mon code'; off = !!acc.busy || !/^\d{6}$/.test(String(acc.code || '')); go = () => this.accVerify(); }
     }
     else if (step === 'info' && isPack) { cta = b.busy ? 'Vérification…' : payOnline ? 'Confirmer et régler ' + eur(F) : 'Confirmer mes ' + this.serSlots(b).length + ' rendez-vous'; off = b.busy || !this.bkValid(); go = () => this.bkBuy(); }
