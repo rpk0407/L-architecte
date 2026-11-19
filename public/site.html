@@ -1321,7 +1321,7 @@ html{scroll-behavior:auto}
 </div>
 </div>
 </section>
-<sc-if value="{{aboOn}}" hint-placeholder-val="{{ false }}">
+
 <section class="cuts sheet" id="coupes" data-ch="3" data-tone="dark" aria-labelledby="t-cuts">
 <div class="wrap ct-head"><div class="ct-ti"><p class="kk" data-rv><span>03</span>Le travail</p><h2 class="h2" id="t-cuts" data-rv="lines"><span class="ln"><span>Sorti du</span></span><span class="ln"><span>fauteuil.</span></span></h2></div><div class="ct-nav"><p class="ct-count" aria-hidden="true"><b>{{cutNum}}</b><span>/ {{cutTotal}}</span></p><button type="button" class="ct-arr" aria-label="Coupe précédente" onClick="{{cutPrev}}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12H5M11 6l-6 6 6 6"/></svg></button><button type="button" class="ct-arr" aria-label="Coupe suivante" onClick="{{cutNext}}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h15M13 6l6 6-6 6"/></svg></button></div></div>
 <div class="ct-row" ref="{{r.cuts}}" data-rv>
@@ -1394,6 +1394,7 @@ html{scroll-behavior:auto}
 <p class="cr-foot">Carte bancaire acceptée au salon · <a href="/carte-cadeau">Offrir une carte cadeau</a></p>
 </div>
 </section>
+<sc-if value="{{aboOn}}" hint-placeholder-val="{{ false }}">
 <section class="ab sheet" id="abonnement" data-ch="6" data-tone="dark" aria-labelledby="t-ab" data-guide="site-abonnement">
 <div class="wrap">
 <p class="kk" data-rv><span>06</span>Abonnement &amp; formule</p>
