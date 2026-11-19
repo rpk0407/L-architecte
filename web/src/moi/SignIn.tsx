@@ -109,7 +109,8 @@ export function SignIn({ demo, enabled, loyalty, mail, create, garder, onIn }: {
     sent.current = false; verifying.current = false;
     setStep('phone'); setSending(false); setResending(false); setBusy(false); setOkay(false);
     setCode(''); setFirst(''); setToken(null); setProb(null); setLive(''); setNote(''); setWait(0);
-    via.current = { phone: '' }; joined.current = '';
+    joined.current = '';
+    via.current = { phone: '' };
     flat();
   };
   /** « Changer de numéro » and the arrow of the code step: back to the number */

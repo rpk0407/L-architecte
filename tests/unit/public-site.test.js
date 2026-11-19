@@ -173,10 +173,42 @@ test('site.html: its own fixed texts, no Google Fonts, no rating in the descript
 test('site: the membership switch hides the membership chapter only, never the cuts, the team or the menu', async () => {
   const { readFileSync } = await import('node:fs');
   const html = readFileSync(new URL('../../public/site.html', import.meta.url), 'utf8');
-  const i = html.indexOf('<sc-if value="{{aboOn}}"');
-  assert.ok(i > 0);
-  const inside = html.slice(i, html.indexOf('<section class="fq sheet"', i));
-  assert.deepEqual([...inside.matchAll(/<section[^>]* id="([a-z]+)"/g)].map((m) => m[1]), ['abonnement']);
+  /** what an <sc-if> that opens at `from` wraps, its nested ones included (up to its own closing tag) */
+  const wrapped = (from) => {
+    const re = /<sc-if\b|<\/sc-if>/g;
+    re.lastIndex = from + 1;
+    let depth = 1, m;
+    while ((m = re.exec(html))) { depth += m[0] === '</sc-if>' ? -1 : 1; if (!depth) return html.slice(from, m.index); }
+    return assert.fail('an <sc-if> is never closed');
+  };
+  const all = (needle) => { const out = []; for (let i = html.indexOf(needle); i >= 0; i = html.indexOf(needle, i + 1)) out.push(i); return out; };
+  const sections = (part) => [...part.matchAll(/<section[^>]* id="([a-z]+)"/g)].map((m) => m[1]);
+  // the chapter's switch (the membership sold online, or a formule in the catalogue) wraps that chapter and nothing else
+  const chap = all('<sc-if value="{{aboChap}}"');
+  assert.equal(chap.length, 1);
+  const inside = wrapped(chap[0]);
+  assert.deepEqual(sections(inside), ['abonnement']);
+  assert.ok(inside.trimEnd().endsWith('</section>'), 'it closes right after its chapter');
+  assert.ok(html.slice(chap[0] + inside.length).startsWith('</sc-if>\n<section class="fq sheet"'), 'the next chapter starts outside it');
+  // the membership's own switch only ever hides parts of that chapter (the plans, their conditions): never a chapter,
+  // and never the formule's card, which shows whenever the salon has one
+  const abo = all('<sc-if value="{{aboOn}}"');
+  assert.ok(abo.length >= 1);
+  const start = html.indexOf('<section class="ab sheet" id="abonnement"'), end = html.indexOf('</section>', start);
+  for (const i of abo) {
+    assert.ok(i > start && i < end, 'an aboOn switch outside the membership chapter');
+    const part = wrapped(i);
+    assert.deepEqual(sections(part), []);
+    assert.ok(i + part.length < end, 'it closes inside the chapter');
+    assert.ok(!part.includes('{{hasCarnet}}') && !part.includes('carnetGo'), 'the formule is not behind the membership switch');
+  }
+  const carnet = html.indexOf('<sc-if value="{{hasCarnet}}"');
+  assert.ok(carnet > start && carnet < end && wrapped(carnet).includes('onClick="{{carnetGo}}">Prendre la formule</button>'));
+  // the chapter shows for a formule alone, the plans only while the membership is live
+  assert.match(html, /aboChap\(\) \{ const m = LXE\.memberships\(\); return this\.aboOn\(\) \|\| !!\(m && m\.carnet\); \}/);
+  assert.match(html, /aboOn\(\) \{ const m = LXE\.memberships\(\); return !!\(m && m\.live && m\.plans && m\.plans\.length\); \}/);
+  // no switch at all wraps another chapter: a <section> inside an <sc-if> is the membership's, or a sheet with no chapter id
+  for (const i of all('<sc-if ')) { const ids = sections(wrapped(i)).filter((id) => ['frais', 'barbiers', 'reserver', 'preuve', 'coupes', 'carte', 'questions'].includes(id)); assert.deepEqual(ids, [], html.slice(i, i + 60)); }
   // every chapter is in the page, in the order the Sommaire gives
   assert.deepEqual([...html.matchAll(/<section[^>]* id="([a-z]+)" data-ch/g)].map((m) => m[1]), ['barbiers', 'reserver', 'preuve', 'coupes', 'carte', 'abonnement', 'questions']);
 });
