@@ -117,7 +117,7 @@ function App() {
     if (!a.signedIn) return;
     const next = safeNext(start.current.get('next'), location.origin);
     if (next) go(next, true);
-    else if (start.current.has('garder')) go(location.pathname, true);
+    else if (start.current.has('garder') || start.current.has('creer')) go(location.pathname, true);
     reload();
   }, [go, reload]);
 
@@ -161,7 +161,7 @@ function App() {
   if (!acc) return <div className="ms-boot" aria-busy="true"><span className="c-spin" /><span className="m-live" role="status">Un instant…</span></div>;
   if (just && (holding || (!me && !err))) return <Opened first={just.first} />;
   if (!acc.signedIn) {
-    return <SignIn demo={acc.demo} enabled={acc.enabled} loyalty={!!(acc.loyalty && acc.loyalty.on)} garder={acc.enabled ? start.current.get('garder') : null} onIn={signedIn} />;
+    return <SignIn demo={acc.demo} enabled={acc.enabled} loyalty={!!(acc.loyalty && acc.loyalty.on)} mail={acc.contact === 'email'} create={start.current.has('creer')} garder={acc.enabled ? start.current.get('garder') : null} onIn={signedIn} />;
   }
   if (!me) {
     // the space did not open (the salon did not answer): say so and offer to try again, no spinner left turning

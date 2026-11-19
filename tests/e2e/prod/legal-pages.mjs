@@ -60,14 +60,14 @@ export default async ({ browser, h, page }) => {
   // a SIRET of the wrong length cannot be saved
   await page.fill('#sh-siret', '512 923 475');
   await page.getByText('14 chiffres, comme 512 923 475 00028.').waitFor({ timeout: 5000 });
-  if (!(await page.getByRole('button', { name: 'Enregistrer' }).isDisabled())) throw new Error('a short SIRET can be saved');
+  if (!(await page.getByRole('button', { name: 'Enregistrer', exact: true }).isDisabled())) throw new Error('a short SIRET can be saved');
   await page.fill('#sh-siret', '51292347500028');
   await page.fill('#sh-phone', '06 12 34 56 78');
   await page.fill('#sh-mediator-name', 'CM2C');
   await page.fill('#sh-mediator-url', 'https://www.cm2c.net');
   // only what changed goes out, never the CGV version: a screen loaded before a Réservation change would put an old one back
   const sent = page.waitForRequest((r) => r.method() === 'PATCH' && r.url().endsWith('/api/v1/settings'));
-  await page.getByRole('button', { name: 'Enregistrer' }).click();
+  await page.getByRole('button', { name: 'Enregistrer', exact: true }).click();
   const body = JSON.parse((await sent).postData() || '{}');
   if (!body.shop || 'cgvVersion' in body.shop || 'reviewUrl' in body.shop) throw new Error('Le salon sent more than what changed: ' + JSON.stringify(body.shop));
   await toastSaid(page, 'Réglages enregistrés');
@@ -97,7 +97,7 @@ export default async ({ browser, h, page }) => {
   await page.getByText('Les acomptes s’activeront dès que Stripe sera branché. En attendant, les clients réservent sans payer.').waitFor({ timeout: 10000 });
   await page.getByText('Sans Stripe, aucun acompte n’est demandé en ligne.').waitFor({ timeout: 5000 });
   await page.getByRole('button', { name: '24 h avant' }).click();
-  await page.getByRole('button', { name: 'Enregistrer' }).click();
+  await page.getByRole('button', { name: 'Enregistrer', exact: true }).click();
   await toastSaid(page, 'Réglages enregistrés, CGV mises à jour');
   const boot = (await h.api('/api/v1/bootstrap')).json;
   if (boot.settings.shop.cgvVersion !== boot.today) throw new Error('the CGV version was not dated today: ' + boot.settings.shop.cgvVersion);

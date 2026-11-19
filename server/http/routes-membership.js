@@ -28,6 +28,8 @@ import { planWords, missedWords, rhythmOf, perWeekOf, missedOf } from '../../sha
 import { clientStats } from '../domain/insights.js';
 import { readMe, isPersona } from './me-kit.js';
 import { LINK_IP_PER_HOUR, LINK_PER_DAY, linkIpKey, linkPhoneKey } from '../domain/linkcap.js';
+import { onSite } from '../domain/formule.js';
+import { accountsOn } from '../settings/accounts.js';
 
 const HOUR = 3600000, DAY = 86400000;
 /** a start the client did not ask to be now: the day after the 14 days of withdrawal, early, before the salon opens */
@@ -318,7 +320,10 @@ export function membershipRoutes(app, o = {}) {
       services: p.serviceIds.map((x) => { const sv = s.services.get(x); return sv ? { id: sv.id, name: sv.name, slug: sv.slug || null } : null; }).filter(Boolean)
     }));
     // PAY-04: the carnet sold at the salon, shown beside the plans (« Carnet 5 coupes · 80 € · valable 10 semaines »)
-    const pk = [...s.services.values()].filter((x) => x.active && x.pack && x.pack.credits).sort((a, b) => (a.order ?? 0) - (b.order ?? 0))[0];
+    // the one that can be taken on the site first (the weekly formule, while the client space is open): the page's button
+    // opens that one, so the card must be about it; else the first of the catalogue, « au salon »
+    const packs = [...s.services.values()].filter((x) => x.active && x.pack && x.pack.credits).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    const pk = packs.find((x) => onSite(s, x, accountsOn(s))) || packs[0];
     const carnet = pk ? { name: pk.name, price: pk.price, credits: pk.pack.credits, days: pk.pack.days || 0, ...(pk.pack.weekly ? { weekly: true, missed: pk.pack.missed === 'once' ? 'once' : 'lost' } : {}) } : null;
     // live: the site shows the block and its button; sepa: no SEPA in v1; startDay: the day a start not asked for now begins
     // terms: the CGV keep the membership's clauses while it is on or any contract still runs (its members link to them)

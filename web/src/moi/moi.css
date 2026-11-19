@@ -202,6 +202,8 @@
 .ms-help li a:not(.ms-mini) { display: inline-flex; align-items: center; min-height: 44px; color: var(--ink); font-weight: 600; text-underline-offset: 3px; }
 .ms .ms-mini { display: inline-flex; align-items: center; margin-top: 8px; min-height: 44px; padding: 0 20px; border-radius: 999px; box-shadow: inset 0 0 0 1.5px var(--line2); color: var(--ink); font: 600 14.5px/1 var(--sans); text-decoration: none; }
 .ms .ms-mini:hover { background: var(--line); }
+.ms button.ms-mini { border: 0; background: none; cursor: pointer; }
+.ms button.ms-mini:hover { background: var(--line); }
 .ms-lock { display: flex; flex-direction: column; align-items: flex-start; gap: 18px; }
 .ms-lock p { margin: 0; font: 500 17px/1.5 var(--sans); }
 .ms-lock-i { display: grid; place-items: center; width: 56px; height: 56px; border-radius: 50%; background: var(--warn-bg); color: var(--warn); }

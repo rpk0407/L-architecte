@@ -9,6 +9,8 @@
 //   so opening it again keeps the fence (the new holder of a recycled number cannot close and reopen to see more) and
 //   no cookie from before the closing comes back to life. Erasure alone forgets it.
 // s.otpUsed: the codes (message ids) that opened a session or were burned: a code works once.
+// s.otpMail: id → { id, cid, at }: the codes sent by e-mail (account.codeIssued, domain/otp.js), kept two days: a code
+//   lives ten minutes and the day's cap counts the day's only.
 // s.codeMisses: msgId → { n, names, ids }: wrong tries against that code (names: a wrong first name after the right code),
 //   by their deterministic ids (acm_<msgId>_<k>), so two instances counting the same try never count it twice.
 // s.nameMisses: cid → wrong first names typed since the file's last opening (whatever the day or the code): the third one
@@ -64,11 +66,11 @@ export function accountPastOf(s, ids) {
 
 /** @type {import('../core/extensions.js').Extension} */
 export const accountsExtension = {
-  init(s) { s.accounts = new Map(); s.accountPast = new Map(); s.otpUsed = new Set(); s.codeMisses = new Map(); s.nameMisses = new Map(); },
+  init(s) { s.accounts = new Map(); s.accountPast = new Map(); s.otpUsed = new Set(); s.otpMail = new Map(); s.codeMisses = new Map(); s.nameMisses = new Map(); },
   on: {
     'account.signedIn': (s, e, d) => {
       if (!d || !d.cid) return;
-      if (typeof d.msgId === 'string' && d.msgId.startsWith('msg_')) s.otpUsed.add(d.msgId);
+      if (typeof d.msgId === 'string' && (d.msgId.startsWith('msg_') || d.msgId.startsWith('otc_'))) s.otpUsed.add(d.msgId);
       s.nameMisses.delete(d.cid);
       const past = s.accountPast.get(d.cid);
       let row = s.accounts.get(d.cid);
@@ -86,6 +88,12 @@ export const accountsExtension = {
         s.accounts.set(d.cid, row);
       }
       s.accountPast.set(d.cid, { cid: d.cid, since: past ? past.since : row.since, lastAt: e.at, fenced: row.fenced, historyFrom: row.historyFrom, named: row.named, closedAt: past ? past.closedAt || 0 : 0 });
+    },
+    // a code sent by e-mail: the challenge (no address, no digits); the ones of two days ago are dropped as it folds
+    'account.codeIssued': (s, e, d) => {
+      if (!d || !d.id || !d.cid || s.otpMail.has(d.id)) return;
+      for (const [id, m] of s.otpMail) { if (e.at - m.at > 2 * 86400000) { s.otpMail.delete(id); s.codeMisses.delete(id); s.otpUsed.delete(id); } else break; }
+      s.otpMail.set(d.id, { id: d.id, cid: d.cid, at: e.at });
     },
     'account.codeMissed': (s, e, d) => {
       if (!d || !d.msgId || !d.id) return;
@@ -115,6 +123,7 @@ export const accountsExtension = {
       const ids = new Set(d.ids || [d.id]);
       for (const cid of ids) { s.accounts.delete(cid); s.accountPast.delete(cid); s.nameMisses.delete(cid); }
       for (const m of s.messages.values()) if (m.template === 'otp' && ids.has(m.cid)) s.codeMisses.delete(m.id);
+      for (const [id, m] of s.otpMail) if (ids.has(m.cid)) { s.otpMail.delete(id); s.codeMisses.delete(id); }
     }
   },
   // a sign-in is not news (it would push the bookings out of the feed's 300 lines): only a fenced opening is
