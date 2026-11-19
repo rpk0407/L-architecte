@@ -659,6 +659,7 @@ position:relative;font:400 17px/1.5 var(--f-sans);color:var(--os);background:var
 .pv-link:hover{color:var(--os)}
 
 /* 03 l'équipe : every barber's card is open; his next times keep the slot */
+.dk>.team{border-radius:30px 30px 0 0;box-shadow:0 -24px 60px rgba(15,14,13,.22)}
 .team{position:relative;z-index:2;background:var(--encre);padding:clamp(60px,10vw,120px) 0 clamp(120px,16vw,190px);overflow:hidden}
 .team-bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.24;filter:saturate(1.15)}
 .team::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,var(--encre) 0%,rgba(15,14,13,.55) 38%,rgba(15,14,13,.7) 70%,var(--encre) 100%)}
@@ -1259,9 +1260,34 @@ html{scroll-behavior:auto}
 </div>
 <div class="hr-veil" aria-hidden="true"></div>
 </section>
-<section class="now" id="reserver" data-ch="1" data-tone="light" aria-labelledby="t-now">
+<section class="team" id="barbiers" data-ch="1" data-tone="dark" aria-labelledby="t-team">
+<img class="team-bg" src="/img/salon.jpg" width="1220" height="901" alt="" loading="lazy">
 <div class="wrap">
-<p class="kk" data-rv><span>01</span>Réserver</p>
+<p class="kk" data-rv><span>01</span>L’équipe</p>
+<h2 class="h2" id="t-team" data-rv="lines"><span class="ln"><span>Choisis ton</span></span><span class="ln"><span>coiffeur.</span></span></h2>
+<p class="bb-lead" data-rv>Chacun sa main. Touche une heure pour la garder.</p>
+<sc-if value="{{teamWait}}" hint-placeholder-val="{{ false }}"><p class="bb-k none bb-wait" role="status"><i aria-hidden="true"></i>On regarde qui est là…</p></sc-if>
+<ul class="bb">
+<sc-for list="{{barbers}}" as="b" hint-placeholder-count="4">
+<li class="{{b.cls}}">
+<span class="{{b.avCls}}" aria-hidden="true">{{b.ini}}<sc-if value="{{b.hasPhoto}}" hint-placeholder-val="{{ false }}"><img sc-camel-src="{{b.photo}}" alt="" width="58" height="58" loading="lazy" decoding="async" sc-camel-on-error="{{b.photoErr}}"></sc-if></span>
+<h3 class="{{b.nCls}}">{{b.n}}</h3>
+<div class="bb-x">
+<sc-if value="{{b.hasBio}}" hint-placeholder-val="{{ false }}"><p class="bb-bio">{{b.bio}}</p></sc-if>
+<sc-if value="{{b.hasAway}}" hint-placeholder-val="{{ false }}"><p class="bb-k none"><i aria-hidden="true"></i>{{b.away}}</p></sc-if>
+<sc-if value="{{b.hasK}}" hint-placeholder-val="{{ true }}"><p class="{{b.kCls}}"><i aria-hidden="true"></i>{{b.k}}</p></sc-if>
+<div class="bb-slots"><sc-for list="{{b.slots}}" as="s" hint-placeholder-count="3"><button type="button" class="chip" aria-label="{{s.label}}" onClick="{{s.go}}">{{s.t}}</button></sc-for><button type="button" class="chip more" aria-label="{{b.otherLabel}}" onClick="{{b.other}}">{{b.otherText}}</button></div>
+<sc-if value="{{b.hasIg}}" hint-placeholder-val="{{ false }}"><a class="tl bb-ig" href="{{b.ig}}" target="_blank" rel="noopener" aria-label="{{b.igLabel}}">Son travail sur Instagram</a></sc-if>
+</div>
+</li>
+</sc-for>
+</ul>
+<sc-if value="{{isDemo}}" hint-placeholder-val="{{ false }}"><p class="bb-demo">Disponibilités de démonstration.</p></sc-if>
+</div>
+</section>
+<section class="now" id="reserver" data-ch="2" data-tone="light" aria-labelledby="t-now">
+<div class="wrap">
+<p class="kk" data-rv><span>02</span>Réserver</p>
 <div class="now-hd">
 <h2 class="now-h" id="t-now" data-rv>Prends <em>place.</em></h2>
 <ol class="now-3" data-rv aria-label="Réserver en quatre étapes"><li><b>1</b>Ta formule</li><li><b>2</b>Ton barbier</li><li><b>3</b>Le jour et l’heure</li><li><b>4</b>Tes coordonnées</li></ol>
@@ -1286,10 +1312,10 @@ html{scroll-behavior:auto}
 </div>
 </section>
 </div>
-<section class="pv sheet" id="preuve" data-ch="2" data-tone="dark" aria-labelledby="t-pv">
+<section class="pv sheet" id="preuve" data-ch="3" data-tone="dark" aria-labelledby="t-pv">
 <div class="pv-cov" data-cov>
 <div class="pv-top">
-<p class="kk" data-rv><span>02</span>La preuve</p>
+<p class="kk" data-rv><span>03</span>La preuve</p>
 <h2 class="pv-h" id="t-pv" data-rv="lines"><span class="ln"><span>Ne nous crois pas</span></span><span class="ln"><span>sur parole.</span></span></h2>
 </div>
 <sc-if value="{{hasRating}}" hint-placeholder-val="{{ true }}"><div class="pv-score" data-rv>
@@ -1322,8 +1348,8 @@ html{scroll-behavior:auto}
 </div>
 </section>
 
-<section class="cuts sheet" id="coupes" data-ch="3" data-tone="dark" aria-labelledby="t-cuts">
-<div class="wrap ct-head"><div class="ct-ti"><p class="kk" data-rv><span>03</span>Le travail</p><h2 class="h2" id="t-cuts" data-rv="lines"><span class="ln"><span>Sorti du</span></span><span class="ln"><span>fauteuil.</span></span></h2></div><div class="ct-nav"><p class="ct-count" aria-hidden="true"><b>{{cutNum}}</b><span>/ {{cutTotal}}</span></p><button type="button" class="ct-arr" aria-label="Coupe précédente" onClick="{{cutPrev}}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12H5M11 6l-6 6 6 6"/></svg></button><button type="button" class="ct-arr" aria-label="Coupe suivante" onClick="{{cutNext}}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h15M13 6l6 6-6 6"/></svg></button></div></div>
+<section class="cuts sheet" id="coupes" data-ch="4" data-tone="dark" aria-labelledby="t-cuts">
+<div class="wrap ct-head"><div class="ct-ti"><p class="kk" data-rv><span>04</span>Le travail</p><h2 class="h2" id="t-cuts" data-rv="lines"><span class="ln"><span>Sorti du</span></span><span class="ln"><span>fauteuil.</span></span></h2></div><div class="ct-nav"><p class="ct-count" aria-hidden="true"><b>{{cutNum}}</b><span>/ {{cutTotal}}</span></p><button type="button" class="ct-arr" aria-label="Coupe précédente" onClick="{{cutPrev}}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12H5M11 6l-6 6 6 6"/></svg></button><button type="button" class="ct-arr" aria-label="Coupe suivante" onClick="{{cutNext}}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h15M13 6l6 6-6 6"/></svg></button></div></div>
 <div class="ct-row" ref="{{r.cuts}}" data-rv>
 <sc-for list="{{cuts}}" as="c" hint-placeholder-count="3">
 <article class="{{c.cls}}">
@@ -1346,31 +1372,6 @@ html{scroll-behavior:auto}
 </a></sc-if>
 </div>
 <div class="wrap ct-foot" aria-hidden="true"><p class="ct-bar"><i style="--c: {{cutPct}}"></i></p><p class="ct-hint">Glisse</p></div>
-</section>
-<section class="team" id="barbiers" data-ch="4" data-tone="dark" aria-labelledby="t-team">
-<img class="team-bg" src="/img/salon.jpg" width="1220" height="901" alt="" loading="lazy">
-<div class="wrap">
-<p class="kk" data-rv><span>04</span>L’équipe</p>
-<h2 class="h2" id="t-team" data-rv="lines"><span class="ln"><span>Choisis ton</span></span><span class="ln"><span>coiffeur.</span></span></h2>
-<p class="bb-lead" data-rv>Chacun sa main. Touche une heure pour la garder.</p>
-<sc-if value="{{teamWait}}" hint-placeholder-val="{{ false }}"><p class="bb-k none bb-wait" role="status"><i aria-hidden="true"></i>On regarde qui est là…</p></sc-if>
-<ul class="bb">
-<sc-for list="{{barbers}}" as="b" hint-placeholder-count="4">
-<li class="{{b.cls}}">
-<span class="{{b.avCls}}" aria-hidden="true">{{b.ini}}<sc-if value="{{b.hasPhoto}}" hint-placeholder-val="{{ false }}"><img sc-camel-src="{{b.photo}}" alt="" width="58" height="58" loading="lazy" decoding="async" sc-camel-on-error="{{b.photoErr}}"></sc-if></span>
-<h3 class="{{b.nCls}}">{{b.n}}</h3>
-<div class="bb-x">
-<sc-if value="{{b.hasBio}}" hint-placeholder-val="{{ false }}"><p class="bb-bio">{{b.bio}}</p></sc-if>
-<sc-if value="{{b.hasAway}}" hint-placeholder-val="{{ false }}"><p class="bb-k none"><i aria-hidden="true"></i>{{b.away}}</p></sc-if>
-<sc-if value="{{b.hasK}}" hint-placeholder-val="{{ true }}"><p class="{{b.kCls}}"><i aria-hidden="true"></i>{{b.k}}</p></sc-if>
-<div class="bb-slots"><sc-for list="{{b.slots}}" as="s" hint-placeholder-count="3"><button type="button" class="chip" aria-label="{{s.label}}" onClick="{{s.go}}">{{s.t}}</button></sc-for><button type="button" class="chip more" aria-label="{{b.otherLabel}}" onClick="{{b.other}}">{{b.otherText}}</button></div>
-<sc-if value="{{b.hasIg}}" hint-placeholder-val="{{ false }}"><a class="tl bb-ig" href="{{b.ig}}" target="_blank" rel="noopener" aria-label="{{b.igLabel}}">Son travail sur Instagram</a></sc-if>
-</div>
-</li>
-</sc-for>
-</ul>
-<sc-if value="{{isDemo}}" hint-placeholder-val="{{ false }}"><p class="bb-demo">Disponibilités de démonstration.</p></sc-if>
-</div>
 </section>
 <section class="carte sheet" id="carte" data-ch="5" data-tone="light" aria-labelledby="t-carte">
 <div class="wrap">
@@ -2202,10 +2203,10 @@ FORMULAS.forEach(function (f) { FMAP[f.id] = f; });
 
 /* the chapters, in the page's order: the Sommaire and the top bar's pill follow it (data-ch on each section) */
 const CH = [
+  { id: 'barbiers', t: 'L’équipe', d: 'Choisis ton coiffeur' },
   { id: 'reserver', t: 'Réserver', d: 'Le prochain créneau de chaque barbier' },
   { id: 'preuve', t: 'La preuve', d: '5,0 sur 316 avis Google' },
   { id: 'coupes', t: 'Le travail', d: 'Les coupes du salon' },
-  { id: 'barbiers', t: 'L’équipe', d: 'Choisis ton coiffeur' },
   { id: 'carte', t: 'La carte', d: 'Les prix, sans surprise' },
   /* shown only while the monthly membership is sold online (PAY-04): the chapters after it move by one */
   { id: 'abonnement', t: 'Abonnement', d: 'Au mois, ou la formule', opt: true },

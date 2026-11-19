@@ -178,5 +178,5 @@ test('site: the membership switch hides the membership chapter only, never the c
   const inside = html.slice(i, html.indexOf('<section class="fq sheet"', i));
   assert.deepEqual([...inside.matchAll(/<section[^>]* id="([a-z]+)"/g)].map((m) => m[1]), ['abonnement']);
   // every chapter is in the page, in the order the Sommaire gives
-  assert.deepEqual([...html.matchAll(/<section[^>]* id="([a-z]+)" data-ch/g)].map((m) => m[1]), ['reserver', 'preuve', 'coupes', 'barbiers', 'carte', 'abonnement', 'questions']);
+  assert.deepEqual([...html.matchAll(/<section[^>]* id="([a-z]+)" data-ch/g)].map((m) => m[1]), ['barbiers', 'reserver', 'preuve', 'coupes', 'carte', 'abonnement', 'questions']);
 });
