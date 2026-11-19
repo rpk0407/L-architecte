@@ -74,7 +74,7 @@ export default async ({ browser, h }) => {
   await page.waitForFunction(() => document.activeElement && document.activeElement.id === 'sv-n', null, { timeout: 5000 });
   await page.fill('#sv-n', NAME);
   await page.fill('#sv-p', '15');
-  await page.getByRole('button', { name: 'Enregistrer' }).click();
+  await page.getByRole('button', { name: 'Enregistrer', exact: true }).click();
   await toastSaid(page, 'Visible sur le site');
   const junior = await until(NAME + ' in the catalogue', async () => (await call(page, '/api/v1/catalog')).json.services.find((x) => x.name === NAME));
   if (junior.slug !== SLUG) throw new Error(NAME + ' got slug ' + junior.slug);
