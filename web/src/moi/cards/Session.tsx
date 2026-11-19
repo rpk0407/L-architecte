@@ -3,13 +3,13 @@
 // install) come above these exit and destructive rows. Found by the folder registry (web/src/moi/registry.ts).
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../../lib/api';
-import type { MoiCardMeta } from '../types';
+import type { CardProps, MoiCardMeta } from '../types';
 import { Section } from '../profile/kit';
 import './profile.css';
 
 export const meta = { id: 'session', tab: 'profile', order: 99 } satisfies MoiCardMeta;
 
-export default function Session() {
+export default function Session({ me }: CardProps) {
   const [ask, setAsk] = useState<'' | 'all' | 'close'>('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -35,7 +35,7 @@ export default function Session() {
         {ask ? (
           <div className="mp-ask" role="group" aria-labelledby="mp-out-t">
             <p id="mp-out-t" ref={head} tabIndex={-1} className="mp-ask-t">{ask === 'all' ? 'Déconnecter tous mes appareils ?' : 'Supprimer mon espace ?'}</p>
-            <p className="c-muted c-small">{ask === 'all' ? 'Ton espace se ferme sur tous tes téléphones, celui-ci compris. Tu te reconnectes avec un code par SMS.' : 'Ton espace disparaît. Ta fiche au salon reste, avec tes rendez-vous : tu peux en rouvrir un quand tu veux.'}</p>
+            <p className="c-muted c-small">{ask === 'all' ? 'Ton espace se ferme sur tous tes téléphones, celui-ci compris. Tu te reconnectes avec un code par ' + (me.contact === 'email' ? 'e-mail' : 'SMS') + '.' : 'Ton espace disparaît. Ta fiche au salon reste, avec tes rendez-vous : tu peux en rouvrir un quand tu veux.'}</p>
             <div className="mp-row">
               <button type="button" className="c-btn mp-btn" disabled={busy} onClick={() => leave(ask === 'all' ? '/api/me/signout-all' : '/api/me/close')}>{ask === 'all' ? 'Déconnecter' : 'Supprimer mon espace'}</button>
               <button type="button" className="c-btn ghost mp-btn" onClick={cancel}>Annuler</button>

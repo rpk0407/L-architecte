@@ -24,6 +24,8 @@ export const linkPhoneKey = (phone) => 'linkn|' + phone;
 export function linkSendsToday(s, cid, day) {
   let n = 0;
   for (const m of s.messages.values()) if (m.cid === cid && LINKS.has(m.template) && localParts(m.at).day === day) n++;
+  // a sign-in code sent by e-mail is not a queued message (account.codeIssued, domain/otp.js): it counts all the same
+  for (const m of s.otpMail ? s.otpMail.values() : []) if (m.cid === cid && localParts(m.at).day === day) n++;
   return n;
 }
 

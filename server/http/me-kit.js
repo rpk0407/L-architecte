@@ -7,7 +7,7 @@
 // Routes never build a client ctx by hand: before a session exists (the sign-in routes), runSigningIn(r, meta) runs as
 // the same client actor. Client routes live under /api/me/*, sign-in under /api/public/account/*.
 import { HttpError, parseCookies, cookie } from './kit.js';
-import { CLIENT_COOKIE, CLIENT_SLIDE, readClient, liveClient, signClient, phoneTag } from '../auth/client-session.js';
+import { CLIENT_COOKIE, CLIENT_SLIDE, readClient, liveClient, signClient, phoneTag, emailTag } from '../auth/client-session.js';
 import { fileIds } from '../commands/clients.js';
 import { CLIENT_ACTOR, personaOf } from '../commands/accounts.js';
 import { accountsOn } from '../settings/accounts.js';
@@ -36,7 +36,7 @@ export function readMe(r) {
   const demo = r.rt.cfg.mode === 'demo' && r.s.mode === 'demo';
   const persona = demo && (p.demo === true || (personaOf(r.s, now) || {}).id === live.cid);
   r._me = { ...live, session: p, persona };
-  if (now - p.iat > CLIENT_SLIDE) setClientCookie(r, { cid: live.cid, phone: live.c.phone, demo: p.demo === true });
+  if (now - p.iat > CLIENT_SLIDE) setClientCookie(r, { cid: live.cid, ...(p.em ? { email: live.c.email } : { phone: live.c.phone }), demo: p.demo === true });
   return r._me;
 }
 
@@ -82,11 +82,12 @@ const clientCtx = (r, meta) => ({ actor: CLIENT_ACTOR, caps: new Set(), meta: { 
 
 /**
  * Sign this phone in: lx_c for settings.accounts.sessionDays. HttpOnly, Secure, SameSite=Lax (see auth/client-session.js).
- * @param {any} r @param {{ cid: string, phone: string, demo?: boolean }} c
+ * email: the session was opened with a code sent to that address (it follows the address, not the number).
+ * @param {any} r @param {{ cid: string, phone?: string, email?: string, demo?: boolean }} c
  */
 export function setClientCookie(r, c) {
   const now = r.now, ms = sessionMs(r.s);
-  const token = signClient(r.rt.secret, { cid: c.cid, ph: phoneTag(r.rt.secret, c.phone), iat: now, exp: now + ms, ...(c.demo ? { demo: true } : {}) });
+  const token = signClient(r.rt.secret, { cid: c.cid, ...(c.email ? { ph: '', em: emailTag(r.rt.secret, c.email) } : { ph: phoneTag(r.rt.secret, c.phone) }), iat: now, exp: now + ms, ...(c.demo ? { demo: true } : {}) });
   r.setCookies.push(cookie(CLIENT_COOKIE, token, { maxAge: ms / 1000, secure: r.rt.cfg.secureCookies, sameSite: 'Lax' }));
 }
 
