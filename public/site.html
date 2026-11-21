@@ -470,9 +470,13 @@ position:relative;font:400 17px/1.5 var(--f-sans);color:var(--os);background:var
 /* hero: Frais. */
 .dk{position:relative}
 .hero{position:sticky;z-index:0;top:min(0px,calc(100svh - 640px));height:100svh;min-height:640px;background:var(--pierre);color:var(--encre);overflow:hidden;transform:scale(calc(1 - var(--o,0) * .07));transform-origin:50% 0;border-radius:calc(var(--o,0) * 34px)}
-.hr-ph{position:absolute;left:-8vw;right:-36vw;top:31svh;bottom:-2svh}
+/* the man stays whole. On a phone his face sits in the clear band between the type above and the booking card below (his chin ends 20px over the card), laid out from the bottom the way the card is. The photo's own proportions (1220x1194) fix the sums: his head runs from .126 to .710 of its height, his nose tip is at .261 of its width. The photo dissolves on its top, left and bottom edges instead of ending in a box. */
+.hr-ph{--hw:clamp(300px,calc((100svh - 469px) / .5721),min(146vw,640px));position:absolute;left:calc(51vw - var(--hw) * .2615);width:var(--hw);height:calc(var(--hw) * .9787);bottom:calc(244px + env(safe-area-inset-bottom,0px) - var(--hw) * .2838)}
 .hr-ph-in{position:absolute;inset:0;transform-origin:47% 36%;will-change:transform}
-.hr-ph img{width:100%;height:100%;object-fit:cover;object-position:50% 18%;-webkit-mask-image:linear-gradient(180deg,transparent 0,#000 20%);mask-image:linear-gradient(180deg,transparent 0,#000 20%)}
+.hr-ph img{width:100%;height:100%;object-fit:cover;object-position:50% 50%;-webkit-mask-image:linear-gradient(180deg,transparent 0,#000 7%),linear-gradient(90deg,transparent 0,#000 24%),linear-gradient(0deg,transparent 0,#000 12%);mask-image:linear-gradient(180deg,transparent 0,#000 7%),linear-gradient(90deg,transparent 0,#000 24%),linear-gradient(0deg,transparent 0,#000 12%);-webkit-mask-composite:source-in;mask-composite:intersect}
+/* the salon's logo, a soft watermark behind the man: the header's own file used as a mask, so one request, in the page's ink */
+.hero::before{content:"";position:absolute;z-index:-1;pointer-events:none;left:-22vw;width:62vw;aspect-ratio:858/912;bottom:calc(230px + env(safe-area-inset-bottom,0px));background:var(--encre);opacity:.12;-webkit-mask:url(/img/logo-clair.png) center/contain no-repeat;mask:url(/img/logo-clair.png) center/contain no-repeat}
+@media (max-width:699px) and (max-height:700px){.hero::before{display:none}.hr-ph{left:calc(58vw - var(--hw) * .2615)}}
 .hr-top{position:absolute;z-index:2;top:calc(78px + env(safe-area-inset-top,0px));left:var(--pad);right:var(--pad);display:flex;flex-direction:column;align-items:flex-start;gap:14px}
 .hr-word{width:100%;max-width:640px;min-width:0;overflow:hidden}
 .hr-sub{font:400 21px/1.15 var(--f-serif);color:var(--encre);opacity:.86;animation:rise .9s .5s var(--ease) both}
@@ -1076,8 +1080,9 @@ button.cr-go::after{content:"";position:absolute;inset:0}
 @media (max-width:360px){.slots{grid-template-columns:repeat(3,minmax(0,1fr))}.fld2{grid-template-columns:1fr}}
 
 @media (min-width:700px){
-.hr-ph{left:28vw;right:-12vw;top:22svh}
-.hr-ph img{-webkit-mask-image:linear-gradient(180deg,transparent 0,#000 20%),linear-gradient(90deg,transparent 0,#000 24%);mask-image:linear-gradient(180deg,transparent 0,#000 20%),linear-gradient(90deg,transparent 0,#000 24%);-webkit-mask-composite:source-in;mask-composite:intersect}
+.hr-ph{left:28vw;right:-12vw;top:22svh;bottom:-2svh;width:auto;height:auto}
+.hr-ph img{object-position:50% 18%;-webkit-mask-image:linear-gradient(180deg,transparent 0,#000 20%),linear-gradient(90deg,transparent 0,#000 24%);mask-image:linear-gradient(180deg,transparent 0,#000 20%),linear-gradient(90deg,transparent 0,#000 24%);-webkit-mask-composite:source-in;mask-composite:intersect}
+.hero::before{left:3vw;width:46vw;top:33svh;bottom:auto}
 .hr-top{max-width:62vw}
 .ct{flex-basis:min(46vw,440px)}
 .days{grid-template-columns:repeat(6,minmax(0,1fr))}
@@ -1088,17 +1093,21 @@ button.cr-go::after{content:"";position:absolute;inset:0}
 .bb-n{font-size:clamp(48px,6vw,84px)}
 .bb-n.lg{font-size:clamp(40px,4.8vw,66px)}
 }
-@media (min-width:1000px){
-.tb{height:76px}
-.wm-a{font-size:30px}
-.wm-logo{width:42px}
+/* a wide screen held wide: the man full height on the right, the type bottom left. Held upright (an iPad is 1024 wide that way) it keeps the 700px layout above, which shows him whole instead of zooming into his face with the headline across his chin */
+@media (min-width:1000px) and (min-aspect-ratio:1/1){
 .hero{max-height:none}
-.hr-ph{left:46vw;right:-4vw;top:0;bottom:0}
+.hr-ph{left:46vw;right:-4vw;top:0;bottom:0;width:auto;height:auto}
 .hr-ph img{object-position:42% 30%;-webkit-mask-image:linear-gradient(90deg,transparent 0,#000 26%);mask-image:linear-gradient(90deg,transparent 0,#000 26%)}
 .hr-top{top:auto;bottom:calc(7svh + 176px);max-width:none;right:auto;width:min(50vw,740px)}
 .hr-word{max-width:none}
 .hr-sub{font-size:26px}
 .hx{bottom:7svh;width:480px}
+.hero::before{left:22vw;width:min(34vw,600px);top:7svh}
+}
+@media (min-width:1000px){
+.tb{height:76px}
+.wm-a{font-size:30px}
+.wm-logo{width:42px}
 .now-hd{flex-direction:row;align-items:flex-end;justify-content:space-between}
 .now-h{font-size:clamp(110px,11.5vw,160px);white-space:nowrap}
 .now-3{padding-bottom:14px;justify-content:flex-end}
