@@ -18,8 +18,8 @@ type About = { first: string; day: string | null; apptId: string | null };
 type Todo =
   | ({ kind: 'dispute'; id: string; paymentId: string; amount: number; reason: string; dueBy: number | null; label: string; payKind: string } & About)
   | { kind: 'outside'; id: string; paymentId: string; amount: number; saleId: string; ticket: string; day: string; label: string; payKind: string }
-  | ({ kind: 'unused'; id: string; paymentId: string; amount: number; paidAt: number; label: string; payKind: string; apptStatus: string | null; cancelBy: string | null } & About);
-type Row = { id: string; at: number; kind: string; label: string; amount: number; fee: number | null; net: number | null; refunded: number; status: string; provider: string; saleId: string | null; ticket: string | null; saleDay: string | null; apptId: string | null; day: string | null };
+  | ({ kind: 'unused'; id: string; paymentId: string; amount: number; paidAt: number; label: string; payKind: string; full?: boolean; apptStatus: string | null; cancelBy: string | null } & About);
+type Row = { id: string; at: number; kind: string; full?: boolean; label: string; amount: number; fee: number | null; net: number | null; refunded: number; status: string; provider: string; saleId: string | null; ticket: string | null; saleDay: string | null; apptId: string | null; day: string | null };
 type Payout = { id: string; arrival: number | null; at: number; amount: number; gross: number; fee: number; count: number };
 type Data = { mode: 'demo' | 'live' | 'test' | 'off'; provider: string; days: number; todo: Todo[]; payments: Row[]; payouts: Payout[] };
 
@@ -127,17 +127,19 @@ function TodoRow({ t }: { t: Todo }) {
   // a deposit whose visit will not happen: kept as the salon's (a no-show, a late call the salon cancelled) or given
   // back (the client cancelled in time, or paid too late: its refund did not go through). The owner decides.
   if (t.payKind === 'deposit' && (t.apptStatus === 'cancelled' || t.apptStatus === 'no_show')) {
+    // the whole price paid ahead by choice (« payer maintenant »): the same decision, said with its own words
+    const w = t.full ? { le: 'le paiement', Le: 'Le paiement', du: 'du paiement', un: 'Paiement en ligne', kept: 'Paiement en ligne conservé' } : { le: 'l’acompte', Le: 'L’acompte', du: 'de l’acompte', un: 'Acompte', kept: 'Acompte conservé' };
     const owed = t.apptStatus === 'cancelled' && t.cancelBy !== 'salon';
     const on = t.day ? dayFr(t.day) : '—';
-    const why = t.apptStatus === 'no_show' ? 'absent le ' + on : 'rendez-vous du ' + on + (t.cancelBy === 'client' ? ' annulé par le client' : t.cancelBy === 'salon' ? ' annulé par le salon' : ' annulé, acompte payé trop tard');
+    const why = t.apptStatus === 'no_show' ? 'absent le ' + on : 'rendez-vous du ' + on + (t.cancelBy === 'client' ? ' annulé par le client' : t.cancelBy === 'salon' ? ' annulé par le salon' : ' annulé, ' + (t.full ? 'payé après coup' : 'acompte payé trop tard'));
     const keep = <Button key="keep" size="sm" variant={owed ? 'ghost' : 'primary'} icon="caisse" busy={busy === 'keep'} disabled={!!busy && busy !== 'keep'}
-      onClick={() => act('keep', 'keep', { title: 'Garder l’acompte de ' + cents(t.amount) + ' ?', body: 'Un ticket « Acompte conservé » est fait aujourd’hui, payé par l’acompte en ligne : il compte dans le chiffre du jour.', ok: 'Garder l’acompte' }, 'Acompte gardé : ticket fait')}>Garder l’acompte</Button>;
+      onClick={() => act('keep', 'keep', { title: 'Garder ' + w.le + ' de ' + cents(t.amount) + ' ?', body: 'Un ticket « ' + w.kept + ' » est fait aujourd’hui, payé par ' + w.le + ' en ligne : il compte dans le chiffre du jour.', ok: 'Garder ' + w.le }, w.un + ' gardé : ticket fait')}>Garder {w.le}</Button>;
     const back = <Button key="back" size="sm" variant={owed ? 'primary' : 'ghost'} icon="refund" busy={busy === 'refund'} disabled={!!busy && busy !== 'refund'}
-      onClick={() => act('refund', 'refund', { title: 'Rembourser ' + cents(t.amount) + (t.first ? ' à ' + t.first : '') + ' ?', body: 'L’acompte repart sur sa carte chez ' + provName('stripe') + ' (quelques jours pour le voir).', ok: 'Rembourser', danger: true }, 'Acompte remboursé')}>Rembourser</Button>;
+      onClick={() => act('refund', 'refund', { title: 'Rembourser ' + cents(t.amount) + (t.first ? ' à ' + t.first : '') + ' ?', body: w.Le + ' repart sur sa carte chez ' + provName('stripe') + ' (quelques jours pour le voir).', ok: 'Rembourser', danger: true }, w.un + ' remboursé')}>Rembourser</Button>;
     return (
       <li className="ol-row">
         <span className="li-main">
-          <b>Acompte{t.first ? ' ' + of(t.first) : ''} · {why}</b>
+          <b>{w.un}{t.first ? ' ' + of(t.first) : ''} · {why}</b>
           <small>{paid} · {owed ? 'à rembourser : le remboursement n’est pas passé' : 'à garder ou à rembourser'}</small>
         </span>
         {can('sale.refund') ? <span className="row ol-acts">{owed ? [back, keep] : [keep, back]}</span> : <small className="faint">Le gérant décide : garder ou rembourser.</small>}
@@ -189,7 +191,7 @@ function OnlineSheet({ open, data, error, retry, onClose }: { open: boolean; dat
                   return (
                     <li key={p.id} className="ol-row" tabIndex={0} aria-label={(KIND[p.kind] || 'Paiement') + ' ' + cents(p.amount) + ', ' + word}>
                       <span className="li-main">
-                        <b>{KIND[p.kind] || 'Paiement'} <span className={'badge ' + tone}>{word}</span></b>
+                        <b>{p.full ? 'Payé à la réservation' : KIND[p.kind] || 'Paiement'} <span className={'badge ' + tone}>{word}</span></b>
                         <small>{ddmm(p.at)} à {clock(p.at)}{label ? ' · ' + label : ''}{p.ticket ? ' · ' + p.ticket : ''}{p.refunded && p.status !== 'refunded' ? ' · remboursé ' + cents(p.refunded) : ''}</small>
                       </span>
                       <span className="li-end">

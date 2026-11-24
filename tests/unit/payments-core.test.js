@@ -17,6 +17,7 @@ import { browser } from '../api/client.js';
 import { at } from '../helpers.js';
 import { addDays } from '../../shared/dates.js';
 import { piiOf } from '../../server/core/journal.js';
+import { updateSettings } from '../../server/commands/shop.js';
 
 const DAY = '2026-11-03'; // a Tuesday
 const LATER = addDays(DAY, 1);
@@ -74,6 +75,8 @@ async function production({ stripe = true } = {}) {
   const week = { 2: [[540, 1110]], 3: [[540, 1110]], 4: [[540, 1110]], 5: [[540, 1110]], 6: [[540, 1110]] };
   const ali = (await rt.engine.run(addStaff, { name: 'Ali', role: 'barber', schedule: week, commission: { service: 4000, product: 1000 } }, asOwner())).id;
   const tr = (await rt.engine.run(addService, { name: 'Transformation', category: 'Changer de tête', price: 5000, dur: 60, slug: 'tr' }, asOwner())).id;
+  // this file is about the deposit a salon asks: said outright (the code's default is 'choice', where nothing is asked)
+  await rt.engine.run(updateSettings, { deposits: { mode: 'threshold' } }, asOwner());
   return { rt, clock, owner, fake, ids: { ali, tr }, s: () => rt.engine.state };
 }
 const hook = (t, ev, { secret = WH[1], path = '/api/pay/stripe/webhook' } = {}) => {

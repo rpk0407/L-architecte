@@ -31,16 +31,17 @@ export default function Reservation({ s }: SectionProps) {
         <Switch on={B.walkinWait} onChange={(v) => b.setV({ ...B, walkinWait: v })} title="Afficher l’attente sans rendez-vous" hint="Le site montre en direct « environ 20 min d’attente »." />
       </Card>
       <EspaceClient s={s} />
-      <Card title="Acomptes et absences" guide="reservation-acomptes" icon="card">
-        {noOnline ? <Note icon="info">Les acomptes s’activeront dès que Stripe sera branché. En attendant, les clients réservent sans payer.</Note> : null}
-        <Field label="Demander un acompte">
+      <Card title="Paiement en ligne et acomptes" guide="reservation-acomptes" icon="card">
+        {noOnline ? <Note icon="info">Le paiement en ligne s’activera dès que Stripe sera branché. En attendant, les clients réservent sans payer.</Note> : null}
+        <Field label="Ce que le site demande à la réservation">
           <div className="chips">
-            <Chip small on={D.mode === 'none'} onClick={() => d.setV({ ...D, mode: 'none' })}>Jamais</Chip>
-            <Chip small on={D.mode === 'threshold'} onClick={() => d.setV({ ...D, mode: 'threshold' })}>Au-delà d’un montant</Chip>
-            <Chip small on={D.mode === 'all'} onClick={() => d.setV({ ...D, mode: 'all' })}>Toujours</Chip>
+            <Chip small on={D.mode === 'choice'} onClick={() => d.setV({ ...D, mode: 'choice' })}>Au choix du client : maintenant en ligne, ou au salon</Chip>
+            <Chip small on={D.mode === 'none'} onClick={() => d.setV({ ...D, mode: 'none' })}>Rien en ligne : tout au salon</Chip>
+            <Chip small on={D.mode === 'threshold'} onClick={() => d.setV({ ...D, mode: 'threshold' })}>Acompte au-delà d’un montant</Chip>
+            <Chip small on={D.mode === 'all'} onClick={() => d.setV({ ...D, mode: 'all' })}>Acompte toujours</Chip>
           </div>
         </Field>
-        {D.mode !== 'none' ? (
+        {D.mode === 'threshold' || D.mode === 'all' ? (
           <div className="grid2">
             {D.mode === 'threshold' ? <Field label="À partir de (€)" htmlFor="dp-t"><input id="dp-t" className="input" inputMode="decimal" value={(D.thresholdCents / 100).toString().replace('.', ',')} onChange={(e) => d.setV({ ...D, thresholdCents: money.parseEur(e.target.value) ?? 0 })} /></Field> : <span />}
             <Field label="Montant de l’acompte (% du prix)" htmlFor="dp-p"><input id="dp-p" className="input" inputMode="numeric" value={D.percent} onChange={(e) => d.setV({ ...D, percent: num(e.target.value, 5, 100) })} /></Field>
@@ -51,7 +52,7 @@ export default function Reservation({ s }: SectionProps) {
           <Switch on={!!D.riskBased} onChange={(v) => d.setV({ ...D, riskBased: v })} title="Aussi pour les clients qui ont déjà manqué un rendez-vous"
             hint={'Deux absences, ou une seule avant sa troisième visite : même une coupe à ' + eur(2000) + ' lui demande ' + eur(riskExample(D.percent)) + ' d’acompte. Sa fiche client permet de l’en dispenser.'} />
         ) : null}
-        <p className="muted" style={{ fontSize: 13.5 }}>{noOnline && D.mode !== 'none' ? <><b>Sans Stripe, aucun acompte n’est demandé en ligne.</b> Cette règle s’appliquera dès qu’il sera branché. </> : null}{D.mode === 'none' ? 'Aucun acompte : simple, mais les absences ne coûtent rien au client.' : D.mode === 'all' ? 'Chaque réservation en ligne paie ' + D.percent + ' % à l’avance (5 € minimum).' : 'Exemple : une prestation de ' + eur(Math.max(D.thresholdCents, 6000)) + ' demande ' + eur(Math.max(500, Math.round((Math.max(D.thresholdCents, 6000) * D.percent) / 10000) * 100)) + ' d’acompte. En dessous de ' + eur(D.thresholdCents) + ', rien' + (D.riskBased ? ', sauf pour un client qui a déjà manqué.' : '.')} Une prestation peut avoir sa propre règle dans le Catalogue.</p>
+        <p className="muted" style={{ fontSize: 13.5 }}>{noOnline && D.mode !== 'none' ? <><b>Sans Stripe, rien n’est demandé en ligne.</b> Cette règle s’appliquera dès qu’il sera branché. </> : null}{D.mode === 'choice' ? 'Aucun acompte. En réservant, le client choisit : « Payer au salon », comme d’habitude, ou « Payer maintenant » le prix entier par carte, Apple Pay ou Google Pay. Payé en ligne, la caisse le déduit toute seule ; annulé dans les délais, il est remboursé sur sa carte.' : D.mode === 'none' ? 'Aucun acompte : simple, mais les absences ne coûtent rien au client.' : D.mode === 'all' ? 'Chaque réservation en ligne paie ' + D.percent + ' % à l’avance (5 € minimum).' : 'Exemple : une prestation de ' + eur(Math.max(D.thresholdCents, 6000)) + ' demande ' + eur(Math.max(500, Math.round((Math.max(D.thresholdCents, 6000) * D.percent) / 10000) * 100)) + ' d’acompte. En dessous de ' + eur(D.thresholdCents) + ', rien' + (D.riskBased ? ', sauf pour un client qui a déjà manqué.' : '.')}{D.mode === 'choice' ? '' : ' Une prestation peut avoir sa propre règle dans le Catalogue.'}</p>
         <Field label="Frais d’absence (carte enregistrée)" hint="Montant prévu pour la carte enregistrée à la réservation (prochaine étape) : rien n’est prélevé pour l’instant." htmlFor="dp-n"><input id="dp-n" className="input" inputMode="decimal" value={(D.noShowFeeCents / 100).toString().replace('.', ',')} onChange={(e) => d.setV({ ...D, noShowFeeCents: Math.min(20000, money.parseEur(e.target.value) ?? 0) })} /></Field>
       </Card>
       <SaveBar dirty={b.dirty || d.dirty} busy={busy} onReset={() => { b.reset(); d.reset(); }} onSave={() => save({ ...(b.dirty ? { booking: B } : {}), ...(d.dirty ? { deposits: D } : {}) }, cgvChanged ? 'Réglages enregistrés, CGV mises à jour' : undefined)} />

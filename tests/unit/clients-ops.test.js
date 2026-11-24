@@ -135,7 +135,7 @@ test('erasure without a text to send happens in one write; a barber may not eras
 });
 
 test('erasure mails the cancellation to a client without SMS before the address goes, but not for a deposit never paid', async () => {
-  const t = await salon({ hour: 9 });
+  const t = await salon({ hour: 9, deposits: 'threshold' });
   const cid = await add(t, { first: 'Inès', phone: '0622330000', email: 'ines@exemple.fr', sms: false });
   const a = await t.engine.run(A.createAppointment, { clientId: cid, serviceIds: [t.ids.cut], staffId: t.ids.Ali, day: TOMORROW, start: 600 }, t.asOwner());
   // waiting for its deposit: never confirmed by mail, so nothing to take out of an agenda
@@ -151,7 +151,7 @@ test('erasure mails the cancellation to a client without SMS before the address 
 });
 
 test('erasure takes him off the waiting list, pays the deposit back, and only for who may erase', async () => {
-  const t = await salon({ hour: 9 });
+  const t = await salon({ hour: 9, deposits: 'threshold' });
   const bk = await t.engine.run(A.bookOnline, { serviceIds: [t.ids.color], staffId: t.ids.Ali, day: TOMORROW, start: 840, first: 'Nolan', phone: '0611220000' }, t.asClient);
   const s = t.engine.state;
   const appt = s.appts.get(bk.id);

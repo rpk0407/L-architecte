@@ -16,6 +16,7 @@ import { PhoneAgenda, VIEW_KEY, viewOf, type PhoneView } from './agenda/Phone';
 import { AgendaTools, scaleOf, useAgendaView } from './agenda/view';
 import { Dock } from './accueil/Dock';
 import { ApptSheet, BlockSheet, CreateSheet, WalkinSheet, type Prefill } from './agenda/Sheets';
+import { weeklyCarnet } from './agenda/Formule';
 import { ReportSheet, undoReport, useCountdown, type ReportAbout, type Reported } from './agenda/Report';
 import type { Agenda as AgendaData, Appt } from '../types';
 import './agenda.css';
@@ -55,6 +56,8 @@ export default function Agenda() {
   // zoom, « Équipe / Moi » and « Agenda seul »: each person's own, kept on the device (agenda/view.tsx)
   const [agView, setAgView] = useAgendaView(boot.me.id);
   const [create, setCreate] = useState<Prefill | null>(null);
+  // the weekly formule the salon sells (5 cuts, their dates booked in one go): its own button beside « Rendez-vous »
+  const formule = useMemo(() => weeklyCarnet(boot.services), [boot.services]);
   const [walkin, setWalkin] = useState(false);
   const [block, setBlock] = useState<{ staffId: string; day: string; start: number; absent?: boolean } | null | false>(false);
   // « Reporter ses rendez-vous »: the sheet, and what it just moved (« Annuler » stays on the page until the texts leave)
@@ -64,7 +67,8 @@ export default function Agenda() {
 
   // deep links from the palette and the feed: ?new=1, ?walkin=1
   useEffect(() => {
-    if (route.query.get('new')) { setCreate(route.query.get('client') ? { clientId: route.query.get('client')! } : {}); setQuery({ new: null, client: null }); }
+    // formule=1: the sheet opens on the weekly formule (the palette's « Vendre la formule », the till's offer after a ticket)
+    if (route.query.get('new')) { setCreate({ ...(route.query.get('client') ? { clientId: route.query.get('client')! } : {}), ...(route.query.get('formule') ? { formule: true } : {}) }); setQuery({ new: null, client: null, formule: null }); }
     if (route.query.get('walkin')) { setWalkin(true); setQuery({ walkin: null }); }
   }, [route.key]);
   useHotkeys({
@@ -142,6 +146,7 @@ export default function Agenda() {
           <div data-guide="ag-view" style={{ display: 'flex' }}><Seg value={view} onChange={(v) => setQuery({ vue: v === 'jour' ? null : v })} options={[{ v: 'jour', t: 'Jour' }, { v: 'semaine', t: 'Semaine' }]} label="Vue" /></div>
           <Button variant="ghost" icon="block" className="ph-hide" data-guide="ag-block" onClick={() => setBlock({ staffId: boot.me.chair ? boot.me.id : data?.lanes[0]?.id || boot.me.id, day, start: Math.ceil(nowMin / 15) * 15 })}>Bloquer</Button>
           <Button variant="ghost" icon="walk" onClick={() => setWalkin(true)} kbd="P" data-guide="ag-walkin">Passage</Button>
+          {formule ? <Button variant="ghost" icon="ticket" className="ph-hide" data-guide="ag-formule" title={formule.pack.name + ' : ' + formule.pack.pack!.credits + ' coupes, ' + eur(formule.pack.price)} onClick={() => setCreate({ day, formule: true })}>Formule</Button> : null}
           <Button variant="primary" icon="plus" onClick={() => setCreate({ day })} kbd="N" data-guide="ag-new">Rendez-vous</Button>
         </div>
       </div>

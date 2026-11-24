@@ -63,7 +63,7 @@ export function contactView(r, a) {
       token: signLink(r.rt.secret, ids.includes(contactCidOf(x, s) || '') ? 'appt' : 'guest', x.code), code: x.code, self: x.id === a.id, day: x.day, start: x.start, dur: x.dur, status: x.status,
       services: x.services.map((v) => ({ name: v.name, price: v.price, from: !!v.from })), price: x.price,
       staff: st ? { name: st.name, initials: st.initials, color: st.color } : null, anyStaff: !!x.anyStaff,
-      deposit: x.deposit ? { amount: x.deposit.amount, paid: x.deposit.paid || 0, open: !!pay && pay.status === 'pending' } : null,
+      deposit: x.deposit ? { amount: x.deposit.amount, paid: x.deposit.paid || 0, open: !!pay && pay.status === 'pending', ...(x.deposit.full ? { full: true } : {}) } : null,
       canChange: clientMayChange(s, x, now), changeUntil: startsAt(x) - hours * 3600000,
       earlier: !!x.earlier, forFirst: forFirstIn(s, ids, x), ...formuleLine(s, x)
     };

@@ -134,7 +134,7 @@ export function mailOwner(s, ctx, a, kind, o = {}) {
     'Prestation : ' + what(a) + ' · ' + price(a),
     ...(a.note ? ['Son mot : « ' + a.note + ' »'] : []), '',
     kind === 'booked' ? 'Réservé en ligne' + (a.deposit && a.deposit.paid ? ' · acompte de ' + fmtEur(a.deposit.paid, { decimals: true }) + ' réglé' : '')
-      : 'Annulé en ligne par le client' + (o.reason ? ' : « ' + o.reason + ' »' : '') + (a.deposit && a.deposit.paid ? ' · acompte de ' + fmtEur(a.deposit.paid, { decimals: true }) + ' à voir' : ''),
+      : 'Annulé en ligne par le client' + (o.reason ? ' : « ' + o.reason + ' »' : '') + (a.deposit && a.deposit.paid ? (a.deposit.full ? ' · ' + fmtEur(a.deposit.paid, { decimals: true }) + ' payés en ligne, remboursés automatiquement (à vérifier dans Caisse › En ligne)' : ' · acompte de ' + fmtEur(a.deposit.paid, { decimals: true }) + ' à voir') : ''),
     ...(comptoir ? ['', 'Le Comptoir : ' + comptoir] : [])
   ].join('\n');
   const send = (key, addr) => queueMessage(s, ctx, {

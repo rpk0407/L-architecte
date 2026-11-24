@@ -317,7 +317,13 @@ export function evolve(s, e) {
       Object.assign(py, { status: 'paid', paidAt: e.at, pm: p.pm || d.pm || null, customer: p.customer || d.customer || null, chargeRef: d.chargeRef || py.chargeRef || null });
       // the VAT rate it carries as an advance, frozen when the money arrives (CPT-03, domain/ledger.js advanceRate)
       if (Number.isInteger(d.vat)) py.vat = d.vat;
-      if (py.apptId && py.kind === 'deposit') { const a = s.appts.get(py.apptId); if (a && a.deposit) a.deposit = { ...a.deposit, paid: py.amount, paymentId: py.id }; }
+      if (py.apptId && py.kind === 'deposit') {
+        const a = s.appts.get(py.apptId);
+        if (a && a.deposit) a.deposit = { ...a.deposit, paid: py.amount, paymentId: py.id };
+        // « payer maintenant »: the booking asked nothing; its price paid ahead is carried like a deposit of the whole
+        // price from now on (the till deducts it, a cancellation gives it back), marked full for the words
+        else if (a && py.full && !a.saleId && ['booked', 'arrived', 'in_chair'].includes(a.status)) a.deposit = { amount: py.amount, paid: py.amount, paymentId: py.id, full: true };
+      }
       if (py.apptId && py.kind === 'guarantee') { const a = s.appts.get(py.apptId); if (a) a.guarantee = { paymentId: py.id }; }
       // the charge index for refunds, disputes and payouts (projections/payments.js)
       for (const x of EXTENSIONS) if (Object.hasOwn(x.on, e.type)) x.on[e.type](s, e, d, p);

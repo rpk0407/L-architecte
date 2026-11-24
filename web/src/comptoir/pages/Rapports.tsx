@@ -589,7 +589,7 @@ function Insights({ r }: { r: Report }) {
   if (r.noShows >= 2 && lost) {
     const cost = Math.round(lost / 100) * 100;
     const dep = boot.settings.deposits;
-    out.push({ icon: 'alert', tone: 'warn', title: 'Les absences ont coûté ' + eur(cost) + (r.noShowLost != null ? ', acomptes gardés déduits' : ''), body: own ? 'Le rappel la veille et le lien pour déplacer partent tout seuls. Un client qui manque deux fois est signalé sur sa fiche.' : dep.mode === 'none' ? 'Active l’acompte en ligne dans Réglages : les absences baissent nettement quand le client a payé une partie.' : 'L’acompte est actif au-delà de ' + eur(dep.thresholdCents) + '. Le baisser couvrirait plus de rendez-vous.' });
+    out.push({ icon: 'alert', tone: 'warn', title: 'Les absences ont coûté ' + eur(cost) + (r.noShowLost != null ? ', acomptes gardés déduits' : ''), body: own ? 'Le rappel la veille et le lien pour déplacer partent tout seuls. Un client qui manque deux fois est signalé sur sa fiche.' : dep.mode === 'choice' ? 'Aucun acompte n’est demandé : le client paie en ligne s’il le veut. Un client qui a payé d’avance vient presque toujours ; un acompte obligatoire reste possible dans Réglages › Réservation.' : dep.mode === 'none' ? 'Active l’acompte en ligne dans Réglages : les absences baissent nettement quand le client a payé une partie.' : 'L’acompte est actif au-delà de ' + eur(dep.thresholdCents) + '. Le baisser couvrirait plus de rendez-vous.' });
   }
   const done = r.staff.reduce((t, x) => t + x.done, 0);
   const rebook = done ? r.staff.reduce((t, x) => t + x.rebookRate * x.done, 0) / done : 0;

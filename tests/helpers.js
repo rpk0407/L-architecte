@@ -12,7 +12,11 @@ import { addClient } from '../server/commands/clients.js';
 export const DAY = '2026-11-03';
 export const at = (day, h, m = 0) => instantOf(day, h * 60 + m);
 
-export async function salon({ store = memoryStore(), day = DAY, hour = 10 } = {}) {
+/**
+ * deposits: the salon's deposit rule, for the tests about a deposit the salon asks ('threshold': 30 % from 50 €; 'all').
+ * Left out, the code's default applies ('choice': nothing is ever asked, the client chooses to pay now or at the salon).
+ */
+export async function salon({ store = memoryStore(), day = DAY, hour = 10, deposits = '' } = {}) {
   const clock = { now: at(day, hour) };
   const engine = createEngine(store, { clock: () => clock.now, syncEveryMs: 0 });
   const sys = { actor: { t: 'system', id: 'test' }, caps: new Set(Object.keys(CAPS)) };
@@ -37,6 +41,7 @@ export async function salon({ store = memoryStore(), day = DAY, hour = 10 } = {}
     const st = engine.state.staff.get(ids[name]);
     return { actor: { t: 'staff', id: st.id }, staff: st, caps: capsOf(st, engine.state.settings) };
   };
+  if (deposits) { const { updateSettings } = await import('../server/commands/shop.js'); await engine.run(updateSettings, { deposits: { mode: deposits } }, asOwner()); }
   const asClient = { actor: { t: 'client', id: 'web' }, caps: new Set(), meta: { linkFor: (a) => 'https://x/r/' + a.code } };
   return { engine, clock, ids, sys, asOwner, asStaff, asClient, ownerId: init.ownerId, store };
 }
