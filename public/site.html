@@ -467,7 +467,7 @@ position:relative;font:400 17px/1.5 var(--f-sans);color:var(--os);background:var
 .cta .btn small{display:inline-flex;align-items:center;height:44px;padding:0 17px;border-radius:999px;background:rgba(15,14,13,.13);font:600 15px/1 var(--f-sans)}
 .cta.off{transform:translateY(140%);opacity:0}
 
-/* hero: Frais. */
+/* hero: L’Architecte, cut in by a clipper */
 .dk{position:relative}
 .hero{position:sticky;z-index:0;top:min(0px,calc(100svh - 640px));height:100svh;min-height:640px;background:var(--pierre);color:var(--encre);overflow:hidden;transform:scale(calc(1 - var(--o,0) * .07));transform-origin:50% 0;border-radius:calc(var(--o,0) * 34px)}
 /* the man stays whole. On a phone his face sits in the clear band between the type above and the booking card below (his chin ends 20px over the card), laid out from the bottom the way the card is. The photo's own proportions (1220x1194) fix the sums: his head runs from .126 to .710 of its height, his nose tip is at .261 of its width. The photo dissolves on its top, left and bottom edges instead of ending in a box. */
@@ -478,7 +478,10 @@ position:relative;font:400 17px/1.5 var(--f-sans);color:var(--os);background:var
 .hero::before{content:"";position:absolute;z-index:-1;pointer-events:none;left:-22vw;width:62vw;aspect-ratio:858/912;bottom:calc(230px + env(safe-area-inset-bottom,0px));background:var(--encre);opacity:.12;-webkit-mask:url(/img/logo-clair.png) center/contain no-repeat;mask:url(/img/logo-clair.png) center/contain no-repeat}
 @media (max-width:699px) and (max-height:700px){.hero::before{display:none}.hr-ph{left:calc(58vw - var(--hw) * .2615)}}
 .hr-top{position:absolute;z-index:2;top:calc(78px + env(safe-area-inset-top,0px));left:var(--pad);right:var(--pad);display:flex;flex-direction:column;align-items:flex-start;gap:14px}
-.hr-word{width:100%;max-width:640px;min-width:0;overflow:hidden}
+.hr-word{position:relative;width:100%;max-width:640px;min-width:0;overflow:hidden}
+/* the clipper that cuts the name in at the first view (added and removed by the script; never with reduced motion) */
+.ht-fx,.tdz{position:absolute;left:0;top:0;pointer-events:none}
+.tdz{display:block;opacity:0;will-change:transform,opacity;filter:drop-shadow(0 10px 16px rgba(15,14,13,.26))}
 .hr-sub{font:400 21px/1.15 var(--f-serif);color:var(--encre);opacity:.86;animation:rise .9s .5s var(--ease) both}
 .hr-rate{display:inline-flex;align-items:center;gap:10px;min-height:36px;font:500 14px/1 var(--f-sans);color:var(--encre);animation:rise .9s .65s var(--ease) both}
 .hr-rate .stars{position:relative;display:block;width:74px;height:14px;fill:var(--encre)}
@@ -684,6 +687,7 @@ position:relative;font:400 17px/1.5 var(--f-sans);color:var(--os);background:var
 .bb-n{align-self:center;min-width:0;font:400 clamp(44px,12.4vw,92px)/.92 var(--f-serif);letter-spacing:-.015em;overflow-wrap:anywhere}
 .bb-n.lg{font-size:clamp(34px,9.6vw,72px);line-height:.96}
 .bb-x{grid-column:1/-1;display:flex;flex-direction:column;gap:12px;margin-top:8px}
+.bb-role{font:600 12.5px/1.3 var(--f-sans);letter-spacing:.09em;text-transform:uppercase;color:var(--cendre)}
 .bb-bio{max-width:36ch;font:400 clamp(21px,5.6vw,26px)/1.18 var(--f-serif);color:var(--os);text-wrap:pretty}
 .bb-k{display:flex;align-items:center;gap:8px;font:500 14px/1.2 var(--f-sans);color:var(--cendre)}
 .bb-k i{flex:none;width:7px;height:7px;border-radius:50%;background:#4ADE80}
@@ -1107,7 +1111,7 @@ button.cr-go::after{content:"";position:absolute;inset:0}
 .hr-word{max-width:none}
 .hr-sub{font-size:26px}
 .hx{bottom:7svh;width:480px}
-.hero::before{left:22vw;width:min(34vw,600px);top:7svh}
+.hero::before{left:var(--wm-l,22vw);width:var(--wm-w,min(34vw,600px));top:var(--wm-t,7svh)}
 }
 @media (min-width:1000px){
 .tb{height:76px}
@@ -1257,7 +1261,7 @@ html{scroll-behavior:auto}
 <main id="main">
 <div class="dk">
 <section class="hero" id="frais" data-tone="light" data-cov ref="{{r.hero}}" aria-labelledby="t-hero">
-<h1 class="vh" id="t-hero">Frais. Barber L’Architecte, barbier place Pélabon à Marseille</h1>
+<h1 class="vh" id="t-hero">L’Architecte, salon de coiffure et barber, place Pélabon à Marseille</h1>
 <div class="hr-ph"><div class="hr-ph-in" ref="{{r.heroPh}}"><img src="/img/fade.jpg" width="1220" height="1194" alt="Client de profil : cheveux décolorés, dégradé à blanc net sur les côtés" fetchpriority="high"></div></div>
 <div class="hr-top">
 <sc-if value="{{hasNotice}}" hint-placeholder-val="{{ false }}"><p class="{{noticeCls}}" role="status"><i aria-hidden="true"></i><span>{{noticeText}}</span></p></sc-if>
@@ -1290,6 +1294,7 @@ html{scroll-behavior:auto}
 <span class="{{b.avCls}}" aria-hidden="true">{{b.ini}}<sc-if value="{{b.hasPhoto}}" hint-placeholder-val="{{ false }}"><img sc-camel-src="{{b.photo}}" alt="" width="58" height="58" loading="lazy" decoding="async" sc-camel-on-error="{{b.photoErr}}"></sc-if></span>
 <h3 class="{{b.nCls}}">{{b.n}}</h3>
 <div class="bb-x">
+<p class="bb-role">Salon de coiffure et barber</p>
 <sc-if value="{{b.hasBio}}" hint-placeholder-val="{{ false }}"><p class="bb-bio">{{b.bio}}</p></sc-if>
 <sc-if value="{{b.hasAway}}" hint-placeholder-val="{{ false }}"><p class="bb-k none"><i aria-hidden="true"></i>{{b.away}}</p></sc-if>
 <sc-if value="{{b.hasK}}" hint-placeholder-val="{{ true }}"><p class="{{b.kCls}}"><i aria-hidden="true"></i>{{b.k}}</p></sc-if>
@@ -2237,7 +2242,20 @@ const CH = [
 ];
 /* ---------- the site's own words: fixed, the owner does not edit the site ----------
    Prices and hours come from the salon (/api/public/salon `menu` and `hoursText`), the old menu until it answers. */
-const HERO_WORD = 'Frais.';
+const HERO_WORD = 'L’Architecte';
+/* what is on screen before the clipper passes: the rest of the word appears in its wake */
+const HERO_LEAD = 'L’';
+/* the clipper that cuts it in, seen from above, its teeth (tips at x 314 of 320) facing the way it goes */
+const CLIPPER_SVG = '<svg class="tdz" viewBox="0 0 320 120" aria-hidden="true" focusable="false">' +
+  '<defs><linearGradient id="tdz-b" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3A3530"/><stop offset=".5" stop-color="#191715"/><stop offset="1" stop-color="#0F0E0D"/></linearGradient>' +
+  '<linearGradient id="tdz-s" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#F1F3F4"/><stop offset=".55" stop-color="#B4BABF"/><stop offset="1" stop-color="#7E858B"/></linearGradient></defs>' +
+  '<path d="M44 30H238a10 10 0 0 1 10 10v40a10 10 0 0 1-10 10H44a30 30 0 0 1 0-60z" fill="url(#tdz-b)"/>' +
+  '<path d="M48 37H232" stroke="#fff" stroke-opacity=".14" stroke-width="3" stroke-linecap="round"/>' +
+  '<g stroke="#4A453F" stroke-width="2.6" stroke-linecap="round"><path d="M36 47v26M47 43v34M58 41v38M69 41v38"/></g>' +
+  '<rect x="126" y="52" width="36" height="16" rx="8" style="fill:var(--rouge,#E5483B)"/>' +
+  '<path d="M248 22h36a8 8 0 0 1 8 8v60a8 8 0 0 1-8 8h-36z" fill="url(#tdz-s)"/>' +
+  '<path d="M292 17h6v86h-6z" fill="#8E959B"/>' +
+  '<g fill="url(#tdz-s)"><rect x="297" y="19" width="17" height="4" rx="2"/><rect x="297" y="26" width="17" height="4" rx="2"/><rect x="297" y="33" width="17" height="4" rx="2"/><rect x="297" y="40" width="17" height="4" rx="2"/><rect x="297" y="47" width="17" height="4" rx="2"/><rect x="297" y="54" width="17" height="4" rx="2"/><rect x="297" y="61" width="17" height="4" rx="2"/><rect x="297" y="68" width="17" height="4" rx="2"/><rect x="297" y="75" width="17" height="4" rx="2"/><rect x="297" y="82" width="17" height="4" rx="2"/><rect x="297" y="89" width="17" height="4" rx="2"/><rect x="297" y="96" width="17" height="4" rx="2"/></g></svg>';
 /* the Google rating as shown on the page, with its count (never in the structured data: Google shows its own) */
 const REVIEWS = { rating: 5, count: 316 };
 const IG0 = 'https://www.instagram.com/barbershoplarchitecte/';
@@ -2393,10 +2411,11 @@ Halftone.prototype.layout = function () {
     return m;
   });
   const capH = c.measureText('H').actualBoundingBoxAscent || size * 0.7;
+  const leadW = o.lead ? c.measureText(o.lead).width : 0;
   const lh = size * o.lh;
   const padT = Math.ceil(size * 0.03) + 3;
   const H = Math.ceil(padT + asc + (o.lines.length - 1) * lh + desc + padT);
-  this.W = W; this.H = H; this.size = size; this.capH = capH; this.dpr = dpr;
+  this.W = W; this.H = H; this.size = size; this.capH = capH; this.dpr = dpr; this.leadW = leadW;
   cv.style.height = H + 'px';
   cv.width = Math.round(W * dpr);
   cv.height = Math.round(H * dpr);
@@ -2446,6 +2465,52 @@ Halftone.prototype.draw = function (f, color) {
     }
   });
   c.fill();
+  c.globalCompositeOperation = 'destination-in';
+  c.setTransform(1, 0, 0, 1, 0, 0);
+  c.drawImage(this.mask, 0, 0);
+  c.setTransform(d, 0, 0, d, 0, 0);
+  c.globalCompositeOperation = 'source-over';
+};
+
+// paints like draw(), f the same share of fade, but only between x0 and x1 (the canvas is neither cleared nor masked)
+Halftone.prototype.paint = function (f, x0, x1) {
+  const c = this.ctx, cell = this.cell, capH = this.capH, R = cell * 0.6;
+  c.save();
+  c.beginPath(); c.rect(x0, 0, Math.max(0, x1 - x0), this.H); c.clip();
+  c.beginPath();
+  this.lines.forEach(function (L) {
+    const bTop = L.base - capH * f;
+    const top = L.top - cell;
+    if (bTop > top) c.rect(L.x - cell, top, L.w + cell * 2, bTop - top);
+    const span = Math.max(1, L.base - bTop);
+    let row = 0;
+    for (let y = bTop + cell * 0.3; y < L.bot + cell; y += cell * 0.866, row++) {
+      const t = (y - bTop) / span;
+      const rad = t >= 1 ? 0 : R * Math.pow(1 - t, 1.15);
+      if (rad < 0.22) continue;
+      const off = (row % 2) ? cell / 2 : 0;
+      const first = L.x - cell + off;
+      const end = Math.min(L.x + L.w + cell, x1 + cell);
+      for (let x = first + Math.max(0, Math.floor((x0 - cell - first) / cell)) * cell; x < end; x += cell) {
+        c.moveTo(x + rad, y);
+        c.arc(x, y, rad, 0, 6.2832);
+      }
+    }
+  });
+  c.fill();
+  c.restore();
+};
+// the name being cut in: finished (f .42) up to the fresh cut, still all dots for `band` px behind the blade at x, nothing after
+Halftone.prototype.drawSweep = function (x, band, color, fd) {
+  if (!this.ok) return;
+  const c = this.ctx, d = this.dpr;
+  c.setTransform(d, 0, 0, d, 0, 0);
+  c.globalCompositeOperation = 'source-over';
+  c.clearRect(0, 0, this.W, this.H);
+  c.fillStyle = color;
+  const a = Math.max(0, x - band);
+  if (a > 0) this.paint(fd == null ? 0.42 : fd, -this.cell, a);
+  if (x > a) this.paint(1.02, a, x);
   c.globalCompositeOperation = 'destination-in';
   c.setTransform(1, 0, 0, 1, 0, 0);
   c.drawImage(this.mask, 0, 0);
@@ -2631,29 +2696,126 @@ class Component extends DCLogic {
     const vh = window.innerHeight || 800;
     const wide = (window.innerWidth || 400) > 900;
     if (this._heroCv && (!this.htHero || this.htHero.cv !== this._heroCv)) {
-      this.htHero = new Halftone(this._heroCv, { lines: [HERO_WORD], fill: 1, cellK: 30, maxH: vh * (wide ? 0.5 : 0.3) });
+      this.htHero = new Halftone(this._heroCv, { lines: [HERO_WORD], lead: HERO_LEAD, fill: 1, cellK: 30, maxH: vh * (wide ? 0.5 : 0.3) });
       this.htHero.layout();
-      this.drawHero();
+      this.placeMark();
+      if (this._sweepWait && this.sweep()) this._sweepWait = false;
+      else this.drawHero();
     }
   }
 
   relayout() {
     const vh = window.innerHeight || 800;
     const wide = (window.innerWidth || 400) > 900;
-    if (this.htHero) { this.htHero.o.maxH = vh * (wide ? 0.5 : 0.3); this.htHero.layout(); this.drawHero(); }
+    if (this.htHero) { this.htHero.o.maxH = vh * (wide ? 0.5 : 0.3); this.htHero.layout(); this.placeMark(); this.drawHero(); }
   }
 
   intro() {
     if (this._introDone) return;
     this._introDone = true;
     if (this._rm) { this._intro = 1; this.drawHero(); return; }
-    this.tween(0, 1, 1400, (v) => { this._intro = v; this.drawHero(); });
+    if (!this.sweep()) this._sweepWait = true;
+  }
+
+  /* the logo behind the name on a wide screen (the CSS uses these only there): its own « L’ARCHITECTE » sits behind the
+     drawn name, so its arcs and rules frame it. The mark's band of letters is 96% of its width, its middle 53% down. */
+  placeMark() {
+    const ht = this.htHero, cv = this._heroCv, word = cv && cv.parentElement, top = word && word.offsetParent, hero = cv && cv.closest('.hero');
+    if (!ht || !ht.ok || !ht.lines || !ht.lines[0] || !top || !hero) return;
+    const L = ht.lines[0], w = ht.W / 0.96, h = w * 912 / 858;
+    hero.style.setProperty('--wm-l', (top.offsetLeft + word.offsetLeft + ht.W / 2 - w / 2).toFixed(1) + 'px');
+    hero.style.setProperty('--wm-t', (top.offsetTop + word.offsetTop + L.base - ht.capH * 0.5 - h * 0.53).toFixed(1) + 'px');
+    hero.style.setProperty('--wm-w', w.toFixed(1) + 'px');
+  }
+
+  /* where the cut is, from the hero's current layout (a re-measure during the cut moves nothing out of place) */
+  sweepGeo() {
+    const ht = this.htHero;
+    if (!ht || !ht.ok || !ht.lines || !ht.lines[0]) return null;
+    const L = ht.lines[0], capH = ht.capH, th = capH * 1.45, tw = th * 320 / 120;
+    return { ht: ht, L: L, capH: capH, th: th, tw: tw, tip: tw * 314 / 320, cy: L.base - capH * 0.5 - th / 2,
+      x0: L.x + ht.leadW, x1: L.x + L.w + ht.cell, band: Math.max(ht.cell * 6, ht.size * 0.5) };
+  }
+
+  /* « L’ » first; a clipper comes in at its end and cuts « Architecte » in, the fresh cut still in dots behind its teeth
+     and a little cut hair falling; then it leaves the frame. Once per page view; never with reduced motion. */
+  sweep() {
+    const box = this._heroCv && this._heroCv.parentElement;
+    if (!box || !this.sweepGeo()) return false;
+    box.insertAdjacentHTML('beforeend', '<canvas class="ht-fx" aria-hidden="true"></canvas>' + CLIPPER_SVG);
+    const fx = box.querySelector('.ht-fx'), tdz = box.querySelector('.tdz');
+    if (!fx || !tdz) return false;
+    const fc = fx.getContext('2d');
+    const hair = [];
+    const T_HOLD = 420, T_IN = 320, T_CUT = 1250, T_OUT = 450;
+    const inOut = (k) => (k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2);
+    const t0 = performance.now();
+    let last = t0;
+    this._sweep = { p: 0, band: 0, fd: 1.02 };
+    const step = (now) => {
+      const s = this._sweep, g = this.sweepGeo();
+      if (!s) return;
+      if (!g) { this.endSweep(); return; }
+      const ht = g.ht, W = ht.W, H = ht.H, dpr = ht.dpr;
+      if (fx.width !== Math.round(W * dpr) || fx.height !== Math.round(H * dpr)) {
+        fx.width = Math.round(W * dpr); fx.height = Math.round(H * dpr);
+        fx.style.width = W + 'px'; fx.style.height = H + 'px';
+      }
+      tdz.style.width = g.tw.toFixed(1) + 'px'; tdz.style.height = g.th.toFixed(1) + 'px';
+      const T = now - t0, dt = Math.min(48, now - last), t = T - T_HOLD;
+      last = now;
+      const cutting = t > T_IN && t < T_IN + T_CUT;
+      let cx = g.x0, op = 1;
+      s.fd = T < T_HOLD ? 1.02 - 0.6 * easeOut(T / T_HOLD) : 0.42;
+      if (t <= 0) { s.p = 0; s.band = 0; op = 0; }
+      else if (t <= T_IN) { const k = easeOut(t / T_IN); const from = g.tip - g.tw - 8; s.p = 0; s.band = 0; cx = from + (g.x0 - from) * k; op = Math.min(1, t / (T_IN * 0.5)); }
+      else if (cutting) { const k = (t - T_IN) / T_CUT; s.p = inOut(k); s.band = Math.min(1, k * 4); cx = g.x0 + (g.x1 - g.x0) * s.p; }
+      else { const k = Math.min(1, (t - T_IN - T_CUT) / T_OUT); s.p = 1; s.band = 1 - easeOut(k); cx = g.x1 + g.tw * 0.6 * easeOut(k); op = 1 - k; }
+      this.drawHero();
+      const hum = cutting ? Math.sin(t * 0.11) * 0.7 : 0;
+      tdz.style.opacity = op.toFixed(3);
+      tdz.style.transform = 'translate3d(' + (cx - g.tip).toFixed(1) + 'px,' + (g.cy + hum).toFixed(1) + 'px,0)';
+      if (cutting) {
+        for (let i = 0, n = dt * 0.09; i < n; i++) {
+          hair.push({ x: cx - 2, y: g.L.base - g.capH * (0.08 + Math.random() * 0.86), vx: -(0.02 + Math.random() * 0.1), vy: -0.04 + Math.random() * 0.06, r: ht.cell * (0.14 + Math.random() * 0.2), age: 0, life: 420 + Math.random() * 420 });
+        }
+      }
+      fc.setTransform(dpr, 0, 0, dpr, 0, 0);
+      fc.clearRect(0, 0, W, H);
+      fc.fillStyle = INK;
+      for (let i = hair.length - 1; i >= 0; i--) {
+        const q = hair[i];
+        q.age += dt;
+        if (q.age >= q.life) { hair.splice(i, 1); continue; }
+        q.vy += 0.0011 * dt; q.x += q.vx * dt; q.y += q.vy * dt;
+        fc.globalAlpha = 1 - q.age / q.life;
+        fc.beginPath(); fc.arc(q.x, q.y, q.r, 0, 6.2832); fc.fill();
+      }
+      fc.globalAlpha = 1;
+      if (t < T_IN + T_CUT + T_OUT || hair.length) requestAnimationFrame(step);
+      else this.endSweep();
+    };
+    requestAnimationFrame(step);
+    return true;
+  }
+
+  endSweep() {
+    this._sweep = null;
+    const box = this._heroCv && this._heroCv.parentElement;
+    if (box) Array.prototype.forEach.call(box.querySelectorAll('.ht-fx,.tdz'), (el) => el.remove());
+    this._intro = 1;
+    this.drawHero();
   }
 
   drawHero() {
-    if (!this.htHero) return;
+    const ht = this.htHero;
+    if (!ht) return;
+    const s = this._sweep, g = (s || ((!this._introDone || this._sweepWait) && !this._rm)) ? this.sweepGeo() : null;
+    // during the cut, and before it (« L’ » alone: the rest is cut in); with reduced motion the name is simply there
+    if (g && s) { ht.drawSweep(g.x0 + (g.x1 - g.x0) * s.p, g.band * s.band, INK, s.fd); return; }
+    if (g) { ht.drawSweep(g.x0, 0, INK); return; }
     const f = (1 - this._intro) * 1.02 + this._intro * 0.42;
-    this.htHero.draw(f, INK);
+    ht.draw(f, INK);
   }
 
   tween(from, to, ms, fn, done) {
@@ -2692,6 +2854,7 @@ class Component extends DCLogic {
     const W = window.innerWidth;
     if (force || W !== this._lastW) { this._lastW = W; if (this._fontsOk) this.relayout(); }
     this.setupReveal();
+    this.placeMark();
     this.frame();
   }
 
