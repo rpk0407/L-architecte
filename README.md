@@ -57,3 +57,4 @@ Every change is an **event** appended to a journal, each one carrying the SHA-25
 - [Operations](docs/operations.md): environment variables, going live (Postgres, Stripe, SMS, domain), the scheduler, backups, incidents.
 - [Demo script](docs/demo-script.md): a 15-minute walk-through for the owner.
 - [Roadmap](docs/roadmap.md): what comes next, client side and salon side.
+- [Design harness: Le Cabinet](design/README.md): thirteen personas run as browser trials on the real site, a panel of specialist agents, a dossier and a ratchet (`npm run ux`).
