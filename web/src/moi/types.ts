@@ -11,7 +11,7 @@ export type ApptStatus = 'pending' | 'booked' | 'arrived' | 'in_chair' | 'done' 
 export type MeUpcoming = {
   id: string; code: string; token: string; manage: string; day: string; start: number; dur: number; status: 'pending' | 'booked';
   services: MeService[]; price: number; staff: MeStaff | null; anyStaff: boolean;
-  deposit: { amount: number; paid: number; url: string | null } | null;
+  deposit: { amount: number; paid: number; url: string | null; full?: boolean } | null;
   /** changeUntil: until when it can be moved or cancelled online (ms); lateOk: « J’ai du retard » makes sense now (AC-04) */
   canChange: boolean; changeUntil: number; lateOk: boolean;
   /** FEATURE B: « préviens-moi si un créneau se libère plus tôt » is on; forFirst: the person it is for when he booked it for someone else */

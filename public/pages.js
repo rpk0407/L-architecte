@@ -46,6 +46,8 @@
       host: sh.host || {}, mediator: { name: (sh.mediator || {}).name || '', url: https((sh.mediator || {}).url) },
       cgvDate: dayLong(cgv), cancelH: b.cancelUntilHours, maxDays: b.maxDaysAhead, sms: !!s.sms,
       depositRule: s.payments && s.payments.live === false ? '' : rule,
+      // the salon lets the client choose (deposits mode 'choice', sent only with a real way to pay): now online, or at the salon
+      payChoice: live && d.mode === 'choice',
       // a fee is only announced once a card can really be kept for it (online payment live and card saving shipped)
       noShowFee: live && s.payments.cardOnFile === true && d.noShowFeeCents > 0 ? eur(d.noShowFeeCents) : '',
       // weekly: the carnet bought with its dates (one cut a week from the first date); plain: any other carnet

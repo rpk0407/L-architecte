@@ -9,7 +9,9 @@ export type Booking = {
   code: string; status: 'pending' | 'booked' | 'arrived' | 'in_chair' | 'done' | 'no_show' | 'cancelled'; day: string; start: number; dur: number;
   services: { id: string; name: string; price: number; from: boolean }[]; price: number;
   staff: { id: string; name: string; initials: string; color: string } | null; anyStaff: boolean; first: string;
-  deposit: { amount: number; paid: number; url: string | null } | null; canChange: boolean; cancelUntilHours: number;
+  deposit: { amount: number; paid: number; url: string | null; full?: boolean } | null; canChange: boolean; cancelUntilHours: number;
+  /** « payer maintenant » left unfinished (the salon asks no deposit): its page while it lives; the booking stands without it */
+  prepay?: { amount: number; url: string };
   shop: { name: string; address: string; phone: string; mapsUrl: string }; cancelled: { by: string; at: number } | null;
   /** a date of a carnet bought with its dates: « coupe 3 sur 5 », and what is still to pay (cents, 0 once paid) */
   formule?: Formule;

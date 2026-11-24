@@ -61,7 +61,7 @@ test('the system alone takes back a confirmed place, and only one of a booking o
 
 test('a client who missed twice, booked by a friend under his own number, still owes the deposit', async () => {
   const MISSED = ['2026-10-20', '2026-10-27'];
-  const t = await salon({ day: MISSED[0], hour: 9 });
+  const t = await salon({ day: MISSED[0], hour: 9, deposits: 'threshold' });
   for (const d of MISSED) {
     t.clock.now = at(d, 9);
     const a = await t.engine.run(A.createAppointment, { clientId: t.ids.yanis, serviceIds: [t.ids.cut], staffId: t.ids.Ali, day: d, start: 600 }, t.asOwner());

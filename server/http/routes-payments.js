@@ -166,7 +166,7 @@ function todo(r) {
     else if (unused(s, p, r.now, r.local.day)) {
       const a = p.apptId ? s.appts.get(p.apptId) : null;
       // cancelled: by whom, and late or not, tells a deposit kept (a late call) from one whose refund failed
-      out.push({ kind: 'unused', id: 'un_' + p.id, paymentId: p.id, amount: p.amount, paidAt: p.paidAt, label: p.label, payKind: p.kind, apptStatus: a ? a.status : null, cancelBy: a && a.cancel ? a.cancel.by : null, ...about(s, p) });
+      out.push({ kind: 'unused', id: 'un_' + p.id, paymentId: p.id, amount: p.amount, paidAt: p.paidAt, label: p.label, payKind: p.kind, ...(p.full ? { full: true } : {}), apptStatus: a ? a.status : null, cancelBy: a && a.cancel ? a.cancel.by : null, ...about(s, p) });
     }
   }
   // the most urgent first: a dispute's answer date, then the oldest money
@@ -212,7 +212,7 @@ function dossier(r, p) {
       else if (e.type === 'appt.cancelled') steps.push('- ' + when(e.at) + ' · annulé ' + (e.data.by === 'client' ? 'par le client' : e.data.by === 'system' ? 'automatiquement' : 'par le salon') + (e.data.late ? ' (hors délai)' : ''));
     }
     if (cgv) L.push('Conditions générales de vente acceptées à la réservation : version du ' + cgv.split('-').reverse().join('/') + ' (' + r.origin + '/cgv).');
-    if (a.deposit && a.deposit.amount) L.push('Acompte demandé : ' + eu(a.deposit.amount) + ', déduit du prix le jour du rendez-vous.');
+    if (a.deposit && a.deposit.amount) L.push(a.deposit.full ? 'Prestation payée en ligne par le client, par choix, après sa réservation : ' + eu(a.deposit.amount) + '.' : 'Acompte demandé : ' + eu(a.deposit.amount) + ', déduit du prix le jour du rendez-vous.');
     const TPL = { confirmation: 'confirmation du rendez-vous', reminder: 'rappel la veille', reminder2h: 'rappel le jour même', cancelled: 'annulation', receipt: 'reçu', reassign: 'changement de barbier', reassignAt: 'changement d’horaire', reschedule: 'demande de décalage', review: 'demande d’avis' };
     const ST = { sent: 'envoyé', simulated: 'envoyé', claimed: 'en cours d’envoi', queued: 'en attente', failed: 'échec', expired: 'non envoyé', skipped: 'non envoyé' };
     const msgs = [...s.messages.values()].filter((m) => m.apptId === a.id).sort((x, y) => x.at - y.at);
@@ -249,7 +249,7 @@ export function paymentRoutes(app) {
       const sale = p.usedBy ? s.sales.get(p.usedBy) : null;
       const a = p.apptId ? s.appts.get(p.apptId) : null;
       return {
-        id: p.id, at: p.paidAt, kind: p.kind, label: p.label, amount: p.amount, fee: p.fee ?? null, net: p.net ?? null, refunded: providerKnown(s, p),
+        id: p.id, at: p.paidAt, kind: p.kind, ...(p.full ? { full: true } : {}), label: p.label, amount: p.amount, fee: p.fee ?? null, net: p.net ?? null, refunded: providerKnown(s, p),
         status: rowStatus(s, p), provider: p.provider, saleId: sale ? sale.id : null, ticket: sale ? ticketNo(sale.number) : null, saleDay: sale ? sale.day : null, apptId: a ? a.id : null, day: a ? a.day : null
       };
     });
@@ -277,13 +277,13 @@ export function paymentRoutes(app) {
   app.post('/api/v1/payments/:id/keep', (r) => {
     if (replayed(r)) return r.run(S.checkout, {});
     const { p, a } = settle(r);
-    const name = 'Acompte conservé · ' + (a.status === 'no_show' ? 'absence' : 'annulation') + ' du ' + a.day.split('-').reverse().slice(0, 2).join('/');
+    const name = (p.full ? 'Paiement en ligne conservé · ' : 'Acompte conservé · ') + (a.status === 'no_show' ? 'absence' : 'annulation') + ' du ' + a.day.split('-').reverse().slice(0, 2).join('/');
     return r.run(S.checkout, { ...(a.clientId ? { clientId: a.clientId } : {}), lines: [{ kind: 'fee', name, unit: p.amount }], payments: [{ method: 'online', amount: p.amount, ref: p.id }] });
   }, { cap: 'sale.refund' });
   app.post('/api/v1/payments/:id/refund', async (r) => {
     const { p } = settle(r);
     const back = await refundOnline(r, p, 'Remboursé depuis la Caisse');
-    if (!back.ok) throw new HttpError(502, 'provider', 'Acompte non remboursé chez ' + providerLabel(p.provider) + ' : ' + (back.error || 'erreur'));
+    if (!back.ok) throw new HttpError(502, 'provider', (p.full ? 'Paiement' : 'Acompte') + ' non remboursé chez ' + providerLabel(p.provider) + ' : ' + (back.error || 'erreur'));
     return { ok: true };
   }, { cap: 'sale.refund' });
   // a gift card paid online whose card was not issued (its confirmation's hook failed): issued now

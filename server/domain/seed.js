@@ -252,6 +252,9 @@ export async function buildDemoJournal(nowReal, opt = {}) {
   await eng.run(setCredentials, { id: desk.id, pinHash: hashSecretSync(DEMO.pins['Inès'], { light: true }) }, base);
   // barbers may text their own regulars in the demo (off in production)
   await eng.run(updateSettings, { team: { barberRebook: true } }, base);
+  // the demo shows a salon that asks a deposit from 50 € (the code's own default is 'choice': no deposit, the client
+  // chooses to pay now or at the salon): its guided tours and its till have a deposit to show
+  await eng.run(updateSettings, { deposits: { mode: 'threshold' } }, base);
   // « Payer ma coupe » is on in the demo, on the test payment page (off in production until the owner turns it on)
   await eng.run(updateSettings, { payments: { selfPay: true } }, base);
   // the client space is open in the demo (off in production until the SMS route is tested, AC-01)

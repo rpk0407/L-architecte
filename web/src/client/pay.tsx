@@ -24,7 +24,7 @@ function Lines({ lines, discount, deposit }: { lines: PayLine[]; discount?: numb
     <div className="c-paylines">
       {lines.map((l, i) => <p key={i}><span>{l.qty > 1 ? l.qty + ' × ' : ''}{l.name}</span><b>{l.was != null && l.was !== l.amount ? <s>{e(l.was)}</s> : null}{e(l.amount)}</b></p>)}
       {discount ? <p className="sub"><span>dont remise</span><span>−{e(discount)}</span></p> : null}
-      {deposit ? <p className="sub"><span>Acompte déjà payé</span><span>−{e(deposit)}</span></p> : null}
+      {deposit ? <p className="sub"><span>Déjà payé en ligne</span><span>−{e(deposit)}</span></p> : null}
     </div>
   );
 }
@@ -55,7 +55,7 @@ export function PayCut({ p, token, staff, onReload, onNote }: { p: PayCutState; 
         <p className="c-k">Rien à régler</p>
         <h2 className="c-h">C’est déjà couvert.</h2>
         <Lines lines={p.lines || []} discount={p.discount} deposit={p.deposit} />
-        <p className="c-muted c-small">Ta formule, ton abonnement ou ton acompte couvre cette visite : aucun paiement n’est demandé.</p>
+        <p className="c-muted c-small">Ta formule, ton abonnement ou ton paiement en ligne couvre cette visite : aucun paiement n’est demandé.</p>
         {back}
       </section>
     );

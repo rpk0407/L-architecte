@@ -96,7 +96,7 @@ export default function Next({ me, reload }: CardProps) {
       const paid = b.deposit?.paid || 0;
       await api.post('/api/public/bookings/' + tok + '/cancel', {});
       setMode(''); setPick(null);
-      setNote({ tone: 'ok', text: 'C’est annulé. Le créneau est libéré' + (paid ? ' et ton acompte de ' + eur(paid) + ' est remboursé sur ta carte (quelques jours selon ta banque).' : '.') });
+      setNote({ tone: 'ok', text: 'C’est annulé. Le créneau est libéré' + (paid ? ' et ' + (b.deposit?.full ? 'ton paiement' : 'ton acompte') + ' de ' + eur(paid) + ' est remboursé sur ta carte (quelques jours selon ta banque).' : '.') });
       reload();
     } catch (e: any) { setNote({ tone: 'warn', text: e.message }); } finally { setBusy(false); }
   };
@@ -139,7 +139,7 @@ export default function Next({ me, reload }: CardProps) {
       {mode === 'cancel' ? (
         <section className="c-card" aria-labelledby="m-cx-t">
           <h2 className="c-h2" id="m-cx-t">Annuler ce rendez-vous ?</h2>
-          <p className="c-muted">{b.deposit?.paid ? 'Ton acompte de ' + eur(b.deposit.paid) + ' te sera remboursé.' : 'Le créneau sera proposé à quelqu’un d’autre.'}</p>
+          <p className="c-muted">{b.deposit?.paid ? (b.deposit.full ? 'Ton paiement de ' : 'Ton acompte de ') + eur(b.deposit.paid) + ' te sera remboursé.' : 'Le créneau sera proposé à quelqu’un d’autre.'}</p>
           <div className="c-row"><button type="button" className="c-btn" disabled={busy} onClick={cancel}>Oui, annuler</button><button type="button" className="c-link" onClick={() => setMode('')}>Non, je garde</button></div>
         </section>
       ) : null}

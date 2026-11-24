@@ -62,7 +62,12 @@ function Manage({ token, back, offer, moveNow, payNow }: { token: string; back: 
   useEffect(() => { if (moveNow && b && b.canChange && mode === '') setMode('move'); }, [b && b.code]);
   // after paying, the bank's confirmation can take a few seconds to reach the salon
   useEffect(() => {
-    if (back !== 'ok' || !b || b.status !== 'pending') { if (back === 'ok' && b && b.status === 'booked') setNote({ tone: 'ok', text: b.formule ? 'Paiement reçu, tes rendez-vous sont confirmés.' : 'Acompte reçu, ton rendez-vous est confirmé.' }); return; }
+    // « payer maintenant » (the salon asks no deposit): the booking was confirmed before the payment, and stays so
+    // without it. Left unpaid, the words say so plainly; paid, the page waits for the bank's word like a deposit's
+    if (back === 'annule' && b && b.status === 'booked') { setNote({ tone: 'warn', text: 'Paiement non abouti : ton rendez-vous est gardé, tu régleras au salon.' }); return; }
+    const ahead = back === 'ok' && !!b && b.status === 'booked' && !!b.prepay;
+    if (back === 'ok' && b && b.status === 'booked' && b.deposit?.full) { setNote({ tone: 'ok', text: 'Paiement reçu, merci. Ton rendez-vous est réglé.' }); return; }
+    if (!ahead && (back !== 'ok' || !b || b.status !== 'pending')) { if (back === 'ok' && b && b.status === 'booked') setNote({ tone: 'ok', text: b.formule ? 'Paiement reçu, tes rendez-vous sont confirmés.' : 'Acompte reçu, ton rendez-vous est confirmé.' }); return; }
     const t = setTimeout(load, 2000);
     return () => clearTimeout(t);
   }, [b]);
@@ -106,7 +111,7 @@ function Manage({ token, back, offer, moveNow, payNow }: { token: string; back: 
       const paid = b.formule ? 0 : b.deposit?.paid || 0;
       const r = await api.post<Booking>('/api/public/bookings/' + encodeURIComponent(token) + '/cancel', {});
       setB(r); setMode('');
-      setNote({ tone: 'ok', text: 'C’est annulé. Le créneau est libéré tout de suite' + (paid ? ' et ton acompte de ' + eur(paid) + ' est remboursé sur ta carte (quelques jours selon ta banque).' : '.') });
+      setNote({ tone: 'ok', text: 'C’est annulé. Le créneau est libéré tout de suite' + (paid ? ' et ' + (b.deposit?.full ? 'ton paiement' : 'ton acompte') + ' de ' + eur(paid) + ' est remboursé sur ta carte (quelques jours selon ta banque).' : '.') });
     } catch (e: any) { setNote({ tone: 'warn', text: e.message }); } finally { setBusy(false); }
   };
   const fo = b.formule || null;
@@ -123,7 +128,7 @@ function Manage({ token, back, offer, moveNow, payNow }: { token: string; back: 
           <span>{what}<small>{dates.fmtDur(b.dur)} · {fo ? serieWords(fo) + ' de la formule' : price}</small></span>
           {b.staff ? <span className="c-staff"><i style={{ background: b.staff.color }}>{b.staff.initials}</i>avec {b.staff.name}</span> : null}
         </div>
-        {fo ? <p className="c-dep" data-guide="r.carnet">{fo.pay === 'paid' ? 'Comprise dans ta formule : rien à payer pour la visite.' : fo.pay === 'online' ? 'Formule payée en ligne (' + eur(b.deposit?.paid || 0) + ') : rien à payer pour la visite.' : fo.pay === 'pending' ? 'Formule de ' + eur(fo.due) + ' à régler pour confirmer tes rendez-vous.' : 'Formule de ' + eur(fo.due) + ' à régler au salon, à ta première visite.'}{fo.end ? ' Tes visites se prennent jusqu’au ' + dates.dayLong(fo.end) + '.' : ''}</p> : b.deposit ? <p className="c-dep">{b.deposit.paid ? 'Acompte de ' + eur(b.deposit.paid, { decimals: b.deposit.paid % 100 !== 0 }) + ' payé, déduit au salon.' : 'Acompte de ' + eur(b.deposit.amount, { decimals: b.deposit.amount % 100 !== 0 }) + ' à régler pour confirmer.'}</p> : null}
+        {fo ? <p className="c-dep" data-guide="r.carnet">{fo.pay === 'paid' ? 'Comprise dans ta formule : rien à payer pour la visite.' : fo.pay === 'online' ? 'Formule payée en ligne (' + eur(b.deposit?.paid || 0) + ') : rien à payer pour la visite.' : fo.pay === 'pending' ? 'Formule de ' + eur(fo.due) + ' à régler pour confirmer tes rendez-vous.' : 'Formule de ' + eur(fo.due) + ' à régler au salon, à ta première visite.'}{fo.end ? ' Tes visites se prennent jusqu’au ' + dates.dayLong(fo.end) + '.' : ''}</p> : b.deposit?.full ? <p className="c-dep" data-guide="r.prepaid">{b.deposit.paid ? 'Payé en ligne : ' + eur(b.deposit.paid, { decimals: b.deposit.paid % 100 !== 0 }) + (b.price > b.deposit.paid ? '. Le reste se règle au salon.' : '. Rien à régler au salon.') : 'Paiement en ligne remboursé.'}</p> : b.deposit ? <p className="c-dep">{b.deposit.paid ? 'Acompte de ' + eur(b.deposit.paid, { decimals: b.deposit.paid % 100 !== 0 }) + ' payé, déduit au salon.' : 'Acompte de ' + eur(b.deposit.amount, { decimals: b.deposit.amount % 100 !== 0 }) + ' à régler pour confirmer.'}</p> : null}
         <p className="c-addr">{b.shop.address}</p>
       </section>
 
@@ -132,6 +137,14 @@ function Manage({ token, back, offer, moveNow, payNow }: { token: string; back: 
       {b.group && mode === '' ? <GroupCard g={b.group} /> : null}
 
       {slot && upcoming && mode === '' ? <EarlierOffer b={b} token={token} slot={slot} onDone={(nb) => { setB(nb); setSlot(null); setNote({ tone: 'ok', text: 'C’est avancé. Le message de confirmation part tout de suite.' }); }} onClose={() => setSlot(null)} /> : null}
+
+      {b.prepay && upcoming && mode === '' ? (
+        <section className="c-card" data-guide="r.prepay">
+          <p className="c-muted">Ton rendez-vous est confirmé. Le paiement en ligne n’est pas terminé : tu peux le reprendre, ou régler au salon après ta coupe.</p>
+          <a className="c-btn" href={b.prepay.url}>Payer maintenant · {eur(b.prepay.amount, { decimals: b.prepay.amount % 100 !== 0 })}</a>
+          <p className="c-muted c-small">Carte (crédit ou débit), Apple Pay ou Google Pay, sur la page sécurisée de Stripe.</p>
+        </section>
+      ) : null}
 
       {b.status === 'pending' && upcoming ? (
         <section className="c-card">
@@ -158,7 +171,7 @@ function Manage({ token, back, offer, moveNow, payNow }: { token: string; back: 
       {mode === 'cancel' ? (
         <section className="c-card">
           <h2 className="c-h2">Annuler ce rendez-vous ?</h2>
-          <p className="c-muted">{fo ? 'Seul ce rendez-vous est annulé : tes autres visites restent réservées, et la semaine sautée est ' + (fo.pay === 'paid' || fo.pay === 'online' ? 'à reprendre depuis ton espace si elle n’est pas passée.' : 'libérée.') : b.deposit?.paid ? 'Ton acompte de ' + eur(b.deposit.paid) + ' te sera remboursé.' : 'Le créneau sera proposé à quelqu’un d’autre.'}</p>
+          <p className="c-muted">{fo ? 'Seul ce rendez-vous est annulé : tes autres visites restent réservées, et la semaine sautée est ' + (fo.pay === 'paid' || fo.pay === 'online' ? 'à reprendre depuis ton espace si elle n’est pas passée.' : 'libérée.') : b.deposit?.paid ? (b.deposit.full ? 'Ton paiement de ' : 'Ton acompte de ') + eur(b.deposit.paid) + ' te sera remboursé sur ta carte.' : 'Le créneau sera proposé à quelqu’un d’autre.'}</p>
           <div className="c-row"><button type="button" className="c-btn" disabled={busy} onClick={cancel}>Oui, annuler</button><button type="button" className="c-link" onClick={() => setMode('')}>Non, je garde</button></div>
         </section>
       ) : null}

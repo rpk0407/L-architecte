@@ -196,6 +196,8 @@ test('he pays with a tip: the till’s ticket, numbered like any other, « en li
 
 test('the deposit paid at booking is taken off; a carnet that covers the visit asks nothing', async (t) => {
   const x = await salon(t);
+  // a salon that asks a deposit from 50 € (the default asks nothing: the client chooses)
+  await x.rt.engine.run(updateSettings, { deposits: { mode: 'threshold' } }, x.asOwner());
   const dep = await x.book({ serviceIds: [x.ids.tr], first: 'Marc', phone: '0611223355' });
   assert.equal(dep.r.json.deposit, 1500);
   await x.seat(dep.appt());
