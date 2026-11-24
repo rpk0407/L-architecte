@@ -499,7 +499,8 @@ position:relative;font:400 17px/1.5 var(--f-sans);color:var(--os);background:var
 .hr-cut{position:absolute;z-index:5;top:0;bottom:0;left:0;width:2px;margin-left:-1px;background:var(--rouge);box-shadow:0 0 22px 3px var(--rouge),0 0 80px 14px color-mix(in srgb,var(--rouge) 42%,transparent);opacity:0;pointer-events:none;will-change:transform}
 .tdz{position:absolute;z-index:5;left:0;top:0;display:block;opacity:0;pointer-events:none;will-change:transform;filter:drop-shadow(0 14px 18px rgba(15,14,13,.3))}
 .hr-bits{position:absolute;z-index:5;inset:0;width:100%;height:100%;pointer-events:none}
-.tb-ghost{pointer-events:none}
+/* not fixed itself: a fixed box would be a stacking context and hold its bar under the page */
+.tb-ghost{position:absolute;top:0;left:0;width:0;height:0;pointer-events:none}
 @media (prefers-reduced-motion:reduce){.hr-night{display:none}}
 .hr-sub{font:400 21px/1.15 var(--f-serif);color:var(--encre);opacity:.86;animation:rise .9s .5s var(--ease) both}
 .hr-rate{display:inline-flex;align-items:center;gap:10px;min-height:36px;font:500 14px/1 var(--f-sans);color:var(--encre);animation:rise .9s .65s var(--ease) both}
@@ -2874,6 +2875,25 @@ class Component extends DCLogic {
     hero.style.setProperty('--wm-w', w.toFixed(1) + 'px');
   }
 
+  /* A picture: a closed shadow tree under `host`, with the page's own styles. What the night draws there (the copy of the
+     hero, the second top bar) is seen and nothing else: no script, no test, no screen reader finds a second « Sommaire ». */
+  picture(host) {
+    if (host.__pic) return host.__pic;
+    let root;
+    try { root = host.attachShadow({ mode: 'closed' }); } catch (e) { return null; }
+    if (!this._picCss) this._picCss = Array.prototype.map.call(document.querySelectorAll('style'), (x) => x.textContent).join('\n') + '\n.hr-night{animation:none!important;background:none}.hr-night::before{display:none}';
+    try {
+      if (!this._picSheet) { this._picSheet = new CSSStyleSheet(); this._picSheet.replaceSync(this._picCss); }
+      root.adoptedStyleSheets = [this._picSheet];
+    } catch (e) { const st = document.createElement('style'); st.textContent = this._picCss; root.appendChild(st); }
+    const lp = document.createElement('div');
+    lp.className = 'lp';
+    lp.style.display = 'contents';
+    root.appendChild(lp);
+    host.__pic = lp;
+    return lp;
+  }
+
   /* the copy of the hero's words on the night page, in bone, the name with its hair grown; made again when the words move */
   nightSync() {
     const hero = this._hero, ht = this.htHero;
@@ -2903,11 +2923,16 @@ class Component extends DCLogic {
     cv.className = 'ht';
     box.appendChild(cv); word.appendChild(box);
     try { ov.inert = true; } catch (e) { /* ignore */ }
-    ov.textContent = '';
-    if (phCopy) ov.appendChild(phCopy);
-    ov.appendChild(copy);
-    if (hxCopy) ov.appendChild(hxCopy);
-    this._nightEls = Array.prototype.slice.call(ov.children);
+    const pic = this.picture(ov);
+    if (!pic) return false;
+    const page = document.createElement('div');
+    page.className = 'hr-night';
+    if (phCopy) page.appendChild(phCopy);
+    page.appendChild(copy);
+    if (hxCopy) page.appendChild(hxCopy);
+    pic.textContent = '';
+    pic.appendChild(page);
+    this._nightEls = Array.prototype.slice.call(page.children);
     this.htNight = new Halftone(cv, { lines: [HERO_WORD], size: ht.size, padX: M, padY: PY, cellK: 30, seed: 7 });
     this.htNight.layout();
     this.htNight.fuzz();
@@ -2935,15 +2960,20 @@ class Component extends DCLogic {
     const bits = new Bits(bcv);
     bits.done = () => { if (bits.over && bcv.parentNode) bcv.parentNode.removeChild(bcv); };
     // the fresh top bar, shown up to the line; the real one (in bone while the night lasts) is shown after it
+    const gh = document.createElement('div');
+    gh.className = 'tb-ghost';
+    gh.setAttribute('aria-hidden', 'true');
+    try { gh.inert = true; } catch (e) { /* ignore */ }
+    tb.parentNode.insertBefore(gh, tb.nextSibling);
+    const gpic = this.picture(gh);
+    if (!gpic) { gh.remove(); return false; }
     const ghost = tb.cloneNode(true);
-    ghost.className = 'tb light tb-ghost';
-    ghost.setAttribute('aria-hidden', 'true');
-    try { ghost.inert = true; } catch (e) { /* ignore */ }
+    ghost.className = 'tb light';
     Array.prototype.forEach.call(ghost.querySelectorAll('*'), (el) => {
       Array.prototype.slice.call(el.attributes).forEach((a) => { if (a.name === 'id' || a.name === 'ref' || a.name === 'aria-controls' || a.name.indexOf('data-guide') === 0) el.removeAttribute(a.name); });
       if (el.tabIndex >= 0) el.tabIndex = -1;
     });
-    tb.parentNode.insertBefore(ghost, tb.nextSibling);
+    gpic.appendChild(ghost);
     const clip = (el, v) => { el.style.webkitClipPath = v; el.style.clipPath = v; };
     clip(ghost, 'inset(0 100% -40px 0)');
     const T_GROW = 620, T_CUT = 1750;
@@ -2951,7 +2981,7 @@ class Component extends DCLogic {
     const BONE = '#ECE8E0';
     const t0 = performance.now();
     let lastX = 0, grownAt = -1;
-    this._nightRun = { ghost: ghost, tb: tb, bits: bits };
+    this._nightRun = { ghost: gh, tb: tb, bits: bits };
     const step = (now) => {
       if (!this._nightRun) return;
       const ht = this.htHero, top = hero.querySelector('.hr-top');
@@ -2998,7 +3028,7 @@ class Component extends DCLogic {
     const run = this._nightRun, hero = this._hero;
     this._nightRun = null; this._night = false; this._nightWait = false; this.htNight = null; this._nightEls = null;
     const ov = hero && hero.querySelector('.hr-night');
-    if (ov) { ov.style.display = 'none'; ov.textContent = ''; }
+    if (ov) { ov.style.display = 'none'; if (ov.__pic) ov.__pic.textContent = ''; }
     if (hero) Array.prototype.forEach.call(hero.querySelectorAll('.hr-cut,.tdz'), (el) => el.remove());
     if (run) { run.bits.over = true; if (!run.bits.raf) run.bits.done(); }
     this.frame();
