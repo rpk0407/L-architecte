@@ -1395,7 +1395,7 @@ html{scroll-behavior:auto}
 <section class="cuts sheet" id="coupes" data-ch="4" data-tone="dark" aria-labelledby="t-cuts">
 <div class="wrap ct-head"><div class="ct-ti"><p class="kk" data-rv><span>04</span>Le travail</p><h2 class="h2" id="t-cuts" data-rv="lines"><span class="ln"><span>Sorti du</span></span><span class="ln"><span>fauteuil.</span></span></h2></div><div class="ct-nav"><p class="ct-count" aria-hidden="true"><b>{{cutNum}}</b><span>/ {{cutTotal}}</span></p><button type="button" class="ct-arr" aria-label="Coupe précédente" onClick="{{cutPrev}}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12H5M11 6l-6 6 6 6"/></svg></button><button type="button" class="ct-arr" aria-label="Coupe suivante" onClick="{{cutNext}}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h15M13 6l6 6-6 6"/></svg></button></div></div>
 <div class="ct-row" ref="{{r.cuts}}" data-rv>
-<sc-for list="{{cuts}}" as="c" hint-placeholder-count="3">
+<sc-for list="{{cuts}}" as="c" hint-placeholder-count="2">
 <article class="{{c.cls}}">
 <div class="ct-ph" style="--ox: {{c.ox}}; --oy: {{c.oy}}; --zs: {{c.zs}}">
 <img src="{{c.url}}" width="1220" height="1500" alt="{{c.alt}}" loading="lazy" style="object-position: {{c.pos}}">
@@ -2284,7 +2284,6 @@ const REVIEWS = { rating: 5, count: 316 };
 const IG0 = 'https://www.instagram.com/barbershoplarchitecte/';
 /* the 'Le travail' cards: each books the service it shows, when the catalogue sells it */
 const WORK = [
-  { url: '/img/sidepart.jpg', alt: 'Raie marquée sur le côté, dégradé bas, nuque tatouée', caption: 'La raie marquée', tag: 'Dégradé bas, raie tracée', service: 'cl', pos: '50% 30%', ox: '60%', oy: '47%', zs: 2.4 },
   { url: '/img/curls.jpg', alt: 'Boucles serrées sur le dessus, dégradé net et barbe taillée, face au miroir du salon', caption: 'Boucles et barbe', tag: 'Contour net, barbe taillée', service: 'ct', pos: '45% 45%', ox: '52%', oy: '58%', zs: 2.3 },
   { url: '/img/fade.jpg', alt: 'Cheveux décolorés et dégradé à blanc derrière l’oreille', caption: 'Décoloré, à blanc', tag: 'Dégradé à blanc, décoloré', service: 'cd', pos: '62% 40%', ox: '58%', oy: '42%', zs: 2.2 }
 ];
