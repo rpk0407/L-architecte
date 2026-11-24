@@ -73,7 +73,7 @@ test('the public pages no longer say « Pas de cookie »', () => {
   const conf = read('public/confidentialite.html');
   // the cookie the space sets is named, with how long it lasts (the salon's setting, its default said) and how to remove it
   assert.match(conf, /un seul cookie te garde connecté sur ce téléphone \(le temps choisi par le salon, 180 jours par défaut/);
-  assert.match(read('server/settings/accounts.js'), /defaults: \(\) => \(\{ enabled: false, sessionDays: 180,/);
+  assert.match(read('server/settings/accounts.js'), /defaults: \(\) => \(\{ sessionDays: 180,/);
   assert.match(conf, /<h2 id="t-space">Ton espace<\/h2>/);
   // closed in production until the salon opens it: the page does not promise it as there today
   assert.match(conf, /Quand le salon l’ouvre, et seulement si tu le veux, tu ouvres ton espace/);

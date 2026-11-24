@@ -28,7 +28,8 @@ import { runAs, isPersona } from '../../server/http/me-kit.js';
 import { clientRoutes } from '../../server/http/routes-client.js';
 import { dispatchNow } from '../../server/http/scheduler.js';
 import { CLIENT_COOKIE } from '../../server/auth/client-session.js';
-import accountsSection from '../../server/settings/accounts.js';
+import accountsSection, { accountsOn } from '../../server/settings/accounts.js';
+import { defaultSettings } from '../../server/settings/index.js';
 
 const SECRET = 'test-secret-0123456789';
 const SAME = { ok: true, message: START_MESSAGE };
@@ -696,8 +697,11 @@ test('every /api/me route is closed without the client cookie, and a staff sessi
   assert.equal((await browser(rt).get('/api/v1/clients/x/account')).status, 401);
 });
 
-test('the setting: off by default, golive says what it waits for', () => {
-  assert.deepEqual(accountsSection.defaults(), { enabled: false, sessionDays: 180, fenceDays: 180 });
+test('the setting: off by default for a salon that texts, golive says what it waits for', () => {
+  // nothing chosen yet: closed while the salon asks a number (its SMS route must be tested first)
+  assert.deepEqual(accountsSection.defaults(), { sessionDays: 180, fenceDays: 180 });
+  assert.equal(accountsOn({ settings: defaultSettings() }), false);
+  assert.deepEqual(accountsSection.golive.state({ settings: defaultSettings() }), { on: false, blocker: 'S’ouvre quand le SMS est testé et la bascule faite' });
   assert.deepEqual(accountsSection.golive.state({ settings: { accounts: { enabled: false } } }), { on: false, blocker: 'S’ouvre quand le SMS est testé et la bascule faite' });
   assert.deepEqual(accountsSection.golive.state({ settings: { accounts: { enabled: true } } }), { on: true, blocker: '' });
 });

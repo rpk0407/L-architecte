@@ -106,7 +106,8 @@ const BEFORE = () => {
     // FID-02: the stamp card, off until the owner launches it
     loyalty: { enabled: false, goal: 9, minNet: 1000, reward: { kind: 'service', refs: [], cap: 2500 }, rewardDays: 180, resetDays: 365, headStart: 'half', referral: { enabled: false, referrer: { kind: 'amount', amount: 500 }, referee: { kind: 'amount', amount: 500 }, perYear: 5 } },
     // AC-01: the client space, off until the SMS route is tested (on in the demo, by the seed)
-    accounts: { enabled: false, sessionDays: 180, fenceDays: 180 },
+    // no `enabled`: not chosen yet (settings/accounts.js accountsOn answers from booking.contact until the owner does)
+    accounts: { sessionDays: 180, fenceDays: 180 },
     // CPT-03: the books, every choice to confirm once with the accountant
     compta: comptaDefaults()
   };

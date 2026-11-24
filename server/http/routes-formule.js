@@ -5,14 +5,16 @@
 //             POST /api/public/account/join      a code for a number the salon may not know yet (the account it asks for)
 //   client    GET  /api/me/formule               the card of /moi; POST buys it (signed in: the file is the session's)
 //             GET  /api/me/formule/:id/weeks/:k  what is free in a week without a date; POST books it
-//   Comptoir  GET  /api/v1/formule/series, POST /api/v1/formules, POST /api/v1/formules/:id/weeks
+//   Comptoir  GET  /api/v1/formule/series, POST /api/v1/formules, POST /api/v1/formules/:id/weeks,
+//             POST /api/v1/formules/:id/resend-link (« Renvoyer le lien »: the formule's mail again)
 // Buying it online needs the client's account: nothing here takes a file from the body.
 import { HttpError, guard, limited } from './kit.js';
 import { signLink } from '../auth/session.js';
 import { isDay, addDays } from '../../shared/dates.js';
 import { freeSlots } from '../domain/availability.js';
 import { offerOf, proposeSeries, formulesOfFiles, formuleView, running, personOf, weeksOf } from '../domain/formule.js';
-import { holdSeries, bookFormule, addFormuleWeek, joinAccount } from '../commands/formule.js';
+import { holdSeries, bookFormule, addFormuleWeek, joinAccount, resendFormuleLink } from '../commands/formule.js';
+import { dispatchNow } from './scheduler.js';
 import { expirePending } from '../commands/agenda.js';
 import { CLIENT_ACTOR, DEMO_PURGE_MS, sendCode, rootFile } from '../commands/accounts.js';
 import { accountOf } from '../projections/accounts.js';
@@ -65,6 +67,12 @@ function cardOf(r, me) {
     renew: sell && !busy && mine.length > 0 && items.some((v) => !v.forFirst && v.status === 'ended'),
     demo: isPersona(me)
   };
+}
+
+/** A mail asked for now leaves now; a send that fails stays in the outbox for the next tick (and is logged, never thrown). */
+async function leaveNow(r, id) {
+  if (!id) return;
+  try { await dispatchNow(r.rt, [id]); } catch (e) { console.warn('[lx] formule mail', e && /** @type {any} */ (e).message); }
 }
 
 export function formuleRoutes(app) {
@@ -188,6 +196,19 @@ export function formuleRoutes(app) {
   /* ---------------- the Comptoir: sold at the desk, its five dates in the same sheet ---------------- */
 
   app.get('/api/v1/formule/series', (r) => seriesOf(r, false), { cap: 'agenda.own' });
-  app.post('/api/v1/formules', (r) => r.run(bookFormule, r.body), { cap: 'agenda.own' });
+  // sold: the formule's mail (his five dates, the way into his space) leaves now, by the normal dispatch: he is at the
+  // counter, phone in hand. mail: where it went (masked), for the sheet to say so
+  app.post('/api/v1/formules', async (r) => {
+    const { mailId, ...res } = await r.run(bookFormule, r.body);
+    await leaveNow(r, mailId);
+    return res;
+  }, { cap: 'agenda.own' });
+  /** « Renvoyer le lien »: queued by a journaled command (three a day per formule), then sent now by the normal dispatch. */
+  app.post('/api/v1/formules/:id/resend-link', async (r) => {
+    const out = await r.run(resendFormuleLink, { id: r.params.id });
+    await leaveNow(r, out.id);
+    const m = r.s.messages.get(out.id);
+    return { ok: true, id: out.id, to: out.to, status: m ? m.status : 'queued', error: m && m.status === 'failed' ? m.error || '' : '' };
+  }, { cap: 'agenda.own' });
   app.post('/api/v1/formules/:id/weeks', (r) => r.run(addFormuleWeek, { ...r.body, id: r.params.id }), { cap: 'agenda.own' });
 }

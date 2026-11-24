@@ -7,10 +7,10 @@
 import { fail } from '../core/engine.js';
 import { str, int, bool, opt, obj, arr, day, id, oneOf, parse } from '../lib/validate.js';
 import { isFree, canDo } from '../domain/availability.js';
-import { payWindowMin, clientMayChange, payDeadline } from '../domain/policy.js';
+import { payWindowMin, clientMayChange, payDeadline, startsAt } from '../domain/policy.js';
 import { busyIntervals } from '../domain/availability.js';
 import { queueMessage, apptVars } from '../domain/messages.js';
-import { mailConfirmation, mailOwner } from '../domain/mails.js';
+import { mailFormule, mailOwner } from '../domain/mails.js';
 import { FORMULE_TEXT, offerOf, formuleOfAppt, formulesOfFiles, running, personOf, weeksRefusal, weeksOf, paidOnline, payState, anchorOf, endOf } from '../domain/formule.js';
 import { accountOf } from '../projections/accounts.js';
 import { accountsOn } from '../settings/accounts.js';
@@ -19,8 +19,8 @@ import { getStaff, getClient, snapshotServices, totalDur, totalPrice, needChair 
 import { upsertClient, fileIds, clientByEmail } from './clients.js';
 import { rootFile, mailMode, normEmail } from './accounts.js';
 import { chairFor, onlineSlot, uniqueCode, childFile, confirmText } from './agenda.js';
-import { normPhone, capFirst, isEmail } from '../lib/util.js';
-import { addDays, dayLong, dayParts, fmtTime, pad2 } from '../../shared/dates.js';
+import { normPhone, capFirst, isEmail, maskEmail } from '../lib/util.js';
+import { addDays, dayLong, dayParts, fmtTime, pad2, localParts } from '../../shared/dates.js';
 import { fmtEur } from '../../shared/money.js';
 
 const LIVE = new Set(['pending', 'booked', 'arrived', 'in_chair']);
@@ -86,25 +86,41 @@ export const holdSeries = {
   }
 };
 
-/* ---------------- the confirmation: one text for the five dates ---------------- */
+/* ---------------- the confirmation: one text and one mail for the five dates ---------------- */
 
 const ddmm = (d) => { const p = dayParts(d); return p.d + '/' + pad2(p.m); };
 /**
- * One text listing every date (and the first date's e-mail with its calendar file). `appts`: as booked, in order.
- * @param {any} s @param {any} ctx @param {{ id: string, pay: string, price: number }} f
+ * The link of the formule's mail: the client space when it is open (/moi?garder=<the first date's own token>: the page
+ * then asks for the code sent to the file's address, so the link alone shows nothing of the file), else that date's page.
+ * @returns {{ link: string, space: boolean }}
+ */
+function spaceLink(s, ctx, head) {
+  const space = accountsOn(s) && typeof ctx.meta.spaceFor === 'function';
+  return { link: space ? ctx.meta.spaceFor(head) : ctx.meta.linkFor ? ctx.meta.linkFor(head) : '', space };
+}
+/**
+ * One text listing every date, and ONE mail for the purchase: the formule, its dates and the way into the client space
+ * (domain/mails.js mailFormule, with the first date's calendar file). `appts`: as booked, in order.
+ * @param {any} s @param {any} ctx @param {{ id: string, pay: string, price: number, name?: string, credits?: number, toBook?: number }} f
  * @param {any[]} appts @param {{ id: string, first: string, phone: string, email?: string, sms?: boolean }} c @param {string} [forFirst]
+ * @returns {string | null} the mail's id when one will leave
  */
 export function confirmFormule(s, ctx, f, appts, c, forFirst = '') {
   const list = [...appts].sort(byTime);
   const head = list[0];
-  if (!head) return;
+  if (!head) return null;
   const v = apptVars(s, head, ctx.meta.linkFor);
   const sameChair = list.every((a) => a.staffId === head.staffId);
   const dates = list.map((a, i) => (i ? ddmm(a.day) : v.date) + (i && a.start === head.start ? '' : ' à ' + fmtTime(a.start)) + (sameChair ? '' : ' (' + ((s.staff.get(a.staffId) || {}).name || '') + ')')).join(', ');
   const due = f.pay === 'salon' ? ' ' + fmtEur(f.price) + ' à régler à la 1re visite.' : '';
   const text = "L'Architecte : c'est noté {prenom} ! " + (forFirst ? 'Les ' + list.length + ' visites de ' + forFirst : 'Tes ' + list.length + ' visites') + (sameChair ? ' avec {barbier}' : '') + ' : ' + dates + '.' + due + ' Gérer : {lien}';
   if (s.settings.messages.confirmation && c.phone && c.sms !== false) queueMessage(s, ctx, { key: 'fconf_' + f.id, template: 'confirmation', text, to: c.phone, cid: c.id, apptId: head.id, vars: { ...v, prenom: c.first || v.prenom } });
-  if (c.email) mailConfirmation(s, ctx, { ...head, status: 'booked', moves: 0 }, { to: c.email, first: c.first, link: ctx.meta.linkFor ? ctx.meta.linkFor(head) : '' });
+  if (!c.email) return null;
+  const offer = offerOf(s);
+  return mailFormule(s, ctx, {
+    id: f.id, name: f.name || (offer ? offer.name : 'Formule'), credits: f.credits || (offer ? offer.credits : list.length), price: f.price,
+    pay: f.pay === 'salon' ? 'salon' : f.pay === 'online' ? 'online' : 'paid', toBook: f.toBook || 0
+  }, list.map((a) => ({ ...a, status: 'booked', moves: 0 })), { to: c.email, first: c.first, cid: c.id, forFirst, ...spaceLink(s, ctx, head) });
 }
 
 /* ---------------- the purchase ---------------- */
@@ -115,8 +131,27 @@ const bookSchema = obj({
   guest: opt(obj({ kind: oneOf(/** @type {const} */ (['other', 'child'])), first: nameStr(2), phone: opt(str({ max: 24 })), age: opt(int({ min: 0, max: 17 })) })),
   note: opt(str({ max: 200 })), sms: opt(bool()),
   // at the desk only: the client's file, or his name and number
-  clientId: opt(id()), client: opt(obj({ first: str({ min: 1, max: 40 }), last: opt(str({ max: 40 })), phone: opt(str({ max: 24 })) }))
+  // (email: his address; beside clientId, the address of a file that has none yet: the formule's mail goes there)
+  clientId: opt(id()), client: opt(obj({ first: str({ min: 1, max: 40 }), last: opt(str({ max: 40 })), phone: opt(str({ max: 24 })), email: opt(str({ max: 120 })) })),
+  email: opt(str({ max: 120 }))
 });
+
+const BAD_EMAIL = 'Vérifie son adresse e-mail.';
+/**
+ * An address typed at the desk for a file that has none: it goes on the file (the formule's mail, his sign-in). Never
+ * over another address, and never one another file already carries in a salon that knows its clients by their address
+ * (his sign-in would open the other file).
+ * @returns {string} the file's address after it
+ */
+function giveEmail(s, ctx, x, typed) {
+  const mail = normEmail(typed || '');
+  if (!mail || x.email) return x.email || '';
+  if (!isEmail(mail)) fail(400, 'invalid', BAD_EMAIL);
+  const other = mailMode(s) ? clientByEmail(s, mail) : null;
+  if (other && other.id !== x.id) fail(409, 'exists', 'Cette adresse est déjà celle d’un autre client : choisis sa fiche.', { id: other.id });
+  ctx.emit('client.updated', { id: x.id, cid: x.id, patch: {}, fields: ['email'] }, { email: mail });
+  return mail;
+}
 
 /**
  * Buy the formule with its dates. From the site: the signed-in client's file (ctx.meta.me), slots as offered online,
@@ -137,13 +172,20 @@ export const bookFormule = {
     let c;
     if (staffSide) {
       if (!ctx.can('agenda.own') && !ctx.can('agenda.edit')) fail(403, 'forbidden', 'Action réservée à l’équipe.');
-      if (b.clientId) { const x = getClient(s, b.clientId); if (x.erased) fail(409, 'erased', 'Cette fiche a été effacée.'); c = { id: x.id, first: x.first, last: x.last || '', phone: x.phone || '', email: x.email || '', sms: x.sms !== false, created: false }; }
+      if (b.clientId) { const x = getClient(s, b.clientId); if (x.erased) fail(409, 'erased', 'Cette fiche a été effacée.'); c = { id: x.id, first: x.first, last: x.last || '', phone: x.phone || '', email: giveEmail(s, ctx, x, b.email), sms: x.sms !== false, created: false }; }
       else if (b.client) {
         if (b.client.phone && !normPhone(b.client.phone)) fail(400, 'invalid', 'Numéro de téléphone invalide.');
-        const r = upsertClient(s, ctx, { first: b.client.first, last: b.client.last || '', phone: b.client.phone || '' }, 'salon');
+        const mail = normEmail(b.client.email || '');
+        if (mail && !isEmail(mail)) fail(400, 'invalid', BAD_EMAIL);
+        // a salon that writes by e-mail knows a client by his address (as a booking from the site does): a first name
+        // and an address are enough, the number is never asked
+        const byEmail = mailMode(s) && !!mail;
+        let phone = normPhone(b.client.phone || '');
+        if (byEmail && phone && s.clientByPhone.has(phone)) phone = '';
+        const r = upsertClient(s, ctx, { first: b.client.first, last: b.client.last || '', phone, ...(mail ? { email: mail } : {}) }, 'salon', byEmail ? { byEmail: true } : {});
         const x = r.created ? null : getClient(s, r.id);
-        c = x ? { id: x.id, first: x.first, last: x.last || '', phone: x.phone || '', email: x.email || '', sms: x.sms !== false, created: false }
-          : { id: r.id, first: capFirst(b.client.first), last: capFirst(b.client.last || ''), phone: normPhone(b.client.phone || ''), email: '', sms: true, created: true };
+        c = x ? { id: x.id, first: x.first, last: x.last || '', phone: x.phone || '', email: giveEmail(s, ctx, x, mail), sms: x.sms !== false, created: false }
+          : { id: r.id, first: capFirst(b.client.first), last: capFirst(b.client.last || ''), phone, email: mail, sms: true, created: true };
       } else fail(400, 'invalid', 'Choisis le client : la formule est à son nom.');
     } else {
       const x = ownAccount(s, ctx);
@@ -232,11 +274,13 @@ export const bookFormule = {
       pay: online ? 'online' : 'salon', source: staffSide ? 'salon' : 'site', ...(guest ? { guest } : {}),
       ...(paidPack ? { packId: paidPack.id, startDay, expires: addDays(/** @type {string} */ (startDay), offer.days - 1) } : {})
     });
+    let mail = null;
     if (!online) {
-      confirmFormule(s, ctx, { id: fid, pay: paidPack ? 'paid' : 'salon', price: offer.price }, booked, c, name);
+      mail = confirmFormule(s, ctx, { id: fid, pay: paidPack ? 'paid' : 'salon', price: offer.price, name: offer.name, credits: offer.credits, toBook: later }, booked, c, name);
       if (!staffSide) mailOwner(s, ctx, booked[0], 'booked', { first: name || c.first });
     }
-    return { id: fid, pay: online ? 'online' : 'salon', paid: !!paidPack, amount: offer.price, appts: booked.map((a) => ({ id: a.id, code: a.code, status: a.status, staffId: a.staffId, day: a.day, start: a.start })) };
+    // mail: the formule's e-mail (his dates, the way into his space) is on its way to that address; mailId: for the route
+    return { id: fid, pay: online ? 'online' : 'salon', paid: !!paidPack, amount: offer.price, ...(mail ? { mailId: mail, mail: maskEmail(c.email, { domain: true }) } : {}), appts: booked.map((a) => ({ id: a.id, code: a.code, status: a.status, staffId: a.staffId, day: a.day, start: a.start })) };
   }
 };
 
@@ -344,7 +388,7 @@ export function formulePaid(s, ctx, f, head) {
   const c = s.clients.get(f.clientId);
   const kid = f.guest && f.guest.cid ? s.clients.get(f.guest.cid) : null;
   const sv = s.services.get(f.serviceId);
-  if (c && !c.erased) confirmFormule(s, ctx, { id: f.id, pay: 'online', price: sv ? sv.price : 0 }, kept, c, kid && !kid.erased ? kid.first : '');
+  if (c && !c.erased) confirmFormule(s, ctx, { id: f.id, pay: 'online', price: sv ? sv.price : 0, name: sv ? sv.name : '', credits: f.credits, toBook: Math.max(0, f.credits - f.apptIds.length) }, kept, c, kid && !kid.erased ? kid.first : '');
   if (head.source === 'site') mailOwner(s, ctx, { ...head, status: 'booked' }, 'booked');
 }
 /** Its first date went (unpaid in time, or paid too late): the other dates still waiting go with it. */
@@ -353,6 +397,60 @@ export function formuleUnpaid(s, ctx, f, head, reason) {
     if (x.id !== head.id && x.status === 'pending') ctx.emit('appt.cancelled', { id: x.id, by: 'system', reason, cid: x.clientId || undefined });
   }
 }
+
+/* ---------------- « Renvoyer le lien »: the formule's mail again, from the Comptoir ---------------- */
+
+/** The formule's mail is sent again at most this many times a day (as a confirmation is, commands/messages.js). */
+export const LINK_RESENDS_PER_DAY = 3;
+const resentToday = (s, ctx, root) => { let n = 0; for (const x of s.messages.values()) if (x.resendOf === root && localParts(x.at).day === ctx.local.day) n++; return n; };
+/** The dates of a formule still to come, in order. */
+const comingOf = (s, f, now) => f.apptIds.map((i) => s.appts.get(i)).filter((a) => a && a.status === 'booked' && startsAt(a) > now).sort(byTime);
+
+/**
+ * Can the formule's mail leave again? 'ok', or why not: '' (nothing to send: finished, released, no date to come, or
+ * its online payment still awaited), 'off' (the e-mails to clients are cut), 'no_email' (no address on the file).
+ * @returns {'' | 'ok' | 'off' | 'no_email'}
+ */
+export function formuleMailState(s, f, now) {
+  if (!f || f.status !== 'open' || payState(s, f) === 'pending' || !comingOf(s, f, now).length) return '';
+  if (s.settings.messages.email === false) return 'off';
+  const c = rootFile(s, f.clientId);
+  return c && !c.erased && isEmail(c.email) ? 'ok' : 'no_email';
+}
+
+/**
+ * « Renvoyer le lien de sa formule » on any of its dates' sheet: the mail written again from the formule as it stands
+ * today (the dates still to come, what is left, how it is paid), with the same way into the client space. Who may:
+ * whoever may sell it (agenda.own). At most three a day per formule; a message like any other, sent by the normal dispatch.
+ */
+export const resendFormuleLink = {
+  run(s, input, ctx) {
+    const f = s.formules.get(String((input && input.id) || ''));
+    if (!f) fail(404, 'not_found', 'Formule introuvable.');
+    if (!ctx.can('agenda.own') && !ctx.can('agenda.edit')) fail(403, 'forbidden', 'Action réservée à l’équipe.');
+    const pay = payState(s, f);
+    if (pay === 'pending') fail(409, 'unpaid', 'Cette formule attend son paiement en ligne : le lien part une fois payée.');
+    const coming = comingOf(s, f, ctx.now);
+    if (f.status !== 'open' || !coming.length) fail(409, 'closed', 'Cette formule n’a plus de rendez-vous à venir : pas de lien à renvoyer.');
+    if (s.settings.messages.email === false) fail(409, 'email_off', 'Les e-mails aux clients sont coupés (Réglages › Messages).');
+    const c = rootFile(s, f.clientId);
+    if (!c || c.erased) fail(409, 'erased', 'Cette fiche a été effacée.');
+    if (!isEmail(c.email)) fail(409, 'no_email', 'Ce client n’a pas d’adresse e-mail : ajoute-la sur sa fiche.');
+    const root = 'formule:' + f.id;
+    const n = resentToday(s, ctx, root);
+    if (n >= LINK_RESENDS_PER_DAY) fail(429, 'slow_down', 'Déjà renvoyé ' + LINK_RESENDS_PER_DAY + ' fois aujourd’hui. Réessaie demain.');
+    const sv = s.services.get(f.serviceId);
+    const pk = f.packId ? s.packs.get(f.packId) : null;
+    const done = f.apptIds.map((i) => s.appts.get(i)).filter((a) => a && a.status === 'done').length;
+    const left = Math.max(0, f.credits - (pk ? Math.max(pk.used, done) : done));
+    const kid = f.guest && f.guest.cid ? s.clients.get(f.guest.cid) : null;
+    const toBook = weeksOf(s, f, ctx.local.day).filter((w) => w.state === 'open').length;
+    const id = mailFormule(s, ctx, { id: f.id, name: sv ? sv.name : 'Formule', credits: f.credits, price: sv ? sv.price : 0, pay: pay === 'due' ? 'salon' : pay === 'online' ? 'online' : 'paid', left, toBook: Math.min(toBook, Math.max(0, left - coming.length)) },
+      coming, { to: c.email, first: c.first, cid: c.id, forFirst: kid && !kid.erased ? kid.first : '', ...spaceLink(s, ctx, coming[0]), key: 'rs_mfo_' + f.id + '_' + ctx.local.day + '_' + (n + 1), resendOf: root });
+    if (!id) fail(409, 'not_resendable', 'Le lien ne peut pas partir par e-mail.');
+    return { ok: true, id, to: maskEmail(c.email, { domain: true }) };
+  }
+};
 
 /* ---------------- an account for a number the salon does not know yet ---------------- */
 
