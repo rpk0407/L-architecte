@@ -5,14 +5,16 @@
 //             POST /api/public/account/join      a code for a number the salon may not know yet (the account it asks for)
 //   client    GET  /api/me/formule               the card of /moi; POST buys it (signed in: the file is the session's)
 //             GET  /api/me/formule/:id/weeks/:k  what is free in a week without a date; POST books it
-//   Comptoir  GET  /api/v1/formule/series, POST /api/v1/formules, POST /api/v1/formules/:id/weeks
+//   Comptoir  GET  /api/v1/formule/series, POST /api/v1/formules, POST /api/v1/formules/:id/weeks,
+//             POST /api/v1/formules/:id/resend-link (« Renvoyer le lien »: the formule's mail again)
 // Buying it online needs the client's account: nothing here takes a file from the body.
 import { HttpError, guard, limited } from './kit.js';
 import { signLink } from '../auth/session.js';
 import { isDay, addDays } from '../../shared/dates.js';
 import { freeSlots } from '../domain/availability.js';
 import { offerOf, proposeSeries, formulesOfFiles, formuleView, running, personOf, weeksOf } from '../domain/formule.js';
-import { holdSeries, bookFormule, addFormuleWeek, joinAccount } from '../commands/formule.js';
+import { holdSeries, bookFormule, addFormuleWeek, joinAccount, resendFormuleLink } from '../commands/formule.js';
+import { dispatchNow } from './scheduler.js';
 import { expirePending } from '../commands/agenda.js';
 import { CLIENT_ACTOR, DEMO_PURGE_MS, sendCode, rootFile } from '../commands/accounts.js';
 import { accountOf } from '../projections/accounts.js';
@@ -31,6 +33,12 @@ const minuteOf = (v) => { const n = Number(v); return Number.isInteger(n) && n >
 const visitorOf = (r) => (r.ip ? createHmac('sha256', String(r.rt.secret)).update('lx-hold|' + r.local.day + '|' + r.ip).digest('base64url').slice(0, 12) : '');
 const header = (r) => r.req.headers.get('x-request-id') || '';
 
+/**
+ * Is the formule paid online when a client takes it on the site? Only where the salon asks for money online. Where the
+ * client chooses (deposits 'choice': the salon by default), the formule is paid at the salon, at his first visit.
+ */
+const formuleOnline = (r) => payLive(r) && (r.s.settings.deposits || {}).mode !== 'choice';
+
 /** The series proposed after a first slot, for the site (online rules) or the desk. */
 function seriesOf(r, online) {
   const offer = offerOf(r.s);
@@ -44,7 +52,7 @@ function seriesOf(r, online) {
 /** A command as the signed-in client, with what the purchase needs to know of the payment (never a file from the body). */
 function asMe(r, me, what) {
   const h = header(r);
-  return { actor: CLIENT_ACTOR, caps: new Set(), meta: { ...r.meta, me: { cid: me.cid }, payLive: payLive(r), payProvider: r.rt.pay.name }, ...(h ? { requestId: 'me' + me.cid + ':' + what + ':' + h } : {}) };
+  return { actor: CLIENT_ACTOR, caps: new Set(), meta: { ...r.meta, me: { cid: me.cid }, payLive: formuleOnline(r), payProvider: r.rt.pay.name }, ...(h ? { requestId: 'me' + me.cid + ':' + what + ':' + h } : {}) };
 }
 
 function cardOf(r, me) {
@@ -58,13 +66,19 @@ function cardOf(r, me) {
   const busy = mine.some((f) => running(s, f, r.local.day));
   const sell = !!offer && offer.online && accountsOn(s);
   return {
-    offer: sell ? { id: offer.id, slug: offer.slug, name: offer.name, price: offer.price, credits: offer.credits, missed: offer.missed, pay: payLive(r) ? 'online' : 'salon' } : null,
+    offer: sell ? { id: offer.id, slug: offer.slug, name: offer.name, price: offer.price, credits: offer.credits, missed: offer.missed, pay: formuleOnline(r) ? 'online' : 'salon' } : null,
     // the open ones first, then the last finished one (its receipts stay at hand)
     items: [...items.filter((v) => v.status === 'open'), ...items.filter((v) => v.status !== 'open').slice(0, 1)],
     // « Reprendre 5 coupes »: his last one is finished and none is running
     renew: sell && !busy && mine.length > 0 && items.some((v) => !v.forFirst && v.status === 'ended'),
     demo: isPersona(me)
   };
+}
+
+/** A mail asked for now leaves now; a send that fails stays in the outbox for the next tick (and is logged, never thrown). */
+async function leaveNow(r, id) {
+  if (!id) return;
+  try { await dispatchNow(r.rt, [id]); } catch (e) { console.warn('[lx] formule mail', e && /** @type {any} */ (e).message); }
 }
 
 export function formuleRoutes(app) {
@@ -188,6 +202,19 @@ export function formuleRoutes(app) {
   /* ---------------- the Comptoir: sold at the desk, its five dates in the same sheet ---------------- */
 
   app.get('/api/v1/formule/series', (r) => seriesOf(r, false), { cap: 'agenda.own' });
-  app.post('/api/v1/formules', (r) => r.run(bookFormule, r.body), { cap: 'agenda.own' });
+  // sold: the formule's mail (his five dates, the way into his space) leaves now, by the normal dispatch: he is at the
+  // counter, phone in hand. mail: where it went (masked), for the sheet to say so
+  app.post('/api/v1/formules', async (r) => {
+    const { mailId, ...res } = await r.run(bookFormule, r.body);
+    await leaveNow(r, mailId);
+    return res;
+  }, { cap: 'agenda.own' });
+  /** « Renvoyer le lien »: queued by a journaled command (three a day per formule), then sent now by the normal dispatch. */
+  app.post('/api/v1/formules/:id/resend-link', async (r) => {
+    const out = await r.run(resendFormuleLink, { id: r.params.id });
+    await leaveNow(r, out.id);
+    const m = r.s.messages.get(out.id);
+    return { ok: true, id: out.id, to: out.to, status: m ? m.status : 'queued', error: m && m.status === 'failed' ? m.error || '' : '' };
+  }, { cap: 'agenda.own' });
   app.post('/api/v1/formules/:id/weeks', (r) => r.run(addFormuleWeek, { ...r.body, id: r.params.id }), { cap: 'agenda.own' });
 }

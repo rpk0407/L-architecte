@@ -8,17 +8,11 @@ import { useQuery } from '../../../lib/query';
 import { cap, dates, hhmm, time } from '../../../lib/format';
 import { Button, Note, Skeleton } from '../../../ui/kit';
 import { useApp } from '../../state';
-import type { Service } from '../../types';
 
 export type SerieWeek = { week: number; day: string; start: number; staffId: string; exact: boolean; why: string; none?: boolean; later?: boolean };
 type Series = { weeks: SerieWeek[]; credits: number; end: string; price: number };
 
-/** The weekly carnet the salon sells, with the cut it pays for; null when there is none. */
-export function weeklyCarnet(services: Service[]): { pack: Service; coverId: string } | null {
-  const pack = services.filter((s) => s.active && s.pack && s.pack.weekly).sort((a, b) => a.order - b.order)[0];
-  const coverId = pack ? (pack.pack!.serviceIds || []).find((id) => services.some((s) => s.id === id && s.active)) : null;
-  return pack && coverId ? { pack, coverId } : null;
-}
+export { weeklyCarnet } from './carnet';
 
 /** The days of one week of the carnet and what is free on them, to change one line. */
 function WeekPicker({ from, coverId, staffId, value, onPick }: { from: string; coverId: string; staffId: string; value: SerieWeek; onPick: (v: { day: string; start: number; staffId: string }) => void }) {

@@ -301,7 +301,8 @@ export const bookOnline = {
 /* ---------------- bookings at the counter / by phone ---------------- */
 
 const createSchema = obj({
-  clientId: opt(id()), client: opt(obj({ first: str({ min: 1, max: 40 }), last: opt(str({ max: 40 })), phone: opt(str({ max: 24 })) })),
+  // client.email: a new client's address (a salon that writes by e-mail knows him by it, the number is never asked)
+  clientId: opt(id()), client: opt(obj({ first: str({ min: 1, max: 40 }), last: opt(str({ max: 40 })), phone: opt(str({ max: 24 })), email: opt(str({ max: 120 })) })),
   name: opt(str({ max: 40 })), serviceIds: serviceIds(), staffId: id(), day: day(), start: minute(), note: opt(str({ max: 300 })),
   sms: opt(bool()), force: opt(bool()), source: opt(oneOf(/** @type {const} */ (['phone', 'salon', 'walkin', 'site']))), seat: opt(bool()), demo: opt(bool())
 });
@@ -322,11 +323,20 @@ export const createAppointment = {
     if (x.force && !free && !(ctx.can('agenda.edit') || ctx.staff?.id === st.id)) fail(403, 'forbidden', 'Seul le gérant peut forcer un créneau.');
     // fileSms: the client's own « SMS de service » switch, what the booking's switch defaults to when it is not sent
     let clientId = null, phone = '', fileSms = true;
+    /** @type {{ to: string, first: string } | undefined} the address of a file made here, not yet in the state */
+    let typed;
     if (x.clientId) { const c = getClient(s, x.clientId); clientId = c.id; phone = c.phone; fileSms = c.sms !== false; }
     else if (x.client) {
-      const r = upsertClient(s, ctx, { first: x.client.first, last: x.client.last || '', phone: x.client.phone || '' }, x.source === 'phone' ? 'phone' : 'salon');
-      clientId = r.id; phone = r.created ? normPhone(x.client.phone || '') : getClient(s, r.id).phone;
+      const mail = String(x.client.email || '').trim().toLowerCase();
+      if (mail && !isEmail(mail)) fail(400, 'invalid', 'Vérifie son adresse e-mail.');
+      const byEmail = !!mail && s.settings.booking.contact === 'email';
+      let np = normPhone(x.client.phone || '');
+      if (x.client.phone && !np) fail(400, 'invalid', 'Numéro de téléphone invalide.');
+      if (byEmail && np && s.clientByPhone.has(np)) np = '';
+      const r = upsertClient(s, ctx, { first: x.client.first, last: x.client.last || '', phone: np, ...(mail ? { email: mail } : {}) }, x.source === 'phone' ? 'phone' : 'salon', byEmail ? { byEmail: true } : {});
+      clientId = r.id; phone = r.created ? np : getClient(s, r.id).phone;
       if (!r.created) fileSms = getClient(s, r.id).sms !== false;
+      else if (mail) typed = { to: mail, first: capFirst(x.client.first) };
     }
     if (!clientId && !x.name) fail(400, 'invalid', 'Choisis un client ou indique un prénom.');
     const aid = ctx.id('ap');
@@ -340,7 +350,7 @@ export const createAppointment = {
     if (!clientId && x.name) pii.name = x.name;
     ctx.emit('appt.booked', a, Object.keys(pii).length ? pii : undefined);
     // 'Confirmer par SMS' off stops the text only (a.sms): the e-mail with the calendar file still goes
-    if (x.day >= ctx.local.day && !x.seat) confirmText(s, ctx, { ...a, moves: 0 }, phone, x.client ? capFirst(x.client.first) : undefined);
+    if (x.day >= ctx.local.day && !x.seat) confirmText(s, ctx, { ...a, moves: 0 }, phone, x.client ? capFirst(x.client.first) : undefined, typed);
     return { id: aid, code: a.code };
   }
 };

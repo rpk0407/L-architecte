@@ -2,7 +2,7 @@
 // (the next client, each chair, what is still coming) and the cards to deal with, already cut to this person's role
 // and rights; the page writes it down and works out nothing. The last answer is kept on the device and painted first
 // with « lu à … » (never on a shared salon screen; removed at sign-out), then replaced.
-import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { api } from '../../lib/api';
 import { useInterval, useIsPhone, useLocal } from '../../lib/hooks';
 import { useQuery } from '../../lib/query';
@@ -19,6 +19,8 @@ import { done, isLater, keep, later, readUsage, toAsk, writeUsage, type Usage } 
 import { Card } from './accueil/Card';
 import { Customize } from './accueil/Customize';
 import { Dock } from './accueil/Dock';
+import { eur } from '../../lib/format';
+import { weeklyCarnet } from './agenda/carnet';
 import './accueil.css';
 
 // the Agenda's sheets and Équipe's plan of an absence: fetched when first asked for (and warmed up once the page is read)
@@ -66,12 +68,15 @@ export default function Accueil() {
 
   const [appt, setAppt] = useState<string | null>(null);
   const [walk, setWalk] = useState<{ staffId?: string; serviceId?: string } | null>(null);
-  const [create, setCreate] = useState(false);
+  // create: « Rendez-vous », or 'formule': the same sheet opened on the weekly formule (« Vendre la formule »)
+  const [create, setCreate] = useState<boolean | 'formule'>(false);
   const phone = useIsPhone();
   const [handover, setHandover] = useState<string | null>(null);
   const [custom, setCustom] = useState(false);
   const [all, setAll] = useState(false);
   const [busy, setBusy] = useState(false);
+  // the weekly formule the salon sells (« Formule » in the dock: sold on the spot, its dates booked in one sheet)
+  const sold = useMemo(() => weeklyCarnet(boot.services), [boot.services]);
 
   if (!d) {
     return (
@@ -149,7 +154,8 @@ export default function Accueil() {
         {d.line.note ? <p className="hm-note">{d.line.note}</p> : null}
       </header>
 
-      <Dock onNew={books ? () => setCreate(true) : undefined} onWalkin={books && d.moment !== 'ferme' ? () => setWalk({}) : undefined} onPay={can('sale.create') ? toTill : undefined} toPay={pay ? pay.count : 0} />
+      <Dock onNew={books ? () => setCreate(true) : undefined} onWalkin={books && d.moment !== 'ferme' ? () => setWalk({}) : undefined} onPay={can('sale.create') ? toTill : undefined} toPay={pay ? pay.count : 0}
+        onFormule={books && sold ? () => setCreate('formule') : undefined} formule={sold ? sold.pack.name + ' : ' + sold.pack.pack!.credits + ' coupes, ' + eur(sold.pack.price) : ''} guide={{ formule: 'hm-formule' }} />
 
       {error ? (
         <div className="hm-fail" role="alert"><Icon name="alert" size={16} /><span>Pas de réponse du serveur : ce que tu vois a été {readAt(d.asOf)}.</span><Button busy={refreshing} onClick={() => { void refresh(); }}>Réessayer</Button></div>
@@ -221,7 +227,7 @@ export default function Accueil() {
       <Suspense fallback={null}>
         {appt ? <ApptSheet id={appt} onClose={() => setAppt(null)} /> : null}
         {walk ? <WalkinSheet open onClose={() => setWalk(null)} freeNow={free} prefill={walk} /> : null}
-        {create ? <CreateSheet open prefill={{ day: today }} onClose={() => setCreate(false)} onCreated={() => { void refresh(); }} /> : null}
+        {create ? <CreateSheet open prefill={{ day: today, ...(create === 'formule' ? { formule: true } : {}) }} onClose={() => setCreate(false)} onCreated={() => { void refresh(); }} /> : null}
         {handover ? <HandoverSheet id={handover} onClose={() => setHandover(null)} /> : null}
       </Suspense>
     </div>
