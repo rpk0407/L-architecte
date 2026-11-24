@@ -20,7 +20,7 @@
 <meta property="og:image" content="https://barberlarchitecte.com/img/og-larchitecte.jpg">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="Le logo de L’Architecte, barbershop à Marseille depuis 2009">
+<meta property="og:image:alt" content="Le logo de L’Architecte, coiffeur et barbier à Marseille depuis 2009">
 <meta name="twitter:card" content="summary_large_image">
 <script type="application/ld+json" id="lx-ld">
 {
@@ -467,14 +467,41 @@ position:relative;font:400 17px/1.5 var(--f-sans);color:var(--os);background:var
 .cta .btn small{display:inline-flex;align-items:center;height:44px;padding:0 17px;border-radius:999px;background:rgba(15,14,13,.13);font:600 15px/1 var(--f-sans)}
 .cta.off{transform:translateY(140%);opacity:0}
 
-/* hero: Frais. */
+/* hero: L’Architecte, cut in by a clipper */
 .dk{position:relative}
 .hero{position:sticky;z-index:0;top:min(0px,calc(100svh - 640px));height:100svh;min-height:640px;background:var(--pierre);color:var(--encre);overflow:hidden;transform:scale(calc(1 - var(--o,0) * .07));transform-origin:50% 0;border-radius:calc(var(--o,0) * 34px)}
-.hr-ph{position:absolute;left:-8vw;right:-36vw;top:31svh;bottom:-2svh}
+/* the man stays whole. On a phone his face sits in the clear band between the type above and the booking card below (his chin ends 20px over the card), laid out from the bottom the way the card is. The photo's own proportions (1220x1194) fix the sums: his head runs from .126 to .710 of its height, his nose tip is at .261 of its width. The photo dissolves on its top, left and bottom edges instead of ending in a box. */
+.hr-ph{--hw:clamp(300px,calc((100svh - 469px) / .5721),min(146vw,640px));position:absolute;left:calc(51vw - var(--hw) * .2615);width:var(--hw);height:calc(var(--hw) * .9787);bottom:calc(244px + env(safe-area-inset-bottom,0px) - var(--hw) * .2838)}
 .hr-ph-in{position:absolute;inset:0;transform-origin:47% 36%;will-change:transform}
-.hr-ph img{width:100%;height:100%;object-fit:cover;object-position:50% 18%;-webkit-mask-image:linear-gradient(180deg,transparent 0,#000 20%);mask-image:linear-gradient(180deg,transparent 0,#000 20%)}
+.hr-ph img{width:100%;height:100%;object-fit:cover;object-position:50% 50%;-webkit-mask-image:linear-gradient(180deg,transparent 0,#000 7%),linear-gradient(90deg,transparent 0,#000 24%),linear-gradient(0deg,transparent 0,#000 12%);mask-image:linear-gradient(180deg,transparent 0,#000 7%),linear-gradient(90deg,transparent 0,#000 24%),linear-gradient(0deg,transparent 0,#000 12%);-webkit-mask-composite:source-in;mask-composite:intersect}
+/* the salon's logo, a soft watermark behind the man: the header's own file used as a mask, so one request, in the page's ink */
+.hero::before,.hr-night::before{content:"";position:absolute;z-index:-1;pointer-events:none;left:-22vw;width:62vw;aspect-ratio:858/912;bottom:calc(230px + env(safe-area-inset-bottom,0px));background:var(--encre);opacity:.12;-webkit-mask:url(/img/logo-clair.png) center/contain no-repeat;mask:url(/img/logo-clair.png) center/contain no-repeat}
+@media (max-width:699px) and (max-height:700px){.hero::before,.hr-night::before{display:none}.hr-ph{left:calc(58vw - var(--hw) * .2615)}}
 .hr-top{position:absolute;z-index:2;top:calc(78px + env(safe-area-inset-top,0px));left:var(--pad);right:var(--pad);display:flex;flex-direction:column;align-items:flex-start;gap:14px}
 .hr-word{width:100%;max-width:640px;min-width:0;overflow:hidden}
+/* the first view: the page opens grown out (dark, the name in bone with its hair grown), then a clipper crosses the whole
+   screen behind a line of red light and leaves the fresh page in its wake. .hr-night is that dark page, clipped away from
+   the left by the script; it holds a copy of the hero's words in bone. Never with reduced motion; gone by itself after 7 s
+   whatever happens to the script. */
+.hr-night{position:absolute;inset:0;z-index:4;background:var(--encre);color:var(--os);pointer-events:none;animation:nightOff 0s 7s forwards}
+@keyframes nightOff{to{visibility:hidden}}
+.hr-night *{animation:none!important}
+.hr-night .hr-sub,.hr-night .hr-rate{color:var(--os)}
+.hr-night .hr-rate .stars{fill:var(--os)}
+.hr-night .ann{background:rgba(236,232,224,.1)}
+.hr-night .hr-word{position:relative;overflow:visible}
+.nt-word{position:absolute}
+.hr-night>*{opacity:0}
+/* the night page keeps the man, unlit, and the booking card as a pale glass: the line turns the lights on over them */
+.hr-night .hr-ph img{filter:grayscale(1) brightness(.4) contrast(1.12)}
+.hr-night .hr-ph{-webkit-mask-image:linear-gradient(180deg,transparent 2%,#000 40%),linear-gradient(90deg,transparent 4%,#000 50%);mask-image:linear-gradient(180deg,transparent 2%,#000 40%),linear-gradient(90deg,transparent 4%,#000 50%);-webkit-mask-composite:source-in;mask-composite:intersect}
+.hr-night .hx{background:rgba(236,232,224,.07);box-shadow:inset 0 0 0 1px rgba(236,232,224,.13)}
+.hr-cut{position:absolute;z-index:5;top:0;bottom:0;left:0;width:2px;margin-left:-1px;background:var(--rouge);box-shadow:0 0 22px 3px var(--rouge),0 0 80px 14px color-mix(in srgb,var(--rouge) 42%,transparent);opacity:0;pointer-events:none;will-change:transform}
+.tdz{position:absolute;z-index:5;left:0;top:0;display:block;opacity:0;pointer-events:none;will-change:transform;filter:drop-shadow(0 14px 18px rgba(15,14,13,.3))}
+.hr-bits{position:absolute;z-index:5;inset:0;width:100%;height:100%;pointer-events:none}
+/* not fixed itself: a fixed box would be a stacking context and hold its bar under the page */
+.tb-ghost{position:absolute;top:0;left:0;width:0;height:0;pointer-events:none}
+@media (prefers-reduced-motion:reduce){.hr-night{display:none}}
 .hr-sub{font:400 21px/1.15 var(--f-serif);color:var(--encre);opacity:.86;animation:rise .9s .5s var(--ease) both}
 .hr-rate{display:inline-flex;align-items:center;gap:10px;min-height:36px;font:500 14px/1 var(--f-sans);color:var(--encre);animation:rise .9s .65s var(--ease) both}
 .hr-rate .stars{position:relative;display:block;width:74px;height:14px;fill:var(--encre)}
@@ -505,6 +532,8 @@ position:relative;font:400 17px/1.5 var(--f-sans);color:var(--os);background:var
 
 /* 01 réserver : the formule, then the next slot of each barber */
 .now{position:relative;z-index:1;background:var(--os);color:var(--encre);border-radius:30px 30px 0 0;box-shadow:0 -24px 60px rgba(15,14,13,.22);padding:clamp(72px,11vw,130px) 0 clamp(96px,12vw,150px)}
+/* the salon's logo again, a soft watermark behind « Prends place. » (the header's own file, as a mask: no extra request) */
+.now::before{content:"";position:absolute;z-index:-1;pointer-events:none;right:-4vw;top:clamp(30px,4vw,64px);width:min(64vw,300px);aspect-ratio:858/912;background:var(--encre);opacity:.1;-webkit-mask:url(/img/logo-clair.png) center/contain no-repeat;mask:url(/img/logo-clair.png) center/contain no-repeat}
 .now-hd{display:flex;flex-direction:column;gap:22px;margin-top:22px}
 .now-h{font:400 clamp(72px,20vw,200px)/.86 var(--f-serif);letter-spacing:-.03em}
 .now-h em{font-style:italic;color:var(--rouge)}
@@ -666,6 +695,8 @@ position:relative;font:400 17px/1.5 var(--f-sans);color:var(--os);background:var
 .team-bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.24;filter:saturate(1.15)}
 .team::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,var(--encre) 0%,rgba(15,14,13,.55) 38%,rgba(15,14,13,.7) 70%,var(--encre) 100%)}
 .team .wrap{position:relative;z-index:1}
+/* the salon's roundel as a badge beside the heading: the logo (the header's file again) on a dark disc with a fine ring */
+.team .wrap::after{content:"";position:absolute;top:0;right:var(--pad);width:clamp(76px,19vw,210px);aspect-ratio:1;border-radius:50%;background:url(/img/logo-clair.png) center/78% no-repeat,rgba(236,232,224,.05);box-shadow:inset 0 0 0 1.5px rgba(236,232,224,.28);pointer-events:none}
 .team .h2,.carte .h2{margin-top:22px}
 .bb-lead{margin-top:18px;font-size:16px;color:var(--cendre)}
 .bb{margin-top:clamp(28px,5vw,48px);border-top:1px solid var(--ligne2)}
@@ -676,6 +707,7 @@ position:relative;font:400 17px/1.5 var(--f-sans);color:var(--os);background:var
 .bb-n{align-self:center;min-width:0;font:400 clamp(44px,12.4vw,92px)/.92 var(--f-serif);letter-spacing:-.015em;overflow-wrap:anywhere}
 .bb-n.lg{font-size:clamp(34px,9.6vw,72px);line-height:.96}
 .bb-x{grid-column:1/-1;display:flex;flex-direction:column;gap:12px;margin-top:8px}
+.bb-role{font:600 12.5px/1.3 var(--f-sans);letter-spacing:.09em;text-transform:uppercase;color:var(--cendre)}
 .bb-bio{max-width:36ch;font:400 clamp(21px,5.6vw,26px)/1.18 var(--f-serif);color:var(--os);text-wrap:pretty}
 .bb-k{display:flex;align-items:center;gap:8px;font:500 14px/1.2 var(--f-sans);color:var(--cendre)}
 .bb-k i{flex:none;width:7px;height:7px;border-radius:50%;background:#4ADE80}
@@ -1087,8 +1119,10 @@ button.cr-go::after{content:"";position:absolute;inset:0}
 @media (max-width:360px){.slots{grid-template-columns:repeat(3,minmax(0,1fr))}.fld2{grid-template-columns:1fr}}
 
 @media (min-width:700px){
-.hr-ph{left:28vw;right:-12vw;top:22svh}
-.hr-ph img{-webkit-mask-image:linear-gradient(180deg,transparent 0,#000 20%),linear-gradient(90deg,transparent 0,#000 24%);mask-image:linear-gradient(180deg,transparent 0,#000 20%),linear-gradient(90deg,transparent 0,#000 24%);-webkit-mask-composite:source-in;mask-composite:intersect}
+.hr-ph{left:28vw;right:-12vw;top:22svh;bottom:-2svh;width:auto;height:auto}
+.hr-ph img{object-position:50% 18%;-webkit-mask-image:linear-gradient(180deg,transparent 0,#000 20%),linear-gradient(90deg,transparent 0,#000 24%);mask-image:linear-gradient(180deg,transparent 0,#000 20%),linear-gradient(90deg,transparent 0,#000 24%);-webkit-mask-composite:source-in;mask-composite:intersect}
+.hero::before,.hr-night::before{left:3vw;width:46vw;top:33svh;bottom:auto}
+.now::before{right:3vw;width:clamp(300px,36vw,500px);top:clamp(40px,5vw,80px)}
 .hr-top{max-width:62vw}
 .ct{flex-basis:min(46vw,440px)}
 .days{grid-template-columns:repeat(6,minmax(0,1fr))}
@@ -1099,17 +1133,22 @@ button.cr-go::after{content:"";position:absolute;inset:0}
 .bb-n{font-size:clamp(48px,6vw,84px)}
 .bb-n.lg{font-size:clamp(40px,4.8vw,66px)}
 }
-@media (min-width:1000px){
-.tb{height:76px}
-.wm-a{font-size:30px}
-.wm-logo{width:42px}
+.hr-night::before{background:var(--os);opacity:.09}
+/* a wide screen held wide: the man full height on the right, the type bottom left. Held upright (an iPad is 1024 wide that way) it keeps the 700px layout above, which shows him whole instead of zooming into his face with the headline across his chin */
+@media (min-width:1000px) and (min-aspect-ratio:1/1){
 .hero{max-height:none}
-.hr-ph{left:46vw;right:-4vw;top:0;bottom:0}
+.hr-ph{left:46vw;right:-4vw;top:0;bottom:0;width:auto;height:auto}
 .hr-ph img{object-position:42% 30%;-webkit-mask-image:linear-gradient(90deg,transparent 0,#000 26%);mask-image:linear-gradient(90deg,transparent 0,#000 26%)}
 .hr-top{top:auto;bottom:calc(7svh + 176px);max-width:none;right:auto;width:min(50vw,740px)}
 .hr-word{max-width:none}
 .hr-sub{font-size:26px}
 .hx{bottom:7svh;width:480px}
+.hero::before,.hr-night::before{left:var(--wm-l,22vw);width:var(--wm-w,min(34vw,600px));top:var(--wm-t,7svh);-webkit-mask:url(/img/logo-clair.png) center/contain no-repeat,linear-gradient(180deg,#000 45%,transparent 45%,transparent 59%,#000 59%);-webkit-mask-composite:source-in;mask:url(/img/logo-clair.png) center/contain no-repeat,linear-gradient(180deg,#000 45%,transparent 45%,transparent 59%,#000 59%);mask-composite:intersect}
+}
+@media (min-width:1000px){
+.tb{height:76px}
+.wm-a{font-size:30px}
+.wm-logo{width:42px}
 .now-hd{flex-direction:row;align-items:flex-end;justify-content:space-between}
 .now-h{font-size:clamp(110px,11.5vw,160px);white-space:nowrap}
 .now-3{padding-bottom:14px;justify-content:flex-end}
@@ -1254,7 +1293,7 @@ html{scroll-behavior:auto}
 <main id="main">
 <div class="dk">
 <section class="hero" id="frais" data-tone="light" data-cov ref="{{r.hero}}" aria-labelledby="t-hero">
-<h1 class="vh" id="t-hero">Frais. Salon L’Architecte, coiffeur et barbier place Pélabon à Marseille</h1>
+<h1 class="vh" id="t-hero">Salon L’Architecte, coiffeur et barbier, place Pélabon à Marseille</h1>
 <div class="hr-ph"><div class="hr-ph-in" ref="{{r.heroPh}}"><img src="/img/fade.jpg" width="1220" height="1194" alt="Client de profil : cheveux décolorés, dégradé à blanc net sur les côtés" fetchpriority="high"></div></div>
 <div class="hr-top">
 <sc-if value="{{hasNotice}}" hint-placeholder-val="{{ false }}"><p class="{{noticeCls}}" role="status"><i aria-hidden="true"></i><span>{{noticeText}}</span></p></sc-if>
@@ -1272,6 +1311,7 @@ html{scroll-behavior:auto}
 <sc-for list="{{hxChips}}" as="c" hint-placeholder-count="4"><button type="button" class="hx-c" aria-label="{{c.label}}" onClick="{{c.go}}"><b>{{c.t}}</b><small>{{c.s}}</small></button></sc-for>
 </div></sc-if>
 </div>
+<div class="hr-night" aria-hidden="true"></div>
 <div class="hr-veil" aria-hidden="true"></div>
 </section>
 <section class="team" id="barbiers" data-ch="1" data-tone="dark" aria-labelledby="t-team">
@@ -1287,6 +1327,7 @@ html{scroll-behavior:auto}
 <span class="{{b.avCls}}" aria-hidden="true">{{b.ini}}<sc-if value="{{b.hasPhoto}}" hint-placeholder-val="{{ false }}"><img sc-camel-src="{{b.photo}}" alt="" width="58" height="58" loading="lazy" decoding="async" sc-camel-on-error="{{b.photoErr}}"></sc-if></span>
 <h3 class="{{b.nCls}}">{{b.n}}</h3>
 <div class="bb-x">
+<p class="bb-role">Salon L’Architecte · Coiffeur et barbier</p>
 <sc-if value="{{b.hasBio}}" hint-placeholder-val="{{ false }}"><p class="bb-bio">{{b.bio}}</p></sc-if>
 <sc-if value="{{b.hasAway}}" hint-placeholder-val="{{ false }}"><p class="bb-k none"><i aria-hidden="true"></i>{{b.away}}</p></sc-if>
 <sc-if value="{{b.hasK}}" hint-placeholder-val="{{ true }}"><p class="{{b.kCls}}"><i aria-hidden="true"></i>{{b.k}}</p></sc-if>
@@ -1366,7 +1407,7 @@ html{scroll-behavior:auto}
 <section class="cuts sheet" id="coupes" data-ch="4" data-tone="dark" aria-labelledby="t-cuts">
 <div class="wrap ct-head"><div class="ct-ti"><p class="kk" data-rv><span>04</span>Le travail</p><h2 class="h2" id="t-cuts" data-rv="lines"><span class="ln"><span>Sorti du</span></span><span class="ln"><span>fauteuil.</span></span></h2></div><div class="ct-nav"><p class="ct-count" aria-hidden="true"><b>{{cutNum}}</b><span>/ {{cutTotal}}</span></p><button type="button" class="ct-arr" aria-label="Coupe précédente" onClick="{{cutPrev}}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12H5M11 6l-6 6 6 6"/></svg></button><button type="button" class="ct-arr" aria-label="Coupe suivante" onClick="{{cutNext}}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h15M13 6l6 6-6 6"/></svg></button></div></div>
 <div class="ct-row" ref="{{r.cuts}}" data-rv>
-<sc-for list="{{cuts}}" as="c" hint-placeholder-count="3">
+<sc-for list="{{cuts}}" as="c" hint-placeholder-count="2">
 <article class="{{c.cls}}">
 <div class="ct-ph" style="--ox: {{c.ox}}; --oy: {{c.oy}}; --zs: {{c.zs}}">
 <img src="{{c.url}}" width="1220" height="1500" alt="{{c.alt}}" loading="lazy" style="object-position: {{c.pos}}">
@@ -2240,13 +2281,27 @@ const CH = [
 ];
 /* ---------- the site's own words: fixed, the owner does not edit the site ----------
    Prices and hours come from the salon (/api/public/salon `menu` and `hoursText`), the old menu until it answers. */
-const HERO_WORD = 'Frais.';
+const HERO_WORD = 'L’Architecte';
+/* the clipper that crosses the first view, seen from above, black and bone: its teeth (tips at x 354 of 360) lead */
+const CLIPPER_SVG = '<svg class="tdz" viewBox="0 0 360 132" aria-hidden="true" focusable="false">' +
+  '<path d="M22 66a9 9 0 1 0-18 0 9 9 0 0 0 18 0z" fill="none" stroke="#0F0E0D" stroke-width="3"/>' +
+  '<path d="M42 42C92 34 170 29 262 32v68c-92 3-170-2-220-10a24 24 0 0 1 0-48z" fill="#0F0E0D"/>' +
+  '<path d="M52 47.5C100 40.5 170 36.5 228 37" fill="none" stroke="#ECE8E0" stroke-opacity=".2" stroke-width="2" stroke-linecap="round"/>' +
+  '<g fill="none" stroke="#ECE8E0" stroke-opacity=".3" stroke-width="2.4" stroke-linecap="round"><path d="M54 53v26"/><path d="M62 51v30"/><path d="M70 50v32"/><path d="M78 49v34"/></g>' +
+  '<text x="98" y="71" fill="#ECE8E0" fill-opacity=".86" font-family="Instrument Serif,Times New Roman,serif" font-style="italic" font-size="17" letter-spacing=".2">L’Architecte</text>' +
+  '<rect x="186" y="57" width="34" height="18" rx="9" fill="none" stroke="#ECE8E0" stroke-opacity=".5" stroke-width="1.6"/><circle cx="211" cy="66" r="5.6" fill="#ECE8E0"/>' +
+  '<path d="M236 31.2h9v69.6h-9z" fill="#ECE8E0"/><path d="M249 31.6h2.4v68.8H249z" fill="#ECE8E0" fill-opacity=".45"/>' +
+  '<path d="M262 31l36-10.5q8-2 8 6v79q0 8-8 6L262 101z" fill="#0F0E0D"/>' +
+  '<circle cx="283" cy="66" r="5.4" fill="none" stroke="#ECE8E0" stroke-opacity=".7" stroke-width="1.6"/><path d="M279.4 62.4l7.2 7.2" stroke="#ECE8E0" stroke-opacity=".7" stroke-width="1.6" stroke-linecap="round"/>' +
+  '<path d="M246 22l9-12.5a4.6 4.6 0 0 1 8 4.4L258 31h-12z" fill="#0F0E0D"/><circle cx="258.6" cy="13" r="1.9" fill="#ECE8E0"/>' +
+  '<path d="M307 13.5h12.5a3 3 0 0 1 3 3v99a3 3 0 0 1-3 3H307z" fill="#ECE8E0" stroke="#0F0E0D" stroke-width="2"/>' +
+  '<path d="M313.5 20v92" stroke="#0F0E0D" stroke-opacity=".28" stroke-width="1.4"/>' +
+  '<g fill="#0F0E0D"><rect x="322" y="17.5" width="32" height="3" rx="1.5"/><rect x="322" y="22.9" width="32" height="3" rx="1.5"/><rect x="322" y="28.3" width="32" height="3" rx="1.5"/><rect x="322" y="33.7" width="32" height="3" rx="1.5"/><rect x="322" y="39.1" width="32" height="3" rx="1.5"/><rect x="322" y="44.5" width="32" height="3" rx="1.5"/><rect x="322" y="49.9" width="32" height="3" rx="1.5"/><rect x="322" y="55.3" width="32" height="3" rx="1.5"/><rect x="322" y="60.7" width="32" height="3" rx="1.5"/><rect x="322" y="66.1" width="32" height="3" rx="1.5"/><rect x="322" y="71.5" width="32" height="3" rx="1.5"/><rect x="322" y="76.9" width="32" height="3" rx="1.5"/><rect x="322" y="82.3" width="32" height="3" rx="1.5"/><rect x="322" y="87.7" width="32" height="3" rx="1.5"/><rect x="322" y="93.1" width="32" height="3" rx="1.5"/><rect x="322" y="98.5" width="32" height="3" rx="1.5"/><rect x="322" y="103.9" width="32" height="3" rx="1.5"/><rect x="322" y="109.3" width="32" height="3" rx="1.5"/><rect x="322" y="114.7" width="32" height="3" rx="1.5"/></g></svg>';
 /* the Google rating as shown on the page, with its count (never in the structured data: Google shows its own) */
 const REVIEWS = { rating: 5, count: 316 };
 const IG0 = 'https://www.instagram.com/barbershoplarchitecte/';
 /* the 'Le travail' cards: each books the service it shows, when the catalogue sells it */
 const WORK = [
-  { url: '/img/sidepart.jpg', alt: 'Raie marquée sur le côté, dégradé bas, nuque tatouée', caption: 'La raie marquée', tag: 'Dégradé bas, raie tracée', service: 'cl', pos: '50% 30%', ox: '60%', oy: '47%', zs: 2.4 },
   { url: '/img/curls.jpg', alt: 'Boucles serrées sur le dessus, dégradé net et barbe taillée, face au miroir du salon', caption: 'Boucles et barbe', tag: 'Contour net, barbe taillée', service: 'ct', pos: '45% 45%', ox: '52%', oy: '58%', zs: 2.3 },
   { url: '/img/fade.jpg', alt: 'Cheveux décolorés et dégradé à blanc derrière l’oreille', caption: 'Décoloré, à blanc', tag: 'Dégradé à blanc, décoloré', service: 'cd', pos: '62% 40%', ox: '58%', oy: '42%', zs: 2.2 }
 ];
@@ -2387,6 +2442,7 @@ Halftone.prototype.layout = function () {
   o.lines.forEach(function (l) { mw = Math.max(mw, c.measureText(l).width); });
   let size = (W * o.fill) / (mw / 100);
   if (o.maxH) size = Math.min(size, o.maxH);
+  if (o.size) size = o.size;
   c.font = this.font(size);
   let asc = 0, desc = 0;
   const ms = o.lines.map(function (l) {
@@ -2397,9 +2453,9 @@ Halftone.prototype.layout = function () {
   });
   const capH = c.measureText('H').actualBoundingBoxAscent || size * 0.7;
   const lh = size * o.lh;
-  const padT = Math.ceil(size * 0.03) + 3;
+  const padT = o.padY || (Math.ceil(size * 0.03) + 3);
   const H = Math.ceil(padT + asc + (o.lines.length - 1) * lh + desc + padT);
-  this.W = W; this.H = H; this.size = size; this.capH = capH; this.dpr = dpr;
+  this.W = W; this.H = H; this.size = size; this.capH = capH; this.dpr = dpr; this.padT = padT;
   cv.style.height = H + 'px';
   cv.width = Math.round(W * dpr);
   cv.height = Math.round(H * dpr);
@@ -2413,7 +2469,7 @@ Halftone.prototype.layout = function () {
   mc.textBaseline = 'alphabetic';
   this.lines = o.lines.map(function (l, i) {
     const w = ms[i].width;
-    const x = o.align === 'center' ? (W - w) / 2 : (o.align === 'right' ? W - w : 0);
+    const x = o.align === 'center' ? (W - w) / 2 : (o.align === 'right' ? W - w : (o.padX || 0));
     const base = padT + asc + i * lh;
     mc.fillText(l, x, base);
     return { t: l, x: x, w: w, base: base, top: base - asc - 2, bot: base + desc + 2 };
@@ -2456,11 +2512,156 @@ Halftone.prototype.draw = function (f, color) {
   c.globalCompositeOperation = 'source-over';
 };
 
+function rng(seed) {
+  let s = seed % 2147483647;
+  if (s <= 0) s += 2147483646;
+  return function () { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; };
+}
+/* hair grown out: dots sown once around the letters (rim) and in their faded foot (stub), shown by drawGrown as g rises */
+Halftone.prototype.fuzz = function () {
+  const d = this.dpr, cell = this.cell;
+  const mw = this.mask.width, mh = this.mask.height;
+  let md, sd;
+  try {
+    md = this.mask.getContext('2d').getImageData(0, 0, mw, mh).data;
+    const st = document.createElement('canvas');
+    st.width = mw; st.height = mh;
+    const sc = st.getContext('2d', { willReadFrequently: true });
+    sc.setTransform(d, 0, 0, d, 0, 0);
+    sc.font = this.font(this.size);
+    sc.lineJoin = 'round';
+    sc.lineWidth = cell * 2.4;
+    sc.strokeStyle = '#000';
+    this.lines.forEach(function (L) { sc.strokeText(L.t, L.x, L.base); });
+    sd = sc.getImageData(0, 0, mw, mh).data;
+  } catch (e) { this.rim = []; this.stub = []; return; }
+  const A = function (data, x, y) {
+    const px = (x * d) | 0, py = (y * d) | 0;
+    if (px < 0 || py < 0 || px >= mw || py >= mh) return 0;
+    return data[(py * mw + px) * 4 + 3];
+  };
+  const rnd = rng(this.o.seed || 7);
+  const rim = [], stub = [];
+  this.lines.forEach(function (L, li) {
+    const x0 = L.x - cell * 2, x1 = L.x + L.w + cell * 2, y0 = L.top - cell, y1 = L.bot + cell;
+    const n = Math.min(16000, Math.round((x1 - x0) * (y1 - y0) / (cell * cell) * 1.5));
+    for (let i = 0; i < n; i++) {
+      const x = x0 + rnd() * (x1 - x0), y = y0 + rnd() * (y1 - y0);
+      if (A(md, x, y) > 110) stub.push([x, y, cell * (0.13 + rnd() * 0.12), rnd(), li]);
+      else if (A(sd, x, y) > 40) rim.push([x, y, cell * (0.1 + rnd() * 0.14), rnd(), li]);
+    }
+  });
+  this.rim = rim;
+  this.stub = stub;
+};
+// f: share of the cap height drawn as a halftone fade. g: growth (0 fresh, 1 grown out).
+Halftone.prototype.drawGrown = function (f, g, color) {
+  if (!this.ok) return;
+  const c = this.ctx, d = this.dpr, W = this.W, H = this.H, cell = this.cell, capH = this.capH;
+  c.setTransform(d, 0, 0, d, 0, 0);
+  c.globalCompositeOperation = 'source-over';
+  c.clearRect(0, 0, W, H);
+  c.fillStyle = color;
+  c.beginPath();
+  const R = cell * 0.6, FULL = cell * 0.64;
+  const bands = [];
+  this.lines.forEach(function (L) {
+    const bTop = L.base - capH * f;
+    bands.push(bTop);
+    const top = L.top - cell;
+    if (bTop > top) c.rect(L.x - cell, top, L.w + cell * 2, bTop - top);
+    const span = Math.max(1, L.base - bTop);
+    let row = 0;
+    for (let y = bTop + cell * 0.3; y < L.bot + cell; y += cell * 0.866, row++) {
+      const t = (y - bTop) / span;
+      let rad = t >= 1 ? 0 : R * Math.pow(1 - t, 1.15);
+      rad += (FULL - rad) * g;
+      if (rad < 0.22) continue;
+      const off = (row % 2) ? cell / 2 : 0;
+      for (let x = L.x - cell + off; x < L.x + L.w + cell; x += cell) {
+        c.moveTo(x + rad, y);
+        c.arc(x, y, rad, 0, 6.2832);
+      }
+    }
+  });
+  c.fill();
+  c.globalCompositeOperation = 'destination-in';
+  c.setTransform(1, 0, 0, 1, 0, 0);
+  c.drawImage(this.mask, 0, 0);
+  c.setTransform(d, 0, 0, d, 0, 0);
+  c.globalCompositeOperation = 'source-over';
+  if (g > 0.02 && this.rim) {
+    c.beginPath();
+    const k = Math.pow(g, 1.35);
+    for (let i = 0; i < this.rim.length; i++) {
+      const p = this.rim[i];
+      if (p[3] < k) { const r = p[2] * (0.75 + g * 0.6); c.moveTo(p[0] + r, p[1]); c.arc(p[0], p[1], r, 0, 6.2832); }
+    }
+    for (let i = 0; i < this.stub.length; i++) {
+      const p = this.stub[i];
+      if (p[3] < g && p[1] > bands[p[4]]) { const r = p[2] * (0.9 + g); c.moveTo(p[0] + r, p[1]); c.arc(p[0], p[1], r, 0, 6.2832); }
+    }
+    c.fill();
+  }
+};
+
+/* ---------- Clippings that fall behind the clipper ---------- */
+function Bits(cv) {
+  this.cv = cv; this.ctx = cv.getContext('2d'); this.p = []; this.raf = 0;
+  const self = this;
+  this.tick = function () { self.step(); };
+}
+Bits.prototype.layout = function () {
+  const W = this.cv.clientWidth, H = this.cv.clientHeight;
+  if (!W || !H) return;
+  const d = Math.min(2, window.devicePixelRatio || 1);
+  this.W = W; this.H = H; this.d = d;
+  this.cv.width = Math.round(W * d);
+  this.cv.height = Math.round(H * d);
+};
+Bits.prototype.spawn = function (x, y0, y1, n) {
+  if (!this.W) this.layout();
+  if (!this.W) return;
+  for (let i = 0; i < n; i++) {
+    this.p.push({ x: x - 4 + (Math.random() - 0.5) * 8, y: y0 + Math.random() * (y1 - y0), vx: (Math.random() - 0.62) * 1.1, vy: -Math.random() * 1.3, a: Math.random() * 3.14, va: (Math.random() - 0.5) * 0.2, len: 2.5 + Math.random() * 5, l: 0.75 + Math.random() * 0.6 });
+  }
+  if (this.p.length > 520) this.p.splice(0, this.p.length - 520);
+  if (!this.raf) this.raf = requestAnimationFrame(this.tick);
+};
+Bits.prototype.step = function () {
+  const c = this.ctx, d = this.d;
+  c.setTransform(d, 0, 0, d, 0, 0);
+  c.clearRect(0, 0, this.W, this.H);
+  c.strokeStyle = '#4a4440';
+  c.lineWidth = 1.3;
+  c.lineCap = 'round';
+  const keep = [];
+  for (let i = 0; i < this.p.length; i++) {
+    const q = this.p[i];
+    q.vy += 0.16; q.vx *= 0.985; q.x += q.vx; q.y += q.vy; q.a += q.va; q.l -= 0.011;
+    if (q.l <= 0 || q.y > this.H + 10) continue;
+    keep.push(q);
+    c.globalAlpha = Math.min(1, q.l * 1.4);
+    c.beginPath();
+    c.moveTo(q.x - Math.cos(q.a) * q.len / 2, q.y - Math.sin(q.a) * q.len / 2);
+    c.lineTo(q.x + Math.cos(q.a) * q.len / 2, q.y + Math.sin(q.a) * q.len / 2);
+    c.stroke();
+  }
+  c.globalAlpha = 1;
+  this.p = keep;
+  this.raf = keep.length ? requestAnimationFrame(this.tick) : 0;
+  if (!this.raf && this.done) this.done();
+};
+
 class Component extends DCLogic {
   constructor(props) {
     super(props);
+    // the first view opens on the night page (see night()), its top bar in bone; never with reduced motion
+    let night = true;
+    try { night = !(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { night = true; }
+    this._night = night;
     this.state = {
-      now: Date.now(), chap: 0, tone: 'light', scrolled: false, ctaHide: false, menu: false,
+      now: Date.now(), chap: 0, tone: night ? 'dark' : 'light', scrolled: false, ctaHide: false, menu: false,
       cut: 0, zoom: -1,
       // tab: the carte's category; hf: the formule touched under « Pour quelle formule ? » (none: the first of the catalogue)
       tab: 0, hf: null,
@@ -2636,21 +2837,208 @@ class Component extends DCLogic {
     if (this._heroCv && (!this.htHero || this.htHero.cv !== this._heroCv)) {
       this.htHero = new Halftone(this._heroCv, { lines: [HERO_WORD], fill: 1, cellK: 30, maxH: vh * (wide ? 0.5 : 0.3) });
       this.htHero.layout();
+      this.placeMark();
       this.drawHero();
+      if (this._nightWait) { this._nightWait = false; if (!this.night()) this.nightEnd(true); }
     }
   }
 
   relayout() {
     const vh = window.innerHeight || 800;
     const wide = (window.innerWidth || 400) > 900;
-    if (this.htHero) { this.htHero.o.maxH = vh * (wide ? 0.5 : 0.3); this.htHero.layout(); this.drawHero(); }
+    if (this.htHero) { this.htHero.o.maxH = vh * (wide ? 0.5 : 0.3); this.htHero.layout(); this.placeMark(); this.drawHero(); }
   }
 
   intro() {
     if (this._introDone) return;
     this._introDone = true;
-    if (this._rm) { this._intro = 1; this.drawHero(); return; }
-    this.tween(0, 1, 1400, (v) => { this._intro = v; this.drawHero(); });
+    this._intro = 1;
+    this.drawHero();
+    if (!this._night) return;
+    // not over a booking, nor when the page opens lower down
+    let skip = this._rm || (window.scrollY || 0) > (window.innerHeight || 800) * 0.3 || !!document.querySelector('.bk.open');
+    try { if (/[?&]reserver(&|=|$)/.test(window.location.search)) skip = true; } catch (e) { /* ignore */ }
+    if (skip) { this.nightEnd(true); return; }
+    if (!this.htHero) { this._nightWait = true; return; }
+    if (!this.night()) this.nightEnd(true);
+  }
+
+  /* the logo behind the name on a wide screen (the CSS uses these only there): its own « L’ARCHITECTE » sits behind the
+     drawn name (the CSS masks that band out), so its arcs and rules frame it. The band is 96.9% of the mark's width, its
+     middle 52.45% down (measured on logo-clair.png). */
+  placeMark() {
+    const ht = this.htHero, cv = this._heroCv, word = cv && cv.parentElement, top = word && word.offsetParent, hero = cv && cv.closest('.hero');
+    if (!ht || !ht.ok || !ht.lines || !ht.lines[0] || !top || !hero) return;
+    const L = ht.lines[0], w = ht.W / 0.969, h = w * 912 / 858;
+    hero.style.setProperty('--wm-l', (top.offsetLeft + word.offsetLeft + ht.W / 2 - w / 2).toFixed(1) + 'px');
+    hero.style.setProperty('--wm-t', (top.offsetTop + word.offsetTop + L.base - ht.capH * 0.5 - h * 0.5245).toFixed(1) + 'px');
+    hero.style.setProperty('--wm-w', w.toFixed(1) + 'px');
+  }
+
+  /* A picture: a closed shadow tree under `host`, with the page's own styles. What the night draws there (the copy of the
+     hero, the second top bar) is seen and nothing else: no script, no test, no screen reader finds a second « Sommaire ». */
+  picture(host) {
+    if (host.__pic) return host.__pic;
+    let root;
+    try { root = host.attachShadow({ mode: 'closed' }); } catch (e) { return null; }
+    if (!this._picCss) this._picCss = Array.prototype.map.call(document.querySelectorAll('style'), (x) => x.textContent).join('\n') + '\n.hr-night{animation:none!important;background:none}.hr-night::before{display:none}';
+    try {
+      if (!this._picSheet) { this._picSheet = new CSSStyleSheet(); this._picSheet.replaceSync(this._picCss); }
+      root.adoptedStyleSheets = [this._picSheet];
+    } catch (e) { const st = document.createElement('style'); st.textContent = this._picCss; root.appendChild(st); }
+    const lp = document.createElement('div');
+    lp.className = 'lp';
+    lp.style.display = 'contents';
+    root.appendChild(lp);
+    host.__pic = lp;
+    return lp;
+  }
+
+  /* the copy of the hero's words on the night page, in bone, the name with its hair grown; made again when the words move */
+  nightSync() {
+    const hero = this._hero, ht = this.htHero;
+    const ov = hero && hero.querySelector('.hr-night'), top = hero && hero.querySelector('.hr-top');
+    if (!ov || !top || !ht || !ht.ok) return false;
+    const twin = (el) => {
+      const c = el.cloneNode(true);
+      Array.prototype.forEach.call(c.querySelectorAll('*'), (x) => {
+        Array.prototype.slice.call(x.attributes).forEach((a) => { if (a.name === 'id' || a.name === 'ref' || a.name === 'role' || a.name === 'fetchpriority' || a.name.indexOf('data-guide') === 0) x.removeAttribute(a.name); });
+      });
+      // « ann-h » marks the hero's own notices (the tests and the guide count them): the copy is only their picture
+      Array.prototype.forEach.call(c.querySelectorAll('.ann-h'), (x) => x.classList.remove('ann-h'));
+      return c;
+    };
+    const copy = twin(top);
+    const ph = hero.querySelector('.hr-ph'), hx = hero.querySelector('.hx');
+    const phCopy = ph ? twin(ph) : null, hxCopy = hx ? twin(hx) : null;
+    if (phCopy) { const inn = phCopy.querySelector('.hr-ph-in'); if (inn) inn.style.transform = 'none'; }
+    const word = copy.querySelector('.hr-word'), old = word && word.querySelector('canvas');
+    if (!word || !old) return false;
+    old.style.visibility = 'hidden';
+    const M = Math.ceil(ht.cell * 3), PY = ht.padT + M;
+    const box = document.createElement('div');
+    box.className = 'nt-word';
+    box.style.left = -M + 'px'; box.style.top = -M + 'px'; box.style.width = (ht.W + 2 * M) + 'px';
+    const cv = document.createElement('canvas');
+    cv.className = 'ht';
+    box.appendChild(cv); word.appendChild(box);
+    try { ov.inert = true; } catch (e) { /* ignore */ }
+    const pic = this.picture(ov);
+    if (!pic) return false;
+    const page = document.createElement('div');
+    page.className = 'hr-night';
+    if (phCopy) page.appendChild(phCopy);
+    page.appendChild(copy);
+    if (hxCopy) page.appendChild(hxCopy);
+    pic.textContent = '';
+    pic.appendChild(page);
+    this._nightEls = Array.prototype.slice.call(page.children);
+    this.htNight = new Halftone(cv, { lines: [HERO_WORD], size: ht.size, padX: M, padY: PY, cellK: 30, seed: 7 });
+    this.htNight.layout();
+    this.htNight.fuzz();
+    this._nightKey = this.nightKey();
+    return true;
+  }
+
+  /* what the night copy was made from: when it changes (a notice arrives, the next slot is known, the screen turns) it is made again */
+  nightKey() {
+    const hero = this._hero, ht = this.htHero, top = hero && hero.querySelector('.hr-top'), hx = hero && hero.querySelector('.hx');
+    if (!ht || !top) return '';
+    return ht.size.toFixed(2) + '/' + ht.W + '/' + top.offsetHeight + '/' + top.offsetTop + '/' + (hx ? hx.textContent : '');
+  }
+
+  /* The first view. The page is grown out: dark, the name in bone, its hair growing. A clipper comes in from the left behind
+     a line of red light and crosses the whole screen: in its wake the fresh page (stone, the name sharp, the man), the
+     clippings falling. The top bar changes with it, at the line. Once per page view; never with reduced motion. */
+  night() {
+    const hero = this._hero, tb = document.querySelector('.lp .tb');
+    const ov = hero && hero.querySelector('.hr-night');
+    if (!hero || !ov || !tb || !this.nightSync()) return false;
+    hero.insertAdjacentHTML('beforeend', '<i class="hr-cut" aria-hidden="true"></i>' + CLIPPER_SVG + '<canvas class="hr-bits" aria-hidden="true"></canvas>');
+    const line = hero.querySelector('.hr-cut'), tdz = hero.querySelector('.tdz'), bcv = hero.querySelector('.hr-bits');
+    if (!line || !tdz || !bcv) return false;
+    const bits = new Bits(bcv);
+    bits.done = () => { if (bits.over && bcv.parentNode) bcv.parentNode.removeChild(bcv); };
+    // the fresh top bar, shown up to the line; the real one (in bone while the night lasts) is shown after it
+    const gh = document.createElement('div');
+    gh.className = 'tb-ghost';
+    gh.setAttribute('aria-hidden', 'true');
+    try { gh.inert = true; } catch (e) { /* ignore */ }
+    tb.parentNode.insertBefore(gh, tb.nextSibling);
+    const gpic = this.picture(gh);
+    if (!gpic) { gh.remove(); return false; }
+    const ghost = tb.cloneNode(true);
+    ghost.className = 'tb light';
+    Array.prototype.forEach.call(ghost.querySelectorAll('*'), (el) => {
+      Array.prototype.slice.call(el.attributes).forEach((a) => { if (a.name === 'id' || a.name === 'ref' || a.name === 'aria-controls' || a.name.indexOf('data-guide') === 0) el.removeAttribute(a.name); });
+      if (el.tabIndex >= 0) el.tabIndex = -1;
+    });
+    gpic.appendChild(ghost);
+    const clip = (el, v) => { el.style.webkitClipPath = v; el.style.clipPath = v; };
+    clip(ghost, 'inset(0 100% -40px 0)');
+    const T_GROW = 620, T_CUT = 1750;
+    const inOut = (k) => (k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2);
+    const BONE = '#ECE8E0';
+    const t0 = performance.now();
+    let lastX = 0, grownAt = -1;
+    this._nightRun = { ghost: gh, tb: tb, bits: bits };
+    const step = (now) => {
+      if (!this._nightRun) return;
+      const ht = this.htHero, top = hero.querySelector('.hr-top');
+      if (!ht || !ht.ok || !top) { this.nightEnd(); return; }
+      if (this._nightKey !== this.nightKey()) { this.nightSync(); grownAt = -1; }
+      const T = now - t0, W = hero.clientWidth;
+      const L = ht.lines[0], word = this._heroCv.parentElement;
+      const wx = top.offsetLeft + word.offsetLeft, wy = top.offsetTop + word.offsetTop;
+      // the hair grows while the page waits
+      const g = 0.5 + 0.5 * easeOut(Math.min(1, T / T_GROW));
+      if (g !== grownAt) { grownAt = g; this.htNight.drawGrown(0.42, g, BONE); }
+      const op = Math.min(1, T / 260).toFixed(3);
+      this._nightEls.forEach((el) => { el.style.opacity = op; });
+      // the cut
+      const k = Math.max(0, Math.min(1, (T - T_GROW) / T_CUT));
+      const x = k <= 0 ? -4 : -4 + inOut(k) * (W + 8);
+      const on = k > 0 && k < 1;
+      clip(ov, 'inset(0 0 0 ' + Math.max(0, x).toFixed(1) + 'px)');
+      clip(tb, 'inset(0 0 -40px ' + Math.max(0, x).toFixed(1) + 'px)');
+      clip(ghost, 'inset(0 ' + Math.max(0, W - x).toFixed(1) + 'px -40px 0)');
+      line.style.opacity = on ? '1' : '0';
+      line.style.transform = 'translate3d(' + x.toFixed(1) + 'px,0,0)';
+      const th = Math.max(84, ht.capH * 1.5), tw = th * 360 / 132;
+      tdz.style.width = tw.toFixed(1) + 'px'; tdz.style.height = th.toFixed(1) + 'px';
+      // its work is the name: once past it the clipper lifts off, and the line of light finishes the page alone
+      const lift = Math.max(0, Math.min(1, (x - (wx + L.x + L.w + tw * 0.1)) / (tw * 0.42)));
+      tdz.style.opacity = on ? (1 - lift * lift).toFixed(3) : '0';
+      tdz.style.transform = 'translate3d(' + (x - tw * 354 / 360).toFixed(1) + 'px,' + (wy + L.base - ht.capH * 0.5 - th / 2 + (on ? Math.sin(T * 0.12) * 0.6 : 0) - lift * 16).toFixed(1) + 'px,0) rotate(' + (-lift * 3).toFixed(2) + 'deg)';
+      if (on) {
+        const dx = Math.max(0, x - lastX), inWord = x > wx + L.x - 6 && x < wx + L.x + L.w + 10;
+        const n = dx * (inWord ? 0.5 : 0.07);
+        bits.spawn(x, wy + L.base - ht.capH * 1.02, wy + L.base + ht.capH * 0.06, Math.floor(n) + (Math.random() < n % 1 ? 1 : 0));
+      }
+      lastX = x;
+      if (k < 1) requestAnimationFrame(step);
+      else this.nightEnd();
+    };
+    requestAnimationFrame(step);
+    return true;
+  }
+
+  /* the night is over (or never was: now): the fresh page alone, its own top bar back */
+  nightEnd(now) {
+    const run = this._nightRun, hero = this._hero;
+    this._nightRun = null; this._night = false; this._nightWait = false; this.htNight = null; this._nightEls = null;
+    const ov = hero && hero.querySelector('.hr-night');
+    if (ov) { ov.style.display = 'none'; if (ov.__pic) ov.__pic.textContent = ''; }
+    if (hero) Array.prototype.forEach.call(hero.querySelectorAll('.hr-cut,.tdz'), (el) => el.remove());
+    if (run) { run.bits.over = true; if (!run.bits.raf) run.bits.done(); }
+    this.frame();
+    const tidy = () => {
+      if (run && run.ghost.parentNode) run.ghost.parentNode.removeChild(run.ghost);
+      const tb = run ? run.tb : document.querySelector('.lp .tb');
+      if (tb) { tb.style.webkitClipPath = ''; tb.style.clipPath = ''; }
+    };
+    if (now || !run) tidy();
+    else setTimeout(tidy, 90);
   }
 
   drawHero() {
@@ -2695,6 +3083,7 @@ class Component extends DCLogic {
     const W = window.innerWidth;
     if (force || W !== this._lastW) { this._lastW = W; if (this._fontsOk) this.relayout(); }
     this.setupReveal();
+    this.placeMark();
     this.frame();
   }
 
@@ -2718,12 +3107,14 @@ class Component extends DCLogic {
       const o = this._rm ? 0 : clamp(1 - top / vh, 0, 1);
       if (Math.abs(o - c.o) > 0.002 || (o === 0 && c.o !== 0) || (o === 1 && c.o !== 1)) { c.o = o; c.el.style.setProperty('--o', o.toFixed(3)); }
     }
+    if (this._nightRun && y > vh * 0.3) { this.nightEnd(); return; }
     if (this._heroPh && y < vh * 1.3) { this._par = this._rm ? 0 : y * 0.14; this._heroPh.style.transform = 'translate3d(0,' + this._par.toFixed(1) + 'px,0)'; }
     /* what is under the top bar, and which chapter fills the screen */
     let tone = s.tone, chap = s.chap;
     const hb = this.hitAt(6, 34);
     const tt = hb ? hb.closest('[data-tone]') : null;
     if (tt) tone = tt.getAttribute('data-tone');
+    if (this._night && tt && tt.id === 'frais') tone = 'dark';
     const hc = this.hitAt(6, Math.round(vh * 0.48));
     if (hc) { const ch = hc.closest('[data-ch]'); chap = ch ? (parseInt(ch.getAttribute('data-ch'), 10) || 0) : 0; }
     let hide = false;
