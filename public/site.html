@@ -1111,7 +1111,7 @@ button.cr-go::after{content:"";position:absolute;inset:0}
 .hr-word{max-width:none}
 .hr-sub{font-size:26px}
 .hx{bottom:7svh;width:480px}
-.hero::before{left:var(--wm-l,22vw);width:var(--wm-w,min(34vw,600px));top:var(--wm-t,7svh)}
+.hero::before{left:var(--wm-l,22vw);width:var(--wm-w,min(34vw,600px));top:var(--wm-t,7svh);-webkit-mask:url(/img/logo-clair.png) center/contain no-repeat,linear-gradient(180deg,#000 45%,transparent 45%,transparent 59%,#000 59%);-webkit-mask-composite:source-in;mask:url(/img/logo-clair.png) center/contain no-repeat,linear-gradient(180deg,#000 45%,transparent 45%,transparent 59%,#000 59%);mask-composite:intersect}
 }
 @media (min-width:1000px){
 .tb{height:76px}
@@ -2718,13 +2718,14 @@ class Component extends DCLogic {
   }
 
   /* the logo behind the name on a wide screen (the CSS uses these only there): its own « L’ARCHITECTE » sits behind the
-     drawn name, so its arcs and rules frame it. The mark's band of letters is 96% of its width, its middle 53% down. */
+     drawn name (the CSS masks that band out), so its arcs and rules frame it. The band is 96.9% of the mark's width, its
+     middle 52.45% down (measured on logo-clair.png). */
   placeMark() {
     const ht = this.htHero, cv = this._heroCv, word = cv && cv.parentElement, top = word && word.offsetParent, hero = cv && cv.closest('.hero');
     if (!ht || !ht.ok || !ht.lines || !ht.lines[0] || !top || !hero) return;
-    const L = ht.lines[0], w = ht.W / 0.96, h = w * 912 / 858;
+    const L = ht.lines[0], w = ht.W / 0.969, h = w * 912 / 858;
     hero.style.setProperty('--wm-l', (top.offsetLeft + word.offsetLeft + ht.W / 2 - w / 2).toFixed(1) + 'px');
-    hero.style.setProperty('--wm-t', (top.offsetTop + word.offsetTop + L.base - ht.capH * 0.5 - h * 0.53).toFixed(1) + 'px');
+    hero.style.setProperty('--wm-t', (top.offsetTop + word.offsetTop + L.base - ht.capH * 0.5 - h * 0.5245).toFixed(1) + 'px');
     hero.style.setProperty('--wm-w', w.toFixed(1) + 'px');
   }
 
