@@ -124,7 +124,7 @@
       var here = location.pathname.replace(/\.html$/, '').replace(/\/+$/, '') || '/';
       ft.appendChild(h('div', { class: 'ft-g' }, [
         h('div', {}, [
-          h('span', { class: 'ft-n', 'data-f': 'shop.name' }, ['Barber L’Architecte']),
+          h('span', { class: 'ft-n', 'data-f': 'shop.name' }, ['Salon L’Architecte']),
           h('address', {}, [
             h('span', { 'data-f': 'address' }, ['16, place Pélabon, 13013 Marseille']),
             // two items of a row that wraps, no « · » between them: a line break can strand no separator (the phone is hidden while the salon has none)
@@ -139,7 +139,7 @@
           if (l[0] === here) a.setAttribute('aria-current', 'page');
           return h('li', {}, [a]);
         }))]),
-        h('p', { class: 'ft-c' }, ['© ' + new Date().getFullYear() + ' ', h('span', { 'data-f': 'editor' }, ['Barber L’Architecte']), ' ·' + NB + 'Pas de pistage, pas de mesure d’audience.'])
+        h('p', { class: 'ft-c' }, ['© ' + new Date().getFullYear() + ' ', h('span', { 'data-f': 'editor' }, ['Salon L’Architecte']), ' ·' + NB + 'Pas de pistage, pas de mesure d’audience.'])
       ]));
     });
   }

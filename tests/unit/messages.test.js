@@ -10,7 +10,7 @@ const length = (t) => [...t].reduce((n, c) => n + (EXT.has(c) ? 2 : 1), 0);
 
 test('default texts stay in one plain SMS with realistic values', () => {
   const vars = {
-    prenom: 'Maximilien', ...whenWords('2026-11-12', 870), barbier: 'Le Soldat', prestation: 'Coupe', prix: '30 €', salon: 'Barber L’Architecte',
+    prenom: 'Maximilien', ...whenWords('2026-11-12', 870), barbier: 'Le Soldat', prestation: 'Coupe', prix: '30 €', salon: 'Salon L’Architecte',
     lien: 'https://l-architecte.vercel.app/r/LA-7K2P.Ab3dEf9hIj2kLm4nOp6q',
     // REV-02: the review's tracked link, on the salon's domain, for a client file id of the usual length
     avis: 'https://barberlarchitecte.com/avis/msg_rev_cl_mvqgbw0v1jm5vI6W_2026-4.Ab3dEf9hIj2kLm4nOp6qRs',

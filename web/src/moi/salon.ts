@@ -15,7 +15,7 @@ export type SalonInfo = {
   membership: boolean;
 };
 
-const DEFAULTS: SalonInfo = { name: 'Barber L’Architecte', editor: 'Barber L’Architecte', phone: '', email: 'larchitectebarber@gmail.com', address: '16, place Pélabon, 13013 Marseille', carnet: false, membership: false };
+const DEFAULTS: SalonInfo = { name: 'Salon L’Architecte', editor: 'Salon L’Architecte', phone: '', email: 'larchitectebarber@gmail.com', address: '16, place Pélabon, 13013 Marseille', carnet: false, membership: false };
 let once: Promise<SalonInfo> | null = null;
 
 export function loadSalon(): Promise<SalonInfo> {

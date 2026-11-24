@@ -61,7 +61,7 @@ test('a booking with an e-mail queues one SMS and one e-mail with the calendar f
   assert.match(file.content, /\r\nDTSTART;TZID=Europe\/Paris:20261105T100000\r\n/);
   assert.match(file.content, /\r\nDTEND;TZID=Europe\/Paris:20261105T103000\r\n/);
   assert.match(file.content, /BEGIN:VTIMEZONE\r\nTZID:Europe\/Paris/);
-  assert.match(file.content, /LOCATION:Barber L’Architecte\\, 16\\, place Pélabon\\, 13013 Marseille/);
+  assert.match(file.content, /LOCATION:Salon L’Architecte\\, 16\\, place Pélabon\\, 13013 Marseille/);
   assert.match(file.content, /UID:ap_\w+@larchitecte/);
   assert.match(file.content, /METHOD:PUBLISH/);
 
@@ -79,7 +79,7 @@ test('a booking with an e-mail queues one SMS and one e-mail with the calendar f
   assert.equal(call.url, 'https://api.brevo.com/v3/smtp/email');
   assert.equal(call.init.method, 'POST');
   assert.equal(call.init.headers['api-key'], 'xkeysib-1');
-  assert.deepEqual(call.body.sender, { email: 'rdv@barberlarchitecte.com', name: 'Barber L’Architecte' });
+  assert.deepEqual(call.body.sender, { email: 'rdv@barberlarchitecte.com', name: 'Salon L’Architecte' });
   assert.deepEqual(call.body.replyTo, { email: 'larchitectebarber@gmail.com' });
   assert.equal(call.body.subject, mail.mail.subject);
   assert.equal(call.body.textContent, mail.body);
@@ -316,8 +316,8 @@ test('production without EMAIL_FROM: e-mails stay queued, the warning says so, t
   assert.equal(boot.json.providers.email, null);
 
   // with the sender set, Brevo is the provider and the warning is gone
-  const ok = await production({ BREVO_API_KEY: 'xkeysib-1', EMAIL_FROM: 'Barber L’Architecte <rdv@barberlarchitecte.com>', EMAIL_REPLY_TO: 'larchitectebarber@gmail.com' });
-  assert.deepEqual(ok.rt.cfg.email, { kind: 'brevo', apiKey: 'xkeysib-1', from: 'rdv@barberlarchitecte.com', fromName: 'Barber L’Architecte', replyTo: 'larchitectebarber@gmail.com' });
+  const ok = await production({ BREVO_API_KEY: 'xkeysib-1', EMAIL_FROM: 'Salon L’Architecte <rdv@barberlarchitecte.com>', EMAIL_REPLY_TO: 'larchitectebarber@gmail.com' });
+  assert.deepEqual(ok.rt.cfg.email, { kind: 'brevo', apiKey: 'xkeysib-1', from: 'rdv@barberlarchitecte.com', fromName: 'Salon L’Architecte', replyTo: 'larchitectebarber@gmail.com' });
   assert.equal(ok.rt.email.name, 'brevo');
   assert.ok(!ok.rt.warnings.some((w) => /fournisseur e-mail/.test(w)));
   assert.equal((await ok.owner.get('/api/v1/bootstrap')).json.providers.email, 'brevo');

@@ -14,7 +14,7 @@ import './avis.css';
 
 const DELAYS = [30, 60, 120, 240, 1440];
 const delayWords = (n: number) => (n < 60 ? n + ' min' : n === 1440 ? 'le lendemain' : n / 60 + ' h');
-const SAMPLE: Record<string, string> = { prenom: 'Karim', date: 'Jeu. 12 nov.', heure: '14 h 30', barbier: 'JKut', prestation: 'Coupe classique', prix: '20 €', salon: 'Barber L’Architecte', lien: '' };
+const SAMPLE: Record<string, string> = { prenom: 'Karim', date: 'Jeu. 12 nov.', heure: '14 h 30', barbier: 'JKut', prestation: 'Coupe classique', prix: '20 €', salon: 'Salon L’Architecte', lien: '' };
 /** The text as the server renders it (domain/messages.js renderTemplate), with a link as long as a real one. */
 function rendered(tpl: string, link: string) {
   return tpl.replace(/\{(\w+)\}/g, (x: string, k: string) => (k === 'avis' ? link : SAMPLE[k] ?? x)).replace(/\s+/g, ' ')

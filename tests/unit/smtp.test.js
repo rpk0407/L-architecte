@@ -73,7 +73,7 @@ function fakeServer(o = {}) {
   return new Promise((ok) => server.listen(0, '127.0.0.1', () => ok({ port: server.address().port, log })));
 }
 const cfgOf = (port, x = {}) => ({ host: 'localhost', port, user: USER, pass: PASS, timeoutMs: 3000, tlsOptions: { ca: PKI.cert }, ...x });
-const mail = (x = {}) => buildMime({ from: USER, fromName: 'Barber L’Architecte', to: 'karim@exemple.fr', subject: 'Rendez-vous confirmé : jeudi 5 novembre à 10 h', text: 'Bonjour Karim,\n\nC’est noté.\n.une ligne qui commence par un point', now: Date.UTC(2026, 10, 3, 9, 0, 0), ...x });
+const mail = (x = {}) => buildMime({ from: USER, fromName: 'Salon L’Architecte', to: 'karim@exemple.fr', subject: 'Rendez-vous confirmé : jeudi 5 novembre à 10 h', text: 'Bonjour Karim,\n\nC’est noté.\n.une ligne qui commence par un point', now: Date.UTC(2026, 10, 3, 9, 0, 0), ...x });
 const noSecret = (e) => { assert.ok(e instanceof SmtpError, String(e)); assert.doesNotMatch(e.message + ' ' + e.stack, new RegExp(PASS + '|' + Buffer.from('\0' + USER + '\0' + PASS).toString('base64'))); return true; };
 
 test('the message: headers on one line each, accents encoded, text and HTML, the calendar file, nothing injected', () => {
@@ -198,7 +198,7 @@ test('refused before any connection: port 25, no host, no password, a recipient 
 
 test('the e-mail provider on the salon’s mailbox: a confirmation with its button and calendar file, its Message-ID as reference', net_, async () => {
   const s = await fakeServer({ tls: true });
-  const p = smtpEmail({ host: 'localhost', port: s.port, secure: true, user: USER, pass: PASS, from: USER, fromName: 'Barber L’Architecte', replyTo: 'contact@salon.test', timeoutMs: 3000, tlsOptions: { ca: PKI.cert } });
+  const p = smtpEmail({ host: 'localhost', port: s.port, secure: true, user: USER, pass: PASS, from: USER, fromName: 'Salon L’Architecte', replyTo: 'contact@salon.test', timeoutMs: 3000, tlsOptions: { ca: PKI.cert } });
   assert.equal(p.name, 'smtp');
   const r = await p.send({ to: 'karim@exemple.fr', subject: 'Rendez-vous confirmé', text: 'Bonjour Karim,\n\nGérer mon rendez-vous : https://salon.test/r/LA-1', cta: { label: 'Gérer mon rendez-vous', url: 'https://salon.test/r/LA-1' }, links: ['https://salon.test/r/LA-1'], attachments: [{ name: 'rendez-vous.ics', type: 'text/calendar; charset=utf-8; method=PUBLISH', content: 'BEGIN:VCALENDAR' }], tag: 'confirmation' });
   assert.match(r.ref, /^<[0-9a-f]{32}@salon\.test>$/);
@@ -214,8 +214,8 @@ test('the e-mail provider on the salon’s mailbox: a confirmation with its butt
 });
 
 test('configuration: the salon’s mailbox when its three SMTP variables are there, Brevo otherwise, never half of one', () => {
-  const env = { EMAIL_FROM: 'Barber L’Architecte <rdv@salon.test>', SMTP_HOST: 'smtp.ionos.fr', SMTP_PORT: '587', SMTP_USER: USER, SMTP_PASS: PASS, EMAIL_REPLY_TO: 'contact@salon.test' };
-  assert.deepEqual(readConfig(env).email, { kind: 'smtp', host: 'smtp.ionos.fr', port: 587, user: USER, pass: PASS, from: 'rdv@salon.test', fromName: 'Barber L’Architecte', replyTo: 'contact@salon.test' });
+  const env = { EMAIL_FROM: 'Salon L’Architecte <rdv@salon.test>', SMTP_HOST: 'smtp.ionos.fr', SMTP_PORT: '587', SMTP_USER: USER, SMTP_PASS: PASS, EMAIL_REPLY_TO: 'contact@salon.test' };
+  assert.deepEqual(readConfig(env).email, { kind: 'smtp', host: 'smtp.ionos.fr', port: 587, user: USER, pass: PASS, from: 'rdv@salon.test', fromName: 'Salon L’Architecte', replyTo: 'contact@salon.test' });
   assert.equal(readConfig({ ...env, SMTP_PORT: undefined }).email.port, 465);
   assert.equal(readConfig({ ...env, BREVO_API_KEY: 'k' }).email.kind, 'smtp', 'the salon’s own mailbox first');
   assert.equal(readConfig({ EMAIL_FROM: 'rdv@salon.test', BREVO_API_KEY: 'k' }).email.kind, 'brevo');

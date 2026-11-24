@@ -33,7 +33,7 @@ if (FILE && process.argv.some((a) => /scripts[\\/]dev\.mjs$/.test(a))) {
 export function mailEnv() {
   const file = join(tmpdir(), 'lx-e2e-mails-' + process.pid + '-' + Math.random().toString(36).slice(2, 10) + '.jsonl');
   const opts = [process.env.NODE_OPTIONS || '', '--import ' + JSON.stringify(fileURLToPath(import.meta.url))].filter(Boolean).join(' ');
-  return { file, env: { NODE_OPTIONS: opts, LX_E2E_MAILS: file, BREVO_API_KEY: 'e2e-not-a-key', EMAIL_FROM: 'Barber L’Architecte <rdv@salon.test>' } };
+  return { file, env: { NODE_OPTIONS: opts, LX_E2E_MAILS: file, BREVO_API_KEY: 'e2e-not-a-key', EMAIL_FROM: 'Salon L’Architecte <rdv@salon.test>' } };
 }
 
 /** @returns {{ to: string, subject: string, text: string, html: string, tag: string, attachments: string[] }[]} */

@@ -87,7 +87,7 @@
 
   /* ---------- the API, and its stand-in when it cannot be reached ---------- */
   const FALLBACK = {
-    shop: { name: 'Barber L’Architecte', address: '16, place Pélabon', zip: '13013', city: 'Marseille', mapsUrl: 'https://www.google.com/maps/search/?api=1&query=L%27Architecte%20coiffeur&query_place_id=ChIJJSWkBLy_yRIRbgAQcMwb-JY' },
+    shop: { name: 'Salon L’Architecte', address: '16, place Pélabon', zip: '13013', city: 'Marseille', mapsUrl: 'https://www.google.com/maps/search/?api=1&query=L%27Architecte%20coiffeur&query_place_id=ChIJJSWkBLy_yRIRbgAQcMwb-JY' },
     hoursText: 'Du mardi au samedi, 9 h – 18 h 30', closedText: 'le dimanche et le lundi',
     booking: { enabled: true, stepMin: 30, maxDaysAhead: 90, holdMin: 5, pendingPayMin: 15, cancelUntilHours: 12 },
     deposits: { mode: 'none' }, sms: false, channel: 'sms', payments: { live: false }, mode: 'sim',
@@ -629,7 +629,7 @@
       const d = r.day.replace(/-/g, ''), st = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z');
       const ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Barber LArchitecte//Reservation//FR', 'BEGIN:VEVENT',
         'UID:' + r.code + '@larchitecte', 'DTSTAMP:' + st, 'DTSTART;TZID=Europe/Paris:' + d + 'T' + hm24(r.start) + '00', 'DTEND;TZID=Europe/Paris:' + d + 'T' + hm24(r.start + r.svc.dur) + '00',
-        'SUMMARY:Barber L’Architecte · ' + r.svc.name, 'LOCATION:16 place Pélabon\\, 13013 Marseille',
+        'SUMMARY:Salon L’Architecte · ' + r.svc.name, 'LOCATION:16 place Pélabon\\, 13013 Marseille',
         'DESCRIPTION:' + (r.barber ? 'Avec ' + r.barber.name + '. ' : '') + 'Code ' + r.code + '.' + (r.manage ? ' Gérer : ' + r.manage : ''), r.manage ? 'URL:' + r.manage : null, 'END:VEVENT', 'END:VCALENDAR'].filter(Boolean).join('\r\n');
       return URL.createObjectURL(new Blob([ics], { type: 'text/calendar' }));
     } catch (e) { return ''; }
@@ -736,7 +736,7 @@
         q('Quand', cap(dayFull(r.day)) + ' · ' + hm(r.start), 'Jusqu’à ' + hm(r.start + r.svc.dur) + ' · ' + durText(r.svc.dur), 'big'),
         q('Quoi', r.svc.name, (r.svc.from ? 'dès ' : '') + eur(r.svc.price) + ', à régler au salon' + (r.deposit > 0 ? ' (acompte de ' + eur(r.deposit) + ' déduit)' : '')),
         q('Avec qui', r.barber ? h('span', { class: 'who-f' }, [mono(r.barber), r.barber.name]) : 'Un barbier du salon'),
-        q('Où', shop.name || 'Barber L’Architecte', (shop.address || '16, place Pélabon') + ' · ' + (shop.zip || '13013') + ' ' + (shop.city || 'Marseille'), 'where')
+        q('Où', shop.name || 'Salon L’Architecte', (shop.address || '16, place Pélabon') + ' · ' + (shop.zip || '13013') + ' ' + (shop.city || 'Marseille'), 'where')
       ])
     ]);
   }

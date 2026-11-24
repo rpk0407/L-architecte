@@ -166,7 +166,7 @@ test('site.html: its own fixed texts, no Google Fonts, no rating in the descript
   // nothing of the editor left: no media route, no `site` block read from the salon
   for (const w of [MEDIA, '.site.', 's.site', 'SITE0', 'siteNow', 'heroOwn', 'videoTitle']) assert.ok(!html.includes(w), w);
   // the texts the editor's defaults held, in the page itself
-  for (const w of ['Barbier, place Pélabon.', 'Le prochain créneau de chaque barbier.', 'Combien coûte une coupe chez L’Architecte ?', 'Le salon forme-t-il des barbiers ?', 'construction au millimètre', 'Elias R.',
+  for (const w of ['Coiffeur et barbier, place Pélabon.', 'Le prochain créneau de chaque barbier.', 'Combien coûte une coupe chez L’Architecte ?', 'Le salon forme-t-il des barbiers ?', 'construction au millimètre', 'Elias R.',
     'https://www.facebook.com/pg/barbershop.larchitecte/', 'https://www.youtube.com/channel/UCi2oLstkv0IIucLyd211G8A', 'https://www.youtube.com/watch?v=IP4PTgpZg-8']) assert.ok(html.includes(w), w);
 });
 

@@ -44,7 +44,7 @@ export function readConfig(env = process.env) {
     whatsappIncomplete: !!WA.metaWhatsapp && !!(env.WHATSAPP_TOKEN || env.WHATSAPP_PHONE_ID) && !(env.WHATSAPP_TOKEN && env.WHATSAPP_PHONE_ID),
     smsProviderUnknown: !!env.SMS_PROVIDER && !['brevo', 'twilio', 'gateway'].includes(env.SMS_PROVIDER),
     // e-mail: the salon's own mailbox over SMTP when SMTP_HOST, SMTP_USER and SMTP_PASS are set (messaging/smtp.js), else
-    // Brevo's transactional API with the SMS key. EMAIL_FROM is the sender, e.g. "Barber L'Architecte
+    // Brevo's transactional API with the SMS key. EMAIL_FROM is the sender, e.g. "Salon L'Architecte
     // <rdv@barberlarchitecte.com>" (an address of the mailbox's domain, or one verified in Brevo); replies go to EMAIL_REPLY_TO
     email: emailConfig(env),
     emailFromInvalid: !!env.EMAIL_FROM && !parseFrom(env.EMAIL_FROM),

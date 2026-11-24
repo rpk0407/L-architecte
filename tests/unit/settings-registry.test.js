@@ -24,7 +24,7 @@ const BEFORE = () => {
   const day = [[540, 1110]];
   return {
     shop: {
-      name: 'Barber L’Architecte', address: '16, place Pélabon', zip: '13013', city: 'Marseille',
+      name: 'Salon L’Architecte', address: '16, place Pélabon', zip: '13013', city: 'Marseille',
       phone: '', email: 'larchitectebarber@gmail.com', siret: '', vatNumber: '', legalName: '',
       mapsUrl: 'https://www.google.com/maps/search/?api=1&query=L%27Architecte%20coiffeur&query_place_id=ChIJJSWkBLy_yRIRbgAQcMwb-JY',
       reviewUrl: 'https://search.google.com/local/writereview?placeid=ChIJJSWkBLy_yRIRbgAQcMwb-JY',

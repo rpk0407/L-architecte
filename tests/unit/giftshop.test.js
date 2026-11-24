@@ -156,7 +156,7 @@ test('after today’s Z a card paid online falls on tomorrow: the sealed day doe
   // to the buyer, right away: his own text
   const [m] = [...s().messages.values()].filter((x) => x.template === 'giftcard');
   assert.deepEqual([m.to, m.dueAt], ['+33611223344', rt.engine.clock()]);
-  assert.match(m.body, /^Barber L'Architecte : merci Sofiane ! Ta carte cadeau de 30 € : code [A-Z0-9-]{14}, valable jusqu'au \d\d\/\d\d\/\d{4}\. Pour l'imprimer ou l'offrir : /);
+  assert.match(m.body, /^Salon L'Architecte : merci Sofiane ! Ta carte cadeau de 30 € : code [A-Z0-9-]{14}, valable jusqu'au \d\d\/\d\d\/\d{4}\. Pour l'imprimer ou l'offrir : /);
   // a staff sale stays refused on a sealed day
   const owner = [...s().staff.values()].find((x) => x.role === 'owner');
   await rejects(rt.engine.run(S.checkout, { lines: [{ kind: 'giftcard', unit: 3000 }], payments: [{ method: 'card', amount: 3000 }] }, { actor: { t: 'staff', id: owner.id }, staff: owner, caps: capsOf(owner, s().settings) }), 'day_closed');

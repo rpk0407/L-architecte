@@ -162,7 +162,7 @@ function cgvRule(deposits) {
     documentElement: { getAttribute: () => null, setAttribute() {} },
     querySelectorAll: (sel) => (sel === '[data-f]' ? [el] : []), querySelector: () => null
   };
-  const salon = { shop: { name: 'Barber L’Architecte' }, booking: {}, deposits, services: [], payments: { provider: 'stripe', live: true } };
+  const salon = { shop: { name: 'Salon L’Architecte' }, booking: {}, deposits, services: [], payments: { provider: 'stripe', live: true } };
   let done;
   const ready = new Promise((r) => { done = r; });
   const fetch = () => Promise.resolve({ ok: true, json: () => salon });

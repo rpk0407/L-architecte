@@ -29,7 +29,7 @@ function App() {
 function Shell({ children, shop }: { children: ReactNode; shop?: string }) {
   return (
     <div className="c-page">
-      <header className="c-top"><a href="/" className="c-brand"><b>L’Architecte</b><small>{shop && shop !== 'Barber L’Architecte' ? shop : 'Barber · Marseille'}</small></a></header>
+      <header className="c-top"><a href="/" className="c-brand"><b>L’Architecte</b><small>{shop && shop !== 'Salon L’Architecte' ? shop : 'Coiffeur et barbier · Marseille'}</small></a></header>
       <main className="c-main">{children}</main>
       <footer className="c-foot"><a href="/">barberlarchitecte.com</a></footer>
     </div>
@@ -342,7 +342,7 @@ function Gift({ token, back }: { token: string; back: string | null }) {
   const [err, setErr] = useState('');
   const [tries, setTries] = useState(0);
   const load = () => api.get<GiftCard>('/api/public/giftcards/' + encodeURIComponent(token)).then(setG).catch((e) => setErr(e.message));
-  useEffect(() => { document.title = 'Carte cadeau · Barber L’Architecte'; load(); if (back) history.replaceState(null, '', location.pathname); }, []);
+  useEffect(() => { document.title = 'Carte cadeau · Salon L’Architecte'; load(); if (back) history.replaceState(null, '', location.pathname); }, []);
   // the bank's confirmation can take a few seconds to reach the salon
   const waiting = !!g && (g.status === 'pending' || g.status === 'paid');
   useEffect(() => {

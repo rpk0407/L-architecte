@@ -370,7 +370,7 @@ export default function Member({ token }: { token: string }) {
   const back = q.get('paiement');
   const [source] = useState(() => tokenSource(token));
   // the address keeps nothing but the link (a shared screenshot does not reopen the recap)
-  useEffect(() => { document.title = 'Mon abonnement · Barber L’Architecte'; if (location.search) history.replaceState(null, '', location.pathname); }, []);
+  useEffect(() => { document.title = 'Mon abonnement · Salon L’Architecte'; if (location.search) history.replaceState(null, '', location.pathname); }, []);
   return <MemberPanel source={source} initial={initial} back={back} />;
 }
 
