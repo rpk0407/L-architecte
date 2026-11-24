@@ -33,6 +33,12 @@ const minuteOf = (v) => { const n = Number(v); return Number.isInteger(n) && n >
 const visitorOf = (r) => (r.ip ? createHmac('sha256', String(r.rt.secret)).update('lx-hold|' + r.local.day + '|' + r.ip).digest('base64url').slice(0, 12) : '');
 const header = (r) => r.req.headers.get('x-request-id') || '';
 
+/**
+ * Is the formule paid online when a client takes it on the site? Only where the salon asks for money online. Where the
+ * client chooses (deposits 'choice': the salon by default), the formule is paid at the salon, at his first visit.
+ */
+const formuleOnline = (r) => payLive(r) && (r.s.settings.deposits || {}).mode !== 'choice';
+
 /** The series proposed after a first slot, for the site (online rules) or the desk. */
 function seriesOf(r, online) {
   const offer = offerOf(r.s);
@@ -46,7 +52,7 @@ function seriesOf(r, online) {
 /** A command as the signed-in client, with what the purchase needs to know of the payment (never a file from the body). */
 function asMe(r, me, what) {
   const h = header(r);
-  return { actor: CLIENT_ACTOR, caps: new Set(), meta: { ...r.meta, me: { cid: me.cid }, payLive: payLive(r), payProvider: r.rt.pay.name }, ...(h ? { requestId: 'me' + me.cid + ':' + what + ':' + h } : {}) };
+  return { actor: CLIENT_ACTOR, caps: new Set(), meta: { ...r.meta, me: { cid: me.cid }, payLive: formuleOnline(r), payProvider: r.rt.pay.name }, ...(h ? { requestId: 'me' + me.cid + ':' + what + ':' + h } : {}) };
 }
 
 function cardOf(r, me) {
@@ -60,7 +66,7 @@ function cardOf(r, me) {
   const busy = mine.some((f) => running(s, f, r.local.day));
   const sell = !!offer && offer.online && accountsOn(s);
   return {
-    offer: sell ? { id: offer.id, slug: offer.slug, name: offer.name, price: offer.price, credits: offer.credits, missed: offer.missed, pay: payLive(r) ? 'online' : 'salon' } : null,
+    offer: sell ? { id: offer.id, slug: offer.slug, name: offer.name, price: offer.price, credits: offer.credits, missed: offer.missed, pay: formuleOnline(r) ? 'online' : 'salon' } : null,
     // the open ones first, then the last finished one (its receipts stay at hand)
     items: [...items.filter((v) => v.status === 'open'), ...items.filter((v) => v.status !== 'open').slice(0, 1)],
     // « Reprendre 5 coupes »: his last one is finished and none is running
