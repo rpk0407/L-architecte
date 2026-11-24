@@ -26,6 +26,7 @@ import { TEMPLATES } from '../core/state.js';
 import { CAPS, ROLES, capsOf } from '../domain/permissions.js';
 import { changeWords } from '../projections/governance.js';
 import { maybeTick } from './scheduler.js';
+import { settingsShown } from '../settings/accounts.js';
 import { STALE_MS, backupOff, backupStatus, backupsOf, freshBackup, makeBackup, ownBackups, salonOf } from '../core/backup.js';
 
 /* ---------------- the activity log, in plain French ---------------- */
@@ -363,7 +364,7 @@ export function adminRoutes(app) {
 
   /* settings and devices */
   app.get('/api/v1/settings', (r) => ({
-    settings: r.s.settings,
+    settings: settingsShown(r.s),
     // what the owner needs to read the settings: default texts, and what each role can do once the toggles apply
     defaultTemplates: TEMPLATES,
     roles: Object.fromEntries(Object.keys(ROLES).map((role) => [role, [...capsOf({ role, active: true }, r.s.settings)]])),

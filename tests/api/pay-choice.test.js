@@ -2,7 +2,7 @@
 // client chooses « payer au salon » (nothing online, as ever) or « payer maintenant » (the whole price on Stripe's page:
 // card, Apple Pay, Google Pay). Checked on the salon as it runs live, over HTTP: production mode, a salon that never
 // stored a `deposits` setting, everything by e-mail (booking.contact 'email', no SMS provider), « annulable à tout
-// moment » (cancelUntilHours 0), client accounts off, Stripe on a fake network (no request ever reaches Stripe).
+// moment » (cancelUntilHours 0), nothing stored about the client space, Stripe on a fake network (no request ever reaches Stripe).
 //   - the choice reaches the site only with a real way to pay; without Stripe the booking is what it always was;
 //   - « au salon »: a confirmed booking, no payment, Stripe never called;
 //   - « maintenant »: the booking is confirmed at once (never held hostage by the payment), the Checkout is for the whole

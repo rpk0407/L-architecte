@@ -194,6 +194,9 @@ export async function handle(req, opt = {}) {
 
     const meta = {
       linkFor: (a) => origin + '/r/' + signLink(rt.secret, 'appt', a.code),
+      // the way into the client space from a booking's own signed token (/moi?garder=…: routes-me.js linkTarget). It
+      // opens nothing by itself: the page asks for the code sent to the file's own address or number
+      spaceFor: (a) => origin + '/moi?garder=' + encodeURIComponent(signLink(rt.secret, 'appt', a.code)),
       siteUrl: origin + '/',
       offerLink: (wid) => origin + '/?offre=' + encodeURIComponent(signLink(rt.secret, 'offer', wid)),
       receiptLink: (sale) => origin + '/recu/' + signLink(rt.secret, 'receipt', String(sale.number)),

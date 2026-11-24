@@ -1,5 +1,6 @@
 // @ts-check
 // Shop-wide settings: identity, opening hours, closures, online booking rules, payments, messages.
+import { settingsShown } from '../settings/accounts.js';
 import { fail } from '../core/engine.js';
 import { str, obj, day, parse } from '../lib/validate.js';
 import { checkIntervals } from './common.js';
@@ -42,10 +43,10 @@ export const updateSettings = {
     // a journal code given to one journal while another keeps it (CPT-03): checked against the codes already set
     if (patch.compta && patch.compta.journals) { const dup = journalClash({ ...comptaJournals(s), ...patch.compta.journals }); if (dup) fail(400, 'invalid', 'Deux journaux ne peuvent pas avoir le même code (' + dup + ').'); }
     const pii = contactPii(patch);
-    if (!Object.keys(patch).length && !pii) return { settings: s.settings };
+    if (!Object.keys(patch).length && !pii) return { settings: settingsShown(s) };
     // the CGV version follows the deposit and cancellation rules, dated here rather than by the screen that saved them
     patch = cgvPatch(s.settings, patch, ctx.local.day);
-    if (!Object.keys(patch).length && !pii) return { settings: s.settings };
+    if (!Object.keys(patch).length && !pii) return { settings: settingsShown(s) };
     ctx.emit('settings.updated', { patch }, pii || undefined);
     return { ok: true };
   }

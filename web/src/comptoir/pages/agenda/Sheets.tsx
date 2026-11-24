@@ -95,8 +95,8 @@ export function SlotPicker({ serviceIds, staffId, day, value, onPick, ignore, ho
 
 /* ---------------- an appointment ---------------- */
 
-type ApptDetail = { appt: Appt; client: ClientFull | null; history: { id: string; day: string; services: string[]; staff: string; status: string; price: number }[]; messages: { id: string; channel?: 'sms' | 'email'; template: string; status: string; at: number; sentAt: number | null; via?: string | null; resend?: boolean }[]; confirmMail?: '' | 'ok' | 'off' | 'no_email'; payments: { id: string; kind: string; amount: number; status: string }[]; sale: any };
-const TPL: Record<string, string> = { confirmation: 'Confirmation', reminder: 'Rappel la veille', reminder2h: 'Rappel 2 h avant', review: 'Demande d’avis', cancelled: 'Annulation', receipt: 'Reçu', lookup: 'Lien Mon rendez-vous' };
+type ApptDetail = { appt: Appt; client: ClientFull | null; history: { id: string; day: string; services: string[]; staff: string; status: string; price: number }[]; messages: { id: string; channel?: 'sms' | 'email'; template: string; status: string; at: number; sentAt: number | null; via?: string | null; resend?: boolean }[]; confirmMail?: '' | 'ok' | 'off' | 'no_email'; /** « Renvoyer le lien de sa formule »: 'ok', or why the button is off */ formuleMail?: 'ok' | 'off' | 'no_email'; payments: { id: string; kind: string; amount: number; status: string }[]; sale: any };
+const TPL: Record<string, string> = { confirmation: 'Confirmation', reminder: 'Rappel la veille', reminder2h: 'Rappel 2 h avant', review: 'Demande d’avis', cancelled: 'Annulation', receipt: 'Reçu', lookup: 'Lien Mon rendez-vous', formuleLink: 'Formule : ses dates et le lien de son espace' };
 /** A text's fate in a few words. Outside the demo nothing is simulated: without a provider a text waits for one. */
 function smsState(status: string, demo: boolean, provider: string | null, mail = false): string {
   if (status === 'failed') return 'échec · ';
@@ -247,6 +247,12 @@ export function ApptSheet({ id, onClose }: { id: string | null; onClose: () => v
               {data.confirmMail !== 'ok' ? <small className="faint">{data.confirmMail === 'no_email' ? 'Pas d’adresse e-mail sur sa fiche.' : 'Les e-mails aux clients sont coupés (Réglages › Messages).'}</small> : null}
             </div>
           ) : null}
+          {data && data.formuleMail && a.formule ? (
+            <div className="ap-resend" data-guide="ap-formule-lien">
+              <Button variant="subtle" icon="ticket" block disabled={data.formuleMail !== 'ok'} busy={busy === 'refo'} onClick={() => resend('refo', '/api/v1/formules/' + a.formule!.id + '/resend-link')}>Renvoyer le lien de sa formule</Button>
+              <small className="faint">{data.formuleMail === 'no_email' ? 'Pas d’adresse e-mail sur sa fiche : ajoute-la, puis renvoie.' : data.formuleMail === 'off' ? 'Les e-mails aux clients sont coupés (Réglages › Messages).' : boot.settings.accounts?.enabled ? 'Par e-mail : sa formule, ses dates à venir et le lien de son espace pour les déplacer ou les annuler.' : 'Par e-mail : sa formule et ses dates à venir, avec le lien pour les gérer.'}</small>
+            </div>
+          ) : null}
           {data && data.messages.length ? (
             <div className="card card-tight">
               <div className="card-h"><h3>Messages automatiques</h3></div>
@@ -269,7 +275,11 @@ export function CreateSheet({ open, prefill, onClose, onCreated }: { open: boole
   const [q, setQ] = useState('');
   const [client, setClient] = useState<ClientCard | null>(null);
   const [mode, setMode] = useState<'search' | 'new' | 'none'>('search');
-  const [nc, setNc] = useState({ first: '', last: '', phone: '' });
+  const [nc, setNc] = useState({ first: '', last: '', phone: '', email: '' });
+  // the address of a known client who has none yet (asked with the formule: its mail and his space go by it)
+  const [addMail, setAddMail] = useState('');
+  // a salon that writes by e-mail asks an address first; the number is never needed
+  const byMail = boot.settings.booking?.contact === 'email';
   const [name, setName] = useState('');
   const [svc, setSvc] = useState<string[]>([]);
   const [staff, setStaff] = useState('any');
@@ -285,7 +295,7 @@ export function CreateSheet({ open, prefill, onClose, onCreated }: { open: boole
   const results = useQuery<{ items: ClientCard[] }>(open && mode === 'search' && dq.trim().length >= 2 && can('client.view') ? '/api/v1/clients' + qs({ q: dq, limit: 6 }) : null);
   useEffect(() => {
     if (!open) return;
-    setQ(''); setMode('search'); setNc({ first: '', last: '', phone: '' }); setName(''); setNote(''); setSms(true);
+    setQ(''); setMode('search'); setNc({ first: '', last: '', phone: '', email: '' }); setAddMail(''); setName(''); setNote(''); setSms(true);
     // sold on the spot: the formule is already switched on, only the client and the first date are left to choose
     const fo = !!prefill?.formule && !!carnetOf;
     setCarnet(fo); setSerie(null);
@@ -300,6 +310,9 @@ export function CreateSheet({ open, prefill, onClose, onCreated }: { open: boole
   useEffect(() => { if (client) setSms(client.sms !== false); }, [client?.id]);
   const fixed = prefill?.day != null && prefill.start != null && when && when.day === prefill.day && when.start === prefill.start;
   const sold = carnet && carnetOf ? carnetOf : null;
+  const spaceOn = !!boot.settings.accounts?.enabled;
+  // the address the formule's mail will go to, as far as this sheet knows ('' : none, said before the tap)
+  const mailTo = client ? (client.hasEmail ? 'sa fiche' : addMail.trim()) : mode === 'new' ? nc.email.trim() : '';
   const total = sold ? sold.pack.price : svc.reduce((t, id) => t + (boot.services.find((s) => s.id === id)?.price || 0), 0);
   const length = svc.reduce((t, id) => t + (boot.services.find((s) => s.id === id)?.dur || 0), 0);
   const who = client ? client.first + ' ' + client.last : mode === 'new' ? (nc.first + ' ' + nc.last).trim() : name;
@@ -311,9 +324,10 @@ export function CreateSheet({ open, prefill, onClose, onCreated }: { open: boole
       if (sold && serie) {
         // the carnet: its five dates in one go, all of them or none; the till asks for its price at the first cut
         const body: any = { serviceId: sold.pack.id, first: { staffId: when.staffId, day: when.day, start: when.start }, weeks: serie.map((w) => (w.later ? { later: true } : { staffId: w.staffId, day: w.day, start: w.start })), note: note || undefined, sms };
-        if (client) body.clientId = client.id; else body.client = { first: nc.first, last: nc.last, phone: nc.phone || undefined };
-        const r = await api.post<{ id: string; paid?: boolean; appts: { id: string; day: string }[] }>('/api/v1/formules', body);
-        toast({ title: sold.pack.name + ' : ' + r.appts.length + ' dates réservées', sub: who + ' · ' + (r.paid ? 'formule déjà payée' : when.day === boot.today ? eur(sold.pack.price) + ' à encaisser aujourd’hui : ouvre son rendez-vous, « Encaisser »' : eur(sold.pack.price) + ' à encaisser à sa première coupe : la caisse les met sur le ticket'), icon: 'check', ttl: 9000 });
+        if (client) { body.clientId = client.id; if (!client.hasEmail && addMail.trim()) body.email = addMail.trim(); } else body.client = { first: nc.first, last: nc.last, phone: nc.phone || undefined, email: nc.email.trim() || undefined };
+        const r = await api.post<{ id: string; paid?: boolean; mail?: string; appts: { id: string; day: string }[] }>('/api/v1/formules', body);
+        // mail: where the formule's e-mail went (his dates, the way into his space); none: said, so nobody waits for it
+        toast({ title: sold.pack.name + ' : ' + r.appts.length + ' dates réservées', sub: who + ' · ' + (r.paid ? 'formule déjà payée' : when.day === boot.today ? eur(sold.pack.price) + ' à encaisser aujourd’hui : ouvre son rendez-vous, « Encaisser »' : eur(sold.pack.price) + ' à encaisser à sa première coupe : la caisse les met sur le ticket') + (r.mail ? ' · E-mail envoyé à ' + r.mail + (spaceOn ? ' avec le lien de son espace' : '') : byMail ? ' · Pas d’e-mail : aucun lien envoyé' : ''), icon: 'check', ttl: 9000 });
         refreshAll();
         onCreated?.(r.appts[0].id, when.day);
         onClose();
@@ -321,7 +335,7 @@ export function CreateSheet({ open, prefill, onClose, onCreated }: { open: boole
       }
       const body: any = { serviceIds: svc, staffId: when.staffId, day: when.day, start: when.start, note: note || undefined, sms, source: 'phone', force };
       if (client) body.clientId = client.id;
-      else if (mode === 'new') body.client = { first: nc.first, last: nc.last, phone: nc.phone || undefined };
+      else if (mode === 'new') body.client = { first: nc.first, last: nc.last, phone: nc.phone || undefined, email: nc.email.trim() || undefined };
       else body.name = name;
       const r = await api.post<{ id: string }>('/api/v1/appointments', body);
       toast({ title: 'Rendez-vous réservé', sub: who + ' · ' + dayShortWord(when.day, boot.today) + ' à ' + time(when.start) + ' avec ' + staffById.get(when.staffId)?.name, icon: 'check' });
@@ -356,7 +370,10 @@ export function CreateSheet({ open, prefill, onClose, onCreated }: { open: boole
       <div className="col" style={{ gap: 10 }}>
         <p className="section-k">Client</p>
         {client ? (
-          <div className="pick-r" aria-pressed="true"><Avatar name={client.name} /><span className="li-main"><b>{client.first} {client.last}</b><small>{client.phone || 'sans téléphone'} · {client.visits} visite{client.visits > 1 ? 's' : ''}{client.tech ? ' · ' + client.tech : ''}</small></span><Button size="sm" variant="ghost" onClick={() => setClient(null)}>Changer</Button></div>
+          <>
+            <div className="pick-r" aria-pressed="true"><Avatar name={client.name} /><span className="li-main"><b>{client.first} {client.last}</b><small>{client.phone || (client.hasEmail ? 'e-mail sur sa fiche' : 'sans téléphone')} · {client.visits} visite{client.visits > 1 ? 's' : ''}{client.tech ? ' · ' + client.tech : ''}</small></span><Button size="sm" variant="ghost" onClick={() => setClient(null)}>Changer</Button></div>
+            {sold && !client.hasEmail ? <Field label="Son e-mail" htmlFor="cl-e" hint="Pas d’adresse sur sa fiche : il y reçoit sa formule, ses dates et le lien de son espace"><input id="cl-e" className="input" type="email" inputMode="email" autoCapitalize="none" autoCorrect="off" spellCheck={false} autoComplete="off" value={addMail} onChange={(e) => setAddMail(e.target.value)} placeholder="prenom@exemple.fr" /></Field> : null}
+          </>
         ) : mode === 'search' ? (
           <>
             <div className="search"><Icon name="search" /><input className="input" placeholder="Prénom, nom ou numéro" value={q} onChange={(e) => setQ(e.target.value)} data-autofocus aria-label="Rechercher un client" /></div>
@@ -369,7 +386,9 @@ export function CreateSheet({ open, prefill, onClose, onCreated }: { open: boole
         ) : mode === 'new' ? (
           <div className="col" style={{ gap: 10 }}>
             <div className="grid2"><Field label="Prénom" htmlFor="nc-f"><input id="nc-f" className="input" value={nc.first} onChange={(e) => setNc({ ...nc, first: e.target.value })} autoComplete="off" /></Field><Field label="Nom" htmlFor="nc-l"><input id="nc-l" className="input" value={nc.last} onChange={(e) => setNc({ ...nc, last: e.target.value })} autoComplete="off" /></Field></div>
-            <Field label="Téléphone" htmlFor="nc-p" hint="Pour la confirmation et le rappel par SMS"><input id="nc-p" className="input" type="tel" inputMode="tel" value={nc.phone} onChange={(e) => setNc({ ...nc, phone: e.target.value })} placeholder="06 12 34 56 78" /></Field>
+            {byMail ? <Field label="E-mail" htmlFor="nc-e" hint={sold ? 'Il y reçoit sa formule, ses dates et le lien de son espace' : 'Pour la confirmation et le rappel'}><input id="nc-e" className="input" type="email" inputMode="email" autoCapitalize="none" autoCorrect="off" spellCheck={false} autoComplete="off" value={nc.email} onChange={(e) => setNc({ ...nc, email: e.target.value })} placeholder="prenom@exemple.fr" /></Field> : null}
+            <Field label={byMail ? 'Téléphone (facultatif)' : 'Téléphone'} htmlFor="nc-p" hint={byMail ? undefined : 'Pour la confirmation et le rappel par SMS'}><input id="nc-p" className="input" type="tel" inputMode="tel" value={nc.phone} onChange={(e) => setNc({ ...nc, phone: e.target.value })} placeholder="06 12 34 56 78" /></Field>
+            {!byMail ? <Field label="E-mail (facultatif)" htmlFor="nc-e" hint={sold ? 'Il y reçoit sa formule et ses dates' : 'Pour la confirmation avec le fichier d’agenda'}><input id="nc-e" className="input" type="email" inputMode="email" autoCapitalize="none" autoCorrect="off" spellCheck={false} autoComplete="off" value={nc.email} onChange={(e) => setNc({ ...nc, email: e.target.value })} placeholder="prenom@exemple.fr" /></Field> : null}
             <button type="button" className="link" style={{ alignSelf: 'flex-start' }} onClick={() => setMode('search')}>Chercher un client existant</button>
           </div>
         ) : (
@@ -390,6 +409,7 @@ export function CreateSheet({ open, prefill, onClose, onCreated }: { open: boole
       ) : <Note icon="clock">{cap(dayWord(when!.day, boot.today))} à {time(when!.start)} avec {staffById.get(when!.staffId)?.name}. <button type="button" className="link" onClick={() => setWhen(null)}>Changer</button></Note>}
       {sold && when && when.start >= 0 ? <FormuleDates coverId={sold.coverId} first={when} weeks={serie} onChange={setSerie} /> : null}
       {sold && when && when.start >= 0 && serie ? <Note icon="caisse"><span data-guide="agenda-carnet-pay"><b>{eur(sold.pack.price)} à la caisse, {when.day === boot.today ? 'aujourd’hui' : 'à sa première coupe'}.</b> Rien à encaisser ici : la caisse met la formule sur le ticket de sa première coupe. S’il l’a déjà payée à la caisse, rien ne lui est redemandé.</span></Note> : null}
+      {sold && when && when.start >= 0 && serie && (mailTo || byMail) ? <Note icon="mail" tone={mailTo ? '' : 'warn'}><span data-guide="agenda-carnet-mail">{mailTo ? <><b>Il reçoit un e-mail aussitôt</b> : sa formule, ses dates{spaceOn ? ' et le lien de son espace, où il les voit, les déplace ou les annule depuis son téléphone.' : ', avec le lien pour les déplacer ou les annuler.'}</> : <><b>Sans e-mail, il ne reçoit rien.</b> Ajoute son adresse pour qu’il ait sa formule et ses dates sur son téléphone.</>}</span></Note> : null}
       <Field label="Note pour le barbier" htmlFor="nc-note"><input id="nc-note" className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Facultatif" maxLength={300} /></Field>
       {(client?.hasPhone || (mode === 'new' && nc.phone)) ? <Switch on={sms} onChange={setSms} title="Confirmer par SMS" hint="Avec un lien pour déplacer ou annuler, puis un rappel la veille." /> : null}
     </Sheet>

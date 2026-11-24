@@ -21,7 +21,7 @@ import { accountOf } from '../../server/projections/accounts.js';
 import { ACCOUNT_TIMING, START_MESSAGE, START_MESSAGE_MAIL, ACC_TTL_MS, settled } from '../../server/http/routes-me.js';
 import { readClient, CLIENT_COOKIE } from '../../server/auth/client-session.js';
 import { sendSpaceInvite } from '../../server/commands/me.js';
-import accountsSection from '../../server/settings/accounts.js';
+import accountsSection, { accountsOn } from '../../server/settings/accounts.js';
 
 const SECRET = 'test-secret-0123456789';
 const SAME = { ok: true, message: START_MESSAGE_MAIL };
@@ -461,6 +461,13 @@ test('the challenges of two days ago are dropped as new ones fold; golive says t
   await rt.engine.run(sendCode, { email: y.email }, ctx);
   assert.equal(challenges(y.id).length, 1);
   assert.deepEqual(accountsSection.golive.state({ settings: { accounts: { enabled: false }, booking: { contact: 'email' } } }), { on: false, blocker: 'Prêt à ouvrir : le code de connexion part par e-mail' });
+  // nothing chosen yet (no `enabled` stored, the live salon's case): a salon that writes by e-mail is open, one that texts is not
+  assert.deepEqual(accountsSection.defaults(), { sessionDays: 180, fenceDays: 180 });
+  assert.deepEqual(accountsSection.golive.state({ settings: { accounts: accountsSection.defaults(), booking: { contact: 'email' } } }), { on: true, blocker: '' });
+  assert.deepEqual(accountsSection.golive.state({ settings: { accounts: accountsSection.defaults(), booking: { contact: 'phone' } } }), { on: false, blocker: 'S’ouvre quand le SMS est testé et la bascule faite' });
+  assert.equal(accountsOn({ settings: { accounts: accountsSection.defaults(), booking: { contact: 'email' } } }), true);
+  assert.equal(accountsOn({ settings: { accounts: { enabled: false }, booking: { contact: 'email' } } }), false, 'the owner’s « fermé » wins');
+  assert.equal(accountsOn({ settings: { accounts: { enabled: true }, booking: { contact: 'phone' } } }), true);
   assert.deepEqual(accountsSection.golive.state({ settings: { accounts: { enabled: false }, booking: { contact: 'phone' } } }), { on: false, blocker: 'S’ouvre quand le SMS est testé et la bascule faite' });
   assert.deepEqual(accountsSection.golive.state({ settings: { accounts: { enabled: true }, booking: { contact: 'email' } } }), { on: true, blocker: '' });
 });

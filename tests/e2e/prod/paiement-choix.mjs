@@ -1,4 +1,4 @@
-// Production, as the salon runs live: everything by e-mail, no SMS provider, client accounts off, and a `deposits`
+// Production, as the salon runs live: everything by e-mail, no SMS provider, nothing stored about the client space, and a `deposits`
 // setting never stored (the code's default, « au choix du client »). On a phone, 430 px wide:
 //   1. without a real way to pay online (no Stripe key on this server), the booking form shows no payment choice at
 //      all: « Confirmer » books as it always did, in the same taps;
