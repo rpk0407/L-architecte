@@ -3,7 +3,7 @@
 import { HttpError, guard, json } from './kit.js';
 import { serviceView, staffView } from './views.js';
 import { freeSlots, eligibleStaff, walkinEstimate, shopIntervals, staffIntervals, UNDECIDED } from '../domain/availability.js';
-import { clientMayChange, payWindowMin, payDeadline } from '../domain/policy.js';
+import { clientMayChange, payWindowMin, payDeadline, payChoice } from '../domain/policy.js';
 import { signLink, checkLink } from '../auth/session.js';
 import { addDays, isDay, diffDays, dayLong } from '../../shared/dates.js';
 import { newId, safeEqual } from '../lib/util.js';
@@ -94,12 +94,15 @@ function bookingView(r, a) {
   const st = s.staff.get(a.staffId);
   const c = a.clientId ? s.clients.get(a.clientId) : null;
   const pay = a.deposit && a.deposit.paymentId ? s.payments.get(a.deposit.paymentId) : [...s.payments.values()].find((p) => p.apptId === a.id && p.kind === 'deposit' && p.status === 'pending');
+  // « payer maintenant » left unfinished: its page while it still lives, so he can go back to it; the booking stands either way
+  const ahead = !a.deposit && !a.saleId && a.status === 'booked' && pay && pay.full && pay.status === 'pending' && pay.exp > r.now + 60000 ? pay : null;
   return {
     code: a.code, status: a.status, day: a.day, start: a.start, dur: a.dur, services: a.services.map((x) => ({ id: x.id, name: x.name, price: x.price, from: x.from })), price: a.price,
     staff: st ? { id: st.id, name: st.name, initials: st.initials, color: st.color } : null, anyStaff: a.anyStaff,
     // a place booked for someone else shows the name typed for it, never what the salon's file says (privacy)
     first: a.ext && a.ext.guest ? a.name || '' : c ? c.first : '', ...(a.ext && a.ext.guest ? { guest: a.ext.guest.kind } : {}),
-    deposit: a.deposit ? { amount: a.deposit.amount, paid: a.deposit.paid || 0, url: pay && pay.status === 'pending' ? pay.url : null } : null,
+    deposit: a.deposit ? { amount: a.deposit.amount, paid: a.deposit.paid || 0, url: pay && pay.status === 'pending' ? pay.url : null, ...(a.deposit.full ? { full: true } : {}) } : null,
+    ...(ahead ? { prepay: { amount: ahead.amount, url: ahead.url } } : {}),
     canChange: ['booked', 'pending'].includes(a.status) && clientMayChange(s, a, r.rt.engine.clock()), cancelUntilHours: s.settings.booking.cancelUntilHours,
     shop: { name: s.settings.shop.name, address: s.settings.shop.address + ', ' + s.settings.shop.zip + ' ' + s.settings.shop.city, phone: s.settings.shop.phone, mapsUrl: s.settings.shop.mapsUrl },
     cancelled: a.cancel ? { by: a.cancel.by, at: a.cancel.at } : null,
@@ -148,15 +151,16 @@ export const lapse = (r, co) => r.now + Math.max(0, co.exp - Date.now());
 /**
  * Ask the provider for a checkout page and record it.
  * @param {any} r
- * @param {{ kind: string, amount: number, label: string, apptId: string|null, returnPath: string, email?: string, self?: { tip: number, group?: string[] } }} o
+ * @param {{ kind: string, amount: number, label: string, apptId: string|null, returnPath: string, email?: string, self?: { tip: number, group?: string[] }, full?: boolean }} o
+ *   full: the whole price of a confirmed booking paid ahead by choice (« payer maintenant »), not a deposit it waits for
  */
-export async function startPayment(r, { kind, amount, label, apptId, returnPath, email, self }) {
+export async function startPayment(r, { kind, amount, label, apptId, returnPath, email, self, full }) {
   if (!payLive(r)) throw new HttpError(409, 'no_provider', 'Le paiement en ligne n’est pas branché (Stripe).');
   const id = newId('py');
   const origin = r.origin;
   const payMin = kind === 'deposit' ? payWindowMin(r.s, { stripe: r.rt.pay.name === 'stripe' }) : undefined;
   const co = await r.rt.pay.createCheckout({ id, amount, label, email, payMin, successUrl: origin + returnPath + (returnPath.includes('?') ? '&' : '?') + 'paiement=ok', cancelUrl: origin + returnPath + (returnPath.includes('?') ? '&' : '?') + 'paiement=annule' });
-  await r.rt.engine.run(createPayment, { id, kind, amount, provider: r.rt.pay.name, providerRef: co.ref, url: co.url, apptId, exp: lapse(r, co), label, ...(self ? { self } : {}) }, { actor: { t: 'system', id: 'payments' }, caps: new Set(['sale.create']), meta: r.meta });
+  await r.rt.engine.run(createPayment, { id, kind, amount, provider: r.rt.pay.name, providerRef: co.ref, url: co.url, apptId, exp: lapse(r, co), label, ...(self ? { self } : {}), ...(full ? { full: true } : {}) }, { actor: { t: 'system', id: 'payments' }, caps: new Set(['sale.create']), meta: r.meta });
   return { id, url: co.url };
 }
 
@@ -216,7 +220,8 @@ export function publicRoutes(app) {
     // (it asks for an account); any other stays on the price list, « au salon »
     const space = accountsOn(s);
     const sellable = (x) => onSite(s, x, space);
-    const services = active.filter((x) => x.online !== false && sellable(x)).map((x) => (live ? serviceView(x) : { ...serviceView(x), deposit: 0 }));
+    // « au choix du client »: no service asks a deposit either, whatever its own rule in the Catalogue says
+    const services = active.filter((x) => x.online !== false && sellable(x)).map((x) => (live && !payChoice(s) ? serviceView(x) : { ...serviceView(x), deposit: 0 }));
     // the whole price list (the CGV show it, the site's FAQ quotes it): booked at the salon only when online is false
     const menu = active.map((x) => ({ slug: x.slug || null, name: x.name, category: x.category, price: x.price, from: !!x.from, dur: x.dur, online: x.online !== false && sellable(x) }));
     const chairs = [...s.staff.values()].filter((x) => x.active && x.chair && x.bookable).sort((a, b) => (a.order ?? 99) - (b.order ?? 99));
@@ -233,6 +238,7 @@ export function publicRoutes(app) {
       shop: { ...s.settings.shop }, hours: s.settings.hours, hoursText: hoursText(s.settings.hours), closedText: closedText(s.settings.hours), closures, openings,
       booking: { enabled: b.enabled, stepMin: b.stepMin, minNoticeMin: b.minNoticeMin, maxDaysAhead: b.maxDaysAhead, holdMin: b.holdMin, pendingPayMin: payWindowMin(s, { stripe: r.rt.pay.name === 'stripe' }), cancelUntilHours: b.cancelUntilHours, waitlist: b.waitlist, walkinWait: b.walkinWait, contact: b.contact === 'email' ? 'email' : 'phone' },
       // sms: does a text really leave? payments.live: is a deposit really taken online? (false: the site books without one)
+      // deposits.mode 'choice' reaches the site only with a real way to pay: it then offers « payer maintenant » or « au salon »
       deposits: live ? s.settings.deposits : { ...s.settings.deposits, mode: 'none' }, services, menu, barbers, sms: !!r.rt.sms || isDemo(r),
       // the reminder of the eve, as Réglages › Messages has it: the site promises it at that hour, or not at all when it is off
       // the salon's own WhatsApp number (digits, country code) once set in Réglages: the booking's last step then offers
@@ -339,7 +345,11 @@ export function publicRoutes(app) {
     // the engine gives the first answer back and nothing is booked twice
     const ctx = { ...CLIENT(r), ...retryKey(r, 'book') };
     const again = !!ctx.requestId && r.rt.engine.knows(ctx.actor, ctx.requestId) === 'answered';
-    const res = await r.rt.engine.run(A.bookOnline, { ...r.body, demo: undefined }, mt && 'id' in mt ? { ...ctx, meta: { ...ctx.meta, memberId: mt.id } } : ctx);
+    // « payer maintenant » (deposits mode 'choice'): the route's own word, the booking itself is the same either way
+    const { pay: payWish, ...asked } = r.body || {};
+    const res = await r.rt.engine.run(A.bookOnline, { ...asked, demo: undefined }, mt && 'id' in mt ? { ...ctx, meta: { ...ctx.meta, memberId: mt.id } } : ctx);
+    // one person, one confirmed booking, nothing his membership already pays: the whole price, on the provider's page
+    const payNow = payWish === 'now' && payLive(r) && payChoice(r.s) && !res.people && res.status === 'booked' && !res.member && res.price >= 50;
     // one booking can hold up to four people (« Ajouter une personne »): each place has its own link to move, cancel or pay
     const places = res.people || [res];
     const outs = [];
@@ -348,7 +358,7 @@ export function publicRoutes(app) {
       const now = r.s.appts.get(x.id);
       // a place booked for a friend under his own number: the booker follows that place, not his friend's other bookings
       const token = signLink(r.rt.secret, now && now.ext && now.ext.guest && now.ext.guest.by ? 'guest' : 'appt', x.code);
-      let payment = null;
+      let payment = null, payFailed = false;
       const open = again ? [...r.s.payments.values()].find((p) => p.apptId === x.id && p.kind === 'deposit' && p.status === 'pending') : null;
       // in a booking of several people, any place taken back means the whole booking was (its deposit page failed)
       if (again && (x.status === 'pending' || res.people) && (!now || now.status === 'cancelled')) throw new HttpError(409, 'gone', 'Cette réservation n’a pas abouti : rien n’est enregistré. Choisis ton créneau à nouveau.');
@@ -374,8 +384,13 @@ export function publicRoutes(app) {
           if (e && /** @type {any} */ (e).expose) throw e;
           throw new HttpError(503, 'pay_unavailable', 'Le paiement en ligne est momentanément indisponible : ton rendez-vous n’est pas enregistré et rien n’est débité. Réessaie dans un instant, ou appelle le salon.', { retry: true, phone: r.s.settings.shop.phone });
         }
+      } else if (payNow && now && now.status === 'booked' && !now.saleId && !(now.deposit && now.deposit.paid)) {
+        // the booking is confirmed and stays so whatever becomes of the payment: no page to pay on (the provider is
+        // down) is said, never thrown, and he pays at the salon as if he had chosen it
+        try { payment = await startPayment(r, { kind: 'deposit', full: true, amount: now.price, label: now.services.map((y) => y.name).join(' + ') + (now.ext && now.ext.guest && now.name ? ' · ' + now.name : ''), apptId: x.id, returnPath: '/r/' + token, email: r.body.email }); }
+        catch (e) { payFailed = true; console.error('[lx] pay-now checkout failed, booking kept (to pay at the salon)', x.id, e && (/** @type {any} */ (e).detail || /** @type {any} */ (e).message)); }
       }
-      outs.push({ code: x.code, token, manage: r.origin + '/r/' + token, status, deposit: x.deposit, staffId: x.staffId, payment, ...(x.member ? { member: x.member } : {}),
+      outs.push({ code: x.code, token, manage: r.origin + '/r/' + token, status, deposit: x.deposit, staffId: x.staffId, payment, ...(payNow ? { payNow: { amount: x.price, ok: !!payment, ...(payFailed ? { failed: true } : {}) } } : {}), ...(x.member ? { member: x.member } : {}),
         ...(res.people ? { first: x.first, day: x.day, start: x.start, guest: x.guest, price: x.price } : {}) });
     }
     const head = outs[0];
@@ -465,7 +480,8 @@ export function publicRoutes(app) {
       ref: ticketNo(x.number), day: x.day, at: x.at, first: c ? c.first : '',
       shop: { name: sh.name, legalName: sh.legalName, address: sh.address + ', ' + sh.zip + ' ' + sh.city, siret: sh.siret, vatNumber: sh.vatNumber },
       lines: x.lines.map((l) => ({ name: l.name, qty: l.qty, net: l.net })), totals: x.totals, discount: x.discount, tip: x.tip,
-      payments: x.payments.map((p) => ({ method: p.method, amount: p.amount })), refunded: x.refunded, footer: r.s.settings.payments.receiptFooter,
+      // the whole price paid ahead by choice reads « En ligne » on his receipt, not « Acompte »
+      payments: x.payments.map((p) => ({ method: p.method === 'deposit' && p.paymentId && (r.s.payments.get(p.paymentId) || {}).full ? 'online' : p.method, amount: p.amount })), refunded: x.refunded, footer: r.s.settings.payments.receiptFooter,
       loyalty: receiptLoyalty(r.s, x, r.local.day)
     };
   });

@@ -22,6 +22,8 @@ export const TRUSTED = 'confiance';
  */
 export function depositFor(s, services, o = {}) {
   if (o.payLive === false) return 0;
+  // « au choix du client »: nothing is ever asked, whatever a service's own rule or the client's history says
+  if (payChoice(s)) return 0;
   if (o.member && o.day && memberCovers(s, o.member, services, o.day, o.upcoming).ok) return 0;
   const d = s.settings.deposits;
   const price = services.reduce((t, x) => t + x.price, 0);
@@ -35,6 +37,9 @@ export function depositFor(s, services, o = {}) {
   if (d.mode === 'threshold' && price < d.thresholdCents && !o.risk) return 0;
   return Math.min(price, Math.max(500, Math.round((price * d.percent) / 100 / 100) * 100));
 }
+
+/** « Au choix du client » (settings/deposits.js mode 'choice'): no deposit, he pays now online or at the salon. */
+export const payChoice = (s) => !!s.settings.deposits && s.settings.deposits.mode === 'choice';
 
 /**
  * Would this member's plan pay for every one of these services on that day, as the till will check it (cover)? A booking

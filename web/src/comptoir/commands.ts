@@ -23,6 +23,7 @@ const pg = (page: string, label: string, icon: string, mots: string[], cap?: str
 // Commands: the capability is the one the page it opens needs (a barber has none of the owner's).
 const ACTIONS: Entry[] = [
   act('new', 'Nouveau rendez-vous', ['rdv', 'reserver', 'ajouter', 'creneau'], 'plus', goTo('/?new=1'), 'agenda.own', 'N'),
+  act('formule', 'Vendre la formule (5 coupes, ses dates réservées)', ['formule', 'carnet', 'entretien', '5 semaines', '5 coupes', 'vendre'], 'ticket', goTo('/?new=1&formule=1'), 'agenda.own'),
   act('walk', 'Ajouter un passage (sans rendez-vous)', ['passage', 'client sans rdv', 'file'], 'walk', goTo('/?walkin=1'), 'agenda.own', 'P'),
   act('absence', 'Poser une absence', ['conge', 'vacances', 'indisponible', 'repos'], 'calendar', goTo('/reglages/compte?absences=1'), 'agenda.own'),
   act('relancer', 'Relancer les habitués', ['relance', 'rappeler', 'clients en retard', 'sms'], 'relances', goTo('/relances'), 'marketing'),

@@ -23,6 +23,7 @@ import { browser, ORIGIN } from '../api/client.js';
 import { handle } from '../../server/http/app.js';
 import { at } from '../helpers.js';
 import { addDays, weekday, localParts } from '../../shared/dates.js';
+import { updateSettings } from '../../server/commands/shop.js';
 
 /** mulberry32: a small seeded generator, the same sequence on every machine. */
 function rng(seed) {
@@ -48,6 +49,8 @@ async function fiscalSalon(startDay) {
   await svc({ name: 'Coupe + barbe', category: 'Coupes', price: 3000, dur: 30 });
   await svc({ name: 'Couleur', category: 'Couleur', price: 6000, dur: 60, from: true });
   ids.deposit = ids.services[2];
+  // this salon asks a deposit from 50 € (the books' advances): said outright (the code's default is 'choice', where nothing is asked)
+  await run(updateSettings, { deposits: { mode: 'threshold' } });
   // the four French rates, on odd prices: every rounding the till can meet
   for (const [name, price, vat] of [['Huile', 1500, 2000], ['Peigne', 790, 2000], ['Livre de coupe', 1290, 550], ['Boisson', 250, 1000], ['Magazine', 190, 210]]) {
     const id = (await run(addProduct, { name, price, cost: 100, vat })).id;

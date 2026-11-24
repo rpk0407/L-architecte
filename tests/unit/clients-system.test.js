@@ -56,7 +56,7 @@ test('the evening reminder goes once, the next day', async () => {
 });
 
 test('an unpaid deposit frees the slot, a freed slot goes to the waiting list', async () => {
-  const t = await salon({ hour: 9 });
+  const t = await salon({ hour: 9, deposits: 'threshold' });
   const b = await t.engine.run(A.bookOnline, { serviceIds: [t.ids.color], staffId: t.ids.Ali, day: DAY, start: 840, first: 'Nolan', phone: '0611220000' }, t.asClient);
   // Ben is busy all afternoon, so the waiting client can only get Ali's slot
   for (let m = 840; m < 1110; m += 30) await t.engine.run(A.createAppointment, { name: 'X', serviceIds: [t.ids.cut], staffId: t.ids.Ben, day: DAY, start: m }, t.asOwner());

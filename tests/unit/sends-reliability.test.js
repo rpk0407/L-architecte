@@ -114,7 +114,7 @@ test('F5 · a store that refuses every write of the results: the outcome waits i
 /* ---------------- F10 · « c'est noté » ---------------- */
 
 test('F10 · a booking waiting for its deposit, moved by the client: no « c’est noté » until the deposit is paid', async () => {
-  const t = await salon();
+  const t = await salon({ deposits: 'threshold' });
   const r = await book(t, { serviceIds: [t.ids.color], start: 840 });
   assert.equal(r.status, 'pending');
   assert.deepEqual(of(t, r.id), [], 'nothing at booking: the deposit is not paid');

@@ -918,6 +918,17 @@ button.cr-go::after{content:"";position:absolute;inset:0}
 @keyframes lxspin{to{transform:rotate(360deg)}}
 .wait-f{margin:4px 0 12px}
 .pay-b{display:flex;flex-direction:column;gap:14px;margin-top:18px;padding:18px;border-radius:20px;background:rgba(235,70,57,.1)}
+/* « Le paiement »: au salon (chosen by default) or maintenant, two rows a thumb cannot miss */
+.payc{margin-top:22px}
+.payc-o{display:grid;gap:8px;margin-top:10px}
+.payc-b{display:flex;align-items:center;gap:14px;width:100%;min-height:64px;padding:12px 16px;border-radius:18px;background:var(--blanc);box-shadow:inset 0 0 0 1.5px var(--iligne);text-align:left;transition:box-shadow .2s}
+.payc-b.on{box-shadow:inset 0 0 0 2px var(--encre)}
+.payc-r{flex:none;width:22px;height:22px;border-radius:50%;box-shadow:inset 0 0 0 2px var(--iligne2);transition:box-shadow .2s}
+.payc-b.on .payc-r{box-shadow:inset 0 0 0 7px var(--encre)}
+.payc-t{display:flex;flex-direction:column;gap:4px;min-width:0}
+.payc-t b{font:600 15px/1.2 var(--f-sans)}
+.payc-t small{font:500 13px/1.35 var(--f-sans);color:var(--cendre2)}
+.pay-b.soft{background:rgba(15,14,13,.05)}
 .pay-b p{font:500 15px/1.45 var(--f-sans);color:var(--encre)}
 .mg-l{display:block;margin-top:18px;font:600 15px/1.35 var(--f-sans);color:var(--encre);text-decoration:underline;text-underline-offset:4px}
 /* pour qui : moi, une autre personne, mon enfant ; les autres personnes de la réservation */
@@ -1645,6 +1656,7 @@ html{scroll-behavior:auto}
 </sc-if>
 <sc-if value="{{bkMbr}}" hint-placeholder-val="{{ false }}"><p class="dep">Réservé avec ton abonnement&nbsp;: si la coupe tombe dans ton mois, elle est incluse, et rien n’est demandé en ligne.</p></sc-if>
 <sc-if value="{{hasDeposit}}" hint-placeholder-val="{{ false }}"><p class="dep">{{depLine}}</p></sc-if>
+<sc-if value="{{payAsk}}" hint-placeholder-val="{{ false }}"><div class="payc" data-guide="site-paiement"><p class="for-k" id="payc-k">Le paiement</p><div class="payc-o" role="radiogroup" aria-labelledby="payc-k"><sc-for list="{{payOpts}}" as="o" hint-placeholder-count="2"><button type="button" class="{{o.cls}}" role="radio" aria-checked="{{o.on}}" onClick="{{o.go}}"><span class="payc-r" aria-hidden="true"></span><span class="payc-t"><b>{{o.t}}</b><small>{{o.s}}</small></span></button></sc-for></div></div></sc-if>
 <sc-if value="{{isDemo}}" hint-placeholder-val="{{ true }}"><p class="demo">Démo&nbsp;: n’entre pas tes vraies coordonnées, tout est visible. Aucun message n’est envoyé, aucun paiement n’est débité. La réservation apparaît tout de suite dans le Comptoir.</p></sc-if>
 </div>
 </sc-if>
@@ -1664,6 +1676,8 @@ html{scroll-behavior:auto}
 <sc-if value="{{isGroupDone}}" hint-placeholder-val="{{ false }}"><div class="tks"><sc-for list="{{doneOthers}}" as="o" hint-placeholder-count="2"><div class="tk tk2"><p class="tk-k">{{o.k}}</p><p class="tk-w">{{o.when}}</p><p class="tk-f">{{o.what}}</p><p class="tk-b"><span>{{o.who}}</span></p><p class="tk-c">Code<b>{{o.code}}</b></p><sc-if value="{{o.hasPay}}" hint-placeholder-val="{{ false }}"><a class="btn small" href="{{o.payUrl}}" target="_blank" rel="noopener">{{o.payText}}</a></sc-if><a class="mg-l" href="{{o.manage}}">{{o.manageText}}</a></div></sc-for></div></sc-if>
 <sc-if value="{{isGroupDone}}" hint-placeholder-val="{{ false }}"><div class="grp" data-guide="site-groupe"><p class="grp-k">{{grpK}}</p><p class="grp-t"><span>Total, à régler au salon</span><b>{{grpTotal}}</b></p><sc-if value="{{grpShare}}" hint-placeholder-val="{{ false }}"><div class="grp-s"><button type="button" class="btn" onClick="{{grpSend}}">Envoyer à mes amis</button><button type="button" class="grp-c" onClick="{{grpCopy}}">Copier le message</button><p class="grp-n" role="status">{{grpNote}}</p><p class="grp-h">{{grpHint}}</p></div></sc-if></div></sc-if>
 <sc-if value="{{needPay}}" hint-placeholder-val="{{ false }}"><div class="pay-b"><p>{{payLine}}</p><a class="btn" href="{{payUrl}}" target="{{payTarget}}" rel="noopener">{{payBtn}}</a></div></sc-if>
+<sc-if value="{{prepayOpen}}" hint-placeholder-val="{{ false }}"><div class="pay-b soft" data-guide="site-payer"><p>{{prepayLine}}</p><a class="btn" href="{{prepayUrl}}">{{prepayBtn}}</a></div></sc-if>
+<sc-if value="{{prepayFail}}" hint-placeholder-val="{{ false }}"><p class="dep" role="status">Paiement en ligne indisponible pour l’instant&nbsp;: ton rendez-vous est gardé, tu régleras au salon.</p></sc-if>
 <sc-if value="{{espaceNew}}" hint-placeholder-val="{{ false }}"><div class="card espace" data-guide="site.espace"><h3>Garde tout au même endroit</h3><p>{{espaceText}}</p><a class="btn" href="{{espaceUrl}}">Ouvrir mon espace</a><small>Facultatif&nbsp;: ton rendez-vous est déjà confirmé.</small></div></sc-if>
 <sc-if value="{{showMail}}" hint-placeholder-val="{{ false }}"><p class="sms-k">Ta confirmation</p>
 <div class="sms"><p>{{mailLine}}</p><small>Rien reçu dans cinq minutes&nbsp;? Regarde dans tes indésirables.</small></div></sc-if>
@@ -1714,6 +1728,7 @@ html{scroll-behavior:auto}
 <sc-if value="{{showSum}}" hint-placeholder-val="{{ true }}"><p class="bk-sum"><b>{{bkPrice}}</b><span>{{bkLine}}</span></p></sc-if>
 <button type="button" class="btn" disabled="{{ctaOff}}" onClick="{{ctaGo}}">{{ctaText}}</button>
 <sc-if value="{{hasTerms}}" hint-placeholder-val="{{ false }}"><p class="bk-terms">En réservant, tu acceptes les conditions d’annulation&nbsp;: gratuite jusqu’à {{termsHours}}&nbsp;h avant, ensuite l’acompte reste au salon. <a href="/cgv" target="_blank" rel="noopener">Voir les CGV</a></p></sc-if>
+<sc-if value="{{payTerms}}" hint-placeholder-val="{{ false }}"><p class="bk-terms">Tu paies sur la page sécurisée de Stripe. {{payTermsLine}} <a href="/cgv" target="_blank" rel="noopener">Voir les CGV</a></p></sc-if>
 </div>
 </div>
 <sc-if value="{{abShow}}" hint-placeholder-val="{{ false }}">
@@ -2120,6 +2135,8 @@ const LXE = (function () {
       marketing: o.marketing === true ? true : undefined,
       // the member page's « Réserver ma coupe » (PAY-04): its signed link, the server checks it
       mbr: o.mbr || undefined,
+      // « payer maintenant » (the salon lets the client choose): the booking is confirmed either way, the answer brings the payment page
+      pay: o.pay === 'now' ? 'now' : undefined,
       // a place for someone else (another adult, a child), and the other people booked together
       guest: o.guest || undefined, others: o.others && o.others.length ? o.others : undefined
     }); }).then(function (r) {
@@ -2447,7 +2464,7 @@ class Component extends DCLogic {
       cut: 0, zoom: -1,
       // tab: the carte's category; hf: the formule touched under « Pour quelle formule ? » (none: the first of the catalogue)
       tab: 0, hf: null,
-      sheet: false, bk: this.bkEmpty(), fFirst: '', fLast: '', fPhone: '', fEmail: '', fNote: '', fSms: true, fMkt: false, forgot: false, icsUrl: '', holdNow: 0, storeV: 0,
+      sheet: false, bk: this.bkEmpty(), fFirst: '', fLast: '', fPhone: '', fEmail: '', fNote: '', fSms: true, fMkt: false, fPay: 'salon', forgot: false, icsUrl: '', holdNow: 0, storeV: 0,
       // the subscribe sheet (PAY-04): { plan, step: 'form'|'already', busy, err } while open; abNow: the express request, never ticked for him
       ab: null, abNow: false
     };
@@ -3145,7 +3162,7 @@ const BookingMixin = {
   bkInit() {
     const me = readMe() || {};
     // the offers switch always starts off: consent is asked, never assumed (not even from a previous visit)
-    this.setState({ fFirst: me.first || '', fLast: me.last || '', fPhone: me.phone || '', fEmail: me.email || '', fNote: '', fSms: true, fMkt: false });
+    this.setState({ fFirst: me.first || '', fLast: me.last || '', fPhone: me.phone || '', fEmail: me.email || '', fNote: '', fSms: true, fMkt: false, fPay: 'salon' });
     // the demo asks for no real details (PAY-04): an identity of its own, erased with the visitor's file 2 h later
     LXE.init().then(() => {
       const sal = LXE.salon();
@@ -3586,6 +3603,14 @@ const BookingMixin = {
     LXE.pull();
   },
 
+  /* « Le paiement » is asked when the salon lets the client choose (deposits mode 'choice', sent only with a real way to
+     pay online): one person, a plain service, not a move, not a member's included cut. Otherwise nothing changes. */
+  bkPayAsk(b) {
+    const sal = LXE.salon();
+    const F = b && b.f ? LXE.SV[b.f] : null;
+    return !!(sal && sal.payments && sal.payments.live === true && sal.deposits && sal.deposits.mode === 'choice' && F && !F.pack && F.p >= 0.5 && !b.moving && !b.mbr && !(b.party || []).length);
+  },
+
   async bkConfirm() {
     const s0 = this.state;
     const b = s0.bk;
@@ -3613,7 +3638,7 @@ const BookingMixin = {
       const r = await LXE.book({
         f: head.f, barber: head.barber, day: head.day, time: head.time, holdId: head.holdId, first: first, last: String(s0.fLast || '').trim().slice(0, 40),
         phone: String(s0.fPhone || '').trim() || undefined, email: String(s0.fEmail || '').trim(), note: String(s0.fNote || '').trim().slice(0, 200), sms: !!s0.fSms, marketing: s0.fMkt === true,
-        mbr: b.mbr || undefined, guest: this.bkGuestOf(head), others: all.slice(1).map((x) => LXE.person(Object.assign({}, x, { guest: this.bkGuestOf(x) })))
+        mbr: b.mbr || undefined, pay: this.bkPayAsk(b) && s0.fPay === 'now' ? 'now' : undefined, guest: this.bkGuestOf(head), others: all.slice(1).map((x) => LXE.person(Object.assign({}, x, { guest: this.bkGuestOf(x) })))
       });
       // the ticket keeps what was booked, even if the service leaves the catalogue later
       const result = { token: r.token, code: r.code, manage: r.manage, day: b.day, time: b.time, dur: F.d, f: b.f, n: F.n, p: F.p, from: !!F.from, barber: r.barber, any: b.barber === 'any', first: first, status: r.status, deposit: r.deposit, payUrl: r.payment ? r.payment.url : null, member: r.member && r.member.covered ? r.member.label : '' };
@@ -3635,9 +3660,14 @@ const BookingMixin = {
       (result.people || []).slice(1).forEach((p) => this.remember(null, { token: p.token, code: p.code, manage: p.manage, day: p.day, time: p.time, dur: p.dur, f: p.f, n: p.n, p: p.p, barber: p.barber, first: p.first, status: p.status }));
       markBooked();
       clearInterval(this._holdT);
+      // « payer maintenant »: the booking is already confirmed; its payment page opens right after (prepay), or could
+      // not be opened (payFailed: he pays at the salon, and is told so). Never remembered: the page lives half an hour
+      if (r.payNow) { result.prepay = r.payment && r.payment.url ? { amount: r.payNow.amount, url: r.payment.url } : null; result.payFailed = !result.prepay; }
       this.setState({ bk: Object.assign(this.bkEmpty(), { step: 'done', result: result, f: b.f }), icsUrl: this.bkIcs(result), fNote: '' });
       this.acctOwn(result.token);
       buzz([16, 40, 16]);
+      // straight to the payment page: one tap paid for both. Left unpaid, the booking stands (its ticket is behind)
+      if (result.prepay) window.location.assign(result.prepay.url);
     } catch (e) {
       // a booking of several people: the one whose slot was just taken goes back to his choice of time, the others are kept
       const who = group && e.code === 'taken' && e.extra && typeof e.extra.person === 'number' ? all[e.extra.person] : null;
@@ -3969,6 +3999,18 @@ const BookingMixin = {
     // from the member page: the server says whether the cut is included; the deposit is only for one that is not
     v.depLine = dep > 0 ? (b.mbr ? 'Si la coupe n’est pas incluse dans ton abonnement, un acompte de ' + LXE.eur(dep / 100) + ' est demandé, déduit au salon.' : 'Un acompte de ' + LXE.eur(dep / 100) + ' est demandé pour cette prestation, déduit au salon.') + ' Annulé plus de ' + (sal ? sal.booking.cancelUntilHours : 12) + ' h avant, il est remboursé.' : '';
     v.fFirst = s.fFirst; v.fLast = s.fLast; v.fPhone = s.fPhone; v.fEmail = s.fEmail; v.fNote = s.fNote;
+    // « Le paiement »: au salon (already chosen: confirming takes the same taps as ever) or maintenant, the whole price
+    const payAsk = step === 'info' && this.bkPayAsk(b);
+    const payNow = payAsk && s.fPay === 'now';
+    const cancelH = sal ? sal.booking.cancelUntilHours : 0;
+    const backWords = cancelH > 0 ? 'Remboursé si tu annules plus de ' + cancelH + ' h avant.' : 'Remboursé si tu annules avant ton rendez-vous.';
+    v.payAsk = payAsk;
+    v.payOpts = payAsk ? [
+      { k: 'salon', t: 'Payer au salon', s: 'Après ta coupe, comme d’habitude. Rien à payer maintenant.' },
+      { k: 'now', t: 'Payer maintenant · ' + LXE.eur(F.p), s: 'Carte (crédit ou débit), Apple Pay ou Google Pay. ' + backWords + (F.from ? ' Un supplément éventuel se règle au salon.' : '') }
+    ].map((o) => ({ t: o.t, s: o.s, on: (s.fPay === 'now') === (o.k === 'now') ? 'true' : 'false', cls: 'payc-b' + ((s.fPay === 'now') === (o.k === 'now') ? ' on' : ''), go: () => this.setState({ fPay: o.k }) })) : [];
+    v.payTerms = payNow;
+    v.payTermsLine = cancelH > 0 ? 'Annulation gratuite jusqu’à ' + cancelH + ' h avant, remboursée sur ta carte.' : 'Annulation gratuite jusqu’à l’heure du rendez-vous, remboursée sur ta carte.';
 
     /* pour qui, et les autres personnes de la même réservation */
     const hasMe = party.some((x) => x.gfor === 'me');
@@ -4204,6 +4246,12 @@ const BookingMixin = {
       v.goMove = () => {}; v.askCancel = () => {}; v.keep = () => {}; v.doCancel = () => {}; v.toCockpit = () => {};
     }
     v.notPay = !v.needPay;
+    // « payer maintenant » chosen: the booking is confirmed; its payment page is one tap away while he has not paid
+    v.prepayOpen = step === 'done' && !!r && !!r.prepay;
+    v.prepayUrl = v.prepayOpen ? r.prepay.url : '';
+    v.prepayBtn = v.prepayOpen ? 'Payer maintenant · ' + LXE.eur(r.prepay.amount / 100) : '';
+    v.prepayLine = 'Ton rendez-vous est confirmé. Il reste le paiement en ligne : carte, Apple Pay ou Google Pay. Si tu ne le fais pas, tu régleras au salon.';
+    v.prepayFail = step === 'done' && !!r && !!r.payFailed;
     v.payBtn = serie ? 'Régler ' + LXE.eur(serie.amount / 100) : 'Régler l’acompte';
     v.isSerDone = step === 'done' && !!serie;
     v.oneManage = !serie;
@@ -4240,7 +4288,7 @@ const BookingMixin = {
       else { cta = acc.busy ? 'Vérification…' : 'Valider mon code'; off = !!acc.busy || !/^\d{6}$/.test(String(acc.code || '')); go = () => this.accVerify(); }
     }
     else if (step === 'info' && isPack) { cta = b.busy ? 'Vérification…' : payOnline ? 'Confirmer et régler ' + eur(F) : 'Confirmer mes ' + this.serSlots(b).length + ' rendez-vous'; off = b.busy || !this.bkValid(); go = () => this.bkBuy(); }
-    else if (step === 'info') { cta = b.busy ? 'Vérification…' : party.length ? 'Confirmer les ' + (party.length + 1) + ' rendez-vous' : (b.retry ? 'Réessayer' : dep > 0 && !b.mbr ? 'Réserver et régler l’acompte' : 'Confirmer'); off = b.busy || !this.bkValid(); go = () => this.bkConfirm(); }
+    else if (step === 'info') { cta = b.busy ? 'Vérification…' : party.length ? 'Confirmer les ' + (party.length + 1) + ' rendez-vous' : (b.retry ? 'Réessayer' : dep > 0 && !b.mbr ? 'Réserver et régler l’acompte' : payNow ? 'Réserver et payer ' + LXE.eur(F.p) : 'Confirmer'); off = b.busy || !this.bkValid(); go = () => this.bkConfirm(); }
     else if (step === 'done' && v.needPay) { cta = v.payBtn; off = false; go = () => { if (v.payMore) window.open(r.payUrl, '_blank', 'noopener'); else window.location.href = r.payUrl; }; }
     else if (step === 'done' || step === 'manage') { cta = 'Fermer'; off = false; go = () => this.setState({ sheet: false }); }
     else if (step === 'cancelled') { cta = 'Choisir un autre créneau'; off = false; go = () => this.openWith({ formula: b.f, fresh: true }); }
@@ -4409,7 +4457,8 @@ Object.assign(Component.prototype, SubscribeMixin);
 function depositOf(F, d) {
   const price = Math.round(F.p * 100);
   if (typeof F.deposit === 'number') return Math.min(price, F.deposit);
-  if (!d || d.mode === 'none' || (d.mode === 'threshold' && price < d.thresholdCents)) return 0;
+  // 'choice': no deposit is ever asked, the client chooses to pay now or at the salon (bkPayAsk)
+  if (!d || d.mode === 'none' || d.mode === 'choice' || (d.mode === 'threshold' && price < d.thresholdCents)) return 0;
   return Math.min(price, Math.max(500, Math.round((price * d.percent) / 100 / 100) * 100));
 }
 </script>

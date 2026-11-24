@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="fr" data-cgv-text="2026-11-16">
+<html lang="fr" data-cgv-text="2026-11-24">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -48,6 +48,7 @@
 <p>Certaines réservations en ligne demandent un acompte. Son montant est affiché avant le paiement, qui passe par Stripe. L’acompte est <b>déduit du prix</b> le jour du rendez-vous&nbsp;: tu paies seulement le reste au salon.</p>
 <p data-if="depositRule" hidden><span data-f="depositRule"></span> Une prestation peut avoir sa propre règle, toujours indiquée avant le paiement.</p>
 <p data-unless="depositRule">Aujourd’hui, aucun acompte n’est demandé en ligne.</p>
+<p data-if="payChoice" hidden>Quand tu réserves en ligne, tu choisis&nbsp;: <b>payer au salon</b>, après ta prestation, ou <b>payer maintenant</b> le prix entier, par carte (crédit ou débit), Apple Pay ou Google Pay, sur la page sécurisée de Stripe. Ton rendez-vous est confirmé dans les deux cas&nbsp;: si le paiement en ligne n’aboutit pas, tu règles simplement au salon.</p>
 </section>
 
 <section aria-labelledby="t-cancel">
@@ -56,6 +57,7 @@
 <li><b>Annulation gratuite jusqu’à <span data-f="cancelH">12</span>&nbsp;h avant</b> le rendez-vous, depuis le lien de ta réservation ou en appelant le salon. L’acompte éventuel t’est alors remboursé.</li>
 <li>Tu peux aussi déplacer ton rendez-vous jusqu’à <span data-f="cancelH">12</span>&nbsp;h avant, sans frais.</li>
 <li>Passé ce délai, ou si tu ne viens pas sans prévenir, <b>l’acompte reste acquis au salon</b>&nbsp;: le créneau t’était réservé.</li>
+<li data-if="payChoice" hidden>Un rendez-vous <b>payé en ligne</b> et annulé dans ce délai est remboursé en entier sur ta carte. Passé ce délai, ou si tu ne viens pas sans prévenir, le paiement peut rester acquis au salon, comme un acompte.</li>
 <li data-if="noShowFee" hidden>Frais d’absence prévus&nbsp;: <span data-f="noShowFee"></span>, prélevés seulement si tu as enregistré une carte à la réservation pour les couvrir, et jamais sans t’en avoir informé.</li>
 </ul>
 </section>

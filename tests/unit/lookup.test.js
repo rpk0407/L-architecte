@@ -26,7 +26,8 @@ let clients = 0;
 
 /** The route on its own router (app.js wires it too), with the request the way app.js builds it. */
 async function setup({ wait } = {}) {
-  const t = await salon();
+  // a salon that asks a deposit from 50 € (a booking can wait for it): said outright, the default asks nothing
+  const t = await salon({ deposits: 'threshold' });
   const rt = await createRuntime({ env: { LX_MODE: 'production', SESSION_SECRET: 'test-secret-0123456789' }, store: t.store, clock: () => t.clock.now });
   const app = router();
   // the work runs after the answer (waitUntil in production): the tests time the answer, then wait for the work

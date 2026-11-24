@@ -17,6 +17,8 @@ import { formuleOfAppt } from '../domain/formule.js';
 import { formulePaid, formuleUnpaid } from './formule.js';
 
 const KINDS = new Set(['deposit', 'qr', 'guarantee', 'giftcard']);
+/** A booking whose price paid ahead can still be used on its ticket. */
+const PREPAY_OPEN = new Set(['booked', 'arrived', 'in_chair']);
 
 /* ---------------- a gift card ordered online ---------------- */
 
@@ -88,7 +90,10 @@ export const createPayment = {
       // names and numbers travel in pii (read back from the journal at fulfilment, routes-giftshop.js orderOf)
       ...(cid ? { cid } : {}), ...(gift ? { gift: gift.data } : {}),
       // the client pays his own cut from his page (commands/selfpay.js): the tip he chose, the group places he pays for
-      ...(input.kind === 'qr' && input.self && input.apptId ? { self: selfOf(input.self) } : {})
+      ...(input.kind === 'qr' && input.self && input.apptId ? { self: selfOf(input.self) } : {}),
+      // « payer maintenant » (deposits mode 'choice'): the whole price of a booking already confirmed, paid ahead by
+      // choice. Nothing waits for it: unpaid, the booking stands and is paid at the salon
+      ...(input.kind === 'deposit' && input.full === true && input.apptId ? { full: true } : {})
     }, gift ? gift.pii : undefined);
     return { id: input.id, ...(gift ? { cid: gift.cid } : {}) };
   }
@@ -115,6 +120,10 @@ export const paymentSucceeded = {
     ctx.emit('payment.succeeded', { id: py.id, chargeRef: input.chargeRef || null, ...(cid ? { cid } : {}), ...(vat != null ? { vat } : {}) }, ids);
     if (py.apptId && (py.kind === 'deposit' || py.kind === 'guarantee')) {
       const a = getAppt(s, py.apptId);
+      // the whole price paid ahead by choice: the booking was confirmed without it, so there is nothing to confirm. It
+      // counts only while the visit is still to be rung up; cancelled, missed or already paid at the till meanwhile,
+      // the money goes straight back (late: the API refunds it)
+      if (py.full) return PREPAY_OPEN.has(a.status) && !a.saleId ? { ok: true } : { ok: true, late: true };
       // paid after its deadline (the tick has not run yet): the slot may already belong to someone else
       if (a.status === 'pending' && payDeadline(s, a) < ctx.now && busyIntervals(s, a.staffId, a.day, { now: ctx.now, ignoreAppt: a.id }).some(([x, y]) => x < a.start + a.dur && a.start < y)) {
         ctx.emit('appt.cancelled', { id: a.id, by: 'system', reason: 'Acompte réglé trop tard', cid: a.clientId || undefined });

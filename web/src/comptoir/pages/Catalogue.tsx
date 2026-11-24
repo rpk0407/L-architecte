@@ -248,7 +248,7 @@ function ServiceSheet({ sv, all, onClose }: { sv: Service | 'new' | null; all: S
   // another category picked but not saved yet: the position shown would be the old one's
   const moved = !!place && (newCat.trim() || f.category) !== place.s.category;
   const dep = boot.settings.deposits;
-  const autoDep = !price || dep.mode === 'none' || (dep.mode === 'threshold' && price < dep.thresholdCents) ? 0 : Math.min(price, Math.max(500, Math.round((price * dep.percent) / 100 / 100) * 100));
+  const autoDep = !price || dep.mode === 'none' || dep.mode === 'choice' || (dep.mode === 'threshold' && price < dep.thresholdCents) ? 0 : Math.min(price, Math.max(500, Math.round((price * dep.percent) / 100 / 100) * 100));
   const valid = f.name.trim().length >= 2 && price != null && price >= 0 && (f.category || newCat.trim());
   const save = async () => {
     if (!valid) return;
@@ -296,7 +296,7 @@ function ServiceSheet({ sv, all, onClose }: { sv: Service | 'new' | null; all: S
         <div className="chips">{[0, 5, 10, 15].map((b) => <Chip key={b} small on={f.buffer === b} onClick={() => setF({ ...f, buffer: b })}>{b ? b + ' min' : 'aucun'}</Chip>)}</div>
       </Field>
       <Switch on={f.online} onChange={(v) => setF({ ...f, online: v })} title="Réservable en ligne" hint="Décoche pour les prestations à valider au salon (couleur, mariage…)." />
-      <Field label="Acompte en ligne">
+      <Field label="Acompte en ligne" hint={dep.mode === 'choice' ? 'Sans effet pour l’instant : le salon laisse le client choisir, payer maintenant ou au salon (Réglages › Réservation).' : undefined}>
         <div className="chips">
           <Chip small on={f.depositMode === 'auto'} onClick={() => setF({ ...f, depositMode: 'auto' })}>Règle du salon{autoDep ? ' · ' + eur(autoDep) : ' · aucun'}</Chip>
           <Chip small on={f.depositMode === 'none'} onClick={() => setF({ ...f, depositMode: 'none' })}>Jamais</Chip>
