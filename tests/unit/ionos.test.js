@@ -17,7 +17,7 @@ const DAY = '2026-11-03';
 const PASS = 'Mot-De-Passe-Boite-42';
 // the mailbox's user name differs from the sender here, so an answer that leaked it would show
 const USER = 'boite.comptoir@barberlarchitecte.com';
-const MAIL = { SMTP_HOST: 'smtp.ionos.fr', SMTP_PORT: '465', SMTP_USER: USER, SMTP_PASS: PASS, EMAIL_FROM: "Barber L'Architecte <rdv@barberlarchitecte.com>" };
+const MAIL = { SMTP_HOST: 'smtp.ionos.fr', SMTP_PORT: '465', SMTP_USER: USER, SMTP_PASS: PASS, EMAIL_FROM: "Salon L'Architecte <rdv@barberlarchitecte.com>" };
 const none = (h, type) => Object.assign(new Error('query' + type + ' ENODATA ' + h), { code: 'ENODATA' });
 /** A resolver from a table: 'host|TYPE' first, then 'TYPE'; an Error is thrown; nothing listed is ENODATA. */
 const resolver = (table) => { const asked = []; const f = async (host, type) => { asked.push(host + '|' + type); const v = table[host + '|' + type] ?? table[type]; if (v === undefined) throw none(host, type); if (v instanceof Error) throw v; return v; }; return Object.assign(f, { asked }); };

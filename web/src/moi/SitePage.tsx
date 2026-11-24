@@ -16,7 +16,7 @@ export function SitePage({ children, solo, space = true }: { children: ReactNode
     <div className="ms">
       <a className="ms-skip" href="#main">Aller au contenu</a>
       <header className="ms-top">
-        <a className="ms-wm" href="/" aria-label="Barber L’Architecte, accueil"><span className="ms-wm-a">L’Architecte</span><span className="ms-wm-b">Barber · Marseille</span></a>
+        <a className="ms-wm" href="/" aria-label="Salon L’Architecte, accueil"><span className="ms-wm-a">L’Architecte</span><span className="ms-wm-b">Coiffeur et barbier · Marseille</span></a>
         <a className="ms-btn" href="/?reserver">Réserver</a>
       </header>
       <main id="main" className={'ms-main' + (solo ? ' solo' : '')}>{children}</main>

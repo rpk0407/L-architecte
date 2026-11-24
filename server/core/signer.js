@@ -10,7 +10,7 @@ import { createHash, createPrivateKey, createPublicKey, randomBytes, sign as edS
 const PKCS8 = Buffer.from('302e020100300506032b657004220420', 'hex');
 
 /** The demo's seed: fixed, so the seeded journal and every demo instance sign with the same key. */
-const DEMO_SEED = createHash('sha256').update('Barber L’Architecte · démo · clé de signature').digest();
+const DEMO_SEED = createHash('sha256').update('Salon L’Architecte · démo · clé de signature').digest();
 
 /**
  * @typedef {{ kid: string, publicKey: string, source: 'env'|'store'|'demo', sign: (buf: Buffer|string) => string }} Signer

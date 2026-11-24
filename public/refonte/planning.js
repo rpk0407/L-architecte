@@ -133,7 +133,7 @@
     const wait = (v) => new Promise((ok) => setTimeout(() => ok(v), 180));
     return {
       salon: () => wait({
-        shop: { name: 'Barber L’Architecte', mapsUrl: '', instagram: '' }, hours: { 0: [], 1: [], 2: [[540, 1110]], 3: [[540, 1110]], 4: [[540, 1110]], 5: [[540, 1110]], 6: [[540, 1110]] },
+        shop: { name: 'Salon L’Architecte', mapsUrl: '', instagram: '' }, hours: { 0: [], 1: [], 2: [[540, 1110]], 3: [[540, 1110]], 4: [[540, 1110]], 5: [[540, 1110]], 6: [[540, 1110]] },
         hoursText: 'Du mardi au samedi, 9 h – 18 h 30', closedText: 'le dimanche et le lundi', openings: [], closures: [],
         booking: { enabled: true, stepMin: 30, maxDaysAhead: 90, holdMin: 5, pendingPayMin: 15, cancelUntilHours: 12 }, deposits: { mode: 'none' },
         services: SV, menu: SV.map((x) => ({ slug: x.slug, name: x.name, category: x.category, price: x.price, from: x.from, dur: x.dur, online: true }))
@@ -869,7 +869,7 @@
     const esc = (s) => String(s).replace(/\\/g, '\\\\').replace(/,/g, '\\,').replace(/;/g, '\;');
     const ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Barber LArchitecte//Reservation//FR', 'BEGIN:VEVENT',
       'UID:' + k.r.code + '@larchitecte', 'DTSTAMP:' + st, 'DTSTART;TZID=Europe/Paris:' + d + 'T' + hm(k.start) + '00', 'DTEND;TZID=Europe/Paris:' + d + 'T' + hm(k.start + k.sv.dur) + '00',
-      'SUMMARY:' + esc('Barber L’Architecte · ' + k.sv.name), 'LOCATION:' + esc(ADDRESS),
+      'SUMMARY:' + esc('Salon L’Architecte · ' + k.sv.name), 'LOCATION:' + esc(ADDRESS),
       'DESCRIPTION:' + esc((b ? 'Avec ' + b.name + '. ' : '') + 'Code ' + k.r.code + '.' + (k.r.manage ? ' Déplacer ou annuler : ' + k.r.manage : '')),
       ...(k.r.manage ? ['URL:' + k.r.manage] : []), 'END:VEVENT', 'END:VCALENDAR'].join('\r\n');
     return URL.createObjectURL(new Blob([ics], { type: 'text/calendar;charset=utf-8' }));

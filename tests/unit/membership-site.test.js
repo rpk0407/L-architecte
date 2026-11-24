@@ -370,7 +370,7 @@ function cgvPage(memberships) {
     querySelectorAll: match, querySelector: (sel) => match(sel)[0] || null,
     createElement: (tag) => make(tag), createTextNode: (t) => ({ text: t })
   };
-  const salon = { shop: { name: 'Barber L’Architecte' }, booking: {}, deposits: { mode: 'none' }, services: [], payments: { provider: 'stripe', live: true } };
+  const salon = { shop: { name: 'Salon L’Architecte' }, booking: {}, deposits: { mode: 'none' }, services: [], payments: { provider: 'stripe', live: true } };
   const fetch = (url) => Promise.resolve({ ok: true, json: () => (url === '/api/public/memberships' ? memberships : salon) });
   vm.runInNewContext(read('public/pages.js'), { document, fetch, location: { pathname: '/cgv' }, localStorage: null, Promise });
   return ready.then(() => ({ hidden: section.hidden, plans: list.children.length }));

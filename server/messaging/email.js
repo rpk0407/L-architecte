@@ -35,7 +35,7 @@ export function mailHtml(text, o = {}) {
     + brand + paras.join('') + button + '</td></tr></table></td></tr></table></body></html>';
 }
 
-/** "Barber L'Architecte <rdv@barberlarchitecte.com>" or a bare address → { email, name }. */
+/** "Salon L'Architecte <rdv@barberlarchitecte.com>" or a bare address → { email, name }. */
 export function parseFrom(v) {
   const m = /^\s*(?:"?([^"<]*?)"?\s*)?<([^<>\s]+@[^<>\s]+\.[^<>\s]+)>\s*$/.exec(String(v || ''));
   if (m) return { email: m[2].toLowerCase(), name: (m[1] || '').trim() };

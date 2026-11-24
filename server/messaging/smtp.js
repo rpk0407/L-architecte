@@ -45,7 +45,7 @@ export function encodeWord(v) {
   return out.map((x) => '=?UTF-8?B?' + Buffer.from(x, 'utf8').toString('base64') + '?=').join(CRLF + ' ');
 }
 
-/** `"Barber L'Architecte" <rdv@salon.fr>`, the name quoted or encoded. */
+/** `"Salon L'Architecte" <rdv@salon.fr>`, the name quoted or encoded. */
 function mailbox(email, name) {
   const n = oneLine(name);
   if (!n) return email;

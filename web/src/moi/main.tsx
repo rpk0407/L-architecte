@@ -26,7 +26,7 @@ function Shell({ children, tab, onTab }: { children: ReactNode; tab?: Tab; onTab
   return (
     <div className={'c-page m-page' + (tab ? ' m-tabbed' : '')}>
       <header className="c-top m-top">
-        <a href="/" className="c-brand"><b>L’Architecte</b><small>Barber · Marseille</small></a>
+        <a href="/" className="c-brand"><b>L’Architecte</b><small>Coiffeur et barbier · Marseille</small></a>
         {tab ? <a className="m-book" href="/?reserver">Réserver</a> : null}
       </header>
       <main className="c-main" id="main">{children}</main>

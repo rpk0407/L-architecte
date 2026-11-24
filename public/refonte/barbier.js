@@ -90,7 +90,7 @@
     function call(method, path, body) {
       const u = new URL(path, 'http://x'), p = u.pathname.replace(API, '');
       if (p === '/salon') {
-        return { shop: { name: 'Barber L’Architecte', address: '16, place Pélabon', zip: '13013', city: 'Marseille', mapsUrl: '' }, hours: { 0: [], 1: [], 2: [[540, 1110]], 3: [[540, 1110]], 4: [[540, 1110]], 5: [[540, 1110]], 6: [[540, 1110]] }, hoursText: 'Du mardi au samedi, 9 h – 18 h 30', closures: [],
+        return { shop: { name: 'Salon L’Architecte', address: '16, place Pélabon', zip: '13013', city: 'Marseille', mapsUrl: '' }, hours: { 0: [], 1: [], 2: [[540, 1110]], 3: [[540, 1110]], 4: [[540, 1110]], 5: [[540, 1110]], 6: [[540, 1110]] }, hoursText: 'Du mardi au samedi, 9 h – 18 h 30', closures: [],
           booking: { enabled: true, maxDaysAhead: 60, holdMin: 5, cancelUntilHours: 12, pendingPayMin: 15 }, deposits: { mode: 'none' }, services: SV,
           menu: SV.map((x) => ({ slug: x.slug, name: x.name, category: x.category, price: x.price, from: x.from, dur: x.dur, online: true })).concat([{ slug: 'ab', name: 'Formule Entretien 5 semaines', category: 'Formule', price: 8000, from: false, dur: 30, online: false }]),
           barbers: staff.map((x) => ({ id: x.id, name: x.name, initials: x.initials, bio: x.bio, photo: x.photo, away: null })), sms: false, channel: 'sms', today: now().day, now: Date.now() };
@@ -445,7 +445,7 @@
     const row = (k, v, big) => '<div class="tk-r"><dt>' + k + '</dt><dd' + (big ? ' class="tk-w"' : '') + '>' + v + '</dd></div>';
     return '<div class="st done"><div class="ok"><span class="ok-c" aria-hidden="true"><svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="M13 25l7.5 7.5L35 17"/></svg></span><p class="ok-code">' + (pend ? 'Rendez-vous en attente de l’acompte' : 'Rendez-vous confirmé') + '<br>Code <b>' + esc(r.code) + '</b></p></div>' +
       '<dl class="tk">' + row('Quoi', esc(sv.name + ' · ' + sv.dur + ' min · ' + eur(sv.price, sv.from))) + row('Avec qui', staff ? '<span class="who-f">' + face(r.staffId, 'tk-av') + esc(staff.name) + '</span>' : 'Un barbier du salon') +
-      row('Quand', esc(cap(dayLong(r.day)) + ' à ' + th(r.start)), true) + row('Où', 'Barber L’Architecte<br>' + esc(placeLine())) + '</dl>' +
+      row('Quand', esc(cap(dayLong(r.day)) + ' à ' + th(r.start)), true) + row('Où', 'Salon L’Architecte<br>' + esc(placeLine())) + '</dl>' +
       (pend && r.payment && r.payment.url ? '<div class="pay-b"><p>Un acompte de ' + esc(eur(r.deposit)) + ' confirme ce créneau. Il est déduit au salon.' + (S.salon.booking && S.salon.booking.pendingPayMin ? ' Tu as ' + S.salon.booking.pendingPayMin + ' minutes pour le régler.' : '') + '</p><a class="btn" href="' + esc(r.payment.url) + '">Régler l’acompte · ' + esc(eur(r.deposit)) + '</a></div>' : '') +
       '<div class="done-act">' + (r.ics ? '<a class="btn' + (pend ? ' ghost' : '') + '" href="' + r.ics + '" download="rdv-larchitecte.ics">Ajouter à mon agenda</a>' : '') + '<a class="btn ghost" href="' + esc(maps) + '" target="_blank" rel="noopener">Itinéraire</a>' + (wa ? '<a class="btn ghost" data-wa href="' + esc(wa) + '" target="_blank" rel="noopener">Recevoir la confirmation sur WhatsApp</a>' : '') + '</div>' +
       (r.manage ? '<a class="mg-l" href="' + esc(r.manage) + '">Déplacer ou annuler ce rendez-vous</a>' : '') +
@@ -457,7 +457,7 @@
       const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z');
       const ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Barber LArchitecte//Reservation//FR', 'BEGIN:VEVENT', 'UID:' + r.code + '@larchitecte', 'DTSTAMP:' + stamp,
         'DTSTART;TZID=Europe/Paris:' + d + 'T' + hm(r.start).replace(':', '') + '00', 'DTEND;TZID=Europe/Paris:' + d + 'T' + hm(r.start + sv.dur).replace(':', '') + '00',
-        'SUMMARY:Barber L’Architecte · ' + sv.name, 'LOCATION:16 place Pélabon\\, 13013 Marseille',
+        'SUMMARY:Salon L’Architecte · ' + sv.name, 'LOCATION:16 place Pélabon\\, 13013 Marseille',
         'DESCRIPTION:' + (st ? 'Avec ' + st.name + '. ' : '') + 'Code ' + r.code + '.' + (r.manage ? ' Gérer : ' + r.manage : ''), r.manage ? 'URL:' + r.manage : '', 'END:VEVENT', 'END:VCALENDAR'].filter(Boolean).join('\r\n');
       return URL.createObjectURL(new Blob([ics], { type: 'text/calendar' }));
     } catch (e) { return ''; }
