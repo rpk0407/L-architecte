@@ -2282,6 +2282,20 @@ const CH = [
 /* ---------- the site's own words: fixed, the owner does not edit the site ----------
    Prices and hours come from the salon (/api/public/salon `menu` and `hoursText`), the old menu until it answers. */
 const HERO_WORD = 'L’Architecte';
+/* The opening plays at every entry. A page reloaded, or come back to with Back, would be put back where it was by the
+   browser, below the opening: it opens at its top instead, without its #chapter. Not with reduced motion (nothing plays), nor on a booking link. */
+(function () {
+  try {
+    const nav = performance.getEntriesByType ? performance.getEntriesByType('navigation')[0] : null;
+    if (!nav || (nav.type !== 'reload' && nav.type !== 'back_forward')) return;
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    if (/[?&]reserver(&|=|$)/.test(window.location.search)) return;
+    window.history.scrollRestoration = 'manual';
+    if (window.location.hash) window.history.replaceState(window.history.state, '', window.location.pathname + window.location.search);
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    window.addEventListener('load', function () { setTimeout(function () { try { window.history.scrollRestoration = 'auto'; } catch (e) { /* ignore */ } }, 0); });
+  } catch (e) { /* ignore */ }
+})();
 /* the clipper that crosses the first view, seen from above, black and bone: its teeth (tips at x 354 of 360) lead */
 const CLIPPER_SVG = '<svg class="tdz" viewBox="0 0 360 132" aria-hidden="true" focusable="false">' +
   '<path d="M22 66a9 9 0 1 0-18 0 9 9 0 0 0 18 0z" fill="none" stroke="#0F0E0D" stroke-width="3"/>' +
@@ -2708,6 +2722,9 @@ class Component extends DCLogic {
     this._tick = setInterval(() => { if (!LXE.salon()) LXE.init(); this.setState({ now: Date.now() }); }, 30000);
     window.addEventListener('scroll', this.onScroll, { passive: true });
     window.addEventListener('resize', this.onResize);
+    // back from another page, the browser shows this one as it left it, without loading it: the opening plays again all the same
+    this.onShow = (e) => { if (e && e.persisted) this.nightAgain(); };
+    window.addEventListener('pageshow', this.onShow);
     const go = () => { if (!this._mounted || this._fontsOk) return; this._fontsOk = true; this.boot(); this.measure(true); this.intro(); this.toHash(); };
     try {
       if (document.fonts && document.fonts.load) {
@@ -2770,6 +2787,7 @@ class Component extends DCLogic {
     if (this._io) { try { this._io.disconnect(); } catch (e) { /* ignore */ } this._io = null; }
     window.removeEventListener('scroll', this.onScroll);
     window.removeEventListener('resize', this.onResize);
+    if (this.onShow) window.removeEventListener('pageshow', this.onShow);
     if (this._cutsOff) this._cutsOff();
     this.bkDestroy();
     try { document.documentElement.style.overflow = ''; } catch (e) { /* ignore */ }
@@ -3021,6 +3039,22 @@ class Component extends DCLogic {
     };
     requestAnimationFrame(step);
     return true;
+  }
+
+  /* the opening once more, on a page that is already there (shown again by the browser's Back): from the top, like an entry.
+     Not over an open booking or the open menu, nor with reduced motion. */
+  nightAgain() {
+    const hero = this._hero, ov = hero && hero.querySelector('.hr-night');
+    if (this._rm || this._nightRun || !this._fontsOk || !this.htHero || !ov) return;
+    if (this.state.menu || this.state.sheet || document.querySelector('.bk.open')) return;
+    try { window.scrollTo({ top: 0, left: 0, behavior: 'instant' }); } catch (e) { window.scrollTo(0, 0); }
+    ov.style.animation = 'none';
+    void ov.offsetWidth; // the 7 s safeguard starts again
+    ov.style.animation = '';
+    ov.style.display = '';
+    this._night = true;
+    this.frame();
+    if (!this.night()) this.nightEnd(true);
   }
 
   /* the night is over (or never was: now): the fresh page alone, its own top bar back */
