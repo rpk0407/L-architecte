@@ -1,10 +1,10 @@
 // The salon as it runs today, end to end over HTTP: production mode, no SMS provider, everything by e-mail
 // (settings.booking.contact 'email', the number optional), the monthly membership not live, no online payment, the
-// client space switched on by the owner. What the demo hides (texts and memberships simulated ON) is checked here:
+// client space open as it is for a salon that writes by e-mail (nothing stored: the default). What the demo hides (texts and memberships simulated ON) is checked here:
 //   - what the public page needs is in the public payloads (the formule to take, the space's way in);
 //   - a client who booked with an address signs in to /moi with a code by e-mail, sees his appointment and cancels it;
 //   - the formule (5 cuts, paid at the salon) is taken with an account made from a first name and an address;
-//   - nothing of this is reachable while the owner has not switched the space on.
+//   - nothing of this is reachable once the owner has switched the space off (Réglages › Réservation).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { salon, at } from '../helpers.js';
@@ -15,16 +15,21 @@ import { updateSettings } from '../../server/commands/shop.js';
 import { addService, archiveService } from '../../server/commands/catalog.js';
 import { ACCOUNT_TIMING, START_MESSAGE_MAIL, settled } from '../../server/http/routes-me.js';
 import { defaultSettings } from '../../server/settings/index.js';
+import { accountsOn, settingsShown } from '../../server/settings/accounts.js';
 
 Object.assign(ACCOUNT_TIMING, { minMs: 0, jitterMs: 0, verifyMs: 0 });
 const FIRST = '2026-11-05'; // the Thursday after the helpers' DAY (a Tuesday)
 let n = 0;
 const freshMail = (who) => who + '.' + ++n + '.' + Math.random().toString(36).slice(2, 8) + '@exemple.fr';
 
-/** The live salon's shape: e-mail mode, « annulable à tout moment », one formule in the catalogue, the space on or off. */
-async function setup({ accounts = true, oldCarnet = false } = {}) {
+/**
+ * The live salon's shape: e-mail mode, « annulable à tout moment », one formule in the catalogue. accounts: nothing is
+ * stored about the client space unless said (the live salon never chose: it is open because the salon writes by e-mail);
+ * false: the owner switched it off.
+ */
+async function setup({ accounts = /** @type {boolean | undefined} */ (undefined), oldCarnet = false } = {}) {
   const t = await salon();
-  await t.engine.run(updateSettings, { ...(accounts ? { accounts: { enabled: true } } : {}), booking: { contact: 'email', cancelUntilHours: 0 } }, t.asOwner());
+  await t.engine.run(updateSettings, { ...(accounts === undefined ? {} : { accounts: { enabled: accounts } }), booking: { contact: 'email', cancelUntilHours: 0 } }, t.asOwner());
   // one formule, as the salon sells it; the helpers' carnet without dates is not part of this salon
   if (!oldCarnet) await t.engine.run(archiveService, { id: t.ids.pack }, t.asOwner());
   t.ids.formule = (await t.engine.run(addService, { name: 'Formule Entretien 5 semaines', category: 'Formule', price: 8000, dur: 30, slug: 'ab', pack: { credits: 5, days: 35, serviceIds: [t.ids.cut], weekly: true, missed: 'lost' } }, t.asOwner())).id;
@@ -47,8 +52,22 @@ async function setup({ accounts = true, oldCarnet = false } = {}) {
   return { ...t, rt, s, mails, codeFor, texts };
 }
 
-test('defaults: nothing here switches the client space on by itself', () => {
-  assert.equal(defaultSettings().accounts.enabled, false);
+test('defaults: the client space is open for a salon that writes by e-mail, closed for one that texts, and the owner’s choice wins', async () => {
+  // nothing is stored about it by default
+  assert.equal('enabled' in defaultSettings().accounts, false);
+  // a fresh salon asks a number: closed until its owner opens it
+  const fresh = await salon();
+  assert.equal(accountsOn(fresh.engine.state), false);
+  // the same salon once it asks an address (the live salon): open, with nothing more to store
+  await fresh.engine.run(updateSettings, { booking: { contact: 'email' } }, fresh.asOwner());
+  assert.equal(fresh.engine.state.settings.accounts.enabled, undefined);
+  assert.equal(accountsOn(fresh.engine.state), true);
+  // the owner's switch (Réglages › Réservation) wins both ways, and what a screen reads is always true or false
+  await fresh.engine.run(updateSettings, { accounts: { enabled: false } }, fresh.asOwner());
+  assert.equal(accountsOn(fresh.engine.state), false);
+  assert.equal(settingsShown(fresh.engine.state).accounts.enabled, false);
+  await fresh.engine.run(updateSettings, { accounts: { enabled: true }, booking: { contact: 'phone' } }, fresh.asOwner());
+  assert.equal(accountsOn(fresh.engine.state), true);
 });
 
 test('the public payloads carry what the page needs: the formule to take, no monthly plan, the space by e-mail', async () => {
@@ -69,7 +88,7 @@ test('the public payloads carry what the page needs: the formule to take, no mon
   assert.deepEqual((await site.get('/api/public/account')).json, { enabled: true, contact: 'email', signedIn: false, demo: false, loyalty: (await site.get('/api/public/account')).json.loyalty });
 });
 
-test('while the owner has not switched it on: no way in, no code, and the formule stays « au salon »', async () => {
+test('once the owner has switched it off: no way in, no code, and the formule stays « au salon »', async () => {
   const t = await setup({ accounts: false });
   const site = browser(t.rt);
   const acc = (await site.get('/api/public/account')).json;

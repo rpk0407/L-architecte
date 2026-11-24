@@ -41,6 +41,9 @@ import { waitUntil } from '@vercel/functions';
 import { handBadge } from './routes-channels.js';
 import { byHand } from '../messaging/hand.js';
 import { arrivalsFor, arrivalOf } from '../domain/arrival.js';
+import { accountsOn, settingsShown } from '../settings/accounts.js';
+import { formuleOfAppt } from '../domain/formule.js';
+import { formuleMailState } from '../commands/formule.js';
 
 const dayParam = (r, name = 'day') => { const d = r.query.get(name); return d && isDay(d) ? d : r.local.day; };
 
@@ -272,7 +275,7 @@ Object.assign(SMS_FR, { memberCard: 'abonnement : changer la carte', memberLinkM
 // AC-01: the client space's texts
 Object.assign(SMS_FR, { otp: 'code de connexion', accountOpened: 'espace ouvert', accesInvite: 'lien vers son espace' });
 // the carnet bought with its dates (commands/formule.js, commands/sales.js)
-Object.assign(SMS_FR, { formuleReleased: 'carnet non payé, rendez-vous libérés', formuleRenew: 'carnet terminé, reprendre', payLink: 'lien pour payer sa coupe' });
+Object.assign(SMS_FR, { formuleReleased: 'carnet non payé, rendez-vous libérés', formuleRenew: 'carnet terminé, reprendre', payLink: 'lien pour payer sa coupe', formuleLink: 'formule activée, lien vers son espace (e-mail)' });
 // AC-02: a copy of his data sent to a client, and the owner's mails about his requests
 Object.assign(SMS_FR, { dataExport: 'copie de ses données (e-mail)', owner_erase: 'alerte demande d’effacement', owner_export: 'alerte demande de données' });
 const MEMBER_FR = { pending: 'paiement attendu', active: 'en cours', grace: 'paiement en retard', unpaid: 'impayé', ending: 'résilié, en cours jusqu’à la fin du mois payé', ended: 'terminé' };
@@ -383,11 +386,11 @@ export function staffRoutes(app) {
   app.get('/api/v1/bootstrap', (r) => {
     const s = r.s;
     const full = r.caps.has('team');
-    const settings = r.caps.has('settings') ? s.settings : {
+    const settings = r.caps.has('settings') ? settingsShown(s) : {
       shop: s.settings.shop, hours: s.settings.hours, closures: s.settings.closures, booking: s.settings.booking, deposits: s.settings.deposits,
       // the month's goal is the owner's and the managers' (Objectifs): a barber gets none
       // whether the client space is open (AC-02): the desk offers its invite, the file says « fermé » only when it is
-      accounts: { enabled: !!(s.settings.accounts && s.settings.accounts.enabled) },
+      accounts: { enabled: accountsOn(s) },
       payments: s.settings.payments, team: s.settings.team, goals: r.caps.has('report.shop') ? s.settings.goals : {},
       // FID-03: whether the till tells a ticket without a client that it earns no stamp (the rules are the owner's to read)
       loyalty: { enabled: !!(s.settings.loyalty && s.settings.loyalty.enabled) },
@@ -491,10 +494,13 @@ export function staffRoutes(app) {
       resend: !resendRefusal(s, m) && maySend(s, m, { caps: r.caps, staffId: r.me.id }) }));
     // « Renvoyer la confirmation par e-mail »: 'ok', or why the button is off ('' when there is nothing to confirm any more)
     const confirmMail = a.status !== 'booked' || startsAt(a) <= r.now ? '' : s.settings.messages.email === false ? 'off' : confirmAddress(s, a) ? 'ok' : 'no_email';
+    // « Renvoyer le lien de sa formule »: 'ok', or why the button is off ('' on a booking outside a formule, or a finished one)
+    const fo = formuleOfAppt(s, a.id);
+    const formuleMail = fo ? formuleMailState(s, fo, r.now) : '';
     const payments = [...s.payments.values()].filter((p) => p.apptId === a.id).map((p) => ({ id: p.id, kind: p.kind, amount: p.amount, status: p.status, at: p.createdAt }));
     // the sheet and the till read every place of a group (who, what, the price, paid or not), to ring it up as one
     const grp = a.ext && a.ext.group ? groupBrief(s, a, { detail: true }) : null;
-    return { appt: { ...apptView(s, a, r.caps, stats, r.now), ...(grp ? { group: grp } : {}) }, client: c && r.caps.has('client.view') ? clientFull(s, c, r.caps, stats, r.now) : null, history, messages, confirmMail, payments, sale: a.saleId && s.sales.get(a.saleId) ? saleView(s, s.sales.get(a.saleId), r.caps) : null };
+    return { appt: { ...apptView(s, a, r.caps, stats, r.now), ...(grp ? { group: grp } : {}) }, client: c && r.caps.has('client.view') ? clientFull(s, c, r.caps, stats, r.now) : null, history, messages, confirmMail, ...(formuleMail ? { formuleMail } : {}), payments, sale: a.saleId && s.sales.get(a.saleId) ? saleView(s, s.sales.get(a.saleId), r.caps) : null };
   }, { cap: 'agenda.own' });
 
   /** « Renvoyer la confirmation par e-mail »: queued by a journaled command, then sent now by the normal dispatch. */

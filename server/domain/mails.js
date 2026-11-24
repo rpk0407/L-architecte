@@ -1,6 +1,7 @@
 // @ts-check
 // The e-mails about one appointment: the client's confirmation (with the calendar file and the "Gérer mon rendez-vous"
-// link) and cancellation, and the owner's alert for each online booking or cancellation. Each is queued like an SMS
+// link) and cancellation, the formule's one mail for its five dates (with the way into the client space), and the
+// owner's alert for each online booking or cancellation. Each is queued like an SMS
 // (domain/messages.js), with a deterministic key, and left by the scheduler (messaging/email.js).
 import { addDays, dayParts, dayLong, DAYS_SH, fmtTime, pad2 } from '../../shared/dates.js';
 import { fmtEur } from '../../shared/money.js';
@@ -55,6 +56,51 @@ export function mailConfirmation(s, ctx, a, o) {
     subject: (moved ? 'Rendez-vous déplacé : ' : 'Rendez-vous confirmé : ') + when + pour + ' · ' + shop.name, text,
     cta: o.link ? { label: 'Gérer mon rendez-vous', url: o.link } : undefined, links: [o.link || ''],
     attachments: [{ name: 'rendez-vous.ics', type: 'text/calendar; charset=utf-8; method=PUBLISH', content: apptIcs(shop, a, { barber, link: o.link, now: ctx.now }) }]
+  });
+}
+
+/**
+ * The formule (« 5 coupes sur 5 semaines ») is activated: ONE mail for the whole purchase, with what it is (its cuts, its
+ * price, how it is paid, what is left), every date still to come, and the way into the client space where each date is
+ * seen, moved or cancelled. A service mail about something he bought: no consent to ask, no quiet hours. One key per
+ * purchase, so a sale played again never writes twice; « Renvoyer le lien » (commands/formule.js) asks for a fresh copy
+ * under its own key.
+ * @param {{ id: string, name: string, credits: number, price: number, pay: 'salon'|'paid'|'online', left?: number, toBook?: number }} f
+ *   left: the cuts still to take (all of them at the purchase); toBook: weeks without a date yet
+ * @param {any[]} appts the dates still to come, as booked
+ * @param {{ to: string, first?: string, cid: string, forFirst?: string, link?: string, space?: boolean, key?: string, resendOf?: string }} o
+ *   link: the client space (space true: /moi?garder=…, opened with a code sent to this same address) or, while the space
+ *   is closed, the first date's own page
+ */
+export function mailFormule(s, ctx, f, appts, o) {
+  if (!s.settings.messages.email || !isEmail(o.to)) return null;
+  const list = [...appts].sort((a, b) => a.day.localeCompare(b.day) || a.start - b.start);
+  const head = list[0];
+  if (!head) return null;
+  const shop = s.settings.shop;
+  const one = list.every((a) => a.staffId === head.staffId);
+  const n = list.length, left = f.left == null ? f.credits : f.left, toBook = f.toBook || 0;
+  const visits = n + ' rendez-vous';
+  const whose = o.forFirst ? 'Les ' + visits + ' de ' + o.forFirst : n > 1 ? 'Tes ' + visits : 'Ton rendez-vous';
+  const pay = f.pay === 'salon' ? 'Les ' + fmtEur(f.price) + ' se règlent au salon, à ' + (o.forFirst ? 'sa' : 'ta') + ' première visite.' : f.pay === 'online' ? 'Elle est réglée en ligne.' : 'Elle est déjà réglée.';
+  const text = [
+    hello(o.first), '',
+    (o.forFirst ? 'La ' + f.name + ' de ' + o.forFirst : 'Ta ' + f.name) + ' est activée : ' + f.credits + ' coupes, une par semaine, pour ' + fmtEur(f.price) + '.',
+    pay + (left < f.credits ? ' Il ' + (o.forFirst ? 'lui' : 'te') + ' reste ' + left + ' coupe' + (left > 1 ? 's' : '') + ' sur ' + f.credits + '.' : ''), '',
+    whose + (one ? ' avec ' + barberOf(s, head) : '') + ' :',
+    ...list.map((a, i) => (i + 1) + '. ' + dayFr(a.day) + ' à ' + fmtTime(a.start) + (one ? '' : ' avec ' + barberOf(s, a))),
+    ...(toBook ? ['', toBook > 1 ? toBook + ' visites restent à réserver.' : 'Une visite reste à réserver.'] : []),
+    '', shop.name, where(shop),
+    '', 'Le fichier joint ajoute ' + (n > 1 ? 'le premier rendez-vous' : 'le rendez-vous') + ' à ton agenda.',
+    // last, right above the button (the HTML drops the line that spells the address out: messaging/email.js)
+    ...(o.link && o.space ? ['', 'Dans ton espace, tu vois ta formule et ce qu’il te reste, et tu déplaces ou annules chaque rendez-vous. À l’ouverture, un code arrive à cette adresse : tape-le, c’est tout.', 'Ouvrir mon espace : ' + o.link]
+      : o.link ? ['', 'Chaque rendez-vous se déplace ou s’annule depuis sa page.', 'Gérer mes rendez-vous : ' + o.link] : ['', 'À bientôt !'])
+  ].join('\n');
+  return queueMessage(s, ctx, {
+    key: o.key || 'mfo_' + f.id, channel: 'email', template: 'formuleLink', to: o.to, cid: o.cid, apptId: head.id, vars: {}, ...(o.resendOf ? { resendOf: o.resendOf } : {}),
+    subject: f.name + (o.forFirst ? ' de ' + o.forFirst : '') + ' activée : ' + visits + ' · ' + shop.name, text,
+    cta: o.link ? { label: o.space ? 'Voir ma formule' : 'Gérer mes rendez-vous', url: o.link } : undefined, links: [o.link || ''],
+    attachments: [{ name: 'rendez-vous.ics', type: 'text/calendar; charset=utf-8; method=PUBLISH', content: apptIcs(shop, head, { barber: barberOf(s, head), link: ctx.meta.linkFor ? ctx.meta.linkFor(head) : '', now: ctx.now }) }]
   });
 }
 

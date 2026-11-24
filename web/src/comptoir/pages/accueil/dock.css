@@ -11,6 +11,10 @@
   .dock { position: sticky; bottom: calc(72px + var(--safe-b)); z-index: 12; gap: 6px; padding: 6px; border-radius: 30px; background: color-mix(in srgb, var(--bg2) 90%, transparent); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); box-shadow: 0 10px 30px rgba(0, 0, 0, .4), inset 0 0 0 1px var(--line2); }
   .dock-b { flex: 1 1 0; min-width: 0; padding: 0 8px; font-size: 13.5px; box-shadow: none; }
   .dock-main { flex: 1.25 1 0; }
+  /* four gestures on a phone: the words alone, so each one stays whole */
+  .dock-4 { gap: 4px; }
+  .dock-4 .dock-b { gap: 5px; padding: 0 4px; font-size: 13px; }
+  .dock-4 .dock-b:not(.dock-main) svg { display: none; }
 }
 @media (max-width: 350px) {
   .dock-b { gap: 5px; padding: 0 4px; font-size: 12.5px; }

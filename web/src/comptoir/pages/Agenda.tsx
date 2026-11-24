@@ -224,6 +224,7 @@ export default function Agenda() {
 
       {/* a phone: the three gestures of the day under the thumb, as on the Accueil */}
       {phone ? <Dock onNew={() => setCreate({ day })} onWalkin={() => setWalkin(true)} guide={{ new: 'ag-new', walkin: 'ag-walkin' }}
+        onFormule={formule ? () => setCreate({ day, formule: true }) : undefined} formule={formule ? formule.pack.name + ' : ' + formule.pack.pack!.credits + ' coupes, ' + eur(formule.pack.price) : ''}
         onPay={can('sale.create') ? () => navigate(toPay.length === 1 ? '/caisse?rdv=' + toPay[0].id : '/caisse') : undefined} toPay={toPay.length} /> : null}
 
       <Menu anchor={menu ? { x: menu.x, y: menu.y } : null} onClose={() => setMenu(null)}>
