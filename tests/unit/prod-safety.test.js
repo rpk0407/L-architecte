@@ -14,6 +14,7 @@ import { createPayment, paymentSucceeded } from '../../server/commands/payments.
 import { browser, testRuntime, ORIGIN } from '../api/client.js';
 import { at } from '../helpers.js';
 import { addDays, instantOf } from '../../shared/dates.js';
+import { updateSettings } from '../../server/commands/shop.js';
 
 const DAY = '2026-11-03'; // a Tuesday
 const LATER = addDays(DAY, 1);
@@ -32,6 +33,8 @@ async function production({ env = {}, hour = 10 } = {}) {
   const ali = (await rt.engine.run(addStaff, { name: 'Ali', role: 'barber', schedule: week, commission: { service: 4000, product: 1000 } }, asOwner())).id;
   const tr = (await rt.engine.run(addService, { name: 'Transformation', category: 'Changer de tête', price: 5000, dur: 60, slug: 'tr' }, asOwner())).id;
   const cut = (await rt.engine.run(addService, { name: 'Coupe', category: 'Coupes', price: 2000, dur: 30, slug: 'cl' }, asOwner())).id;
+  // this file is about the deposit a salon asks: said outright (the code's default is 'choice', where nothing is asked)
+  await rt.engine.run(updateSettings, { deposits: { mode: 'threshold' } }, asOwner());
   return { rt, clock, owner, asOwner, ids: { ali, tr, cut } };
 }
 

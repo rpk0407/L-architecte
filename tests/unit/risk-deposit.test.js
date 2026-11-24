@@ -26,7 +26,8 @@ const NEXT = addDays(DAY, 1);
 
 /** The test salon, where Yanis (06 12 34 56 78) missed two cuts; the clock on DAY at 10 h. */
 async function missedTwice() {
-  const t = await salon({ day: MISSED[0], hour: 9 });
+  // the rule under test rides on the salon's deposit from 50 € up: said outright (the default asks nothing)
+  const t = await salon({ day: MISSED[0], hour: 9, deposits: 'threshold' });
   for (const d of MISSED) {
     t.clock.now = at(d, 9);
     const a = await t.engine.run(A.createAppointment, { clientId: t.ids.yanis, serviceIds: [t.ids.cut], staffId: t.ids.Ali, day: d, start: 600 }, t.asOwner());

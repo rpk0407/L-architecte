@@ -16,6 +16,7 @@ import { depositFor } from '../../server/domain/policy.js';
 import { browser } from '../api/client.js';
 import { at } from '../helpers.js';
 import { addDays } from '../../shared/dates.js';
+import { updateSettings } from '../../server/commands/shop.js';
 
 const DAY = '2026-11-03'; // a Tuesday
 const LATER = addDays(DAY, 2);
@@ -69,6 +70,8 @@ async function withStripe(t, { hour = 10 } = {}) {
   ids.ali = (await rt.engine.run(addStaff, { name: 'Ali', role: 'barber', schedule: week, commission: { service: 4000, product: 1000 } }, asOwner())).id;
   ids.tr = (await rt.engine.run(addService, { name: 'Transformation', category: 'Changer de tête', price: 5000, dur: 60, slug: 'tr' }, asOwner())).id;
   ids.odd = (await rt.engine.run(addService, { name: 'Couleur', category: 'Couleur', price: 5590, dur: 60, slug: 'co' }, asOwner())).id;
+  // this file is about the deposit a salon asks: said outright (the code's default is 'choice', where nothing is asked)
+  await rt.engine.run(updateSettings, { deposits: { mode: 'threshold' } }, asOwner());
   const s = () => rt.engine.state;
   const hook = (ev, o = {}) => {
     const body = JSON.stringify({ id: 'evt_' + Math.random().toString(36).slice(2), ...ev });

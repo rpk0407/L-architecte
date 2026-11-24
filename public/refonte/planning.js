@@ -312,7 +312,7 @@
     const d = S.salon.deposits;
     if (S.sim || (S.salon.payments && S.salon.payments.live === false)) return 0;
     if (typeof sv.deposit === 'number') return Math.min(sv.price, sv.deposit);
-    if (!d || d.mode === 'none' || (d.mode === 'threshold' && sv.price < d.thresholdCents)) return 0;
+    if (!d || d.mode === 'none' || d.mode === 'choice' || (d.mode === 'threshold' && sv.price < d.thresholdCents)) return 0;
     return Math.min(sv.price, Math.max(500, Math.round((sv.price * d.percent) / 100 / 100) * 100));
   }
   function priceText(sv) { return (sv.from ? 'dès ' : '') + eur(sv.price); }

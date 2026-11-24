@@ -94,8 +94,9 @@ export default async ({ browser, h, page }) => {
     for (const w of ['Frais d’absence', 'et par SMS']) if (t.includes(w)) throw new Error('/cgv announces « ' + w + ' » without the feature');
   }
   await page.goto(h.base + '/comptoir/reglages/reservation');
-  await page.getByText('Les acomptes s’activeront dès que Stripe sera branché. En attendant, les clients réservent sans payer.').waitFor({ timeout: 10000 });
-  await page.getByText('Sans Stripe, aucun acompte n’est demandé en ligne.').waitFor({ timeout: 5000 });
+  // the card speaks of the online payment since the default lets the client choose (no deposit): the same two warnings
+  await page.getByText('Le paiement en ligne s’activera dès que Stripe sera branché. En attendant, les clients réservent sans payer.').waitFor({ timeout: 10000 });
+  await page.getByText('Sans Stripe, rien n’est demandé en ligne.').waitFor({ timeout: 5000 });
   await page.getByRole('button', { name: '24 h avant' }).click();
   await page.getByRole('button', { name: 'Enregistrer', exact: true }).click();
   await toastSaid(page, 'Réglages enregistrés, CGV mises à jour');

@@ -55,7 +55,7 @@ function upcomingView(s, a, ctx, ids) {
     id: a.id, code: a.code, token, manage: ctx.origin + '/r/' + token, day: a.day, start: a.start, dur: a.dur, status: a.status,
     services: a.services.map((x) => ({ id: x.id, name: x.name, price: x.price })), price: a.price,
     staff: staffOf(s, a.staffId), anyStaff: !!a.anyStaff,
-    deposit: a.deposit ? { amount: a.deposit.amount, paid: a.deposit.paid || 0, url: pay && pay.status === 'pending' ? pay.url || null : null } : null,
+    deposit: a.deposit ? { amount: a.deposit.amount, paid: a.deposit.paid || 0, url: pay && pay.status === 'pending' ? pay.url || null : null, ...(a.deposit.full ? { full: true } : {}) } : null,
     canChange: ctx.now < changeUntil, changeUntil,
     lateOk: a.status === 'booked' && ctx.now >= start - LATE_BEFORE && ctx.now <= start + LATE_AFTER,
     // FEATURE B: « préviens-moi si un créneau se libère plus tôt », and for whom when he booked it for someone else
@@ -250,8 +250,8 @@ export function meTodo(s, ids, account, ctx, member) {
   const mineAppts = new Set([...s.appts.values()].filter((a) => set.has(a.clientId) || set.has(bookerOf(a, s) || '')).map((a) => a.id));
   for (const py of s.payments.values()) {
     if (py.kind !== 'deposit' || !mineAppts.has(py.apptId) || !py.paidAt || !after(account, dayOfMs(py.paidAt))) continue;
-    payments.push({ at: py.paidAt, kind: 'deposit', label: 'Acompte en ligne', amount: py.amount });
-    for (const rf of py.refunds || []) payments.push({ at: rf.at, kind: 'refund', label: 'Acompte remboursé', amount: rf.amount });
+    payments.push({ at: py.paidAt, kind: 'deposit', label: py.full ? 'Rendez-vous payé en ligne' : 'Acompte en ligne', amount: py.amount });
+    for (const rf of py.refunds || []) payments.push({ at: rf.at, kind: 'refund', label: py.full ? 'Paiement en ligne remboursé' : 'Acompte remboursé', amount: rf.amount });
   }
   payments.sort((a, b) => b.at - a.at);
   return { items, payments: payments.slice(0, 24) };

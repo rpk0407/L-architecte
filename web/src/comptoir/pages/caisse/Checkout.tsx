@@ -16,6 +16,7 @@ import { serieWords, groupWords } from '../../types';
 import { GiftCode, Receipt, Voucher, printNow, rate, type VoucherCard } from './Receipt';
 import { LoyaltyDone, RewardChip } from './RewardChip';
 import { TillChips } from './TillChips';
+import { weeklyCarnet } from '../agenda/Formule';
 import { clearDraft, draftKey, loadDraft, saveDraft, tabStore } from './draft';
 
 type Kind = 'service' | 'product' | 'giftcard' | 'pack' | 'fee';
@@ -148,7 +149,7 @@ export function Checkout({ apptId, drawerOpen, onClose, phone = false, onPaid }:
     setLines(ls);
     const dep = d.appt.deposit;
     // the carnet's price paid online rides on its first date and pays the ticket of whichever date he first comes to
-    const depPays: Pay[] = dep && dep.paid && dep.paymentId ? [{ key: k(), method: 'deposit', amount: dep.paid, ref: dep.paymentId, label: fo ? 'Formule payée en ligne' : 'Acompte payé en ligne' }]
+    const depPays: Pay[] = dep && dep.paid && dep.paymentId ? [{ key: k(), method: 'deposit', amount: dep.paid, ref: dep.paymentId, label: fo ? 'Formule payée en ligne' : dep.full ? 'Payé en ligne à la réservation' : 'Acompte payé en ligne' }]
       : fo && fo.deposit && sell ? [{ key: k(), method: 'deposit', amount: fo.deposit.paid, ref: fo.deposit.paymentId, label: 'Formule payée en ligne' }] : [];
     setPays(depPays);
     setDisc(null); setTip(null); setDone(null); setResumed(null);
@@ -767,6 +768,7 @@ export function Done({ done, onNext, phone = false }: { done: any; onNext: () =>
           {booked ? <p className="muted">Confirmation et rappel partent par SMS.</p> : loading ? <Skeleton h={44} /> : picks.length ? <div className="chips">{picks.map((p) => <Chip key={p.day + p.m} onClick={() => book(p)}>{dayShortWord(p.day, boot.today)} · {time(p.m)} · {staffById.get(p.s)?.name}</Chip>)}</div> : <p className="muted">Pas de créneau le {dates.DAYS_FR[dates.weekday(boot.today)]} dans {weeks} à {weeks + 2} semaines : propose-lui un autre jour depuis l’agenda.</p>}
         </div>
       ) : null}
+      {c ? <OfferFormule c={c} lines={done.lines as Line[]} /> : null}
       {c ? <OfferMember c={c} lines={done.lines as Line[]} /> : null}
       {voucher ? <Voucher card={voucher} /> : sale.data ? <Receipt sale={sale.data} /> : null}
     </div>
@@ -784,6 +786,24 @@ function ShareReceipt({ saleId }: { saleId: string }) {
       <a className="btn btn-ghost" data-share="whatsapp" href={'https://wa.me/?text=' + encodeURIComponent(text)} target="_blank" rel="noopener noreferrer"><Icon name="sms" size={16} />WhatsApp</a>
       <a className="btn btn-ghost" data-share="email" href={'mailto:' + encodeURIComponent(data.email) + '?subject=' + encodeURIComponent('Ton reçu ' + data.ticket) + '&body=' + encodeURIComponent(text)}><Icon name="mail" size={16} />E-mail</a>
     </>
+  );
+}
+
+/**
+ * « Lui vendre la formule »: after a cut the formule pays, for a client who has no carnet left, one tap opens « Vendre
+ * la formule » on his file (the agenda's sheet: the first date, the others proposed, booked in one go). Its price is
+ * taken by the till at his first cut. Not on a ticket that just sold him one.
+ */
+function OfferFormule({ c, lines }: { c: ClientCard; lines: Line[] }) {
+  const { boot, can } = useApp();
+  const fo = weeklyCarnet(boot.services);
+  if (!fo || !can('agenda.own') || lines.some((l) => l.kind === 'pack' || l.packId)) return null;
+  if (c.packs.some((p) => p.used < p.total) || !lines.some((l) => l.kind === 'service' && (fo.pack.pack!.serviceIds || []).includes(l.ref!))) return null;
+  return (
+    <div className="till-offer" data-guide="till-formule">
+      <p className="muted">{fo.pack.name} : {fo.pack.pack!.credits} coupes pour {eur(fo.pack.price)}, une par semaine.</p>
+      <Button variant="ghost" icon="ticket" onClick={() => navigate('/?new=1&formule=1&client=' + encodeURIComponent(c.id))}>Lui vendre la formule</Button>
+    </div>
   );
 }
 

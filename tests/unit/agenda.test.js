@@ -62,7 +62,7 @@ test('a known phone number lands on the existing client file', async () => {
 });
 
 test('long services above the threshold ask for a deposit and stay pending', async () => {
-  const t = await salon({ hour: 9 });
+  const t = await salon({ hour: 9, deposits: 'threshold' });
   const b = await t.engine.run(A.bookOnline, { serviceIds: [t.ids.color], staffId: 'any', day: DAY, start: 840, first: 'Nolan', phone: '0611220000' }, t.asClient);
   assert.equal(b.status, 'pending');
   assert.equal(b.deposit, 1800, '30 % of 60 €');
@@ -70,7 +70,7 @@ test('long services above the threshold ask for a deposit and stay pending', asy
 });
 
 test('a service can opt out of the deposit, or go back to the salon rule', async () => {
-  const t = await salon({ hour: 9 });
+  const t = await salon({ hour: 9, deposits: 'threshold' });
   await t.engine.run(updateService, { id: t.ids.color, patch: { deposit: 0 } }, t.asOwner());
   const b = await t.engine.run(A.bookOnline, { serviceIds: [t.ids.color], staffId: 'any', day: DAY, start: 840, first: 'Nolan', phone: '0611220000' }, t.asClient);
   assert.equal(b.status, 'booked');
