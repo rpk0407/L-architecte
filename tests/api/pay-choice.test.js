@@ -406,6 +406,26 @@ test('the salon cancels a booking paid online: refunded when the owner asks for 
   assert.equal(b.pays()[0].status, 'refunded');
 });
 
+test('a client whose carnet already pays the cut is not charged online: booked, told to pay at the salon, nothing said of his file', async (t) => {
+  const x = await live(t);
+  const pack = (await x.rt.engine.run(addService, { name: 'Formule Entretien 5 semaines', category: 'Formule', price: 8000, dur: 30, slug: 'ab', pack: { credits: 5, days: 35, serviceIds: [x.ids.cut], weekly: true, missed: 'lost' } }, x.asOwner())).id;
+  const made = await x.owner.post('/api/v1/clients', { first: 'Karim', last: 'Formule', email: 'karim.formule@exemple.fr' });
+  assert.equal(made.status, 200, made.text);
+  const sold = await x.owner.post('/api/v1/sales', { clientId: made.json.id, lines: [{ kind: 'pack', ref: pack }], payments: [{ method: 'card', amount: 8000 }] });
+  assert.equal(sold.status, 200, sold.text);
+  const b = await x.book({ pay: 'now', first: 'Karim', email: 'karim.formule@exemple.fr' });
+  assert.equal(b.r.status, 201, b.r.text);
+  assert.equal(b.appt().clientId, made.json.id, 'the booking landed on his file');
+  assert.equal(b.r.json.status, 'booked');
+  assert.equal(b.r.json.payment, null);
+  assert.deepEqual(b.r.json.payNow, { amount: 2500, ok: false, failed: true });
+  assert.equal(b.pays().length, 0);
+  assert.equal(x.calls('POST', '/checkout/sessions').length, 0);
+  // someone else, the same cut: he pays online as asked
+  const other = await x.book({ pay: 'now', start: 660 });
+  assert.equal(other.r.json.payNow.ok, true);
+});
+
 test('several people in one booking, or a move: no payment page, everyone pays at the salon', async (t) => {
   const x = await live(t);
   const b = await x.book({ pay: 'now', others: [{ serviceIds: [x.ids.cut], staffId: x.ids.ben, day: LATER, start: 600, guest: { kind: 'other', first: 'Sami' } }] });

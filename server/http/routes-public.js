@@ -21,7 +21,7 @@ import { fulfilGiftcard } from './routes-giftshop.js';
 import { providerFor, providerLabel } from '../payments/provider.js';
 import { providerKnown } from '../projections/payments.js';
 import { memberPaid, endMember } from '../commands/memberships.js';
-import { addMonths, abandoned } from '../domain/membership.js';
+import { addMonths, abandoned, memberOf, rootOf } from '../domain/membership.js';
 import { BILLING } from '../payments/billing.js';
 import { memberScheduled, startDayOf } from '../commands/member-billing.js';
 import { fmtEur } from '../../shared/money.js';
@@ -32,7 +32,7 @@ import { receiptLoyalty } from '../domain/loyalty.js';
 import { readMemberToken, MEMBER_BOOK } from '../auth/member-token.js';
 import { salonWhatsapp } from '../settings/messages.js';
 import { effectiveMode } from '../messaging/hand.js';
-import { formuleOfAppt, rankOf, payState, endOf, onSite } from '../domain/formule.js';
+import { formuleOfAppt, rankOf, payState, endOf, onSite, packCover } from '../domain/formule.js';
 import { accountsOn } from '../settings/accounts.js';
 import { payView, settleSelfPay } from './routes-selfpay.js';
 
@@ -139,6 +139,25 @@ export function apptFromToken(r) {
   const a = id ? r.s.appts.get(id) : null;
   if (!a) throw new HttpError(404, 'not_found', 'Ce lien n’est pas (ou plus) valable.');
   return a;
+}
+
+/**
+ * Does his file already hold what pays this visit at the till (a carnet with a cut left for one of these services, a
+ * running membership that covers one)? Then « payer maintenant » takes nothing: paid twice, the till would have a
+ * ticket at 0 € and money it cannot put on it. The answer never says why (nothing of a file is told to a visitor).
+ */
+function paidAtTill(s, a) {
+  if (!a.clientId || (a.ext && a.ext.guest)) return false;
+  const root = rootOf(s, a.clientId);
+  const ids = a.services.map((x) => x.id);
+  const m = memberOf(s, a.clientId);
+  if (m && m.activatedAt && !m.ended && (m.serviceIds || []).some((x) => ids.includes(x))) return true;
+  for (const k of s.packs.values()) {
+    if (k.voided || k.used >= k.total || k.expires < a.day || rootOf(s, k.clientId) !== root) continue;
+    const cover = packCover(s, k).ids;
+    if (!cover.length || cover.some((x) => ids.includes(x))) return true;
+  }
+  return false;
 }
 
 /**
@@ -387,8 +406,10 @@ export function publicRoutes(app) {
       } else if (payNow && now && now.status === 'booked' && !now.saleId && !(now.deposit && now.deposit.paid)) {
         // the booking is confirmed and stays so whatever becomes of the payment: no page to pay on (the provider is
         // down) is said, never thrown, and he pays at the salon as if he had chosen it
-        try { payment = await startPayment(r, { kind: 'deposit', full: true, amount: now.price, label: now.services.map((y) => y.name).join(' + ') + (now.ext && now.ext.guest && now.name ? ' · ' + now.name : ''), apptId: x.id, returnPath: '/r/' + token, email: r.body.email }); }
-        catch (e) { payFailed = true; console.error('[lx] pay-now checkout failed, booking kept (to pay at the salon)', x.id, e && (/** @type {any} */ (e).detail || /** @type {any} */ (e).message)); }
+        try {
+          if (paidAtTill(r.s, now)) throw new Error('a carnet or a membership of this file pays the visit');
+          payment = await startPayment(r, { kind: 'deposit', full: true, amount: now.price, label: now.services.map((y) => y.name).join(' + ') + (now.ext && now.ext.guest && now.name ? ' · ' + now.name : ''), apptId: x.id, returnPath: '/r/' + token, email: r.body.email });
+        } catch (e) { payFailed = true; console.error('[lx] pay-now checkout failed, booking kept (to pay at the salon)', x.id, e && (/** @type {any} */ (e).detail || /** @type {any} */ (e).message)); }
       }
       outs.push({ code: x.code, token, manage: r.origin + '/r/' + token, status, deposit: x.deposit, staffId: x.staffId, payment, ...(payNow ? { payNow: { amount: x.price, ok: !!payment, ...(payFailed ? { failed: true } : {}) } } : {}), ...(x.member ? { member: x.member } : {}),
         ...(res.people ? { first: x.first, day: x.day, start: x.start, guest: x.guest, price: x.price } : {}) });
