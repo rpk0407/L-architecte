@@ -311,6 +311,7 @@
 </style>
 <script src="/support.js"></script>
 <script src="/guide.js" defer></script>
+<script src="/cookies.js" defer></script>
 </head>
 <body>
 <x-dc>
@@ -1524,6 +1525,7 @@ html{scroll-behavior:auto}
 <li><a href="/?visite" data-guide-replay>Comment ça marche&nbsp;?</a></li>
 <li><a href="/mentions-legales">Mentions légales</a></li>
 <li><a href="/confidentialite">Confidentialité</a></li>
+<li><a href="/confidentialite#t-cookies">Cookies</a></li>
 <li><a href="/cgv">CGV</a></li>
 <li><a class="ft-pro" href="/comptoir">Espace barbier</a></li>
 </ul>
@@ -4853,5 +4855,15 @@ function depositOf(F, d) {
   return Math.min(price, Math.max(500, Math.round((price * d.percent) / 100 / 100) * 100));
 }
 </script>
+<!-- Cookies: the site sets only the ones it needs (sign-in, booking, payment), so the law asks for information, not for a
+     choice. One discreet notice at the first visit, above the red button; « OK » keeps it away on this browser. -->
+<style>
+.ck{position:fixed;z-index:69;left:12px;right:12px;bottom:calc(88px + env(safe-area-inset-bottom,0px));max-width:460px;margin:0 auto;padding:14px 16px;border-radius:18px;background:#1b1917;color:#ece8e0;box-shadow:0 12px 40px rgba(0,0,0,.35);font:400 14.5px/1.4 system-ui,-apple-system,'Segoe UI',sans-serif}
+.ck p{margin:0}
+.ck-r{display:flex;align-items:center;gap:14px;margin-top:10px}
+.ck-ok{min-height:40px;padding:0 20px;border:0;border-radius:999px;background:#ece8e0;color:#0f0e0d;font:600 14.5px/1 system-ui,-apple-system,'Segoe UI',sans-serif;cursor:pointer}
+.ck a{color:inherit;text-decoration:underline;text-underline-offset:3px}
+@media (min-width:900px){.ck{left:24px;right:auto;margin:0;bottom:24px}}
+</style>
 </body>
 </html>
