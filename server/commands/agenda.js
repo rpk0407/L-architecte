@@ -191,7 +191,7 @@ export const bookOnline = {
     const upcoming = existing ? [...s.appts.values()].filter((a) => a.clientId === existing.id && ACTIVE.has(a.status) && diffDays(ctx.local.day, a.day) >= 0) : [];
     const own = upcoming.filter((a) => !(a.ext && a.ext.guest));
     if (existing) {
-      if (plan.some((x) => !x.p.guest) && own.length >= 3) fail(409, 'too_many', 'Tu as déjà 3 rendez-vous à venir. Appelle le salon pour en ajouter.');
+      if (plan.some((x) => !x.p.guest) && own.length >= 3) fail(409, 'too_many', 'Tu as déjà 3 rendez-vous à venir. Pour en déplacer un, ouvre sa page (« Gérer mon rendez-vous », dans ta confirmation) et touche « Déplacer ». Pour en ajouter, appelle le salon.');
       if (upcoming.length + plan.length > FILE_UPCOMING_MAX) fail(409, 'too_many', 'Tu as déjà beaucoup de rendez-vous à venir. Appelle le salon pour en ajouter.');
       // an address typed on the site never lands on an existing file: the phone alone does not prove who typed it, and
       // the file's address receives every later mail with its links to move or cancel (only the salon sets it there)

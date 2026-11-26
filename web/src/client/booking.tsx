@@ -3,7 +3,7 @@
 import type { PayCutState } from './pay';
 import { useEffect, useRef, useState } from 'react';
 import { api, qs, uuid } from '../lib/api';
-import { dates, time } from '../lib/format';
+import { cap, dates, time } from '../lib/format';
 
 export type Booking = {
   code: string; status: 'pending' | 'booked' | 'arrived' | 'in_chair' | 'done' | 'no_show' | 'cancelled'; day: string; start: number; dur: number;
@@ -21,6 +21,8 @@ export type Booking = {
   guestLink?: boolean;
   /** a booking of several people: everything for the organiser, « réservé par Karim » for a friend */
   group?: Group;
+  /** 'email': the salon writes by e-mail (the confirmation of a move leaves by e-mail, not by SMS) */
+  contact?: 'email';
   /** « Payer ma coupe »: what he owes today at the salon, or « payé » (pay.tsx); today: the visit is today */
   pay?: PayCutState; today?: boolean;
 };
@@ -52,19 +54,61 @@ export function icsUrl(b: IcsBooking, url: string = location.href) {
   return URL.createObjectURL(new Blob([body], { type: 'text/calendar' }));
 }
 
-/** What moving needs to know of the booking: the same services, the same barber unless any was fine. */
-export type MovableBooking = { services: { id: string }[]; anyStaff: boolean; staff: { id: string } | null };
+/** « 10 déc. » */
+const dayMonth = (day: string) => { const p = dates.dayParts(day); return p.d + ' ' + dates.MONTHS_SH[p.m - 1]; };
+
+/** What moving needs to know of the booking: the same services, the same barber unless any was fine; day: where it is now. */
+export type MovableBooking = { services: { id: string }[]; anyStaff: boolean; staff: { id: string } | null; day?: string };
+
+/** The days the page reads at once (the most the server answers in one read). */
+const MOVE_WIN = 14;
+/** Read without being asked: as far as the booking's own day, so the days around it are there (4 reads at most). */
+const MOVE_AUTO = 4;
+type MoveDay = { day: string; open: boolean; slots: { m: number; s: string }[] };
 
 /** onPick (the demo's client in /moi): the slot chosen is handed back and nothing is sent, so the showcase stays as it is. */
 export function Move({ b, token, onDone, onCancel, onPick }: { b: MovableBooking; token: string; onDone: (b: Booking) => void; onCancel: () => void; onPick?: (day: string, start: number) => void }) {
-  const [days, setDays] = useState<{ day: string; slots: { m: number; s: string }[] }[] | null>(null);
+  const [days, setDays] = useState<MoveDay[] | null>(null);
   const [day, setDay] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  // the first day not read yet (« Jours suivants » reads from there); null once the salon's booking horizon is reached
+  const [next, setNext] = useState<string | null>(null);
+  const [wins, setWins] = useState(1);
+  const [later, setLater] = useState(false);
+  const read = (from: string | null, fresh?: boolean) => api.get<{ days: MoveDay[] }>('/api/public/availability' + qs({ services: b.services.map((s) => s.id).join(','), staff: b.anyStaff || !b.staff ? 'any' : b.staff.id, from: from || undefined, days: MOVE_WIN, move: token, fresh: fresh ? 1 : undefined }));
+  /** n windows from today, one after the other; a window that comes back short is the last one the salon books */
+  const readAll = async (n: number, until: string | null, fresh?: boolean) => {
+    let all: MoveDay[] = [], from: string | null = null, k = 0;
+    for (;;) {
+      const r = await read(from, fresh);
+      all = all.concat(r.days); k++;
+      from = r.days.length === MOVE_WIN ? dates.addDays(r.days[r.days.length - 1].day, 1) : null;
+      if (!from || (k >= n && !(until && k < MOVE_AUTO && r.days[r.days.length - 1].day < until))) break;
+    }
+    return { open: all.filter((d) => d.open), next: from, wins: k };
+  };
   /** fresh: after a refusal (409, the slot was just taken) the free slots are read as the journal is, past any cache; the day in view is kept */
-  const load = (fresh?: boolean) => api.get<{ days: { day: string; open: boolean; slots: { m: number; s: string }[] }[] }>('/api/public/availability' + qs({ services: b.services.map((s) => s.id).join(','), staff: b.anyStaff || !b.staff ? 'any' : b.staff.id, days: 14, move: token, fresh: fresh ? 1 : undefined }))
-    .then((r) => { const open = r.days.filter((d) => d.open); setDays(open); setDay((cur) => (fresh && cur && open.some((d) => d.day === cur) ? cur : (open.find((d) => d.slots.length) || open[0])?.day || null)); });
+  const load = (fresh?: boolean) => readAll(fresh ? wins : 1, fresh ? null : b.day || null, fresh)
+    .then((r) => { setDays(r.open); setNext(r.next); setWins(r.wins); setDay((cur) => (fresh && cur && r.open.some((d) => d.day === cur) ? cur : (r.open.find((d) => d.slots.length) || r.open[0])?.day || null)); });
   useEffect(() => { load().catch((e) => setErr(e.message)); }, []);
+  /** « Jours suivants »: two more weeks after the last day shown, and the first of them with a free slot comes into view */
+  const more = async () => {
+    if (!next || later) return;
+    setLater(true); setErr('');
+    try {
+      const r = await read(next);
+      const open = r.days.filter((d) => d.open);
+      setDays((cur) => (cur || []).concat(open.filter((d) => !(cur || []).some((x) => x.day === d.day))));
+      setNext(r.days.length === MOVE_WIN ? dates.addDays(r.days[r.days.length - 1].day, 1) : null);
+      setWins((n) => n + 1);
+      const first = open.find((d) => d.slots.length) || open[0];
+      if (first) setDay(first.day);
+    } catch (e: any) { setErr(e.message); } finally { setLater(false); }
+  };
+  // the day in view stays in sight in the strip (after « Jours suivants », the new days are at its far end)
+  const strip = useRef<HTMLDivElement | null>(null);
+  useEffect(() => { const el = strip.current?.querySelector<HTMLElement>('button[aria-pressed="true"]'); if (el && strip.current) strip.current.scrollLeft = Math.max(0, el.offsetLeft - strip.current.offsetLeft - 8); }, [day, days && days.length]);
   // one id per attempt: a move whose answer was lost on the way is sent again under the same id (same slot), never done twice
   const attempt = useRef<{ key: string; id: string } | null>(null);
   const go = async (m: number) => {
@@ -91,9 +135,11 @@ export function Move({ b, token, onDone, onCancel, onPick }: { b: MovableBooking
       {err ? <p className="c-note warn" role="alert">{err}</p> : null}
       {!days ? <span className="c-spin" /> : (
         <>
-          <div className="c-days" role="group" aria-label="Choisis un jour">
+          <div className="c-days" role="group" aria-label="Choisis un jour" ref={strip}>
             {days.map((d) => { const p = dates.dayParts(d.day); return <button key={d.day} type="button" aria-pressed={d.day === day} className={d.slots.length ? '' : 'full'} onClick={() => setDay(d.day)}><small>{dates.DAYS_SH[p.wd]}</small><b>{p.d}</b><span>{d.slots.length ? d.slots.length + ' libres' : 'complet'}</span></button>; })}
           </div>
+          {next ? <button type="button" className="c-link c-later" disabled={later} onClick={more}>{later ? 'Un instant…' : 'Jours suivants (dès le ' + dayMonth(next) + ')'}</button> : null}
+          {cur ? <p className="c-k c-moveday">{cap(dates.dayLong(cur.day))}</p> : null}
           {cur && cur.slots.length ? <div className="c-slots">{cur.slots.map((x) => <button key={x.m} type="button" disabled={busy} onClick={() => go(x.m)}>{time(x.m)}</button>)}</div> : <p className="c-muted">Complet ce jour-là. Essaie un autre jour.</p>}
           <p className="c-muted c-small">Même prestation{b.anyStaff || !b.staff ? '' : ', même barbier'}. Un tap sur l’heure suffit, l’ancien créneau est libéré.</p>
         </>

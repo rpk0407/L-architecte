@@ -176,7 +176,7 @@ function Manage({ token, back, offer, moveNow, payNow }: { token: string; back: 
         </section>
       ) : null}
 
-      {mode === 'move' ? <Move b={b} token={token} onDone={(nb) => { setB(nb); setMode(''); setNote({ tone: 'ok', text: 'C’est déplacé. Un SMS de confirmation part tout de suite.' }); }} onCancel={() => setMode('')} /> : null}
+      {mode === 'move' ? <Move b={b} token={token} onDone={(nb) => { setB(nb); setMode(''); setNote({ tone: 'ok', text: nb.contact === 'email' ? 'C’est déplacé. Ta confirmation part par e-mail tout de suite.' : 'C’est déplacé. Un SMS de confirmation part tout de suite.' }); }} onCancel={() => setMode('')} /> : null}
 
       {upcoming && mode === '' && !b.guestLink && (b.status === 'booked' || b.status === 'pending') ? <Contact token={token} b={b} /> : null}
 

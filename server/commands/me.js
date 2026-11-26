@@ -18,6 +18,7 @@ import { getClient } from './common.js';
 import { rootFile } from './accounts.js';
 import { NOTIFY_VIA, notifyOptions, contactOwns, comingAppt } from '../domain/notify.js';
 import { clientMayChange } from '../domain/policy.js';
+import { bookingsScope } from '../domain/me.js';
 
 const CLOSED = 'Ton espace s’est fermé. Reconnecte-toi.';
 export const SALON_ONLY = 'Pour ça, passe au salon.';
@@ -198,10 +199,11 @@ export const sendSpaceInvite = {
 /**
  * The contact's file: the signed-in client's (the session, as own() reads it), or the file the route vouched for from a
  * booking's signed link (ctx.meta.contact.cid: the person who booked, routes-client.js). Never a value of the body.
- * @returns {{ c: any, ids: string[] }}
+ * @returns {{ c: any, ids: string[], appts?: string[] }} appts: the files whose bookings are his to follow, when more than ids
  */
 function contactOf(s, ctx) {
-  if (ctx.meta && ctx.meta.me) { const { c } = own(s, ctx); return { c, ids: fileIds(s, c) }; }
+  // a session opened by e-mail follows the bookings of every file with its address, as its home lists them
+  if (ctx.meta && ctx.meta.me) { const { c } = own(s, ctx); const ids = fileIds(s, c); return { c, ids, appts: bookingsScope(s, c, ids, null, !!ctx.meta.me.mail).ids }; }
   const cid = ctx.actor.t === 'client' && ctx.meta && ctx.meta.contact && ctx.meta.contact.cid;
   const c = cid ? rootFile(s, cid) : null;
   if (!c || c.erased) fail(404, 'not_found', 'Ce lien n’est pas (ou plus) valable.');
@@ -231,10 +233,10 @@ const earlierSchema = obj({ id: str({ min: 1, max: 64 }), on: bool() });
  */
 export const setEarlierAlert = {
   run(s, input, ctx) {
-    const { ids } = contactOf(s, ctx);
+    const who = contactOf(s, ctx);
     const x = parse(earlierSchema, input || {});
     const a = s.appts.get(x.id);
-    if (!a || !contactOwns(ids, a, s)) fail(404, 'not_found', 'Rendez-vous introuvable.');
+    if (!a || !contactOwns(who.appts || who.ids, a, s)) fail(404, 'not_found', 'Rendez-vous introuvable.');
     if (x.on && (a.status !== 'booked' || !comingAppt(s, a, ctx.now))) fail(409, 'closed', 'Ce rendez-vous ne peut plus être avancé.');
     if (x.on && !clientMayChange(s, a, ctx.now)) fail(409, 'too_late', 'Ton rendez-vous est trop proche pour être avancé en ligne. Appelle le salon.');
     if (!!a.earlier === x.on) return { ok: true, changed: false, on: x.on };

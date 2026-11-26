@@ -54,7 +54,8 @@ export const isPersona = (me) => !!(me && me.persona);
  * Commands as this client. Idempotent with the request's x-request-id (already checked by app.js): 'me' + cid + ':' +
  * header for the first command, + ':' + i for the i-th, so a retried request replays the same sequence and two clients
  * never share a key; without the header, no key at all (each request writes).
- * @param {any} r @param {{ cid: string }} me
+ * meta.me.mail: the session was opened by e-mail (domain/me.js bookingsScope: the bookings he follows).
+ * @param {any} r @param {{ cid: string, session?: any }} me
  * @returns {(handler: import('../core/engine.js').Handler, input: any) => Promise<any>}
  */
 export function runAs(r, me) {
@@ -63,7 +64,7 @@ export function runAs(r, me) {
   return (handler, input) => {
     const n = i++;
     const requestId = header ? 'me' + me.cid + ':' + header + (n ? ':' + n : '') : undefined;
-    return r.rt.engine.run(handler, input, { ...clientCtx(r, { me: { cid: me.cid } }), ...(requestId ? { requestId } : {}) });
+    return r.rt.engine.run(handler, input, { ...clientCtx(r, { me: { cid: me.cid, ...(me.session && me.session.em ? { mail: true } : {}) } }), ...(requestId ? { requestId } : {}) });
   };
 }
 
