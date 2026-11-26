@@ -104,6 +104,8 @@ function bookingView(r, a) {
     deposit: a.deposit ? { amount: a.deposit.amount, paid: a.deposit.paid || 0, url: pay && pay.status === 'pending' ? pay.url : null, ...(a.deposit.full ? { full: true } : {}) } : null,
     ...(ahead ? { prepay: { amount: ahead.amount, url: ahead.url } } : {}),
     canChange: ['booked', 'pending'].includes(a.status) && clientMayChange(s, a, r.rt.engine.clock()), cancelUntilHours: s.settings.booking.cancelUntilHours,
+    // contact 'email': the salon writes by e-mail, so the page's words say e-mail where they said SMS
+    ...(s.settings.booking.contact === 'email' ? { contact: 'email' } : {}),
     shop: { name: s.settings.shop.name, address: s.settings.shop.address + ', ' + s.settings.shop.zip + ' ' + s.settings.shop.city, phone: s.settings.shop.phone, mapsUrl: s.settings.shop.mapsUrl },
     cancelled: a.cancel ? { by: a.cancel.by, at: a.cancel.at } : null,
     // « Laisser un avis »: only once the visit is done, for everyone alike (no question first, no reward: Google's rules)

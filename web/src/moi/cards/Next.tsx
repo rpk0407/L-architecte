@@ -144,7 +144,7 @@ export default function Next({ me, reload }: CardProps) {
         </section>
       ) : null}
       {mode === 'move' ? (
-        <Move b={b} token={b.token} onDone={() => { setMode(''); setNote({ tone: 'ok', text: me.contact === 'email' ? 'C’est déplacé. Ta confirmation part tout de suite.' : 'C’est déplacé. Un SMS de confirmation part tout de suite.' }); reload(); }} onCancel={() => setMode('')}
+        <Move b={b} token={b.token} onDone={() => { setMode(''); setNote({ tone: 'ok', text: me.contact === 'email' ? 'C’est déplacé. Ta confirmation part par e-mail tout de suite.' : 'C’est déplacé. Un SMS de confirmation part tout de suite.' }); reload(); }} onCancel={() => setMode('')}
           onPick={me.demo ? (day, start) => { setSim((x) => ({ ...x, [b.id]: { day, start } })); setMode(''); setNote({ tone: 'ok', text: 'C’est déplacé.' + DEMO_NOTE }); } : undefined} />
       ) : null}
 

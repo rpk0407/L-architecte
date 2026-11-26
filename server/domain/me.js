@@ -2,9 +2,11 @@
 // AC-01 · What a signed-in client sees of himself (/moi): his next appointments with their /r/ links, his rhythm, what he
 // holds (carnets, gift cards), his history with receipts. Read from the file and every file merged into it (ids); a
 // fenced account (a number that may have changed hands, commands/accounts.js) shows nothing from before historyFrom.
+// One exception, for a session opened by e-mail: its bookings to come (bookingsScope), whose links are in that mailbox.
 // The shapes are the contract of web/src/moi/types.ts (Me, MeHistory). Other areas never extend /api/me/home: they add
 // their own /api/me/<area> route file.
 import { selfPayOpen, selfQuote, SELF_MIN } from '../commands/selfpay.js';
+import { fileIds } from '../commands/clients.js';
 import { localParts } from '../../shared/dates.js';
 import { occupies } from './availability.js';
 import { startsAt } from './policy.js';
@@ -18,7 +20,9 @@ const LATE_BEFORE = 2 * 3600000, LATE_AFTER = 15 * 60000;
 const dayOfMs = (ms) => localParts(ms).day;
 
 /**
- * @typedef {{ now: number, today: string, tokenFor: (a: any) => string, origin: string, receiptFor?: (sale: any) => string, demo?: boolean, payLive?: boolean }} MeCtx
+ * @typedef {{ now: number, today: string, tokenFor: (a: any) => string, origin: string, receiptFor?: (sale: any) => string, demo?: boolean, payLive?: boolean, mail?: boolean, file?: any }} MeCtx
+ *   mail: the session was opened with a code sent to the file's address (the cookie's `em`): see bookingsScope;
+ *   file: the session's file, where the function is not handed it (meTodo)
  */
 
 /**
@@ -36,6 +40,30 @@ export function shownIdentity(c, account) {
 const staffOf = (s, id) => { const st = id ? s.staff.get(id) : null; return st ? { id: st.id, name: st.name, initials: st.initials || '', color: st.color || '' } : null; };
 /** From the fence's day on (inclusive): what a fenced account may show. */
 const after = (account, day) => !account || !account.fenced || !account.historyFrom || day >= account.historyFrom;
+
+/**
+ * Whose bookings to come a session follows, and from when.
+ * A session opened by SMS: its file and the files merged into it, behind the fence when there is one (a number changes
+ * hands: the new holder must not see what the previous one booked).
+ * A session opened by e-mail (mail): he proved he reads that mailbox, and every confirmation of these bookings went there
+ * with its own link to move or cancel. So he follows the bookings to come of every file that carries this address (the
+ * salon can hold two files for one address: an import, a file made at the desk before the site asked addresses, a file
+ * merged away that a booking was still hung on), whatever the fence: it hides the past of a file that may be someone
+ * else's (history, tickets, wallet, the name), never an appointment whose link is already in his mailbox.
+ * @param {any} s @param {any} c the session's file @param {string[]} ids it and the files merged into it
+ * @param {any} account @param {boolean} [mail]
+ * @returns {{ ids: string[], account: any }}
+ */
+export function bookingsScope(s, c, ids, account, mail) {
+  const e = mail ? String((c && c.email) || '').trim().toLowerCase() : '';
+  if (!e) return { ids, account };
+  const out = [...ids];
+  for (const x of s.clients.values()) {
+    if (x.erased || !x.email || out.includes(x.id) || String(x.email).trim().toLowerCase() !== e) continue;
+    for (const id of x.mergedInto ? [x.id] : fileIds(s, x)) if (!out.includes(id)) out.push(id);
+  }
+  return { ids: out, account: null };
+}
 
 /** The bookings to come of these files, soonest first: booked, or pending while their deposit can still be paid. */
 export function upcomingOfFiles(s, ids, now, account = null) {
@@ -108,6 +136,7 @@ export function meHome(s, c, ids, account, ctx) {
   const sh = s.settings.shop;
   const prefStaff = account && account.prefs && account.prefs.staffId;
   const who = shownIdentity(c, account);
+  const scope = bookingsScope(s, c, ids, account, ctx.mail);
   return {
     ...who, since: account ? account.since : 0, fenced, historyFrom: fenced ? account.historyFrom : null,
     // the switches stay usable; when the previous holder said yes to offers is his, not shown to an unnamed space
@@ -117,7 +146,7 @@ export function meHome(s, c, ids, account, ctx) {
     prefs: { staffId: prefStaff && s.staff.get(prefStaff) && s.staff.get(prefStaff).active ? prefStaff : null },
     rhythm: rhythmOf(stats),
     usual: usualOf(s, ids, account),
-    upcoming: upcomingOfFiles(s, ids, ctx.now, account).map((a) => upcomingView(s, a, ctx, ids)),
+    upcoming: upcomingOfFiles(s, scope.ids, ctx.now, scope.account).map((a) => upcomingView(s, a, ctx, scope.ids)),
     wallet: { carnets, giftcards },
     team,
     shop: { name: sh.name, address: [sh.address, [sh.zip, sh.city].filter(Boolean).join(' ')].filter(Boolean).join(', '), phone: sh.phone, mapsUrl: sh.mapsUrl },
@@ -194,8 +223,9 @@ export function meTodo(s, ids, account, ctx, member) {
     try { q = selfQuote(s, a, { now: ctx.now, local: localParts(ctx.now) }); } catch { continue; }
     if (q.base >= SELF_MIN) items.push({ id: 'pay_' + a.code, tone: 'warn', title: 'Ta coupe à régler', amount: q.base, action: { kind: 'link', label: 'Payer maintenant', href: '/r/' + ctx.tokenFor(a) + '?payer' } });
   }
-  // 1. a booking that waits for its deposit
-  for (const a of upcomingOfFiles(s, ids, ctx.now, account)) {
+  // 1. a booking that waits for its deposit (the same bookings as the home's: bookingsScope)
+  const scope = bookingsScope(s, ctx.file, ids, account, ctx.mail);
+  for (const a of upcomingOfFiles(s, scope.ids, ctx.now, scope.account)) {
     if (a.status !== 'pending' || !a.deposit || (a.deposit.paid || 0) >= a.deposit.amount) continue;
     // the 80 € of a carnet bought with its dates ride on its first date
     const carnet = !!rankOf(s, a.id);

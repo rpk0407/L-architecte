@@ -129,7 +129,7 @@ export function meMembershipRoutes(app) {
   app.get('/api/me/todo', (r) => {
     const me = requireMe(r);
     const m = mine(r, me);
-    return meTodo(r.s, me.ids, me.account, { now: r.now, today: r.local.day, origin: r.origin, payLive: payLive(r), tokenFor: (a) => signLink(r.rt.secret, 'appt', a.code) }, m ? memberView(r, m) : null);
+    return meTodo(r.s, me.ids, me.account, { now: r.now, today: r.local.day, origin: r.origin, payLive: payLive(r), tokenFor: (a) => signLink(r.rt.secret, 'appt', a.code), mail: !!me.session.em, file: me.c }, m ? memberView(r, m) : null);
   });
 
   app.get('/api/me/membership', (r) => {
