@@ -141,10 +141,10 @@ test('a file brought from the old site: his three bookings made with his address
   t.clock.now = at(addDays(DAY, -400), 10, 40);
   await t.desk(checkout, { apptId: visit.id, lines: [{ kind: 'service', ref: t.ids.cut }], payments: [{ method: 'card', amount: 2000 }] });
 
-  // this week he books on the site with his address, three times; the fourth is refused, with the way to move one
+  // this week he books on the site with his address, five times; the sixth is refused, with the way to move one
   t.clock.now = at(DAY, 10);
   const made = [];
-  for (const [day, start] of [[SAT, 600], [addDays(SAT, 7), 600], [addDays(SAT, 14), 600]]) {
+  for (const [day, start] of [[SAT, 600], [addDays(SAT, 7), 600], [addDays(SAT, 14), 600], [addDays(SAT, 21), 600], [addDays(SAT, 28), 600]]) {
     const r = await t.book({ first: 'Mehdi', email, day, start });
     assert.equal(r.status, 201, r.text);
     assert.equal(t.apptOf(r).clientId, old.id, 'the file that carries his address');
@@ -153,7 +153,7 @@ test('a file brought from the old site: his three bookings made with his address
   const fourth = await t.book({ first: 'Mehdi', email, day: FRI, start: 690 });
   assert.equal(fourth.status, 409);
   assert.equal(fourth.json.error.code, 'too_many');
-  assert.match(fourth.json.error.message, /^Tu as déjà 3 rendez-vous à venir\. Pour en déplacer un, .*« Déplacer »/);
+  assert.match(fourth.json.error.message, /^Tu as déjà 5 rendez-vous à venir\. Pour en déplacer un, .*« Déplacer »/);
 
   // the day after: « Mon espace », his address, the code, his first name
   t.clock.now = at(addDays(DAY, 1), 9);
@@ -174,7 +174,7 @@ test('a file brought from the old site: his three bookings made with his address
   // each one is his to move: the Saturday to the Friday, 11 h 30
   const moved = await b.post('/api/public/bookings/' + home.upcoming[0].token + '/move', { day: FRI, start: 690 });
   assert.equal(moved.status, 200, moved.text);
-  assert.deepEqual((await b.get('/api/me/home')).json.upcoming.map((x) => [x.id, x.day, x.start]), [[made[0], FRI, 690], [made[1], addDays(SAT, 7), 600], [made[2], addDays(SAT, 14), 600]]);
+  assert.deepEqual((await b.get('/api/me/home')).json.upcoming.map((x) => [x.id, x.day, x.start]), [[made[0], FRI, 690], ...made.slice(1).map((id, i) => [id, addDays(SAT, 7 * (i + 1)), 600])]);
 });
 
 test('three wrong first names: the space opens unnamed and fenced as before, and still shows the bookings whose links are in that mailbox', async () => {
