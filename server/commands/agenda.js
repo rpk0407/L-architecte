@@ -116,6 +116,8 @@ const personSchema = obj({ holdId: opt(id()), serviceIds: serviceIds(), staffId:
 /** People in one booking at most: a father and his sons, a mother and her children. */
 export const PARTY_MAX = 4;
 /** Bookings still to come one file may hold when most are for its children or guests (its own stay at 3). */
+/** A client holds at most this many upcoming appointments of his own (the owner's rule); more goes through the salon. */
+const OWN_UPCOMING_MAX = 5;
 const FILE_UPCOMING_MAX = 8;
 const bookSchema = obj({
   holdId: opt(id()), serviceIds: serviceIds(), staffId: str({ min: 1, max: 64 }), day: day(), start: minute(),
@@ -191,7 +193,7 @@ export const bookOnline = {
     const upcoming = existing ? [...s.appts.values()].filter((a) => a.clientId === existing.id && ACTIVE.has(a.status) && diffDays(ctx.local.day, a.day) >= 0) : [];
     const own = upcoming.filter((a) => !(a.ext && a.ext.guest));
     if (existing) {
-      if (plan.some((x) => !x.p.guest) && own.length >= 3) fail(409, 'too_many', 'Tu as déjà 3 rendez-vous à venir. Pour en déplacer un, ouvre sa page (« Gérer mon rendez-vous », dans ta confirmation) et touche « Déplacer ». Pour en ajouter, appelle le salon.');
+      if (plan.some((x) => !x.p.guest) && own.length >= OWN_UPCOMING_MAX) fail(409, 'too_many', 'Tu as déjà ' + OWN_UPCOMING_MAX + ' rendez-vous à venir. Pour en déplacer un, ouvre sa page (« Gérer mon rendez-vous », dans ta confirmation) et touche « Déplacer ». Pour en ajouter, appelle le salon.');
       if (upcoming.length + plan.length > FILE_UPCOMING_MAX) fail(409, 'too_many', 'Tu as déjà beaucoup de rendez-vous à venir. Appelle le salon pour en ajouter.');
       // an address typed on the site never lands on an existing file: the phone alone does not prove who typed it, and
       // the file's address receives every later mail with its links to move or cancel (only the salon sets it there)
