@@ -3728,6 +3728,14 @@ const BookingMixin = {
   bkBack() {
     const bk = this.state.bk;
     const i = BK_ORDER.indexOf(bk.step);
+    // « Déplacer » changes the time only (the server keeps the service and the barber): Retour goes back to his
+    // appointment, never to the choice of a barber or a service that the move would not follow
+    if (bk.moving) {
+      if (bk.busy || !bk.result) return;
+      LXE.setMoving(null);
+      this.setState({ bk: Object.assign(this.bkEmpty(), { step: 'done', result: bk.result, f: bk.result.f }), icsUrl: this.bkIcs(bk.result) });
+      return;
+    }
     // « Modifier » from the details, then Retour: back to the details, his slot still kept
     if (bk.keep) { this.setState({ bk: Object.assign({}, bk, { step: 'info', err: '', holdId: bk.keep.holdId, holdExp: bk.keep.holdExp, holdTok: null, keep: null }) }); this.bkTick(); return; }
     // the first step of one more person: back to the last person chosen, his slot still kept

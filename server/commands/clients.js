@@ -44,13 +44,17 @@ export function clientParts(x) {
 }
 
 /** Emit a new client, or return the existing one with that phone. Used by bookings too. */
-/** The file that carries this address (a client's own, never a child's nor an erased one): the oldest when several do. */
+/**
+ * The file that carries this address (a client's own, never a child's nor an erased one): the oldest when several do.
+ * Never a file merged into another one: its old address is not anyone's file any more (a booking would hang on a file
+ * nobody opens, and its holder could never sign in: commands/accounts.js fileForSignIn refuses it).
+ */
 export function clientByEmail(s, email) {
   const e = String(email || '').trim().toLowerCase();
   if (!e) return null;
   let found = null;
   for (const c of s.clients.values()) {
-    if (c.erased || !c.email || c.email.toLowerCase() !== e || (c.ext && c.ext.parent)) continue;
+    if (c.erased || c.mergedInto || !c.email || c.email.toLowerCase() !== e || (c.ext && c.ext.parent)) continue;
     if (!found || (c.createdAt || 0) < (found.createdAt || 0)) found = c;
   }
   return found;

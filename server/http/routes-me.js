@@ -251,7 +251,7 @@ export function meRoutes(app) {
   app.get('/api/me/home', (r) => {
     const me = requireMe(r);
     const origin = r.origin;
-    const home = meHome(r.s, me.c, me.ids, me.account, { now: r.now, today: r.local.day, origin, tokenFor: (a) => signLink(r.rt.secret, 'appt', a.code), receiptFor: r.meta.receiptLink, demo: isPersona(me) });
+    const home = meHome(r.s, me.c, me.ids, me.account, { now: r.now, today: r.local.day, origin, tokenFor: (a) => signLink(r.rt.secret, 'appt', a.code), receiptFor: r.meta.receiptLink, demo: isPersona(me), mail: !!me.session.em });
     // contact 'email': the salon writes by e-mail, so the space's own words say e-mail where they said SMS
     return mailMode(r.s) ? { ...home, contact: 'email' } : home;
   });

@@ -110,6 +110,9 @@ button:disabled { opacity: .5; cursor: default; }
 .c-days button[aria-pressed='true'] small, .c-days button[aria-pressed='true'] span { color: color-mix(in srgb, var(--paper) 72%, transparent); }
 .c-days button.full { opacity: .45; }
 .c-slots { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; }
+/* « Déplacer »: the days after the two weeks shown, and the day in view in words (the strip shows numbers only) */
+.c-later { display: inline-flex; align-items: center; align-self: flex-start; min-height: 44px; text-align: left; line-height: 1.3; }
+.c-later:disabled { opacity: .55; }
 .c-slots button { min-height: 48px; border-radius: 14px; box-shadow: inset 0 0 0 1.5px var(--line2); font: 600 15px/1 var(--sans); }
 .c-slots button:hover { background: var(--ink); color: var(--paper); }
 .c-spin { width: 28px; height: 28px; border-radius: 50%; border: 3px solid var(--line2); border-top-color: var(--ink); animation: spin .8s linear infinite; }
